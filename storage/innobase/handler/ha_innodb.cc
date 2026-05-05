@@ -14892,7 +14892,7 @@ int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx)
 	DBUG_ASSERT(worker_ctx && worker_ctx->m_pcoordinator);
 	auto exec_ctx= worker_ctx->m_pcoordinator->get_job_for_worker(worker_ctx);
 	if (exec_ctx == nullptr)
-		return HA_ERR_END_OF_FILE; // No more data
+          return HA_ERR_END_OF_FILE; // No more data
 
 	/* Save the prebuilt-owned search_tuple: parallel_get_next_row() points
 	  m_prebuilt->search_tuple at a chunk boundary key owned by the

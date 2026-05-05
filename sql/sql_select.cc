@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "mysqld_error.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -70,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "sql_parallel_workers.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -2792,6 +2794,122 @@ setup_subq_exit:
   DBUG_RETURN(0);
 }
 
+/*
+  @brief
+    Whether the access method the plan settled on is one the engine will hand
+    out in pieces.
+
+  @description
+    Asked of the driving table only, and asked about the *access method*: the
+    table-level question -- a real base table, no blob-backed columns, not
+    fulltext-searched, not partitioned, an engine that does this at all -- is
+    table_can_be_parallel_scanned()'s, and the caller asks it first. Keeping
+    the two apart matters because the optimizer's cost hook
+    (scale_cost_for_parallel_scan) asks only the table-level one, and a copy
+    here would be free to drift from it.
+*/
+
+static bool is_parallel_scan_applicable(JOIN_TAB *join_tab)
+{
+  /*
+    Two access methods are eligible: a table scan (EXPLAIN type=ALL) and a
+    range scan over one index. A range scan reaches here as either JT_ALL or
+    JT_RANGE, depending on how the plan arrived at it -- make_join_select()
+    promotes a ref to JT_RANGE when the range uses a longer key -- and both
+    read through join_init_read_record. read_first_record is checked next to
+    ->type because this runs after make_join_readinfo(), which is what actually
+    picked the reader.
+
+    A complete scan of one index (type=index, JT_NEXT) is NOT eligible, even
+    though InnoDB advertises PSCAN_INDEX_FULL. Handing one to the coordinator
+    trips dict_index_check_search_tuple() in InnoDB -- the search tuple carries
+    more fields than the index has unique fields in the tree. The engine side
+    of that (MDEV-40005) is newer than the worker side, and nothing in the SQL
+    layer has driven it yet; until it does, this is the check that keeps the
+    two apart.
+  */
+  if (!((join_tab->type == JT_ALL || join_tab->type == JT_RANGE) &&
+        join_tab->read_first_record == join_init_read_record))
+    return false;
+
+  /*
+    The plan may be relying on this table's rows arriving in index order to
+    satisfy ORDER BY or GROUP BY without a filesort, but a parallel scan
+    does not preserve that order. Reject parallelization in that case.
+  */
+  if (join_tab->join->ordered_index_usage != JOIN::ordered_index_void)
+    return false;
+
+  if (join_tab->filesort || join_tab->filesort_result ||
+      join_tab->need_to_build_rowid_filter || join_tab->rowid_filter ||
+      join_tab->distinct)
+    return false;
+
+  const uint32 pscan_support= join_tab->table->file->parallel_scan_support();
+  SQL_SELECT *sql_select= join_tab->select;
+
+  if (sql_select && sql_select->quick)
+  {
+    /*
+      The case of a range scan.
+      Only a plain range over the clustered index can be handed to the
+      parallel coordinator, and only if it has few enough intervals to be
+      worth splitting.
+
+      OLEGS: we try to make handler API engine-agnostic but here ^^^ we mention
+      "clustered index" which is only valid for InnoDB. In fact, what we currently
+       support is a full table scan which is indeed a scan of the clustered index
+       in InnoDB. Need to think about it
+
+      Why the clustered index and not any index: the coordinator converts each
+      endpoint against it -- ha_innobase's pscan_convert_key() builds the tuple
+      from table->s->primary_key -- so an interval over a secondary index would
+      be read as a primary-key interval and scan the wrong part of the table.
+      Asking for one is what trips dict_index_check_search_tuple(), the same
+      assertion the index scan above hits.
+    */
+    const uint MAX_PARALLEL_SCAN_RANGES= 128;
+    if (sql_select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE &&
+        sql_select->quick->index < join_tab->table->s->keys &&
+        join_tab->use_quick != 2 /*exclude dynamic range*/ &&
+        ((QUICK_RANGE_SELECT*) sql_select->quick)->num_ranges() <=
+          MAX_PARALLEL_SCAN_RANGES)
+    {
+      /*
+        The engine decides whether it can partition this particular index -
+        see ha_innobase::pscan_resolve_index(), which declines spatial, FTS,
+        virtual-column and descending indexes - and we fall back to the serial
+        reader on HA_ERR_UNSUPPORTED.
+
+        TODO: this looks very InnoDB-specific. We should have a more generic
+        way to ask the engine
+      */
+      if (!(join_tab->table->s->primary_key < MAX_KEY &&
+            sql_select->quick->index == join_tab->table->s->primary_key))
+        return false;                          // not the clustered index
+
+      /*
+        A rowid-ordered scan collects the row ids, sorts them and then sweeps
+        the clustered index in that order. Taking such a plan would quietly
+        throw the sorted sweep away. Leave it serial.
+      */
+      if (((QUICK_RANGE_SELECT*) sql_select->quick)->mrr_flags &
+          DSMRR_IMPL_SORT_ROWIDS)
+        return false;
+
+      return (pscan_support & handler::PSCAN_TABLE_RANGE) != 0;
+    }
+    else
+    {
+      return false;
+    }
+  }
+  else
+  {
+    return (pscan_support & handler::PSCAN_TABLE_FULL) != 0;
+  }
+}
+
 
 /*
   @brief
@@ -3580,6 +3698,45 @@ int JOIN::optimize_stage2()
 
   if (init_range_rowid_filters())
     DBUG_RETURN(1);
+
+  /*
+    Run this query's driving-table scan in parallel workers if possible.
+
+    1) worker threads are available;
+    2) the table itself is one a worker can read and ship
+       (table_can_be_parallel_scanned);
+    3) the access method the plan settled on is one the engine will divide
+       (is_parallel_scan_applicable), which is also where the engine's
+       parallel_scan_support() bitmap is matched against it.
+
+    This is the last thing optimize_stage2() decides, and it has to be:
+    everything above can still change the first table's access method, and
+    make_join_readinfo() -- which is where this check used to live -- runs
+    before test_if_skip_sort_order() has had its say. A table given an ordered
+    index scan after the fact is not one that can be handed out in chunks.
+
+    Engine-intrinsic constraints (consistent-read only, record format,
+    discarded tablespace, ...) are not known here. They are enforced later
+    inside parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED,
+    and parallel_init_read_record() then restores the serial reader.
+  */
+  {
+    JOIN_TAB *first= first_linear_tab(this, WITH_BUSH_ROOTS,
+                                      WITHOUT_CONST_TABLES);
+    if (thd->variables.parallel_worker_threads > 0 &&             //1
+        first && table_can_be_parallel_scanned(first->table) &&   //2
+        is_parallel_scan_applicable(first))                       //3
+    {
+      first->use_parallel_scan= true;
+      first->read_first_record= parallel_init_read_record;
+      if (unlikely(thd->trace_started()))
+      {
+        Json_writer_object trace_pscan(thd);
+        trace_pscan.add("chosen_for_parallel_scan",
+                        first->table->alias.c_ptr());
+      }
+    }
+  }
 
   error= 0;
 
@@ -4371,8 +4528,6 @@ bool JOIN::make_aggr_tables_info()
   DBUG_RETURN(false);
 }
 
-
-
 bool
 JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
                                  ORDER *table_group,
@@ -4405,13 +4560,20 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   if (tmp_table_keep_current_rowid)
     add_fields_for_current_rowid(tab, table_fields);
   tab->tmp_table_param->skip_create_table= true;
+
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
                                  save_sum_fields, select_options,
                                  table_rows_limit,
                                  &empty_clex_str, true, keep_row_order);
   if (!table)
-    DBUG_RETURN(true);
+    goto err;
+  // instantiate this now so the parallel worker manager can write to it
+  if (instantiate_tmp_table(table, tab->tmp_table_param->keyinfo,
+                                tab->tmp_table_param->start_recinfo,
+                                &tab->tmp_table_param->recinfo,
+                                select_options))
+    goto err;
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
@@ -4909,9 +5071,13 @@ int JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
+
   ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   res= exec_inner();
   ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
+
+  if (parallel_work_manager)
+    parallel_work_manager->finalize_parallel_workers(thd, this);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -9932,6 +10098,19 @@ best_access_path(JOIN      *join,
       }
     }
 
+    /*
+      A full table scan of the driving table can be shared across
+      parallel_worker_threads workers (see make_join_readinfo). Discount its
+      row-read/copy cost accordingly so the optimizer accounts for the
+      parallelism. Only the driving table (idx == const_tables) is ever
+      parallel-scanned, and 'cost' is a local copy, so the cached per-table
+      estimate is untouched.
+    */
+    if ((type == JT_ALL || type == JT_RANGE) &&
+        table_can_be_parallel_scanned(table) &&
+        idx == join->const_tables)
+      scale_cost_for_parallel_scan(thd, table, &cost);
+
      /*
        Note: the condition checked here is very out of date and incorrect.
        Below, we use a more accurate check when assigning the value of
@@ -13454,7 +13633,9 @@ bool JOIN::get_best_combination()
         j->index= cur_pos->forced_index;
       }
       else
+      {
         j->type= JT_ALL;
+      }
       if (cur_pos->use_join_buffer &&
           tablenr != const_tables)
 	full_join= 1;
@@ -16662,7 +16843,6 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       break;
     }
   }
-
   DBUG_RETURN(FALSE);
 }
 
@@ -16799,6 +16979,7 @@ void JOIN_TAB::cleanup()
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
+
     if (table->pos_in_table_list && table->pos_in_table_list->jtbm_subselect)
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
@@ -17244,6 +17425,16 @@ void JOIN::join_free()
   bool can_unlock= full;
   DBUG_ENTER("JOIN::join_free");
 
+  /*
+    Parallel-scan workers read this join's source and batch tables. cleanup()
+    below frees those tables, so the workers must be stopped and reaped first
+    -- otherwise a worker that has not yet seen the stop request dereferences a
+    freed table->file. On normal completion the workers have already finished,
+    so this is a cheap no-op.
+  */
+  if (parallel_work_manager)
+    parallel_work_manager->quiesce_workers();
+
   cleanup(full);
 
   for (tmp_unit= select_lex->first_inner_unit();
@@ -17424,6 +17615,12 @@ void JOIN::cleanup(bool full)
   if (current_ref_ptrs != items0)
   {
     set_items_ref_array(items0);
+  }
+
+  if (parallel_work_manager)
+  {
+    delete parallel_work_manager;
+    parallel_work_manager= NULL;
   }
   DBUG_VOID_RETURN;
 }
@@ -23309,12 +23506,13 @@ bool Virtual_tmp_table::check_assignability_from(const TABLE &table,
 }
 
 
-bool open_tmp_table(TABLE *table)
+bool open_tmp_table(TABLE *table, bool cross_thread)
 {
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            HA_OPEN_INTERNAL_TABLE |
+                                            (cross_thread? 0 :
+                                                       HA_OPEN_INTERNAL_TABLE) |
                                             HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
@@ -24321,7 +24519,8 @@ do_select(JOIN *join, Procedure *procedure)
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            TMP_ENGINE_COLUMNDEF *start_recinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
-                           ulonglong options)
+                           ulonglong options,
+                           bool cross_thread)
 {
   DBUG_ASSERT(table->s->keys == 0 || table->key_info == keyinfo);
   DBUG_ASSERT(table->s->keys <= 1);
@@ -24339,7 +24538,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
     empty_record(table);
     table->status= STATUS_NO_RECORD;
   }
-  if (open_tmp_table(table))
+  if (open_tmp_table(table, cross_thread))
     return TRUE;
 
   return FALSE;
@@ -31192,6 +31391,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
   }
   eta->type= tab_type;
+  eta->use_parallel_scan= use_parallel_scan;
 
   /* Build "possible_keys" value */
   // psergey-todo: why does this use thd MEM_ROOT??? Doesn't this 
