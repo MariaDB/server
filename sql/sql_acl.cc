@@ -12770,7 +12770,7 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
   }
 
   mysql_mutex_lock(&acl_cache->lock);
-  ACL_USER *acl_user= find_user_or_anon(user->host.str, user->user.str, user->host.str);
+  ACL_USER *acl_user= find_user_exact(user->host, user->user);
   if (acl_user)
     acl_user= acl_user->copy(thd->mem_root);
   mysql_mutex_unlock(&acl_cache->lock);

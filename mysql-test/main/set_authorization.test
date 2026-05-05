@@ -29,20 +29,17 @@ connection default;
 drop user foo@bar;
 
 # user() != current_user() (w/ wildcards)
+# With exact matching, anonymous/wildcard users cannot be targeted.
+# Anonymous users (empty username) are rejected before lookup.
 create user ''@'l%t' identified via mysql_native_password using password('foo');
 connect con1, localhost, root;
 select user(), current_user(), database();
-# sudo, with SET USER privilege
+# exact matching: fist@list does not exist as an exact account
+--error ER_NO_SUCH_USER
 set session authorization fist@list;
-select user(), current_user(), database();
-set @a:='not changed';
-# sudo without SET USER privilege (note, same CURRENT_USER)
---error ER_ACCESS_DENIED_CHANGE_USER_ERROR
-set session authorization first@last;
-select @a;
-# to self, no privileges needed
-set session authorization fist@list;
-select @a;
+# anonymous user (empty username) is always rejected
+--error ER_NO_SUCH_USER
+set session authorization ''@'l%t';
 disconnect con1;
 connection default;
 drop user ''@'l%t';
@@ -105,7 +102,7 @@ drop user u1@localhost;
 --echo # MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
 --echo #
 
-create user u1 with max_queries_per_hour 2;
+create user u1@localhost with max_queries_per_hour 2;
 connect u1,localhost,u1;
 
 set session authorization u1@localhost;
@@ -114,7 +111,7 @@ select 1;
 select 2;
 disconnect u1;
 connection default;
-drop user u1;
+drop user u1@localhost;
 
 --echo #
 --echo # MDEV-36401 Access denied errors produced by SET SESSION AUTHORIZATION not reflected in status values

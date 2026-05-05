@@ -34,19 +34,9 @@ select user(), current_user(), database();
 user()	current_user()	database()
 root@localhost	root@localhost	test
 set session authorization fist@list;
-select user(), current_user(), database();
-user()	current_user()	database()
-fist@list	@l%t	NULL
-set @a:='not changed';
-set session authorization first@last;
-ERROR 28000: Access denied trying to change to user 'first'@'last'
-select @a;
-@a
-not changed
-set session authorization fist@list;
-select @a;
-@a
-NULL
+ERROR HY000: The user 'fist'@'list' does not exist
+set session authorization ''@'l%t';
+ERROR HY000: The user ''@'l%t' does not exist
 disconnect con1;
 connection default;
 drop user ''@'l%t';
@@ -104,7 +94,7 @@ drop user u1@localhost;
 #
 # MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
 #
-create user u1 with max_queries_per_hour 2;
+create user u1@localhost with max_queries_per_hour 2;
 connect u1,localhost,u1;
 set session authorization u1@localhost;
 select 1;
@@ -114,7 +104,7 @@ select 2;
 ERROR 42000: User 'u1' has exceeded the 'max_queries_per_hour' resource (current value: 2)
 disconnect u1;
 connection default;
-drop user u1;
+drop user u1@localhost;
 #
 # MDEV-36401 Access denied errors produced by SET SESSION AUTHORIZATION not reflected in status values
 #
