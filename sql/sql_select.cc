@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "mysqld_error.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -70,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "sql_parallel_workers.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -4909,6 +4911,21 @@ int JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
+
+  // If we are a top level select statement
+  // TEMPORARY-PARALLEL-WORK-TEST:
+  if (!select_lex->outer_select() && thd->lex->sql_command == SQLCOM_SELECT &&
+      !parallel_work_manager)
+  {
+    if (!(parallel_work_manager= new (thd->mem_root) pwt_management) ||
+          parallel_work_manager->init_parallel_workers(thd))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "Failed to initialize parallel work mgr");
+      return 1;
+    }
+  }
+
   ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   res= exec_inner();
   ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
@@ -17333,6 +17350,16 @@ void JOIN::cleanup(bool full)
 
   if (full)
     have_query_plan= QEP_DELETED;
+
+  // TEMPORARY-PARALLEL-WORK-TEST:
+  if (parallel_work_manager)
+  {
+    // Finish work and delete the manager
+    if (parallel_work_manager->workers)
+      parallel_work_manager->join_parallel_workers(thd);
+    delete parallel_work_manager;
+    parallel_work_manager= NULL;
+  }
 
   if (original_join_tab)
   {
