@@ -1014,6 +1014,9 @@ The following specify which files/extra groups are read (specified before remain
  with less row combinations
  --path=name         Comma-separated list of schema names that defines the
  search order for stored routines
+ --perf-measure      Enable measuring some CPU/kernel performance counters
+ during query execution, and logging of the results to the
+ error log
  --performance-schema 
  Enable the performance schema
  --performance-schema-accounts-size=# 
@@ -2009,6 +2012,7 @@ optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
 optimizer-where-cost 0.032
 path CURRENT_SCHEMA
+perf-measure FALSE
 performance-schema FALSE
 performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE

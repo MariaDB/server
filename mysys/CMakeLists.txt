@@ -48,7 +48,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
                                 file_logger.c my_dlerror.c   crc32/crc32c.cc
                                 my_timezone.cc my_compr_int.cc my_thread_name.cc
-                                my_virtual_mem.c)
+                                my_virtual_mem.c my_perf.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -171,7 +171,7 @@ ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(mysys ${MYSYS_SOURCES})
 MAYBE_DISABLE_IPO(mysys)
-TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARIES}
+TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARIES} pfm
  ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO})
 DTRACE_INSTRUMENT(mysys)
 IF(WIN32)

@@ -747,6 +747,18 @@ Sys_binlog_direct(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
 
 
+static Sys_var_on_access<Sys_var_mybool,
+                PRIV_SET_SYSTEM_VAR_PERF_MEASURE,
+                PRIV_SET_SYSTEM_VAR_PERF_MEASURE>
+Sys_perf_measure(
+       "perf_measure",
+       "Enable measuring some CPU/kernel performance counters during query "
+       "execution, and logging of the results to the error log",
+       SESSION_VAR(perf_measure),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+
 static bool binlog_create_tmp_format_check(sys_var *self, THD *thd,
                                            set_var *var)
 {

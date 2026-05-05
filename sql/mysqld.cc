@@ -59,6 +59,7 @@
 #include <my_dir.h>
 #include <my_bit.h>
 #include "my_cpu.h"
+#include "my_perf.h"
 #include "slave.h"
 #include "rpl_mi.h"
 #include "sql_repl.h"
@@ -2065,6 +2066,7 @@ static void clean_up(bool print_message)
   delete_dynamic(&all_options);                 // This should be empty
   free_all_rpl_filters();
   wsrep_thr_deinit();
+  my_perf_deinit();
   my_uuid_end();
   delete type_handler_data;
   delete binlog_filter;
@@ -5130,6 +5132,8 @@ static int init_server_components()
 #endif
   }
 
+
+  my_perf_init();
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
