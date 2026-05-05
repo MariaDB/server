@@ -33,6 +33,7 @@
 #include "sql_update.h"
 
 #include "cset_narrowing.h"
+#include "sql_parallel_workers.h"
 
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
@@ -428,6 +429,7 @@ typedef struct st_join_table {
   bool          shortcut_for_distinct;
   bool          sorted;
   bool          cached_pfs_batch_update;
+  bool          use_parallel_scan;
 
   /* 
     If it's not 0 the number stored this field indicates that the index
@@ -1753,6 +1755,8 @@ public:
   */
   Sql_cmd_dml *sql_cmd_dml;
 
+  pwt_manager *parallel_work_manager{0};
+
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
     :fields_list(fields_arg)
@@ -1785,6 +1789,7 @@ public:
   int optimize_inner();
   int optimize_stage2();
   int optimize_stage2_and_finish();
+  void choose_parallel_scan();
   bool build_explain();
   int reinit();
   int init_execution();
@@ -1981,7 +1986,6 @@ private:
     In this case we can stop scanning t2 when we have found one t1.a
   */
   void optimize_distinct();
-
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
@@ -2690,8 +2694,9 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            TMP_ENGINE_COLUMNDEF *start_recinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
-                           ulonglong options);
-bool open_tmp_table(TABLE *table);
+                           ulonglong options,
+                           bool cross_thread= false);
+bool open_tmp_table(TABLE *table, bool cross_thread= false);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,

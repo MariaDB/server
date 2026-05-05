@@ -9971,6 +9971,7 @@ PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
 PSI_stage_info stage_waiting_for_reset_master= { 0, "Waiting for a running RESET MASTER to complete", 0};
+PSI_stage_info stage_reading_data_from_parallel_worker= { 0, "Reading data from parallel workers", 0};
 
 #ifdef WITH_WSREP
 // Additional Galera thread states
@@ -10063,6 +10064,11 @@ PSI_memory_key key_memory_user_var_entry_value;
 PSI_memory_key key_memory_String_value;
 PSI_memory_key key_memory_WSREP;
 PSI_memory_key key_memory_trace_ddl_info;
+PSI_memory_key key_memory_pwt_queued_event;
+PSI_memory_key key_memory_pwt_error_message;
+PSI_memory_key key_memory_pwt_workers;
+PSI_memory_key key_memory_pwt_db;
+PSI_memory_key key_memory_pwt_batch_rows;
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -10204,7 +10210,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_reading_semi_sync_ack,
   & stage_waiting_for_deadlock_kill,
   & stage_starting,
-  & stage_waiting_for_reset_master
+  & stage_waiting_for_reset_master,
+  & stage_reading_data_from_parallel_worker
 #ifdef WITH_WSREP
   ,
   & stage_waiting_isolation,
@@ -10316,6 +10323,9 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_trace_ddl_info, "TRACE_DDL_INFO", 0}
 };
 
+
+extern void pwt_init_psi_keys(void);
+
 /**
   Initialise all the performance schema instrumentation points
   used by the server.
@@ -10402,6 +10412,7 @@ void init_server_psi_keys(void)
   stmt_info_rpl.m_flags= PSI_FLAG_MUTABLE;
   mysql_statement_register(category, &stmt_info_rpl, 1);
 #endif
+  pwt_init_psi_keys();
 }
 
 #endif /* HAVE_PSI_INTERFACE */
