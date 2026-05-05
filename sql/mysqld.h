@@ -500,6 +500,11 @@ extern PSI_memory_key key_memory_Table_trigger_dispatcher;
 extern PSI_memory_key key_memory_native_functions;
 extern PSI_memory_key key_memory_WSREP;
 extern PSI_memory_key key_memory_trace_ddl_info;
+extern PSI_memory_key key_memory_pwt_queued_event;
+extern PSI_memory_key key_memory_pwt_error_message;
+extern PSI_memory_key key_memory_pwt_workers;
+extern PSI_memory_key key_memory_pwt_db;
+extern PSI_memory_key key_memory_pwt_batch_rows;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.
@@ -647,6 +652,7 @@ extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
 extern PSI_stage_info stage_waiting_for_reset_master;
+extern PSI_stage_info stage_reading_data_from_parallel_worker;
 #ifdef WITH_WSREP
 // Additional Galera thread states
 extern PSI_stage_info stage_waiting_isolation;
