@@ -340,7 +340,7 @@ DROP TABLE t1;
 #
 # Test how optimizer picks indexes defined on a GC
 #
-CREATE TABLE t1 (f1 int, gc int AS (f1 + 1) STORED, UNIQUE(gc));
+CREATE TABLE t1 (f1 int, gc bigint AS (f1 + 1) STORED, UNIQUE(gc));
 INSERT INTO t1(f1) VALUES (1),(2),(0),(9),(3),(4),(8),(7),(5),(6);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -354,20 +354,20 @@ f1	gc
 9	10
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	gc	gc	5	NULL	3	Using index condition
+1	SIMPLE	t1	range	gc	gc	9	NULL	3	Using index condition
 SELECT * FROM t1 WHERE f1 + 1 = 7;
 f1	gc
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 = 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	gc	gc	5	const	1	
+1	SIMPLE	t1	const	gc	gc	9	const	1	
 SELECT * FROM t1 WHERE f1 + 1 IN (7,5);
 f1	gc
 4	5
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 IN(7,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	gc	gc	5	NULL	2	Using index condition
+1	SIMPLE	t1	range	gc	gc	9	NULL	2	Using index condition
 SELECT * FROM t1 WHERE f1 + 1 BETWEEN 5 AND 7;
 f1	gc
 4	5
@@ -375,7 +375,7 @@ f1	gc
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 BETWEEN 5 AND 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	gc	gc	5	NULL	3	Using index condition
+1	SIMPLE	t1	range	gc	gc	9	NULL	3	Using index condition
 # Check that expression isn't transformed for a disabled key
 SELECT * FROM t1 IGNORE KEY (gc) WHERE f1 + 1 BETWEEN 5 AND 7;
 f1	gc
@@ -419,7 +419,7 @@ f1 + 1	MAX(GC)
 10	10
 EXPLAIN SELECT f1 + 1, MAX(GC) FROM t1 GROUP BY f1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	gc	5	NULL	10	
+1	SIMPLE	t1	index	NULL	gc	9	NULL	10	
 EXPLAIN SELECT f1 + 1, MAX(GC)
 FROM t1 IGNORE KEY (gc) GROUP BY f1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -432,11 +432,11 @@ f1	gc
 9	10
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7.0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	gc	gc	5	NULL	3	Using index condition
+1	SIMPLE	t1	range	gc	gc	9	NULL	3	Using index condition
 DROP TABLE t1;
 # Pick index with proper type
 CREATE TABLE t1 (f1 int,
-gc_int int AS (f1 + 1) STORED,
+gc_int bigint AS (f1 + 1) STORED,
 gc_date DATE AS (f1 + 1) STORED,
 KEY gc_int_idx(gc_int),
 KEY gc_date_idx(gc_date));
@@ -460,10 +460,10 @@ f1	gc_int	gc_date
 70707	70708	2007-07-08
 80808	80809	2008-08-09
 90909	90910	2009-09-10
-# INT column & index should be picked
+# BIGINT column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 070707;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	gc_int_idx	gc_int_idx	5	NULL	4	Using index condition
+1	SIMPLE	t1	range	gc_int_idx	gc_int_idx	9	NULL	4	Using index condition
 SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
 f1	gc_int	gc_date
 101010	101011	2010-10-11
@@ -475,7 +475,7 @@ EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	gc_int_idx	NULL	NULL	NULL	18	Using where
 Warnings:
-Note	1105	Cannot use key `gc_int_idx` part[0] for lookup: `test`.`t1`.`gc_int` of type `int` > "cast(70707 as date)" of type `date`
+Note	1105	Cannot use key `gc_int_idx` part[0] for lookup: `test`.`t1`.`gc_int` of type `bigint` > "cast(70707 as date)" of type `date`
 DROP TABLE t1;
 #
 # BUG#21229846: WL8170: SIGNAL 11 IN JOIN::MAKE_SUM_FUNC_LIST
@@ -502,6 +502,8 @@ ORDER BY field1, field2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	table1	ALL	PRIMARY	NULL	NULL	NULL	1	Using temporary; Using filesort
 1	SIMPLE	table2	eq_ref	PRIMARY	PRIMARY	4	test.table1.pk	1	
+Warnings:
+Note	1105	Cannot substitute virtual column expression `table1`.`col_int_key` + 1 -> col_int_gc_key due to failed supertype check
 SELECT  table1.col_int_key + 1 AS field1, table2.col_int_key AS field2
 FROM (t1 AS table1  JOIN t1 AS table2 ON (table2.pk = table1.pk))
 GROUP BY field1, field2;
@@ -513,6 +515,8 @@ GROUP BY field1, field2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	table1	ALL	PRIMARY	NULL	NULL	NULL	1	Using temporary; Using filesort
 1	SIMPLE	table2	eq_ref	PRIMARY	PRIMARY	4	test.table1.pk	1	
+Warnings:
+Note	1105	Cannot substitute virtual column expression `table1`.`col_int_key` + 1 -> col_int_gc_key due to failed supertype check
 DROP TABLE t1;
 #
 # Bug#21391781 ASSERT WHEN RUNNING ALTER TABLE ON A TABLE WITH INDEX

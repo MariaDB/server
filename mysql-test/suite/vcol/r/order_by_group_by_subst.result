@@ -4,17 +4,17 @@
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc int as (c + 1),
+add column vc bigint as (c + 1),
 add index(vc);
 explain select c from t order by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
 explain select vc from t order by vc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10000	Using index
 explain select vc from t order by vc limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10	Using index
 explain select c + 1 from t order by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
@@ -23,7 +23,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
 explain select vc from t order by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10000	Using index
 explain select vc from t order by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
@@ -35,26 +35,26 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
 explain select vc from t order by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	Using index
 explain select c + 1 from t order by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	
 explain select c + 1 from t order by vc limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	
 explain delete from t order by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	
 alter table t add column d int;
 explain update t set d = 500 order by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	Using buffer
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	Using buffer
 explain update t set d = 500 order by c limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	2	Using buffer
 explain update t set c = 500 order by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	Using buffer
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	Using buffer
 explain update t set c = 500 order by c limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	2	Using buffer
@@ -62,14 +62,14 @@ drop table t;
 create table t (c int);
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc int as (c + 1),
+add column vc bigint as (c + 1),
 add index(vc);
 explain select vc from t order by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10000	Using index
 explain select vc from t order by c + 1 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10	Using index
 drop table t;
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
@@ -77,17 +77,17 @@ alter table t
 add column vc1 int as (c + 1),
 add index(vc1);
 alter table t
-add column vc2 int as (vc1 * 2),
+add column vc2 bigint as (vc1 * 2),
 add index(vc2);
 explain select c from t order by vc2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
 explain select vc2 from t order by vc1 * 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc2	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc2	9	NULL	10000	Using index
 explain select vc2 from t order by vc1 * 2 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc2	5	NULL	2	Using index
+1	SIMPLE	t	index	NULL	vc2	9	NULL	2	Using index
 drop table t;
 create table t (c int, vc int generated always as (1 + 1) virtual, key (c));
 insert into t values (42, default), (83, default);
@@ -102,28 +102,28 @@ drop table t;
 create table t (c int);
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc1 int as (c + 1);
+add column vc1 bigint as (c + 1);
 alter table t
-add column vc2 int as (1 - c),
+add column vc2 bigint as (1 - c),
 add index(vc1, vc2);
 explain select vc1, vc2 from t order by c + 1, 1 - c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc1	10	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc1	18	NULL	10000	Using index
 drop table t;
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc int as (c + 1),
+add column vc bigint as (c + 1),
 add index(vc);
 explain select c from t group by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
 explain select vc from t group by vc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10000	Using index
 explain select vc from t group by vc limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10	Using index
 explain select c + 1 from t group by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
@@ -132,7 +132,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
 explain select vc from t group by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10000	Using index
 explain select vc from t group by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
@@ -144,25 +144,25 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
 explain select vc from t group by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	Using index
 explain select c + 1 from t group by c + 1 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	
 explain select c + 1 from t group by vc limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+1	SIMPLE	t	index	NULL	vc	9	NULL	2	
 drop table t;
 create table t (c int);
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc int as (c + 1),
+add column vc bigint as (c + 1),
 add index(vc);
 explain select vc from t group by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10000	Using index
 explain select vc from t group by c + 1 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+1	SIMPLE	t	index	NULL	vc	9	NULL	10	Using index
 drop table t;
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;
@@ -170,28 +170,28 @@ alter table t
 add column vc1 int as (c + 1),
 add index(vc1);
 alter table t
-add column vc2 int as (vc1 * 2),
+add column vc2 bigint as (vc1 * 2),
 add index(vc2);
 explain select c from t group by vc2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
 explain select vc2 from t group by vc1 * 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc2	5	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc2	9	NULL	10000	Using index
 explain select vc2 from t group by vc1 * 2 limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc2	5	NULL	2	Using index
+1	SIMPLE	t	index	NULL	vc2	9	NULL	2	Using index
 drop table t;
 create table t (c int);
 insert into t select seq from seq_1_to_10000;
 alter table t
-add column vc1 int as (c + 1);
+add column vc1 bigint as (c + 1);
 alter table t
-add column vc2 int as (1 - c),
+add column vc2 bigint as (1 - c),
 add index(vc1, vc2);
 explain select vc1, vc2 from t group by c + 1, 1 - c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	vc1	10	NULL	10000	Using index
+1	SIMPLE	t	index	NULL	vc1	18	NULL	10000	Using index
 drop table t;
 #
 # MDEV-37435 Assertion `field' failed in virtual bool Item_field::fix_fields(THD *, Item **)

@@ -798,7 +798,16 @@ public:
     DBUG_ASSERT(0);
     return nullptr;
   }
-
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    /* SYS_REFCURSOR cannot be a table column. */
+    DBUG_ASSERT(0);
+    return false;
+  }
 };
 
 
