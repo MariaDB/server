@@ -6,6 +6,7 @@
 
 --let $rpl_topology= 1->2->3
 --source include/rpl_init.inc
+--source include/not_embedded.inc
 -- source include/have_binlog_format_row.inc
 
 -- connection server_1
@@ -35,5 +36,26 @@
 -- let $row_img_set=server_1:FULL:N,server_2:FULL:Y,server_3:FULL:Y
 -- source include/rpl_row_img_set.inc
 
+
+--echo #
+--echo # MDEV-38899: Assert in prepare_record() with RBR NOBLOB and UNIQUE BLOB column
+--echo #
+--connection server_1
+SET binlog_row_image= NOBLOB;
+CREATE TABLE t_mdev38899 (id INT PRIMARY KEY, b BLOB NOT NULL,
+  UNIQUE KEY u (b(64))) ENGINE=InnoDB;
+INSERT INTO t_mdev38899 VALUES (1, 'hello'), (2, 'world');
+--source include/rpl_sync.inc
+--connection server_2
+SELECT id, CONVERT(b USING utf8) AS b FROM t_mdev38899 ORDER BY id;
+--connection server_1
+UPDATE t_mdev38899 SET id= 10 WHERE id= 1;
+--source include/rpl_sync.inc
+--connection server_2
+SELECT id, CONVERT(b USING utf8) AS b FROM t_mdev38899 ORDER BY id;
+--connection server_1
+SET binlog_row_image= DEFAULT;
+DROP TABLE t_mdev38899;
+--source include/rpl_sync.inc
 
 --source include/rpl_end.inc
