@@ -807,13 +807,13 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
 int json_scan_start(json_engine_t *je,
                     CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
 {
-  static const uchar no_time_to_die= 0;
+  static const uint32_t no_time_to_die= 0;
 
   json_string_setup(&je->s, i_cs, str, end);
   je->stack[0]= JST_DONE;
   je->stack_p= 0;
   je->state= JST_VALUE;
-  je->killed_ptr = (uchar*)&no_time_to_die;
+  je->killed_ptr=  (uint32_t *) &no_time_to_die;
   return 0;
 }
 
