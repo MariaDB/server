@@ -4702,6 +4702,7 @@ bool Item_func_collect::list_contains_element(String *wkb) {
 
 Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par) :
   Item_sum_str(thd, item_par),
+  has_cached_result(false),
   mem_root(thd->mem_root),
   is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
@@ -4712,11 +4713,14 @@ Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par)
 
 Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item) :
   Item_sum_str(thd, item),
+  has_cached_result(false),
   mem_root(thd->mem_root),
   is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
 {
   quick_group= false;
+  has_cached_result= item->has_cached_result;
+  cached_result= item->cached_result;
 }
 
 
