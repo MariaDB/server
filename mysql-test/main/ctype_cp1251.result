@@ -3408,12 +3408,12 @@ SELECT * FROM t1 WHERE (a XOR '0');
 a
  1
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '`1'
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
 SELECT * FROM t1 WHERE a=' 1' AND (a XOR '0');
 a
  1
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '`1'
+Warning	1292	Truncated incorrect DOUBLE value: '`1'
 # ' 1' should not be propagated into (a XIR '0')
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=' 1' AND (a XOR '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
