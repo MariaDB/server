@@ -145,7 +145,7 @@ drop table if exists t;
 --enable_warnings
 
 create table t(a int, b int check(b>0),
-               constraint b check(a<b), constraint a check(a>0),
+               constraint a_lt_b check(a<b), constraint a check(a>0),
                constraint x check (a>10));
 
 show create table t;
@@ -155,8 +155,8 @@ show create table t;
 --error ER_CONSTRAINT_FAILED
 insert into t values (-1, 0);
 
-# Generate error when table constraint 'b' is violated.
---echo # Table constraint 'b' will fail
+# Generate error when table constraint 'a_lt_b' is violated.
+--echo # Table constraint 'a_lt_b' will fail
 --error ER_CONSTRAINT_FAILED
 insert into t values (1,1);
 
@@ -338,5 +338,65 @@ insert into t1 values ("a");
 --error ER_TRUNCATED_WRONG_VALUE
 insert into t1 values ("b");
 drop table t1;
+
+--echo #
+--echo # MDEV-24598 Duplicate CHECK constraint names are allowed
+--echo #
+
+#
+# CREATE TABLE: explicit table-level name clashes with column-level check
+#
+
+--error ER_DUP_CONSTRAINT_NAME
+CREATE TABLE t1 (a INT CHECK (a>2), CONSTRAINT a CHECK (a < 5));
+
+--error ER_DUP_CONSTRAINT_NAME
+CREATE TABLE t2 (
+  path VARCHAR(100) NOT NULL,
+  json_c1 JSON NOT NULL DEFAULT '{}',
+  CONSTRAINT json_c1 CHECK (path > 0)
+);
+
+--error ER_DUP_CONSTRAINT_NAME
+CREATE TABLE t3 (a INT, CONSTRAINT c1 CHECK (a > 0),
+  CONSTRAINT c1 CHECK (a < 100));
+
+# Auto-generated constraint name should not duplicate a column-level check name
+CREATE TABLE t4 (CONSTRAINT_1 INT CHECK (CONSTRAINT_1 > 0),
+  CHECK (CONSTRAINT_1 < 100));
+SHOW CREATE TABLE t4;
+DROP TABLE t4;
+
+# ALTER TABLE ADD COLUMN: new column check clashes with existing constraint
+CREATE TABLE t5 (a INT, CONSTRAINT b CHECK (a > 0));
+--error ER_DUP_CONSTRAINT_NAME
+ALTER TABLE t5 ADD COLUMN b INT CHECK (b > 5);
+DROP TABLE t5;
+
+# ALTER TABLE ADD CONSTRAINT: new constraint name clashes with column-level check
+CREATE TABLE t6 (a INT CHECK (a > 0));
+--error ER_DUP_CONSTRAINT_NAME
+ALTER TABLE t6 ADD CONSTRAINT a CHECK (a < 100);
+DROP TABLE t6;
+
+# ALTER TABLE RENAME COLUMN: renamed column check clashes with existing constraint
+CREATE TABLE t7 (a INT CHECK (a > 0), CONSTRAINT new_a CHECK (a < 100));
+--error ER_DUP_CONSTRAINT_NAME
+ALTER TABLE t7 RENAME COLUMN a TO new_a;
+DROP TABLE t7;
+
+# ALTER TABLE ADD CHECK: auto-generated name must not clash with column-level check
+CREATE TABLE t8 (CONSTRAINT_1 INT CHECK (CONSTRAINT_1 > 0));
+ALTER TABLE t8 ADD CHECK (CONSTRAINT_1 < 100);
+SHOW CREATE TABLE t8;
+DROP TABLE t8;
+
+# ALTER TABLE ADD COLUMN whose name matches an existing auto-generated constraint
+CREATE TABLE t9 (a INT, CHECK (a > 0));
+SHOW CREATE TABLE t9;
+--error ER_DUP_CONSTRAINT_NAME
+ALTER TABLE t9 ADD COLUMN CONSTRAINT_1 INT CHECK (CONSTRAINT_1 > 5);
+SHOW CREATE TABLE t9;
+DROP TABLE t9;
 
 --echo # End of 10.11 tests
