@@ -165,7 +165,7 @@ public:
     case GET_BIT:
       return type != STRING_RESULT && type != INT_RESULT;
     case GET_DOUBLE:
-      return type != INT_RESULT && type != REAL_RESULT && type != DECIMAL_RESULT;
+      return !item->type_handler()->is_numeric();
     default:
       return true;
     }
