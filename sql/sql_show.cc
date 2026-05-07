@@ -5403,7 +5403,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-        if (!(thd->col_access & TABLE_ACLS))
+        if (!(thd->col_access & (TABLE_ACLS & ~GRANT_ACL)))
         {
           TABLE_LIST table_acl_check;
           table_acl_check.reset();
