@@ -1824,3 +1824,68 @@ drop table t1,t2;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-35747 Prepared statement with WITH ... AS (VALUES ... ) returns
+--echo #            wrong result
+--echo #
+
+--echo # The simplest form: a bare VALUES TVC as the prepared statement, no
+--echo # CTE.  The column takes its type from the bound value, so a later
+--echo # EXECUTE with a different type must report that new type.
+prepare stmt from 'values (?)';
+set @v= 1;
+execute stmt using @v;
+execute stmt using @v;
+set @v= 'abc';
+execute stmt using @v;
+deallocate prepare stmt;
+
+--echo # CTE whose body is a TVC with a parameter marker and an explicit column.
+prepare stmt from 'with t(id) as (values (?)) select t.id from t';
+set @v= 1;
+execute stmt using @v;
+execute stmt using @v;
+set @v= 'abc';
+execute stmt using @v;
+deallocate prepare stmt;
+
+--echo # Multi row VALUES with several parameter markers.
+prepare stmt from 'with t(id) as (values (?), (?)) select t.id from t order by id';
+set @v1= 10, @v2= 20;
+execute stmt using @v1, @v2;
+execute stmt using @v1, @v2;
+set @v1= 'aa', @v2= 'bb';
+execute stmt using @v1, @v2;
+deallocate prepare stmt;
+
+--echo # One row of several columns, so that each column has its own type
+--echo # holder.  The two columns swap types between the executions.
+prepare stmt from 'with t(a,b) as (values (?,?)) select t.a, t.b from t';
+set @v1= 1, @v2= 'abc';
+execute stmt using @v1, @v2;
+set @v1= 'xyz', @v2= 2;
+execute stmt using @v1, @v2;
+deallocate prepare stmt;
+
+--echo # The column type below is computed again on each execution and
+--echo # follows the value bound by that execution, so it reads as an
+--echo # integer, then as NULL, then as an integer again.  Nullability
+--echo # works differently.  A parameter marker has no value at PREPARE, so
+--echo # the column is nullable from then on and nothing later clears that,
+--echo # which is why Is_null stays Y throughout, including on the
+--echo # execution that binds a value after the NULL.
+prepare stmt from 'values (?)';
+--enable_metadata
+set @v= 1;
+execute stmt using @v;
+set @v= NULL;
+execute stmt using @v;
+set @v= 2;
+execute stmt using @v;
+--disable_metadata
+deallocate prepare stmt;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

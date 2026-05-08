@@ -8203,14 +8203,23 @@ protected:
 public:
   Item_type_holder(THD *thd, Item *item, const Type_handler *handler,
                    const Type_all_attributes *attr, bool maybe_null_arg)
-   :Item(thd), Type_handler_hybrid_field_type(handler),
-    enum_set_typelib(attr->get_typelib())
+   :Item(thd), Type_handler_hybrid_field_type(),
+    enum_set_typelib(nullptr)
   {
     name= item->name;
-    Type_std_attributes::set(*attr);
-    set_maybe_null(maybe_null_arg);
+    refresh(handler, attr, maybe_null_arg);
     copy_flags(item, item_base_t::IS_EXPLICIT_NAME |
                      item_base_t::IS_IN_WITH_CYCLE);
+  }
+
+  void refresh(const Type_handler *type_handler,
+               const Type_all_attributes *attr,
+               bool maybe_null_arg)
+  {
+    set_handler(type_handler);
+    Type_std_attributes::set(attr);
+    set_maybe_null(maybe_null_arg);
+    enum_set_typelib= attr->get_typelib();
   }
 
   const Type_handler *type_handler() const override
