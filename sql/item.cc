@@ -2733,11 +2733,18 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     if (conv->fix_fields_if_needed(thd, arg))
       return TRUE;
 
+    /*
+      Without the in_tvc test, every execution of a table value constructor
+      would allocate a new Item_direct_ref_to_item on the statement memory
+      root, because Type_holder::args[] is refilled from the original values
+      each time and first_cond_optimization is never cleared for a TVC.
+    */
     if (!thd->stmt_arena->is_conventional() &&
 	((!thd->lex->current_select &&
 	  (thd->stmt_arena->is_stmt_prepare_or_first_sp_execute() ||
            thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())) ||
-         thd->lex->current_select->first_cond_optimization))
+         (!thd->lex->current_select->in_tvc &&
+          thd->lex->current_select->first_cond_optimization)))
     {
       Query_arena *arena, backup;
       arena= thd->activate_stmt_arena_if_needed(&backup);
