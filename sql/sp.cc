@@ -1765,9 +1765,19 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->comment.str)
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment,
 						    system_charset_info);
+    if (thd->lex->definer)
+    {
+      char definer_str[USER_HOST_BUFF_SIZE];
+      uint definer_len= strxnmov(definer_str, sizeof(definer_str)-1,
+                                 thd->lex->definer->user.str, "@",
+                                 thd->lex->definer->host.str, NullS) - definer_str;
+
+      table->field[MYSQL_PROC_FIELD_DEFINER]->store(definer_str, definer_len, system_charset_info);
+    }
     if (chistics->agg_type != DEFAULT_AGGREGATE)
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
          store((longlong)chistics->agg_type, TRUE);
+
     if ((ret= table->file->ha_update_row(table->record[1],table->record[0])) &&
         ret != HA_ERR_RECORD_IS_THE_SAME)
       ret= SP_WRITE_ROW_FAILED;

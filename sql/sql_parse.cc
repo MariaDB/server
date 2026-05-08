@@ -6448,7 +6448,16 @@ alter_routine(THD *thd, LEX *lex)
   if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
                            &lex->spname->m_name, sph, 0))
     return 1;
+  if (lex->definer &&
+    (my_strcasecmp(system_charset_info, lex->definer->user.str, thd->security_ctx->priv_user) ||
+     my_strcasecmp(system_charset_info, lex->definer->host.str, thd->security_ctx->priv_host)) &&
+    check_global_access(thd, SUPER_ACL))
+  {
+    return 1;
+  }
+
   /*
+
     Note that if you implement the capability of ALTER FUNCTION to
     alter the body of the function, this command should be made to
     follow the restrictions that log-bin-trust-function-creators=0
