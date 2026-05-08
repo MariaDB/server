@@ -1,0 +1,7 @@
+#
+# MDEV-39513 connect table_type=INI memory leak
+#
+CREATE TABLE t (c INT) ENGINE=CONNECT table_type=INI file_name='TMP/foobar';;
+UPDATE t SET c=0;
+DROP TABLE t;
+# End of 11.4 tests

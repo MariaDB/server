@@ -621,18 +621,18 @@ void PROFILE_End(void)
   if (trace(3))
     htrc("PROFILE_End: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
 
-	if (!CurProfile)						   //	Sergey Vojtovich
-		return;
-
   /* Close all opened files and free the cache structure */
   for (i = 0; i < N_CACHED_PROFILES; i++) {
+    CurProfile = MRUProfile[i];
+    if (!CurProfile)
+      continue;
     if (trace(3))
-      htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
+      htrc("MRU=%s i=%d\n", SVP(CurProfile->filename), i);
 
-//  CurProfile = MRUProfile[i];			Sergey Vojtovich
-//  PROFILE_ReleaseFile();					see MDEV-9997
-    free(MRUProfile[i]);
+    PROFILE_ReleaseFile();
+    memfree(CurProfile);
     } // endfor i
+    CurProfile = NULL;
 
 }  // end of PROFILE_End
 
