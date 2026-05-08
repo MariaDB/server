@@ -1645,6 +1645,7 @@ sub command_line_setup {
 
   # Add leak suppressions
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
+     . ($ENV{LSAN_OPTIONS} ? ":$ENV{LSAN_OPTIONS}" : "")
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
