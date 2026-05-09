@@ -4925,8 +4925,7 @@ public:
 
   int  store_field(Field *from) override { return from->save_in_field(this); }
   int  store(const char *to,size_t length,CHARSET_INFO *charset) override;
-  int  store(double nr) override
-  { return Field_set::store((longlong) nr, FALSE); }
+  int  store(double nr) override;
   int  store(longlong nr, bool unsigned_val) override;
 
   bool zero_pack() const override { return true; }

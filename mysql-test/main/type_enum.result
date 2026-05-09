@@ -2629,4 +2629,37 @@ select * from t1;
 a
 drop table t1;
 set sql_mode=default;
+# MDEV-35715: ENUM double store UBSAN fix
+create table t1 (c enum('-1', '0', '1', '2', '3'));
+insert into t1 values (1.0), (2.0), (3.0);
+select c, length(c) as l from t1;
+c	l
+-1	2
+0	1
+1	1
+delete from t1;
+# Negative double -1.0 is not a valid enum index (1-based), out of range:
+insert into t1 values (-1.0);
+ERROR 01000: Data truncated for column 'c' at row 1
+# Out of range:
+insert into t1 values (6.0);
+ERROR 01000: Data truncated for column 'c' at row 1
+# Same out-of-range in non-strict mode:
+set statement sql_mode='' for insert into t1 values (6.0);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+select c, length(c) as l from t1;
+c	l
+	0
+delete from t1;
+# Overflow floats:
+insert into t1 values (1e+19);
+ERROR 01000: Data truncated for column 'c' at row 1
+set statement sql_mode='' for insert into t1 values (1e+19);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+select c, length(c) as l from t1;
+c	l
+	0
+drop table t1;
 # End of 10.11 tests

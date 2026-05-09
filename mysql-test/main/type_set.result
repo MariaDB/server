@@ -704,4 +704,35 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					COALESCE(c_int, c_set)	253	33	0	Y	0	39	33
 COALESCE(c_int, c_set)
 DROP TABLE t1;
+# MDEV-35715: SET double store UBSAN fix
+create table t1 (c set('a', 'b', 'c'));
+# Show that integer-equivalent doubles produce the same bitmap as integers:
+insert into t1 values (1.0), (2.0), (3.0);
+select c from t1;
+c
+a
+b
+a,b
+delete from t1;
+# Out-of-range overflow in strict mode:
+insert into t1 values (8.0);
+ERROR 01000: Data truncated for column 'c' at row 1
+# Same in non-strict:
+set statement sql_mode='' for insert into t1 values (8.0);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+select c from t1;
+c
+a,b,c
+delete from t1;
+# Large float overflow:
+insert into t1 values (1e+19);
+ERROR 01000: Data truncated for column 'c' at row 1
+set statement sql_mode='' for insert into t1 values (1e+19);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+select c from t1;
+c
+a,b,c
+drop table t1;
 # End of 10.11 tests

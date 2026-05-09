@@ -334,4 +334,29 @@ SELECT COALESCE(c_int, c_set)  FROM t1;
 
 DROP TABLE t1;
 
+--echo # MDEV-35715: SET double store UBSAN fix
+create table t1 (c set('a', 'b', 'c'));
+
+--echo # Show that integer-equivalent doubles produce the same bitmap as integers:
+insert into t1 values (1.0), (2.0), (3.0);
+select c from t1;
+delete from t1;
+
+--echo # Out-of-range overflow in strict mode:
+--error WARN_DATA_TRUNCATED
+insert into t1 values (8.0);
+
+--echo # Same in non-strict:
+set statement sql_mode='' for insert into t1 values (8.0);
+select c from t1;
+delete from t1;
+
+--echo # Large float overflow:
+--error WARN_DATA_TRUNCATED
+insert into t1 values (1e+19);
+set statement sql_mode='' for insert into t1 values (1e+19);
+select c from t1;
+
+drop table t1;
+
 --echo # End of 10.11 tests
