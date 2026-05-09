@@ -1,8 +1,13 @@
 #
-# For tests that need a lot of stack - they likely won't work under ASAN
+# For tests that need a lot of stack
+#
+# Both ASAN and UBSAN have extended stacks sizes
+# making writing tests that depend on reaching
+# the depth hard.
 #
 source include/not_asan.inc;
 source include/not_embedded.inc;
+source include/not_ubsan.inc;
 
 #
 # Bug#10100 function (and stored procedure?) recursivity problem
