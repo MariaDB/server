@@ -218,7 +218,7 @@ public:
   bool sp_create_routine(THD *thd, const sp_head *sp) const;
 
   int sp_update_routine(THD *thd, const Database_qualified_name *name,
-                        const st_sp_chistics *chistics) const;
+                        const st_sp_chistics *chistics, LEX_USER *definer = nullptr) const;
 
   int sp_drop_routine(THD *thd, const Database_qualified_name *name) const;
 

@@ -6448,6 +6448,13 @@ alter_routine(THD *thd, LEX *lex)
   if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
                            &lex->spname->m_name, sph, 0))
     return 1;
+  if (lex->definer)
+  {
+    if ((!lex_string_eq(&lex->definer->user, thd->security_ctx->priv_user, strlen(thd->security_ctx->priv_user)) ||
+      !lex_string_eq(&lex->definer->host, thd->security_ctx->priv_host, strlen(thd->security_ctx->priv_host))) &&
+      check_global_access(thd, SET_USER_ACL | SUPER_ACL))
+      return 1;
+  }
   /*
     Note that if you implement the capability of ALTER FUNCTION to
     alter the body of the function, this command should be made to
@@ -6455,7 +6462,7 @@ alter_routine(THD *thd, LEX *lex)
     already puts on CREATE FUNCTION.
   */
   /* Conditionally writes to binlog */
-  sp_result= sph->sp_update_routine(thd, lex->spname, &lex->sp_chistics);
+  sp_result= sph->sp_update_routine(thd, lex->spname, &lex->sp_chistics, lex->definer);
   switch (sp_result) {
   case SP_OK:
     my_ok(thd);

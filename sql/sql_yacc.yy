@@ -1777,7 +1777,7 @@ rule:
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role role_name
-                 user_name
+                 user_name sp_a_chistic
 
 %type <user_auth> opt_auth_str auth_expression auth_token
                   text_or_password
@@ -3395,7 +3395,12 @@ sp_name:
 
 sp_a_chistics:
           /* Empty */ {}
-        | sp_a_chistics sp_chistic {}
+        | sp_a_chistics sp_a_chistic {}
+        ;
+
+sp_a_chistic:
+        sp_chistic {}
+        | definer {}
         ;
 
 sp_c_chistics:

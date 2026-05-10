@@ -1,0 +1,17 @@
+# ALTER PROCEDURE DEFINER
+CREATE USER 'user1'@'localhost';
+GRANT ALL PRIVILEGES ON test.* TO 'user1'@'localhost';
+connect  con1, localhost, user1, , test;
+CREATE PROCEDURE p1() SELECT 1;
+ALTER PROCEDURE p1 DEFINER = 'user1'@'localhost';
+ALTER PROCEDURE p1 DEFINER = 'root'@'localhost';
+ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+connection default;
+ALTER PROCEDURE p1 DEFINER = 'root'@'localhost';
+SELECT definer FROM mysql.proc WHERE name = 'p1';
+definer
+root@localhost
+DROP PROCEDURE p1;
+DROP USER 'user1'@'localhost';
+Warnings:
+Note	4227	Dropped users 'user1'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.

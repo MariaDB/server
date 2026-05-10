@@ -1711,7 +1711,7 @@ Sp_handler::sp_drop_routine(THD *thd,
 
 int
 Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
-                              const st_sp_chistics *chistics) const
+                              const st_sp_chistics *chistics, LEX_USER *definer) const
 {
   TABLE *table;
   int ret;
@@ -1768,6 +1768,20 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->agg_type != DEFAULT_AGGREGATE)
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
          store((longlong)chistics->agg_type, TRUE);
+    if (definer)
+    {
+      if (definer->user.str && definer->host.str)
+      {
+        char definer_str[USER_HOST_BUFF_SIZE];
+        uint definer_len= strxmov(definer_str, definer->user.str, "@",
+                                  definer->host.str, NullS) -
+                          definer_str;
+        table->field[MYSQL_PROC_FIELD_DEFINER]->set_notnull();
+        table->field[MYSQL_PROC_FIELD_DEFINER]->store(definer_str, definer_len,
+                                                      system_charset_info);
+        sp_cache_invalidate();
+      }
+    }
     if ((ret= table->file->ha_update_row(table->record[1],table->record[0])) &&
         ret != HA_ERR_RECORD_IS_THE_SAME)
       ret= SP_WRITE_ROW_FAILED;
