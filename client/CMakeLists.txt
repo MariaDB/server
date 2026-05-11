@@ -53,8 +53,12 @@ SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
 MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)
 TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 
+ADD_LIBRARY(mysql8_translate STATIC mysql8_translate.cc mysql8_translate.h)
+TARGET_LINK_LIBRARIES(mysql8_translate PRIVATE mysys strings dbug)
+TARGET_INCLUDE_DIRECTORIES(mysql8_translate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
-TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB} mysql8_translate)
 
 ADD_LIBRARY(import_util STATIC import_util.cc import_util.h)
 IF (PCRE2_DEBIAN_HACK)

@@ -1,0 +1,146 @@
+--echo # MDEV-24557 mariadb-dump: import MySQL 8.x users, grants, roles: grants
+--echo #
+--echo # Imports mysql8_users_dump.sql, a dump of MySQL 26.7.0, and checks grants and identifier handling.
+--echo # Recapture it after changing the MySQL-source code (recipe in
+--echo # std_data/mysql8_users_setup.sql).
+
+--source mariadb-dump-mysql8-import.inc
+
+--echo # 1. Every m8_* user landed.
+SELECT user, host FROM mysql.global_priv WHERE user LIKE 'm8\\_%' ORDER BY user, host;
+
+--echo # 2. Simple static grants pass through unchanged.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_simple'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_static_priv'@'%';
+
+--echo # 3. Dynamic priv mapping (BINLOG_ADMIN -> BINLOG REPLAY/ADMIN).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_dyn_mapped'@'%';
+
+--echo # 4. Mixed dynamic priv (some mapped, some not).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_dyn_mixed'@'%';
+
+--echo # 5. WITH GRANT OPTION of a translated dynamic privilege is dropped.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_dyn_grant_opt'@'%';
+
+--echo # 6. CREATE ROLE / DROP ROLE static privs dropped.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_role_static'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_static_role_mix'@'%';
+
+--echo # 7. Identifier parsing: column / db underscores don't false-positive.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_col_priv'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_db_underscore'@'%';
+
+--echo # 8. Identifier parsing: edge-case usernames and hostnames.
+SELECT user, host FROM mysql.global_priv
+  WHERE user IN ('m8 edge space','m8_edge@in_name','m8_edge_wildcard_host')
+  ORDER BY user, host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_edge_wildcard_host'@'192.168.%.%';
+
+--echo # 9. ALL PRIVILEGES expands and survives import.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_all_privs'@'%';
+
+--echo # 10. Multi-scope grants for one user.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_multiscope'@'%';
+
+--echo # 11. Routine privileges land in mysql.procs_priv.
+SELECT User, Host, Db, Routine_name, Routine_type, Proc_priv
+  FROM mysql.procs_priv
+  WHERE User LIKE 'm8\\_%'
+  ORDER BY User, Host, Routine_type, Routine_name;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_routine_admin'@'%';
+
+--echo # 12. PROXY grant lands in mysql.proxies_priv.
+SELECT User, Host, Proxied_user, Proxied_host
+  FROM mysql.proxies_priv
+  WHERE User='m8_proxy_user'
+  ORDER BY User, Host;
+
+--echo # 13. USAGE-only user lands with the implicit GRANT USAGE.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_usage_only'@'%';
+
+--echo # 14. System-schema grants (mysql.user, performance_schema.*).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_system_grants'@'%';
+
+--echo # 15. Same-name-different-host coverage.
+SELECT User, Host FROM mysql.global_priv
+  WHERE User IN ('m8_host_localhost','m8_host_dual')
+  ORDER BY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_host_localhost'@'localhost';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_host_dual'@'localhost';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_host_dual'@'%';
+
+--echo # 16. Identifier edge cases: anonymous + embedded quote + UTF-8.
+--echo # ORDER BY BINARY for collation-stable byte-level ordering across
+--echo # servers running different default collations.
+SELECT User, Host FROM mysql.global_priv
+  WHERE User='' OR User='O\'Brien' OR User='m8_用户'
+  ORDER BY BINARY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'O\'Brien'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_用户'@'%';
+
+--echo # 17. Partial REVOKE. m8_partial_revoke has a wide GRANT on *.* and a
+--echo #     partial REVOKE on m8_db.*. MariaDB has no equivalent, so only the
+--echo #     wide GRANT lands (the dump carries a # WARNING for the REVOKE).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_partial_revoke'@'%';
+
+# The anonymous localhost user would shadow the m8_*@'%' logins.
+DROP USER ''@'localhost';
+
+# The fixture users have caching_sha2_password, which needs TLS or RSA over TCP.
+# Switch the ones that connect; the semantics checked do not depend on the plugin.
+ALTER USER 'm8_col_priv'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'm8_role_static'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'm8_proc_exec'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+
+--echo # m8_col_priv: SELECT/UPDATE on granted columns; non-granted denied.
+connect (c_col, localhost, m8_col_priv, pw, m8_db);
+SELECT col_a, col_underscore_b FROM m8_db.tab;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT plain FROM m8_db.tab;
+UPDATE m8_db.tab SET col_a = 1 WHERE col_a IS NULL OR col_a IS NOT NULL;
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE m8_db.tab SET plain = 1;
+disconnect c_col;
+connection default;
+
+--echo # m8_role_static landed with USAGE only -> CREATE/DROP ROLE denied.
+connect (c_rs, localhost, m8_role_static, pw);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE ROLE m8_should_fail_role;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DROP ROLE IF EXISTS m8_role_a;
+disconnect c_rs;
+connection default;
+
+--echo # m8_proc_exec: EXECUTE works; DROP PROCEDURE denied.
+connect (c_proc, localhost, m8_proc_exec, pw, m8_db);
+CALL m8_db.proc_one(42);
+--error ER_PROCACCESS_DENIED_ERROR
+DROP PROCEDURE m8_db.proc_one;
+disconnect c_proc;
+connection default;
+
+--source mariadb-dump-mysql8-import-cleanup.inc
+
+--echo # End of 13.1 tests

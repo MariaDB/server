@@ -102,6 +102,27 @@ eval CREATE AGGREGATE FUNCTION avgcost RETURNS REAL SONAME "$UDF_EXAMPLE_SO";
 --exec $MYSQL_DUMP --skip-comments --system=all --insert-ignore --no-autocommit=0
 
 
+--echo #
+--echo # --insert-ignore takes precedence over --replace
+--echo #
+
+--exec $MYSQL_DUMP --system=users --replace --insert-ignore > $MYSQLTEST_VARDIR/tmp/dump_both.sql 2> $MYSQLTEST_VARDIR/tmp/dump_both.err
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/dump_both.err
+--let SEARCH_PATTERN= --replace is ignored, --insert-ignore takes precedence
+--let SEARCH_ABORT= NOT FOUND
+--source include/search_pattern_in_file.inc
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/dump_both.sql
+--let SEARCH_PATTERN= OR REPLACE|DROP USER IF EXISTS
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= CREATE USER IF NOT EXISTS
+--let SEARCH_ABORT= NOT FOUND
+--source include/search_pattern_in_file.inc
+--let SEARCH_ABORT=
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_both.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_both.err
+
+
 # global_priv checksum not restored because:
 # mariadb.sys - different Priv on restore
 # password_last_changed date isn't saved/restored

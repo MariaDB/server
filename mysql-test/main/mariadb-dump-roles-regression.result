@@ -1,0 +1,143 @@
+# MDEV-24557 mariadb-dump: import MySQL 5.7 and 8.x users, grants, roles
+#
+# A role hierarchy dumped and restored by mariadb-dump --system=users;
+# a second dump must be identical.
+#
+#
+# Hierarchy:
+#   admin_role  -- admin of mid_role
+#   mid_role    -- admin of leaf_role
+#   leaf_role   -- granted to test_user (default); administered by
+#                  mid_role (depth 3) and test_user (depth 1), so the
+#                  role is reached at two non-adjacent depths
+#   plain_role  -- granted to test_user (non-default), administered by
+#                  test_user and root: two admin rows for one role
+#
+CREATE USER test_user@localhost IDENTIFIED BY 'pw';
+CREATE ROLE admin_role;
+CREATE ROLE mid_role  WITH ADMIN admin_role;
+CREATE ROLE leaf_role WITH ADMIN mid_role;
+CREATE ROLE plain_role;
+GRANT SELECT             ON *.* TO admin_role;
+GRANT INSERT, UPDATE     ON *.* TO mid_role;
+GRANT SHOW DATABASES     ON *.* TO leaf_role;
+GRANT PROCESS            ON *.* TO plain_role;
+GRANT leaf_role  TO test_user@localhost WITH ADMIN OPTION;
+GRANT plain_role TO test_user@localhost WITH ADMIN OPTION;
+SET DEFAULT ROLE leaf_role FOR test_user@localhost;
+DROP USER test_user@localhost;
+DROP ROLE plain_role;
+DROP ROLE leaf_role;
+DROP ROLE mid_role;
+DROP ROLE admin_role;
+CREATE USER test_restore IDENTIFIED BY 'r';
+GRANT ALL ON *.* TO test_restore WITH GRANT OPTION;
+GRANT PROXY ON ''@'%' TO test_restore WITH GRANT OPTION;
+# The import role is gone and the restoring user is not left as admin:
+SELECT User, Role FROM mysql.roles_mapping
+WHERE User='test_restore' OR Role='mariadb_dump_import_role';
+User	Role
+DROP USER test_restore;
+# A second dump is identical: users, grants, roles, admin options and
+# default roles survived.
+# The restored state is the hierarchy above, so an omission cannot pass:
+SELECT User, Host, Role, Admin_option FROM mysql.roles_mapping
+WHERE Role LIKE '%\\_role' ORDER BY Role, User, Host;
+User	Host	Role	Admin_option
+root	localhost	admin_role	Y
+mid_role		leaf_role	Y
+test_user	localhost	leaf_role	Y
+admin_role		mid_role	Y
+root	localhost	plain_role	Y
+test_user	localhost	plain_role	Y
+SELECT User, Host, default_role FROM mysql.user WHERE User='test_user';
+User	Host	default_role
+test_user	localhost	leaf_role
+#
+# --replace import refuses to run as the user it would drop
+#
+CREATE USER test_self@localhost IDENTIFIED BY 'pw';
+CREATE USER test_other@localhost IDENTIFIED BY 'pw';
+# the whole dump, run by the guarded user: refused by the guard, not
+# by a DROP USER privilege error
+FOUND 1 /(?:\A|\n)ERROR 30001 \(45000\) at line \d+: Cannot remove the current user during import/ in guard_self.err
+# the guard alone, run by the guarded user: refused
+FOUND 1 /(?:\A|\n)ERROR 30001 \(45000\) at line \d+: Cannot remove the current user during import/ in guard_self.err
+# any other user: passes
+DROP USER test_self@localhost;
+DROP USER test_other@localhost;
+#
+# A name with a comment end is split over string literals in an
+# EXECUTE IMMEDIATE, not emitted inside a /*M!...*/ comment.
+#
+CREATE USER test_ss@localhost IDENTIFIED BY 'pw';
+CREATE USER `u_ss*/x`@localhost IDENTIFIED BY 'pw';
+CREATE ROLE `r_ss*/x`;
+CREATE ROLE r_admin;
+GRANT SELECT ON *.* TO `r_ss*/x`;
+GRANT `r_ss*/x` TO r_admin WITH ADMIN OPTION;
+GRANT `r_ss*/x` TO test_ss@localhost WITH ADMIN OPTION;
+# also with a newline, a quote and a backslash
+CREATE ROLE `r_nl*/
+INJECTED_NL_MARKER'\`;
+# no version comment line holds a comment end before its own (expect NOT FOUND):
+NOT FOUND /(?:\A|\n)/\*M![^\n]*\*/[^\n]*\*// in dump_starslash.sql
+# the role and the user are emitted split (expect FOUND):
+FOUND 1 /EXECUTE IMMEDIATE CONCAT\('CREATE OR REPLACE ROLE ''r_ss\*', '/x''/ in dump_starslash.sql
+FOUND 1 /EXECUTE IMMEDIATE CONCAT\('DROP USER IF EXISTS [^\n]*u_ss\*', '/x/ in dump_starslash.sql
+FOUND 1 /current_user\(\)=CONCAT\('u_ss\*', '/x@localhost'\)/ in dump_starslash.sql
+# the dump disables account auto-creation (expect FOUND):
+FOUND 1 /sql_mode=CONCAT_WS\(',', NULLIF\(\@\@sql_mode, ''\), 'NO_AUTO_CREATE_USER'\)/ in dump_starslash.sql
+# the dump imports and recreates the names intact:
+DROP USER test_ss@localhost;
+DROP USER `u_ss*/x`@localhost;
+DROP ROLE `r_ss*/x`;
+DROP ROLE r_admin;
+DROP ROLE `r_nl*/
+INJECTED_NL_MARKER'\`;
+CREATE USER test_restore IDENTIFIED BY 'r';
+GRANT ALL ON *.* TO test_restore WITH GRANT OPTION;
+GRANT PROXY ON ''@'%' TO test_restore WITH GRANT OPTION;
+DROP USER test_restore;
+SELECT user AS User, host AS Host, is_role FROM mysql.user
+WHERE user LIKE 'u\_ss%' OR user LIKE 'r\_ss%' OR user LIKE 'r\_nl%'
+  ORDER BY user;
+User	Host	is_role
+r_nl*/
+INJECTED_NL_MARKER'\		Y
+r_ss*/x		Y
+u_ss*/x	localhost	N
+SHOW GRANTS FOR `r_ss*/x`;
+Grants for r_ss*/x
+GRANT SELECT ON *.* TO `r_ss*/x`
+SHOW GRANTS FOR test_ss@localhost;
+Grants for test_ss@localhost
+GRANT `r_ss*/x` TO `test_ss`@`localhost` WITH ADMIN OPTION
+GRANT USAGE ON *.* TO `test_ss`@`localhost` IDENTIFIED BY PASSWORD '*D821809F681A40A6E379B50D0463EFAE20BDD122'
+DROP USER test_ss@localhost;
+DROP USER `u_ss*/x`@localhost;
+DROP ROLE `r_ss*/x`;
+DROP ROLE r_admin;
+DROP ROLE `r_nl*/
+INJECTED_NL_MARKER'\`;
+#
+# A server whose version string has no "MariaDB" is still a MariaDB
+# source: roles, their grants and default roles are dumped
+#
+# restart: --version=8.0.40
+CREATE ROLE r_ver;
+CREATE USER u_ver@localhost;
+GRANT SELECT ON *.* TO r_ver;
+GRANT r_ver TO u_ver@localhost;
+SET DEFAULT ROLE r_ver FOR u_ver@localhost;
+FOUND 2 /ROLE 'r_ver'/ in dump_version.sql
+FOUND 1 /GRANT `r_ver` TO `u_ver`@`localhost`/ in dump_version.sql
+FOUND 1 /SET DEFAULT ROLE 'r_ver' FOR 'u_ver'@'localhost'/ in dump_version.sql
+# a table named mysql.role_edges does not make it look like MySQL 8:
+# the dump is the same
+CREATE TABLE mysql.role_edges (FROM_HOST CHAR(255));
+DROP TABLE mysql.role_edges;
+DROP USER u_ver@localhost;
+DROP ROLE r_ver;
+# restart
+# End of 13.1 tests

@@ -61,6 +61,7 @@
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 #include "connection_pool.h"
+#include "mysql8_translate.h"
 /* Exit codes */
 
 #define EX_USAGE 1
@@ -1448,6 +1449,13 @@ static int get_options(int *argc, char ***argv)
       return(EX_USAGE);
     }
   }
+  if (opt_replace_into && opt_ignore)
+  {
+    /* REPLACE IGNORE and OR REPLACE ... IF NOT EXISTS are not valid SQL. */
+    fprintf(stderr, "%s: Warning: --replace is ignored, "
+            "--insert-ignore takes precedence.\n", my_progname_short);
+    opt_replace_into= 0;
+  }
   if (opt_asof_timestamp && strchr(opt_asof_timestamp, '\''))
   {
     fprintf(stderr, "%s: Incorrect DATETIME value: '%s'\n",
@@ -1514,6 +1522,14 @@ static void die(int error_num, const char* fmt_reason, ...)
 
   ignore_errors= 0; /* force the exit */
   maybe_exit(error_num);
+}
+
+
+/* Fatal-error hook of the translators; die() restarts a stopped slave. */
+void dump_fatal(const char *msg)
+{
+  die(EX_EOM, "%s", msg);
+  exit(EX_EOM); /* die() is not declared noreturn */
 }
 
 
@@ -4588,12 +4604,97 @@ static char *getTableName(int reset, int want_sequences)
 
 
 /*
-  dump user/role grants
-  ARGS
-  user_role: is either a user, or a role
+  True if mysql.<table> is visible to the dumping user. A failed probe is
+  fatal even under --force: treating the table as absent would silently
+  drop the roles from the dump.
 */
+static bool mysql_table_exists(const char *table)
+{
+  MYSQL_RES *res;
+  char query[200];
+  bool found= false;
 
-static int dump_grants(const char *user_role)
+  my_snprintf(query, sizeof(query),
+              "SELECT 1 FROM information_schema.TABLES "
+              "WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='%s'", table);
+  if (mysql_query_with_error_report(mysql, &res, query))
+    dump_fatal("Couldn't tell which mysql tables the source has");
+  found= mysql_num_rows(res) > 0;
+  mysql_free_result(res);
+  return found;
+}
+
+/*
+  What the source is. The version number cannot tell MySQL from MariaDB
+  (MariaDB 10+ is >= 80000, MySQL 26.x is above MariaDB 13.x, and
+  --version=8.0.40 drops "MariaDB" from the version string). So MariaDB is
+  the version string or mysql.roles_mapping (10.0.5+), and MySQL 8.0+ is
+  confirmed by mysql.role_edges.
+
+  mysql (MySQL 5.7+) output of SHOW GRANTS and SHOW CREATE USER goes through
+  the translators, as MariaDB rejects some of it.
+*/
+struct Source_dialect
+{
+  bool mariadb, mysql, mysql8, maria_roles;
+};
+
+static const Source_dialect &source_dialect()
+{
+  static Source_dialect d;
+  static bool known= false;
+  if (!known)
+  {
+    unsigned long version= mysql_get_server_version(mysql);
+    d.maria_roles= mysql_table_exists("roles_mapping");
+    d.mariadb= strstr(mysql_get_server_info(mysql), "MariaDB") ||
+               d.maria_roles;
+    d.mysql= !d.mariadb && version >= 50700;
+    d.mysql8= d.mysql && version >= 80000 && mysql_table_exists("role_edges");
+    known= true;
+  }
+  return d;
+}
+
+/*
+  MySQL 8 has no is_role column: an account is a pure role, a pure user, or
+  both (a login account granted to others). MariaDB keeps them apart, so
+  "both" is dumped as a user and as a role of the same name.
+
+  MYSQL8_ROLE_HEURISTIC: the mysql.user shape CREATE ROLE leaves behind.
+  MYSQL8_GRANTED_ONWARD: the account is granted to others, so also a role.
+
+  `t` is the mysql.user alias with its dot ("u.", "mu.").
+*/
+#define MYSQL8_ROLE_HEURISTIC(t) \
+  t "account_locked='Y' AND IFNULL(" t "authentication_string, '')='' AND " \
+  t "password_expired='Y'"
+#define MYSQL8_GRANTED_ONWARD(t) \
+  "EXISTS (SELECT 1 FROM mysql.role_edges ro " \
+  "        WHERE ro.FROM_USER=" t "User AND ro.FROM_HOST=" t "Host)"
+
+/*
+  Worst case of "<QUOTE(user)>@<QUOTE(host)>" with the NUL: QUOTE(s) is up
+  to 2 + 2*strlen(s) bytes. Also sizes the quote_for_equal() buffer.
+*/
+static constexpr size_t MAX_QUOTED_USER_HOST_LEN=
+  2*USERNAME_LENGTH + 2*HOSTNAME_LENGTH + 6;
+
+/* CREATE a role administered by the import role, so the importer can grant it. */
+static void emit_create_role(const char *quoted_role)
+{
+  dump_emit_versioned_wrap(md_result_file,
+    opt_replace_into ? "/*M!100103 " : "/*M!100005 ",
+    "CREATE %sROLE %s%s WITH ADMIN mariadb_dump_import_role",
+    opt_replace_into ? "OR REPLACE " : "",
+    opt_ignore ? "IF NOT EXISTS " : "", quoted_role);
+}
+
+/*
+  Dump grants for a user or role. For a MySQL role, role_name is its
+  quoted bare name, used as the grantee: a MariaDB role has no host.
+*/
+static int dump_grants(const char *user_role, const char *role_name)
 {
   DYNAMIC_STRING sqlbuf;
   MYSQL_ROW row;
@@ -4609,20 +4710,32 @@ static int dump_grants(const char *user_role)
   }
   while ((row= mysql_fetch_row(tableres)))
   {
+    DBUG_ASSERT(row[0]);
     if (strncmp(row[0], "SET DEFAULT ROLE", sizeof("SET DEFAULT ROLE") - 1) == 0)
       continue;
+
+    if (source_dialect().mysql)
+    {
+      if (strncmp(row[0], "GRANT ", 6) == 0 &&
+          translate_mysql8_grant(row[0], md_result_file, role_name))
+        continue;
+      if (strncmp(row[0], "REVOKE ", 7) == 0)
+      {
+        translate_mysql8_revoke(row[0], md_result_file);
+        continue;
+      }
+    }
+
     fprintf(md_result_file, "%s;\n", row[0]);
   }
+  check_io(md_result_file);
   mysql_free_result(tableres);
   dynstr_free(&sqlbuf);
   return 0;
 }
 
 
-/*
-  dump create user
-*/
-
+/* dump CREATE USER, translating MySQL 5.7+ syntax when needed */
 static int dump_create_user(const char *user)
 {
   DYNAMIC_STRING sqlbuf;
@@ -4639,9 +4752,24 @@ static int dump_create_user(const char *user)
   }
   while ((row= mysql_fetch_row(tableres)))
   {
-    fprintf(md_result_file, "CREATE %sUSER %s%s;\n", opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
+    DBUG_ASSERT(row[0]);
+
+    /* Starts with the space translate_mysql8_create_user() expects. */
+    const char *user_str= row[0] + sizeof("CREATE USER") - 1;
+
+    if (source_dialect().mysql)
+    {
+      translate_mysql8_create_user(user_str, md_result_file,
+                                   opt_replace_into, opt_ignore);
+      check_io(md_result_file);
+      continue;
+    }
+
+    fprintf(md_result_file, "CREATE %sUSER %s%s;\n",
+            opt_replace_into ? "/*M!100103 OR REPLACE */ " : "",
             opt_ignore ? "IF NOT EXISTS " : "",
-            row[0] + sizeof("CREATE USER"));
+            user_str + 1);
+    check_io(md_result_file);
   }
   mysql_free_result(tableres);
   dynstr_free(&sqlbuf);
@@ -4650,57 +4778,359 @@ static int dump_create_user(const char *user)
 
 
 /*
-  dump all users, roles and their grants
+  Dialect-specific helpers for dump_all_users_roles_and_grants(): role
+  hierarchy and default roles each have a _maria and a _mysql variant.
+  The dump_* helpers return 0 on success, 1 on error.
 */
 
+static void init_role_set(HASH *set)
+{
+  if (my_hash_init(PSI_NOT_INSTRUMENTED, set, &my_charset_bin, 16, 0, 0,
+                   get_table_key, my_free, 0))
+    die(EX_EOM, "Couldn't allocate memory for the role set");
+}
+
+/*
+  Mark `role` (the QUOTE()'d name) as seen; true only the first time. The
+  recursive walk can return a role at several non-adjacent depths.
+*/
+static bool first_role_sighting(HASH *seen, const char *role)
+{
+  if (my_hash_search(seen, reinterpret_cast<const uchar*>(role), strlen(role)))
+    return false;
+  char *copy= my_strdup(PSI_NOT_INSTRUMENTED, role, MYF(MY_WME));
+  if (!copy || my_hash_insert(seen, reinterpret_cast<uchar*>(copy)))
+    die(EX_EOM, "Couldn't allocate memory for the role set");
+  return true;
+}
+
+/*
+  Emit CREATE ROLE once per MariaDB role reachable through an admin chain,
+  and a GRANT per (role, grantee, admin) tuple. ORDER BY n creates a
+  grantee role before it is a GRANT target.
+*/
+static int dump_role_hierarchy_maria()
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+
+  if (mysql_query_with_error_report(mysql, &tableres,
+      "WITH RECURSIVE create_role_order AS"
+      "  (SELECT 1 as n, roles_mapping.*"
+      "   FROM mysql.roles_mapping"
+      "   JOIN mysql.user USING (user,host)"
+      "   WHERE is_role='N'"
+      "     AND Admin_option='Y'"
+      "   UNION SELECT c.n+1, r.*"
+      "   FROM create_role_order c"
+      "   JOIN mysql.roles_mapping r ON c.role=r.user"
+      "   AND r.host=''"
+      "   AND r.Admin_option='Y') "
+      "SELECT QUOTE(ROLE) AS r,"
+      "       CONCAT(QUOTE(user),"
+      "       IF(HOST='', '', CONCAT('@', QUOTE(HOST)))) AS c,"
+      "       Admin_option "
+      "FROM create_role_order ORDER BY n, r, user"))
+    return 1;
+
+  HASH seen;
+  init_role_set(&seen);
+
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    DBUG_ASSERT(row[0] && row[1] && row[2]);
+    if (first_role_sighting(&seen, row[0]))
+    {
+      emit_create_role(row[0]);
+    }
+    dump_emit_versioned_wrap(md_result_file, "/*M!100005 ",
+      "GRANT %s TO %s%s",
+      row[0], row[1],
+      (row[2][0] == 'Y') ? " WITH ADMIN OPTION" : "");
+  }
+  check_io(md_result_file);
+  my_hash_free(&seen);
+  mysql_free_result(tableres);
+  return 0;
+}
+
+
+/*
+  Emit CREATE ROLE for every MySQL role (see MYSQL8_ROLE_HEURISTIC), then a
+  GRANT per distinct (role, grantee, admin option) of role_edges.
+
+  Every role is created WITH ADMIN mariadb_dump_import_role, so all CREATE
+  ROLEs precede the grants and no hierarchy order is needed. MySQL roles
+  differing only in host map to one hostless role (GROUP BY User).
+
+  The TO side of a GRANT is a user, a role or both (MYSQL8_GRANTED_ONWARD):
+  `GRANT r TO user@host`, `GRANT r TO role`, or both.
+*/
+static int dump_role_hierarchy_mysql()
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+
+  if (mysql_query_with_error_report(mysql, &tableres,
+      "SELECT QUOTE(u.User), COUNT(*),"
+      "       MIN(" MYSQL8_ROLE_HEURISTIC("u.") " AND NOT "
+                    MYSQL8_GRANTED_ONWARD("u.") "),"
+      "       GROUP_CONCAT(QUOTE(u.Host) ORDER BY u.Host) "
+      "FROM mysql.user u "
+      "WHERE " MYSQL8_ROLE_HEURISTIC("u.")
+      "   OR " MYSQL8_GRANTED_ONWARD("u.")
+      " GROUP BY u.User ORDER BY u.User"))
+    return 1;
+
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    DBUG_ASSERT(row[0] && row[1] && row[2] && row[3]);
+    /*
+      A role granted to nobody is inferred by heuristic alone: a disabled
+      user account of the same shape looks the same.
+    */
+    if (row[2][0] == '1')
+      dump_emit_comment_warning(md_result_file,
+        "WARNING: MySQL account %s (hosts %s) is locked, passwordless, "
+        "expired and granted to nobody; dumped as CREATE ROLE (MySQL 8 has "
+        "no role flag), recreate it as a user if it was a disabled account",
+        row[0], row[3]);
+    if (strcmp(row[1], "1"))
+      dump_emit_comment_warning(md_result_file,
+        "WARNING: %s MySQL roles named %s on different hosts (%s) map onto "
+        "one hostless MariaDB role; they are merged", row[1], row[0], row[3]);
+    emit_create_role(row[0]);
+  }
+  check_io(md_result_file);
+  mysql_free_result(tableres);
+
+  if (mysql_query_with_error_report(mysql, &tableres,
+      "SELECT DISTINCT QUOTE(re.FROM_USER),"
+      "       QUOTE(re.TO_USER), QUOTE(re.TO_HOST),"
+      "       re.WITH_ADMIN_OPTION,"
+      "       (" MYSQL8_ROLE_HEURISTIC("tu.") ") AS to_is_role,"
+      "       (NOT (" MYSQL8_ROLE_HEURISTIC("tu.") ") AND "
+                      MYSQL8_GRANTED_ONWARD("tu.") ") AS to_is_hybrid "
+      "FROM mysql.role_edges re "
+      "LEFT JOIN mysql.user tu ON tu.User=re.TO_USER AND tu.Host=re.TO_HOST "
+      "ORDER BY re.FROM_USER, re.TO_USER, re.TO_HOST, re.WITH_ADMIN_OPTION"))
+    return 1;
+
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    DBUG_ASSERT(row[0] && row[1] && row[2] && row[3]);
+    if (!row[4])
+    {
+      dump_emit_comment_warning(md_result_file,
+        "WARNING: role %s is granted to %s@%s, which is not in mysql.user; "
+        "the grant is skipped", row[0], row[1], row[2]);
+      continue;
+    }
+    const char *admin= (row[3][0] == 'Y') ? " WITH ADMIN OPTION" : "";
+    bool to_is_role= (row[4][0] == '1');
+    bool to_is_hybrid= (row[5][0] == '1');
+
+    if (to_is_role || to_is_hybrid)
+      dump_emit_versioned_wrap(md_result_file, "/*M!100005 ",
+        "GRANT %s TO %s%s", row[0], row[1], admin);
+    if (!to_is_role)
+      dump_emit_versioned_wrap(md_result_file, "/*M!100005 ",
+        "GRANT %s TO %s@%s%s", row[0], row[1], row[2], admin);
+  }
+  check_io(md_result_file);
+  mysql_free_result(tableres);
+
+  /* Mandatory roles are implicit: they have no role_edges row */
+  if (mysql_query_with_error_report(mysql, &tableres,
+                                    "SELECT @@GLOBAL.mandatory_roles"))
+    return 1;
+  if ((row= mysql_fetch_row(tableres)) && row[0] && row[0][0])
+    dump_emit_comment_warning(md_result_file,
+      "WARNING: mandatory_roles is %s: these roles are granted to every "
+      "user implicitly and MariaDB has no equivalent; grant them explicitly "
+      "if needed", row[0]);
+  mysql_free_result(tableres);
+  return 0;
+}
+
+
+/* MariaDB users + single default role: GRANTS + SET DEFAULT ROLE */
+static int dump_default_roles_maria()
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+  int result= 0;
+
+  if (mysql_query_with_error_report(mysql, &tableres,
+      "select IF(default_role='', 'NONE', QUOTE(default_role)) as r,"
+      "concat(QUOTE(User), '@', QUOTE(Host)) as u FROM mysql.user  "
+      "/*M!100005 WHERE is_role='N' */"))
+    return 1;
+
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    DBUG_ASSERT(row[0] && row[1]);
+    if (dump_grants(row[1], NULL))
+      result= 1;
+    dump_emit_versioned_wrap(md_result_file, "/*M!100005 ",
+      "SET DEFAULT ROLE %s FOR %s", row[0], row[1]);
+  }
+  check_io(md_result_file);
+  mysql_free_result(tableres);
+  return result;
+}
+
+
+/*
+  MySQL users + default roles. A user with several default roles yields
+  several rows; ORDER BY groups them, so GRANTS are emitted once per user.
+  MariaDB allows one default role: the first is emitted, extras get a
+  # WARNING. The default role's host is ignored (a MariaDB role has none).
+*/
+static int dump_default_roles_mysql()
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+  int result= 0;
+
+  if (mysql_query_with_error_report(mysql, &tableres,
+      "SELECT IF(DEFAULT_ROLE_HOST IS NULL, 'NONE', QUOTE(DEFAULT_ROLE_USER)),"
+      "       QUOTE(mu.USER), QUOTE(mu.HOST) "
+      "FROM mysql.user mu LEFT JOIN mysql.default_roles USING (USER, HOST) "
+      "WHERE NOT (" MYSQL8_ROLE_HEURISTIC("mu.") ") "
+      "ORDER BY mu.USER, mu.HOST, DEFAULT_ROLE_USER, DEFAULT_ROLE_HOST"))
+    return 1;
+
+  /* The rows of a stored result stay valid, so keep the previous user's. */
+  const char *last_user= NULL, *last_host= NULL;
+  bool default_role_emitted= false;   /* one already emitted for last_user */
+
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    DBUG_ASSERT(row[0] && row[1] && row[2]);
+    const char *r_user= row[0];
+    const char *u_user= row[1], *u_host= row[2];
+
+    if (!last_user || strcmp(u_user, last_user) || strcmp(u_host, last_host))
+    {
+      char user_host[MAX_QUOTED_USER_HOST_LEN];
+      my_snprintf(user_host, sizeof(user_host), "%s@%s", u_user, u_host);
+      if (dump_grants(user_host, NULL))
+        result= 1;
+      last_user= u_user;
+      last_host= u_host;
+      default_role_emitted= false;
+    }
+
+    if (strcmp(r_user, "NONE") == 0)
+      continue;
+
+    if (default_role_emitted)
+      dump_emit_comment_warning(md_result_file,
+        "WARNING: %s@%s has multiple default roles in the source; "
+        "MariaDB supports a single default role, dropping %s",
+        u_user, u_host, r_user);
+    else
+    {
+      dump_emit_versioned_wrap(md_result_file, "/*M!100005 ",
+        "SET DEFAULT ROLE %s FOR %s@%s", r_user, u_user, u_host);
+      default_role_emitted= true;
+    }
+  }
+  check_io(md_result_file);
+  mysql_free_result(tableres);
+  return result;
+}
+
+
+/*
+  Run `query` and dump SHOW GRANTS for each row: column 0 is the quoted
+  grantee ('r' or 'r'@'h'). With has_role_name, column 1 is the role's
+  quoted bare name, which becomes the grantee of its translated GRANTs.
+*/
+static int dump_grants_for_roles(const char *query, bool has_role_name)
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+  int result= 0;
+
+  if (mysql_query_with_error_report(mysql, &tableres, query))
+    return 1;
+
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    DBUG_ASSERT(row[0] && (!has_role_name || row[1]));
+    if (dump_grants(row[0], has_role_name ? row[1] : NULL))
+      result= 1;
+  }
+  mysql_free_result(tableres);
+  return result;
+}
+
+
+/* dump all users, roles, and their grants */
 static int dump_all_users_roles_and_grants()
 {
   MYSQL_ROW row;
   MYSQL_RES *tableres;
   int result= 0;
-  /* Roles added in MariaDB-10.0.5 or MySQL-8.0 */
-  my_bool maria_roles_exist= (mysql_get_server_version(mysql) >= 100005);
-  my_bool mysql_roles_exist= (mysql_get_server_version(mysql) >= 80001) && !maria_roles_exist;
+  bool mysql_roles_exist= source_dialect().mysql8;
+  bool maria_roles_exist= source_dialect().maria_roles;
+  bool roles_exist= maria_roles_exist || mysql_roles_exist;
 
   if (mysql_query_with_error_report(mysql, &tableres,
-                                    "SELECT CONCAT(QUOTE(u.user), '@', QUOTE(u.Host)) AS u "
+                                    "SELECT CONCAT(QUOTE(u.user), '@', QUOTE(u.Host)) AS u, "
+                                    "u.user, u.Host "
                                     "FROM mysql.user u "
-                                    " /*!80001 LEFT JOIN mysql.role_edges e "
-                                    "            ON u.user=e.from_user "
-                                    "              AND u.host=e.from_host "
-                                    "         WHERE e.from_user IS NULL */"
+                                    " /*!80000 WHERE NOT ("
+                                    MYSQL8_ROLE_HEURISTIC("u.") ") */"
                                     " /*M!100005 WHERE is_role='N' */"))
     return 1;
+  if (opt_replace_into)
+  {
+    /*
+      Self-DROP guards come first, so the import stops at the current user
+      before any account is dropped. current_user() is compared with the raw
+      user@host: row[0] is QUOTE'd and would not match.
+    */
+    while ((row= mysql_fetch_row(tableres)))
+    {
+      char buf[MAX_QUOTED_USER_HOST_LEN];
+      char raw_uh[USERNAME_LENGTH + HOSTNAME_LENGTH + 2];
+      my_snprintf(raw_uh, sizeof(raw_uh), "%s@%s", row[1], row[2]);
+      /* Fixed MESSAGE_TEXT: the failing line number identifies the guard. */
+      fputs("DELIMITER |\n"
+            "/*M!100101 IF current_user()=", md_result_file);
+      dump_put_comment_safe_literal(md_result_file,
+                                    quote_for_equal(raw_uh, buf));
+      fputs(" THEN\n"
+            "  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001,"
+            " MESSAGE_TEXT='Cannot remove the current user during import';\n"
+            "END IF */|\n"
+            "DELIMITER ;\n", md_result_file);
+    }
+    mysql_data_seek(tableres, 0);
+  }
   while ((row= mysql_fetch_row(tableres)))
   {
-    char buf[200];
     if (opt_replace_into)
-      /* Protection against removing the current import user */
-      /* MySQL-8.0 export capability */
-      fprintf(md_result_file,
-        "DELIMITER |\n"
-        "/*M!100101 IF current_user()=%s THEN\n"
-        "  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001,"
-        " MESSAGE_TEXT=\"Don't remove current user %s'\";\n"
-        "END IF */|\n"
-        "DELIMITER ;\n"
-        "/*!50701 DROP USER IF EXISTS %s */;\n",
-        quote_for_equal(row[0],buf), row[0], row[0]);
+      dump_emit_versioned_wrap(md_result_file, "/*M!100103 ",
+        "DROP USER IF EXISTS %s", row[0]);
     if (dump_create_user(row[0]))
       result= 1;
     /* if roles exist, defer dumping grants until after roles created */
-    if (maria_roles_exist || mysql_roles_exist)
+    if (roles_exist)
       continue;
-    if (dump_grants(row[0]))
+    if (dump_grants(row[0], NULL))
       result= 1;
   }
   mysql_free_result(tableres);
 
-  if (!(maria_roles_exist || mysql_roles_exist))
-    goto exit;
+  if (!roles_exist)
+    return result;
 
   /*
-     Preserve current role active role, in case this dump is imported
+     Preserve the current active role, in case this dump is imported
      in the same connection that assumes the active role at the beginning
      is the same as at the end of the connection. This is so:
 
@@ -4719,134 +5149,61 @@ static int dump_all_users_roles_and_grants()
      have the necessary privileges to grant users to a created role or to
      create new admins for the created role.
 
-     At the end of the import the mariadb_dump_import_role is be dropped,
-     which implicitly drops all its admin aspects of the dropped role.
+     At the end of the import the mariadb_dump_import_role is dropped,
+     which implicitly drops all its admin grants on the new roles.
      This is significantly easier than revoking the ADMIN of each role
      from the current user.
   */
   fputs("SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;\n"
         "CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;\n"
-	"GRANT mariadb_dump_import_role TO CURRENT_USER();\n"
+        "GRANT mariadb_dump_import_role TO CURRENT_USER();\n"
         "SET ROLE mariadb_dump_import_role;\n"
         , md_result_file);
-  /* No show create role yet, MDEV-22311 */
-  /* Roles, with user admins first, then roles they administer, and recurse on that */
-  if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
-      "WITH RECURSIVE create_role_order AS"
-      "  (SELECT 1 as n, roles_mapping.*"
-      "   FROM mysql.roles_mapping"
-      "   JOIN mysql.user USING (user,host)"
-      "   WHERE is_role='N'"
-      "     AND Admin_option='Y'"
-      "   UNION SELECT c.n+1, r.*"
-      "   FROM create_role_order c"
-      "   JOIN mysql.roles_mapping r ON c.role=r.user"
-      "   AND r.host=''"
-      "   AND r.Admin_option='Y') "
-      "SELECT QUOTE(ROLE) AS r,"
-      "       CONCAT(QUOTE(user),"
-      "	      IF(HOST='', '', CONCAT('@', QUOTE(HOST)))) AS c,"
-      "       Admin_option "
-      "FROM create_role_order ORDER BY n, r, user"))
-    return 1;
   /*
-     TODO Mysql - misses roles that have no admin or role members.
-     MySQL roles don't require an admin.
+    On the roles path, a GRANT to an account that was not created (a role
+    classified wrongly, or a name whose CREATE was refused) must fail
+    instead of creating a passwordless login.
   */
-  if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
-      "WITH RECURSIVE create_role_order AS"
-      "  (SELECT 1 AS n,"
-      "          re.*"
-      "   FROM mysql.role_edges re"
-      "   JOIN mysql.user u ON re.TO_HOST=u.HOST"
-      "   AND re.TO_USER = u.USER"
-      "   LEFT JOIN mysql.role_edges re2 ON re.TO_USER=re2.FROM_USER"
-      "   AND re2.TO_HOST=re2.FROM_HOST"
-      "   WHERE re2.FROM_USER IS NULL"
-      "   UNION SELECT c.n+1,"
-      "                re.*"
-      "   FROM create_role_order c"
-      "   JOIN mysql.role_edges re ON c.FROM_USER=re.TO_USER"
-      "   AND c.FROM_HOST=re.TO_HOST) "
-      "SELECT CONCAT(QUOTE(FROM_USER), '/*!80001 @', QUOTE(FROM_HOST), '*/') AS r,"
-      "       CONCAT(QUOTE(TO_USER), IF(n=1, CONCAT('@', QUOTE(TO_HOST)),"
-      "                                 CONCAT('/*!80001 @', QUOTE(TO_HOST), ' */'))) AS u,"
-      "       WITH_ADMIN_OPTION "
-      "FROM create_role_order "
-      "ORDER BY n,"
-      "         FROM_USER,"
-      "         FROM_HOST,"
-      "         TO_USER,"
-      "         TO_HOST,"
-      "         WITH_ADMIN_OPTION"))
-    return 1;
-  while ((row= mysql_fetch_row(tableres)))
-  {
-    /* MySQL-8.0 export capability */
-    if (opt_replace_into)
-      fprintf(md_result_file,
-        "/*!80001 DROP ROLE IF EXISTS %s */;\n", row[0]);
-    fprintf(md_result_file,
-      "/*!80001 CREATE ROLE %s%s */;\n", opt_ignore ? "IF NOT EXISTS " : "", row[0]);
-    /* By default created with current role */
-    fprintf(md_result_file,
-      "%sROLE %s%s WITH ADMIN mariadb_dump_import_role */;\n",
-      opt_replace_into ? "/*M!100103 CREATE OR REPLACE ": "/*M!100005 CREATE ",
-      opt_ignore ? "IF NOT EXISTS " : "", row[0]);
-    fprintf(md_result_file, "/*M!100005 GRANT %s TO %s%s*/;\n",
-            row[0], row[1], (row[2][0] == 'Y') ? " WITH ADMIN OPTION " : "");
-  }
-  mysql_free_result(tableres);
+  fputs("/*M!100005 SET @mariadb_dump_saved_sql_mode=@@sql_mode,\n"
+        "  sql_mode=CONCAT_WS(',', NULLIF(@@sql_mode, ''),"
+        " 'NO_AUTO_CREATE_USER') */;\n", md_result_file);
 
-  /* users and their default role */
-  if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
-      "select IF(default_role='', 'NONE', QUOTE(default_role)) as r,"
-      "concat(QUOTE(User), '@', QUOTE(Host)) as u FROM mysql.user  "
-      "/*M!100005 WHERE is_role='N' */"))
-    return 1;
-  if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
-      "SELECT IF(DEFAULT_ROLE_HOST IS NULL, 'NONE', CONCAT(QUOTE(DEFAULT_ROLE_USER),"
-      "                                                    '@', QUOTE(DEFAULT_ROLE_HOST))) as r,"
-      "  CONCAT(QUOTE(mu.USER),'@',QUOTE(mu.HOST)) as u "
-      "FROM mysql.user mu LEFT JOIN mysql.default_roles using (USER, HOST)"))
+  /* No show create role yet, MDEV-22311 */
+  if (maria_roles_exist)
   {
-    mysql_free_result(tableres);
-    return 1;
+    result|= dump_role_hierarchy_maria();
+    result|= dump_default_roles_maria();
+    /* GRANTS for every role with at least one admin. */
+    result|= dump_grants_for_roles(
+        "SELECT DISTINCT QUOTE(m.role) AS r "
+        "   FROM mysql.roles_mapping m"
+        "   JOIN mysql.user u ON u.user = m.role"
+        "   WHERE is_role='Y'"
+        "     AND Admin_option='Y'"
+        "   ORDER BY m.role", false);
+  }
+  else /* mysql_roles_exist */
+  {
+    result|= dump_role_hierarchy_mysql();
+    result|= dump_default_roles_mysql();
+    /*
+      GRANTS for every MySQL role, including those granted to nobody. A
+      hybrid's user grants come from dump_default_roles_mysql().
+    */
+    result|= dump_grants_for_roles(
+        "SELECT CONCAT(QUOTE(u.User), '@', QUOTE(u.Host)), QUOTE(u.User) "
+        "FROM mysql.user u "
+        "WHERE " MYSQL8_ROLE_HEURISTIC("u.")
+        "   OR " MYSQL8_GRANTED_ONWARD("u.")
+        " ORDER BY u.User, u.Host", true);
   }
 
-  while ((row= mysql_fetch_row(tableres)))
-  {
-    if (dump_grants(row[1]))
-      result= 1;
-    fprintf(md_result_file, "/*M!100005 SET DEFAULT ROLE %s FOR %s */;\n", row[0], row[1]);
-    fprintf(md_result_file, "/*!80001 ALTER USER %s DEFAULT ROLE %s */;\n", row[1], row[0]);
-  }
-  mysql_free_result(tableres);
-
-  if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
-      "SELECT DISTINCT QUOTE(m.role) AS r "
-      "   FROM mysql.roles_mapping m"
-      "   JOIN mysql.user u ON u.user = m.role"
-      "   WHERE is_role='Y'"
-      "     AND Admin_option='Y'"
-      "   ORDER BY m.role"))
-    return 1;
-  if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
-      "SELECT DISTINCT CONCAT(QUOTE(FROM_USER),'@', QUOTE(FROM_HOST)) AS r "
-      "FROM mysql.role_edges"))
-    return 1;
-  while ((row= mysql_fetch_row(tableres)))
-  {
-    if (dump_grants(row[0]))
-      result= 1;
-  }
-  mysql_free_result(tableres);
-  /* switch back */
+  fputs("/*M!100005 SET sql_mode=@mariadb_dump_saved_sql_mode */;\n",
+        md_result_file);
   fputs("SET ROLE NONE;\n"
         "DROP ROLE mariadb_dump_import_role;\n"
         "/*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;\n",
         md_result_file);
-exit:
 
   return result;
 }

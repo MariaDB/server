@@ -1,0 +1,135 @@
+--echo # MDEV-24557 mariadb-dump: import MySQL 8.x users, grants, roles: accounts
+--echo #
+--echo # Imports mysql8_users_dump.sql, a dump of MySQL 26.7.0, and checks CREATE USER clauses and authentication.
+--echo # Recapture it after changing the MySQL-source code (recipe in
+--echo # std_data/mysql8_users_setup.sql).
+
+--source mariadb-dump-mysql8-import.inc
+
+--echo # 1. ACCOUNT LOCK / UNLOCK.
+SELECT User, Host,
+       JSON_VALUE(Priv, '$.account_locked') AS account_locked
+  FROM mysql.global_priv
+  WHERE User IN ('m8_lock','m8_unlock')
+  ORDER BY User, Host;
+
+--echo # 2. PASSWORD EXPIRE variants.
+SELECT User, Host,
+       password_expired,
+       JSON_VALUE(Priv, '$.password_lifetime') AS password_lifetime
+  FROM mysql.user
+  JOIN mysql.global_priv USING (User, Host)
+  WHERE User IN ('m8_pwd_expire_now','m8_pwd_expire_never',
+                 'm8_pwd_expire_interval','m8_pwd_expire_default')
+  ORDER BY User;
+
+--echo # 3. Resource limits.
+SELECT User, Host,
+       JSON_VALUE(Priv, '$.max_questions')        AS max_q,
+       JSON_VALUE(Priv, '$.max_updates')          AS max_u,
+       JSON_VALUE(Priv, '$.max_connections')      AS max_c,
+       JSON_VALUE(Priv, '$.max_user_connections') AS max_user_c
+  FROM mysql.global_priv
+  WHERE User IN ('m8_max_conn','m8_resource_full')
+  ORDER BY User;
+
+--echo # 4. REQUIRE variants.
+SELECT User, Host,
+       JSON_VALUE(Priv, '$.ssl_type')   AS ssl_type,
+       JSON_VALUE(Priv, '$.ssl_cipher') AS ssl_cipher
+  FROM mysql.global_priv
+  WHERE User IN ('m8_require_ssl','m8_require_x509','m8_require_cipher')
+  ORDER BY User;
+
+--echo # 5. Combined CREATE USER: kept (REQUIRE, WITH MAX_, ACCOUNT LOCK) and
+--echo #     dropped (DEFAULT ROLE, PASSWORD HISTORY/REUSE) clauses mixed.
+SELECT User, Host,
+       JSON_VALUE(Priv, '$.account_locked')        AS account_locked,
+       JSON_VALUE(Priv, '$.ssl_type')              AS ssl_type,
+       JSON_VALUE(Priv, '$.max_user_connections')  AS max_user_c
+  FROM mysql.global_priv
+  WHERE User='m8_combined' AND Host='%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_combined'@'%';
+
+--echo # 6. Auth plugins: sha256 (dropped, locked), no password, caching_sha2.
+--echo #     mysql_native_password is absent from the fixture (disabled in
+--echo #     MySQL 8.4, removed in 9.0). m8_auth_sha256 covers the unsupported
+--echo #     plugin: the IDENTIFIED clause is dropped with a warning.
+SELECT User, Host,
+       JSON_VALUE(Priv, '$.plugin')                AS plugin,
+       LENGTH(JSON_VALUE(Priv, '$.authentication_string')) > 0 AS has_auth_string
+  FROM mysql.global_priv
+  WHERE User IN ('m8_auth_sha256','m8_auth_no_pwd','m8_auth_caching_sha2')
+  ORDER BY User;
+--echo #     m8_auth_sha256 lost its password, so ACCOUNT LOCK was forced.
+SELECT JSON_VALUE(Priv, '$.account_locked') AS sha256_locked
+  FROM mysql.global_priv WHERE User='m8_auth_sha256';
+
+--echo # 7. COMMENT clause containing '*/' (plain and backslash-escaped).
+--echo #     COMMENT (an ATTRIBUTE in MySQL) goes into a # WARNING line.
+SELECT User, Host
+  FROM mysql.global_priv
+  WHERE User IN ('m8_starslash_comment','m8_starslash_escaped')
+  ORDER BY User, Host;
+
+--echo # 8. A GRANT to an account that was not created fails instead of
+--echo #     creating a passwordless login.
+--perl
+my $d= "$ENV{MYSQLTEST_VARDIR}";
+open(my $in, '<', "$d/std_data/mysql8_users_dump.sql") or die $!;
+local $/;
+my $s= <$in>;
+close $in;
+$s =~ m{(/\*M!100005 SET \@mariadb_dump_saved_sql_mode.*?\*/;\n)}s
+  or die "sql_mode guard not found";
+open(my $out, '>', "$d/tmp/m8_noauto.sql") or die $!;
+print $out $1, "GRANT SELECT ON *.* TO m8_nx\@'%';\n";
+close $out;
+EOF
+--error 1
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/m8_noauto.sql 2> $MYSQLTEST_VARDIR/tmp/m8_noauto.err
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/m8_noauto.err
+--let SEARCH_PATTERN=(?:\A|\n)ERROR 1133 
+--source include/search_pattern_in_file.inc
+SELECT COUNT(*) AS m8_nx_accounts FROM mysql.user WHERE User='m8_nx';
+--remove_file $MYSQLTEST_VARDIR/tmp/m8_noauto.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/m8_noauto.err
+
+# The anonymous localhost user would shadow the m8_*@'%' logins.
+DROP USER ''@'localhost';
+
+--echo # caching_sha2_password preservation (Unix only - gated;
+--echo #     'OK' on Windows means skipped, not exercised).
+let $is_win = `select convert(@@version_compile_os using latin1) IN ("Win32","Win64","Windows")`;
+let $cu = m8_auth_caching_sha2@%;
+if (!$is_win)
+{
+  --disable_query_log
+  --disable_result_log
+  connect (c_csha, localhost, m8_auth_caching_sha2, pw_caching);
+  let $cu = `SELECT CURRENT_USER()`;
+  disconnect c_csha;
+  connection default;
+  --enable_result_log
+  --enable_query_log
+}
+eval SELECT IF('$cu' = 'm8_auth_caching_sha2@%',
+               'OK',
+               CONCAT('FAIL: got ', '$cu')) AS caching_sha2_round_trip;
+
+# The fixture users have caching_sha2_password, which needs TLS or RSA over TCP.
+# Switch the ones that connect; the semantics checked do not depend on the plugin.
+ALTER USER 'm8_lock'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+
+--echo # m8_lock: ACCOUNT LOCK survives import; connect rejected.
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_ACCOUNT_HAS_BEEN_LOCKED
+connect (c_lock, localhost, m8_lock, pw);
+
+SELECT User, Host, JSON_VALUE(Priv, '$.account_locked') AS account_locked
+  FROM mysql.global_priv WHERE User='m8_lock';
+
+--source mariadb-dump-mysql8-import-cleanup.inc
+
+--echo # End of 13.1 tests

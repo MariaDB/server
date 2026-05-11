@@ -1,0 +1,91 @@
+--echo # MDEV-24557 mariadb-dump: import MySQL 8.x users, grants, roles: roles
+--echo #
+--echo # Imports mysql8_users_dump.sql, a dump of MySQL 26.7.0, and checks the roles, default roles and hybrid accounts.
+--echo # Recapture it after changing the MySQL-source code (recipe in
+--echo # std_data/mysql8_users_setup.sql).
+
+--source mariadb-dump-mysql8-import.inc
+
+--echo # 1. Roles imported with admin chain preserved.
+SELECT User, Host, Role, Admin_option FROM mysql.roles_mapping
+  WHERE Role LIKE 'm8\\_%' OR User LIKE 'm8\\_%'
+  ORDER BY Role, User, Host;
+
+--echo # 1a. Role privileges land on the role
+--echo #     (including the one whose name contains a comment end).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR m8_role_a;
+SELECT User, Host FROM mysql.global_priv
+  WHERE User LIKE 'm8\\_role\\_%' OR User LIKE 'm8\\_role*/%' ORDER BY User, Host;
+
+--echo # 2. Default-role assignment.
+SELECT User, Host, default_role
+  FROM mysql.user
+  WHERE User IN ('m8_default_role_one','m8_default_role_many','m8_combined')
+    AND default_role <> ''
+  ORDER BY User, Host;
+
+--echo # 3. Hybrid account (a login user that is also granted as a role):
+--echo #     it lands as a user with its privilege and as a role with the same
+--echo #     grants, its role membership, and its members.
+SELECT User, Host, is_role FROM mysql.user
+  WHERE User LIKE 'm8\\_hybrid%' ORDER BY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_hybrid'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR m8_hybrid;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'm8_hybrid_member'@'%';
+
+--echo # 4. One role name on two MySQL hosts lands as one hostless role holding
+--echo #     both hosts' privileges, granted once to the shared member.
+SELECT User, Host, is_role FROM mysql.user WHERE User='m8_role_dual';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR m8_role_dual;
+SELECT User, Host, Role FROM mysql.roles_mapping WHERE Role='m8_role_dual';
+
+# The anonymous localhost user would shadow the m8_*@'%' logins.
+DROP USER ''@'localhost';
+
+# The fixture users have caching_sha2_password, which needs TLS or RSA over TCP.
+# Switch the ones that connect; the semantics checked do not depend on the plugin.
+ALTER USER 'm8_simple'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'm8_hybrid'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'm8_hybrid_member'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+
+--echo #  m8_simple: schema SELECT works; INSERT denied until m8_role_a, which
+--echo #  reaches INSERT through m8_role_b, is enabled.
+connect (c_simple, localhost, m8_simple, pw, m8_db);
+SELECT COUNT(*) AS rows_visible FROM m8_db.tab;
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO m8_db.tab VALUES (1,1,1);
+SET ROLE m8_role_a;
+INSERT INTO m8_db.tab VALUES (1,1,1);
+SELECT COUNT(*) AS rows_via_role FROM m8_db.tab;
+disconnect c_simple;
+connection default;
+DELETE FROM m8_db.tab;
+
+--echo # m8_admin_chain_root: WITH ADMIN OPTION on m8_role_a is preserved.
+SELECT User, Host, Admin_option
+  FROM mysql.roles_mapping
+  WHERE User='m8_admin_chain_root' AND Role='m8_role_a';
+
+--echo # m8_hybrid: logs in as a user; m8_hybrid_member gets its privileges
+--echo # only through the role.
+INSERT INTO m8_db.tab VALUES (1,1,1);
+connect (c_hyb, localhost, m8_hybrid, pw, m8_db);
+SELECT COUNT(*) AS rows_as_user FROM m8_db.tab;
+disconnect c_hyb;
+connect (c_hm, localhost, m8_hybrid_member, pw);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT COUNT(*) FROM m8_db.tab;
+SET ROLE m8_hybrid;
+SELECT COUNT(*) AS rows_via_role FROM m8_db.tab;
+disconnect c_hm;
+connection default;
+DELETE FROM m8_db.tab;
+
+--source mariadb-dump-mysql8-import-cleanup.inc
+
+--echo # End of 13.1 tests

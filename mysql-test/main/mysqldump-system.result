@@ -67,30 +67,28 @@ SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;
 CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;
 GRANT mariadb_dump_import_role TO CURRENT_USER();
 SET ROLE mariadb_dump_import_role;
-/*!80001 CREATE ROLE 'role_1' */;
+/*M!100005 SET @mariadb_dump_saved_sql_mode=@@sql_mode,
+  sql_mode=CONCAT_WS(',', NULLIF(@@sql_mode, ''), 'NO_AUTO_CREATE_USER') */;
 /*M!100005 CREATE ROLE 'role_1' WITH ADMIN mariadb_dump_import_role */;
 /*M!100005 GRANT 'role_1' TO 'root'@'localhost' WITH ADMIN OPTION */;
-/*!80001 CREATE ROLE 'role_2' */;
 /*M!100005 CREATE ROLE 'role_2' WITH ADMIN mariadb_dump_import_role */;
 /*M!100005 GRANT 'role_2' TO 'role_1' WITH ADMIN OPTION */;
 GRANT USAGE ON *.* TO `mariadb.sys`@`localhost`;
 GRANT SELECT, DELETE ON `mysql`.`global_priv` TO `mariadb.sys`@`localhost`;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'mariadb.sys'@'localhost' */;
-/*!80001 ALTER USER 'mariadb.sys'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `root`@`localhost` WITH ADMIN OPTION;
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
 GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
-/*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `foobar`@`%`;
 GRANT `role_2` TO `foobar`@`%`;
 GRANT USAGE ON *.* TO `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 /*M!100005 SET DEFAULT ROLE 'role_2' FOR 'foobar'@'%' */;
-/*!80001 ALTER USER 'foobar'@'%' DEFAULT ROLE 'role_2' */;
 GRANT `role_2` TO `role_1` WITH ADMIN OPTION;
 GRANT SHOW DATABASES ON *.* TO `role_1`;
 GRANT USAGE ON *.* TO `role_2`;
 GRANT USAGE ON *.* TO `role_2`;
+/*M!100005 SET sql_mode=@mariadb_dump_saved_sql_mode */;
 SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
@@ -665,56 +663,52 @@ INSTALL PLUGIN `test_plugin_server`  SONAME 'AUTH_TEST_PLUGIN_LIB';
 /*M!100401 UNINSTALL PLUGIN IF EXIST `cleartext_plugin_server` */;
 INSTALL PLUGIN `cleartext_plugin_server`  SONAME 'AUTH_TEST_PLUGIN_LIB';
 DELIMITER |
-/*M!100101 IF current_user()='''mariadb.sys''@''localhost''' THEN
-  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'mariadb.sys'@'localhost''";
+/*M!100101 IF current_user()='mariadb.sys@localhost' THEN
+  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Cannot remove the current user during import';
 END IF */|
 DELIMITER ;
-/*!50701 DROP USER IF EXISTS 'mariadb.sys'@'localhost' */;
+DELIMITER |
+/*M!100101 IF current_user()='root@localhost' THEN
+  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Cannot remove the current user during import';
+END IF */|
+DELIMITER ;
+DELIMITER |
+/*M!100101 IF current_user()='foobar@%' THEN
+  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Cannot remove the current user during import';
+END IF */|
+DELIMITER ;
+/*M!100103 DROP USER IF EXISTS 'mariadb.sys'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `mariadb.sys`@`localhost` PASSWORD EXPIRE;
-DELIMITER |
-/*M!100101 IF current_user()='''root''@''localhost''' THEN
-  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'root'@'localhost''";
-END IF */|
-DELIMITER ;
-/*!50701 DROP USER IF EXISTS 'root'@'localhost' */;
+/*M!100103 DROP USER IF EXISTS 'root'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `root`@`localhost`;
-DELIMITER |
-/*M!100101 IF current_user()='''foobar''@''%''' THEN
-  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'foobar'@'%''";
-END IF */|
-DELIMITER ;
-/*!50701 DROP USER IF EXISTS 'foobar'@'%' */;
+/*M!100103 DROP USER IF EXISTS 'foobar'@'%' */;
 CREATE /*M!100103 OR REPLACE */ USER `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;
 CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;
 GRANT mariadb_dump_import_role TO CURRENT_USER();
 SET ROLE mariadb_dump_import_role;
-/*!80001 DROP ROLE IF EXISTS 'role_1' */;
-/*!80001 CREATE ROLE 'role_1' */;
+/*M!100005 SET @mariadb_dump_saved_sql_mode=@@sql_mode,
+  sql_mode=CONCAT_WS(',', NULLIF(@@sql_mode, ''), 'NO_AUTO_CREATE_USER') */;
 /*M!100103 CREATE OR REPLACE ROLE 'role_1' WITH ADMIN mariadb_dump_import_role */;
 /*M!100005 GRANT 'role_1' TO 'root'@'localhost' WITH ADMIN OPTION */;
-/*!80001 DROP ROLE IF EXISTS 'role_2' */;
-/*!80001 CREATE ROLE 'role_2' */;
 /*M!100103 CREATE OR REPLACE ROLE 'role_2' WITH ADMIN mariadb_dump_import_role */;
 /*M!100005 GRANT 'role_2' TO 'role_1' WITH ADMIN OPTION */;
 GRANT USAGE ON *.* TO `mariadb.sys`@`localhost`;
 GRANT SELECT, DELETE ON `mysql`.`global_priv` TO `mariadb.sys`@`localhost`;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'mariadb.sys'@'localhost' */;
-/*!80001 ALTER USER 'mariadb.sys'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `root`@`localhost` WITH ADMIN OPTION;
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
 GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
-/*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `foobar`@`%`;
 GRANT `role_2` TO `foobar`@`%`;
 GRANT USAGE ON *.* TO `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 /*M!100005 SET DEFAULT ROLE 'role_2' FOR 'foobar'@'%' */;
-/*!80001 ALTER USER 'foobar'@'%' DEFAULT ROLE 'role_2' */;
 GRANT `role_2` TO `role_1` WITH ADMIN OPTION;
 GRANT SHOW DATABASES ON *.* TO `role_1`;
 GRANT USAGE ON *.* TO `role_2`;
 GRANT USAGE ON *.* TO `role_2`;
+/*M!100005 SET sql_mode=@mariadb_dump_saved_sql_mode */;
 SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
@@ -1295,30 +1289,28 @@ SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;
 CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;
 GRANT mariadb_dump_import_role TO CURRENT_USER();
 SET ROLE mariadb_dump_import_role;
-/*!80001 CREATE ROLE IF NOT EXISTS 'role_1' */;
+/*M!100005 SET @mariadb_dump_saved_sql_mode=@@sql_mode,
+  sql_mode=CONCAT_WS(',', NULLIF(@@sql_mode, ''), 'NO_AUTO_CREATE_USER') */;
 /*M!100005 CREATE ROLE IF NOT EXISTS 'role_1' WITH ADMIN mariadb_dump_import_role */;
 /*M!100005 GRANT 'role_1' TO 'root'@'localhost' WITH ADMIN OPTION */;
-/*!80001 CREATE ROLE IF NOT EXISTS 'role_2' */;
 /*M!100005 CREATE ROLE IF NOT EXISTS 'role_2' WITH ADMIN mariadb_dump_import_role */;
 /*M!100005 GRANT 'role_2' TO 'role_1' WITH ADMIN OPTION */;
 GRANT USAGE ON *.* TO `mariadb.sys`@`localhost`;
 GRANT SELECT, DELETE ON `mysql`.`global_priv` TO `mariadb.sys`@`localhost`;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'mariadb.sys'@'localhost' */;
-/*!80001 ALTER USER 'mariadb.sys'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `root`@`localhost` WITH ADMIN OPTION;
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
 GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
-/*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
 GRANT `role_1` TO `foobar`@`%`;
 GRANT `role_2` TO `foobar`@`%`;
 GRANT USAGE ON *.* TO `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 /*M!100005 SET DEFAULT ROLE 'role_2' FOR 'foobar'@'%' */;
-/*!80001 ALTER USER 'foobar'@'%' DEFAULT ROLE 'role_2' */;
 GRANT `role_2` TO `role_1` WITH ADMIN OPTION;
 GRANT SHOW DATABASES ON *.* TO `role_1`;
 GRANT USAGE ON *.* TO `role_2`;
 GRANT USAGE ON *.* TO `role_2`;
+/*M!100005 SET sql_mode=@mariadb_dump_saved_sql_mode */;
 SET ROLE NONE;
 DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
@@ -1873,6 +1865,12 @@ SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS;
 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION;
 /*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
+#
+# --insert-ignore takes precedence over --replace
+#
+FOUND 1 /--replace is ignored, --insert-ignore takes precedence/ in dump_both.err
+NOT FOUND /OR REPLACE|DROP USER IF EXISTS/ in dump_both.sql
+FOUND 3 /CREATE USER IF NOT EXISTS/ in dump_both.sql
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 Host	User	Priv
 %	foobar	{"access":0,"version_id":VERSION,"plugin":"test_plugin_server","authentication_string":"plug_dest","password_last_changed":NOW,"default_role":"role_2"}

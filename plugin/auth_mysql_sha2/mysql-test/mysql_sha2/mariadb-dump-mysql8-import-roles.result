@@ -1,0 +1,168 @@
+# MDEV-24557 mariadb-dump: import MySQL 8.x users, grants, roles: roles
+#
+# Imports mysql8_users_dump.sql, a dump of MySQL 26.7.0, and checks the roles, default roles and hybrid accounts.
+# Recapture it after changing the MySQL-source code (recipe in
+# std_data/mysql8_users_setup.sql).
+SET NAMES utf8mb4;
+CREATE DATABASE IF NOT EXISTS m8_db;
+CREATE TABLE m8_db.tab (col_a INT, col_underscore_b INT, plain INT);
+CREATE TABLE m8_db.tab2 (id INT PRIMARY KEY, payload TEXT);
+USE m8_db;
+CREATE PROCEDURE proc_one(IN x INT) BEGIN SELECT x; END$$
+CREATE FUNCTION  func_one(x INT) RETURNS INT DETERMINISTIC BEGIN RETURN x*2; END$$
+USE test;
+CREATE DATABASE IF NOT EXISTS `m8_under_score_db`;
+CALL mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+CALL mtr.add_suppression("Plugin 'caching_sha2_password' is of maturity level gamma");
+CREATE USER m8_restore IDENTIFIED BY 'r';
+GRANT ALL ON *.* TO m8_restore WITH GRANT OPTION;
+GRANT PROXY ON ''@'%' TO m8_restore WITH GRANT OPTION;
+NOT FOUND /(?:\A|\n)ERROR (?!1396 )\d/ in m8_import.err
+NOT FOUND /(?:\A|\n)ERROR 1396 (?![^\n]*'root'@'localhost')/ in m8_import.err
+FOUND 1 /sql_mode restored/ in m8_import.out
+# The import role is gone and the restoring user is not left as admin:
+SELECT User, Role FROM mysql.roles_mapping
+WHERE User='m8_restore' OR Role='mariadb_dump_import_role';
+User	Role
+DROP USER m8_restore;
+# 1. Roles imported with admin chain preserved.
+SELECT User, Host, Role, Admin_option FROM mysql.roles_mapping
+WHERE Role LIKE 'm8\\_%' OR User LIKE 'm8\\_%'
+  ORDER BY Role, User, Host;
+User	Host	Role	Admin_option
+m8_combined	%	m8_default_a	N
+m8_default_role_many	%	m8_default_a	N
+m8_default_role_one	%	m8_default_a	N
+m8_shared_user_1	%	m8_default_a	N
+m8_shared_user_2	%	m8_default_a	N
+m8_default_role_many	%	m8_default_b	N
+m8_hybrid_member	%	m8_hybrid	N
+m8_admin_chain_root		m8_role_a	Y
+m8_simple	%	m8_role_a	Y
+m8_role_a		m8_role_b	Y
+m8_hybrid		m8_role_c	N
+m8_hybrid	%	m8_role_c	N
+m8_role_b		m8_role_c	Y
+m8_simple	%	m8_role_d	N
+m8_dual_member	%	m8_role_dual	N
+m8_shared_user_1	%	m8_shared_role	N
+m8_shared_user_2	%	m8_shared_role	Y
+m8_shared_user_3	%	m8_shared_role	N
+m8_shared_user_4	%	m8_shared_role	N
+m8_shared_user_5	%	m8_shared_role	Y
+# 1a. Role privileges land on the role
+#     (including the one whose name contains a comment end).
+SHOW GRANTS FOR m8_role_a;
+Grants for m8_role_a
+GRANT `m8_role_b` TO `m8_role_a` WITH ADMIN OPTION
+GRANT USAGE ON *.* TO `m8_role_a`
+GRANT SELECT ON `m8_db`.* TO `m8_role_a`
+GRANT `m8_role_c` TO `m8_role_b` WITH ADMIN OPTION
+GRANT USAGE ON *.* TO `m8_role_b`
+GRANT INSERT ON `m8_db`.* TO `m8_role_b`
+GRANT USAGE ON *.* TO `m8_role_c`
+GRANT UPDATE ON `m8_db`.* TO `m8_role_c`
+SELECT User, Host FROM mysql.global_priv
+WHERE User LIKE 'm8\\_role\\_%' OR User LIKE 'm8\\_role*/%' ORDER BY User, Host;
+User	Host
+m8_role*/starslash	
+m8_role_a	
+m8_role_b	
+m8_role_c	
+m8_role_d	
+m8_role_dual	
+m8_role_static	%
+# 2. Default-role assignment.
+SELECT User, Host, default_role
+FROM mysql.user
+WHERE User IN ('m8_default_role_one','m8_default_role_many','m8_combined')
+AND default_role <> ''
+  ORDER BY User, Host;
+User	Host	default_role
+m8_combined	%	m8_default_a
+m8_default_role_many	%	m8_default_a
+m8_default_role_one	%	m8_default_a
+# 3. Hybrid account (a login user that is also granted as a role):
+#     it lands as a user with its privilege and as a role with the same
+#     grants, its role membership, and its members.
+SELECT User, Host, is_role FROM mysql.user
+WHERE User LIKE 'm8\\_hybrid%' ORDER BY User, Host;
+User	Host	is_role
+m8_hybrid		Y
+m8_hybrid	%	N
+m8_hybrid_member	%	N
+SHOW GRANTS FOR 'm8_hybrid'@'%';
+Grants for m8_hybrid@%
+GRANT `m8_role_c` TO `m8_hybrid`@`%`
+GRANT USAGE ON *.* TO `m8_hybrid`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `m8_db`.`tab` TO `m8_hybrid`@`%`
+SHOW GRANTS FOR m8_hybrid;
+Grants for m8_hybrid
+GRANT `m8_role_c` TO `m8_hybrid`
+GRANT USAGE ON *.* TO `m8_hybrid`
+GRANT SELECT ON `m8_db`.`tab` TO `m8_hybrid`
+GRANT USAGE ON *.* TO `m8_role_c`
+GRANT UPDATE ON `m8_db`.* TO `m8_role_c`
+SHOW GRANTS FOR 'm8_hybrid_member'@'%';
+Grants for m8_hybrid_member@%
+GRANT `m8_hybrid` TO `m8_hybrid_member`@`%`
+GRANT USAGE ON *.* TO `m8_hybrid_member`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+# 4. One role name on two MySQL hosts lands as one hostless role holding
+#     both hosts' privileges, granted once to the shared member.
+SELECT User, Host, is_role FROM mysql.user WHERE User='m8_role_dual';
+User	Host	is_role
+m8_role_dual		Y
+SHOW GRANTS FOR m8_role_dual;
+Grants for m8_role_dual
+GRANT USAGE ON *.* TO `m8_role_dual`
+GRANT SELECT, INSERT ON `m8_db`.`tab` TO `m8_role_dual`
+SELECT User, Host, Role FROM mysql.roles_mapping WHERE Role='m8_role_dual';
+User	Host	Role
+m8_dual_member	%	m8_role_dual
+DROP USER ''@'localhost';
+ALTER USER 'm8_simple'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'm8_hybrid'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'm8_hybrid_member'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+#  m8_simple: schema SELECT works; INSERT denied until m8_role_a, which
+#  reaches INSERT through m8_role_b, is enabled.
+connect  c_simple, localhost, m8_simple, pw, m8_db;
+SELECT COUNT(*) AS rows_visible FROM m8_db.tab;
+rows_visible
+0
+INSERT INTO m8_db.tab VALUES (1,1,1);
+ERROR 42000: INSERT command denied to user 'm8_simple'@'localhost' for table `m8_db`.`tab`
+SET ROLE m8_role_a;
+INSERT INTO m8_db.tab VALUES (1,1,1);
+SELECT COUNT(*) AS rows_via_role FROM m8_db.tab;
+rows_via_role
+1
+disconnect c_simple;
+connection default;
+DELETE FROM m8_db.tab;
+# m8_admin_chain_root: WITH ADMIN OPTION on m8_role_a is preserved.
+SELECT User, Host, Admin_option
+FROM mysql.roles_mapping
+WHERE User='m8_admin_chain_root' AND Role='m8_role_a';
+User	Host	Admin_option
+m8_admin_chain_root		Y
+# m8_hybrid: logs in as a user; m8_hybrid_member gets its privileges
+# only through the role.
+INSERT INTO m8_db.tab VALUES (1,1,1);
+connect  c_hyb, localhost, m8_hybrid, pw, m8_db;
+SELECT COUNT(*) AS rows_as_user FROM m8_db.tab;
+rows_as_user
+1
+disconnect c_hyb;
+connect  c_hm, localhost, m8_hybrid_member, pw;
+SELECT COUNT(*) FROM m8_db.tab;
+ERROR 42000: SELECT command denied to user 'm8_hybrid_member'@'localhost' for table `m8_db`.`tab`
+SET ROLE m8_hybrid;
+SELECT COUNT(*) AS rows_via_role FROM m8_db.tab;
+rows_via_role
+1
+disconnect c_hm;
+connection default;
+DELETE FROM m8_db.tab;
+DROP DATABASE IF EXISTS m8_db;
+DROP DATABASE IF EXISTS `m8_under_score_db`;
+# End of 13.1 tests
