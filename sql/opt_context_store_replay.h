@@ -47,13 +47,12 @@ public:
 
   ~Optimizer_context_recorder();
 
-  void record_multi_range_read_info_const(const TABLE_LIST *tbl,
-                                          uint keynr,
+  void record_multi_range_read_info_const(const TABLE_LIST *tbl, uint keynr,
                                           Range_print_enumerator *ranges,
                                           ha_rows rows,
                                           const Cost_estimate *cost,
-                                          ha_rows max_index_blocks,
-                                          ha_rows max_row_blocks);
+                                          const ha_rows *max_index_blocks,
+                                          const ha_rows *max_row_blocks);
 
   void record_cost_index_read(const TABLE_LIST *tbl,
                               uint key, ha_rows records, bool eq_ref,
