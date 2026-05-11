@@ -92,6 +92,7 @@ drop table t1;
 --enable_query_log
 --enable_result_log
 
+set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table t1;
 
@@ -116,6 +117,33 @@ set optimizer_replay_context='opt_context';
 --echo # Same query as above, must have same explain:
 EXPLAIN SELECT MAX(a) FROM t1;
 
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39505: Explain delete all from table shows difference in number of rows
+--echo #
+create table t1 (c1 integer);
+insert into t1 values (1), (2), (3);
+
+set optimizer_record_context=1;
+explain delete from t1 order by c1;
+
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain delete from t1 order by c1;
+
+set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table t1;
 
