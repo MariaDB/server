@@ -1,0 +1,136 @@
+--echo # MDEV-24557 mariadb-dump: import MySQL 5.7+ users, grants, roles: roles
+--echo #
+--echo # Imports mysql_users_dump.sql, a dump of MySQL 26.7.0, and checks the roles, default roles and hybrid accounts.
+--echo # Recapture it after changing the MySQL-source code (recipe in
+--echo # std_data/mysql_users_setup.sql).
+
+--source mariadb-dump-mysql-import.inc
+
+--echo # 1. Roles imported with admin chain preserved.
+SELECT User, Host, Role, Admin_option FROM mysql.roles_mapping
+  WHERE Role LIKE 'src\\_%' OR User LIKE 'src\\_%'
+  ORDER BY Role, User, Host;
+
+--echo # 1a. Role privileges land on the role
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR src_role_a;
+SELECT User, Host FROM mysql.global_priv
+  WHERE User LIKE 'src\\_role\\_%' OR User LIKE 'src\\_role*/%' ORDER BY User, Host;
+
+--echo # 2. Default-role assignment.
+SELECT User, Host, default_role
+  FROM mysql.user
+  WHERE User IN ('src_default_role_one','src_default_role_many','src_combined')
+    AND default_role <> ''
+  ORDER BY User, Host;
+
+--echo # 3. Hybrid account (a login user that is also granted as a role): it
+--echo #     lands as a user and as a role. The role holds its privileges and
+--echo #     role membership, the user has the privileges too. The role is not
+--echo #     its default role: a role granted to it is inactive until enabled.
+SELECT User, Host, is_role FROM mysql.user
+  WHERE User LIKE 'src\\_hybrid%' ORDER BY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_hybrid'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR src_hybrid;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_hybrid_member'@'%';
+
+--echo # 4. One role name on two MySQL hosts lands as two roles, each holding
+--echo #     its host's privileges, and the accounts as users. The member gets both.
+SELECT User, Host, is_role FROM mysql.user WHERE User LIKE 'src\\_role\\_dual%'
+  ORDER BY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR src_role_dual_0004;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR src_role_dual_0005;
+SELECT User, Host, Role FROM mysql.roles_mapping WHERE Role LIKE 'src\\_role\\_dual%'
+  ORDER BY Role, User, Host;
+
+--echo # 5. Several default roles are granted to a role of their own, which is
+--echo #     the default role of the user.
+SELECT User, Host, Role FROM mysql.roles_mapping
+  WHERE User='src_default_role_many_default_roles' OR Role='src_default_role_many_default_roles'
+  ORDER BY Role, User, Host;
+
+--echo # 6. A mandatory role is granted to PUBLIC.
+SELECT User, Host, Role FROM mysql.roles_mapping WHERE Role='src_role_mandatory';
+
+--echo # 7. Role accounts land locked, with no default role.
+SELECT User, Host, JSON_VALUE(Priv, '$.account_locked') AS account_locked,
+       JSON_VALUE(Priv, '$.default_role') AS default_role
+  FROM mysql.global_priv
+  WHERE User IN ('src_role_a', 'src_role_b', 'src_role_c') AND Host='%'
+  ORDER BY User, Host;
+
+--echo # 7a. The default roles of a role account are not dumped: it has none,
+--echo #      and several get no role of their own. Its own role grants stay.
+SELECT User, Host, JSON_VALUE(Priv, '$.default_role') AS default_role
+  FROM mysql.global_priv
+  WHERE User IN ('src_role_dflt_one', 'src_role_dflt_two') AND Host='%'
+  ORDER BY User, Host;
+SELECT User, Role FROM mysql.roles_mapping
+  WHERE User LIKE 'src\\_role\\_dflt\\_%' OR Role LIKE 'src\\_role\\_dflt\\_%'
+  ORDER BY User, Role;
+
+--echo # 8. Role names MariaDB cannot use are renamed: PUBLIC and NONE in any
+--echo #    letter case, and a name taken by an earlier rename. Privileges and
+--echo #    the member follow.
+SELECT User, Host, Role FROM mysql.roles_mapping WHERE User='src_name_member'
+  ORDER BY Role;
+SHOW GRANTS FOR Public_0001;
+SHOW GRANTS FOR Public_0001_0002;
+SHOW GRANTS FOR none_0003;
+
+# The anonymous localhost user would shadow the src_*@'%' logins.
+DROP USER ''@'localhost';
+
+# The fixture hashes are placeholders: set a known password for the users that
+# connect. The semantics checked do not depend on the plugin.
+ALTER USER 'src_simple'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_hybrid'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_hybrid_member'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+
+--echo #  src_simple: schema SELECT works; INSERT denied until src_role_a, which
+--echo #  reaches INSERT through src_role_b, is enabled.
+connect (c_simple, localhost, src_simple, pw, src_db);
+SELECT COUNT(*) AS rows_visible FROM src_db.tab;
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO src_db.tab VALUES (1,1,1);
+SET ROLE src_role_a;
+INSERT INTO src_db.tab VALUES (1,1,1);
+SELECT COUNT(*) AS rows_via_role FROM src_db.tab;
+disconnect c_simple;
+connection default;
+DELETE FROM src_db.tab;
+
+--echo # src_admin_chain_root: WITH ADMIN OPTION on src_role_a is preserved.
+SELECT User, Host, Admin_option
+  FROM mysql.roles_mapping
+  WHERE User='src_admin_chain_root' AND Role='src_role_a';
+
+--echo # src_hybrid: has its own privileges, and those of src_role_c once enabled;
+--echo # src_hybrid_member gets them through the role.
+INSERT INTO src_db.tab VALUES (1,1,1);
+connect (c_hyb, localhost, src_hybrid, pw, src_db);
+SELECT COUNT(*) AS rows_as_user FROM src_db.tab;
+SELECT CURRENT_ROLE();
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE src_db.tab SET plain=2;
+SET ROLE src_role_c;
+UPDATE src_db.tab SET plain=2;
+disconnect c_hyb;
+connect (c_hm, localhost, src_hybrid_member, pw);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT COUNT(*) FROM src_db.tab;
+SET ROLE src_hybrid;
+SELECT COUNT(*) AS rows_via_role FROM src_db.tab;
+UPDATE src_db.tab SET plain=2;
+disconnect c_hm;
+connection default;
+DELETE FROM src_db.tab;
+
+--source mariadb-dump-mysql-import-cleanup.inc
+
+--echo # End of 13.1 tests

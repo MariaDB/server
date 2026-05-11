@@ -1,0 +1,169 @@
+--echo # MDEV-24557 mariadb-dump: import MySQL 5.7+ users, grants, roles: grants
+--echo #
+--echo # Imports mysql_users_dump.sql, a dump of MySQL 26.7.0, and checks grants and identifier handling.
+--echo # Recapture it after changing the MySQL-source code (recipe in
+--echo # std_data/mysql_users_setup.sql).
+
+--source mariadb-dump-mysql-import.inc
+
+--echo # 1. Every src_* user landed.
+SELECT user, host FROM mysql.global_priv WHERE user LIKE 'src\\_%' ORDER BY user, host;
+
+--echo # 2. Simple static grants pass through unchanged.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_simple'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_static_priv'@'%';
+
+--echo # 3. Dynamic priv mapping (BINLOG_ADMIN -> BINLOG REPLAY/ADMIN).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_dyn_mapped'@'%';
+
+--echo # 4. Mixed dynamic priv (some mapped, some not).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_dyn_mixed'@'%';
+
+--echo # 5. WITH GRANT OPTION of a translated dynamic privilege is dropped.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_dyn_grant_opt'@'%';
+
+--echo # 6. CREATE ROLE / DROP ROLE static privs dropped.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_role_static'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_static_role_mix'@'%';
+
+--echo # 7. Identifier parsing: column / db underscores don't false-positive.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_col_priv'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_db_underscore'@'%';
+
+--echo # 8. Identifier parsing: edge-case usernames and hostnames.
+SELECT user, host FROM mysql.global_priv
+  WHERE user IN ('src edge space','src_edge@in_name','src_edge_wildcard_host')
+  ORDER BY user, host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_edge_wildcard_host'@'192.168.%.%';
+
+--echo # 9. ALL PRIVILEGES expands and survives import.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_all_privs'@'%';
+
+--echo # 10. Multi-scope grants for one user.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_multiscope'@'%';
+
+--echo # 11. Routine privileges land in mysql.procs_priv.
+SELECT User, Host, Db, Routine_name, Routine_type, Proc_priv
+  FROM mysql.procs_priv
+  WHERE User LIKE 'src\\_%'
+  ORDER BY User, Host, Routine_type, Routine_name;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_routine_admin'@'%';
+
+--echo # 12. PROXY grant lands in mysql.proxies_priv.
+SELECT User, Host, Proxied_user, Proxied_host
+  FROM mysql.proxies_priv
+  WHERE User='src_proxy_user'
+  ORDER BY User, Host;
+
+--echo # 13. USAGE-only user lands with the implicit GRANT USAGE.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_usage_only'@'%';
+
+--echo # 14. System-schema grants (mysql.user, performance_schema.*).
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_system_grants'@'%';
+
+--echo # 15. Same-name-different-host coverage.
+SELECT User, Host FROM mysql.global_priv
+  WHERE User IN ('src_host_localhost','src_host_dual')
+  ORDER BY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_host_localhost'@'localhost';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_host_dual'@'localhost';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_host_dual'@'%';
+
+--echo # 16. Identifier edge cases: anonymous + embedded quote + UTF-8.
+--echo # ORDER BY BINARY for collation-stable byte-level ordering across
+--echo # servers running different default collations.
+SELECT User, Host FROM mysql.global_priv
+  WHERE User='' OR User='O\'Brien' OR User='src_用户'
+  ORDER BY BINARY User, Host;
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'O\'Brien'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_用户'@'%';
+
+--echo # 17. Partial REVOKE. src_partial_revoke has a wide GRANT on *.* and a
+--echo #     partial REVOKE on src_db.*, which lands as a DENY.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_partial_revoke'@'%';
+
+--echo # 18. A static WITH GRANT OPTION is dropped if a dynamic privilege has
+--echo #     none: MariaDB would let the account grant it. Kept if it has one.
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_opt_static_dyn'@'%';
+--replace_regex /USING '(?:[^']|'')*'/USING '<hash>'/
+SHOW GRANTS FOR 'src_opt_static_dyn_opt'@'%';
+
+# The anonymous localhost user would shadow the src_*@'%' logins.
+DROP USER ''@'localhost';
+
+# The fixture hashes are placeholders: set a known password for the users that
+# connect. The semantics checked do not depend on the plugin.
+ALTER USER 'src_col_priv'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_role_static'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_proc_exec'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_partial_revoke'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_opt_static_dyn'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+
+--echo # src_partial_revoke: INSERT is denied in src_db, SELECT still works.
+connect (c_pr, localhost, src_partial_revoke, pw);
+SELECT COUNT(*) FROM src_db.tab;
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO src_db.tab VALUES (1,1,1);
+disconnect c_pr;
+connection default;
+
+--echo # src_col_priv: SELECT/UPDATE on granted columns; non-granted denied.
+connect (c_col, localhost, src_col_priv, pw, src_db);
+SELECT col_a, col_underscore_b FROM src_db.tab;
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT plain FROM src_db.tab;
+UPDATE src_db.tab SET col_a = 1 WHERE col_a IS NULL OR col_a IS NOT NULL;
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE src_db.tab SET plain = 1;
+disconnect c_col;
+connection default;
+
+--echo # src_opt_static_dyn cannot grant its dynamic privilege, as on MySQL.
+connect (c_opt, localhost, src_opt_static_dyn, pw);
+--error ER_ACCESS_DENIED_ERROR
+GRANT CONNECTION ADMIN ON *.* TO 'src_usage_only'@'%';
+disconnect c_opt;
+connection default;
+
+--echo # src_role_static landed with USAGE only -> CREATE/DROP ROLE denied.
+connect (c_rs, localhost, src_role_static, pw);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE ROLE src_should_fail_role;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DROP ROLE IF EXISTS src_role_a;
+disconnect c_rs;
+connection default;
+
+--echo # src_proc_exec: EXECUTE works; DROP PROCEDURE denied.
+connect (c_proc, localhost, src_proc_exec, pw, src_db);
+CALL src_db.proc_one(42);
+--error ER_PROCACCESS_DENIED_ERROR
+DROP PROCEDURE src_db.proc_one;
+disconnect c_proc;
+connection default;
+
+--source mariadb-dump-mysql-import-cleanup.inc
+
+--echo # End of 13.1 tests

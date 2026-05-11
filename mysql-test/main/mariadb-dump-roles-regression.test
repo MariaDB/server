@@ -1,0 +1,238 @@
+--source include/not_embedded.inc
+
+--echo # MDEV-24557 mariadb-dump: import MySQL 5.7+ users, grants, roles
+--echo #
+--echo # A role hierarchy dumped and restored by mariadb-dump --system=users;
+--echo # a second dump must be identical.
+--echo #
+
+--source include/backup_priv_tables.inc
+
+--echo #
+--echo # Hierarchy:
+--echo #   admin_role  -- admin of mid_role
+--echo #   mid_role    -- admin of leaf_role
+--echo #   leaf_role   -- granted to test_user (default); administered by
+--echo #                  both a role (mid_role) and a user (test_user)
+--echo #   plain_role  -- granted to test_user (non-default), administered by
+--echo #                  test_user and root: two admin rows for one role
+--echo #
+CREATE USER test_user@localhost IDENTIFIED BY 'pw';
+CREATE ROLE admin_role;
+CREATE ROLE mid_role  WITH ADMIN admin_role;
+CREATE ROLE leaf_role WITH ADMIN mid_role;
+CREATE ROLE plain_role;
+GRANT SELECT             ON *.* TO admin_role;
+GRANT INSERT, UPDATE     ON *.* TO mid_role;
+GRANT SHOW DATABASES     ON *.* TO leaf_role;
+GRANT PROCESS            ON *.* TO plain_role;
+GRANT leaf_role  TO test_user@localhost WITH ADMIN OPTION;
+GRANT plain_role TO test_user@localhost WITH ADMIN OPTION;
+SET DEFAULT ROLE leaf_role FOR test_user@localhost;
+
+--exec $MYSQL_DUMP --system=users --replace --skip-dump-date > $MYSQLTEST_VARDIR/tmp/dump_roles.sql
+
+DROP USER test_user@localhost;
+DROP ROLE plain_role;
+DROP ROLE leaf_role;
+DROP ROLE mid_role;
+DROP ROLE admin_role;
+
+--source include/create_dump_importer.inc
+
+--exec $MYSQL --user=test_restore --password=r --show-warnings < $MYSQLTEST_VARDIR/tmp/dump_roles.sql
+
+--echo # The import role is gone and the restoring user is not left as admin:
+SELECT User, Role FROM mysql.roles_mapping
+  WHERE User='test_restore' OR Role='mariadb_dump_import_role';
+
+--source include/drop_dump_importer.inc
+
+--echo # A second dump is identical: users, grants, roles, admin options and
+--echo # default roles survived.
+--exec $MYSQL_DUMP --system=users --replace --skip-dump-date > $MYSQLTEST_VARDIR/tmp/dump_roles2.sql
+--diff_files $MYSQLTEST_VARDIR/tmp/dump_roles.sql $MYSQLTEST_VARDIR/tmp/dump_roles2.sql
+
+--echo # The restored state is the hierarchy above, so an omission cannot pass:
+SELECT User, Host, Role, Admin_option FROM mysql.roles_mapping
+  WHERE Role LIKE '%\\_role' ORDER BY Role, User, Host;
+SELECT User, Host, default_role FROM mysql.user WHERE User='test_user';
+
+--echo #
+--echo # A name with a comment end is emitted with the slash escaped in a
+--echo # literal, not unescaped inside a /*M!...*/ comment.
+--echo #
+CREATE USER test_ss@localhost IDENTIFIED BY 'pw';
+CREATE USER `u_ss*/x`@localhost IDENTIFIED BY 'pw';
+CREATE ROLE `r_ss*/x`;
+CREATE ROLE r_admin;
+GRANT SELECT ON *.* TO `r_ss*/x`;
+GRANT `r_ss*/x` TO r_admin WITH ADMIN OPTION;
+GRANT `r_ss*/x` TO test_ss@localhost WITH ADMIN OPTION;
+--echo # also with a newline, a quote and a backslash
+CREATE ROLE `r_nl*/
+INJECTED_NL_MARKER'\`;
+
+--let $ssdump = $MYSQLTEST_VARDIR/tmp/dump_starslash.sql
+--exec $MYSQL_DUMP --system=users --replace --skip-dump-date > $ssdump
+--let SEARCH_FILE = $ssdump
+
+--echo # no version comment line holds a comment end before its own (expect NOT FOUND):
+--let SEARCH_PATTERN = (?:\A|\n)/\*M![^\n]*\*/[^\n]*\*/
+--let SEARCH_ABORT = FOUND
+--source include/search_pattern_in_file.inc
+
+--echo # role, user and guard emitted with the slash escaped (expect FOUND):
+--let SEARCH_ABORT = NOT FOUND
+--let SEARCH_PATTERN = (?:\A|\n)/\*M!100103 CREATE OR REPLACE ROLE 'r_ss\*\\\\/x' WITH ADMIN
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN = (?:\A|\n)/\*M!100103 DROP USER IF EXISTS [^\n]*u_ss\*\\\\/x
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN = current_user\(\)='''u_ss\*\\\\\\\\/x''@''localhost'''
+--source include/search_pattern_in_file.inc
+
+--echo # the dump disables account auto-creation (expect FOUND):
+--let SEARCH_PATTERN = sql_mode=CONCAT_WS\(',', NULLIF\(\@\@sql_mode, ''\), 'NO_AUTO_CREATE_USER'\)
+--source include/search_pattern_in_file.inc
+--let SEARCH_ABORT =
+
+--echo # the dump imports and recreates the names intact:
+DROP USER test_ss@localhost;
+DROP USER `u_ss*/x`@localhost;
+DROP ROLE `r_ss*/x`;
+DROP ROLE r_admin;
+DROP ROLE `r_nl*/
+INJECTED_NL_MARKER'\`;
+--source include/create_dump_importer.inc
+--exec $MYSQL --user=test_restore --password=r < $ssdump
+--source include/drop_dump_importer.inc
+SELECT user AS User, host AS Host, is_role FROM mysql.user
+  WHERE user LIKE 'u\_ss%' OR user LIKE 'r\_ss%' OR user LIKE 'r\_nl%'
+  ORDER BY user;
+SHOW GRANTS FOR `r_ss*/x`;
+SHOW GRANTS FOR test_ss@localhost;
+DROP USER test_ss@localhost;
+DROP USER `u_ss*/x`@localhost;
+DROP ROLE `r_ss*/x`;
+DROP ROLE r_admin;
+DROP ROLE `r_nl*/
+INJECTED_NL_MARKER'\`;
+--remove_file $ssdump
+
+--echo #
+--echo # PUBLIC is not created as a role; its grants are restored
+--echo #
+CREATE ROLE r_pub;
+GRANT r_pub TO PUBLIC;
+GRANT SELECT ON test.* TO PUBLIC;
+SHOW GRANTS FOR PUBLIC;
+
+--let $pubdump= $MYSQLTEST_VARDIR/tmp/dump_public.sql
+--exec $MYSQL_DUMP --system=users --replace --skip-dump-date > $pubdump
+--let SEARCH_FILE= $pubdump
+--let SEARCH_PATTERN= CREATE (?:OR REPLACE )?ROLE 'PUBLIC'
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+--let SEARCH_ABORT=
+
+REVOKE r_pub FROM PUBLIC;
+REVOKE SELECT ON test.* FROM PUBLIC;
+DROP ROLE r_pub;
+SHOW GRANTS FOR PUBLIC;
+
+--source include/create_dump_importer.inc
+--exec $MYSQL --user=test_restore --password=r < $pubdump
+--source include/drop_dump_importer.inc
+
+SHOW GRANTS FOR PUBLIC;
+REVOKE r_pub FROM PUBLIC;
+REVOKE SELECT ON test.* FROM PUBLIC;
+DROP ROLE r_pub;
+--remove_file $pubdump
+
+--echo #
+--echo # A role included by several roles is dumped once: SHOW GRANTS of a role
+--echo # also lists those of the roles it includes
+--echo #
+CREATE ROLE lat_a;
+CREATE ROLE lat_b;
+CREATE ROLE lat_c;
+CREATE ROLE lat_d;
+CREATE ROLE lat_e;
+GRANT SELECT ON test.* TO lat_d;
+GRANT INSERT ON test.* TO lat_b;
+GRANT UPDATE ON test.* TO lat_c;
+GRANT SELECT ON *.* TO lat_b;
+DENY UPDATE ON test.* TO lat_b;
+GRANT lat_d TO lat_b;
+GRANT lat_d TO lat_c;
+GRANT lat_b TO lat_a;
+GRANT lat_c TO lat_a;
+GRANT lat_e TO lat_a;
+--sorted_result
+SHOW GRANTS FOR lat_a;
+
+--let $latdump= $MYSQLTEST_VARDIR/tmp/dump_lattice.sql
+--exec $MYSQL_DUMP --system=users --replace --skip-dump-date > $latdump
+--perl
+my %seen;
+my $repeated= 0;
+open(F, "$ENV{MYSQLTEST_VARDIR}/tmp/dump_lattice.sql") or die "$!";
+while (<F>) { $repeated++ if /^(?:GRANT|DENY) / && $seen{$_}++; }
+print "repeated statements: $repeated\n";
+EOF
+
+DROP ROLE lat_a, lat_b, lat_c, lat_d, lat_e;
+--source include/create_dump_importer.inc
+--exec $MYSQL --user=test_restore --password=r < $latdump
+--source include/drop_dump_importer.inc
+--echo # nothing was lost: the same grants as before
+--sorted_result
+SHOW GRANTS FOR lat_a;
+DROP ROLE lat_a, lat_b, lat_c, lat_d, lat_e;
+--remove_file $latdump
+
+--echo #
+--echo # A server whose version string has no "MariaDB" is still a MariaDB
+--echo # source: roles, their grants and default roles are dumped
+--echo #
+--let $restart_parameters= --version=8.0.40
+--source include/restart_mysqld.inc
+CREATE ROLE r_ver;
+CREATE USER u_ver@localhost;
+GRANT SELECT ON *.* TO r_ver;
+GRANT r_ver TO u_ver@localhost;
+SET DEFAULT ROLE r_ver FOR u_ver@localhost;
+
+--let $verdump= $MYSQLTEST_VARDIR/tmp/dump_version.sql
+--exec $MYSQL_DUMP --system=users --skip-dump-date > $verdump
+--let SEARCH_FILE= $verdump
+--let SEARCH_ABORT= NOT FOUND
+--let SEARCH_PATTERN= ROLE 'r_ver'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= GRANT `r_ver` TO `u_ver`@`localhost`
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= SET DEFAULT ROLE 'r_ver' FOR 'u_ver'@'localhost'
+--source include/search_pattern_in_file.inc
+--let SEARCH_ABORT=
+
+--echo # a table named mysql.role_edges does not make it look like MySQL 8:
+--echo # the dump is the same
+CREATE TABLE mysql.role_edges (FROM_HOST CHAR(255));
+--exec $MYSQL_DUMP --system=users --skip-dump-date > $MYSQLTEST_VARDIR/tmp/dump_version_edges.sql
+DROP TABLE mysql.role_edges;
+--diff_files $verdump $MYSQLTEST_VARDIR/tmp/dump_version_edges.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_version_edges.sql
+
+DROP USER u_ver@localhost;
+DROP ROLE r_ver;
+--remove_file $verdump
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--source include/restore_priv_tables.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_roles.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump_roles2.sql
+
+--echo # End of 13.1 tests

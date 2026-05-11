@@ -1,0 +1,325 @@
+# MDEV-24557 mariadb-dump: import MySQL 5.7+ users, grants, roles: grants
+#
+# Imports mysql_users_dump.sql, a dump of MySQL 26.7.0, and checks grants and identifier handling.
+# Recapture it after changing the MySQL-source code (recipe in
+# std_data/mysql_users_setup.sql).
+SET NAMES utf8mb4;
+CREATE DATABASE src_db;
+CREATE TABLE src_db.tab (col_a INT, col_underscore_b INT, plain INT);
+CREATE TABLE src_db.tab2 (id INT PRIMARY KEY, payload TEXT);
+USE src_db;
+CREATE PROCEDURE proc_one(IN x INT) BEGIN SELECT x; END$$
+CREATE FUNCTION  func_one(x INT) RETURNS INT DETERMINISTIC BEGIN RETURN x*2; END$$
+USE test;
+CREATE DATABASE `src_under_score_db`;
+CALL mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+CALL mtr.add_suppression("Plugin 'caching_sha2_password' is of maturity level gamma");
+CREATE USER test_restore IDENTIFIED BY 'r';
+GRANT ALL ON *.* TO test_restore WITH GRANT OPTION;
+GRANT PROXY ON ''@'%' TO test_restore WITH GRANT OPTION;
+NOT FOUND /(?:\A|\n)ERROR (?!1396 )\d/ in src_import.err
+NOT FOUND /(?:\A|\n)ERROR 1396 (?![^\n]*'root'@'localhost')/ in src_import.err
+FOUND 1 /sql_mode restored/ in src_import.out
+# The import role is gone and the restoring user is not left as admin:
+SELECT User, Role FROM mysql.roles_mapping
+WHERE User='test_restore' OR Role='mariadb_dump_import_role';
+User	Role
+DROP USER test_restore;
+# 1. Every src_* user landed.
+SELECT user, host FROM mysql.global_priv WHERE user LIKE 'src\\_%' ORDER BY user, host;
+user	host
+src_admin_chain_root	%
+src_all_privs	%
+src_auth_caching_sha2	%
+src_auth_no_pwd	%
+src_auth_sha256	%
+src_col_priv	%
+src_combined	%
+src_db_underscore	%
+src_default_a	
+src_default_a	%
+src_default_b	
+src_default_b	%
+src_default_role_many	%
+src_default_role_many_default_roles	
+src_default_role_one	%
+src_dflt_member	%
+src_dual_member	%
+src_dumper	%
+src_dyn_all_dropped	%
+src_dyn_flush_collapse	%
+src_dyn_grant_opt	%
+src_dyn_mapped	%
+src_dyn_mixed	%
+src_dyn_unmapped	%
+src_edge@in_name	%
+src_edge_wildcard_host	192.168.%.%
+src_failed_login	%
+src_func_exec	%
+src_host_dual	%
+src_host_dual	localhost
+src_host_localhost	localhost
+src_hybrid	
+src_hybrid	%
+src_hybrid_member	%
+src_lock	%
+src_max_conn	%
+src_multiscope	%
+src_name_member	%
+src_opt_static_dyn	%
+src_opt_static_dyn_opt	%
+src_partial_revoke	%
+src_proc_exec	%
+src_proxy_target	%
+src_proxy_user	%
+src_pwd_expire_default	%
+src_pwd_expire_interval	%
+src_pwd_expire_never	%
+src_pwd_expire_now	%
+src_pwd_history	%
+src_pwd_require_current	%
+src_pwd_reuse	%
+src_require_cipher	%
+src_require_ssl	%
+src_require_x509	%
+src_resource_full	%
+src_role*/starslash	%
+src_role_a	
+src_role_a	%
+src_role_b	
+src_role_b	%
+src_role_c	
+src_role_c	%
+src_role_d	
+src_role_d	%
+src_role_dflt_one	
+src_role_dflt_one	%
+src_role_dflt_two	
+src_role_dflt_two	%
+src_role_dflt_x	
+src_role_dflt_x	%
+src_role_dflt_y	
+src_role_dflt_y	%
+src_role_dual	h1
+src_role_dual	h2
+src_role_dual_0004	
+src_role_dual_0005	
+src_role_mandatory	
+src_role_mandatory	%
+src_role_static	%
+src_routine_admin	%
+src_shared_role	
+src_shared_role	%
+src_shared_user_1	%
+src_shared_user_2	%
+src_shared_user_3	%
+src_shared_user_4	%
+src_shared_user_5	%
+src_simple	%
+src_starslash_comment	%
+src_starslash_escaped	%
+src_static_dyn_mix	%
+src_static_priv	%
+src_static_role_mix	%
+src_system_grants	%
+src_unlock	%
+src_usage_only	%
+src_with_attribute	%
+src_with_comment	%
+src_用户	%
+# 2. Simple static grants pass through unchanged.
+SHOW GRANTS FOR 'src_simple'@'%';
+Grants for src_simple@%
+GRANT `src_role_d` TO `src_simple`@`%`
+GRANT `src_role_a` TO `src_simple`@`%` WITH ADMIN OPTION
+GRANT USAGE ON *.* TO `src_simple`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `src_simple`@`%`
+SHOW GRANTS FOR 'src_static_priv'@'%';
+Grants for src_static_priv@%
+GRANT RELOAD, PROCESS ON *.* TO `src_static_priv`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT, INSERT, UPDATE, DELETE ON `src_db`.* TO `src_static_priv`@`%`
+# 3. Dynamic priv mapping (BINLOG_ADMIN -> BINLOG REPLAY/ADMIN).
+SHOW GRANTS FOR 'src_dyn_mapped'@'%';
+Grants for src_dyn_mapped@%
+GRANT BINLOG ADMIN, BINLOG REPLAY ON *.* TO `src_dyn_mapped`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+# 4. Mixed dynamic priv (some mapped, some not).
+SHOW GRANTS FOR 'src_dyn_mixed'@'%';
+Grants for src_dyn_mixed@%
+GRANT CONNECTION ADMIN, BINLOG ADMIN, BINLOG REPLAY, SHOW CREATE ROUTINE ON *.* TO `src_dyn_mixed`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+# 5. WITH GRANT OPTION of a translated dynamic privilege is dropped.
+SHOW GRANTS FOR 'src_dyn_grant_opt'@'%';
+Grants for src_dyn_grant_opt@%
+GRANT CONNECTION ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `src_dyn_grant_opt`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+# 6. CREATE ROLE / DROP ROLE static privs dropped.
+SHOW GRANTS FOR 'src_role_static'@'%';
+Grants for src_role_static@%
+GRANT USAGE ON *.* TO `src_role_static`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+SHOW GRANTS FOR 'src_static_role_mix'@'%';
+Grants for src_static_role_mix@%
+GRANT SELECT, INSERT ON *.* TO `src_static_role_mix`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+# 7. Identifier parsing: column / db underscores don't false-positive.
+SHOW GRANTS FOR 'src_col_priv'@'%';
+Grants for src_col_priv@%
+GRANT USAGE ON *.* TO `src_col_priv`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT (`col_underscore_b`, `col_a`), UPDATE (`col_a`) ON `src_db`.`tab` TO `src_col_priv`@`%`
+SHOW GRANTS FOR 'src_db_underscore'@'%';
+Grants for src_db_underscore@%
+GRANT USAGE ON *.* TO `src_db_underscore`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_under_score_db`.* TO `src_db_underscore`@`%`
+# 8. Identifier parsing: edge-case usernames and hostnames.
+SELECT user, host FROM mysql.global_priv
+WHERE user IN ('src edge space','src_edge@in_name','src_edge_wildcard_host')
+ORDER BY user, host;
+user	host
+src edge space	%
+src_edge@in_name	%
+src_edge_wildcard_host	192.168.%.%
+SHOW GRANTS FOR 'src_edge_wildcard_host'@'192.168.%.%';
+Grants for src_edge_wildcard_host@192.168.%.%
+GRANT USAGE ON *.* TO `src_edge_wildcard_host`@`192.168.%.%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `src_edge_wildcard_host`@`192.168.%.%`
+# 9. ALL PRIVILEGES expands and survives import.
+SHOW GRANTS FOR 'src_all_privs'@'%';
+Grants for src_all_privs@%
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, SET USER, CONNECTION ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY, SHOW CREATE ROUTINE ON *.* TO `src_all_privs`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>' WITH GRANT OPTION
+# 10. Multi-scope grants for one user.
+SHOW GRANTS FOR 'src_multiscope'@'%';
+Grants for src_multiscope@%
+GRANT PROCESS ON *.* TO `src_multiscope`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `src_multiscope`@`%`
+GRANT INSERT, UPDATE ON `src_db`.`tab` TO `src_multiscope`@`%`
+# 11. Routine privileges land in mysql.procs_priv.
+SELECT User, Host, Db, Routine_name, Routine_type, Proc_priv
+FROM mysql.procs_priv
+WHERE User LIKE 'src\\_%'
+  ORDER BY User, Host, Routine_type, Routine_name;
+User	Host	Db	Routine_name	Routine_type	Proc_priv
+src_func_exec	%	src_db	func_one	FUNCTION	Execute
+src_proc_exec	%	src_db	proc_one	PROCEDURE	Execute
+src_shared_role		src_db	proc_one	PROCEDURE	Execute
+SHOW GRANTS FOR 'src_routine_admin'@'%';
+Grants for src_routine_admin@%
+GRANT USAGE ON *.* TO `src_routine_admin`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT EXECUTE, CREATE ROUTINE, ALTER ROUTINE ON `src_db`.* TO `src_routine_admin`@`%`
+# 12. PROXY grant lands in mysql.proxies_priv.
+SELECT User, Host, Proxied_user, Proxied_host
+FROM mysql.proxies_priv
+WHERE User='src_proxy_user'
+  ORDER BY User, Host;
+User	Host	Proxied_user	Proxied_host
+src_proxy_user	%	src_proxy_target	%
+# 13. USAGE-only user lands with the implicit GRANT USAGE.
+SHOW GRANTS FOR 'src_usage_only'@'%';
+Grants for src_usage_only@%
+GRANT USAGE ON *.* TO `src_usage_only`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+# 14. System-schema grants (mysql.user, performance_schema.*).
+SHOW GRANTS FOR 'src_system_grants'@'%';
+Grants for src_system_grants@%
+GRANT USAGE ON *.* TO `src_system_grants`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `performance_schema`.* TO `src_system_grants`@`%`
+GRANT SELECT ON `mysql`.`user` TO `src_system_grants`@`%`
+# 15. Same-name-different-host coverage.
+SELECT User, Host FROM mysql.global_priv
+WHERE User IN ('src_host_localhost','src_host_dual')
+ORDER BY User, Host;
+User	Host
+src_host_dual	%
+src_host_dual	localhost
+src_host_localhost	localhost
+SHOW GRANTS FOR 'src_host_localhost'@'localhost';
+Grants for src_host_localhost@localhost
+GRANT USAGE ON *.* TO `src_host_localhost`@`localhost` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `src_host_localhost`@`localhost`
+SHOW GRANTS FOR 'src_host_dual'@'localhost';
+Grants for src_host_dual@localhost
+GRANT USAGE ON *.* TO `src_host_dual`@`localhost` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `src_host_dual`@`localhost`
+SHOW GRANTS FOR 'src_host_dual'@'%';
+Grants for src_host_dual@%
+GRANT USAGE ON *.* TO `src_host_dual`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.`tab2` TO `src_host_dual`@`%`
+# 16. Identifier edge cases: anonymous + embedded quote + UTF-8.
+# ORDER BY BINARY for collation-stable byte-level ordering across
+# servers running different default collations.
+SELECT User, Host FROM mysql.global_priv
+WHERE User='' OR User='O\'Brien' OR User='src_用户'
+  ORDER BY BINARY User, Host;
+User	Host
+	%
+	localhost
+O'Brien	%
+src_用户	%
+SHOW GRANTS FOR 'O\'Brien'@'%';
+Grants for O'Brien@%
+GRANT USAGE ON *.* TO `O'Brien`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `O'Brien`@`%`
+SHOW GRANTS FOR 'src_用户'@'%';
+Grants for src_用户@%
+GRANT USAGE ON *.* TO `src_用户`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+GRANT SELECT ON `src_db`.* TO `src_用户`@`%`
+# 17. Partial REVOKE. src_partial_revoke has a wide GRANT on *.* and a
+#     partial REVOKE on src_db.*, which lands as a DENY.
+SHOW GRANTS FOR 'src_partial_revoke'@'%';
+Grants for src_partial_revoke@%
+GRANT SELECT, INSERT ON *.* TO `src_partial_revoke`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+DENY INSERT ON `src_db`.* TO `src_partial_revoke`@`%`
+# 18. A static WITH GRANT OPTION is dropped if a dynamic privilege has
+#     none: MariaDB would let the account grant it. Kept if it has one.
+SHOW GRANTS FOR 'src_opt_static_dyn'@'%';
+Grants for src_opt_static_dyn@%
+GRANT SELECT, CONNECTION ADMIN ON *.* TO `src_opt_static_dyn`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>'
+SHOW GRANTS FOR 'src_opt_static_dyn_opt'@'%';
+Grants for src_opt_static_dyn_opt@%
+GRANT SELECT, CONNECTION ADMIN ON *.* TO `src_opt_static_dyn_opt`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>' WITH GRANT OPTION
+DROP USER ''@'localhost';
+ALTER USER 'src_col_priv'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_role_static'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_proc_exec'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_partial_revoke'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+ALTER USER 'src_opt_static_dyn'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+# src_partial_revoke: INSERT is denied in src_db, SELECT still works.
+connect  c_pr, localhost, src_partial_revoke, pw;
+SELECT COUNT(*) FROM src_db.tab;
+COUNT(*)
+0
+INSERT INTO src_db.tab VALUES (1,1,1);
+ERROR 42000: INSERT command denied to user 'src_partial_revoke'@'localhost' for table `src_db`.`tab`
+disconnect c_pr;
+connection default;
+# src_col_priv: SELECT/UPDATE on granted columns; non-granted denied.
+connect  c_col, localhost, src_col_priv, pw, src_db;
+SELECT col_a, col_underscore_b FROM src_db.tab;
+col_a	col_underscore_b
+SELECT plain FROM src_db.tab;
+ERROR 42000: SELECT command denied to user 'src_col_priv'@'localhost' for column 'plain' in table 'tab'
+UPDATE src_db.tab SET col_a = 1 WHERE col_a IS NULL OR col_a IS NOT NULL;
+UPDATE src_db.tab SET plain = 1;
+ERROR 42000: UPDATE command denied to user 'src_col_priv'@'localhost' for column 'plain' in table 'tab'
+disconnect c_col;
+connection default;
+# src_opt_static_dyn cannot grant its dynamic privilege, as on MySQL.
+connect  c_opt, localhost, src_opt_static_dyn, pw;
+GRANT CONNECTION ADMIN ON *.* TO 'src_usage_only'@'%';
+ERROR 28000: Access denied for user 'src_opt_static_dyn'@'%' (using password: YES)
+disconnect c_opt;
+connection default;
+# src_role_static landed with USAGE only -> CREATE/DROP ROLE denied.
+connect  c_rs, localhost, src_role_static, pw;
+CREATE ROLE src_should_fail_role;
+ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
+DROP ROLE IF EXISTS src_role_a;
+ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
+disconnect c_rs;
+connection default;
+# src_proc_exec: EXECUTE works; DROP PROCEDURE denied.
+connect  c_proc, localhost, src_proc_exec, pw, src_db;
+CALL src_db.proc_one(42);
+x
+42
+DROP PROCEDURE src_db.proc_one;
+ERROR 42000: alter routine command denied to user 'src_proc_exec'@'%' for routine 'src_db.proc_one'
+disconnect c_proc;
+connection default;
+DROP DATABASE src_db;
+DROP DATABASE `src_under_score_db`;
+# End of 13.1 tests

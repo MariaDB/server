@@ -1,0 +1,143 @@
+# MDEV-24557 mariadb-dump: import MySQL 5.7+ users, grants, roles: accounts
+#
+# Imports mysql_users_dump.sql, a dump of MySQL 26.7.0, and checks CREATE USER clauses and authentication.
+# Recapture it after changing the MySQL-source code (recipe in
+# std_data/mysql_users_setup.sql).
+SET NAMES utf8mb4;
+CREATE DATABASE src_db;
+CREATE TABLE src_db.tab (col_a INT, col_underscore_b INT, plain INT);
+CREATE TABLE src_db.tab2 (id INT PRIMARY KEY, payload TEXT);
+USE src_db;
+CREATE PROCEDURE proc_one(IN x INT) BEGIN SELECT x; END$$
+CREATE FUNCTION  func_one(x INT) RETURNS INT DETERMINISTIC BEGIN RETURN x*2; END$$
+USE test;
+CREATE DATABASE `src_under_score_db`;
+CALL mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+CALL mtr.add_suppression("Plugin 'caching_sha2_password' is of maturity level gamma");
+CREATE USER test_restore IDENTIFIED BY 'r';
+GRANT ALL ON *.* TO test_restore WITH GRANT OPTION;
+GRANT PROXY ON ''@'%' TO test_restore WITH GRANT OPTION;
+NOT FOUND /(?:\A|\n)ERROR (?!1396 )\d/ in src_import.err
+NOT FOUND /(?:\A|\n)ERROR 1396 (?![^\n]*'root'@'localhost')/ in src_import.err
+FOUND 1 /sql_mode restored/ in src_import.out
+# The import role is gone and the restoring user is not left as admin:
+SELECT User, Role FROM mysql.roles_mapping
+WHERE User='test_restore' OR Role='mariadb_dump_import_role';
+User	Role
+DROP USER test_restore;
+# 1. ACCOUNT LOCK / UNLOCK.
+SELECT User, Host,
+JSON_VALUE(Priv, '$.account_locked') AS account_locked
+FROM mysql.global_priv
+WHERE User IN ('src_lock','src_unlock')
+ORDER BY User, Host;
+User	Host	account_locked
+src_lock	%	1
+src_unlock	%	0
+# 2. PASSWORD EXPIRE variants.
+SELECT User, Host,
+password_expired,
+JSON_VALUE(Priv, '$.password_lifetime') AS password_lifetime
+FROM mysql.user
+JOIN mysql.global_priv USING (User, Host)
+WHERE User IN ('src_pwd_expire_now','src_pwd_expire_never',
+'src_pwd_expire_interval','src_pwd_expire_default')
+ORDER BY User;
+User	Host	password_expired	password_lifetime
+src_pwd_expire_default	%	N	-1
+src_pwd_expire_interval	%	N	90
+src_pwd_expire_never	%	N	0
+src_pwd_expire_now	%	Y	-1
+# 3. Resource limits.
+SELECT User, Host,
+JSON_VALUE(Priv, '$.max_questions')        AS max_q,
+JSON_VALUE(Priv, '$.max_updates')          AS max_u,
+JSON_VALUE(Priv, '$.max_connections')      AS max_c,
+JSON_VALUE(Priv, '$.max_user_connections') AS max_user_c
+FROM mysql.global_priv
+WHERE User IN ('src_max_conn','src_resource_full')
+ORDER BY User;
+User	Host	max_q	max_u	max_c	max_user_c
+src_max_conn	%	1000	NULL	NULL	10
+src_resource_full	%	5000	500	100	25
+# 4. REQUIRE variants.
+SELECT User, Host,
+JSON_VALUE(Priv, '$.ssl_type')   AS ssl_type,
+JSON_VALUE(Priv, '$.ssl_cipher') AS ssl_cipher
+FROM mysql.global_priv
+WHERE User IN ('src_require_ssl','src_require_x509','src_require_cipher')
+ORDER BY User;
+User	Host	ssl_type	ssl_cipher
+src_require_cipher	%	3	ECDHE-RSA-AES128-GCM-SHA256
+src_require_ssl	%	1	
+src_require_x509	%	2	
+# 5. Combined CREATE USER: kept (REQUIRE, WITH MAX_, ACCOUNT LOCK) and
+#     dropped (DEFAULT ROLE, PASSWORD HISTORY/REUSE) clauses mixed.
+SELECT User, Host,
+JSON_VALUE(Priv, '$.account_locked')        AS account_locked,
+JSON_VALUE(Priv, '$.ssl_type')              AS ssl_type,
+JSON_VALUE(Priv, '$.max_user_connections')  AS max_user_c
+FROM mysql.global_priv
+WHERE User='src_combined' AND Host='%';
+User	Host	account_locked	ssl_type	max_user_c
+src_combined	%	1	1	5
+SHOW GRANTS FOR 'src_combined'@'%';
+Grants for src_combined@%
+GRANT `src_default_a` TO `src_combined`@`%`
+GRANT USAGE ON *.* TO `src_combined`@`%` IDENTIFIED VIA caching_sha2_password USING '<hash>' REQUIRE SSL WITH MAX_USER_CONNECTIONS 5
+GRANT SELECT ON `src_db`.* TO `src_combined`@`%`
+SET DEFAULT ROLE `src_default_a` FOR `src_combined`@`%`
+# 6. Auth plugins: sha256 (dropped, locked), no password, caching_sha2.
+#     mysql_native_password is absent from the fixture (disabled in
+#     MySQL 8.4, removed in 9.0). src_auth_sha256 covers the unsupported
+#     plugin: the IDENTIFIED clause is dropped with a warning.
+SELECT User, Host,
+JSON_VALUE(Priv, '$.plugin')                AS plugin,
+LENGTH(JSON_VALUE(Priv, '$.authentication_string')) > 0 AS has_auth_string
+FROM mysql.global_priv
+WHERE User IN ('src_auth_sha256','src_auth_no_pwd','src_auth_caching_sha2')
+ORDER BY User;
+User	Host	plugin	has_auth_string
+src_auth_caching_sha2	%	caching_sha2_password	1
+src_auth_no_pwd	%	caching_sha2_password	0
+src_auth_sha256	%	mysql_native_password	0
+#     src_auth_sha256 lost its password, so ACCOUNT LOCK was forced.
+SELECT JSON_VALUE(Priv, '$.account_locked') AS sha256_locked
+FROM mysql.global_priv WHERE User='src_auth_sha256';
+sha256_locked
+1
+# 7. COMMENT clause containing '*/' (plain and backslash-escaped).
+#     COMMENT (an ATTRIBUTE in MySQL) goes into a # WARNING line.
+SELECT User, Host
+FROM mysql.global_priv
+WHERE User IN ('src_starslash_comment','src_starslash_escaped')
+ORDER BY User, Host;
+User	Host
+src_starslash_comment	%
+src_starslash_escaped	%
+# 8. A GRANT to an account that was not created fails instead of
+#     creating a passwordless login.
+FOUND 1 /(?:\A|\n)ERROR 1133 / in src_noauto.err
+SELECT COUNT(*) AS src_nx_accounts FROM mysql.user WHERE User='src_nx';
+src_nx_accounts
+0
+DROP USER ''@'localhost';
+# caching_sha2_password preservation (Unix only - gated;
+#     'OK' on Windows means skipped, not exercised).
+SELECT IF('src_auth_caching_sha2@%' = 'src_auth_caching_sha2@%',
+'OK',
+CONCAT('FAIL: got ', 'src_auth_caching_sha2@%')) AS caching_sha2_round_trip;
+caching_sha2_round_trip
+OK
+ALTER USER 'src_lock'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('pw');
+# src_lock: ACCOUNT LOCK survives import; connect rejected.
+connect(localhost,src_lock,pw,test,MYSQL_PORT,MYSQL_SOCK);
+connect  c_lock, localhost, src_lock, pw;
+ERROR HY000: Access denied, this account is locked
+SELECT User, Host, JSON_VALUE(Priv, '$.account_locked') AS account_locked
+FROM mysql.global_priv WHERE User='src_lock';
+User	Host	account_locked
+src_lock	%	1
+DROP DATABASE src_db;
+DROP DATABASE `src_under_score_db`;
+# End of 13.1 tests
