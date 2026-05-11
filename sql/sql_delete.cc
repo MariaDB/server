@@ -523,6 +523,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+    set_statistics_for_table(thd, table);
     ha_rows const maybe_deleted= table->file->stats.records;
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
