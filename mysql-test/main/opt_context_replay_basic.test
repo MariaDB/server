@@ -173,4 +173,31 @@ set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table t1;
 
+--echo #
+--echo # MDEV-39440: Failed to match the stats from replay context with the optimizer stats
+--echo #
+create table t1 (btn char(10) not null, key using HASH (btn)) engine=heap;
+insert into t1 values ("a"),("b"),("c"),("d");
+alter table t1 add column new_col char(1) not null, add key using HASH (btn,new_col), drop key btn;
+update t1 set new_col=left(btn,1);
+
+set optimizer_record_context=1;
+explain select * from t1 where btn="a";
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain select * from t1 where btn="a";
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
 drop database db1;

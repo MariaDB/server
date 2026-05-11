@@ -775,13 +775,9 @@ Optimizer_context_recorder::search(uchar *tbl_name, size_t tbl_name_len)
 }
 
 void Optimizer_context_recorder::record_multi_range_read_info_const(
-    const TABLE_LIST *tbl,
-    uint keynr,
-    Range_print_enumerator *ranges,
-    ha_rows rows,
-    const Cost_estimate *cost,
-    ha_rows max_index_blocks,
-    ha_rows max_row_blocks)
+    const TABLE_LIST *tbl, uint keynr, Range_print_enumerator *ranges,
+    ha_rows rows, const Cost_estimate *cost, const ha_rows *max_index_blocks,
+    const ha_rows *max_row_blocks)
 {
   /*
     Do not record calls that are made at execution phase by "Range checked
@@ -801,8 +797,17 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
 
   range_ctx->rows= rows;
   range_ctx->cost= *cost;
-  range_ctx->max_index_blocks= max_index_blocks;
-  range_ctx->max_row_blocks= max_row_blocks;
+  if (rows != HA_POS_ERROR)
+  {
+    range_ctx->max_index_blocks= *max_index_blocks;
+    range_ctx->max_row_blocks= *max_row_blocks;
+  }
+  else
+  {
+    // Not provided. Write 0.
+    range_ctx->max_index_blocks= 0;
+    range_ctx->max_row_blocks= 0;
+  }
 
   while (!ranges->next())
   {
