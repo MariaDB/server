@@ -191,12 +191,251 @@ typedef struct st_table_ref
 
 
 /*
-  The structs which holds the join connections and join states
+  The order of the values below is significant; it is used as the index
+  into join_type_str[] in sql_select.cc to produce the EXPLAIN "type"
+  column.  Keep additions at the end and update join_type_str[] in
+  parallel.
 */
-enum join_type { JT_UNKNOWN,JT_SYSTEM,JT_CONST,JT_EQ_REF,JT_REF,JT_MAYBE_REF,
-		 JT_ALL, JT_RANGE, JT_NEXT, JT_FT, JT_REF_OR_NULL,
-		 JT_UNIQUE_SUBQUERY, JT_INDEX_SUBQUERY, JT_INDEX_MERGE,
-                 JT_HASH, JT_HASH_RANGE, JT_HASH_NEXT, JT_HASH_INDEX_MERGE};
+enum join_type
+{
+  /*
+    Placeholder for an access method that has not been chosen yet.
+    Its value is 0 and it is the initial state of every JOIN_TAB and
+    POSITION.  Optimization must replace it with a real access
+    method; the server aborts if a JOIN_TAB still has this type when
+    the plan is finalized.
+  */
+  JT_UNKNOWN,
+
+  /*
+    The table is known to contain at most one row, for example an
+    empty table or a one row table whose storage engine reports exact
+    row count statistics.  The row is read once and kept in the record
+    buffer for the rest of the query, the remaining conditions treat
+    its columns as constants, and the table becomes part of the
+    constant prefix of the join order, so the join order search only
+    covers the remaining tables.
+
+    Shown as "system" in EXPLAIN.
+  */
+  JT_SYSTEM,
+
+  /*
+    The table yields at most one row, read through a unique index
+    whose key parts are all bound by equalities to constants or to
+    columns of other const tables.  The unique constraint guarantees
+    at most one match, so the optimizer promotes the table to a
+    const table and fetches the row once during optimization with a
+    single exact key lookup.  As with JT_SYSTEM the table becomes
+    part of the constant prefix of the join order.  Outer joins and
+    table elimination also use this type for inner tables known to
+    contribute at most one row, possibly NULL complemented.
+
+    Shown as "const" in EXPLAIN.
+  */
+  JT_CONST,
+
+  /*
+    Unique index lookup returning at most one row per row combination
+    of the earlier tables in the join order.  The lookup key is built
+    from constants and from columns of earlier tables in the order.
+    Every key part of the unique index must be matched, and the lookup
+    must never search for NULL, since the unique constraint does not
+    apply to NULL entries; that holds when no key part is nullable, or
+    when each equality either has a right hand side that cannot be
+    NULL or rejects NULL (as = does and <=> does not).  Execution
+    caches the most recently read row and skips the lookup when
+    consecutive key values are identical.  The lookup into a
+    materialized semijoin temp table also uses this type.
+
+    Shown as "eq_ref" in EXPLAIN.
+  */
+  JT_EQ_REF,
+
+  /*
+    Index lookup that may match more than one row, used when the
+    bound key parts do not guarantee a unique match; that is, the
+    index is not unique, only a prefix of its key parts is bound, or
+    the index is unique but the lookup may search for NULL in a
+    nullable key part.  The first key part must always be bound.
+
+    Shown as "ref" in EXPLAIN.
+  */
+  JT_REF,
+
+  /*
+    Legacy value that the current code never assigns.  It stays in
+    the enum so that the values after it keep their indices into
+    join_type_str[].  The server aborts on a JOIN_TAB with this
+    type, as for JT_UNKNOWN.
+  */
+  JT_MAYBE_REF,
+
+  /*
+    Sequential full table scan, chosen when no usable index access
+    exists or when scanning costs less than the indexed
+    alternatives.  At execution this type is also used for range and
+    index merge access; the JOIN_TAB keeps JT_ALL, the attached
+    quick select supplies the actual access method, and the EXPLAIN
+    type is derived from the quick select.  A "Range checked for
+    each record" plan also runs under this type, deciding for each
+    row combination of the earlier tables whether to use a quick
+    select or a full scan.
+
+    Shown as "ALL" in EXPLAIN.
+  */
+  JT_ALL,
+
+  /*
+    Reads a set of ranges from one index through a quick select.
+    During join order search, the chosen POSITION records this type
+    when a range quick select wins the cost comparison, but the
+    executed JOIN_TAB normally keeps JT_ALL with the quick select
+    attached, and the EXPLAIN type is derived from the quick select
+    (group min max plans also display as "range").  A JOIN_TAB gets
+    this type directly when a ref access bound to constants is
+    replaced by a quick select using more key parts of the same
+    index, or when a quick select is chosen to return rows in ORDER
+    BY order.
+
+    Shown as "range" in EXPLAIN.
+  */
+  JT_RANGE,
+
+  /*
+    Full index scan, reading every index entry in order.  Replaces a
+    full table scan when a covering index can supply all columns the
+    query needs, so only the index is read.  Also chosen under old
+    style FORCE INDEX hint when no index lookup is usable and a
+    covering index exists, and for reading rows in index order to
+    satisfy ORDER BY, forward or in reverse.  The new style INDEX
+    and JOIN_INDEX hints have the same effect here as FORCE INDEX.
+
+    Shown as "index" in EXPLAIN.
+  */
+  JT_NEXT,
+
+  /*
+    Full text MATCH ... AGAINST access through a FULLTEXT index.
+    Fulltext predicates produce KEYUSE entries marked with the
+    special key part number FT_KEYPART.  The fulltext engine runs
+    the search once before the join starts and returns an FT_INFO
+    handle over the matching rows; execution then fetches those rows
+    from the handle one at a time.
+
+    Shown as "fulltext" in EXPLAIN.
+  */
+  JT_FT,
+
+  /*
+    A variant of JT_REF that also fetches the rows where the key
+    column is NULL.  Chosen for predicates of the form
+      t.key = expr OR t.key IS NULL
+    on a nullable column.  Such predicates appear not only in user
+    queries, but also in the IN to EXISTS subquery rewrite when on the
+    "IS NULL" branch when a NULL subquery result must be distinguished
+    from FALSE.  Execution first reads the rows matching the key
+    value, then repeats the lookup with the NULL key.
+
+    Shown as "ref_or_null" in EXPLAIN.
+  */
+  JT_REF_OR_NULL,
+
+  /*
+    Replacement of the whole join of an IN subquery by a direct
+    unique index lookup.  Applies when the subquery still runs
+    through the IN to EXISTS rewrite (neither converted to a
+    semijoin nor materialized); consists of a single table with no
+    GROUP BY, ORDER BY, HAVING, or UNION; and the unique lookup key
+    is the IN predicate's left expression.  Each evaluation of the
+    IN predicate then performs one exact index lookup instead of
+    executing the subquery as a join.
+
+    Shown as "unique_subquery" in EXPLAIN.
+  */
+  JT_UNIQUE_SUBQUERY,
+
+  /*
+    Like JT_UNIQUE_SUBQUERY but for a lookup that can match several
+    rows, replacing a JT_REF access, or a JT_REF_OR_NULL access when
+    the rewrite added a HAVING condition for NULL handling.  Each
+    evaluation of the IN predicate reads the matching rows in turn
+    and stops at the first one that satisfies the remaining
+    conditions, since IN only needs to know whether a match exists;
+    the JT_REF_OR_NULL form then repeats the lookup with the NULL
+    key.
+
+    Shown as "index_subquery" in EXPLAIN.
+  */
+  JT_INDEX_SUBQUERY,
+
+  /*
+    Index merge, combining the results of several index scans.
+    QUICK_INDEX_MERGE_SELECT computes a union of range scans and
+    QUICK_INDEX_INTERSECT_SELECT an intersection, both sorting the
+    collected rowids to remove duplicates; QUICK_ROR_UNION_SELECT
+    and QUICK_ROR_INTERSECT_SELECT combine scans that return rowids
+    in rowid order and need no sorting step.  As with JT_RANGE the
+    execution JOIN_TAB keeps JT_ALL with the quick select attached,
+    and the EXPLAIN type is derived from the quick select.
+
+    Shown as "index_merge" in EXPLAIN.
+  */
+  JT_INDEX_MERGE,
+
+  /*
+    Block Nested Loop Hash (BNLH) join.  Row combinations of the
+    earlier tables accumulate in the join buffer, a hash table over
+    the join key is built inside the buffer, and the joined table is
+    scanned once per buffer refill with every scanned row looked up
+    in the hash.  Chosen when no index lookup on the table is usable
+    but an equality connects it to earlier tables; requires the
+    join_cache_hashed optimizer switch and join_cache_level 3 or
+    higher (the default level is 2, which leaves hash join off).  A
+    ref or eq_ref access executed through a hashed join buffer also
+    runs under this type.
+
+    Shown as "hash_ALL" in EXPLAIN.
+  */
+  JT_HASH,
+
+  /*
+    JT_HASH where the scan of the joined table runs through a range
+    quick select instead of a full scan, so only rows inside the
+    ranges are fetched and looked up in the hash of buffered rows.
+    Appears only in EXPLAIN output, derived from a JT_HASH table
+    whose attached quick select is a range scan; never the type of a
+    JOIN_TAB.
+
+    Shown as "hash_range" in EXPLAIN.
+  */
+  JT_HASH_RANGE,
+
+  /*
+    JT_HASH where the joined table is read through a covering index
+    instead of a full table scan, with every row from the index
+    looked up in the hash of buffered rows.  The promotion from
+    JT_HASH follows the same rule as the one from JT_ALL to JT_NEXT;
+    a covering index supplies all columns the query needs from the
+    table.
+
+    Shown as "hash_index" in EXPLAIN.
+  */
+  JT_HASH_NEXT,
+
+  /*
+    JT_HASH where the scan of the joined table runs through an index
+    merge quick select.  Appears only in EXPLAIN output, derived
+    from a JT_HASH table whose attached quick select is an index
+    merge; never the type of a JOIN_TAB.  The combination arises
+    when OR conditions narrow the scan of the joined table while the
+    equality joining it to the buffered rows goes through the hash,
+    as in the LEFT JOIN examples in join_cache.test.
+
+    Shown as "hash_index_merge" in EXPLAIN.
+  */
+  JT_HASH_INDEX_MERGE
+};
 
 class JOIN;
 
