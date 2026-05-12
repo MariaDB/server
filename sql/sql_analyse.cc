@@ -1196,8 +1196,12 @@ bool analyse::change_columns(THD *thd, List<Item> &field_list)
   func_items[7]= new (mem_root) Item_proc_string(thd, "Avg_value_or_avg_length", 255);
   func_items[8]= new (mem_root) Item_proc_string(thd, "Std", 255);
   func_items[8]->set_maybe_null();
+  /*
+   * TODO MDEV-39586 need to set output_str_length for cursor retrieval
+   * earlier because currently its always 0.
+   */
   func_items[9]= new (mem_root) Item_proc_string(thd, "Optimal_fieldtype",
-                                                  MY_MAX(64,
+                                                  MY_MAX(1024,
                                                          output_str_length));
 
   for (uint i = 0; i < array_elements(func_items); i++)
