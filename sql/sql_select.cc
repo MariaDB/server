@@ -5936,7 +5936,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         table.  FULL JOIN tables are excluded because their unmatched
         rows still need the null-complement pass.
       */
-      if (!table->is_filled_at_execution() &&
+      if (!(tables->outer_join & JOIN_TYPE_FULL) &&
+          !table->is_filled_at_execution() &&
           ((!table->file->stats.records &&
             (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
            all_partitions_pruned_away) && !embedding)
@@ -6002,7 +6003,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
          all_partitions_pruned_away) &&
 	!s->dependent &&
-        !table->fulltext_searched && !join->no_const_tables)
+        !table->fulltext_searched && !join->no_const_tables &&
+        !(tables->outer_join & JOIN_TYPE_FULL))
     {
       set_position(join,const_count++,s,(KEYUSE*) 0);
       no_rows_const_tables |= table->map;
@@ -6123,7 +6125,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         a const table.  FULL JOIN tables are excluded.
       */
       if ((keyuse= s->keyuse) && *s->on_expr_ref && !s->embedding_map &&
-         !(table->map & join->eliminated_tables))
+         !(table->map & join->eliminated_tables) &&
+         !(s->tab_list->outer_join & JOIN_TYPE_FULL))
       {
         /* 
           When performing an outer join operation if there are no matching rows
@@ -6166,8 +6169,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	if (table->file->stats.records <= 1L &&
 	    (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
             !table->pos_in_table_list->embedding &&
-	      !((outer_join & table->map) && 
-		(*s->on_expr_ref)->is_expensive()))
+	      !((outer_join & table->map) &&
+		(*s->on_expr_ref)->is_expensive()) &&
+            !(s->tab_list->outer_join & JOIN_TYPE_FULL))
 	{					// system table
 	  int tmp= 0;
 	  s->type= JT_SYSTEM;
