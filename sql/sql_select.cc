@@ -20440,6 +20440,19 @@ static COND *rewrite_full_outer_joins(JOIN *join,
   }
 
   /*
+    When left_table is a nested join with an unrewritten FULL JOIN
+    inside it, and rewriting that FULL JOIN would result in a query
+    with a FULL JOIN on the inner side of another join, reject the
+    rewrite.  In phase 2, we cannot support FULL JOIN on the inner
+    side of another JOIN (support coming in phase 3).
+  */
+  if (left_table->contains_full_join())
+  {
+    *not_null_tables= 0;
+    DBUG_RETURN(conds);
+  }
+
+  /*
     If the right hand table is not NULL under the WHERE clause then we can
     rewrite it as a RIGHT JOIN, mutating the data structures to make it
     appear as though the user wrote the query as a RIGHT JOIN originally.
