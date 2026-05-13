@@ -10080,7 +10080,6 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       IdentBuffer<NAME_LEN> dbuf, tbuf;
       LEX_CSTRING ref_db= fk->ref_db.str ? fk->ref_db : alter_ctx->new_db;
       LEX_CSTRING ref_table= fk->ref_table;
-      MDL_request mdl_request;
 
       if (lower_case_table_names)
       {
@@ -10088,10 +10087,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         ref_table= tbuf.copy_casedn(ref_table).to_lex_cstring();
       }
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                       ref_db.str, ref_table.str,
-                       MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
+      if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::TABLE,
+                                        ref_db.str, ref_table.str,
+                                        MDL_SHARED_NO_WRITE,
+                                        MDL_TRANSACTION,
                                         thd->variables.lock_wait_timeout))
         DBUG_RETURN(true);
     }
@@ -11170,12 +11169,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   else if (table_creation_was_logged && mysql_bin_log.is_open())
   {
     /* Protect against MDL error in binary logging */
-    MDL_request mdl_request;
     DBUG_ASSERT(!mdl_ticket);
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_TRANSACTION);
-    if (thd->mdl_context.acquire_lock(&mdl_request,
-                                      thd->variables.lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(
+            MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+            MDL_TRANSACTION, thd->variables.lock_wait_timeout))
       DBUG_RETURN(true);
   }
 

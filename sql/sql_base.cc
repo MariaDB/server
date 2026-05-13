@@ -430,7 +430,6 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       Get an explicit MDL lock for all requested tables to ensure they are
       not used by any other thread
     */
-    MDL_request_list mdl_requests;
 
     DBUG_PRINT("info", ("Waiting for other threads to close their open tables"));
     DEBUG_SYNC(thd, "after_flush_unlock");
@@ -440,19 +439,16 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
-      MDL_request *mdl_request= new (thd->mem_root) MDL_request;
-      if (mdl_request == NULL)
+      if (MDL_ticket *ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::TABLE, table->db.str, table->table_name.str,
+              MDL_EXCLUSIVE, MDL_EXPLICIT, timeout))
+      {
+        tdc_remove_table(thd, table->db.str, table->table_name.str);
+        thd->mdl_context.release_lock(ticket);
+      }
+      else
         DBUG_RETURN(true);
-      MDL_REQUEST_INIT_BY_KEY(mdl_request, &table->mdl_request.key,
-                              MDL_EXCLUSIVE, MDL_STATEMENT);
-      mdl_requests.push_front(mdl_request);
     }
-
-    if (thd->mdl_context.acquire_locks(&mdl_requests, timeout))
-      DBUG_RETURN(true);
-
-    for (TABLE_LIST *table= tables; table; table= table->next_local)
-      tdc_remove_table(thd, table->db.str, table->table_name.str);
   }
   DBUG_RETURN(false);
 }
@@ -618,13 +614,9 @@ bool flush_tables(THD *thd, flush_tables_type flag)
         In this case we cannot sending the HA_EXTRA_FLUSH signal.
       */
 
-      MDL_request mdl_request;
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                       share->db.str,
-                       share->table_name.str,
-                       MDL_SHARED, MDL_EXPLICIT);
-
-      if (!thd->mdl_context.acquire_lock(&mdl_request, 0))
+      if (MDL_ticket *mdl_ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::TABLE, share->db.str, share->table_name.str,
+              MDL_SHARED, MDL_EXPLICIT, 0))
       {
         /*
           HA_OPEN_FOR_FLUSH is used to allow us to open the table even if
@@ -646,7 +638,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
           */
           closefrm(tmp_table);
         }
-        thd->mdl_context.release_lock(mdl_request.ticket);
+        thd->mdl_context.release_lock(mdl_ticket);
       }
     }
     tdc_release_share(share);
@@ -2403,7 +2395,6 @@ retry_share:
                     MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)) &&
         ! ot_ctx->has_protection_against_grl(mdl_type))
     {
-      MDL_request protection_request;
       MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
 
       if (thd->has_read_only_protection())
@@ -2414,16 +2405,15 @@ retry_share:
         DBUG_RETURN(TRUE);
       }
 
-      MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "", mdl_type,
-                       MDL_STATEMENT);
-
       /*
         Install error handler which if possible will convert deadlock error
         into request to back-off and restart process of opening tables.
       */
       thd->push_internal_handler(&mdl_deadlock_handler);
-      bool result= thd->mdl_context.acquire_lock(&protection_request,
-                                                 ot_ctx->get_timeout());
+      bool result= !thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "",
+                                                   mdl_type,
+                                                   MDL_STATEMENT,
+                                                   ot_ctx->get_timeout());
       thd->pop_internal_handler();
 
       if (result)
@@ -4441,7 +4431,6 @@ lock_table_names(THD *thd, const DDL_options_st &options,
 {
   MDL_request_list mdl_requests;
   TABLE_LIST *table;
-  MDL_request global_request;
   MDL_savepoint mdl_savepoint;
   DBUG_ENTER("lock_table_names");
 
@@ -4494,32 +4483,35 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   if (thd->has_read_only_protection())
     DBUG_RETURN(true);
 
-  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                   MDL_STATEMENT);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&
          !upgrade_lock_if_not_exists(thd, options, tables_start,
-                                     lock_wait_timeout) &&
-         !thd->mdl_context.try_acquire_lock(&global_request))
+                                     lock_wait_timeout))
   {
-    if (global_request.ticket)
+    bool error;
+    MDL_ticket *backup_ticket= thd->mdl_context.MDL_TRY_ACQUIRE_LOCK(
+        MDL_key::BACKUP, "", "", MDL_BACKUP_DDL, MDL_STATEMENT, error);
+    if (backup_ticket)
     {
-      thd->mdl_backup_ticket= global_request.ticket;
+      thd->mdl_backup_ticket= backup_ticket;
       DBUG_RETURN(false);
     }
+    else if (error)
+      break;
 
     /*
       There is ongoing or pending BACKUP STAGE or FTWRL.
       Wait until it finishes and re-try.
     */
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-    if (thd->mdl_context.acquire_lock(&global_request, lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "",
+                                           MDL_BACKUP_DDL, MDL_STATEMENT,
+                                           lock_wait_timeout))
       break;
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
     /* Reset tickets for all acquired locks */
-    global_request.ticket= 0;
     MDL_request_list::Iterator it(mdl_requests);
     while (auto mdl_request= it++)
       mdl_request->ticket= 0;

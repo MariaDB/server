@@ -161,7 +161,6 @@ bool run_backup_stage(THD *thd, backup_stages stage)
 
 static bool backup_start(THD *thd)
 {
-  MDL_request mdl_request;
   DBUG_ENTER("backup_start");
 
   thd->current_backup_stage= BACKUP_FINISHED;   // For next test
@@ -182,20 +181,20 @@ static bool backup_start(THD *thd)
     Wait for old backup to finish and block ddl's so that we can start the
     ddl logger
   */
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_BLOCK_DDL,
-                   MDL_EXPLICIT);
-  if (thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
+  MDL_ticket *ticket;
+  if (!(ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::BACKUP, "", "", MDL_BACKUP_BLOCK_DDL,
+          MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
     DBUG_RETURN(1);
 
   if (start_ddl_logging())
   {
-    thd->mdl_context.release_lock(mdl_request.ticket);
+    thd->mdl_context.release_lock(ticket);
     DBUG_RETURN(1);
   }
 
   DBUG_ASSERT(backup_flush_ticket == 0);
-  backup_flush_ticket= mdl_request.ticket;
+  backup_flush_ticket= ticket;
 
   /* Downgrade lock to only block other backups */
   backup_flush_ticket->downgrade_lock(MDL_BACKUP_START);
@@ -541,11 +540,11 @@ bool backup_lock(THD *thd, TABLE_LIST *table)
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     return 1;
   }
-  table->mdl_request.duration= MDL_EXPLICIT;
-  if (thd->mdl_context.acquire_lock(&table->mdl_request,
-                                    thd->variables.lock_wait_timeout))
+  if (!(thd->mdl_backup_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::TABLE, table->db.str, table->table_name.str,
+          MDL_SHARED_HIGH_PRIO, MDL_EXPLICIT,
+          thd->variables.lock_wait_timeout)))
     return 1;
-  thd->mdl_backup_lock= table->mdl_request.ticket;
   return 0;
 }
 

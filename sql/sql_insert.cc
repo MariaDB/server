@@ -90,7 +90,7 @@
 #endif /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
-static bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
+static bool delayed_get_table(THD *thd, MDL_ticket *grl_protection_ticket,
                               TABLE_LIST *table_list);
 static int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
                          LEX_STRING query, bool ignore, bool log_on);
@@ -560,7 +560,6 @@ void upgrade_lock_type(THD *thd, thr_lock_type *lock_type,
 static
 bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
 {
-  MDL_request protection_request;
   DBUG_ENTER("open_and_lock_for_insert_delayed");
 
 #ifndef EMBEDDED_LIBRARY
@@ -582,11 +581,11 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
   if (thd->has_read_only_protection())
     DBUG_RETURN(TRUE);
 
-  MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "",
-                   MDL_BACKUP_DML, MDL_STATEMENT);
-
-  if (thd->mdl_context.acquire_lock(&protection_request,
-                                    thd->variables.lock_wait_timeout))
+  MDL_ticket *protection_ticket;
+  if (!(protection_ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::BACKUP, "", "",
+          MDL_BACKUP_DML, MDL_STATEMENT,
+          thd->variables.lock_wait_timeout)))
     DBUG_RETURN(TRUE);
 
   if (thd->mdl_context.acquire_lock(&table_list->mdl_request,
@@ -598,7 +597,7 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
     DBUG_RETURN(TRUE);
 
   bool error= FALSE;
-  if (delayed_get_table(thd, &protection_request, table_list))
+  if (delayed_get_table(thd, protection_ticket, table_list))
     error= TRUE;
   else if (table_list->table)
   {
@@ -2830,7 +2829,7 @@ Delayed_insert *find_handler(THD *thd, TABLE_LIST *table_list)
 */
 
 static
-bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
+bool delayed_get_table(THD *thd, MDL_ticket *grl_protection_ticket,
                        TABLE_LIST *table_list)
 {
   int error;
@@ -2893,7 +2892,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       */
       MDL_REQUEST_INIT(&di->grl_protection, MDL_key::BACKUP, "", "",
                        MDL_BACKUP_DML, MDL_STATEMENT);
-      di->grl_protection.ticket= grl_protection_request->ticket;
+      di->grl_protection.ticket= grl_protection_ticket;
       init_mdl_requests(&di->table_list);
       di->table_list.mdl_request.ticket= table_list->mdl_request.ticket;
 

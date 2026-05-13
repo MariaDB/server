@@ -440,7 +440,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   bool lock_upgrade_done= FALSE;
   bool backup_of_table_list_done= 0;;
   MDL_ticket *mdl_ticket= NULL;
-  MDL_request mdl_request_for_trn;
+  MDL_ticket *mdl_ticket_for_trn= NULL;
   Query_tables_list backup;
   DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
   char trn_path_buff[FN_REFLEN];
@@ -497,12 +497,11 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
 
   /* Protect against concurrent create/drop */
-  MDL_REQUEST_INIT(&mdl_request_for_trn, MDL_key::TRIGGER,
-                   create ? tables->db.str : thd->lex->spname->m_db.str,
-                   thd->lex->spname->m_name.str,
-                   MDL_EXCLUSIVE, MDL_EXPLICIT);
-  if (thd->mdl_context.acquire_lock(&mdl_request_for_trn,
-                                    thd->variables.lock_wait_timeout))
+  if (!(mdl_ticket_for_trn= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::TRIGGER,
+          create ? tables->db.str : thd->lex->spname->m_db.str,
+          thd->lex->spname->m_name.str,
+          MDL_EXCLUSIVE, MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
     goto end;
 
   if (!create)
@@ -711,8 +710,8 @@ end:
   /* delete any created log files */
   result|= ddl_log_revert(thd, &ddl_log_state_tmp_file);
 
-  if (mdl_request_for_trn.ticket)
-    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+  if (mdl_ticket_for_trn)
+    thd->mdl_context.release_lock(mdl_ticket_for_trn);
 
   if (refresh_metadata)
   {

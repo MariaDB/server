@@ -1252,16 +1252,14 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
       We have to create a MDL lock as change_table_names() checks that we
       have a mdl locks for the table
     */
-    MDL_request mdl_request;
+    MDL_ticket *mdl_ticket;
     TRIGGER_RENAME_PARAM trigger_param;
-    int error __attribute__((unused));
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+    mdl_ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::TABLE,
                      from_db.str,
                      from_converted_name.str,
-                     MDL_EXCLUSIVE, MDL_EXPLICIT);
-    error= thd->mdl_context.acquire_lock(&mdl_request, 1);
-    /* acquire_locks() should never fail during recovery */
-    DBUG_ASSERT(error == 0);
+                     MDL_EXCLUSIVE, MDL_EXPLICIT, 1);
+    /* acquire_lock() should never fail during recovery */
+    DBUG_ASSERT(mdl_ticket != NULL);
 
     (void) Table_triggers_list::prepare_for_rename(thd,
                                                    &trigger_param,
@@ -1277,7 +1275,7 @@ static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
                                                   &from_converted_name,
                                                   &to_db,
                                                   &to_table);
-    thd->mdl_context.release_lock(mdl_request.ticket);
+    thd->mdl_context.release_lock(mdl_ticket);
   }
 }
 

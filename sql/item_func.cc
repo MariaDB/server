@@ -4375,14 +4375,11 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(0);
   }
 
-  MDL_request ull_request;
-  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, res->c_ptr_safe(), "",
-                   MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
-  MDL_key *ull_key= &ull_request.key;
+  const MDL_key ull_key(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
 
 
   if ((ull= (User_level_lock*)
-       my_hash_search(&thd->ull_hash, ull_key->ptr(), ull_key->length())))
+       my_hash_search(&thd->ull_hash, ull_key.ptr(), ull_key.length())))
   {
     /* Recursive lock */
     ull->refs++;
@@ -4393,9 +4390,10 @@ longlong Item_func_get_lock::val_int()
 
   Lock_wait_timeout_handler lock_wait_timeout_handler;
   thd->push_internal_handler(&lock_wait_timeout_handler);
-  bool error= thd->mdl_context.acquire_lock(&ull_request, timeout);
+  MDL_ticket *ticket= thd->mdl_context.MDL_ACQUIRE_LOCK_BY_KEY(
+      &ull_key, MDL_SHARED_NO_WRITE, MDL_EXPLICIT, timeout);
   (void) thd->pop_internal_handler();
-  if (unlikely(error))
+  if (unlikely(!ticket))
   {
     if (lock_wait_timeout_handler.m_lock_wait_timeout)
       null_value= 0;
@@ -4407,11 +4405,11 @@ longlong Item_func_get_lock::val_int()
                                     MYF(MY_WME|MY_THREAD_SPECIFIC));
   if (ull == NULL)
   {
-    thd->mdl_context.release_lock(ull_request.ticket);
+    thd->mdl_context.release_lock(ticket);
     DBUG_RETURN(0);
   }
 
-  ull->lock= ull_request.ticket;
+  ull->lock= ticket;
   ull->refs= 1;
 
   if (my_hash_insert(&thd->ull_hash, (uchar*) ull))

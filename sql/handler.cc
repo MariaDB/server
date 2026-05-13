@@ -1080,13 +1080,11 @@ bool handler::log_not_redoable_operation(const char *operation)
       new log entry (and re-copy the table if needed).
     */
     THD *thd= table->in_use;
-    MDL_request mdl_backup;
     backup_log_info ddl_log;
 
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                     MDL_STATEMENT);
-    if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                      thd->variables.lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
+                                       MDL_STATEMENT,
+                                       thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
 
     bzero(&ddl_log, sizeof(ddl_log));
