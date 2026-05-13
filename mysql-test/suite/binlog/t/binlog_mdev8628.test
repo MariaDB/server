@@ -1,0 +1,302 @@
+# MDEV-8628 Replication magic for CURRENT_USER in binlog does not work
+#           when binlog is replayed
+#
+# CURRENT_USER should be expanded to the actual 'user'@'host' in the binlog
+# SQL text for GRANT, REVOKE, RENAME USER, DROP USER, and ALTER USER.
+# SET PASSWORD already does this correctly. Without expansion, replaying
+# the binlog via mysqlbinlog | mysql produces wrong results.
+
+--source include/have_log_bin.inc
+--source include/have_binlog_format_mixed.inc
+
+RESET MASTER;
+
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con1,localhost,u1,,)
+
+--echo #
+--echo # Test with lowercase current_user (no parentheses)
+--echo #
+create database if not exists db;
+grant select on db.* to current_user;
+revoke select on db.* from current_user;
+rename user current_user to u2;
+rename user u2 to current_user;
+drop user current_user;
+
+--disconnect con1
+--connection default
+
+--echo #
+--echo # Test with CURRENT_USER() (uppercase, with parentheses)
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con2,localhost,u1,,)
+
+grant select on db.* to CURRENT_USER();
+revoke select on db.* from CURRENT_USER();
+rename user CURRENT_USER() to u2;
+rename user u2 to CURRENT_USER();
+drop user CURRENT_USER();
+
+--disconnect con2
+--connection default
+
+--echo #
+--echo # Test ALTER USER with CURRENT_USER
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con3,localhost,u1,,)
+
+alter user CURRENT_USER PASSWORD EXPIRE NEVER;
+
+--disconnect con3
+--connection default
+drop user u1@'%';
+
+--echo #
+--echo # Test CURRENT_USER in a multi-user GRANT list
+--echo #
+create user u1@'%';
+create user u2@'%';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con4,localhost,u1,,)
+
+grant select on db.* to u2@'%', CURRENT_USER, u2@'%';
+
+--disconnect con4
+--connection default
+drop user u1@'%';
+drop user u2@'%';
+
+--echo #
+--echo # Test RENAME USER with CURRENT_USER on both sides
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con5,localhost,u1,,)
+
+rename user CURRENT_USER TO u3;
+
+--disconnect con5
+--connection default
+
+rename user u3 to u1;
+drop user u1@'%';
+
+--echo #
+--echo # Test case-insensitivity: mixed case cUrReNt_UsEr
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con6,localhost,u1,,)
+
+grant select on db.* to cUrReNt_UsEr;
+revoke select on db.* from cUrReNt_UsEr;
+drop user cUrReNt_UsEr;
+
+--disconnect con6
+--connection default
+
+--echo #
+--echo # Test REVOKE ALL PRIVILEGES with CURRENT_USER (mysql_revoke_all path)
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+create database if not exists db;
+grant select on db.* to u1@'%';
+
+--connect(con7,localhost,u1,,)
+
+revoke all privileges, grant option from CURRENT_USER;
+
+--disconnect con7
+--connection default
+drop user u1@'%';
+
+--echo #
+--echo # Test GRANT ROLE with CURRENT_USER (mysql_grant_role path)
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+create role r1;
+# WITH ADMIN OPTION lets u1 grant r1 to others (including themselves)
+grant r1 to u1@'%' with admin option;
+
+--connect(con8,localhost,u1,,)
+
+# u1 grants r1 to CURRENT_USER (u1 itself) - tests mysql_grant_role binlog path
+grant r1 to CURRENT_USER;
+revoke r1 from CURRENT_USER;
+
+--disconnect con8
+--connection default
+drop role r1;
+drop user u1@'%';
+
+--echo #
+--echo # Test GRANT ON PROCEDURE with CURRENT_USER (mysql_routine_grant path)
+--echo #
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+create database if not exists db;
+create procedure db.p1() select 1;
+
+--connect(con9,localhost,u1,,)
+
+grant execute on procedure db.p1 to CURRENT_USER;
+revoke execute on procedure db.p1 from CURRENT_USER;
+
+--disconnect con9
+--connection default
+drop procedure db.p1;
+drop user u1@'%';
+
+--echo #
+--echo # Test SET PASSWORD with CURRENT_USER (already correct before this fix,
+--echo # regression guard)
+--echo #
+create user u1@'%' identified by 'old';
+grant all on *.* to u1@'%' with grant option;
+
+--connect(con11,localhost,u1,old,)
+
+set password for CURRENT_USER() = password('new');
+
+--disconnect con11
+--connection default
+drop user u1@'%';
+
+--echo #
+--echo # Test that host is also expanded (user with specific host, not just '%')
+--echo #
+create user u1@'127.0.0.1';
+grant all on *.* to u1@'127.0.0.1' with grant option;
+
+--connect(con10,127.0.0.1,u1,,)
+
+grant select on db.* to CURRENT_USER;
+drop user CURRENT_USER;
+
+--disconnect con10
+--connection default
+
+drop database if exists db;
+
+--echo #
+--echo # Verify that CURRENT_USER is expanded in binlog output.
+--echo # The binlog should contain 'u1'@'%' instead of literal current_user.
+--echo #
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev8628.sql
+
+# Check that the binlog SQL does NOT contain unexpanded current_user
+# in user positions for GRANT/REVOKE/RENAME/DROP/ALTER statements.
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev8628.sql
+--let SEARCH_PATTERN= grant select on db\.\* to current_user
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke select on db\.\* from current_user
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= rename user current_user
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= drop user current_user
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= drop user CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= grant select on db\.\* to CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke select on db\.\* from CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= rename user CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= alter user CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= drop user cUrReNt_UsEr
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= grant select on db\.\* to cUrReNt_UsEr
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke all privileges.*from CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= grant r1 to CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke r1 from CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= grant execute on procedure.*to CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke execute on procedure.*from CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= SET PASSWORD FOR CURRENT_USER
+--source include/search_pattern_in_file.inc
+
+# Verify expanded forms ARE present
+--let SEARCH_PATTERN= grant select on db\.\* to 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke select on db\.\* from 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= rename user 'u1'@'%' to u2
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= rename user u2 to 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= drop user 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= alter user 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+# Verify SET PASSWORD expanded correctly (regression guard)
+--let SEARCH_PATTERN= SET PASSWORD FOR 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+# Verify host-specific user is also expanded correctly
+--let SEARCH_PATTERN= grant select on db\.\* to 'u1'@'127\.0\.0\.1'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= drop user 'u1'@'127\.0\.0\.1'
+--source include/search_pattern_in_file.inc
+
+# Verify role grant/revoke expanded forms
+--let SEARCH_PATTERN= grant r1 to 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke r1 from 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+# Verify routine grant/revoke expanded forms
+--let SEARCH_PATTERN= grant execute on procedure.*to 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= revoke execute on procedure.*from 'u1'@'%'
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev8628.sql

@@ -7351,6 +7351,10 @@ static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, THD *thd)
     TRUE  error
 */
 
+static bool rewrite_query_expanding_current_user(THD *thd,
+                                                 List<LEX_USER> &users_list,
+                                                 String *buf);
+
 int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 		      List <LEX_USER> &user_list,
 		      List <LEX_COLUMN> &columns, privilege_t rights,
@@ -7589,7 +7593,14 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (!result) /* success */
-    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  {
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, user_list, &rewritten_query))
+      result= write_bin_log(thd, TRUE, rewritten_query.c_ptr_safe(),
+                            rewritten_query.length());
+    else
+      result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  }
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -7717,8 +7728,18 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 
   if (write_to_binlog && !result)
   {
-    if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
-      result= TRUE;
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, user_list, &rewritten_query))
+    {
+      if (write_bin_log(thd, FALSE, rewritten_query.c_ptr_safe(),
+                        rewritten_query.length()))
+        result= TRUE;
+    }
+    else
+    {
+      if (write_bin_log(thd, FALSE, thd->query(), thd->query_length()))
+        result= TRUE;
+    }
   }
 
   mysql_rwlock_unlock(&LOCK_grant);
@@ -7750,6 +7771,132 @@ static void append_user(THD *thd, String *str, LEX_USER *user)
 {
   append_user(thd, str, & user->user, & user->host);
 }
+
+/**
+  Rewrite a query string, expanding CURRENT_USER to 'user'@'host'.
+
+  This is needed for GRANT, REVOKE, RENAME USER, and DROP USER so that
+  when the binlog is replayed via mysqlbinlog | mysql, the statements
+  reference the correct user rather than the literal CURRENT_USER keyword
+  (which would resolve to whoever runs the replay).
+
+  @param thd          Thread handle
+  @param users_list   List of LEX_USER from the parsed statement (before
+                      get_current_user resolution)
+  @param[out] buf     Output buffer; if rewriting occurred, contains the
+                      rewritten query. Otherwise empty.
+
+  @return  true if the query was rewritten (use buf), false otherwise
+           (use thd->query() as before)
+
+  @note MDEV-8628
+*/
+static bool rewrite_query_expanding_current_user(THD *thd,
+                                                 List<LEX_USER> &users_list,
+                                                 String *buf)
+{
+  /* Check if any user in the list was specified as CURRENT_USER */
+  bool has_current_user= false;
+  List_iterator<LEX_USER> it(users_list);
+  LEX_USER *user;
+  while ((user= it++))
+  {
+    if (user->user.str == current_user.str)
+    {
+      has_current_user= true;
+      break;
+    }
+  }
+
+  if (!has_current_user)
+    return false;
+
+  /*
+    Replace all case-insensitive occurrences of "current_user" (with optional
+    parentheses) in the query with the quoted 'user'@'host' of the session.
+  */
+  Security_context *sctx= thd->security_ctx;
+  const char *query= thd->query();
+  size_t query_len= thd->query_length();
+
+  /* Build the replacement string: 'priv_user'@'priv_host' */
+  String replacement;
+  replacement.append('\'');
+  replacement.append(sctx->priv_user, strlen(sctx->priv_user));
+  replacement.append(STRING_WITH_LEN("'@'"));
+  replacement.append(sctx->priv_host, strlen(sctx->priv_host));
+  replacement.append('\'');
+
+  buf->length(0);
+  const char *pos= query;
+  const char *end= query + query_len;
+
+  while (pos < end)
+  {
+    /* Skip quoted strings to avoid replacing inside them */
+    if (*pos == '\'' || *pos == '"' || *pos == '`')
+    {
+      char quote= *pos;
+      buf->append(pos, 1);
+      pos++;
+      while (pos < end)
+      {
+        if (*pos == quote)
+        {
+          buf->append(pos, 1);
+          pos++;
+          if (pos < end && *pos == quote)
+          {
+            /* Escaped quote (doubled) */
+            buf->append(pos, 1);
+            pos++;
+          }
+          else
+            break;
+        }
+        else if (*pos == '\\' && quote != '`')
+        {
+          buf->append(pos, 2);
+          pos+= 2;
+        }
+        else
+        {
+          buf->append(pos, 1);
+          pos++;
+        }
+      }
+      continue;
+    }
+
+    /* Check for "current_user" keyword (case-insensitive) */
+    if ((size_t)(end - pos) >= 12 &&
+        strncasecmp(pos, "current_user", 12) == 0)
+    {
+      /* Make sure it's not part of a longer identifier */
+      if ((pos == query || !my_isvar(system_charset_info, *(pos - 1))) &&
+          (pos + 12 >= end || !my_isvar(system_charset_info, *(pos + 12))))
+      {
+        const char *after= pos + 12;
+        /* Skip optional "()" */
+        if (after < end && *after == '(')
+        {
+          after++;
+          if (after < end && *after == ')')
+            after++;
+        }
+        buf->append(replacement);
+        pos= after;
+        continue;
+      }
+    }
+
+    buf->append(pos, 1);
+    pos++;
+  }
+
+  return true;
+}
+
 
 /**
   append a string to a buffer that will be later used as an error message
@@ -8053,7 +8200,14 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     my_error(revoke ? ER_CANNOT_REVOKE_ROLE : ER_CANNOT_GRANT_ROLE, MYF(0),
              rolename.str, wrong_users.c_ptr_safe());
   else
-    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  {
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, list, &rewritten_query))
+      result= write_bin_log(thd, TRUE, rewritten_query.c_ptr_safe(),
+                            rewritten_query.length());
+    else
+      result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  }
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -8157,7 +8311,12 @@ bool mysql_grant(THD *thd, LEX_CSTRING db, List <LEX_USER> &list,
 
   if (!result)
   {
-    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, list, &rewritten_query))
+      result= write_bin_log(thd, TRUE, rewritten_query.c_ptr_safe(),
+                            rewritten_query.length());
+    else
+      result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
   }
 
   mysql_rwlock_unlock(&LOCK_grant);
@@ -11576,7 +11735,14 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              wrong_users.c_ptr_safe());
 
   if (binlog)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  {
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, list, &rewritten_query))
+      result |= write_bin_log(thd, FALSE, rewritten_query.c_ptr_safe(),
+                              rewritten_query.length());
+    else
+      result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  }
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -11670,7 +11836,14 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     my_error(ER_CANNOT_USER, MYF(0), "RENAME USER", wrong_users.c_ptr_safe());
 
   if (some_users_renamed && mysql_bin_log.is_open())
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  {
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, list, &rewritten_query))
+      result |= write_bin_log(thd, FALSE, rewritten_query.c_ptr_safe(),
+                              rewritten_query.length());
+    else
+      result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  }
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -11746,8 +11919,15 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   }
 
   if (some_users_altered)
-    result|= write_bin_log(thd, FALSE, thd->query(),
-                                     thd->query_length());
+  {
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, users_list, &rewritten_query))
+      result|= write_bin_log(thd, FALSE, rewritten_query.c_ptr_safe(),
+                             rewritten_query.length());
+    else
+      result|= write_bin_log(thd, FALSE, thd->query(),
+                             thd->query_length());
+  }
   DBUG_RETURN(result);
 }
 
@@ -12002,8 +12182,16 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
   if (result)
     my_message(ER_REVOKE_GRANTS, ER_THD(thd, ER_REVOKE_GRANTS), MYF(0));
   
-  result= result |
-    write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  {
+    String rewritten_query;
+    if (rewrite_query_expanding_current_user(thd, list, &rewritten_query))
+      result= result |
+        write_bin_log(thd, FALSE, rewritten_query.c_ptr_safe(),
+                      rewritten_query.length());
+    else
+      result= result |
+        write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  }
 
   mysql_rwlock_unlock(&LOCK_grant);
 

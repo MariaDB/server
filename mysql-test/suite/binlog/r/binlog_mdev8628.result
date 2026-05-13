@@ -1,0 +1,180 @@
+RESET MASTER;
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+connect con1,localhost,u1,,;
+#
+# Test with lowercase current_user (no parentheses)
+#
+create database if not exists db;
+grant select on db.* to current_user;
+revoke select on db.* from current_user;
+rename user current_user to u2;
+rename user u2 to current_user;
+drop user current_user;
+Warnings:
+Note	4227	Dropped users 'u1'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
+disconnect con1;
+connection default;
+#
+# Test with CURRENT_USER() (uppercase, with parentheses)
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+connect con2,localhost,u1,,;
+grant select on db.* to CURRENT_USER();
+revoke select on db.* from CURRENT_USER();
+rename user CURRENT_USER() to u2;
+rename user u2 to CURRENT_USER();
+drop user CURRENT_USER();
+Warnings:
+Note	4227	Dropped users 'u1'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
+disconnect con2;
+connection default;
+#
+# Test ALTER USER with CURRENT_USER
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+connect con3,localhost,u1,,;
+alter user CURRENT_USER PASSWORD EXPIRE NEVER;
+disconnect con3;
+connection default;
+drop user u1@'%';
+#
+# Test CURRENT_USER in a multi-user GRANT list
+#
+create user u1@'%';
+create user u2@'%';
+grant all on *.* to u1@'%' with grant option;
+connect con4,localhost,u1,,;
+grant select on db.* to u2@'%', CURRENT_USER, u2@'%';
+disconnect con4;
+connection default;
+drop user u1@'%';
+drop user u2@'%';
+#
+# Test RENAME USER with CURRENT_USER on both sides
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+connect con5,localhost,u1,,;
+rename user CURRENT_USER TO u3;
+disconnect con5;
+connection default;
+rename user u3 to u1;
+drop user u1@'%';
+#
+# Test case-insensitivity: mixed case cUrReNt_UsEr
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+connect con6,localhost,u1,,;
+grant select on db.* to cUrReNt_UsEr;
+revoke select on db.* from cUrReNt_UsEr;
+drop user cUrReNt_UsEr;
+Warnings:
+Note	4227	Dropped users 'u1'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
+disconnect con6;
+connection default;
+#
+# Test REVOKE ALL PRIVILEGES with CURRENT_USER (mysql_revoke_all path)
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+create database if not exists db;
+Warnings:
+Note	1007	Can't create database 'db'; database exists
+grant select on db.* to u1@'%';
+connect con7,localhost,u1,,;
+revoke all privileges, grant option from CURRENT_USER;
+disconnect con7;
+connection default;
+drop user u1@'%';
+#
+# Test GRANT ROLE with CURRENT_USER (mysql_grant_role path)
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+create role r1;
+grant r1 to u1@'%' with admin option;
+connect con8,localhost,u1,,;
+grant r1 to CURRENT_USER;
+revoke r1 from CURRENT_USER;
+disconnect con8;
+connection default;
+drop role r1;
+drop user u1@'%';
+#
+# Test GRANT ON PROCEDURE with CURRENT_USER (mysql_routine_grant path)
+#
+create user u1@'%';
+grant all on *.* to u1@'%' with grant option;
+create database if not exists db;
+Warnings:
+Note	1007	Can't create database 'db'; database exists
+create procedure db.p1() select 1;
+connect con9,localhost,u1,,;
+grant execute on procedure db.p1 to CURRENT_USER;
+revoke execute on procedure db.p1 from CURRENT_USER;
+disconnect con9;
+connection default;
+drop procedure db.p1;
+drop user u1@'%';
+#
+# Test SET PASSWORD with CURRENT_USER (already correct before this fix,
+# regression guard)
+#
+create user u1@'%' identified by 'old';
+grant all on *.* to u1@'%' with grant option;
+connect con11,localhost,u1,old,;
+set password for CURRENT_USER() = password('new');
+disconnect con11;
+connection default;
+drop user u1@'%';
+#
+# Test that host is also expanded (user with specific host, not just '%')
+#
+create user u1@'127.0.0.1';
+grant all on *.* to u1@'127.0.0.1' with grant option;
+connect con10,127.0.0.1,u1,,;
+grant select on db.* to CURRENT_USER;
+drop user CURRENT_USER;
+Warnings:
+Note	4227	Dropped users 'u1'@'127.0.0.1' have active connections. Use KILL CONNECTION if they should not be used anymore.
+disconnect con10;
+connection default;
+drop database if exists db;
+#
+# Verify that CURRENT_USER is expanded in binlog output.
+# The binlog should contain 'u1'@'%' instead of literal current_user.
+#
+NOT FOUND /grant select on db\.\* to current_user/ in mdev8628.sql
+NOT FOUND /revoke select on db\.\* from current_user/ in mdev8628.sql
+NOT FOUND /rename user current_user/ in mdev8628.sql
+NOT FOUND /drop user current_user/ in mdev8628.sql
+NOT FOUND /drop user CURRENT_USER/ in mdev8628.sql
+NOT FOUND /grant select on db\.\* to CURRENT_USER/ in mdev8628.sql
+NOT FOUND /revoke select on db\.\* from CURRENT_USER/ in mdev8628.sql
+NOT FOUND /rename user CURRENT_USER/ in mdev8628.sql
+NOT FOUND /alter user CURRENT_USER/ in mdev8628.sql
+NOT FOUND /drop user cUrReNt_UsEr/ in mdev8628.sql
+NOT FOUND /grant select on db\.\* to cUrReNt_UsEr/ in mdev8628.sql
+NOT FOUND /revoke all privileges.*from CURRENT_USER/ in mdev8628.sql
+NOT FOUND /grant r1 to CURRENT_USER/ in mdev8628.sql
+NOT FOUND /revoke r1 from CURRENT_USER/ in mdev8628.sql
+NOT FOUND /grant execute on procedure.*to CURRENT_USER/ in mdev8628.sql
+NOT FOUND /revoke execute on procedure.*from CURRENT_USER/ in mdev8628.sql
+NOT FOUND /SET PASSWORD FOR CURRENT_USER/ in mdev8628.sql
+FOUND 3 /grant select on db\.\* to 'u1'@'%'/ in mdev8628.sql
+FOUND 3 /revoke select on db\.\* from 'u1'@'%'/ in mdev8628.sql
+FOUND 2 /rename user 'u1'@'%' to u2/ in mdev8628.sql
+FOUND 2 /rename user u2 to 'u1'@'%'/ in mdev8628.sql
+FOUND 3 /drop user 'u1'@'%'/ in mdev8628.sql
+FOUND 1 /alter user 'u1'@'%'/ in mdev8628.sql
+FOUND 1 /SET PASSWORD FOR 'u1'@'%'/ in mdev8628.sql
+FOUND 1 /grant select on db\.\* to 'u1'@'127\.0\.0\.1'/ in mdev8628.sql
+FOUND 1 /drop user 'u1'@'127\.0\.0\.1'/ in mdev8628.sql
+FOUND 1 /grant r1 to 'u1'@'%'/ in mdev8628.sql
+FOUND 1 /revoke r1 from 'u1'@'%'/ in mdev8628.sql
+FOUND 1 /grant execute on procedure.*to 'u1'@'%'/ in mdev8628.sql
+FOUND 1 /revoke execute on procedure.*from 'u1'@'%'/ in mdev8628.sql
