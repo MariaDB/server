@@ -6,6 +6,7 @@ create table t1 (a int) engine=innodb;
 include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 #
@@ -21,6 +22,7 @@ insert into t1 values (1);
 include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 # Slave 3 t1 should match slave 2 t1
@@ -37,6 +39,9 @@ include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
 # Cleanup
 connection server_1;
 drop table t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
