@@ -1,0 +1,371 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo # RECORD cannot have attributes
+--echo # Currently this is not allowed by the parser in qualified types
+--echo # If we ever allow, make sure to call check_data_type_attributes()
+--echo # which will raise ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t (0); -- Length attribute
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t (0,0); -- Length and dec attributes
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t CHARACTER SET latin1;
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  r0 pkg1.rec0_t COLLATE latin1_bin;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+--echo # PACKAGE spec types cannot be used in schema routine parameters
+--echo # and schema function RETURN
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1(a pkg1.rec0_t) AS
+BEGIN
+  NULL;
+END;
+$$
+--error ER_WRONG_USAGE
+CREATE FUNCTION f1 RETURN pkg1.rec0_t AS
+BEGIN
+  RETURN NULL;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package routine parameter and a package function RETURN
+--echo # 2-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p2(r pkg1.rec0_t) AS
+  BEGIN
+    SELECT r.a, r.b;
+  END;
+  FUNCTION f1 RETURN pkg1.rec0_t AS
+    res pkg1.rec0_t;
+  BEGIN
+    res.a:= 10;
+    res.b:= 'b';
+    RETURN res;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(f1());
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1();
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package routine parameter and a package function RETURN
+--echo # 3-step
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test1;
+USE test1;
+
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+  PROCEDURE p2(r test.pkg1.rec0_t) AS
+  BEGIN
+    SELECT r.a, r.b;
+  END;
+  FUNCTION f1 RETURN test.pkg1.rec0_t AS
+    res test.pkg1.rec0_t;
+  BEGIN
+    res.a:= 10;
+    res.b:= 'b';
+    RETURN res;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(f1());
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg2.p1();
+CALL test1.pkg2.p1();
+USE test;
+CALL test1.pkg2.p1();
+USE test1;
+DROP PACKAGE pkg2;
+DROP DATABASE test1;
+USE test;
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package routine parameter + 2-step self-reference
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  TYPE r IS RECORD(x INT);
+  PROCEDURE q(v pkg1.no_such_type); -- 2-step self reference
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE r IS RECORD(x INT);
+  PROCEDURE q(v pkg1.r); -- 2-step self reference
+  PROCEDURE exec();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE q(v pkg1.r) AS
+  BEGIN
+    SELECT v.x;
+  END;
+  PROCEDURE exec() AS
+    v pkg1.r;
+  BEGIN
+    v.x:= 10;
+    q(v);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.exec();
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package routine parameter + 3-step self-reference
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  TYPE r IS RECORD(x INT);
+  PROCEDURE q(v test.pkg1.no_such_type); -- 3-step Self reference
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE r IS RECORD(x INT);
+  PROCEDURE q(v test.pkg1.r); -- 3-step self reference
+  PROCEDURE exec();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE q(v test.pkg1.r) AS
+  BEGIN
+    SELECT v.x;
+  END;
+  PROCEDURE exec() AS
+    v test.pkg1.r;
+  BEGIN
+    v.x:= 10;
+    q(v);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.exec();
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package function RETURN type + 2-step self-reference
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  FUNCTION g RETURN pkg1.no_such_type; -- 2-step self-reference
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE r IS RECORD(x INT);
+  FUNCTION g RETURN pkg1.r;   -- 2-step self-reference
+  PROCEDURE exec;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION g RETURN pkg1.r AS
+    v pkg1.r;
+  BEGIN
+    v.x:= 10;
+    RETURN v;
+  END;
+  PROCEDURE exec AS
+    v pkg1.r;
+  BEGIN
+    v:= g();
+    SELECT v.x;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.exec();
+DROP PACKAGE pkg1;
+
+
+--echo # RECORD as a package function RETURN type + 3-step self-reference
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PACKAGE pkg1 AS
+  FUNCTION g RETURN test.pkg1.no_such_type; -- 3-step self-reference
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  TYPE r IS RECORD(x INT);
+  FUNCTION g RETURN test.pkg1.r; -- 3-step self-reference
+  PROCEDURE exec;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION g RETURN test.pkg1.r AS
+    v test.pkg1.r;
+  BEGIN
+    v.x:= 10;
+    RETURN v;
+  END;
+  PROCEDURE exec AS
+    v test.pkg1.r;
+  BEGIN
+    v:= g();
+    SELECT v.x;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.exec();
+DROP PACKAGE pkg1;
+
+
+--echo #
+--echo # MDEV-40721 SIGSEGV in LEX::sp_package_spec_check_cyclic_dependency | LEX::set_field_type_typedef_package_spec
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE emp_pkg AS
+  TYPE emp_rec IS RECORD (id INT);
+  FUNCTION get_emp(p_id INT) RETURN emp_rec;
+END;
+$$
+CREATE PACKAGE BODY emp_pkg AS
+  FUNCTION get_emp(p_id INT) RETURN emp_pkg.emp_rec AS
+    v emp_pkg.emp_rec;
+  BEGIN
+    v.id := p_id;
+    RETURN v;
+  END;
+END;
+$$
+CREATE PROCEDURE show_emp AS
+  v emp_pkg.emp_rec;
+BEGIN
+  v := emp_pkg.get_emp(7);
+  SELECT v.id AS id;
+END;
+$$
+DELIMITER ;$$
+CALL show_emp;
+DROP PROCEDURE show_emp;
+DROP PACKAGE emp_pkg;
+
+
+DELIMITER $$;
+CREATE PACKAGE emp_pkg AS
+  TYPE emp_rec IS RECORD (id INT);
+  PROCEDURE get_emp(p_id INT);
+END;
+$$
+CREATE PACKAGE BODY emp_pkg AS
+  PROCEDURE get_emp(p_id INT) AS
+    v emp_pkg.emp_rec;
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+CREATE PROCEDURE show_emp AS
+BEGIN
+  emp_pkg.get_emp(7);
+END;
+$$
+DELIMITER ;$$
+CALL show_emp;
+DROP PROCEDURE show_emp;
+DROP PACKAGE emp_pkg;
+
+
+DELIMITER $$;
+CREATE PACKAGE t AS TYPE r IS RECORD (id INT); END; $$
+CREATE PACKAGE a AS PROCEDURE q; END; $$
+CREATE PACKAGE BODY a AS PROCEDURE q AS v t.r; BEGIN NULL; END; END; $$
+CREATE PROCEDURE c AS BEGIN CALL a.q(); END; $$
+DELIMITER ;$$
+CALL c;
+DROP PROCEDURE c;
+DROP PACKAGE a;
+DROP PACKAGE t;

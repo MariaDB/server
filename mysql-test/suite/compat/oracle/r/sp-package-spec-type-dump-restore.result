@@ -1,0 +1,31 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-39587 Package-wide TYPE for variable declarations
+# MDEV-40114 Package-wide TYPE variable declarations fail during mariadb-dump restore
+#
+CREATE PACKAGE pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(30));
+END;
+$$
+CREATE PROCEDURE p1 AS
+r pkg1.rec0_t;
+BEGIN
+r.a:=1;
+SELECT r.a;
+END;
+$$
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CALL p1;
+r.a
+1
+SELECT routine_type, routine_name
+FROM information_schema.routines
+WHERE routine_schema='test'
+ORDER BY routine_type, routine_name;
+routine_type	routine_name
+PACKAGE	pkg1
+PROCEDURE	p1
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;

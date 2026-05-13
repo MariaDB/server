@@ -1,0 +1,137 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+--echo #
+--echo # MDEV-40148 Package spec RECORD-field %TYPE anchor is broken
+--echo #
+
+# Two step reference from a procedure to a package spec
+CREATE TABLE t (id INT, name VARCHAR(100));
+
+DELIMITER $$;
+CREATE PACKAGE pkga AS
+  TYPE r IS RECORD (f t.id%TYPE);
+END;
+$$
+CREATE PROCEDURE pa AS
+  v pkga.r; -- HERE
+BEGIN
+  v.f := 1;
+  IF v.f = 1
+    THEN SELECT 'ok';
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL pa;
+DROP PROCEDURE pa;
+DROP PACKAGE pkga;
+DROP TABLE t;
+
+
+# Three step reference from a procedure to a package spec
+CREATE TABLE t (id INT, name VARCHAR(100));
+
+DELIMITER $$;
+CREATE PACKAGE pkga AS
+  TYPE r IS RECORD (f t.id%TYPE);
+END;
+$$
+CREATE PROCEDURE pa AS
+  v test.pkga.r; -- HERE
+BEGIN
+  v.f := 1;
+  IF v.f = 1
+    THEN SELECT 'ok';
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL pa;
+DROP PROCEDURE pa;
+DROP PACKAGE pkga;
+DROP TABLE t;
+
+
+# Two step reference from a package spec to the same package spec
+CREATE TABLE t (id INT, name VARCHAR(100));
+INSERT INTO t VALUES (10,'n10');
+
+DELIMITER $$;
+CREATE PACKAGE pkga AS
+  TYPE rec0_t IS RECORD (id t.id%TYPE, name t.name%TYPE);
+  TYPE cur0_t IS REF CURSOR RETURN pkga.rec0_t; -- HERE
+END;
+$$
+CREATE PROCEDURE pa AS
+  c0 pkga.cur0_t;
+  r0 pkga.rec0_t;
+BEGIN
+  OPEN c0 FOR SELECT id, name FROM t;
+  FETCH c0 INTO r0;
+  CLOSE c0;
+  SELECT r0.id, r0.name;
+END;
+$$
+DELIMITER ;$$
+CALL pa;
+DROP PROCEDURE pa;
+DROP PACKAGE pkga;
+DROP TABLE t;
+
+
+# Three step reference from a package spec to the same package spec
+CREATE TABLE t (id INT, name VARCHAR(100));
+INSERT INTO t VALUES (10,'n10');
+
+DELIMITER $$;
+CREATE PACKAGE pkga AS
+  TYPE rec0_t IS RECORD (id t.id%TYPE, name t.name%TYPE);
+  TYPE cur0_t IS REF CURSOR RETURN test.pkga.rec0_t; -- HERE
+END;
+$$
+CREATE PROCEDURE pa AS
+  c0 pkga.cur0_t;
+  r0 pkga.rec0_t;
+BEGIN
+  OPEN c0 FOR SELECT id, name FROM t;
+  FETCH c0 INTO r0;
+  CLOSE c0;
+  SELECT r0.id, r0.name;
+END;
+$$
+DELIMITER ;$$
+CALL pa;
+DROP PROCEDURE pa;
+DROP PACKAGE pkga;
+DROP TABLE t;
+
+
+--echo #
+--echo #  MDEV-40216 Assertion `thd->is_error() || thd->killed' failed in bool do_execute_sp(THD *, sp_head *)
+--echo #
+
+CREATE TABLE tb (c_int INT);
+DELIMITER $$;
+CREATE PACKAGE pk AS
+  TYPE rec IS RECORD (f tb.c_int%TYPE);
+  TYPE aa IS TABLE OF INT INDEX BY INTEGER;
+END;
+$$
+CREATE PROCEDURE p AS
+  r pk.rec;
+  v pk.aa;
+BEGIN
+  r.f := 5;
+  v(r.f) := 99;
+  SELECT v(5);
+END;
+$$
+DELIMITER ;$$
+CALL p;
+DROP PROCEDURE p;
+DROP PACKAGE pk;
+DROP TABLE tb;

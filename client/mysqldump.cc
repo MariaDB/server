@@ -2937,14 +2937,24 @@ static void print_blob_as_hex(FILE *output_file, const char *str, ulong len)
 static uint dump_routines_for_db(char *db)
 {
   char       query_buff[QUERY_LENGTH];
-  const char *routine_type[]= {"FUNCTION",
-                               "PROCEDURE",
-                               "PACKAGE",
-                               "PACKAGE BODY"};
-  const char *create_caption_xml[]= {"Create Function",
-                                     "Create Procedure",
-                                     "Create Package",
-                                     "Create Package Body"};
+  struct routine_dump_param_st
+  {
+    const char *routine_type;
+    const char *create_caption_xml;
+    uint version;
+  };
+  /*
+    Package specifications can have public data type definitions.
+    So dump specifications first, before any other stored objects.
+    Note, before 10.3 packages are not supported.
+  */
+  const routine_dump_param_st routine_dump_param_array[]=
+  {
+    {"PACKAGE",      "Create Package",      100300},
+    {"FUNCTION",     "Create Function",     0},
+    {"PROCEDURE",    "Create Procedure",    0},
+    {"PACKAGE BODY", "Create Package Body", 100300}
+  };
   char       db_name_buff[NAME_LEN*2+3], name_buff[NAME_LEN*2+3];
   char       *routine_name;
   uint       i;
@@ -2953,9 +2963,6 @@ static uint dump_routines_for_db(char *db)
 
   char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
   int        db_cl_altered= FALSE;
-  // before 10.3 packages are not supported
-  uint upper_bound= mysql_get_server_version(mysql) >= 100300 ?
-                    array_elements(routine_type) : 2;
   DBUG_ENTER("dump_routines_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
@@ -2985,11 +2992,14 @@ static uint dump_routines_for_db(char *db)
     fputs("\t<routines>\n", sql_file);
 
   /* 0, retrieve and dump functions, 1, procedures, etc. */
-  for (i= 0; i < upper_bound; i++)
+  for (i= 0; i < array_elements(routine_dump_param_array); i++)
   {
+    const routine_dump_param_st *param= &routine_dump_param_array[i];
+    if (mysql_get_server_version(mysql) < param->version)
+      continue;
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",
-                routine_type[i], db_name_buff);
+                param->routine_type, db_name_buff);
 
     if (mysql_query_with_error_report(mysql, &routine_list_res, query_buff))
       DBUG_RETURN(1);
@@ -3000,10 +3010,10 @@ static uint dump_routines_for_db(char *db)
       while ((routine_list_row= mysql_fetch_row(routine_list_res)))
       {
         routine_name= quote_name(routine_list_row[1], name_buff, 0);
-        DBUG_PRINT("info", ("retrieving CREATE %s for %s", routine_type[i],
+        DBUG_PRINT("info", ("retrieving CREATE %s for %s", param->routine_type,
                             name_buff));
         my_snprintf(query_buff, sizeof(query_buff), "SHOW CREATE %s %s",
-                    routine_type[i], routine_name);
+                    param->routine_type, routine_name);
 
         if (mysql_query_with_error_report(mysql, &routine_res, query_buff))
           continue;
@@ -3032,7 +3042,7 @@ static uint dump_routines_for_db(char *db)
             if (opt_xml)
             {
               print_xml_row(sql_file, "routine", routine_res, &row,
-                            create_caption_xml[i]);
+                            param->create_caption_xml);
               continue;
             }
 
@@ -3040,7 +3050,7 @@ static uint dump_routines_for_db(char *db)
 
             if (opt_drop)
               fprintf(sql_file, "/*!50003 DROP %s IF EXISTS %s */;\n",
-                      routine_type[i], routine_name);
+                      param->routine_type, routine_name);
 
             if (mysql_num_fields(routine_res) >= 6)
             {

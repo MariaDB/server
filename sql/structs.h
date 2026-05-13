@@ -665,6 +665,7 @@ protected:
   bool   m_has_explicit_dec:1;
   bool   m_length_overflowed:1;
   bool   m_dec_overflowed:1;
+  bool   m_foreign_module_type:1; // Is a type from CREATE PACKAGE
 
   static_assert(LEX_CHARSET_COLLATION_TYPE_BITS <= 8,
                 "Lex_length_and_dec_st::m_collation_type bits check");
@@ -685,6 +686,7 @@ public:
     m_has_explicit_dec= false;
     m_length_overflowed= false;
     m_dec_overflowed= false;
+    m_foreign_module_type= false;
   }
   void set_length_only(uint32 length)
   {
@@ -695,6 +697,7 @@ public:
     m_has_explicit_dec= false;
     m_length_overflowed= false;
     m_dec_overflowed= false;
+    m_foreign_module_type= false;
   }
   void set_dec_only(uint8 dec)
   {
@@ -705,6 +708,7 @@ public:
     m_has_explicit_dec= true;
     m_length_overflowed= false;
     m_dec_overflowed= false;
+    m_foreign_module_type= false;
   }
   void set_length_and_dec(uint32 length, uint8 dec)
   {
@@ -715,8 +719,13 @@ public:
     m_has_explicit_dec= true;
     m_length_overflowed= false;
     m_dec_overflowed= false;
+    m_foreign_module_type= false;
   }
   void set(const char *length, const char *dec);
+  void set_foreign_module_type(bool value)
+  {
+    m_foreign_module_type= value;
+  }
   uint32 length() const
   {
     return m_length;
@@ -740,6 +749,10 @@ public:
   bool dec_overflowed()  const
   {
     return m_dec_overflowed;
+  }
+  bool foreign_module_type() const
+  {
+    return m_foreign_module_type;
   }
 };
 

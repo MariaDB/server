@@ -1,0 +1,113 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39587 Package-wide TYPE for variable declarations
+--echo #
+
+
+--echo # PATH resolving not to CURRENT_SCHEMA
+
+CREATE DATABASE test1;
+DELIMITER $$;
+CREATE PACKAGE test1.pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b_test1 VARCHAR(10));
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE test2;
+DELIMITER $$;
+CREATE PACKAGE test2.pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b_test2 VARCHAR(10));
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE p1 AS
+  a pkg1.rec0_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+# Have pkg1.rec0_t resolve to test1.pkg1.rec0_t
+SET PATH 'CURRENT_SCHEMA,test1,test2';
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  a pkg1.rec0_t;
+BEGIN
+  a.b_test1:= 10;
+  SELECT a.b_test1;
+END;
+$$
+DELIMITER ;$$
+CALL test.p1();
+DROP PROCEDURE p1;
+
+
+# Have pkg1.rec0_t resolve to test2.pkg1.rec0_t
+SET PATH 'CURRENT_SCHEMA,test2,test1';
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  a pkg1.rec0_t;
+BEGIN
+  a.b_test2:= 10;
+  SELECT a.b_test2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+SET PATH DEFAULT;
+
+DROP DATABASE test1;
+DROP DATABASE test2;
+
+
+--echo # PATH resolving to CURRENT_SCHEMA
+
+CREATE DATABASE test1;
+DELIMITER $$;
+CREATE PACKAGE test.pkg1 AS
+  TYPE rec0_t IS RECORD (a INT, b_test VARCHAR(10));
+END;
+$$
+DELIMITER ;$$
+
+SET PATH 'test1,CURRENT_SCHEMA';
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  a pkg1.rec0_t;
+BEGIN
+  a.b_test:= 10;
+  SELECT a.b_test;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+SET PATH 'CURRENT_SCHEMA,test1';
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  a pkg1.rec0_t;
+BEGIN
+  a.b_test:= 10;
+  SELECT a.b_test;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+DROP PACKAGE pkg1;
+DROP DATABASE test1;
+
+SET PATH DEFAULT;

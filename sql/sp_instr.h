@@ -69,7 +69,7 @@ public:
   bool sp_cursor_stmt_finalize(THD *thd, const Lex_ident_sys_st &ps_name,
                                const char *beg, const char *end)
   {
-    m_ps_name= Lex_ident_sys(thd, &ps_name);
+    m_ps_name= Lex_ident_sys(ps_name);
     pop_select(); //main select
     if (unlikely(stmt_finalize(thd)))
       return true;
