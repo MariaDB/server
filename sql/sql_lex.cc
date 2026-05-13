@@ -2489,6 +2489,13 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
               char *p= (char *) get_ptr();
               for (uint i= 0; i < length; i++)
                 p[i]= ' ';
+              /*
+                Mark as non-cacheable as we are mutating the buffer unless
+                strip_comments is enabled since a separate buffer copy is used
+                by the query cache
+              */
+              if (!thd->variables.query_cache_strip_comments)
+                lex->safe_to_cache_query= 0;
             }
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             yySkipn(length);
@@ -2517,6 +2524,13 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
             char *pcom= yyUnput(' ');
             if (reversed_comment)
               *(pcom - 1)= ' ';
+            /*
+              Mark as non-cacheable as we are mutating the buffer unless
+              strip_comments is enabled since a separate buffer copy is used
+              by the query cache
+            */
+            if (!thd->variables.query_cache_strip_comments)
+              lex->safe_to_cache_query= 0;
             comment_closed= ! consume_comment(1);
             if (! comment_closed)
             {
