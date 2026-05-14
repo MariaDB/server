@@ -230,28 +230,54 @@ void RESTDEF::curl_deinit()
 /***********************************************************************/
 int RESTDEF::curl_run(PGLOBAL g)
 {
-  CURL *curl = curl_easy_init();
+  CURL *curl;
   CURLcode curl_res = CURLE_OK;
-  char buf[512];
+  char *buf;
   long http_code = 0;
   char curl_errbuf[CURL_ERROR_SIZE];
+  size_t bufsz;
+
+  if (!Http || !*Http)
+  {
+    snprintf(g->Message, sizeof(g->Message), "HTTP URL is missing or empty.");
+    return 1;
+  }
+
+  FILE *f = fopen(filename, "wb");
+  if (!f)
+  {
+    snprintf(g->Message, sizeof(g->Message), "Cannot open file %s for writing.", filename);
+    return 1;
+  }
+  curl = curl_easy_init();
   if (!curl)
   {
     snprintf(g->Message, sizeof(g->Message), "Cannot initilize curl session.");
+    fclose(f);
     return 1;
   }
+
   curl_errbuf[0] = '\0';
+  bufsz= Uri ? strlen(Uri) : 0 + strlen(Http) + 2;
+  buf= (char *) malloc(bufsz);
+  bufsz--;
+  if (!buf)
+  {
+    snprintf(g->Message, sizeof(g->Message), "Cannot allocate memory for curl url.");
+    curl_easy_cleanup(curl);
+    fclose(f);
+    return 1;
+  }
   if (Uri)
   {
     if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-      my_snprintf(buf, sizeof(buf)-1, "%s%s", Http, Uri);
+      my_snprintf(buf, bufsz, "%s%s", Http, Uri);
     else
-      my_snprintf(buf, sizeof(buf)-1, "%s/%s", Http, Uri);
+      my_snprintf(buf, bufsz, "%s/%s", Http, Uri);
   }
   else
-    my_snprintf(buf, sizeof(buf)-1, "%s", Http);
+    my_snprintf(buf, bufsz, "%s", Http);
 
-  FILE *f= fopen(Fn, "wb");
   if ((curl_res= curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_errbuf)) !=
         CURLE_OK ||
       (curl_res= curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
@@ -271,15 +297,18 @@ int RESTDEF::curl_run(PGLOBAL g)
                "curl returned this error code: %u "
                "with the following error message: %s", curl_res,
                curl_errbuf[0] ? curl_errbuf : curl_easy_strerror(curl_res));
+      fclose(f);
+      free(buf);
       return 1;
     }
   }
   curl_easy_cleanup(curl);
+  free(buf);
   fclose(f);
   bool is_error = http_code < 200 || http_code >= 300;
   if (is_error)
   {
-    snprintf(g->Message, sizeof(g->Message), "server error");
+    snprintf(g->Message, sizeof(g->Message), "Server returned error code %ld", http_code);
     return 1;
   }
   return 0;
