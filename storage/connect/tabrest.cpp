@@ -51,7 +51,6 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 {
   PQRYRES  qrp= NULL;
   RESTDEF  restObject;
-  char     filename[_MAX_PATH + 1];  // MAX PATH ???
   int      rc;
   PCSZ     http, uri, fn, ftype;
 
@@ -64,23 +63,22 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
   if (!fn)
   {
     int n, m = strlen(ftype) + 1;
-    strcat(strcpy(filename, tab), ".");
-    n = strlen(filename);
+    strcat(strcpy(restObject.filename, tab), ".");
+    n = strlen(restObject.filename);
     // Fold ftype to lower case
     for (int i = 0; i < m; i++)
-      filename[n + i] = tolower(ftype[i]);
-    fn = filename;
+      restObject.filename[n + i] = tolower(ftype[i]);
+    fn = restObject.filename;
     tp->subtype = PlugDup(g, fn);
     snprintf(g->Message, sizeof(g->Message), "No file name. Table will use %s", fn);
     PUSH_WARNING(g->Message);
   }
 
   //  We used the file name relative to recorded datapath
-  PlugSetPath(filename, fn, db);
+  PlugSetPath(restObject.filename, fn, db);
   restObject.Http= http;
   restObject.Uri= uri;
-  restObject.Fn= filename;
-  remove(filename);
+  remove(restObject.filename);
   // Retrieve the file from the web using curl and copy it locally
   if (restObject.curl_init(g))
   {
@@ -114,10 +112,10 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 /***********************************************************************/
 bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
-  char     filename[_MAX_PATH + 1];
   int      rc = 0, n;
   bool     xt = trace(515);
   LPCSTR   ftype;
+  char     *Fn;
 
   ftype = GetStringCatInfo(g, "Type", "JSON");
   if (xt)
@@ -143,7 +141,6 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   //  We used the file name relative to recorded datapath
   PlugSetPath(filename, Fn, GetPath());
-  Fn= filename;
   remove(filename);
   if (curl_init(g))
   {

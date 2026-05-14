@@ -39,8 +39,7 @@ public:
     :curl_inited(false),
      Tdp(NULL),
      Http(NULL),
-     Uri(NULL),
-     Fn(NULL)
+     Uri(NULL)
   {}
   int curl_init (PGLOBAL g);
   void curl_deinit ();
@@ -53,7 +52,7 @@ public:
   PRELDEF Tdp;
   PCSZ    Http;                   /* Web connection HTTP               */
   PCSZ    Uri;                    /* Web connection URI                */
-  PCSZ    Fn;                     /* The intermediate file name        */
+  char     filename[_MAX_PATH + 1];/* The intermediate file name        */
   ~RESTDEF()
   {
     curl_deinit();
