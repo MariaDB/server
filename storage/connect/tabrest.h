@@ -19,15 +19,6 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char* tab, char* db, bool info);
 
 
 /***********************************************************************/
-/*  Data structure for curl callback function                          */
-/***********************************************************************/
-struct MemoryStruct {
-    char *memory;
-    size_t size;
-};
-
-
-/***********************************************************************/
 /*  Restest table.                                                     */
 /***********************************************************************/
 class RESTDEF : public TABDEF { /* Table description */
