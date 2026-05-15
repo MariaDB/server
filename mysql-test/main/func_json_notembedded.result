@@ -24,6 +24,8 @@ select json_contains(@obj, '"d"', '$.c');
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_contains_path(@obj, 'one', '$.c');
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+select json_depth(@obj);
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_exists(@obj, '$.c');
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_extract(@obj, '$.c');
@@ -34,11 +36,15 @@ select json_keys(@obj, '$.c');
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_loose(@arr);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+select json_length(@arr);
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_merge(@obj, @arr);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_merge_patch(@obj, @obj);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_merge_preserve(@obj, @arr);
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+select json_overlaps(@obj, @arr);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_remove(@obj,'$.foo');
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)

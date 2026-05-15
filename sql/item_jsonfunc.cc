@@ -3124,13 +3124,17 @@ longlong Item_func_json_length::val_int()
   uint length= 0;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   int err;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &current_thd->killed;
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   if (arg_count > 1)
   {
@@ -3196,7 +3200,6 @@ longlong Item_func_json_length::val_int()
 
 err_return:
   report_json_error(js, &je, 0);
-  current_thd->check_killed(); // to get the error message right
 null_return:
   null_value= 1;
   return 0;
@@ -3209,14 +3212,17 @@ longlong Item_func_json_depth::val_int()
   json_engine_t je;
   uint depth= 0, c_depth= 0;
   bool inc_depth= TRUE;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &current_thd->killed;
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   do
   {
@@ -3251,7 +3257,6 @@ longlong Item_func_json_depth::val_int()
     return depth;
 
   report_json_error(js, &je, 0);
-  current_thd->check_killed(); // to get the error message right
   null_value= 1;
   return 0;
 }
@@ -3317,7 +3322,6 @@ String *Item_func_json_type::val_str(String *str)
 
 error:
   report_json_error(js, &je, 0);
-  current_thd->check_killed();
   null_value= 1;
   return 0;
 }
@@ -5001,9 +5005,13 @@ bool Item_func_json_overlaps::val_bool()
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
   int result;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
+
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   if (!a2_parsed)
   {
@@ -5019,9 +5027,11 @@ bool Item_func_json_overlaps::val_bool()
 
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   json_scan_start(&ve, val->charset(), (const uchar *) val->ptr(),
                   (const uchar *) val->end());
+  ve.killed_ptr= (uint32_t *) &thd->killed;
 
   if (json_read_value(&je) || json_read_value(&ve))
     goto error;
@@ -5037,7 +5047,6 @@ error:
     report_json_error(js, &je, 0);
   if (ve.s.error)
     report_json_error(val, &ve, 1);
-  current_thd->check_killed(); // to get the error message right
   return 0;
 }
 
