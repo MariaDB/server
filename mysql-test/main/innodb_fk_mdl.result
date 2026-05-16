@@ -1,0 +1,155 @@
+#
+# MDEV-37365: Crash when ALTER TABLE on parent runs concurrently
+# with INSERT on FK child
+#
+#
+# Test 1: Verify MDL_SHARED_READ is acquired on FK parent
+# during INSERT into child
+#
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY,
+FOREIGN KEY(a) REFERENCES parent(a)) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1),(2);
+connect con_insert,localhost,root,,test;
+SET DEBUG_SYNC= 'after_lock_tables_takes_lock SIGNAL locked WAIT_FOR go';
+INSERT INTO child VALUES (1);
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR locked';
+# Expect MDL_SHARED_READ on parent from FK prelocking
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME
+FROM information_schema.metadata_lock_info
+WHERE THREAD_ID=CON_INSERT_ID
+AND TABLE_SCHEMA='test'
+    AND TABLE_NAME IN ('parent','child')
+AND LOCK_TYPE='Table metadata lock';
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_READ	Table metadata lock	test	parent
+MDL_SHARED_WRITE	Table metadata lock	test	child
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con_insert;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DELETE FROM child;
+#
+# Test 2: Verify MDL_SHARED_READ on parent for UPDATE of FK column
+#
+INSERT INTO parent VALUES (3);
+INSERT INTO child VALUES (1);
+connection con_insert;
+SET DEBUG_SYNC= 'after_lock_tables_takes_lock SIGNAL locked WAIT_FOR go';
+UPDATE child SET a=2 WHERE a=1;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR locked';
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME
+FROM information_schema.metadata_lock_info
+WHERE THREAD_ID=CON_INSERT_ID
+AND TABLE_SCHEMA='test'
+    AND TABLE_NAME IN ('parent','child')
+AND LOCK_TYPE='Table metadata lock';
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_READ	Table metadata lock	test	parent
+MDL_SHARED_WRITE	Table metadata lock	test	child
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con_insert;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE child, parent;
+#
+# Test 3: Multi-level FK chain — only direct parents are prelocked
+#
+CREATE TABLE grandparent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE parent(a INT PRIMARY KEY,
+FOREIGN KEY(a) REFERENCES grandparent(a)) ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY,
+FOREIGN KEY(a) REFERENCES parent(a)) ENGINE=InnoDB;
+INSERT INTO grandparent VALUES (1),(2);
+INSERT INTO parent VALUES (1),(2);
+connection con_insert;
+SET DEBUG_SYNC= 'after_lock_tables_takes_lock SIGNAL locked WAIT_FOR go';
+INSERT INTO child VALUES (1);
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR locked';
+# Expect MDL_SHARED_READ on parent only, NOT on grandparent
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME
+FROM information_schema.metadata_lock_info
+WHERE THREAD_ID=CON_INSERT_ID
+AND TABLE_SCHEMA='test'
+    AND TABLE_NAME IN ('grandparent','parent','child')
+AND LOCK_TYPE='Table metadata lock';
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_READ	Table metadata lock	test	parent
+MDL_SHARED_WRITE	Table metadata lock	test	child
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con_insert;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE child, parent, grandparent;
+#
+# Test 4: Self-referencing FK — no extra lock needed
+#
+CREATE TABLE self_ref(a INT PRIMARY KEY, parent_a INT,
+FOREIGN KEY(parent_a) REFERENCES self_ref(a)) ENGINE=InnoDB;
+INSERT INTO self_ref VALUES (1, NULL);
+connection con_insert;
+SET DEBUG_SYNC= 'after_lock_tables_takes_lock SIGNAL locked WAIT_FOR go';
+INSERT INTO self_ref VALUES (2, 1);
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR locked';
+# Self-referencing FK: only one MDL on the table (SHARED_WRITE from DML)
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME
+FROM information_schema.metadata_lock_info
+WHERE THREAD_ID=CON_INSERT_ID
+AND TABLE_SCHEMA='test'
+    AND TABLE_NAME='self_ref'
+    AND LOCK_TYPE='Table metadata lock';
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_SHARED_WRITE	Table metadata lock	test	self_ref
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con_insert;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE self_ref;
+#
+# Test 5: Concurrent ALTER TABLE parent + INSERT INTO child
+# (crash reproducer from MDEV-37365)
+#
+CREATE TABLE parent(a INT PRIMARY KEY, b INT, c INT AS(b) VIRTUAL)
+ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY REFERENCES parent(a)) ENGINE=InnoDB;
+INSERT INTO parent(a,b) VALUES (1,1),(2,2),(3,3),(4,4),(5,5);
+CREATE PROCEDURE dml(IN lo INT, IN hi INT)
+BEGIN
+DECLARE i INT DEFAULT lo;
+WHILE i <= hi DO
+INSERT IGNORE INTO child SET a=i;
+SET i = i + 1;
+END WHILE;
+END$$
+connect dml1,localhost,root,,test;
+connect dml2,localhost,root,,test;
+connect dml3,localhost,root,,test;
+connection default;
+disconnect dml1;
+disconnect dml2;
+disconnect dml3;
+DROP PROCEDURE dml;
+DROP TABLE child, parent;
+#
+# Test 6: INSERT into child is blocked by EXCLUSIVE MDL on parent
+#
+CREATE TABLE parent(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY,
+FOREIGN KEY(a) REFERENCES parent(a)) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1),(2);
+# LOCK TABLE WRITE acquires SHARED_NO_READ_WRITE, which blocks
+# MDL_SHARED_READ. The INSERT should wait.
+LOCK TABLE parent WRITE;
+connection con_insert;
+INSERT INTO child VALUES (1);
+connection default;
+# INSERT is waiting for MDL on parent as expected
+UNLOCK TABLES;
+connection con_insert;
+connection default;
+DROP TABLE child, parent;
+disconnect con_insert;
