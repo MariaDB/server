@@ -5152,6 +5152,85 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
 }
 
 /**
+  Extend the table_list to include FK-referenced (parent) tables for
+  prelocking.
+
+  When performing DML on a child table that has foreign keys referencing
+  other tables, InnoDB's FK constraint check acquires InnoDB-internal locks
+  on the parent table. Without corresponding MDL on the parent, concurrent
+  DDL on the parent can crash (MDEV-37365).
+
+  This function prelocks FK parent tables with TL_READ (which maps to
+  MDL_SHARED_READ). Because the lock is TL_READ and the prelocking type
+  is PRELOCK_FK, init_one_table_for_prelocking() sets open_strategy to
+  OPEN_STUB, so only the MDL is acquired — the parent table is not
+  actually opened.
+
+  @param[in]  thd              Thread context.
+  @param[in]  prelocking_ctx   Prelocking context of the statement.
+  @param[in]  table_list       Table list element for table.
+  @param[out] need_prelocking  Set to TRUE if method detects that prelocking
+                               required, not changed otherwise.
+
+  @retval FALSE  Success.
+  @retval TRUE   Failure (OOM).
+*/
+static bool
+prepare_fk_referenced_prelocking_list(THD *thd,
+                                      Query_tables_list *prelocking_ctx,
+                                      TABLE_LIST *table_list,
+                                      bool *need_prelocking)
+{
+  DBUG_ENTER("prepare_fk_referenced_prelocking_list");
+  List<FOREIGN_KEY_INFO> fk_list;
+  List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+  FOREIGN_KEY_INFO *fk;
+  Query_arena *arena, backup;
+  TABLE *table= table_list->table;
+
+  /* Avoid the heavier get_foreign_key_list() (which acquires dict_sys
+     exclusive latch) for tables that have no FK references to parents. */
+  if (!table->file->references_foreign_key())
+    DBUG_RETURN(FALSE);
+
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  table->file->get_foreign_key_list(thd, &fk_list);
+  if (unlikely(thd->is_error()))
+  {
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    DBUG_RETURN(TRUE);
+  }
+
+  if (fk_list.is_empty())
+  {
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    DBUG_RETURN(FALSE);
+  }
+
+  *need_prelocking= TRUE;
+
+  while ((fk= fk_list_it++))
+  {
+    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+          fk->referenced_db, fk->referenced_table, TL_READ))
+      continue;
+
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    tl->init_one_table_for_prelocking(fk->referenced_db, fk->referenced_table,
+        NULL, TL_READ, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
+        0, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
+  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
   Extend the table_list to include foreign tables for prelocking.
 
   @param[in]  thd              Thread context.
@@ -5298,12 +5377,20 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
                                    need_prelocking,
                                    table_list->trg_event_map))
       return TRUE;
+
+    if (prepare_fk_referenced_prelocking_list(thd, prelocking_ctx, table_list,
+                                              need_prelocking))
+      return TRUE;
   }
   else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->slave_fk_event_map))
+      return TRUE;
+
+    if (prepare_fk_referenced_prelocking_list(thd, prelocking_ctx, table_list,
+                                              need_prelocking))
       return TRUE;
   }
 

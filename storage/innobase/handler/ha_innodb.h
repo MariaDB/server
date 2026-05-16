@@ -232,6 +232,7 @@ public:
 	bool can_switch_engines() override;
 
 	bool referenced_by_foreign_key() const noexcept override;
+	bool references_foreign_key() const noexcept override;
 
 	void free_foreign_key_create_info(char* str) override { my_free(str); }
 

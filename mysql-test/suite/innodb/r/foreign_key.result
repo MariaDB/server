@@ -1072,18 +1072,18 @@ BEGIN;
 INSERT INTO child SET a=1;
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
 connection default;
+SET lock_wait_timeout=0, innodb_lock_wait_timeout=0;
 TRUNCATE TABLE parent;
-ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP TABLE parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-SET innodb_lock_wait_timeout=0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 RENAME TABLE parent TO transparent;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
+SET foreign_key_checks=0;
 TRUNCATE TABLE parent;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DROP TABLE parent;
@@ -1097,7 +1097,7 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con1;
 COMMIT;
 connection default;
-SET innodb_lock_wait_timeout=DEFAULT;
+SET lock_wait_timeout=DEFAULT, innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;

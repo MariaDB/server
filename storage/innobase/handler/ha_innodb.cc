@@ -16124,6 +16124,14 @@ bool ha_innobase::referenced_by_foreign_key() const noexcept
   return !empty;
 }
 
+bool ha_innobase::references_foreign_key() const noexcept
+{
+  dict_sys.freeze(SRW_LOCK_CALL);
+  const bool empty= m_prebuilt->table->foreign_set.empty();
+  dict_sys.unfreeze();
+  return !empty;
+}
+
 inline void trx_t::reset_and_truncate_undo() noexcept
 {
   ut_ad(undo_no <= 1);
