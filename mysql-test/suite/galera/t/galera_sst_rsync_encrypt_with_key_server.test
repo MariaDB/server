@@ -1,0 +1,99 @@
+#
+# Verifies that wsrep_sst_rsync.sh rejects a joiner-supplied certificate
+# whose CN contains shell-unsafe characters.
+#
+# Brings up a 2-node cluster with rsync SST and ssl-mode=VERIFY_CA, then
+# forces a fresh SST on node_2 using std_data/server-new-cert.pem -- a
+# cert whose CN intentionally contains shell metacharacters. Confirms
+# that the donor (node_1) logs
+#     "Invalid value for WSREP_SST_OPT_REMOTE_USER"
+# i.e. the rsync SST script refuses the value rather than interpolating
+# it into stunnel.conf or the rsync magic file.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT 1;
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'WSREP_LOCAL_STATE_COMMENT'
+--source include/wait_condition.inc
+
+# Confirm the initial SST went via rsync + stunnel (sanity check for the
+# test configuration).
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = wsrep_sst_rsync
+--source include/search_pattern_in_file.inc
+
+
+# Reject shell-unsafe joiner-supplied auth (rsync)
+
+# Suppressions are per-server. node_1 will log the donor-side rejection
+# ("Invalid value for WSREP_SST_OPT_REMOTE_USER"); node_2 will log the
+# joiner-side "Will never receive state" abort. Add to both.
+--connection node_1
+call mtr.add_suppression('Invalid value for WSREP_SST_OPT_REMOTE_USER');
+call mtr.add_suppression('Failed to read from: wsrep_sst_rsync');
+call mtr.add_suppression('Process completed with error: wsrep_sst_rsync');
+call mtr.add_suppression('Command did not run: wsrep_sst_rsync');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('Error while getting data from donor node');
+call mtr.add_suppression('Cleanup after exit with status');
+call mtr.add_suppression('Removing .*/sst_in_progress');
+call mtr.add_suppression('Parent mysqld process .* terminated unexpectedly');
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+# force SST again
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+# using a cert with shell-unsafe CN
+--exec echo '[mysqld.2]' >> $MYSQLTEST_VARDIR/my.cnf
+--exec echo ssl-cert=$MYSQL_TEST_DIR/std_data/server-new-cert.pem >> $MYSQLTEST_VARDIR/my.cnf
+--exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-new-key.pem >> $MYSQLTEST_VARDIR/my.cnf
+
+# start the server
+# Joiner mariadbd exits when SST is aborted; the exit code varies by
+# platform (clean 0 on some systems, signalled 134 / 1 on others).
+--error 0,1,134
+--exec $MYSQLD_LAST_CMD
+# the donor refused the SST request
+
+--connection node_1
+# safe() in wsrep_sst_common.sh logs this when it rejects the joiner CN;
+# wsrep_sst_rsync.sh wraps the joiner-supplied REMOTE_USER with $(safe ..)
+# at line 249 so the value never reaches the stunnel.conf heredoc.
+--let SEARCH_PATTERN = Invalid value for WSREP_SST_OPT_REMOTE_USER
+--source include/search_pattern_in_file.inc
+
+# cleanup
+# Kill joiner's stunnel / rsync that may linger after the aborted SST.
+# Use a perl block because --exec with pkill -f matches the mtr cmdline
+# itself (which contains the pattern) and tears down the wrong process.
+perl;
+  open(my $fh, '-|', 'ps', '-eo', 'pid,args') or die "ps: $!";
+  while (<$fh>) {
+    next unless /server-new-cert/;
+    next unless /^\s*(\d+)\s+(?:.*\/)?(stunnel|socat|rsync)\b/;
+    kill 'TERM', $1;
+  }
+  close $fh;
+EOF
+--exec echo ssl-cert=$MYSQL_TEST_DIR/std_data/server-cert.pem >> $MYSQLTEST_VARDIR/my.cnf
+--exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-key.pem >> $MYSQLTEST_VARDIR/my.cnf
+
+# Switch back to node_2 before restarting it; the connection associates
+# with the soon-to-be-restarted server so mtr auto-reconnects and the
+# wait_condition + late suppressions land on the new instance.
+--connection node_2
+--source $MYSQL_TEST_DIR/include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('Parent mysqld process .* terminated unexpectedly');
+call mtr.add_suppression('Cleanup after exit with status');
+call mtr.add_suppression('State transfer to .* failed');
