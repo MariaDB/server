@@ -6894,6 +6894,96 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
   }
 
+  bool has_named_args= false;
+  for (uint i= 0; i < arg_count && !has_named_args; i++)
+    has_named_args= args[i]->is_explicit_name();
+  if (has_named_args && !m_args_reordered)
+  {
+    m_args_reordered= true;
+    sp_pcontext *pcont= m_sp->get_parse_context();
+    uint params= pcont->context_var_count();
+    /*
+      The reordered argument array replaces Item_args::args, so for
+      prepared statements it must survive re-execution: allocate it on
+      the statement arena, not on the execution arena.
+    */
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    Item **arg_array= (Item**) thd->calloc(sizeof(Item*) * params);
+    bool *param_assigned= (bool*) thd->calloc(sizeof(bool) * params);
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    if (!arg_array || !param_assigned)
+      DBUG_RETURN(TRUE);
+
+    uint positional_count= 0;
+    for (uint i= 0; i < arg_count; i++)
+    {
+      Item *item= args[i];
+      if (item->is_explicit_name())
+      {
+        bool found= false;
+        for (uint j= 0; j < params; j++)
+        {
+          sp_variable *spvar= pcont->get_context_variable(j);
+          if (spvar->name.streq(item->name))
+          {
+            if (param_assigned[j])
+            {
+              my_error(ER_SP_DUP_PARAM, MYF(0), item->name.str);
+              DBUG_RETURN(TRUE);
+            }
+            arg_array[j]= item;
+            param_assigned[j]= true;
+            found= true;
+            break;
+          }
+        }
+        if (!found)
+        {
+          my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->name.str);
+          DBUG_RETURN(TRUE);
+        }
+      }
+      else
+      {
+        if (positional_count >= params)
+        {
+          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "FUNCTION",
+                   ErrConvDQName(m_sp).ptr(), params, arg_count);
+          DBUG_RETURN(TRUE);
+        }
+        if (param_assigned[positional_count])
+        {
+          my_error(ER_SP_DUP_PARAM, MYF(0),
+                   pcont->get_context_variable(positional_count)->name.str);
+          DBUG_RETURN(TRUE);
+        }
+        arg_array[positional_count]= item;
+        param_assigned[positional_count]= true;
+        positional_count++;
+      }
+    }
+
+    for (uint j= 0; j < params; j++)
+    {
+      if (!param_assigned[j])
+      {
+        sp_variable *spvar= pcont->get_context_variable(j);
+        if (!spvar->default_value)
+        {
+          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "FUNCTION",
+                   ErrConvDQName(m_sp).ptr(), params, arg_count);
+          DBUG_RETURN(TRUE);
+        }
+        arg_array[j]= spvar->default_value;
+      }
+    }
+
+    args= arg_array;
+    arg_count= params;
+  }
+
   Query_arena *arena, backup;
   /*
     Allocation an instance of Item_func_sp used for initialization of
