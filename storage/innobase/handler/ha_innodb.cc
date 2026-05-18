@@ -99,6 +99,7 @@ bool is_update_query(enum enum_sql_command command);
 #include "row0quiesce.h"
 #include "row0sel.h"
 #include "row0upd.h"
+#include "row0pread.h"
 #include "fil0crypt.h"
 #include "srv0mon.h"
 #include "srv0start.h"
@@ -3120,6 +3121,7 @@ ha_innobase::ha_innobase(
                           | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
 			  | HA_CAN_SKIP_LOCKED
+			  | HA_CAN_PARALLEL_SCAN
 		  ),
 	m_start_of_scan(),
         m_mysql_has_locked()
@@ -14627,6 +14629,126 @@ func_exit:
 	}
 
 	goto cleanup;
+}
+
+
+int ha_innobase::pscan_init_coordinator(size_t n_threads)
+{
+	const Parallel_reader::Scan_range FULL_SCAN;
+  	m_parallel_reader.initialize(n_threads);
+
+	// Get the clustered index which is always first in the list
+	dict_index_t *index = m_prebuilt->table->indexes.start;
+	ut_ad(index->is_clust());
+	Parallel_reader::Config config(FULL_SCAN, index);
+
+	return m_parallel_reader.add_scan(m_prebuilt->trx, config, 
+		[&](const Parallel_reader::Ctx *ctx) {return DB_SUCCESS;});
+}
+
+::Parallel_scan::Worker_ctx *ha_innobase::pscan_get_worker_context(
+	size_t worker_idx)
+{
+	return m_parallel_reader.get_worker_ctx(worker_idx);
+}
+
+int ha_innobase::pscan_init_worker(::Parallel_scan::Worker_ctx *wctx)
+{
+	auto worker_ctx= static_cast<Parallel_reader::Worker_ctx*>(wctx);
+	auto ctx= m_parallel_reader.get_job_for_worker(worker_ctx);
+	if (ctx == nullptr)
+	  return -1; // No more data
+	if (ha_index_init(0, /*sorted*/ true)) return 1;   // template built
+
+	worker_ctx->exec_ctx= ctx;
+	auto start_tuple= const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
+	auto end_tuple= const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
+	ut_ad(start_tuple != nullptr);
+
+	m_pscan_start_tuple = start_tuple;
+    m_pscan_end_tuple   = end_tuple;    // may be null (+infinity)
+    m_pscan_first_call  = true;
+
+    return 0; 
+}
+
+
+int ha_innobase::pscan_get_next_row(Parallel_scan::Worker_ctx *wctx)
+{
+  dberr_t err;
+
+  if (m_pscan_first_call) {
+    m_pscan_first_call = false;
+    m_pscan_saved_search_tuple = m_prebuilt->search_tuple;
+	if (m_pscan_start_tuple) {
+      // Position at first record >= start, AND load it.
+      m_prebuilt->search_tuple = const_cast<dtuple_t *>(m_pscan_start_tuple);
+      err = row_search_mvcc(table->record[0], PAGE_CUR_GE,
+                            m_prebuilt, 0, 0 /*opening*/);
+    } else {
+      // -infinity: empty (0-field) tuple + PAGE_CUR_G = first user record.
+      m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
+      err = row_search_mvcc(table->record[0], PAGE_CUR_G,
+                            m_prebuilt, 0, 0 /*opening*/);
+    }
+  } else {
+    // Continuation: advance from stored position.
+    err = row_search_mvcc(table->record[0], PAGE_CUR_UNSUPP,
+                          m_prebuilt, 0, ROW_SEL_NEXT);
+  }
+
+  if (err != DB_SUCCESS) {
+    if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+      return HA_ERR_END_OF_FILE;
+    return convert_error_code_to_mysql(err, m_prebuilt->table->flags, m_user_thd);
+  }
+
+  // End-of-chunk check
+  if (m_pscan_end_tuple) {
+    rec_t *rec = btr_pcur_get_rec(m_prebuilt->pcur);
+    rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs_init(offsets_);
+    mem_heap_t *heap = nullptr; // OLEGS: pre-allocate and reuse heap
+    rec_offs *offsets = rec_get_offsets(rec, m_prebuilt->index, offsets_,
+                                        m_prebuilt->index->n_core_fields,
+                                        ULINT_UNDEFINED, &heap);
+    int cmp = cmp_dtuple_rec(m_pscan_end_tuple, rec, m_prebuilt->index, offsets);
+    if (heap) mem_heap_free(heap);
+    if (cmp <= 0)
+	{
+		// End of chunk, request more work
+		// OLEGS: duplication with pscan_init_worker
+		auto worker_ctx= static_cast<Parallel_reader::Worker_ctx*>(wctx);
+		auto ctx= worker_ctx->preader->get_job_for_worker(worker_ctx);
+		if (ctx == nullptr)
+		  return HA_ERR_END_OF_FILE; // No more data
+
+		worker_ctx->exec_ctx= ctx;
+		auto start_tuple= const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
+		auto end_tuple= const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
+		ut_ad(start_tuple != nullptr);
+
+		m_pscan_start_tuple = start_tuple;
+		m_pscan_end_tuple   = end_tuple;    // may be null (+infinity)
+		m_pscan_first_call  = true;
+		return pscan_get_next_row(worker_ctx);
+	} 
+  }
+  return 0;
+}
+
+int ha_innobase::pscan_end()
+{
+	if (m_pscan_saved_search_tuple)
+	{
+		m_prebuilt->search_tuple= m_pscan_saved_search_tuple;
+		m_pscan_saved_search_tuple= nullptr;
+	}
+	m_pscan_first_call  = false;
+	m_pscan_start_tuple = nullptr;
+	m_pscan_end_tuple   = nullptr;
+	m_parallel_reader.cleanup();
+	return 0;
 }
 
 /*********************************************************************//**

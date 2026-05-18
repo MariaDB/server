@@ -4326,7 +4326,6 @@ int handler::ha_rnd_init_with_error(bool scan)
   return error;
 }
 
-
 /**
   Read first row (only) from a table. Used for reading tables with
   only one row, either based on table statistics or if table is a SEQUENCE.
@@ -8098,6 +8097,7 @@ int handler::ha_reset()
     delete lookup_handler;
     lookup_handler= this;
   }
+  // OLEGS: clean parallel_reader if needed
   DBUG_RETURN(reset());
 }
 
@@ -8875,6 +8875,11 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
     return Compare_keys::NotEqual;
 
   return Compare_keys::Equal;
+}
+
+bool handler::is_parallel_scan_supported() const
+{
+  return ha_table_flags() & HA_CAN_PARALLEL_SCAN;
 }
 
 #ifdef WITH_WSREP

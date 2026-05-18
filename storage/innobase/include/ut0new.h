@@ -879,6 +879,7 @@ constexpr const char* const auto_event_names[] =
   "row0log",
   "row0merge",
   "row0mysql",
+  "row0pread",
   "row0sel",
   "srv0start",
   "trx0i_s",

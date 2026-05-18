@@ -16572,6 +16572,33 @@ void JOIN_TAB::remove_redundant_bnl_scan_conds()
     set_cond(NULL);
 }
 
+// OLEGS: see join_init_read_record, maybe no need for external func
+extern int parallel_rr_next(READ_RECORD *info);
+
+int parallel_init_read_record(JOIN_TAB *tab)
+{
+  TABLE *table = tab->table;
+  handler *file = table->file;
+
+  int err= file->pscan_init_coordinator(4);
+  if (err)
+    return 1;
+
+  tab->read_record.table            = tab->table;
+  tab->read_record.thd              = tab->join->thd;
+  tab->read_record.read_record_func = parallel_rr_next;
+  tab->read_record.print_error      = TRUE;
+
+  Parallel_scan::Worker_ctx *worker_ctx= file->pscan_get_worker_context(0);
+  DBUG_ASSERT(worker_ctx);
+  err= file->pscan_init_worker(worker_ctx);
+  if (err)
+    return err; // -1 (no data); >0 (real error)
+  tab->read_record.pscan_worker_ctx = worker_ctx;
+
+  // Fetch the first row before returning — this is what join_init_read_record does.
+  return tab->read_record.read_record();
+}
 
 /*
   Plan refinement stage: do various setup things for the executor
@@ -16908,7 +16935,23 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       }
       break;
     }
+    //const String test_table("t1_parallel", 11, system_charset_info);
+    if (tab->type == JT_ALL                                    // full scan
+      && tab == join->join_tab                               // first table
+      && (tab->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN)
+      && !tab->table->part_info // exclude partitioned tables
+      // && tab->table->alias.eq(&test_table, system_charset_info))
+      )
+    {
+      tab->read_first_record       = parallel_init_read_record;     // <- new
+      tab->read_record.read_record_func = parallel_rr_next;          // <- new
+    }
+    else
+    {
+      tab->read_first_record = join_init_read_record;          // existing
+    }
   }
+
 
   DBUG_RETURN(FALSE);
 }
@@ -17046,6 +17089,11 @@ void JOIN_TAB::cleanup()
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
+
+    // OLEGS: consider adding a flag
+    if (read_record.read_record_func == parallel_rr_next)
+      table->file->pscan_end();
+
     if (table->pos_in_table_list && table->pos_in_table_list->jtbm_subselect)
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)

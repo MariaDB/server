@@ -45,6 +45,7 @@
 #include "mem_root_array.h"
 #include <utility>     // pair
 #include <my_attribute.h> /* __attribute__ */
+#include "parallel_reader_iface.h"
 
 class Alter_info;
 class Virtual_column_info;
@@ -199,6 +200,8 @@ enum chf_create_flags {
 #define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
 #define HA_FILE_BASED	       (1ULL << 26)
+/* Engine supports parallel B+Tree scan */
+#define HA_CAN_PARALLEL_SCAN  (1ULL << 27)
 #define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
 #define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
 #define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)
@@ -3639,6 +3642,7 @@ private:
     For non partitioned handlers this is &TABLE_SHARE::ha_share.
   */
   Handler_share **ha_share;
+
 public:
 
   double optimizer_where_cost;          // Copy of THD->...optimizer_where_cost
@@ -3748,6 +3752,43 @@ public:
     DBUG_RETURN(rnd_end());
   }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
+ 
+  /* Call from the master thread to initiate the parallel scanning */
+  virtual int pscan_init_coordinator(size_t n_threads) __attribute__ ((warn_unused_result))
+  {
+    return -1; // OLEGS: return more meaningful error
+  }
+
+  /* Call from the master thread to finish the parallel scanning */
+  virtual int pscan_end() { return 0; }   // default no-op
+
+  /* Call from the master thread to get context data for each worker */
+  virtual Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx)
+  {
+    return nullptr;
+  }
+
+  /* 
+    To be called by worker (child) threads of a parallel scan.
+    Prepares the worker to start scanning of data from the chunk assigned
+    to this worker.  
+  */
+  virtual int pscan_init_worker(Parallel_scan::Worker_ctx *wctx)
+    __attribute__ ((warn_unused_result))
+  {
+    return -1; // OLEGS: other error code?
+  }
+
+  /*
+    To be called by worker (child) threads of a parallel scan.
+    Reads next row from a chunk assigned to this worker
+  */
+  virtual int pscan_get_next_row(Parallel_scan::Worker_ctx *ctx)
+    __attribute__ ((warn_unused_result))
+  {
+    return 0;
+  }
+
   int ha_reset();
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
@@ -5390,6 +5431,7 @@ protected:
   /* Same as increment_statistics but doesn't increase accessed_rows_and_keys */
   inline void fast_increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
+  bool is_parallel_scan_supported() const;
 
 private:
   /*

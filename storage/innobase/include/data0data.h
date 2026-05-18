@@ -559,6 +559,15 @@ struct dtuple_t {
 	/** Copy type information from index fields.
 	@param index	index field to be copied */
 	inline void copy_field_types(const dict_index_t &index);
+
+	/** Print the tuple to the output stream.
+	@param[in,out] out            Stream to output to.
+	@return stream */
+	std::ostream &print(std::ostream &out) const
+	{
+		dtuple_print(out, this);
+		return out;
+	}
 };
 
 inline uint16_t dtuple_get_n_fields(const dtuple_t* tuple)
