@@ -6040,14 +6040,14 @@ int mysql_discard_or_import_tablespace(THD *thd,
   if (thd->locked_tables_mode && !table->s->tmp_table)
   {
     DBUG_ASSERT(thd->locked_tables_mode == LTM_LOCK_TABLES);
-    if (wait_while_table_is_used(thd, table_list->table, HA_EXTRA_NOT_USED))
+    if (wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED))
     {
       thd->tablespace_op= false;
       DBUG_RETURN(-1);
     }
   }
 
-  error= table_list->table->file->ha_discard_or_import_tablespace(discard);
+  error= table->file->ha_discard_or_import_tablespace(discard);
 
   THD_STAGE_INFO(thd, stage_end);
 
@@ -6083,8 +6083,7 @@ err:
     This matches the downgrade pattern at the end of
     mysql_alter_table().
   */
-  if (thd->locked_tables_mode && table &&
-      table->mdl_ticket)
+  if (thd->locked_tables_mode && table->mdl_ticket)
   {
     table_list->table->mdl_ticket->downgrade_lock(
         MDL_SHARED_NO_READ_WRITE);
