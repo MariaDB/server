@@ -1,6 +1,9 @@
 --source include/have_query_cache.inc
 --source include/not_embedded.inc
-
+if (!$QUERY_CACHE_INFO_SO)
+{
+  --skip Need query_cache_info plugin
+}
 --disable_ps_protocol
 --disable_ps2_protocol
 --disable_cursor_protocol
