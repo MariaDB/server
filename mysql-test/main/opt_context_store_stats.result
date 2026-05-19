@@ -848,3 +848,58 @@ CALL p1;
 f1
 DROP PROCEDURE p1;
 DROP TABLE t1,t2;
+#
+# MDEV-39438: Empty optimizer_context with use_stat_tables=PREFERABLY
+# and a stored procedure in the query
+#
+set @saved_use_stat_tables=@@use_stat_tables;
+SET use_stat_tables = 'PREFERABLY';
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create function add1(i int) returns int deterministic
+return i+1;
+set optimizer_record_context=1;
+explain select * from t1 where b < add1(3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
+3
+set @file_stat_records=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
+select *from json_table(@file_stat_records,
+'$[*]' columns(file_stat_records text path '$')) as jt;
+file_stat_records
+3
+set @indexes=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+select *from json_table(
+@indexes, '$[*][*]' columns(index_name text path '$.index_name',
+rec_per_key json path '$.rec_per_key')) as jt;
+index_name	rec_per_key
+a	["1"]
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks')) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+drop function add1;
+DROP TABLE t1;
+set session use_stat_tables=@saved_use_stat_tables;
