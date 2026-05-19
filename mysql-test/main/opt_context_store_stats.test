@@ -400,3 +400,24 @@ CALL p1; ###CRASH
 DROP PROCEDURE p1;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-39438: Empty optimizer_context with use_stat_tables=PREFERABLY
+--echo # and a stored procedure in the query
+--echo #
+set @saved_use_stat_tables=@@use_stat_tables;
+SET use_stat_tables = 'PREFERABLY';
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+analyze table t1;
+
+create function add1(i int) returns int deterministic
+  return i+1;
+
+set optimizer_record_context=1;
+explain select * from t1 where b < add1(3);
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
+
+drop function add1;
+DROP TABLE t1;
+set session use_stat_tables=@saved_use_stat_tables;
