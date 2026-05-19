@@ -3441,6 +3441,14 @@ bool select_send::send_eof()
   if (unlikely(thd->lex->sql_command != SQLCOM_SELECT))
     goto end;                                   // For DELETE RETURNING
 
+  /*
+    A WSREP connection may encounter a deadlock error because of MDL
+    conflict after the early eof is sent below. Therefore the early eof
+    is unsafe for WSREP.
+   */
+  if (WSREP(thd))
+    goto end;
+
   if (likely(!thd->transaction->stmt.is_trx_read_write()))
   {
     /*
