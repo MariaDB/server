@@ -45,7 +45,9 @@ call mtr.add_suppression('Removing .*/xtrabackup_galera_info file due to signal'
 --exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-new-key.pem >> $MYSQLTEST_VARDIR/my.cnf
 
 --echo # start the server
---error 0
+# Joiner mariadbd exits when SST is aborted; the exit code varies by
+# platform (clean 0 on some systems, signalled 134 / 1 on others).
+--error 0,134,1
 --exec $MYSQLD_LAST_CMD
 --echo # the server failed to start
 
@@ -55,6 +57,8 @@ call mtr.add_suppression('Removing .*/xtrabackup_galera_info file due to signal'
 --echo # cleanup
 # we have to kill joiner's socat here, because the donor has aborted SST
 # and joiner's socat will timeout in 5 minutes
+# pkill exit code varies by platform 0 or 1
+--error 0,1
 --exec pkill -f 'socat.*server-new-cert'
 --exec echo ssl-cert=$MYSQL_TEST_DIR/std_data/server-cert.pem >> $MYSQLTEST_VARDIR/my.cnf
 --exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-key.pem >> $MYSQLTEST_VARDIR/my.cnf
