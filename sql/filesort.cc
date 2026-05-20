@@ -3039,7 +3039,8 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
 {
   Field **pfield;
   char row_buff_tmp[512];
-  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_bin);
+  // charset will be overwritten below using field's charset
+  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_utf8mb4_bin);
 
   auto move_back_lambda= [table, rec]() mutable {
     table->move_fields(table->field, table->record[0], rec);
@@ -3136,7 +3137,7 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
       if (require_quote)
         output.append('\'');
       output.append_for_single_quote_opt_convert(tmp.ptr(), tmp.length(),
-                                                 &my_charset_utf8mb4_bin);
+                                                 field->charset());
       if (require_quote)
         output.append('\'');
     }
