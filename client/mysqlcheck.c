@@ -24,6 +24,7 @@
 #include <m_ctype.h>
 #include <mysql_version.h>
 #include <mysqld_error.h>
+#include <common-cli-vars.h>
 #include <sslopt-vars.h>
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -38,25 +39,20 @@
 
 static MYSQL mysql_connection, *sock = 0;
 static my_bool opt_alldbs = 0, opt_check_only_changed = 0, opt_extended = 0,
-               opt_compress = 0, opt_databases = 0, opt_fast = 0,
+               opt_databases = 0, opt_fast = 0,
                opt_medium_check = 0, opt_quick = 0, opt_all_in_1 = 0,
                opt_silent = 0, opt_auto_repair = 0, ignore_errors = 0,
                tty_password= 0, opt_frm= 0, debug_info_flag= 0, debug_check_flag= 0,
                opt_fix_table_names= 0, opt_fix_db_names= 0, opt_upgrade= 0,
                opt_persistent_all= 0, opt_do_tables= 1;
 static my_bool opt_write_binlog= 1, opt_flush_tables= 0;
-static uint verbose = 0, opt_mysql_port=0;
+static uint verbose = 0;
 static int my_end_arg;
-static char * opt_mysql_unix_port = 0;
-static char *opt_password = 0, *current_user = 0, 
-	    *default_charset= 0, *current_host= 0;
-static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static char *opt_password = 0, *default_charset= 0;
 static int first_error = 0;
 static char *opt_skip_database;
 DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
 DYNAMIC_ARRAY views4repair;
-static uint opt_protocol=0;
-
 enum operations { DO_CHECK=1, DO_REPAIR, DO_ANALYZE, DO_OPTIMIZE, DO_FIX_NAMES };
 const char *operation_name[]=
 {
@@ -96,9 +92,6 @@ static struct my_option my_long_options[] =
   {"check-upgrade", 'g',
    "Check tables for version-dependent changes. May be used with --auto-repair to correct tables requiring version-dependent updates.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"compress", 0, "Use compression in server/client protocol.",
-   &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"databases", 'B',
    "Check several databases. Note the difference in usage; in this case no tables are given. All name arguments are regarded as database names.",
    &opt_databases, &opt_databases, 0, GET_BOOL, NO_ARG,
@@ -116,13 +109,10 @@ static struct my_option my_long_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#include <common-cli-longopts.h>
   {"default-character-set", 0,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", 0,
-   "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"fast",'F', "Check only tables that haven't been closed properly.",
    &opt_fast, &opt_fast, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
@@ -144,9 +134,6 @@ static struct my_option my_long_options[] =
    0, 0 },
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"host",'h', "Connect to host. Defaults in the following order: "
-  "$MARIADB_HOST, and then localhost",
-   &current_host, &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"medium-check", 'm',
    "Faster than extended-check, but only finds 99.99 percent of all errors. Should be good enough for most cases.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -168,19 +155,6 @@ static struct my_option my_long_options[] =
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"plugin_dir", 0, "Directory for client-side plugins.",
-   &opt_plugin_dir, &opt_plugin_dir, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"port", 'P', "Port number to use for connection or 0 for default to, in "
-   "order of preference, my.cnf, $MYSQL_TCP_PORT, "
-#if MYSQL_PORT_DEFAULT == 0
-   "/etc/services, "
-#endif
-   "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_mysql_port, &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
-   0},
-  {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"quick", 'q',
    "If you are using this option with CHECK TABLE, it prevents the check from scanning the rows to check for wrong links. This is the fastest check. If you are using this option with REPAIR TABLE, it will try to repair only the index tree. This is the fastest repair method for a table.",
    &opt_quick, &opt_quick, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
@@ -193,9 +167,6 @@ static struct my_option my_long_options[] =
   {"skip_database", 0, "Don't process the database specified as argument", 
    &opt_skip_database, &opt_skip_database, 0, GET_STR, REQUIRED_ARG, 
    0, 0, 0, 0, 0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
   {"tables", OPT_TABLES, "Overrides option --databases (-B).", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -203,10 +174,6 @@ static struct my_option my_long_options[] =
    "When used with REPAIR, get table structure from .frm file, so the table can be repaired even if .MYI header is corrupted.",
    &opt_frm, &opt_frm, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
-#ifndef DONT_ALLOW_USER_CHANGE
-  {"user", 'u', "User for login if not current user.", &current_user,
-   &current_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {"verbose", 'v', "Print info about the various stages; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
@@ -351,6 +318,7 @@ get_one_option(const struct my_option *opt,
   case 'W':
 #ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
+    opt_protocol_type= "pipe";
 #endif
     break;
   case '#':
@@ -413,8 +381,7 @@ static int get_options(int *argc, char ***argv)
   int ho_error;
   DBUG_ENTER("get_options");
 
-  if (current_host == NULL)
-    current_host= getenv("MARIADB_HOST");
+  set_common_cli_host_from_env();
 
   if (*argc == 1)
   {
@@ -1130,18 +1097,8 @@ static int dbConnect(char *host, char *user, char *passwd)
     fprintf(stderr, "# Connecting to %s...\n", host ? host : "localhost");
   }
   mysql_init(&mysql_connection);
-  if (opt_compress)
-    mysql_options(&mysql_connection, MYSQL_OPT_COMPRESS, NullS);
+  set_common_cli_vars_with_init_command(&mysql_connection);
   SET_SSL_OPTS(&mysql_connection);
-  if (opt_protocol)
-    mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-
-  if (opt_plugin_dir && *opt_plugin_dir)
-    mysql_options(&mysql_connection, MYSQL_PLUGIN_DIR, opt_plugin_dir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
   mysql_options(&mysql_connection, MYSQL_SET_CHARSET_NAME, default_charset);
   mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -1214,7 +1171,7 @@ int main(int argc, char **argv)
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
   ret= EX_MYSQLERR;
-  if (dbConnect(current_host, current_user, opt_password))
+  if (dbConnect(opt_host, opt_user, opt_password))
     goto end1;
 
   ret= 1;
@@ -1270,7 +1227,7 @@ int main(int argc, char **argv)
   ret= MY_TEST(first_error);
 
  end:
-  dbDisconnect(current_host);
+  dbDisconnect(opt_host);
   if (opt_auto_repair)
   {
     delete_dynamic(&views4repair);
@@ -1279,6 +1236,7 @@ int main(int argc, char **argv)
     delete_dynamic(&alter_table_cmds);
   }
  end1:
+  free_common_cli_vars();
   my_free(opt_password);;
   mysql_library_end();
   free_defaults(defaults_argv);

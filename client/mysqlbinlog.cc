@@ -38,6 +38,7 @@
 #include "client_priv.h"
 #undef MYSQL_TYPE_TIME2
 #include <my_time.h>
+#include <common-cli-vars.h>
 #include <sslopt-vars.h>
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
@@ -95,7 +96,6 @@ ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
 ulonglong test_flags = 0;
 ulong opt_binlog_rows_event_max_encoded_size= MAX_MAX_ALLOWED_PACKET;
-static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
@@ -132,13 +132,7 @@ my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
-static char* host = 0;
-static int opt_mysql_port= 0;
 static uint my_end_arg;
-static const char* sock= 0;
-static char *opt_plugindir= 0, *opt_default_auth= 0;
-
-static char* user = 0;
 static char* opt_password = 0;
 static char *charset= 0;
 
@@ -1313,8 +1307,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           int  tmp_sql_offset;
 
           conn = mysql_init(NULL);
-          if (!mysql_real_connect(conn, host, user, opt_password,
-                map->get_db_name(), opt_mysql_port, sock, 0))
+          if (!mysql_real_connect(conn, opt_host, opt_user, opt_password,
+                map->get_db_name(), opt_mysql_port, opt_mysql_unix_port, 0))
           {
             fprintf(stderr, "%s\n", mysql_error(conn));
             exit(1);
@@ -1593,10 +1587,7 @@ static struct my_option my_options[] =
   {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", 0,
-   "Default authentication client-side plugin to use.",
-   &opt_default_auth, &opt_default_auth, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include <common-cli-longopts.h>
   {"disable-log-bin", 'D', "Disable binary log. This is useful, if you "
     "enabled --to-last-log and are sending the output to the same MariaDB server. "
     "This way you could avoid an endless loop. You would also like to use it "
@@ -1620,9 +1611,6 @@ static struct my_option my_options[] =
   {"hexdump", 'H', "Augment output with hexadecimal and ASCII event dump.",
    &opt_hexdump, &opt_hexdump, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Get the binlog from server. Defaults in the following order: "
-  "$MARIADB_HOST, and then localhost",
-   &host, &host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"local-load", 'l', "Prepare local temporary files for LOAD DATA INFILE in the specified directory.",
    &dirname_for_local_load, &dirname_for_local_load, 0,
    GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1630,20 +1618,6 @@ static struct my_option my_options[] =
    0, GET_ULL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"password", 'p', "Password to connect to remote server.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin_dir", 0, "Directory for client-side plugins.",
-    &opt_plugindir, &opt_plugindir, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"port", 'P', "Port number to use for connection or 0 for default to, in "
-   "order of preference, my.cnf, $MYSQL_TCP_PORT, "
-#if MYSQL_PORT_DEFAULT == 0
-   "/etc/services, "
-#endif
-   "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &opt_mysql_port, &opt_mysql_port, 0, GET_INT, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-  {"protocol", OPT_MYSQL_PROTOCOL,
-   "The protocol to use for connection (tcp, socket, pipe).",
-   0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"read-from-remote-server", 'R', "Read binary logs from a MariaDB server.",
    &remote_opt, &remote_opt, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
@@ -1723,9 +1697,6 @@ static struct my_option my_options[] =
    "use --base64-output=never",
    &short_form, &short_form, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
-  {"socket", 'S', "The socket file to use for connection.",
-   &sock, &sock, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0,
-   0, 0},
 #include <sslopt-longopts.h>
   {"start-datetime", OPT_START_DATETIME,
    "Start reading the binlog at first event having a datetime equal or "
@@ -1786,9 +1757,6 @@ binlog of the MariaDB server. If you send the output to the same MariaDB server,
 that may lead to an endless loop.",
    &to_last_remote_log, &to_last_remote_log, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"user", 'u', "Connect to the remote server as username.",
-   &user, &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0,
-   0, 0},
   {"verbose", 'v', "Reconstruct SQL statements out of row events. "
                    "-v -v adds comments on column data types. "
                    "-v -v -v adds diagnostic warnings about event "
@@ -1906,11 +1874,10 @@ static void warning(const char *format,...)
 static void cleanup()
 {
   DBUG_ENTER("cleanup");
+  free_common_cli_vars();
   my_free(opt_password);
   my_free(database);
   my_free(table);
-  my_free(host);
-  my_free(user);
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
@@ -2403,11 +2370,7 @@ get_one_option(const struct my_option *opt, const char *argument,
 static int parse_args(int *argc, char*** argv)
 {
   int ho_error;
-  char *tmp;
-
-  tmp= getenv("MARIADB_HOST");
-  if (tmp && host == NULL)
-    host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
+  set_common_cli_host_from_env();
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
   {
@@ -2490,20 +2453,13 @@ static Exit_status safe_connect()
     return ERROR_STOP;
   }
 
+  set_common_cli_vars_with_init_command(mysql);
   SET_SSL_OPTS_WITH_CHECK(mysql);
 
-  if (opt_plugindir && *opt_plugindir)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugindir);
-
-  if (opt_default_auth && *opt_default_auth)
-    mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
-
-  if (opt_protocol)
-    mysql_options(mysql, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlbinlog");
-  if (!mysql_real_connect(mysql, host, user, opt_password, 0, opt_mysql_port, sock, 0))
+  if (!mysql_real_connect(mysql, opt_host, opt_user, opt_password, 0, opt_mysql_port, opt_mysql_unix_port, 0))
   {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;

@@ -655,6 +655,22 @@ Get the binary log from the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mariadb-binlog: init-command option
+.\" init-command option: mariadb-binlog
+\fB\-\-init\-command=\fR\fB\fIstmt\fR\fR
+.sp
+SQL command to execute when connecting to MariaDB server\&.
+Will automatically be re\-executed when reconnecting\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mariadb-binlog: local-load option
 .\" local-load option: mariadb-binlog
 \fB\-\-local\-load=\fR\fB\fIpath\fR\fR,

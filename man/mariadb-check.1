@@ -599,6 +599,22 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mariadb-check: init-command option
+.\" init-command option: mariadb-check
+\fB\-\-init\-command=\fR\fB\fIstmt\fR\fR
+.sp
+SQL command to execute when connecting to MariaDB server\&.
+Will automatically be re\-executed when reconnecting\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mariadb-check: medium-check option
 .\" medium-check option: mariadb-check
 \fB\-\-medium\-check\fR,
