@@ -95,7 +95,7 @@ using namespace json_reader;
     as "REPLACE INTO table_name VALUES(...);" statements.
     The table_name would either be the table referred in the query or
     one of MYSQL.TABLE_STATS, MYSQL.COLUMN_STATS, MYSQL.INDEX_STATS.
-    functions store_system_variables(), and dump_eits_stats() are used
+    functions store_variables(), and dump_eits_stats() are used
     for achieving this purpose. All these statements are also recorded in
     the "optimizer_context" Information Schema table.
 */
@@ -408,6 +408,36 @@ static bool is_optimizer_related_var(const char **sys_vars,
   return false;
 }
 
+static void store_variable(THD *thd, String &sql_script, bool is_global,
+                           const char *var_name, const char *value, size_t len,
+                           bool req_quote)
+{
+  sql_script.append(STRING_WITH_LEN("SET "));
+
+  if (is_global)
+    sql_script.append(STRING_WITH_LEN("GLOBAL "));
+  else
+    sql_script.append(STRING_WITH_LEN("@"));
+
+  sql_script.append(var_name, strlen(var_name));
+  sql_script.append(STRING_WITH_LEN("="));
+
+  if (value)
+  {
+    if (req_quote)
+      sql_script.append(STRING_WITH_LEN("'"));
+
+    sql_script.append(value, len);
+
+    if (req_quote)
+      sql_script.append(STRING_WITH_LEN("'"));
+  }
+  else
+    sql_script.append(STRING_WITH_LEN("NULL"));
+
+  sql_script.append(STRING_WITH_LEN(";\n\n"));
+}
+
 /*
   @brief
     Save current values of optimizer variables: append to sql_script
@@ -419,34 +449,41 @@ static void store_system_variables(THD *thd, String &sql_script)
   // hold the lock until the end of this method.
   // follows the same pattern as in sql_show.cc#fill_variables()
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
+
   if (!thd->variables.dynamic_variables_ptr ||
       global_system_variables.dynamic_variables_head >
           thd->variables.dynamic_variables_head)
     sync_dynamic_session_variables(thd, true);
+
   SHOW_VAR *all_session_vars= enumerate_sys_vars(thd, true, SHOW_OPT_SESSION);
   size_t len;
   StringBuffer<1024> buf;
   const char *pos;
+
   for (SHOW_VAR *show_var= all_session_vars; show_var->name != NULL;
        show_var++)
   {
-    if (is_optimizer_related_var(excluded_sys_vars, show_var->name))
+    sys_var *var= (sys_var *) show_var->value;
+    bool is_global_var= var->check_type(SHOW_OPT_SESSION);
+    bool req_quote;
+
+    // don't store the variables related to
+    // 1. context
+    // 2. thread
+    // 3. read_only
+    if (is_optimizer_related_var(excluded_sys_vars, show_var->name) ||
+        var->is_readonly() || strstr(show_var->name, "thread") != NULL)
       continue;
+
     if (strstr(show_var->name, "optimizer") != NULL ||
-        is_optimizer_related_var(opt_related_sys_vars, show_var->name))
+        is_optimizer_related_var(opt_related_sys_vars, show_var->name) ||
+        (var->value_origin != sys_var::COMPILE_TIME)) // has non-default value
     {
-      sys_var *var= (sys_var *) show_var->value;
       mysql_mutex_lock(&LOCK_global_system_variables);
       pos= get_one_variable(thd, show_var, SHOW_OPT_SESSION, show_var->type,
                             NULL, &charset_info, buf.c_ptr_safe(), &len);
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_script.append(STRING_WITH_LEN("SET "));
 
-      if (var->check_type(SHOW_OPT_SESSION))
-        sql_script.append(STRING_WITH_LEN("GLOBAL "));
-
-      sql_script.append(show_var->name, strlen(show_var->name));
-      sql_script.append(STRING_WITH_LEN("="));
       switch (var->show_type())
       {
       case SHOW_DOUBLE:
@@ -458,25 +495,58 @@ static void store_system_variables(THD *thd, String &sql_script)
       case SHOW_SLONG:
       case SHOW_SLONGLONG:
       case SHOW_SIZE_T:
-        sql_script.append(pos, len);
+        req_quote= false;
         break;
       default:
-        sql_script.append(STRING_WITH_LEN("'"));
-        sql_script.append(pos, len);
-        sql_script.append(STRING_WITH_LEN("'"));
+        req_quote= true;
         break;
       }
-      sql_script.append(STRING_WITH_LEN(";\n\n"));
+      store_variable(thd, sql_script, is_global_var, show_var->name, pos, len,
+                     req_quote);
     }
   }
   mysql_prlock_unlock(&LOCK_system_variables_hash);
 }
 
+// static void store_user_variables(THD *thd, String &sql_script)
+// {
+//   HASH *user_vars_hash= &thd->user_vars;
+
+//   // A buffer to hold the string representation of the variable's value.
+//   char val_buffer[MAX_FIELD_WIDTH];
+//   String str_val(val_buffer, sizeof(val_buffer), system_charset_info);
+//   char *replay_ctx_var= thd->variables.optimizer_replay_context;
+
+//   for (uint i= 0; i < user_vars_hash->records; i++)
+//   {
+//     user_var_entry *entry=
+//         (user_var_entry *) my_hash_element(user_vars_hash, i);
+
+//     if (entry && strcmp(entry->name.str, replay_ctx_var) != 0)
+//     {
+//       bool is_null;
+//       String *value_str= entry->val_str(&is_null, &str_val, 0);
+//       if (is_null)
+//         store_variable(thd, sql_script, false, entry->name.str, NULL, 0,
+//         true);
+//       else
+//         store_variable(thd, sql_script, false, entry->name.str,
+//                        value_str->c_ptr_safe(), value_str->length(), true);
+//     }
+//   }
+// }
+
+static void store_variables(THD *thd, String &sql_script)
+{
+  // store_user_variables(thd, sql_script);
+  store_system_variables(thd, sql_script);
+}
+
 /*
   @brief
-    Append the "create database db_name" DDL statement to sql_script, if it is
-    not already present in the db_name_hash.
-    Also, append "use database db_name" if the flag req_use_db_stmt is set.
+    Append the "create database db_name" DDL statement to sql_script, if it
+  is not already present in the db_name_hash. Also, append "use database
+  db_name" if the flag req_use_db_stmt is set.
 
   @return
     0  OK
@@ -555,8 +625,8 @@ bool store_optimizer_context(THD *thd)
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "list_contexts");
-  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n "));
-  store_system_variables(thd, sql_script);
+  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
+  store_variables(thd, sql_script);
   HASH table_name_hash;
   HASH db_name_hash;
   List<TABLE_LIST> tables_list;
