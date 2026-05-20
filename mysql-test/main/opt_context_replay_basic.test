@@ -147,4 +147,30 @@ set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table t1;
 
+--echo #
+--echo # MDEV-39410: ucs2 data not stored correctly in the context
+--echo #
+create table t1 (a varchar(5) character set ucs2 collate ucs2_bin);
+insert into t1 values (0x00410000);
+
+set optimizer_record_context=1;
+explain select hex(a) from t1 where a like 'A_';
+
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain select hex(a) from t1 where a like 'A_';
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
 drop database db1;
