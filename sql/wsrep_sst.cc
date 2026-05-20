@@ -1,5 +1,5 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
-   Copyright (c) 2008, 2022, MariaDB
+/* Copyright (C) 2008, 2025 Codership Oy <http://www.codership.com>
+   Copyright (c) 2008, 2026, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -178,12 +178,24 @@ static bool filename_char(int const c)
   return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
 }
 
+/* return true if string is comma seprated list */
+static bool comma_char(int const c)
+{
+  return (c == ',');
+}
+
 /* return true if character can be a part of an address string */
 static bool address_char(int const c)
 {
   return filename_char(c) ||
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
 }
+
+/* return true if character can be a part of an address string list */
+static bool names_list(int const c)
+{
+  return address_char(c) || comma_char(c);
+}  
 
 static bool check_request_str(const char* const str,
                               bool (*check) (int c),
@@ -256,8 +268,19 @@ static void make_wsrep_defaults_file()
 
 bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  /* Allow empty value */
+  if (!var->save_result.string_value.str || var->save_result.string_value.length == 0)
+    return 0;
+
+  /* Check length */
+  if ((var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  {
+    goto err;
+  }
+
+  /* check also that address contains only accepted characters  */
+  if (check_request_str(var->save_result.string_value.str,
+                        address_char, false))
   {
     goto err;
   }
@@ -339,16 +362,30 @@ void wsrep_sst_auth_init ()
 
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 {
-  if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN -1))) // safety
+  /* Allow empty value */
+  if (!var->save_result.string_value.str || var->save_result.string_value.length == 0)
+    return 0;
+
+  /* Check length */
+  if ((var->save_result.string_value.length > (FN_REFLEN -1))) // safety
   {
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
-             var->save_result.string_value.str ?
-             var->save_result.string_value.str : "NULL");
-    return 1;
+    goto err;
+  }
+
+  /* check also that donor string contains only accepted characters  */
+  if (check_request_str(var->save_result.string_value.str,
+                        names_list, false))
+  {
+    goto err;
   }
 
   return 0;
+
+err:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+           var->save_result.string_value.str ?
+           var->save_result.string_value.str : "NULL");
+  return 1;
 }
 
 bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
