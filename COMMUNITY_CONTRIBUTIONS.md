@@ -1,4 +1,4 @@
-# Community Contributions Process #
+# Community Contributions Process
 
 MariaDB Server is an Open Source project that thrives thanks to its community.
 MariaDB Foundation handles all community contributions in a timely manner.
@@ -25,7 +25,7 @@ But it's important to always have both prior to review.
 There are constant efforts (including background processes) to make sure
  the states of the Jira and the corresponding pull request(s) are kept in sync.
 
-### What should go into the jira ###
+### What should go into the jira
 
 The [Jira](https://jira.mariadb.org) is used to describe the design of the
 feature: why is it a good idea, what should work, what might not work etc.
@@ -45,9 +45,9 @@ See [here](https://mariadb.org/contribute/#contribute-to-testing)
 
 > [!CAUTION]
 > If the jira already exists and is assigned to somebody please reach out
-> to them **before** starting to working on it to avoid effort duplication. 
+> to them **before** starting to working on it to avoid effort duplication.
 
-### What should go into the pull request ###
+### What should go into the pull request
 
 The pull request is used to describe the implementation.
 E.g. how the bug is fixed. Or how the feature is implemented in detail.
@@ -64,7 +64,35 @@ And that commit should have a commit message that's compliant with
 > If there's no Jira or no reference to it in your pull request
 > there might be delays in processing it
 
-## States of a Community Contribution ##
+#### Contribution Trailer Requirements
+
+Git supports adding "trailers" to a commit message.
+Here are some guidelines on trailers that we use:
+
+> [!IMPORTANT]
+> If you used an AI Coding Assistant to write the code for this pull request,
+>  even if partially, you **must** use `Assisted-by:`, for example
+> ```
+> Assisted-by: Orac:orac19.78 blakes7_liberator
+> ```
+
+You don't need to specify `Assisted-by:` if AI Coding Assistants were only
+ used for trivial corrections, like typos or comments.
+
+You can also use `Assisted-by:` to specify other co-authors, even if they
+ were fellow humans and not AI's
+
+Consider using `Reviewed-By:` to specify reviewers, e.g.:
+
+```
+MDEV-0000 Need waffles
+
+This allows MariaDB to make waffles
+
+Reviewed-By: Monty Widenius <monty@mariadb>
+```
+
+## States of a Community Contribution
 
 ```mermaid
 stateDiagram-v2
@@ -87,7 +115,7 @@ stateDiagram-v2
     Closed --> [*]
 ```
 
-### Draft ###
+### Draft
 
 * Pull request
   * State: Draft
@@ -114,7 +142,7 @@ the GitHub pull request viewer UI.
 > and "External Contribution" pull request labels and there's
 > been no activity for 3 months.
 
-### Open ##
+### Open
 
 * Pull request
   * State: Open
@@ -169,7 +197,7 @@ Questions and Answers
 > label to pull requests in this state, if absent.
 > This marks the contribution entering the preliminary review queue.
 
-### Preliminary Review ###
+### Preliminary Review
 
 * Pull request
   * State: Open
@@ -199,7 +227,7 @@ The preliminary reviewer does the following:
     Or that an internal developer has taken over the contribution to
     re-do it and push it directly.
 
-### Final review ###
+### Final review
 
 * Pull request
   * State: Open
@@ -245,7 +273,7 @@ detailed information:
 > There's a requirement that certain contributions need to undergo
 > a separate test step. This is usually done for the new features or
 > for more complex and risky bug fixes. If that's the desired state,
-> a test engineer will be assigned as a final reviewer. See 
+> a test engineer will be assigned as a final reviewer. See
 > https://mariadb.com/docs/server/reference/product-development/mariadb-quality-development-rules
 > for more details.
 
@@ -256,7 +284,7 @@ detailed information:
 > in the middle of the new feature development cycle or vice versa
 > it might take up to a couple of months for a developer to do a review.
 
-### Approved ###
+### Approved
 
 * Pull request
   * State: Open
@@ -280,7 +308,7 @@ The person that does the merge might need some assistance by the contributor.
 When the pull request is successfully merged the Jira should be moved to
 "Closed" state and its target version should be specified.
 
-### Merged ###
+### Merged
 
 * Pull request
   * State: Merged
@@ -295,7 +323,7 @@ This is the "success" final state for a contribution.
 Ideally all contributions will end up in this state.
 No further actions are necessary.
 
-### Closed ###
+### Closed
 
 * Pull request
   * State: Closed
