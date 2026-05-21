@@ -40,9 +40,6 @@
 #include "hash.h"
 
 /* Remove client convenience wrappers */
-#undef max_allowed_packet
-#undef net_buffer_length
-
 #ifdef EMBEDDED_LIBRARY
 
 #undef MYSQL_SERVER
@@ -731,9 +728,6 @@ void end_server(MYSQL *mysql)
     mysql->connector_fd = 0;
 
     DBUG_PRINT("info",("Net: %s", vio_description(mysql->net.vio)));
-#ifdef MYSQL_SERVER
-    slave_io_thread_detach_vio();
-#endif
     vio_delete(mysql->net.vio);
     mysql->net.vio= 0;          /* Marker */
     mysql_prune_stmt_list(mysql);

@@ -25,8 +25,6 @@
 #include "rpl_filter.h"
 #include "keycaches.h"
 
-typedef struct st_mysql MYSQL;
-
 /**
   Domain id based filter to handle DO_DOMAIN_IDS and IGNORE_DOMAIN_IDS used to
   set filtering on replication slave based on event's GTID domain_id.
@@ -208,7 +206,6 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
   mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
   mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
   THD *io_thd;
-  MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
   uint mysql_version;
   Relay_log_info rli;
@@ -462,15 +459,11 @@ uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
 
 /*
-  Sets up the basic options for a MYSQL connection, mysql, to connect to the
-  primary server described by the Master_info parameter, mi. The timeout must
-  be passed explicitly, as different types of connections created by the slave
-  will use different values.
-
-  Assumes mysql_init() has already been called on the mysql connection object.
+  Sets up the basic options for a remote connection to connect to the
+  primary server described by the Master_info parameter, mi.
 */
-void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
-                                       uint timeout);
+Remote_event_stream::Connection_options
+  setup_mysql_connection_for_master(Master_info *mi);
 
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

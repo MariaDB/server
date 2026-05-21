@@ -175,7 +175,6 @@ int init_slave();
 int init_recovery(Master_info* mi, const char** errmsg);
 bool init_slave_skip_errors(const char* arg);
 bool init_slave_transaction_retry_errors(const char* arg);
-int register_slave_on_master(MYSQL* mysql);
 int terminate_slave_threads(Master_info* mi, int thread_mask,
 			     bool skip_lock = 0);
 int start_slave_threads(THD *thd,
@@ -203,10 +202,6 @@ int start_slave_thread(
 /* If fd is -1, dump to NET */
 int mysql_table_dump(THD* thd, const char* db,
 		     const char* tbl_name, int fd = -1);
-
-/* retrieve table from master and copy to slave*/
-int fetch_master_table(THD* thd, const char* db_name, const char* table_name,
-		       Master_info* mi, MYSQL* mysql, bool overwrite);
 
 void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                                      bool full, size_t gtid_pos_length);

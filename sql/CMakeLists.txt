@@ -250,7 +250,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
-  mysys mysys_ssl dbug strings vio pcre2-8
+  rpl mysys mysys_ssl dbug strings vio pcre2-8
   tpool
   online_alter_log
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}

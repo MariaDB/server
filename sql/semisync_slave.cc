@@ -125,7 +125,8 @@ void Repl_semi_sync_slave::slave_start(Master_info *mi)
   rpl_semi_sync_slave_send_ack= 0;
 }
 
-void Repl_semi_sync_slave::slave_stop(Master_info *mi)
+void Repl_semi_sync_slave::
+  slave_stop(Master_info *mi, Remote_event_stream &mysql)
 {
   if (get_slave_enabled())
   {
@@ -141,7 +142,7 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
   };);
 #endif
-    kill_connection(mi);
+    kill_connection(mi, mysql);
   }
 
   set_slave_enabled(0);
@@ -158,59 +159,40 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
 }
 
 
-void Repl_semi_sync_slave::kill_connection(Master_info *mi)
+void Repl_semi_sync_slave::
+  kill_connection(Master_info *mi, Remote_event_stream &mysql)
 {
-  MYSQL *mysql= mi->mysql;
   if (!mysql)
     return;
 
   char kill_buffer[30];
-  MYSQL *kill_mysql = NULL;
+  bool ret;
   size_t kill_buffer_length;
 
-  kill_mysql = mysql_init(kill_mysql);
+  auto kill_mysql= Semi_sync_graceful_killer(
+    setup_mysql_connection_for_master(mi), m_kill_conn_timeout);
+  if (!kill_mysql)
+    return;
 
-  setup_mysql_connection_for_master(kill_mysql, mi, m_kill_conn_timeout);
-  mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
-
-  bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
-            mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));
+  ret= kill_mysql.connect();
   if (DBUG_IF("semisync_slave_failed_kill") || ret)
   {
     sql_print_information("cannot connect to master to kill slave io_thread's "
                           "connection");
-    goto failed_graceful_kill;
+    return;
   }
 
   kill_buffer_length= my_snprintf(kill_buffer, 30, "KILL %lu",
-                                mysql->thread_id);
-  if (mysql_real_query(kill_mysql, kill_buffer, (ulong)kill_buffer_length))
-  {
+                                mysql.thread_id());
+  if (kill_mysql.real_query(kill_buffer, kill_buffer_length))
     sql_print_information(
         "Failed to gracefully kill our active semi-sync connection with "
         "primary. Silently closing the connection.");
-    goto failed_graceful_kill;
-  }
-
-end:
-  mysql_close(kill_mysql);
-  return;
-
-failed_graceful_kill:
-  /*
-    If we fail to issue `KILL` on the primary to kill the active semi-sync
-    connection; we need to locally clean up our side of the connection. This
-    is because mysql_close will send COM_QUIT on the active semi-sync
-    connection, causing the primary to error.
-  */
-  net_clear(&(mysql->net), 0);
-  end_server(mysql);
-  goto end;
 }
 
-int Repl_semi_sync_slave::request_transmit(Master_info *mi)
+int Repl_semi_sync_slave::
+  request_transmit(Master_info *mi, Remote_event_stream &mysql)
 {
-  MYSQL *mysql= mi->mysql;
   MYSQL_RES *res= 0;
   MYSQL_ROW row;
   const char *query;
@@ -219,10 +201,11 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
     return 0;
 
   query= "SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled'";
-  if (mysql_real_query(mysql, query, (ulong)strlen(query)) ||
-      !(res= mysql_store_result(mysql)))
+  if (mysql.real_query(query, strlen(query)) ||
+      !(res= mysql.store_result()))
   {
-    sql_print_error("Execution failed on master: %s, error :%s", query, mysql_error(mysql));
+    sql_print_error("Execution failed on master: %s, error :%s",
+      query, mysql.errmsg());
     set_slave_enabled(0);
     return 1;
   }
@@ -250,59 +233,33 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
    the master connection.
   */
   query= "SET @rpl_semi_sync_slave= 1";
-  if (mysql_real_query(mysql, query, (ulong)strlen(query)))
+  if (mysql.real_query(query, strlen(query)))
   {
     sql_print_error("%s on master failed", query);
     set_slave_enabled(0);
     return 1;
   }
   mi->semi_sync_reply_enabled= 1;
-  /* Inform net_server that pkt_nr can come out of order */
-  mi->mysql->net.pkt_nr_can_be_reset= 1;
-  mysql_free_result(mysql_store_result(mysql));
+  Remote_event_stream::free_result(mysql.store_result());
 
   return 0;
 }
 
-int Repl_semi_sync_slave::slave_reply(Master_info *mi)
+bool Repl_semi_sync_slave::
+  slave_reply(Master_info *mi, Remote_event_stream &mysql)
 {
-  MYSQL* mysql= mi->mysql;
   const char *binlog_filename= const_cast<char *>(mi->master_log_name);
   my_off_t binlog_filepos= mi->master_log_pos;
-  NET *net= &mysql->net;
-  uchar reply_buffer[REPLY_MAGIC_NUM_LEN
-                     + REPLY_BINLOG_POS_LEN
-                     + REPLY_BINLOG_NAME_LEN];
-  int reply_res = 0;
-  size_t name_len = strlen(binlog_filename);
   DBUG_ENTER("Repl_semi_sync_slave::slave_reply");
   DBUG_ASSERT(get_slave_enabled() && mi->semi_sync_reply_enabled);
-
-  /* Prepare the buffer of the reply. */
-  reply_buffer[REPLY_MAGIC_NUM_OFFSET] = k_packet_magic_num;
-  int8store(reply_buffer + REPLY_BINLOG_POS_OFFSET, binlog_filepos);
-  memcpy(reply_buffer + REPLY_BINLOG_NAME_OFFSET,
-         binlog_filename,
-         name_len + 1 /* including trailing '\0' */);
 
   DBUG_PRINT("semisync", ("%s: reply (%s, %lu)",
                           "Repl_semi_sync_slave::slave_reply",
                           binlog_filename, (ulong)binlog_filepos));
 
-  /*
-    We have to do a net_clear() as with semi-sync the slave_reply's are
-    interleaved with data from the master and then the net->pkt_nr
-    cannot be kept in sync. Better to start pkt_nr from 0 again.
-  */
-  net_clear(net, 0);
-  /* Send the reply. */
-  reply_res = my_net_write(net, reply_buffer,
-                           name_len + REPLY_BINLOG_NAME_OFFSET);
-  if (!reply_res)
-  {
-    reply_res= DBUG_IF("semislave_failed_net_flush") || net_flush(net);
+  bool reply_res= mysql.semisync_ack(binlog_filename, binlog_filepos) ||
+    DBUG_IF("semislave_failed_net_flush");
     if (!reply_res)
       rpl_semi_sync_slave_send_ack++;
-  }
   DBUG_RETURN(reply_res);
 }

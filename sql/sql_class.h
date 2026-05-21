@@ -74,6 +74,7 @@ void set_thd_stage_info(void *thd,
 
 #include "my_apc.h"
 #include "rpl_gtid_base.h"
+#include "../rpl/remote_event_stream.h"
 
 #include "wsrep.h"
 #include "wsrep_on.h"
@@ -4350,7 +4351,11 @@ public:
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
 
-  NET*       slave_net;			// network connection from slave -> m.
+  /**
+    network connection from slave -> master,
+    for Remote_event_stream::abort() callback (requires @ref LOCK_thd_data)
+  */
+  Remote_event_stream *slave_net;
 
   /*
     Used to update global user stats.  The global user stats are updated
@@ -4479,10 +4484,17 @@ public:
     active_vio = vio;
     mysql_mutex_unlock(&LOCK_thd_data);
   }
+  void set_active_vio(Remote_event_stream *stream)
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+      slave_net= stream;
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
   inline void clear_active_vio()
   {
     mysql_mutex_lock(&LOCK_thd_data);
     active_vio = 0;
+    slave_net= nullptr;
     mysql_mutex_unlock(&LOCK_thd_data);
   }
   void close_active_vio();

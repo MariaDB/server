@@ -22,7 +22,6 @@
 #include "my_global.h"
 #include "sql_priv.h"
 #include "rpl_mi.h"
-#include "mysql.h"
 #include <sql_common.h>
 
 class Master_info;
@@ -87,12 +86,12 @@ public:
    * indicates that the slave has received all events before the specified
    * binlog position.
    */
-  int slave_reply(Master_info* mi);
+  bool slave_reply(Master_info* mi, Remote_event_stream &mysql);
   void slave_start(Master_info *mi);
-  void slave_stop(Master_info *mi);
+  void slave_stop(Master_info *mi, Remote_event_stream &stream);
   void slave_reconnect(Master_info *mi);
-  int request_transmit(Master_info *mi);
-  void kill_connection(Master_info *mi);
+  int request_transmit(Master_info *mi, Remote_event_stream &stream);
+  void kill_connection(Master_info *mi, Remote_event_stream &stream);
 
 private:
   /* True when init_object has been called */

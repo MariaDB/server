@@ -66,9 +66,6 @@
 #include "client_settings.h"
 #include "embedded_priv.h"
 
-#undef net_buffer_length
-#undef max_allowed_packet
-
 ulong 		net_buffer_length=8192;
 ulong		max_allowed_packet= 1024L*1024L*1024L;
 

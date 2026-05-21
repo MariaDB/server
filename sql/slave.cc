@@ -43,7 +43,6 @@
 #include "unireg.h"
 #include <mysys_err.h>
 #include <signal.h>
-#include <mysql.h>
 #include <myisam.h>
 #include "debug_sync.h"                         // debug_sync_set_action
 #include "sql_base.h"                           // close_thread_tables
@@ -154,14 +153,32 @@ static bool sql_slave_killed(rpl_group_info *rgi);
 static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
 static void make_slave_skip_errors_printable(void);
 static void make_slave_transaction_retry_errors_printable(void);
-static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi);
-static int safe_reconnect(THD*, MYSQL*, Master_info*, bool);
-static int connect_to_master(THD*, MYSQL*, Master_info*, bool, bool);
+static int safe_connect(THD* thd, Remote_event_stream &, Master_info* mi);
+static int safe_reconnect(THD* thd, Remote_event_stream &, Master_info*, bool);
+static int connect_to_master(THD*, Remote_event_stream &, Master_info*, bool, bool);
 static Log_event* next_event(rpl_group_info* rgi, ulonglong *event_size);
 static int queue_event(Master_info *mi,const uchar *buf, ulong event_len);
 static int terminate_slave_thread(THD *, mysql_mutex_t *, mysql_cond_t *,
                                   volatile uint *, bool);
 static bool check_io_slave_killed(Master_info *mi, const char *info);
+
+unsigned int server_mysql_errno(Remote_event_stream &stream)
+{ return stream.errnum(); }
+const char *server_mysql_error(Remote_event_stream &stream)
+{ return stream.errmsg(); }
+bool server_mysql_real_query
+  (Remote_event_stream &stream, const char *query, size_t strlen)
+{ return stream.real_query(query, strlen); }
+MYSQL_RES_P server_mysql_store_result(Remote_event_stream &stream)
+{ return stream.store_result(); }
+#define server_mysql_fetch_row(query_result) \
+  Remote_event_stream::fetch_row(query_result)
+#define server_mysql_free_result(query) Remote_event_stream::free_result(query);
+#undef simple_command
+#define simple_command(stream, command, args, strlen, skip_check) \
+  stream.send_command(command, args, strlen, skip_check)
+#undef packet_error
+static constexpr auto packet_error= std::string_view();
 
 /*
   Function to set the slave's max_allowed_packet based on the value
@@ -171,12 +188,9 @@ static bool check_io_slave_killed(Master_info *mi, const char *info);
     @in_param    mysql  MySQL connection handle
 */
 
-static void set_slave_max_allowed_packet(THD *thd, MYSQL *mysql)
+static unsigned long set_slave_max_allowed_packet(THD *thd)
 {
   DBUG_ENTER("set_slave_max_allowed_packet");
-  // thd and mysql must be valid
-  DBUG_ASSERT(thd && mysql);
-
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
   thd->net.max_packet_size= slave_max_allowed_packet;
   /*
@@ -185,14 +199,7 @@ static void set_slave_max_allowed_packet(THD *thd, MYSQL *mysql)
     replication event can become this much  larger than
     the corresponding packet (query) sent from client to master.
   */
-  thd->net.max_packet_size+= MAX_LOG_EVENT_HEADER;
-  /*
-    Skipping the setting of mysql->net.max_packet size to slave
-    max_allowed_packet since this is done during mysql_real_connect.
-  */
-  mysql->options.max_allowed_packet=
-    slave_max_allowed_packet+MAX_LOG_EVENT_HEADER;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(thd->net.max_packet_size+= MAX_LOG_EVENT_HEADER);
 }
 
 /*
@@ -1640,14 +1647,15 @@ bool is_network_error(uint errorno)
   2       transient network problem, the caller should try to reconnect
 */
 
-static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
+static int
+  get_master_version_and_clock(Remote_event_stream &mysql, Master_info* mi)
 {
   char err_buff[MAX_SLAVE_ERRMSG], err_buff2[MAX_SLAVE_ERRMSG];
   const char* errmsg= 0;
   int err_code= 0;
   MYSQL_RES *master_res= 0;
   MYSQL_ROW master_row;
-  uint full_version= mysql_get_server_version(mysql);
+  uint full_version= mysql.master_version();
   uint version= full_version/ 10000;
   uint32_t heartbeat_period= mi->master_heartbeat_period;
   DBUG_ENTER("get_master_version_and_clock");
@@ -1660,16 +1668,6 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   mi->rli.relay_log.description_event_for_queue= 0;
   mi->mysql_version= full_version;
 
-  if (!my_isdigit(&my_charset_bin,*mysql->server_version))
-  {
-    errmsg= err_buff2;
-    snprintf(err_buff2, sizeof(err_buff2),
-             "Master reported unrecognized MariaDB version: %s",
-             mysql->server_version);
-    err_code= ER_SLAVE_FATAL_ERROR;
-    sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
-  }
-  else
   {
     DBUG_EXECUTE_IF("mock_mariadb_primary_v5_in_get_master_version",
                     version= 5;);
@@ -1685,8 +1683,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
     case 4:
       errmsg= err_buff2;
       snprintf(err_buff2, sizeof(err_buff2),
-               "Master reported unrecognized MariaDB version: %s",
-               mysql->server_version);
+               "Master reported unrecognized MariaDB version: %u.x", version);
       err_code= ER_SLAVE_FATAL_ERROR;
       sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
       break;
@@ -1700,7 +1697,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
         master is 3.23, 4.0, etc.
       */
       mi->rli.relay_log.description_event_for_queue= new
-        Format_description_log_event(4, mysql->server_version,
+        Format_description_log_event(4, /* unused */ nullptr,
                                      mi->rli.relay_log.relay_log_checksum_alg);
       break;
     }
@@ -2785,7 +2782,7 @@ static void write_ignored_events_info_to_relay_log(THD *thd, Master_info *mi)
 }
 
 
-int register_slave_on_master(MYSQL* mysql, Master_info *mi,
+int register_slave_on_master(Remote_event_stream &mysql, Master_info *mi,
                              bool *suppress_warnings)
 {
   uchar buf[1024], *pos= buf;
@@ -2840,7 +2837,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
   /* The master will fill in master_id */
   int4store(pos, 0);                    pos+= 4;
 
-  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, (ulong) (pos- buf), 0))
+  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, pos-buf, false))
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
     {
@@ -3308,7 +3305,7 @@ static bool slave_sleep(THD *thd, time_t seconds,
 }
 
 
-static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
+static int request_dump(Remote_event_stream &mysql, Master_info* mi,
 			bool *suppress_warnings)
 {
   uchar buf[FN_REFLEN + 10];
@@ -3322,7 +3319,7 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
   if (opt_log_slave_updates && opt_replicate_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
 
-  if (repl_semisync_slave.request_transmit(mi))
+  if (repl_semisync_slave.request_transmit(mi, mysql))
     DBUG_RETURN(1);
 
   // TODO if big log files: Change next to int8store()
@@ -3367,13 +3364,12 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
 
     RETURN VALUES
     'packet_error'      Error
-    number              Length of packet
+    std::string_view    Packet
 */
 
-static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings, 
-                        ulong* network_read_len)
+static std::string_view read_event(Remote_event_stream &mysql, Master_info *mi,
+  bool* suppress_warnings, ulong* network_read_len)
 {
-  ulong len;
   DBUG_ENTER("read_event");
 
   *suppress_warnings= FALSE;
@@ -3386,8 +3382,15 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
     DBUG_RETURN(packet_error);
 #endif
 
-  len = cli_safe_read_reallen(mysql, network_read_len);
-  if (unlikely(len == packet_error || (long) len < 1))
+  std::string_view packet= mysql.next();
+  size_t len= packet.size();
+  /*FIXME:
+    In `@@slave_compressed_protocol`, `@@read_binlog_speed_limit` should
+    measure pre-decompress (network) byte count, not post-decompress count,
+    but this statistic is not exported by Connector/C.
+  */
+  *network_read_len= static_cast<ulong>(len);
+  if (unlikely(!len))
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
     {
@@ -3411,7 +3414,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
   }
 
   /* Check if eof packet */
-  if (len < 8 && mysql->net.read_pos[0] == 254)
+  if (len < 8 && packet[0] == 254)
   {
     sql_print_information("Slave: received end packet from server, apparent "
                           "master shutdown: %s",
@@ -3419,9 +3422,9 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
      DBUG_RETURN(packet_error);
   }
 
-  DBUG_PRINT("exit", ("len: %lu  net->read_pos[4]: %d",
-                      len, mysql->net.read_pos[4]));
-  DBUG_RETURN(len - 1);
+  DBUG_PRINT("exit", ("len: %zu  net->read_pos[4]: %d",
+                      len, packet[4]));
+  DBUG_RETURN(packet.substr(1));
 }
 
 
@@ -4425,7 +4428,7 @@ static bool check_io_slave_killed(Master_info *mi, const char *info)
   @retval        1                   There was an error.
 */
 
-static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
+static int try_to_reconnect(THD *thd, Remote_event_stream &mysql, Master_info *mi,
                             bool suppress_warnings,
                             const char *messages[SLAVE_RECON_MSG_MAX])
 {
@@ -4433,7 +4436,6 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
 #ifdef SIGNAL_WITH_VIO_CLOSE  
   thd->clear_active_vio();
 #endif
-  end_server(mysql);
   thd->proc_info = messages[SLAVE_RECON_MSG_AFTER];
   if (!suppress_warnings) 
   {
@@ -4490,7 +4492,6 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
 pthread_handler_t handle_slave_io(void *arg)
 {
   THD *thd; // needs to be first for thread_stack
-  MYSQL *mysql;
   Master_info *mi = (Master_info*)arg;
   Relay_log_info *rli= &mi->rli;
   bool suppress_warnings;
@@ -4505,7 +4506,6 @@ pthread_handler_t handle_slave_io(void *arg)
   DBUG_ENTER("handle_slave_io");
 
   DBUG_ASSERT(mi->inited);
-  mysql= NULL ;
 
   thd= new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
 
@@ -4546,6 +4546,11 @@ pthread_handler_t handle_slave_io(void *arg)
 
   DBUG_PRINT("master_info",("log_file_name: '%s'  position: %llu",
                             mi->master_log_name, mi->master_log_pos));
+{
+  Remote_event_stream mysql(
+    setup_mysql_connection_for_master(mi),
+    slave_net_timeout,
+    set_slave_max_allowed_packet(thd));
 
   /* Load the set of seen GTIDs, if we did not already. */
   if (rpl_load_gtid_slave_state(thd))
@@ -4566,7 +4571,7 @@ pthread_handler_t handle_slave_io(void *arg)
   thd->variables.wsrep_on= 0;
   repl_semisync_slave.slave_start(mi);
 
-  if (!(mi->mysql = mysql = mysql_init(NULL)))
+  if (!mysql)
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR), "error in mysql_init()");
@@ -4638,7 +4643,6 @@ connected:
   mi->slave_running= MYSQL_SLAVE_RUN_CONNECT;
   mysql_mutex_unlock(&mi->run_lock);
 
-  thd->slave_net = &mysql->net;
   THD_STAGE_INFO(thd, stage_checking_master_version);
   ret= get_master_version_and_clock(mysql, mi);
   if (ret == 1)
@@ -4695,7 +4699,7 @@ connected:
     const uchar *event_buf;
 
     THD_STAGE_INFO(thd, stage_requesting_binlog_dump);
-    if (request_dump(thd, mysql, mi, &suppress_warnings))
+    if (request_dump(mysql, mi, &suppress_warnings))
     {
       sql_print_error("Failed on request_dump()");
       if (check_io_slave_killed(mi, NullS) ||
@@ -4729,11 +4733,13 @@ connected:
                         DBUG_SET("-d,pause_before_io_read_event");
                       };);
 #endif
-      event_len= read_event(mysql, mi, &suppress_warnings, &network_read_len);
+      std::string_view packet=
+        read_event(mysql, mi, &suppress_warnings, &network_read_len);
+      event_len= static_cast<ulong>(packet.size());
       if (check_io_slave_killed(mi, NullS))
         goto err;
 
-      if (unlikely(event_len == packet_error))
+      if (unlikely(!event_len))
       {
         uint mysql_error_number= mysql_errno(mysql);
         switch (mysql_error_number) {
@@ -4762,14 +4768,14 @@ Stopping slave I/O thread due to out-of-memory error from master");
                              reconnect_messages[SLAVE_RECON_ACT_EVENT]))
           goto err;
         goto connected;
-      } // if (event_len == packet_error)
+      } // if (!event_len)
 
       thd->set_time_for_next_stage();
       THD_STAGE_INFO(thd, stage_queueing_master_event_to_the_relay_log);
-      event_buf= mysql->net.read_pos + 1;
+      event_buf= reinterpret_cast<const uchar *>(packet.data());
       mi->semi_ack= 0;
       if (repl_semisync_slave.
-          slave_read_sync_header((const uchar*) mysql->net.read_pos + 1,
+          slave_read_sync_header(event_buf,
                                  event_len,
                                  &(mi->semi_ack), &event_buf, &event_len))
       {
@@ -4842,7 +4848,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
               !debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
         };);
 #endif
-        if (repl_semisync_slave.slave_reply(mi))
+        if (repl_semisync_slave.slave_reply(mi, mysql))
         {
           /*
             Master is not responding (gone away?) or it has turned semi sync
@@ -4861,8 +4867,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
             sql_print_error("Master server does not read semi-sync messages "
                             "last_error: %s (%d). "
                             "Fallback to asynchronous replication",
-                            mi->mysql->net.last_error,
-                            mi->mysql->net.last_errno);
+                            mysql_error(mysql),
+                            mysql_errno(mysql));
           mi->semi_sync_reply_enabled= 0;
         }
       }
@@ -4932,7 +4938,7 @@ err:
                           IO_RPL_LOG_NAME, mi->master_log_pos,
                           tmp.c_ptr_safe(), mi->host, mi->port);
   }
-  repl_semisync_slave.slave_stop(mi);
+  repl_semisync_slave.slave_stop(mi, mysql);
   thd->reset_query();
   thd->reset_db(&null_clex_str);
   if (mysql)
@@ -4941,16 +4947,15 @@ err:
       Here we need to clear the active VIO before closing the
       connection with the master.  The reason is that THD::awake()
       might be called from terminate_slave_thread() because somebody
-      issued a STOP SLAVE.  If that happends, the close_active_vio()
+      issued a STOP SLAVE.  If that happends, Remote_event_stream::abort()
       can be called in the middle of closing the VIO associated with
       the 'mysql' object, causing a crash.
     */
 #ifdef SIGNAL_WITH_VIO_CLOSE
     thd->clear_active_vio();
 #endif
-    mysql_close(mysql);
-    mi->mysql=0;
   }
+}
   write_ignored_events_info_to_relay_log(thd, mi);
   if (mi->using_gtid != Master_info::USE_GTID_NO)
     flush_master_info(mi, TRUE, TRUE);
@@ -6939,30 +6944,6 @@ void end_relay_log_info(Relay_log_info* rli)
 }
 
 
-/**
-  Hook to detach the active VIO before closing a connection handle.
-
-  The client API might close the connection (and associated data)
-  in case it encounters a unrecoverable (network) error. This hook
-  is called from the client code before the VIO handle is deleted
-  allows the thread to detach the active vio so it does not point
-  to freed memory.
-
-  Other calls to THD::clear_active_vio throughout this module are
-  redundant due to the hook but are left in place for illustrative
-  purposes.
-*/
-
-extern "C" void slave_io_thread_detach_vio()
-{
-#ifdef SIGNAL_WITH_VIO_CLOSE
-  THD *thd= current_thd;
-  if (thd && thd->slave_thread)
-    thd->clear_active_vio();
-#endif
-}
-
-
 /*
   Try to connect until successful or slave killed
 
@@ -6977,7 +6958,7 @@ extern "C" void slave_io_thread_detach_vio()
     #   Error
 */
 
-static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi)
+static int safe_connect(THD* thd, Remote_event_stream &mysql, Master_info* mi)
 {
   DBUG_ENTER("safe_connect");
 
@@ -6995,25 +6976,17 @@ static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi)
     whether this connection is a new first-time or reconnects an existing one
   @return errno: 1 if error or 0 if successful
 */
-static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
+static int connect_to_master(THD* thd, Remote_event_stream &mysql, Master_info* mi,
                              bool reconnect, bool suppress_warnings)
 {
   int slave_was_killed;
   unsigned int last_errno= 0; // initialize with not-error
   mi->connects_tried= 0; // reset retry counter
   DBUG_EXECUTE_IF("set_slave_err_count_near_overflow", mi->connects_tried = ULONG_MAX - 2;);
-  my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
-  set_slave_max_allowed_packet(thd, mysql);
 #ifndef DBUG_OFF
   mi->events_till_disconnect = disconnect_slave_event_count;
 #endif
-  ulong client_flag= CLIENT_REMEMBER_OPTIONS;
-  if (opt_slave_compressed_protocol)
-    client_flag|= CLIENT_COMPRESS;                /* We will use compression */
-
-  setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
 
   /* we disallow empty users */
   if (mi->user[0] == 0)
@@ -7026,9 +6999,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     DBUG_RETURN(1);
   }
   while (!(slave_was_killed= io_slave_killed(mi)) &&
-         (reconnect ? mysql_reconnect(mysql) :
-          !mysql_real_connect(mysql, mi->host, mi->user, mi->password, 0,
-                              mi->port, 0, client_flag)))
+         (mysql.connect(opt_slave_compressed_protocol)))
   {
     /* Don't repeat last error and don't report killed error */
     if (mysql_errno(mysql) != last_errno && !io_slave_killed(mi))
@@ -7080,10 +7051,9 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     }
     ++(mi->connects_tried); // count the final success in addition to failures
 #ifdef SIGNAL_WITH_VIO_CLOSE
-    thd->set_active_vio(mysql->net.vio);
+    thd->set_active_vio(&mysql);
 #endif
   }
-  mysql->reconnect= 1;
   DBUG_PRINT("exit",("slave_was_killed: %d", slave_was_killed));
   DBUG_RETURN(slave_was_killed);
 }
@@ -7097,8 +7067,8 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     mi->retry_count times
 */
 
-static int safe_reconnect(THD* thd, MYSQL* mysql, Master_info* mi,
-                          bool suppress_warnings)
+static int safe_reconnect(THD* thd, Remote_event_stream &mysql,
+                          Master_info* mi, bool suppress_warnings)
 {
   DBUG_ENTER("safe_reconnect");
   DBUG_RETURN(connect_to_master(thd, mysql, mi, 1, suppress_warnings));
