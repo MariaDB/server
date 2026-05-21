@@ -337,18 +337,72 @@ void wsrep_sst_auth_init ()
   sst_auth_real_set(wsrep_sst_auth);
 }
 
+/* return true if character can be a part of a filename */
+bool wsrep_filename_char(const unsigned char c)
+{
+  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
+}
+
+/* return true if string is comma separated list */
+bool wsrep_comma_char(const unsigned char c)
+{
+  return (c == ',');
+}
+
+/* return true if character can be a part of an address string */
+bool wsrep_address_char(const unsigned char c)
+{
+  return wsrep_filename_char(c) ||
+         (c == ':') || (c == '[') || (c == ']') || (c == '/');
+}
+
+/* return true if character can be a part of an address string list */
+bool wsrep_names_list(const unsigned char c)
+{
+  return wsrep_address_char(c) || wsrep_comma_char(c);
+}
+
+bool wsrep_check_request_str(const char* const str,
+                             bool (*check) (const unsigned char),
+                             bool log_warn)
+{
+  for (size_t i(0); str[i] != '\0'; ++i)
+  {
+    if (!check(str[i]))
+    {
+      if (log_warn) WSREP_WARN("Illegal character in variable: %i (%c).",
+                               str[i], str[i]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 {
   if ((! var->save_result.string_value.str) ||
       (var->save_result.string_value.length > (FN_REFLEN -1))) // safety
+    goto err;
+
+  /* Allow empty value */
+  if (var->save_result.string_value.length == 0)
+    return 0;
+
+  /* check also that donor string contains only accepted characters  */
+  if (wsrep_check_request_str(var->save_result.string_value.str,
+                              wsrep_names_list, false))
   {
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
-             var->save_result.string_value.str ?
-             var->save_result.string_value.str : "NULL");
-    return 1;
+    goto err;
   }
 
   return 0;
+
+err:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+           var->save_result.string_value.str ?
+           var->save_result.string_value.str : "NULL");
+  return 1;
 }
 
 bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
