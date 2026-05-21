@@ -1,6 +1,8 @@
 
 --source include/not_embedded.inc
 
+--disable_replay testfile  Not a bug: Optimizer Context recording does extra queries and EITS table reads.
+
 if (!$ADT_NULL_SO) {
   skip No NULL_AUDIT plugin;
 }
