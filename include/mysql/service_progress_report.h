@@ -55,6 +55,7 @@ extern struct progress_report_service_st {
 
 #else
 
+void thd_progress_init(MYSQL_THD thd, unsigned int max_stage);
 /**
    Report progress for long running operations 
 
@@ -62,7 +63,6 @@ extern struct progress_report_service_st {
    @param progress       Where we are now
    @param max_progress   Progress will continue up to this
 */
-void thd_progress_init(MYSQL_THD thd, unsigned int max_stage);
 void thd_progress_report(MYSQL_THD thd,
                          unsigned long long progress,
                          unsigned long long max_progress);

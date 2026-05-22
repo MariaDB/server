@@ -1,0 +1,12 @@
+PROJECT_NAME           = MariaDB Plugin API Documentation
+NUM_PROC_THREADS       = 0
+EXTRACT_ALL            = YES
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_AS_ERROR          = YES
+FILE_PATTERNS          = *.h *.dox
+RECURSIVE              = YES
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+PREDEFINED             = HAVE_PSI_SOCKET_INTERFACE HAVE_PSI_1 USE_PSI_1
