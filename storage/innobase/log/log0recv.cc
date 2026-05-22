@@ -944,6 +944,8 @@ processed:
       {
         recv_spaces_t::iterator it {recv_spaces.find(d->first)};
         ut_ad(it != recv_spaces.end());
+        if (it == recv_spaces.end())
+          goto next_item;
 
         fil_space_t *space= create(
           it, d->second.file_name.c_str(), flags,
@@ -1075,6 +1077,8 @@ fil_space_t *recv_sys_t::recover_deferred(const recv_sys_t::map::iterator &p,
 
   recv_spaces_t::iterator it{recv_spaces.find(p->first.space())};
   ut_ad(it != recv_spaces.end());
+  if (it == recv_spaces.end())
+    goto fail;
 
   if (!p->first.page_no() && p->second.skip_read)
   {
@@ -4523,6 +4527,8 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
     }
     auto it= recv_spaces.find(p->first.space());
     ut_ad(it != recv_spaces.end());
+    if (it == recv_spaces.end())
+      goto nothing_recoverable;
     uint32_t flags= it->second.flags;
     zip_size= fil_space_t::zip_size(flags);
     block= buf_page_create_deferred(p->first.space(), zip_size, &mtr, b);
@@ -5343,6 +5349,8 @@ next:
 
 		recv_spaces_t::iterator i = recv_spaces.find(space);
 		ut_ad(i != recv_spaces.end());
+		if (i == recv_spaces.end())
+			goto next;
 
 		if (deferred_spaces.find(space)) {
 			/* Skip redo logs belonging to

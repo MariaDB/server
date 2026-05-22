@@ -33,6 +33,7 @@
 /************************************************************************/
 #define MYSQL_SERVER 1
 #include "my_global.h"
+#include <m_string.h>
 #include "sql_class.h"
 #include "sql_servers.h"
 #if defined(_WIN32)
@@ -683,7 +684,8 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
 
 
     // Make a lower case copy of the originale query
-    qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 5);
+    // Allocation must match Query STRING(g, strlen(Qrystr) + 64)
+    qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
     strlwr(strcpy(qrystr, Qrystr));
 
     // Check whether the table name is equal to a keyword
@@ -708,8 +710,11 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
       if (Query->IsTruncated()) {
         snprintf(g->Message, sizeof(g->Message), "MakeCommand: Out of memory");
         return true;
-      } else
-        strlwr(strcpy(qrystr, Query->GetStr()));
+      } else {
+        safe_strcpy(qrystr, strlen(Qrystr) + 64,
+                    Query->GetStr());
+        strlwr(qrystr);
+      }
 
     } else {
       snprintf(g->Message, sizeof(g->Message), "Cannot use this %s command",

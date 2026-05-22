@@ -1930,6 +1930,7 @@ uint _mi_get_block_info(MI_BLOCK_INFO *info, File file, my_off_t filepos)
   case 0:
     if ((info->block_len=(uint) mi_uint3korr(header+1)) <
 	MI_MIN_BLOCK_LENGTH ||
+	info->block_len > MI_MAX_BLOCK_LENGTH ||
 	(info->block_len & (MI_DYN_ALIGN_SIZE -1)))
       goto err;
     info->filepos=filepos;
