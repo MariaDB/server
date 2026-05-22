@@ -41,7 +41,6 @@ extern "C" {
   Performance schema instrumentation interface.
 
   @defgroup Instrumentation_interface Instrumentation Interface
-  @ingroup Performance_schema
   @{
 */
 

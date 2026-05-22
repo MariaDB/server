@@ -120,7 +120,8 @@ mysql_socket_invalid()
 
 /**
   Set socket descriptor and address.
-  @param socket nstrumented socket
+
+  @param socket instrumented socket
   @param addr unformatted socket address
   @param addr_len length of socket address
 */
@@ -612,7 +613,7 @@ inline_mysql_socket_fd
   mysql_socket.m_psi= PSI_SOCKET_CALL(init_socket)
     (key, (const my_socket*)&mysql_socket.fd, NULL, 0);
 #endif
-  /**
+  /*
     Currently systemd socket activation is the user of this
     function. Its API (man sd_listen_fds) says FD_CLOSE_EXEC
     is already called. If there becomes another user, we

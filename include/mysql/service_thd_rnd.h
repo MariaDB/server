@@ -46,9 +46,10 @@ double thd_rnd(MYSQL_THD thd);
 /**
   Generate string of printable random characters of requested length.
 
-  @param to[out]      Buffer for generation; must be at least length+1 bytes
-                      long; result string is always null-terminated
-  @param length[in]   How many random characters to put in buffer
+  @param      thd      User thread connection handle
+  @param[out] to       Buffer for generation; must be at least length+1 bytes
+                       long; result string is always null-terminated
+  @param[in]  length   How many random characters to put in buffer
 */
 void thd_create_random_password(MYSQL_THD thd, char *to, size_t length);
 
