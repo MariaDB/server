@@ -1,0 +1,10 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+# Victim: /bin/true exits 0 ignoring argv, so injection happens in sh -c parsing.
+wsrep_notify_cmd=/bin/true
+
+[mysqld.2]
+# Attacker: shell metacharacters in wsrep_node_name; trailing '#' comments
+# out whatever the server appends after the name.
+wsrep_node_name='n;touch PWN;#'
