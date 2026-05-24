@@ -141,7 +141,7 @@ static struct utsname ubuf;
 #ifdef TARGET_OS_LINUX
 #include <glob.h>
 static bool have_distribution= false;
-static char distribution[256];
+static char distribution[1024];
 
 static const char *masks[]= {
   "/etc/*-version", "/etc/*-release",
