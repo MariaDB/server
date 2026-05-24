@@ -65,8 +65,8 @@ void cleanup_host(void)
 }
 
 C_MODE_START
-static const uchar *host_hash_get_key(const void *entry, size_t *length,
-                                      my_bool)
+static const void *host_hash_get_key(const void *entry, size_t *length,
+                                     my_bool)
 {
   const PFS_host * const *typed_entry;
   const PFS_host *host;
@@ -77,7 +77,7 @@ static const uchar *host_hash_get_key(const void *entry, size_t *length,
   assert(host != NULL);
   *length= host->m_key.m_key_length;
   result= host->m_key.m_hash_key;
-  return reinterpret_cast<const uchar *>(result);
+  return result;
 }
 C_MODE_END
 

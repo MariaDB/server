@@ -1602,7 +1602,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
   {
     uint32 domain_id, server_id;
     uint64 sub_id, seq_no;
-    uchar *rec;
+    void *rec;
 
     if ((err= table->file->ha_rnd_next(table->record[0])))
     {
