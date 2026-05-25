@@ -618,4 +618,22 @@ NULL
 NULL
 NULL
 DROP TABLE t1;
+#
+# MDEV-28610 Assertion `marked_for_read()' failed upon range select with virtual column in index
+#
+CREATE TABLE t (
+a INT UNSIGNED NOT NULL DEFAULT 0,
+b INT AS (a) VIRTUAL,
+c TIME,
+d INT,
+e DATE,
+f VARCHAR(1024),
+PRIMARY KEY(c),
+KEY(c,b,d,f(64))
+);
+INSERT INTO t (c) VALUES ('00:00:00'),('00:00:04');
+SELECT c FROM t WHERE c BETWEEN '00:00:00' AND '00:00:00' ORDER BY d;
+c
+00:00:00
+DROP TABLE t;
 # End of 10.11 tests
