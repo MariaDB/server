@@ -11699,7 +11699,7 @@ bool Field::save_in_field_ignore_value(bool view_error_processing)
 
 void Field::register_field_in_read_map()
 {
-  if (vcol_info)
+  if (!stored_in_db())
   {
     Item *vcol_item= vcol_info->expr;
     vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
