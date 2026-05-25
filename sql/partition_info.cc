@@ -2166,7 +2166,7 @@ int partition_info::fix_partition_values(THD *thd,
     }
     part_elem->range_value= val->value;
   }
-  col_val->fixed= 2;
+  col_val->fixed= TRUE;
   DBUG_RETURN(FALSE);
 }
 
@@ -2219,12 +2219,11 @@ bool partition_info::fix_column_value_functions(THD *thd,
                                                 uint part_id)
 {
   uint n_columns= part_field_list.elements;
-  bool result= FALSE;
   uint i;
   part_column_list_val *col_val= val->col_val_array;
   DBUG_ENTER("partition_info::fix_column_value_functions");
 
-  if (col_val->fixed > 1)
+  if (col_val->fixed)
   {
     DBUG_RETURN(FALSE);
   }
@@ -2247,8 +2246,7 @@ bool partition_info::fix_column_value_functions(THD *thd,
 
         if (!(column_item= get_column_item(column_item, field)))
         {
-          result= TRUE;
-          goto end;
+          DBUG_RETURN(TRUE);
         }
         Sql_mode_instant_set sms(thd, 0);
         save_got_warning= thd->got_warning;
@@ -2257,22 +2255,19 @@ bool partition_info::fix_column_value_functions(THD *thd,
             thd->got_warning)
         {
           my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
-          result= TRUE;
-          goto end;
+          DBUG_RETURN(TRUE);
         }
         thd->got_warning= save_got_warning;
         if (!(val_ptr= (uchar*) thd->memdup(field->ptr, len)))
         {
-          result= TRUE;
-          goto end;
+          DBUG_RETURN(TRUE);
         }
         col_val->column_value= val_ptr;
       }
     }
-    col_val->fixed= 2;
+    col_val->fixed= TRUE;
   }
-end:
-  DBUG_RETURN(result);
+  DBUG_RETURN(FALSE);
 }
 
 
