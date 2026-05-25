@@ -3657,8 +3657,11 @@ static void shrink_var_array(DYNAMIC_ARRAY *array)
 int add_status_vars(SHOW_VAR *list)
 {
   int res= 0;
+  bool array_used = false;
+
   if (status_vars_inited)
     mysql_rwlock_wrlock(&LOCK_all_status_vars);
+
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
       my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_status_vars,
                             sizeof(SHOW_VAR), 250, 50, MYF(0)))
@@ -3666,12 +3669,30 @@ int add_status_vars(SHOW_VAR *list)
     res= 1;
     goto err;
   }
+
   while (list->name)
-    res|= insert_dynamic(&all_status_vars, (uchar*)list++);
-  res|= insert_dynamic(&all_status_vars, (uchar*)list); // appending NULL-element
-  all_status_vars.elements--; // but next insert_dynamic should overwrite it
-  if (status_vars_inited)
-    sort_dynamic(&all_status_vars, show_var_cmp);
+  {
+    SHOW_VAR *current = list;
+
+    if (list->type == SHOW_ARRAY || list->type == SHOW_FUNC ||
+        list->type == SHOW_SIMPLE_FUNC)
+    {
+      res|= insert_dynamic(&all_status_vars, (uchar*)current);
+      array_used = true;
+    }
+    else
+    {
+      res|= my_hash_insert(&status_vars_hash, (uchar *)current);
+    }
+    list++;
+  }
+  if (array_used)
+  {
+    res|= insert_dynamic(&all_status_vars, (uchar*)list); // appending NULL-element
+    all_status_vars.elements--; // but next insert_dynamic should overwrite it
+    if (status_vars_inited)
+      sort_dynamic(&all_status_vars, show_var_cmp);
+  }
   status_var_array_version++;
 err:
   if (status_vars_inited)
@@ -3692,8 +3713,6 @@ void init_status_vars()
   status_vars_inited=1;
   sort_dynamic(&all_status_vars, show_var_cmp);
   status_var_array_version++;
-
-  status_vars_hash_init();
 }
 
 void reset_status_vars()
@@ -3708,6 +3727,17 @@ void reset_status_vars()
     if (ptr->type == SHOW_LONGLONG)
       *(ulonglong*) ptr->value= 0;
   }
+
+  for (uint i= 0; i < status_vars_hash.records; i++)
+  {
+    SHOW_VAR *v= (SHOW_VAR *) my_hash_element(&status_vars_hash, i);
+    if (!v)
+      continue;
+    if (v->type == SHOW_LONG)
+      *(ulong*) v->value= 0;
+    if (v->type == SHOW_LONGLONG)
+      *(ulonglong*) v->value= 0;
+  }
 }
 
 /*
@@ -3721,6 +3751,7 @@ void reset_status_vars()
 */
 void free_status_vars()
 {
+  my_hash_free(&status_vars_hash);
   delete_dynamic(&all_status_vars);
   status_var_array_version++;
 }
@@ -3748,6 +3779,8 @@ void remove_status_vars(SHOW_VAR *list)
 
     for (; list->name; list++)
     {
+      my_hash_delete(&status_vars_hash, (uchar*)list);
+
       int first= 0, last= ((int) all_status_vars.elements) - 1;
       for ( ; first <= last; )
       {
@@ -3772,6 +3805,8 @@ void remove_status_vars(SHOW_VAR *list)
     uint i;
     for (; list->name; list++)
     {
+      my_hash_delete(&status_vars_hash, (uchar*)list);
+
       for (i= 0; i < all_status_vars.elements; i++)
       {
         if (show_var_cmp(list, all+i))
@@ -3986,9 +4021,6 @@ int status_vars_hash_init()
                    0, get_status_var_length, 0, HASH_UNIQUE))
     goto error;
 
-  if (add_status_var_hash((SHOW_VAR*) all_status_vars.buffer))
-      goto error;
-
   DBUG_RETURN(0);
 
 error:
@@ -3997,116 +4029,177 @@ error:
 }
 
 
-int add_status_var_hash(SHOW_VAR *variables)
-{
-  uint count = 0;
-  
-  for (; variables->name; variables++)
-  {
-    SHOW_VAR *var = variables;
-
-    if (!var || !var->name || var->type == SHOW_ARRAY)
-    {
-      continue;
-    }
-    
-    if (my_hash_insert(&status_vars_hash, (uchar *)var))
-    {
-      return 1;
-    }
-    ++count;
-  }
-  return 0;
-}
-
-static bool hash_path_show_status(THD *thd,
-                                  const char *wild,
-                                  enum enum_var_type scope,
-                                  struct system_status_var *status_var,
-                                  TABLE *table,
-                                  bool ucase_names)
+static my_bool hash_path_show_status(THD *thd, const char *wild,
+                                     enum enum_var_type scope,
+                                     struct system_status_var *status_var,
+                                     TABLE *table, bool ucase_names)
 {
   my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
-  char * const buff= buffer.data;
+  char *const buff= buffer.data;
   CharBuffer<NAME_CHAR_LEN> name_buffer;
   SHOW_VAR tmp, *var;
-  bool res= FALSE;
   CHARSET_INFO *charset= system_charset_info;
-  size_t prefix_length= 0;
 #ifdef WITH_WSREP
   bool is_wsrep_var= FALSE;
 #endif
+  DBUG_ENTER("hash_path_show_status");
 
+  var= (SHOW_VAR *) my_hash_search(&status_vars_hash, (uchar *) wild,
+                                   strlen(wild));
 
-    var= (SHOW_VAR *) my_hash_search(&status_vars_hash, (uchar *) wild,
-                                     strlen(wild));
-    if (var && var->name)
+  if (!var || !var->name)
+    DBUG_RETURN(TRUE);
+
+  Lex_cstring_strlen var_name(var->name);
+
+  if (ucase_names)
+    name_buffer.append_caseup(system_charset_info, var_name);
+  else
+  {
+    name_buffer.append_casedn(system_charset_info, var_name);
+    // WSREP_TODO: remove once lp:1306875 has been addressed.
+    if (IF_WSREP(is_wsrep_var == FALSE, 1) && status_var)
     {
-      Lex_cstring_strlen var_name(var->name);
-
-      if (ucase_names)
-        name_buffer.append_caseup(system_charset_info, var_name);
-      else
-      {
-        name_buffer.append_casedn(system_charset_info, var_name);
-        // WSREP_TODO: remove once lp:1306875 has been addressed.
-        if (IF_WSREP(is_wsrep_var == FALSE, 1) && status_var)
-        {
-          char *ptr= (char *) name_buffer.ptr();
-          if (ptr[0] >= 'a' && ptr[0] <= 'z')
-            ptr[0]-= 'a' - 'A';
-        }
-      }
-
-      restore_record(table, s->default_values);
-      table->field[0]->store(name_buffer.to_lex_cstring(),
-                             system_charset_info);
-
-      if (var->type == SHOW_FUNC || var->type == SHOW_SIMPLE_FUNC)
-      {
-        SHOW_VAR *current= var;
-
-        while (current->type == SHOW_FUNC || current->type == SHOW_SIMPLE_FUNC)
-        {
-          ((mysql_show_var_func) (current->value))(thd, &tmp, (void *) buff,
-                                                   status_var, scope);
-          current= &tmp;
-        }
-        var= current;
-      }
-
-      SHOW_TYPE show_type= var->type;
-      const char *pos;
-      size_t length;
-
-      if (show_type == SHOW_SYS)
-        mysql_mutex_lock(&LOCK_global_system_variables);
-      else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
-        calc_sum_of_all_status_if_needed(status_var);
-
-      pos= get_one_variable(thd, var, scope, show_type, status_var, &charset,
-                            buff, &length);
-
-      if (table->field[1]->field_length)
-        thd->count_cuted_fields= CHECK_FIELD_WARN;
-      table->field[1]->store(pos, (uint32) length, charset);
-      thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-      table->field[1]->set_notnull();
-      if (show_type == SHOW_SYS)
-        mysql_mutex_unlock(&LOCK_global_system_variables);
-
-      if (schema_table_store_record(thd, table))
-      {
-        res= TRUE;
-        goto end;
-      }
-      thd->get_stmt_da()->inc_current_row_for_warning();
-      DBUG_RETURN(FALSE);
+      char *ptr= (char *) name_buffer.ptr();
+      if (ptr[0] >= 'a' && ptr[0] <= 'z')
+        ptr[0]-= 'a' - 'A';
     }
+  }
+
+  restore_record(table, s->default_values);
+  table->field[0]->store(name_buffer.to_lex_cstring(), system_charset_info);
+
+  if (var->type == SHOW_FUNC || var->type == SHOW_SIMPLE_FUNC)
+  {
+    SHOW_VAR *current= var;
+
+    while (current->type == SHOW_FUNC || current->type == SHOW_SIMPLE_FUNC)
+    {
+      ((mysql_show_var_func) (current->value))(thd, &tmp, (void *) buff,
+                                               status_var, scope);
+      current= &tmp;
+    }
+    var= current;
+  }
+
+  if (var->type == SHOW_ARRAY)
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  SHOW_TYPE show_type= var->type;
+  const char *pos;
+  size_t length;
+
+  if (show_type == SHOW_SYS)
+    mysql_mutex_lock(&LOCK_global_system_variables);
+  else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
+    calc_sum_of_all_status_if_needed(status_var);
+
+  pos= get_one_variable(thd, var, scope, show_type, status_var, &charset, buff,
+                        &length);
+
+  if (table->field[1]->field_length)
+    thd->count_cuted_fields= CHECK_FIELD_WARN;
+
+  table->field[1]->store(pos, (uint32) length, charset);
+  thd->count_cuted_fields= CHECK_FIELD_IGNORE;
+  table->field[1]->set_notnull();
+  
+  if (show_type == SHOW_SYS)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  if (schema_table_store_record(thd, table))
+    DBUG_RETURN(TRUE);
+
+  thd->get_stmt_da()->inc_current_row_for_warning();
+  DBUG_RETURN(FALSE);
 }
 
+static my_bool show_status_array(THD *thd, const char *wild,
+                              SHOW_VAR *variables,
+                              enum enum_var_type scope,
+                              struct system_status_var *status_var,
+                              const LEX_CSTRING &prefix, TABLE *table,
+                              bool ucase_names,
+                              COND *cond,
+                              bool use_status_hash);
 
-static bool scan_path_show_status(THD *thd,
+struct status_out_entry
+{
+  SHOW_VAR *var;
+  char name[NAME_CHAR_LEN + 1];
+  bool from_hash;
+};
+
+C_MODE_START
+static int status_out_entry_cmp(const void *a, const void *b)
+{
+  return strcasecmp(((const status_out_entry *) a)->name,
+                    ((const status_out_entry *) b)->name);
+}
+C_MODE_END
+
+static my_bool emit_status_out_entry(THD *thd,
+                                  status_out_entry *entry,
+                                  enum enum_var_type scope,
+                                  struct system_status_var *status_var,
+                                  TABLE *table,
+                                  bool ucase_names,
+                                  COND *cond,
+                                  char *buff,
+                                  CHARSET_INFO **charset)
+{
+  SHOW_VAR tmp, *var;
+  const char *pos;
+  size_t length;
+
+  restore_record(table, s->default_values);
+  if (!ucase_names && status_var)
+  {
+#ifdef WITH_WSREP
+    if (strncasecmp(entry->name, STRING_WITH_LEN("wsrep")))
+#endif
+    {
+      if (entry->name[0] >= 'a' && entry->name[0] <= 'z')
+        entry->name[0]-= 'a' - 'A';
+    }
+  }
+  table->field[0]->store(Lex_cstring_strlen(entry->name), system_charset_info);
+
+  if (cond && !cond->val_bool())
+    return FALSE;
+
+  for (var= entry->var; var->type == SHOW_FUNC ||
+         var->type == SHOW_SIMPLE_FUNC; var= &tmp)
+    ((mysql_show_var_func) (var->value))(thd, &tmp, (void *) buff,
+                                         status_var, scope);
+  SHOW_TYPE show_type= var->type;
+
+  if (show_type == SHOW_SYS)
+    mysql_mutex_lock(&LOCK_global_system_variables);
+  else if (status_var && show_type >= SHOW_LONG_STATUS &&
+           scope == OPT_GLOBAL)
+    calc_sum_of_all_status_if_needed(status_var);
+
+  pos= get_one_variable(thd, var, scope, show_type, status_var,
+                        charset, buff, &length);
+
+  if (table->field[1]->field_length)
+    thd->count_cuted_fields= CHECK_FIELD_WARN;
+  table->field[1]->store(pos, (uint32) length, *charset);
+  thd->count_cuted_fields= CHECK_FIELD_IGNORE;
+  table->field[1]->set_notnull();
+  if (show_type == SHOW_SYS)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  if (schema_table_store_record(thd, table))
+    return TRUE;
+  thd->get_stmt_da()->inc_current_row_for_warning();
+  return FALSE;
+}
+
+static my_bool scan_path_show_status(THD *thd,
                                   const char *wild,
                                   SHOW_VAR *variables,
                                   enum enum_var_type scope,
@@ -4114,7 +4207,9 @@ static bool scan_path_show_status(THD *thd,
                                   const LEX_CSTRING &prefix,
                                   TABLE *table,
                                   bool ucase_names,
-                                  COND *cond)
+                                  COND *cond,
+                                  bool scan_hash = true,
+                                  DYNAMIC_ARRAY *collected= NULL)
 {
   my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
   char * const buff= buffer.data;
@@ -4122,13 +4217,24 @@ static bool scan_path_show_status(THD *thd,
   SHOW_VAR tmp, *var;
   bool res= FALSE;
   CHARSET_INFO *charset= system_charset_info;
+  DYNAMIC_ARRAY local_collected;
+  bool sort_and_output= !collected;
   size_t prefix_length= 0;
+  
 #ifdef WITH_WSREP
   bool is_wsrep_var= FALSE;
 #endif
 
-  DBUG_ENTER("show_status_array");
-if (prefix.length)
+  DBUG_ENTER("scan_path_show_status");
+
+  if (sort_and_output &&
+      my_init_dynamic_array(PSI_INSTRUMENT_ME, &local_collected,
+                            sizeof(status_out_entry), 128, 128, MYF(0)))
+    DBUG_RETURN(TRUE);
+
+  if (sort_and_output)
+    collected= &local_collected;
+  if (prefix.length)
   {
     if (ucase_names)
       name_buffer.copy_caseup(system_charset_info, prefix);
@@ -4152,10 +4258,45 @@ if (prefix.length)
   }
 #endif /* WITH_WSREP */
 
-  for (; variables->name; variables++)
+  bool hash_done= !scan_hash;
+  bool scan_done= (variables == NULL);
+  uint hash_i= 0;
+  SHOW_VAR *current_var= NULL;
+
+  while (!scan_done || !hash_done)
   {
-    bool wild_checked= false;
-    Lex_cstring_strlen var_name(variables->name);
+    if (!scan_done)
+    {
+      if (variables->name)
+      {
+        current_var = variables++;
+      }
+      else
+      {
+        scan_done = true;
+        continue;
+      }
+    }
+    else if (!hash_done)
+    {
+      if (hash_i < status_vars_hash.records)
+      {
+        current_var = (SHOW_VAR *) my_hash_element(&status_vars_hash, hash_i++);
+      }
+      else
+      {
+        hash_done = true;
+        continue;
+      }
+    }
+    else
+      break;
+
+    if (!current_var || !current_var->name)
+      continue;
+
+    bool wild_checked = false;
+    Lex_cstring_strlen var_name(current_var->name);
     name_buffer.truncate(prefix_length);
 
 #ifdef WITH_WSREP
@@ -4166,7 +4307,7 @@ if (prefix.length)
       TODO: remove once lp:1306875 has been addressed.
      */
     if (!prefix.length &&
-        !strncasecmp(variables->name, STRING_WITH_LEN("wsrep")))
+        !strncasecmp(current_var->name, STRING_WITH_LEN("wsrep")))
     {
       is_wsrep_var= TRUE;
     }
@@ -4178,8 +4319,7 @@ if (prefix.length)
     {
       name_buffer.append_casedn(system_charset_info, var_name);
       // WSREP_TODO: remove once lp:1306875 has been addressed.
-      if (IF_WSREP(is_wsrep_var == FALSE, 1) &&
-          status_var)
+      if (IF_WSREP(is_wsrep_var == FALSE, 1) && status_var)
       {
         char *ptr= (char*) name_buffer.ptr();
         if (ptr[0] >= 'a' && ptr[0] <= 'z')
@@ -4188,14 +4328,11 @@ if (prefix.length)
     }
 
 
-    restore_record(table, s->default_values);
-    table->field[0]->store(name_buffer.to_lex_cstring(), system_charset_info);
-
     /*
       Compare name for types that can't return arrays. We do this to not
       calculate the value for function variables that we will not access
     */
-    if ((variables->type != SHOW_FUNC && variables->type != SHOW_ARRAY))
+    if ((current_var->type != SHOW_FUNC && current_var->type != SHOW_ARRAY))
     {
       if (wild && wild[0] && wild_case_compare(system_charset_info,
                                                name_buffer.ptr(), wild))
@@ -4207,94 +4344,90 @@ if (prefix.length)
       if var->type is SHOW_FUNC or SHOW_SIMPLE_FUNC, call the function.
       Repeat as necessary, if new var is again one of the above
     */
-    for (var=variables; var->type == SHOW_FUNC ||
+    for (var=current_var; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
       ((mysql_show_var_func)(var->value))(thd, &tmp, (void *) buff,
                                           status_var, scope);
-    
+
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
     {
-      show_status_array(thd, wild, (SHOW_VAR *) var->value, scope,
-                        status_var, name_buffer.to_lex_cstring(),
-                        table, ucase_names, cond);
-    }
-    else
-    {
-      if ((wild_checked ||
-           !(wild && wild[0] && wild_case_compare(system_charset_info,
-                                                  name_buffer.ptr(),
-                                                  wild))) &&
-          (!cond || cond->val_bool()))
+      if (scan_path_show_status(thd, wild, (SHOW_VAR *) var->value, scope,
+                                status_var, name_buffer.to_lex_cstring(),
+                                table, ucase_names, cond, false, collected))
       {
-        const char *pos;                  // We assign a lot of const's
-        size_t length;
+        res= TRUE;
+        goto end;
+      }
+    }
+    else if (wild_checked ||
+             !(wild && wild[0] && wild_case_compare(system_charset_info,
+                                                    name_buffer.ptr(),
+                                                    wild)))
+    {
+      status_out_entry entry;
+      entry.var= current_var;
+      entry.from_hash= true;
+      strmake(entry.name, name_buffer.ptr(), sizeof(entry.name) - 1);
+      if (insert_dynamic(collected, (uchar *) &entry))
+      {
+        res= TRUE;
+        goto end;
+      }
+    }
+  }
 
-        if (show_type == SHOW_SYS)
-          mysql_mutex_lock(&LOCK_global_system_variables);
-        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
-          calc_sum_of_all_status_if_needed(status_var);
+  if (sort_and_output)
+  {
+    sort_dynamic(collected, status_out_entry_cmp);
+    for (uint i= 0; i < collected->elements; i++)
+    {
+      status_out_entry *entry=
+        dynamic_element(collected, i, status_out_entry *);
 
-        pos= get_one_variable(thd, var, scope, show_type, status_var,
-                              &charset, buff, &length);
-
-        if (table->field[1]->field_length)
-          thd->count_cuted_fields= CHECK_FIELD_WARN;
-        table->field[1]->store(pos, (uint32) length, charset);
-        thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-        table->field[1]->set_notnull();
-        if (show_type == SHOW_SYS)
-          mysql_mutex_unlock(&LOCK_global_system_variables);
-
-
-        if (schema_table_store_record(thd, table))
-        {
-          res= TRUE;
-          goto end;
-        }
-        thd->get_stmt_da()->inc_current_row_for_warning();
+      if (emit_status_out_entry(thd, entry, scope, status_var, table,
+                                ucase_names, cond, buff, &charset))
+      {
+        res= TRUE;
+        goto end;
       }
     }
   }
 end:
+  if (sort_and_output)
+    delete_dynamic(&local_collected);
   DBUG_RETURN(res);
 }
 
 
-static bool show_status_array(THD *thd, const char *wild,
+static my_bool show_status_array(THD *thd, const char *wild,
                               SHOW_VAR *variables,
                               enum enum_var_type scope,
                               struct system_status_var *status_var,
                               const LEX_CSTRING &prefix, TABLE *table,
                               bool ucase_names,
-                              COND *cond)
+                              COND *cond,
+                              bool use_status_hash)
 {
-  my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
-  char * const buff= buffer.data;
   CharBuffer<NAME_CHAR_LEN> name_buffer;
-  SHOW_VAR tmp, *var;
-  bool res= FALSE;
-  CHARSET_INFO *charset= system_charset_info;
-  size_t prefix_length= 0;
-#ifdef WITH_WSREP
-  bool is_wsrep_var= FALSE;
-#endif
 
   DBUG_ENTER("show_status_array");
 
-  if (wild && wild[0] && 
+  if (use_status_hash &&
+      wild && wild[0] &&
       (!cond || cond->val_bool()) &&
       prefix.length == 0)
   {
-    if (!hash_path_show_status(thd, wild, scope, status_var, 
+    if (!hash_path_show_status(thd, wild, scope, status_var,
                                table, ucase_names))
     {
       DBUG_RETURN(FALSE);
     }
   }
 
-  result = scan_path_show_status(thd, wild, variables, scope, status_var,
-                                 prefix, table, ucase_names, cond);
+  my_bool result= scan_path_show_status(thd, wild, variables, scope, status_var,
+                                       prefix, table, ucase_names, cond,
+                                       use_status_hash);
 
   DBUG_RETURN(result);
 }
@@ -8899,7 +9032,7 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
                          scope, NULL, empty_clex_str, tables->table,
-                         upper_case_names, partial_cond);
+                         upper_case_names, partial_cond, false);
   mysql_prlock_unlock(&LOCK_system_variables_hash);
   DBUG_RETURN(res);
 }
@@ -9028,7 +9161,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   res= show_status_array(thd, wild,
                          (SHOW_VAR *)all_status_vars.buffer,
                          scope, tmp1, empty_clex_str, tables->table,
-                         upper_case_names, partial_cond);
+                         upper_case_names, partial_cond, true);
   mysql_rwlock_unlock(&LOCK_all_status_vars);
   DBUG_RETURN(res);
 }
