@@ -227,7 +227,6 @@ select trace like '%foo%' from information_schema.optimizer_trace;
 explain select * from t1 where a >'foo' or a < 'bar';
 select trace like '%foo%' from information_schema.optimizer_trace;
 select context like '%bar%' from information_schema.optimizer_context;
-
 drop table t1;
 
 --echo #
@@ -277,6 +276,40 @@ set optimizer_replay_context='opt_context';
 --echo # Same query as above, must have same explain:
 explain
 select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
+
+--echo #
+--echo # MDEV-39538: Different cost when same range is read twice
+--echo #
+create table t1 (pk int primary key, a datetime, c int, key(a));
+ 
+insert into t1 (pk,a,c) values (1,'2009-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (2,'2009-11-29 03:23:32', 2);
+insert into t1 (pk,a,c) values (3,'2009-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (4,'2010-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (5,'2010-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (6,'2011-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (7,'2012-10-16 05:56:32', 2);
+
+set optimizer_record_context=1;
+explain format=json select * from t1
+  where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain cost:
+explain format=json select * from t1
+  where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
 
 set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"

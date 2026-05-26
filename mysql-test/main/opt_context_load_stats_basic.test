@@ -250,6 +250,9 @@ select * from t1 where a > 10;
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].max_row_blocks');
 select * from t1 where a > 10;
 
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_ranges[0].call_number');
+select * from t1 where a > 10;
+
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0]');
 select * from t1 where a > 10;
 

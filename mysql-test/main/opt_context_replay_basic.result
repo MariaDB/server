@@ -400,4 +400,130 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 set optimizer_replay_context='';
 drop table t1;
+#
+# MDEV-39538: Different cost when same range is read twice
+#
+create table t1 (pk int primary key, a datetime, c int, key(a));
+insert into t1 (pk,a,c) values (1,'2009-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (2,'2009-11-29 03:23:32', 2);
+insert into t1 (pk,a,c) values (3,'2009-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (4,'2010-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (5,'2010-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (6,'2011-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (7,'2012-10-16 05:56:32', 2);
+set optimizer_record_context=1;
+explain format=json select * from t1
+where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.003808422,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "index_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain cost:
+explain format=json select * from t1
+where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.003808422,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "index_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+set optimizer_replay_context='';
+drop table t1;
 drop database db1;
