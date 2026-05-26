@@ -3647,10 +3647,12 @@ public:
   */
   static const uchar FL_ALLOW_PARALLEL= 8;
   /*
-    FL_WAITED is set if a row lock wait (or other wait) is detected during the
-    execution of the transaction.
+    FL_WAITED= 16 was set if a row lock wait (or other wait) was detected during
+    the execution of the transaction. Not set anymore, but should *NOT* be
+    re-used to avoid conflict with events from old-versions masters that still
+    might set the flag.
   */
-  static const uchar FL_WAITED= 16;
+  static const uchar FL_WAITED_NO_LONGER_USED= 16;
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
   /* FL_PREPARED_XA is set for XA transaction. */

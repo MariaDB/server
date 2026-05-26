@@ -350,6 +350,7 @@ trx_t *trx_create()
 	ut_ad(trx->lock.table_cached == 0);
 	ut_ad(trx->lock.rec_cached == 0);
 	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
+	ut_ad(!trx->need_wait_report);
 
 	trx_sys.register_trx(trx);
 
@@ -385,6 +386,7 @@ void trx_t::free()
   check_foreigns= true;
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
+  need_wait_report= false;
   mysql_thd= nullptr;
 
   autoinc_locks.deep_clear();
@@ -544,6 +546,7 @@ void trx_disconnect_prepared(trx_t *trx)
   trx->read_view.close();
   trx_sys.trx_list.freeze();
   trx->is_recovered= true;
+  trx->need_wait_report= false;
   trx->mysql_thd= NULL;
   trx_sys.trx_list.unfreeze();
   /* todo/fixme: suggest to do it at innodb prepare */
