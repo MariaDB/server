@@ -2085,7 +2085,7 @@ retry_share:
       goto retry_share;
     }
 
-    if (thd->open_tables && thd->open_tables->s->tdc->flushed)
+    if (!table_list->sequence && thd->open_tables && thd->open_tables->s->tdc->flushed)
     {
       /*
         If the version changes while we're opening the tables,
@@ -5005,6 +5005,10 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock_table)
     if (lock_tables(thd, table->internal_tables, counter,
                     MYSQL_LOCK_USE_MALLOC))
       goto err;
+
+    /* no existing lock to merge with */
+    if (save_lock == nullptr)
+      DBUG_RETURN(0);
 
     if (!(new_lock= mysql_lock_merge(save_lock, thd->lock)))
     {
