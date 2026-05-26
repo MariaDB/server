@@ -1,0 +1,55 @@
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0),(2, 0),(3, 0),(4, 0);
+connection node_2;
+SET SESSION wsrep_on=OFF;
+DELETE FROM t1 WHERE f1 = 2;
+SET SESSION wsrep_on=ON;
+SET @@global.debug_dbug='+d,simulate_rollback_failure_in_applier';
+connection node_1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 2;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+INSERT INTO t1 VALUES (5, 0);
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	0
+2	1
+3	0
+4	0
+5	0
+connection node_3;
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	0
+2	1
+3	0
+4	0
+5	0
+connection node_2;
+SET SESSION wsrep_on=OFF;
+# restart
+connection node_1;
+DROP TABLE t1;
+connection node_2;
+CALL mtr.add_suppression("Can't find record in 't1'");
+CALL mtr.add_suppression("Update_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus on");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
+CALL mtr.add_suppression("Wsrep_high_priority_service::rollback: trans_rollback returned");
+CALL mtr.add_suppression("last left .* greater than drain seqno");

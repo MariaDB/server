@@ -1,0 +1,8 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep-slave-threads=4
+wsrep-ignore-apply-errors=0
+
+[ENV]
+galera_cluster_size=3
