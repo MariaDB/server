@@ -176,6 +176,9 @@ bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
      result in multiple result sets being sent back.
    - sp_head::CONTAINS_DYNAMIC_SQL: added if 'cmd' is one of PREPARE,
      EXECUTE, DEALLOCATE.
+   - sp_head::MULTI_RESULTS_DYNAMIC: added if 'cmd' is EXECUTE or
+     EXECUTE IMMEDIATE, i.e. a command that might result in a result set
+     being sent back, depending on the prepared statement being executed.
 */
 
 uint
@@ -185,7 +188,13 @@ sp_get_flags_for_command(LEX *lex)
 
   switch (lex->sql_command) {
   case SQLCOM_SELECT:
-    if (lex->result && !lex->analyze_stmt)
+    /*
+      Note, during prepared statement execution lex->result
+      is already set even for a simple SELECT query (without INTO).
+    */
+    if (lex->result &&
+        !dynamic_cast<const select_send*>(lex->result) &&
+        !lex->analyze_stmt)
     {
       flags= 0;                      /* This is a SELECT with INTO clause */
       break;
@@ -250,13 +259,17 @@ sp_get_flags_for_command(LEX *lex)
     break;
   /*
     EXECUTE statement may return a result set, but doesn't have to.
-    We can't, however, know it in advance, and therefore must add
-    this statement here. This is ok, as is equivalent to a result-set
-    statement within an IF condition.
+    We can't, however, know it in advance. So let's mark it with
+    MULTI_RESULTS_DYNAMIC, so a CALL of a routine using EXECUTE
+    requires the client to support CLIENT_MULTI_RESULTS.
+    Note, MULTI_RESULTS is not used here on purpose: it would make
+    dynamic SQL not allowed in stored *FUNCTIONs* at all. Returning
+    a result set from a function is instead caught at run time,
+    in Prepared_statement::execute_loop().
   */
   case SQLCOM_EXECUTE:
   case SQLCOM_EXECUTE_IMMEDIATE:
-    flags= sp_head::MULTI_RESULTS | sp_head::CONTAINS_DYNAMIC_SQL;
+    flags= sp_head::MULTI_RESULTS_DYNAMIC | sp_head::CONTAINS_DYNAMIC_SQL;
     break;
   case SQLCOM_PREPARE:
   case SQLCOM_DEALLOCATE_PREPARE:
@@ -1817,6 +1830,9 @@ sp_head::execute_trigger(THD *thd,
   }
 #endif // NO_EMBEDDED_ACCESS_CHECKS
 
+  if (thd->lex->error_if_contains_dynamic_sql())
+    DBUG_RETURN(true);
+
   /*
     Prepare arena and memroot for objects which lifetime is whole
     duration of trigger call (sp_rcontext, it's tables and items,
@@ -1885,6 +1901,17 @@ bool sp_package::instantiate_if_needed(THD *thd)
   */
   if (thd->in_sub_stmt)
   {
+    /*
+      Unlike a CALL of a procedure with dynamic SQL, which is allowed from
+      a stored function (see Sql_cmd_call::execute()), the package
+      initialization section is not executed in a PS safe context:
+      it is implicitly invoked on the first reference to any package routine.
+      So dynamic SQL in the initialization section is rejected in a stored
+      function context as well.
+    */
+    if (error_if_contains_dynamic_sql())
+      goto err;
+
     const char *where= (thd->in_sub_stmt & SUB_STMT_TRIGGER ?
                         "trigger" : "function");
     if (is_not_allowed_in_function(where))
@@ -2018,11 +2045,35 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   (*func_ctx)->set_inited_param_count(arg_no);
 
   /*
+    Item_sp::execute_impl() earlier decided on the PS safe context, before the
+    arguments were evaluated. Now evaluating an argument can leave the caller
+    in the middle of its own statement:
+      SET spvar= f1((SELECT a FROM t1)); -- t1 is open and locked
+      SET spvar= f1(g1());               -- g1() was PS unsafe, so it left
+                                         -- its statement transaction open
+    Reject dynamic SQL here, before the function is entered, like
+    Item_sp::execute_impl() does outside of an assignment right hand:
+    rejecting it from inside the function would run the cleanup of the
+    rejected statement on the state of the caller.
+  */
+  if ((thd->in_sub_stmt & SUB_STMT_PS_SAFE_CONTEXT) &&
+      thd->stmt_state_conflicts_with_ps() &&
+      thd->lex->error_if_contains_dynamic_sql())
+  {
+    err_status= TRUE;
+    goto err_with_cleanup;
+  }
+
+  /*
     If row-based binlogging, we don't need to binlog the function's call, let
     each substatement be binlogged its way.
+    If we're in an SP call stack containing a function with dynamic SQL,
+    do per-statement logging.
   */
   need_binlog_call= mysql_bin_log.is_open() &&
                     (thd->variables.option_bits & OPTION_BIN_LOG) &&
+                    !(thd->variables.option_bits &
+                      OPTION_BIN_LOG_IN_FUNC) &&
                     !thd->is_current_stmt_binlog_format_row();
 
   /*

@@ -1,0 +1,73 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo # right hand side
+--echo #
+
+# A statement calling a function with dynamic SQL cannot be prelocked,
+# see Query_tables_list::requires_prelocking(). When the statement itself
+# needs prelocking - because its tables have triggers, or foreign keys with
+# a cascading action, or DEFAULT expressions using sequences - the two
+# requirements contradict each other. Make sure such a statement is rejected
+# with a diagnostic, rather than looping in open_tables() forever, throwing
+# the prelocking set away and collecting it again on every pass.
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1';
+  RETURN 2;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # The updated table has a trigger
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+INSERT INTO t1 VALUES (1);
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+UPDATE t1 SET a=f1();
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # The updated table is referenced by a foreign key with ON UPDATE CASCADE
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT, KEY(b),
+                 FOREIGN KEY (b) REFERENCES t1(a) ON UPDATE CASCADE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+UPDATE t1 SET a=f1();
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
+
+
+--echo #
+--echo # The inserted table has a DEFAULT expression using a sequence
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (a INT DEFAULT (NEXTVAL(s1)), b INT);
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 (b) VALUES (f1());
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+DROP FUNCTION f1;
+
+
+--echo # End of 13.1 tests

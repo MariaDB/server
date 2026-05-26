@@ -182,7 +182,16 @@ public:
     HAS_COLUMN_TYPE_REFS= 8192,
     /* Set if has FETCH GROUP NEXT ROW instr. Used to ensure that only
        functions with AGGREGATE keyword use the instr. */
-    HAS_AGGREGATE_INSTR= 16384
+    HAS_AGGREGATE_INSTR= 16384,
+    /*
+      Is set if a routine has EXECUTE or EXECUTE IMMEDIATE, which
+      may (but does not have to) return a result set to the client.
+      Unlike MULTI_RESULTS, this flag does not disqualify a routine
+      from being used as a stored function: a dynamic statement returning
+      a result set in a function context is detected at run time
+      in Prepared_statement::execute_loop().
+    */
+    MULTI_RESULTS_DYNAMIC= 32768
   };
 
   sp_package *m_parent;
@@ -656,6 +665,9 @@ public:
   bool modifies_data() const
   { return m_flags & MODIFIES_DATA; }
 
+  bool contains_dynamic_sql() const
+  { return m_flags & CONTAINS_DYNAMIC_SQL; }
+
   inline uint instructions()
   { return (uint)m_instr.elements; }
 
@@ -957,12 +969,14 @@ public:
     Check if this stored routine contains statements disallowed
     in a stored function or trigger, and set an appropriate error message
     if this is the case.
+
+    Note, CONTAINS_DYNAMIC_SQL is not tested here: whether dynamic SQL is
+    allowed depends on the context rather than on the routine itself.
+    It is checked later at run time rather than at parse time.
   */
   bool is_not_allowed_in_function(const char *where)
   {
-    if (m_flags & CONTAINS_DYNAMIC_SQL)
-      my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "Dynamic SQL");
-    else if (m_flags & MULTI_RESULTS)
+    if (m_flags & MULTI_RESULTS)
       my_error(ER_SP_NO_RETSET, MYF(0), where);
     else if (m_flags & HAS_SET_AUTOCOMMIT_STMT)
       my_error(ER_SP_CANT_SET_AUTOCOMMIT, MYF(0));
@@ -974,9 +988,17 @@ public:
       my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "FLUSH");
 
     return MY_TEST(m_flags &
-                  (CONTAINS_DYNAMIC_SQL | MULTI_RESULTS |
+                  (MULTI_RESULTS |
                    HAS_SET_AUTOCOMMIT_STMT | HAS_COMMIT_OR_ROLLBACK |
                    HAS_SQLCOM_RESET | HAS_SQLCOM_FLUSH));
+  }
+
+  bool error_if_contains_dynamic_sql() const
+  {
+    if (!(m_flags & CONTAINS_DYNAMIC_SQL))
+      return false;
+    my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "Dynamic SQL");
+    return true;
   }
 
 #ifndef DBUG_OFF

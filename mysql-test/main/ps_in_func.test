@@ -1,0 +1,345 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # A function with PREPARE/EXECUTE/DEALLOCATE can be used with restrictions
+--echo # OK when the function is used in an assignment right hand
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Assignment to a user variable
+
+SELECT @a;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SET @a=f1();
+SELECT @a;
+
+
+--echo # Routine parameter
+
+--error ER_SP_DOES_NOT_EXIST
+CALL p1(f1());
+DELIMITER $$;
+CREATE PROCEDURE p1(a INT)
+BEGIN
+  BEGIN END;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1(f1());
+DROP PROCEDURE p1;
+
+
+--echo # SELECT list
+
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+
+
+--echo # INTO + user variable
+
+SELECT @a;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1() INTO @a;
+SELECT @a;
+
+--echo # INTO + SP variable
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  SELECT f1() INTO v;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo # IF condition 
+
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+BEGIN NOT ATOMIC
+  IF f1() THEN
+    SELECT 1;
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # WHILE condition
+
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+BEGIN NOT ATOMIC
+  WHILE f1() DO
+    SELECT 1;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # RETURN
+
+DELIMITER $$;
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  RETURN f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f2();
+DROP FUNCTION f2;
+
+
+--echo # Assignment to a system variable
+
+SELECT @@sql_log_off;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SET @@sql_log_off= f1();
+SELECT @@sql_log_off;
+
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Other tests
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+EXECUTE stmt;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE stmt;
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DEALLOCATE PREPARE stmt;
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+--error ER_UNKNOWN_STMT_HANDLER
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # EXECUTE IMMEDIATE 'CALL ..' + SELECT
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+DELIMITER $$;
+CREATE PROCEDURE p_sel()
+BEGIN
+  SELECT a FROM t1;
+END;
+$$
+CREATE FUNCTION f_call() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'CALL p_sel()';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p()
+BEGIN
+  DECLARE v INT DEFAULT f_call();
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_NO_RETSET
+CALL p();
+--echo # second run
+--error ER_SP_NO_RETSET
+CALL p();
+SELECT * FROM t1 ORDER BY a;
+DROP PROCEDURE p;
+DROP FUNCTION f_call;
+DROP PROCEDURE p_sel;
+DROP TABLE t1;
+
+
+--echo #
+--echo # EXECUTE IMMEDIATE 'CALL ..' + SET
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+DELIMITER $$;
+CREATE PROCEDURE p_sel()
+BEGIN
+  SET @a=10;
+END;
+$$
+CREATE FUNCTION f_call() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'CALL p_sel()';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p()
+BEGIN
+  DECLARE v INT DEFAULT f_call();
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p();
+CALL p();
+SELECT * FROM t1 ORDER BY a;
+SELECT @a;
+SET @a=NULL;
+DROP PROCEDURE p;
+DROP FUNCTION f_call;
+DROP PROCEDURE p_sel;
+DROP TABLE t1;
+
+
+--echo #
+--echo # DML statements
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f1(query TEXT) RETURNS INT
+BEGIN
+  DECLARE nrows INT;
+  PREPARE stmt FROM query;
+  EXECUTE stmt;
+  SET nrows= ROW_COUNT();
+  DEALLOCATE PREPARE stmt;
+  RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f1(query);
+  SELECT nrows;
+  SELECT * FROM t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1('INSERT INTO t1 VALUES (10),(20),(30)');
+CALL p1('UPDATE t1 SET a=a+1');
+CALL p1('DELETE FROM t1 WHERE a>20');
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # End of 13.1 tests

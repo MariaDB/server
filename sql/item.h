@@ -735,7 +735,9 @@ enum class item_base_t : item_flags_t
                                    // Must be evaluated using val_bool().
                                    // Note, not all items used as a search
                                    // condition set this flag yet.
-  AT_TOP_LEVEL=          (1<<6)    // At top (AND) level of item tree
+  AT_TOP_LEVEL=          (1<<6),   // At top (AND) level of item tree
+  IS_IN_PS_SAFE_CONTEXT= (1<<7)    // Appears bare in PS safe context,
+                                   // such as assignment right hand.
 };
 
 
@@ -1345,6 +1347,12 @@ public:
   {
     set_maybe_null(maybe_null_arg);
   }
+
+  virtual void set_in_ps_safe_context()
+  {
+    base_flags|= item_base_t::IS_IN_PS_SAFE_CONTEXT;
+  }
+
   /*
     Mark the item that it is a top level item, or part of a top level AND item,
     for WHERE and ON clauses:
@@ -2992,6 +3000,11 @@ protected:
         return false;
     }
     return true;
+  }
+  void set_in_ps_safe_context_args()
+  {
+    for (uint i= 0; i < arg_count; i++)
+      args[i]->set_in_ps_safe_context();
   }
 public:
   Item_args(void)
@@ -6235,6 +6248,10 @@ public:
   {
     delete sp_result_field;
     sp_result_field= NULL;
+  }
+  virtual bool is_in_ps_safe_context() const
+  {
+    return false;
   }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();

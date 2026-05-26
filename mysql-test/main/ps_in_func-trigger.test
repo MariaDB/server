@@ -1,0 +1,568 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # PS commands inside a trigger are rejected at CREATE time
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW
+  EXECUTE IMMEDIATE 'not important';
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW
+  PREPARE stmt FROM 'SET a=1';
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW
+  DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A stored procedure with PS called from a trigger
+--echo # The CALL is rejected with "Dynamic SQL is not allowed",
+--echo # rather than "Not allowed to return a result set from a trigger",
+--echo # in all contexts, e.g. when:
+--echo # - a procedure with PS is called from a trigger directly
+--echo # - a procedure called from a trigger calls another procedure with PS
+--echo # - a function called from a trigger calls a procedure with PS
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  CALL p1;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+SELECT @a;
+DROP TRIGGER tr1;
+
+DELIMITER $$;
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p2;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+SELECT @a;
+DROP TABLE t1;
+SET @a= NULL;
+
+
+--echo #
+--echo # A procedure with PREPARE/DEALLOCATE, i.e. without a possible result set
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+  PREPARE stmt FROM 'SET @a=1';
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p3;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+SELECT @a;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+SET @a=NULL;
+
+
+--echo #
+--echo # A procedure with PS and a result set: PS is reported first
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+  SELECT 1;
+  EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p3;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1);
+DROP TRIGGER tr1;
+DROP PROCEDURE p3;
+
+SELECT @a;
+SELECT * FROM t1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET @a= NULL;
+
+
+--echo #
+--echo # A procedure with PS called through a function
+--echo #
+
+SET @a=NULL;
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+  EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3;
+  RETURN 0;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  DECLARE a INT DEFAULT f2();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1);
+SELECT @a;
+SELECT * FROM t1;
+DROP FUNCTION f2;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A stored function with PS used from a trigger
+--echo # Not allowed even in a safe context (e.g. assignment in right hand)
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET a=11';
+  RETURN ROW_COUNT();
+END;
+$$
+
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE nrows INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+
+DELIMITER $$;
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (12);
+DROP TRIGGER tr1;
+
+DELIMITER $$;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (12);
+DROP TRIGGER tr1;
+
+#
+# With two tables
+#
+
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  UPDATE t2 SET a=f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (12);
+DROP TRIGGER tr1;
+DROP TABLE t2;
+
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  UPDATE t2 SET a=f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (12);
+DROP TRIGGER tr1;
+DROP TABLE t2;
+
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-40224 SIGSEGV in THD::is_error | Item::save_in_field | Item_trigger_field::set_value
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+DELIMITER $$;
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1';
+  RETURN 5;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET NEW.b = f();
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1(a) VALUES (1);
+DROP TABLE t1;
+DROP FUNCTION f;
+
+
+CREATE TABLE t1(a INT, b INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1';
+  RETURN 5;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DECLARE rc INT;
+  SET rc= f1();
+  RETURN rc;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET NEW.b = f2()
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1(a) VALUES (1);
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-40285 Assertion DBUG_ASSERT(thd->lock == 0) failed in lock_tables()
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1';
+  RETURN 5;
+END;
+$$
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  UPDATE t1 SET b=f();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1(a) VALUES (1);
+DROP FUNCTION f;
+DROP TABLE t1;
+
+
+# A longer stack
+CREATE TABLE t1(a INT, b INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1';
+  RETURN 5;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DECLARE res INT default f1();
+  RETURN res;
+END;
+$$
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  UPDATE t1 SET b=f2();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1(a) VALUES (1);
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-41013 Assertion `inited == NONE || table->open_by_handler' failed in int handler::ha_external_lock(THD *, int)
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  IF FALSE THEN
+    EXECUTE IMMEDIATE 'SELECT 1 INTO @x';
+  END IF;
+  RETURN 5;
+END;
+$$
+DELIMITER ;$$
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.b = f1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+UPDATE t1 SET a = a + 1;
+SELECT @x;
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # MDEV-41015 SIGSEGV in THD::is_error | Item::save_in_field | Item_trigger_field::set_value on INSERT w/ TRIGGER
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 INTO @x';
+  RETURN 5;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  SET NEW.a = 999;
+  SET NEW.b = f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1,2);
+SELECT * FROM t1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A trigger with no PS can be invoked from
+--echo # a procedure containing PS
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.b = NEW.b+100;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET b=3';
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A trigger with no PS can be invoked from
+--echo # a function containing PS
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.b = NEW.b+100;
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET b=3';
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT f1();
+  SELECT a;
+  SELECT * FROM t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing multi-statement triggers
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (10,20);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1'; RETURN 5;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  SET NEW.b = f1(); -- fails
+  /* make sure the rest does not get executed, @a remains 100 */
+  SET NEW.a = 1;
+  SET @a=NEW.a;
+END;
+$$
+DELIMITER ;$$
+SET @a= 100;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (11,21);
+SELECT @a;
+SET @a= NULL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A procedure with PS + a direct statement invoking a trigger with no PS
+--echo # It works without errors: the PS in the outer procedure is not a problem
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  SET @a=@a+100;
+END;
+$$
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p1;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  EXECUTE IMMEDIATE 'SET @a=1';
+  INSERT INTO t1 VALUES (1);
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+SELECT * FROM t1;
+SELECT @a;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET @a=NULL;
+
+
+--echo #
+--echo # A procedure with PS whose direct statement invokes a trigger
+--echo # calling this same procedure.
+--echo # The statement is rejected before any row is written.
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+--echo # Create a dummy procedure
+CREATE PROCEDURE p1()
+BEGIN
+  SET @a=1;
+END;
+$$
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p1;
+END;
+$$
+--echo # Now replace the procedure
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  EXECUTE IMMEDIATE 'SET @a=1';
+  INSERT INTO t1 VALUES (1);
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET @a= NULL;
+
+
+--echo #
+--echo # The check is done at prelocking time, before it is known whether
+--echo # the trigger fires at all. A statement which would not fire the
+--echo # trigger, because it inserts no rows, is therefore rejected as well.
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  CALL p1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+INSERT INTO t1 SELECT a FROM t2;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP TABLE t1;
+SET @a= NULL;
+
+
+--echo # End of 13.1 tests

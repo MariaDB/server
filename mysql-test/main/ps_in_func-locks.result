@@ -1,0 +1,97 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# Statements inside a function with PS end like statements inside a
+# stored procedure do: they commit their statement transaction and
+# they release their metadata locks. Releasing the locks is the part
+# which is easy to get half right - the statement transaction would
+# be committed while the locks stayed until the function returns,
+# blocking DDL on every table the function has touched so far.
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+#
+# Control: a plain stored procedure
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+DECLARE lk INT;
+INSERT INTO t2 VALUES (1);
+SET v= (SELECT COUNT(*) FROM t1);
+SET lk= GET_LOCK('l1', 120);
+END;
+$$
+connect  c2,localhost,root,,;
+connect  c3,localhost,root,,;
+connection c2;
+SELECT GET_LOCK('l1', 0);
+GET_LOCK('l1', 0)
+1
+connection default;
+CALL p1();
+connection c3;
+ALTER TABLE t1 COMMENT 'altered_by_control';
+connection c2;
+# ALTER TABLE t1 completed while p1 is still running
+SELECT RELEASE_LOCK('l1');
+RELEASE_LOCK('l1')
+1
+connection default;
+SELECT RELEASE_LOCK('l1');
+RELEASE_LOCK('l1')
+1
+connection c3;
+connection default;
+DELETE FROM t2;
+disconnect c2;
+disconnect c3;
+DROP PROCEDURE p1;
+#
+# Subject: a function with PS, called in an assignment right hand side
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE v INT;
+DECLARE lk INT;
+EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (1)';
+SET v= (SELECT COUNT(*) FROM t1);
+SET lk= GET_LOCK('l1', 120);
+RETURN v;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+SET v= f1();
+END;
+$$
+connect  c2,localhost,root,,;
+connect  c3,localhost,root,,;
+connection c2;
+SELECT GET_LOCK('l1', 0);
+GET_LOCK('l1', 0)
+1
+connection default;
+CALL p1();
+connection c3;
+ALTER TABLE t1 COMMENT 'altered_by_subject';
+connection c2;
+# ALTER TABLE t1 completed while p1 is still running
+SELECT RELEASE_LOCK('l1');
+RELEASE_LOCK('l1')
+1
+connection default;
+SELECT RELEASE_LOCK('l1');
+RELEASE_LOCK('l1')
+1
+connection c3;
+connection default;
+DELETE FROM t2;
+disconnect c2;
+disconnect c3;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+# End of 13.1 tests

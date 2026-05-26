@@ -4215,6 +4215,10 @@ public:
 
   virtual ~Item_func_sp() = default;
 
+  bool is_in_ps_safe_context() const override
+  {
+    return bool(base_flags & item_base_t::IS_IN_PS_SAFE_CONTEXT);
+  }
   void update_used_tables() override;
 
   void cleanup() override;

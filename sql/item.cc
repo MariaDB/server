@@ -3090,11 +3090,70 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   }
 
   /*
+    If the stored function is in a safe PS context, such as in the right
+    hand of an assignment:
+      SET spvar= f1();
+    then pass SUB_STMT_PS_SAFE_CONTEXT into reset_sub_statement_state(),
+    to allow execution of prepared statements inside the function.
+
+    Note, SUB_STMT_PS_SAFE_CONTEXT does more than just allowing PS.
+    It also switches the statements inside the function to the
+    procedure-alike execution mode: they are not pre-locked by the caller,
+    they open and lock their tables themselves and they commit the statement
+    transaction at the end.
+    This is only correct when the current statement really did not pre-lock
+    anything, that is when some routine reachable from the current statement
+    contains dynamic SQL, so LEX::contains_dynamic_sql() is set and
+    Query_tables_list::requires_prelocking() returned false.
+
+    If the current statement is pre-locked (the usual case: no dynamic SQL
+    anywhere in the call stack), then the tables used by the function were
+    opened and locked by the caller, and the caller is in the middle of its
+    own statement. We don't pass SUB_STMT_PS_SAFE_CONTEXT in this case.
+    See the test covering MDEV-40914 in main/ps_in_func*.test.
+  */
+  uint sub_stmt_safe_context=
+      !thd->in_sub_stmt_ps_unsafe() &&
+      thd->lex->contains_dynamic_sql() /*PS reachable: no prelocking*/ &&
+      is_in_ps_safe_context() ?
+      SUB_STMT_PS_SAFE_CONTEXT : 0;
+
+  /*
+    A function with dynamic SQL (directly, or in the callees) is not pre-locked,
+    see Query_tables_list::requires_prelocking(). So the calling statement did
+    not enter prelocked mode and thd->lock belongs to the caller alone.
+
+    Outside of a safe PS context a dynamic statement inside the function is
+    rejected by Prepared_statement::check_in_sub_stmt_or_error(), but the
+    rejected statement still goes through the usual end-of-statement cleanup:
+    close_thread_tables() does not see thd->locked_tables_mode, takes the top
+    level unlock path and releases the caller's lock while the caller is
+    still reading from its tables:
+      SELECT * FROM t1 WHERE a=f1();  -- f1() contains EXECUTE IMMEDIATE
+    Raise the same error the inner statement would raise, but before the
+    function is entered and any table state is touched.
+
+    Callers without tables of their own (SELECT f1(), or an assignment right
+    hand side) have no lock to lose and are not affected. Under LOCK TABLES
+    the caller does hold a lock, but locked_tables_mode is set, so
+    close_thread_tables() leaves it alone. Note, thd->lock is non-NULL even
+    for a statement without tables, hence the table_count check.
+  */
+  if (!sub_stmt_safe_context && !thd->locked_tables_mode &&
+      thd->lock && thd->lock->table_count &&
+      thd->lex->error_if_contains_dynamic_sql())
+  {
+    thd->security_ctx= save_security_ctx;
+    DBUG_RETURN(TRUE);
+  }
+
+  /*
     Disable the binlogging if this is not a SELECT statement. If this is a
     SELECT, leave binlogging on, so execute_function() code writes the
     function call into binlog.
   */
-  thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION);
+  thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION |
+                                                   sub_stmt_safe_context);
 
   /*
      If this function is an aggregate function, we want to initialise the
@@ -7513,8 +7572,15 @@ int Item::save_bool_in_field(Field *field, bool no_conversions)
 
 int Item::save_in_field(Field *field, bool no_conversions)
 {
+  /*
+    type_handler()->Item_save_in_field() can call close_thread_tables()
+    if the evaluation of "this" failed because of a stored function with PS
+    used in a non-safe context. So cache thd because using field->table
+    after type_handler()->Item_save_in_field() is not correct.
+  */
+  THD *thd= field->table->in_use;
   int error= type_handler()->Item_save_in_field(this, field, no_conversions);
-  return error ? error : (field->table->in_use->is_error() ? 1 : 0);
+  return error ? error : (thd->is_error() ? 1 : 0);
 }
 
 
@@ -10887,12 +10953,23 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   field->table->copy_blobs= true;
 
+  DBUG_ASSERT(thd->open_tables != nullptr);
   int err_code= item->save_in_field(field, 0);
 
-  field->table->copy_blobs= copy_blobs_saved;
-  field->set_has_explicit_value();
+  /*
+    Tables can be closed already if we're using stored functions with PS
+    and the PS command failed. Note, PS is not allowed in triggers,
+    so save_in_field() above will always fail if some stored function with PS
+    was called during the NEW/OLD evaluation.
+  */
+  if (thd->open_tables != nullptr)
+  {
+    // Tables have not been closed yet. So using field and field->table is OK.
+    field->table->copy_blobs= copy_blobs_saved;
+    field->set_has_explicit_value();
+  }
 
-  return err_code < 0;
+  return err_code < 0 || thd->is_error()/*e.g. PS command failed*/;
 }
 
 

@@ -1,0 +1,393 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+# CONTINUE handler inside a PS safe function
+CREATE TABLE t1 (a TINYINT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLSTATE '22003' /*Numeric value out of range*/
+BEGIN
+SET @error='Error caught';
+END;
+INSERT INTO t1 VALUES (1000);
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+INSERT INTO t1 VALUES (10);
+SET a= f1();
+INSERT INTO t1 VALUES (20);
+END;
+$$
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+COMMIT;
+SELECT * FROM t1;
+a
+10
+20
+SELECT @error;
+@error
+Error caught
+TRUNCATE TABLE t1;
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+ROLLBACK;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+SELECT * FROM t1;
+a
+10
+20
+SELECT @error;
+@error
+Error caught
+SET @error=NULL;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+# CONTINUE handler inside a procedure calling a PS safe function
+CREATE TABLE t1 (a TINYINT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (1000);
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+DECLARE CONTINUE HANDLER FOR SQLSTATE '22003' /*Numeric value out of range*/
+BEGIN
+SET @error='Error caught';
+END;
+INSERT INTO t1 VALUES (10);
+SET a= f1();
+INSERT INTO t1 VALUES (20);
+END;
+$$
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+COMMIT;
+SELECT * FROM t1;
+a
+10
+20
+SELECT @error;
+@error
+Error caught
+TRUNCATE TABLE t1;
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+ROLLBACK;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+SELECT * FROM t1;
+a
+10
+20
+SELECT @error;
+@error
+Error caught
+SET @error=NULL;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+# EXIT handler inside a PS-safe function
+CREATE TABLE t1 (a TINYINT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE EXIT HANDLER FOR SQLSTATE '22003' /*Numeric value out of range*/
+BEGIN
+SET @error='Error caught';
+RESIGNAL;
+END;
+INSERT INTO t1 VALUES (1000);
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+INSERT INTO t1 VALUES (10);
+SET a= f1();
+INSERT INTO t1 VALUES (20);
+END;
+$$
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+ERROR 22003: Out of range value for column 'a' at row 1
+COMMIT;
+SELECT * FROM t1;
+a
+10
+SELECT @error;
+@error
+Error caught
+TRUNCATE TABLE t1;
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+ERROR 22003: Out of range value for column 'a' at row 1
+ROLLBACK;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+SELECT * FROM t1;
+a
+10
+SELECT @error;
+@error
+Error caught
+SET @error=NULL;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+# EXIT handler inside a procedure calling a PS-safe function
+CREATE TABLE t1 (a TINYINT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (1000);
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+DECLARE EXIT HANDLER FOR SQLSTATE '22003' /*Numeric value out of range*/
+BEGIN
+SET @error='Error caught';
+RESIGNAL;
+END;
+INSERT INTO t1 VALUES (10);
+SET a= f1();
+INSERT INTO t1 VALUES (20);
+END;
+$$
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+ERROR 22003: Out of range value for column 'a' at row 1
+COMMIT;
+SELECT * FROM t1;
+a
+10
+SELECT @error;
+@error
+Error caught
+TRUNCATE TABLE t1;
+SET @error=NULL;
+START TRANSACTION;
+CALL p1;
+ERROR 22003: Out of range value for column 'a' at row 1
+ROLLBACK;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+SELECT * FROM t1;
+a
+10
+SELECT @error;
+@error
+Error caught
+SET @error=NULL;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# EXECUTE IMMEDIATE 'SELECT' + CONTINUE HANDLER in the caller
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE FUNCTION f_sel() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT a FROM t1 ORDER BY a';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT 0;
+DECLARE done INT DEFAULT 0;
+DECLARE c CURSOR FOR SELECT a FROM t1 ORDER BY a;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SET done= done+1;
+OPEN c;
+FETCH c INTO v;
+SELECT v AS v_after_first_fetch;
+SET v= f_sel();
+SELECT v AS v_after_error, done;
+FETCH c INTO v;
+SELECT v AS v_after_second_fetch;
+SET v= f_sel();
+SET v= f_sel();
+SELECT v AS v_end, done AS done_end;
+CLOSE c;
+END;
+$$
+CALL p1();
+v_after_first_fetch
+1
+v_after_error	done
+NULL	1
+v_after_second_fetch
+2
+v_end	done_end
+NULL	3
+CALL p1();
+v_after_first_fetch
+1
+v_after_error	done
+NULL	1
+v_after_second_fetch
+2
+v_end	done_end
+NULL	3
+DROP PROCEDURE p1;
+DROP FUNCTION f_sel;
+DROP TABLE t1;
+#
+# Reuse the same PS at top level after the failure
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>? ORDER BY a';
+CREATE FUNCTION f1_ps_select() RETURNS INT
+BEGIN
+EXECUTE stmt USING 1;
+RETURN 2;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE v INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET v= f1_ps_select();
+SELECT v AS v_p2;
+END;
+$$
+CALL p2();
+v_p2
+NULL
+EXECUTE stmt USING 1;
+a
+2
+3
+CALL p2();
+v_p2
+NULL
+EXECUTE stmt USING 2;
+a
+3
+DROP PROCEDURE p2;
+DROP FUNCTION f1_ps_select;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
+# SET STATEMENT ... FOR EXECUTE for 'SELECT..' inside the function
+# Handling ER_SP_NO_RETSET
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE a>? ORDER BY a';
+CREATE FUNCTION f1_ss() RETURNS INT
+BEGIN
+SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt USING CONCAT('1');
+RETURN 3;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE v INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET v= f1_ss();
+SET v= f1_ss();
+SELECT v AS v_p2;
+END;
+$$
+CALL p2();
+v_p2
+NULL
+EXECUTE stmt USING 1;
+a
+2
+3
+DROP PROCEDURE p2;
+DROP FUNCTION f1_ss;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
+# SET STATEMENT ... FOR EXECUTE for 'INSERT..' inside the function
+# Handling ER_DUP_ENTRY
+#
+SET @@max_sort_length=1024;
+CREATE TABLE t1(a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (2048);
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?)';
+CREATE FUNCTION f1_ss(msl INT) RETURNS INT
+BEGIN
+SET STATEMENT max_sort_length=msl FOR EXECUTE stmt USING @@max_sort_length;
+RETURN 3;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE v INT DEFAULT 0;
+DECLARE raised INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN SET raised= raised+1; END;
+SET v= f1_ss(2049); -- This insert with no errors
+SET v= f1_ss(2048); -- This fires the handler on "duplicate key" error
+SET v= f1_ss(2048); -- This fires the handler on "duplicate key" error
+SELECT v, raised;
+END;
+$$
+CALL p2();
+v	raised
+NULL	2
+SELECT * FROM t1 ORDER BY a;
+a
+2048
+2049
+EXECUTE stmt USING 1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1_ss;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+SET @@max_sort_length=DEFAULT;
+#
+# EXECUTE for 'SELECT..' with nested functions
+#
+CREATE FUNCTION f1_sel() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT a FROM t1';
+RETURN 1;
+END;
+$$
+CREATE FUNCTION f2_outer() RETURNS INT
+BEGIN
+DECLARE x INT DEFAULT f1_sel();
+RETURN x+100;
+END;
+$$
+CREATE PROCEDURE p3()
+BEGIN
+DECLARE v INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET v= f2_outer();
+SELECT v;
+END;
+$$
+CALL p3();
+v
+NULL
+CALL p3();
+v
+NULL
+DROP PROCEDURE p3;
+DROP FUNCTION f2_outer;
+DROP FUNCTION f1_sel;
+# End of 13.1 tests

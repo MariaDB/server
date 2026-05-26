@@ -1,0 +1,4 @@
+DROP PROCEDURE p1;
+DROP FUNCTION f_with_ps;
+DROP FUNCTION f_without_ps;
+DROP TABLE t1;

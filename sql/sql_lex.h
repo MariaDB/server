@@ -1913,7 +1913,15 @@ public:
   }
   bool requires_prelocking()
   {
-    return MY_TEST(query_tables_own_last);
+    /*
+      If "this" corresponds to a stored FUNCTION containing prepared
+      statements, or inside a stored routine call stack containing
+      prepared statements, then we cannot do pre-locking.
+      Prelocking must pre-lock everything at once. But we cannot know tables
+      which will appear in prepared statements.
+      So do like a PROCEDURE does: skip pre-locking.
+    */
+    return MY_TEST(query_tables_own_last) && !m_contains_dynamic_sql;
   }
   void mark_as_requiring_prelocking(TABLE_LIST **tables_own_last)
   {
@@ -2468,6 +2476,24 @@ public:
     return date_funcs_used_flag;
   }
 
+  void set_contains_dynamic_sql()
+  {
+    m_contains_dynamic_sql= true;
+  }
+
+  bool contains_dynamic_sql() const
+  {
+    return m_contains_dynamic_sql;
+  }
+
+  bool error_if_contains_dynamic_sql() const
+  {
+    if (!m_contains_dynamic_sql)
+      return false;
+    my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "Dynamic SQL");
+    return true;
+  }
+
 private:
 
   /**
@@ -2514,6 +2540,8 @@ private:
     used in this LEX
   */
   bool date_funcs_used_flag= false;
+
+  bool m_contains_dynamic_sql= false;
 };
 
 
@@ -4181,7 +4209,7 @@ public:
                     const LEX_CSTRING &expr_str);
   bool set_variable(const Qualified_ident *ident, Item *item,
                     const LEX_CSTRING &expr_str);
-  void sp_variable_declarations_init(THD *thd, int nvars);
+  bool sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
                                          Item *def,

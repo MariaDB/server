@@ -1,0 +1,306 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# A function with PREPARE/EXECUTE/DEALLOCATE can be used with restrictions
+# OK when the function is used in an assignment right hand
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+# Assignment to a user variable
+SELECT @a;
+@a
+NULL
+SET @a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT @a;
+@a
+NULL
+# Routine parameter
+CALL p1(f1());
+ERROR 42000: PROCEDURE test.p1 does not exist
+CREATE PROCEDURE p1(a INT)
+BEGIN
+BEGIN END;
+END;
+$$
+CALL p1(f1());
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP PROCEDURE p1;
+# SELECT list
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+# INTO + user variable
+SELECT @a;
+@a
+NULL
+SELECT f1() INTO @a;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT @a;
+@a
+NULL
+# INTO + SP variable
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+SELECT f1() INTO v;
+END;
+$$
+CALL p1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP PROCEDURE p1;
+# IF condition 
+BEGIN NOT ATOMIC
+IF f1() THEN
+SELECT 1;
+END IF;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+# WHILE condition
+BEGIN NOT ATOMIC
+WHILE f1() DO
+SELECT 1;
+END WHILE;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+# RETURN
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+RETURN f1();
+END;
+$$
+SELECT f2();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f2;
+# Assignment to a system variable
+SELECT @@sql_log_off;
+@@sql_log_off
+0
+SET @@sql_log_off= f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT @@sql_log_off;
+@@sql_log_off
+0
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Other tests
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CALL p1;
+EXECUTE stmt;
+SELECT * FROM t1;
+a
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE stmt;
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+a
+10
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DEALLOCATE PREPARE stmt;
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+DEALLOCATE PREPARE stmt;
+ERROR HY000: Unknown prepared statement handler (stmt) given to DEALLOCATE PREPARE
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+a
+10
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# EXECUTE IMMEDIATE 'CALL ..' + SELECT
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE PROCEDURE p_sel()
+BEGIN
+SELECT a FROM t1;
+END;
+$$
+CREATE FUNCTION f_call() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'CALL p_sel()';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p()
+BEGIN
+DECLARE v INT DEFAULT f_call();
+SELECT v;
+END;
+$$
+CALL p();
+ERROR 0A000: Not allowed to return a result set from a function
+# second run
+CALL p();
+ERROR 0A000: Not allowed to return a result set from a function
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+DROP PROCEDURE p;
+DROP FUNCTION f_call;
+DROP PROCEDURE p_sel;
+DROP TABLE t1;
+#
+# EXECUTE IMMEDIATE 'CALL ..' + SET
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE PROCEDURE p_sel()
+BEGIN
+SET @a=10;
+END;
+$$
+CREATE FUNCTION f_call() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'CALL p_sel()';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p()
+BEGIN
+DECLARE v INT DEFAULT f_call();
+SELECT v;
+END;
+$$
+CALL p();
+v
+1
+CALL p();
+v
+1
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+SELECT @a;
+@a
+10
+SET @a=NULL;
+DROP PROCEDURE p;
+DROP FUNCTION f_call;
+DROP PROCEDURE p_sel;
+DROP TABLE t1;
+#
+# DML statements
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1(query TEXT) RETURNS INT
+BEGIN
+DECLARE nrows INT;
+PREPARE stmt FROM query;
+EXECUTE stmt;
+SET nrows= ROW_COUNT();
+DEALLOCATE PREPARE stmt;
+RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+DECLARE nrows INT;
+SET nrows= f1(query);
+SELECT nrows;
+SELECT * FROM t1;
+END;
+$$
+CALL p1('INSERT INTO t1 VALUES (10),(20),(30)');
+nrows
+3
+a
+10
+20
+30
+CALL p1('UPDATE t1 SET a=a+1');
+nrows
+3
+a
+11
+21
+31
+CALL p1('DELETE FROM t1 WHERE a>20');
+nrows
+2
+a
+11
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+# End of 13.1 tests

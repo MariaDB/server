@@ -1,0 +1,162 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo # p1 - f1(direct+immediate)
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+DELIMITER $$;
+CREATE FUNCTION f1_direct_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE a INT DEFAULT f1_direct_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE a INT;
+  SET a= f1_direct_immediate();
+END;
+$$
+DELIMITER ;$$
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+DROP FUNCTION f1_direct_immediate;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP TABLE t1;
+
+
+--echo # Check that functions with PS do not commit
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+DELIMITER $$;
+CREATE FUNCTION f2_direct_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE a INT DEFAULT f2_direct_immediate();
+END;
+$$
+DELIMITER ;$$
+START TRANSACTION;
+CALL p1_default;
+SELECT * FROM t1;
+ROLLBACK/*This should roll back all f2_direct_immediate() changes*/;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP FUNCTION f2_direct_immediate;
+DROP TABLE t1;
+
+
+--echo # Testing with two tables
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (10);
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT BEGIN
+  DECLARE v INT;
+  SET v= (SELECT MAX(a) FROM t1);
+  EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (?)' USING v;
+  RETURN v;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-40226 Assertion `inited == NONE || table->open_by_handler' failed in int handler::ha_external_lock(THD *, int)
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE a = f();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f() FROM t1;
+DROP FUNCTION f;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A function called in the argument list of another function is not
+--echo # in a safe PS context, so the statements of its body leave their
+--echo # statement transaction open.
+--echo # PS in the outer function is rejected:
+--echo # it would run on top of that open statement transaction.
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION g1() RETURNS INT
+BEGIN
+  RETURN (SELECT MAX(a) FROM t1);
+END;
+$$
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT f1(g1());
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP FUNCTION g1;
+DROP TABLE t1;
+
+
+--echo # End of 13.1 tests

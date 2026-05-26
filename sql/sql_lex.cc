@@ -4198,6 +4198,7 @@ void Query_tables_list::reset_query_tables_list(bool init)
   sroutines_list_own_elements= 0;
   binlog_stmt_flags= 0;
   stmt_accessed_table_flag= 0;
+  m_contains_dynamic_sql= false;
 }
 
 
@@ -4724,6 +4725,19 @@ TABLE_LIST *LEX::unlink_first_table(bool *link_to_local)
   if ((first= query_tables))
   {
     /*
+      The first table is an own table of the statement (e.g. the view
+      being created in CREATE VIEW). If it was the last own table,
+      the own table list becomes empty, so that query_tables_own_last
+      does not point to the next_global of the table which is being
+      excluded from the list. Otherwise, a later
+      chop_off_not_own_tables() would remove wrong tables, or even
+      reset query_tables to NULL. See link_first_table_back() for the
+      symmetric adjustment.
+    */
+    if (query_tables_own_last == &first->next_global)
+      query_tables_own_last= &query_tables;
+
+    /*
       Exclude from global table list
     */
     if ((query_tables= query_tables->next_global))
@@ -4837,6 +4851,14 @@ void LEX::link_first_table_back(TABLE_LIST *first,
     else
       query_tables_last= &first->next_global;
     query_tables= first;
+
+    /*
+      'first' is an own table of the statement, so if the own table list
+      was empty, it now consists of 'first'. See unlink_first_table()
+      for the symmetric adjustment.
+    */
+    if (query_tables_own_last == &query_tables)
+      query_tables_own_last= &first->next_global;
 
     if (link_to_local)
     {
@@ -7102,13 +7124,15 @@ bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 }
 
 
-void LEX::sp_variable_declarations_init(THD *thd, int nvars)
+bool LEX::sp_variable_declarations_init(THD *thd, int nvars)
 {
   sp_variable *spvar= spcont->get_last_context_variable();
-
-  sphead->reset_lex(thd);
+  sp_lex_local *new_lex= new (thd->mem_root) sp_lex_local(thd, this);
+  if (!new_lex || sphead->reset_lex(thd, new_lex))
+    return true;
   spcont->declare_var_boundary(nvars);
   thd->lex->init_last_field(&spvar->field_def, &spvar->name);
+  return false;
 }
 
 
@@ -7145,6 +7169,15 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
 
     bool last= i + 1 == (uint) nvars;
     spvar->default_value= dflt_value_item;
+    /*
+      If the expression dflt_value_item is used in a DEFAULT clause of a
+      variable initialization, then it's in a safe PS context,
+      like an assignment right hand. So if dflt_value_item is a stored
+      function then it will be able to execute prepared statements:
+        DECLARE spvar INT DEFAULT f1(); -- OK to use PS inside f1()
+    */
+    dflt_value_item->set_in_ps_safe_context();
+
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (thd->mem_root)
                       sp_instr_set(sphead->instructions(),
@@ -8439,7 +8472,13 @@ bool LEX::sp_body_finalize_function(THD *thd)
 
 bool LEX::sp_body_finalize_trigger(THD *thd)
 {
-  return sphead->is_not_allowed_in_function("trigger") ||
+  /*
+    Unlike a stored function, a trigger body is never executed in a context
+    which is safe for prepared statements. So dynamic SQL is not allowed in
+    a trigger at all and is rejected at CREATE TRIGGER time.
+  */
+  return sphead->error_if_contains_dynamic_sql() ||
+         sphead->is_not_allowed_in_function("trigger") ||
          sp_body_finalize_procedure(thd);
 }
 
@@ -9773,6 +9812,15 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
   sp_pcontext *ctx;
   const Sp_rcontext_handler *rh;
   sp_variable *spv= find_variable(name, &ctx, &rh);
+  if (item && spv)
+  {
+    /*
+      This is an assignment statement. If the right hand is a stored
+      function, it will be able to execute prepared statements:
+        SET spvar= f1(); -- Ok to use PS inside f1()
+    */
+    item->set_in_ps_safe_context();
+  }
   return spv ? sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
                                           expr_str) :
                set_system_variable(option_type, name, item);
@@ -9792,6 +9840,16 @@ bool LEX::set_variable(const Lex_ident_sys_st *name1,
   sp_variable *spv;
   if (spcont && (spv= find_variable(name1, &ctx, &rh)))
   {
+    if (item)
+    {
+      /*
+         SET sp_row_var.a= f1(); -- Ok to use PS inside f1()
+         See also comments in similar places in:
+           - sp_variable_declarations_set_default()
+           - set_variable()
+      */
+      item->set_in_ps_safe_context();
+    }
     if (spv->field_def.is_table_rowtype_ref() ||
         spv->field_def.is_cursor_rowtype_ref())
       return sphead->set_local_variable_row_field_by_name(thd, ctx,

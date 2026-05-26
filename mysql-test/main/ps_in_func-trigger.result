@@ -1,0 +1,492 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# PS commands inside a trigger are rejected at CREATE time
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW
+EXECUTE IMMEDIATE 'not important';
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW
+PREPARE stmt FROM 'SET a=1';
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW
+DEALLOCATE PREPARE stmt;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TABLE t1;
+#
+# A stored procedure with PS called from a trigger
+# The CALL is rejected with "Dynamic SQL is not allowed",
+# rather than "Not allowed to return a result set from a trigger",
+# in all contexts, e.g. when:
+# - a procedure with PS is called from a trigger directly
+# - a procedure called from a trigger calls another procedure with PS
+# - a function called from a trigger calls a procedure with PS
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+CALL p1;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+INSERT INTO t1 VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+SELECT @a;
+@a
+NULL
+DROP TRIGGER tr1;
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p2;
+END;
+$$
+INSERT INTO t1 VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+SELECT @a;
+@a
+NULL
+DROP TABLE t1;
+SET @a= NULL;
+#
+# A procedure with PREPARE/DEALLOCATE, i.e. without a possible result set
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p3()
+BEGIN
+PREPARE stmt FROM 'SET @a=1';
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p3;
+END;
+$$
+INSERT INTO t1 VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+SELECT @a;
+@a
+NULL
+DROP PROCEDURE p3;
+DROP TABLE t1;
+SET @a=NULL;
+#
+# A procedure with PS and a result set: PS is reported first
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p3()
+BEGIN
+SELECT 1;
+EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p3;
+END;
+$$
+INSERT INTO t1 VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TRIGGER tr1;
+DROP PROCEDURE p3;
+SELECT @a;
+@a
+NULL
+SELECT * FROM t1;
+a
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET @a= NULL;
+#
+# A procedure with PS called through a function
+#
+SET @a=NULL;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p3()
+BEGIN
+EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+CALL p3;
+RETURN 0;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE a INT DEFAULT f2();
+END;
+$$
+INSERT INTO t1 VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT @a;
+@a
+NULL
+SELECT * FROM t1;
+a
+DROP FUNCTION f2;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+#
+# A stored function with PS used from a trigger
+# Not allowed even in a safe context (e.g. assignment in right hand)
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=11';
+RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE nrows INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+INSERT INTO t1 VALUES (12);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TRIGGER tr1;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+INSERT INTO t1 VALUES (12);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TRIGGER tr1;
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+UPDATE t2 SET a=f1();
+END;
+$$
+INSERT INTO t1 VALUES (12);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TRIGGER tr1;
+DROP TABLE t2;
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+UPDATE t2 SET a=f1();
+END;
+$$
+INSERT INTO t1 VALUES (12);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TRIGGER tr1;
+DROP TABLE t2;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-40224 SIGSEGV in THD::is_error | Item::save_in_field | Item_trigger_field::set_value
+#
+CREATE TABLE t1(a INT, b INT);
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET NEW.b = f();
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TABLE t1;
+DROP FUNCTION f;
+CREATE TABLE t1(a INT, b INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE rc INT;
+SET rc= f1();
+RETURN rc;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET NEW.b = f2()
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-40285 Assertion DBUG_ASSERT(thd->lock == 0) failed in lock_tables()
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+UPDATE t1 SET b=f();
+END;
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f;
+DROP TABLE t1;
+CREATE TABLE t1(a INT, b INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE res INT default f1();
+RETURN res;
+END;
+$$
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+UPDATE t1 SET b=f2();
+END;
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-41013 Assertion `inited == NONE || table->open_by_handler' failed in int handler::ha_external_lock(THD *, int)
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+IF FALSE THEN
+EXECUTE IMMEDIATE 'SELECT 1 INTO @x';
+END IF;
+RETURN 5;
+END;
+$$
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.b = f1();
+UPDATE t1 SET a = a + 1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT @x;
+@x
+NULL
+SELECT * FROM t1;
+a	b
+1	2
+DROP TABLE t1;
+DROP FUNCTION f1;
+#
+# MDEV-41015 SIGSEGV in THD::is_error | Item::save_in_field | Item_trigger_field::set_value on INSERT w/ TRIGGER
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 INTO @x';
+RETURN 5;
+END;
+$$
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SET NEW.a = 999;
+SET NEW.b = f1();
+END;
+$$
+INSERT INTO t1 VALUES (1,2);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a	b
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# A trigger with no PS can be invoked from
+# a procedure containing PS
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.b = NEW.b+100;
+CREATE PROCEDURE p1()
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET b=3';
+END;
+$$
+CALL p1;
+SELECT * FROM t1;
+a	b
+1	103
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# A trigger with no PS can be invoked from
+# a function containing PS
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.b = NEW.b+100;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET b=3';
+RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+SELECT a;
+SELECT * FROM t1;
+END;
+$$
+CALL p1;
+a
+1
+a	b
+1	103
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Testing multi-statement triggers
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (10,20);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1'; RETURN 5;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SET NEW.b = f1(); -- fails
+/* make sure the rest does not get executed, @a remains 100 */
+SET NEW.a = 1;
+SET @a=NEW.a;
+END;
+$$
+SET @a= 100;
+INSERT INTO t1 VALUES (11,21);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT @a;
+@a
+100
+SET @a= NULL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# A procedure with PS + a direct statement invoking a trigger with no PS
+# It works without errors: the PS in the outer procedure is not a problem
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+SET @a=@a+100;
+END;
+$$
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+EXECUTE IMMEDIATE 'SET @a=1';
+INSERT INTO t1 VALUES (1);
+END;
+$$
+CALL p2;
+SELECT * FROM t1;
+a
+1
+SELECT @a;
+@a
+101
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET @a=NULL;
+#
+# A procedure with PS whose direct statement invokes a trigger
+# calling this same procedure.
+# The statement is rejected before any row is written.
+#
+CREATE TABLE t1 (a INT);
+# Create a dummy procedure
+CREATE PROCEDURE p1()
+BEGIN
+SET @a=1;
+END;
+$$
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+# Now replace the procedure
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+EXECUTE IMMEDIATE 'SET @a=1';
+INSERT INTO t1 VALUES (1);
+END;
+$$
+CALL p1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET @a= NULL;
+#
+# The check is done at prelocking time, before it is known whether
+# the trigger fires at all. A statement which would not fire the
+# trigger, because it inserts no rows, is therefore rejected as well.
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+EXECUTE IMMEDIATE 'SET @a=1';
+END;
+$$
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+INSERT INTO t1 SELECT a FROM t2;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP TABLE t1;
+SET @a= NULL;
+# End of 13.1 tests

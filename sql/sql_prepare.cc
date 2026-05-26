@@ -2956,6 +2956,10 @@ void mysql_sql_stmt_prepare(THD *thd)
   LEX *lex= thd->lex;
   CSET_STRING orig_query= thd->query_string;
   StringBuffer<64> value_buffer;
+
+  if (thd->error_if_in_sub_stmt_ps_unsafe())
+    DBUG_VOID_RETURN;
+
   const Lex_ident_sys name= lex->prepared_stmt.evaluate_name(thd,
                                                              &value_buffer,
                                                              "PREPARE");
@@ -3069,6 +3073,9 @@ bool mysql_sql_stmt_execute_immediate(THD *thd,
   Prepared_statement *stmt;
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_execute_immediate");
+
+  if (thd->error_if_in_sub_stmt_ps_unsafe())
+    DBUG_RETURN(true);
 
   /*
     Dynamic cursor placeholders are initialized from the USING clause
@@ -3689,6 +3696,9 @@ bool mysql_sql_stmt_execute(THD *thd, const Lex_ident_sys &name,
   DBUG_PRINT("info", ("EXECUTE: %.*s", (int) name.length, name.str));
   CSET_STRING orig_query= thd->query_string;
 
+  if (thd->error_if_in_sub_stmt_ps_unsafe())
+    DBUG_RETURN(true);
+
   if (!(stmt= Prepared_statement::find_by_name_or_error(thd, name, cmd)))
     DBUG_RETURN(true);
 
@@ -3978,6 +3988,10 @@ void mysql_sql_stmt_close(THD *thd)
 {
   Prepared_statement* stmt;
   StringBuffer<64> value_buffer;
+
+  if (thd->error_if_in_sub_stmt_ps_unsafe())
+    return;
+
   const Lex_ident_sys name= thd->lex->prepared_stmt.evaluate_name(thd,
                                                           &value_buffer,
                                                           "DEALLOCATE PREPARE");
@@ -4451,6 +4465,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   Query_arena *old_stmt_arena;
   DBUG_ENTER("Prepared_statement::prepare");
   DBUG_ASSERT(m_sql_mode == thd->variables.sql_mode);
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
+
   /*
     If this is an SQLCOM_PREPARE, we also increase Com_prepare_sql.
     However, it seems handy if com_stmt_prepare is increased always,
@@ -4610,7 +4626,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     Once dynamic SQL is allowed as substatements the below if-statement
     has to be adjusted to not do rollback in substatement.
   */
-  DBUG_ASSERT(! thd->in_sub_stmt);
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
+
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
@@ -4804,6 +4821,15 @@ Prepared_statement::execute_loop(String *expanded_query,
   bool error;
   iterations= FALSE;
   bool params_are_set= false;
+
+  // It's not allowed to return a result set from a function
+  if (cursor_arg == &cursor/*regular target, not a CURSOR variable*/ &&
+      (thd->in_sub_stmt & SUB_STMT_FUNCTION)/*we're in a stored function*/ &&
+      (sp_get_flags_for_command(lex) & sp_head::MULTI_RESULTS)/*SELECT-alike*/)
+  {
+    my_error(ER_SP_NO_RETSET, MYF(0), "function");
+    return true;
+  }
 
   /*
     - In mysql_sql_stmt_execute() we hide all "external" Items
@@ -5364,6 +5390,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
 {
   DBUG_ASSERT(result_arg);
   DBUG_ASSERT(cursor_arg);
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
   Statement stmt_backup;
   Query_arena *old_stmt_arena;
   bool error= TRUE;
@@ -5375,6 +5402,30 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
 
   if (check_charset_collation_map_version(thd, thd->m_reprepare_observer))
     return true;
+
+  if (thd->in_sub_stmt && (sql_command_flags() & CF_AUTO_COMMIT_TRANS))
+  {
+    // Other in_sub_stmt flag combinations should be caught earlier:
+    DBUG_ASSERT(thd->in_sub_stmt ==
+                (SUB_STMT_FUNCTION | SUB_STMT_PS_SAFE_CONTEXT));
+    /*
+      We're inside a stored function and the statement has an explicit
+      or an implicit commit. Disallow such statements, even if the function
+      is used in a safe context (e.g. assignment right hand):
+        CREATE FUNCTION f1() RETURNS INT
+        BEGIN
+          EXECUTE IMMEDIATE 'CREATE TABLE t1(a INT)'; -- Has implicit commit
+        END;
+        //
+        CREATE PROCEDURE p1()
+        BEGIN
+          DECLARE spvar INT DEFAULT f1(); -- Safe PS context, but has commit
+        END;
+        //
+    */
+    my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
+    return true;
+  }
 
   status_var_increment(thd->status_var.com_stmt_execute);
 
@@ -5656,6 +5707,7 @@ Prepared_statement::execute_immediate(const char *query, uint query_len,
   DBUG_ENTER("Prepared_statement::execute_immediate");
   DBUG_ASSERT(result_arg);
   DBUG_ASSERT(cursor_arg);
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
   String expanded_query;
   static LEX_CSTRING execute_immediate_stmt_name=
     {STRING_WITH_LEN("(immediate)") };
@@ -5705,6 +5757,7 @@ void Prepared_statement::deallocate_immediate()
 
 void Prepared_statement::deallocate()
 {
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
   deallocate_immediate();
   /* Statement map calls delete stmt on erase */
   thd->stmt_map.erase(this);

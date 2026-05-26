@@ -1,0 +1,169 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# A procedure with a plain SELECT needs CLIENT_MULTI_RESULTS
+#
+CREATE PROCEDURE p1() SELECT 1 AS c;
+CALL p1;
+c
+1
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+ERROR 0A000: PROCEDURE test.p1 can't return a result set in the given context
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+DROP PROCEDURE p1;
+#
+# A CALL of a procedure with EXECUTE requires the client
+# to support CLIENT_MULTI_RESULTS: the executed statement
+# can return a result set.
+#
+CREATE PROCEDURE p1()
+BEGIN
+PREPARE stmt FROM 'SELECT 1 AS c';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CALL p1;
+c
+1
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+ERROR 0A000: PROCEDURE test.p1 can't return a result set in the given context
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1;
+c
+1
+DROP PROCEDURE p1;
+#
+# The same for EXECUTE IMMEDIATE
+#
+CREATE PROCEDURE p1()
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 AS c';
+END;
+$$
+CALL p1;
+c
+1
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+ERROR 0A000: PROCEDURE test.p1 can't return a result set in the given context
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1;
+c
+1
+DROP PROCEDURE p1;
+#
+# A procedure without EXECUTE does not need CLIENT_MULTI_RESULTS,
+# even if it uses PREPARE and DEALLOCATE PREPARE.
+#
+CREATE PROCEDURE p1()
+BEGIN
+PREPARE stmt FROM 'SELECT 1 AS c';
+DEALLOCATE PREPARE stmt;
+END;
+$$
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+DROP PROCEDURE p1;
+#
+# A procedure calling a function with a prepared statement
+# in the assignment right hand does not return a result set,
+# so it does not need CLIENT_MULTI_RESULTS.
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT f1();
+END;
+$$
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+SELECT * FROM t1;
+a
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# A procedure with EXECUTE 'INSERT..' called from a function
+# used in a safe context.
+# The client capability is not relevant here.
+# The CALL works with and without the client capability.
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p3()
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+CALL p3();
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT f2();
+END;
+$$
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1;
+SELECT * FROM t1;
+a
+10
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+#
+# A procedure with EXECUTE 'SELECT..' called from a function
+# used in a safe context.
+# The client capability is not relevant here: a dynamic statement
+# returning a result set inside a function is rejected at run time,
+# with and without the client capability.
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p3_select()
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 AS c';
+END;
+$$
+CREATE FUNCTION f2_select() RETURNS INT
+BEGIN
+CALL p3_select();
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+DECLARE v INT DEFAULT f2_select();
+END;
+$$
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1_select;
+ERROR 0A000: Not allowed to return a result set from a function
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1_select;
+ERROR 0A000: Not allowed to return a result set from a function
+SELECT * FROM t1;
+a
+DROP PROCEDURE p1_select;
+DROP FUNCTION f2_select;
+DROP PROCEDURE p3_select;
+DROP TABLE t1;
+# End of 13.1 tests

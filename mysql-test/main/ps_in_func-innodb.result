@@ -1,0 +1,169 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+# p1 - f1(direct+immediate)
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE FUNCTION f1_direct_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (9);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f1_direct_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+DECLARE a INT;
+SET a= f1_direct_immediate();
+END;
+$$
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+9
+10
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+a
+9
+10
+CALL p1_set;
+SELECT * FROM t1;
+a
+9
+10
+9
+10
+DROP FUNCTION f1_direct_immediate;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP TABLE t1;
+# Check that functions with PS do not commit
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE FUNCTION f2_direct_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (9);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f2_direct_immediate();
+END;
+$$
+START TRANSACTION;
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+ROLLBACK/*This should roll back all f2_direct_immediate() changes*/;
+SELECT * FROM t1;
+a
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+DROP PROCEDURE p1_default;
+DROP FUNCTION f2_direct_immediate;
+DROP TABLE t1;
+# Testing with two tables
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (10);
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+CREATE FUNCTION f1() RETURNS INT BEGIN
+DECLARE v INT;
+SET v= (SELECT MAX(a) FROM t1);
+EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (?)' USING v;
+RETURN v;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1();
+SELECT * FROM t2;
+a
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+#
+# MDEV-40226 Assertion `inited == NONE || table->open_by_handler' failed in int handler::ha_external_lock(THD *, int)
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+RETURN 1;
+END;
+$$
+SELECT * FROM t1 WHERE a = f();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT f() FROM t1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f;
+DROP TABLE t1;
+#
+# A function called in the argument list of another function is not
+# in a safe PS context, so the statements of its body leave their
+# statement transaction open.
+# PS in the outer function is rejected:
+# it would run on top of that open statement transaction.
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION g1() RETURNS INT
+BEGIN
+RETURN (SELECT MAX(a) FROM t1);
+END;
+$$
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT DEFAULT f1(g1());
+SELECT v;
+END;
+$$
+CALL p1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+1
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP FUNCTION g1;
+DROP TABLE t1;
+# End of 13.1 tests

@@ -429,7 +429,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   {
     m_lex->unit.cleanup();
     /* Here we also commit or rollback the current statement. */
-    if (! thd->in_sub_stmt)
+    if (!thd->in_sub_stmt_ps_unsafe())
     {
       thd->get_stmt_da()->set_overwrite_status(true);
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
@@ -438,7 +438,16 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     close_thread_tables(thd);
     thd_proc_info(thd, 0);
 
-    if (! thd->in_sub_stmt)
+    /*
+      The same condition as for the statement transaction above: a statement
+      inside a stored function entered in a safe PS context ends like a
+      statement inside a stored procedure does. Testing !in_sub_stmt here
+      would end the statement only half way: its statement transaction would
+      be committed, yet a rollback requested by an engine (e.g. on a
+      deadlock) would not be honoured, and its metadata locks would not be
+      released but accumulate for the rest of the function.
+    */
+    if (!thd->in_sub_stmt_ps_unsafe())
     {
       if (thd->transaction_rollback_request)
       {

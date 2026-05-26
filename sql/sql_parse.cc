@@ -3055,9 +3055,29 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   /* bits that should be cleared in thd->server_status */
   uint bits_to_be_cleared= 0;
   ulonglong affected_rows;
-  if (sp->m_flags & sp_head::MULTI_RESULTS)
+  /*
+    A procedure with EXECUTE [IMMEDIATE] may or may not return a result set,
+    depending on the statement being executed. So MULTI_RESULTS_DYNAMIC
+    is not a reason to reject a CALL inside a stored function: a dynamic
+    statement returning a result set in a function context is rejected
+    at run time, in Prepared_statement::execute_loop().
+    Note, CLIENT_MULTI_RESULTS is always cleared inside a stored function
+    by THD::reset_sub_statement_state(), so testing it here would reject
+    every CALL of a procedure with dynamic SQL.
+    In other contexts the client capability is checked as usual. Note,
+    a sub-statement context other than a stored function (e.g. a trigger)
+    never gets here with MULTI_RESULTS_DYNAMIC: such a CALL is rejected
+    earlier, in Sql_cmd_call::execute().
+  */
+  const uint multi_results_flags= (thd->in_sub_stmt & SUB_STMT_FUNCTION) ?
+                                  sp_head::MULTI_RESULTS :
+                                  (sp_head::MULTI_RESULTS |
+                                   sp_head::MULTI_RESULTS_DYNAMIC);
+  if (sp->m_flags & multi_results_flags)
   {
-    if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
+    bool multi_results= (thd->client_capabilities & CLIENT_MULTI_RESULTS) != 0;
+    DBUG_EXECUTE_IF("sp_no_client_multi_results", multi_results= false;);
+    if (!multi_results)
     {
       /* The client does not support multiple result sets being sent back */
       my_error(ER_SP_BADSELECT, MYF(0), ErrConvDQName(sp).ptr());
@@ -3316,6 +3336,35 @@ bool Sql_cmd_call::execute(THD *thd)
     */
     if (thd->in_sub_stmt)
     {
+      /*
+        A routine with dynamic SQL can only be called from a stored function.
+        In other sub-statement contexts, e.g. in a trigger, dynamic SQL is
+        never applicable, so let's reject the CALL right away.
+      */
+      if (!(thd->in_sub_stmt & SUB_STMT_FUNCTION) &&
+          sp->error_if_contains_dynamic_sql())
+        return true;
+
+      /*
+        We're in a stored function entered in a PS safe context, so a CALL
+        of a procedure with dynamic SQL is allowed in general. But the CALL
+        statement itself can have a state which a prepared statement inside
+        the procedure would destroy:
+          CALL p2((SELECT a FROM t1)); -- t1 is open and locked, and its
+                                       -- engine has started a statement
+                                       -- transaction
+        The tables of the CALL stay open and locked for the entire duration
+        of the procedure body, so a nested Prepared_statement::prepare()
+        would close them under the feet of the CALL, and would hit its
+        `thd->transaction->stmt.is_empty()` assert.
+        Reject dynamic SQL here, before the procedure is entered, like
+        sp_head::execute_function() does for a stored function.
+      */
+      if ((thd->in_sub_stmt & SUB_STMT_PS_SAFE_CONTEXT) &&
+          thd->stmt_state_conflicts_with_ps() &&
+          sp->error_if_contains_dynamic_sql())
+        return true;
+
       const char *where= (thd->in_sub_stmt & SUB_STMT_TRIGGER ?
                           "trigger" : "function");
       if (sp->is_not_allowed_in_function(where))
@@ -5659,7 +5708,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   {
     sp_head *sp= lex->sphead;
     DBUG_ASSERT(all_tables == 0);
-    DBUG_ASSERT(thd->in_sub_stmt == 0);
+    DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
     sp->m_sql_mode= thd->variables.sql_mode;
     sp->m_sp_share= MYSQL_GET_SP_SHARE(sp->m_handler->type(),
                                        sp->m_db.str, static_cast<uint>(sp->m_db.length),
@@ -5952,7 +6001,7 @@ finish:
       !thd->lex->requires_prelocking())
     thd->locked_tables_list.reopen_tables(thd, true);
 
-  if (! thd->in_sub_stmt)
+  if (!thd->in_sub_stmt_ps_unsafe())
   {
     if (thd->killed != NOT_KILLED)
     {

@@ -1,0 +1,65 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # Statements inside a function with PS end like statements inside a
+--echo # stored procedure do: they commit their statement transaction and
+--echo # they release their metadata locks. Releasing the locks is the part
+--echo # which is easy to get half right - the statement transaction would
+--echo # be committed while the locks stayed until the function returns,
+--echo # blocking DDL on every table the function has touched so far.
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+
+--echo #
+--echo # Control: a plain stored procedure
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE lk INT;
+  INSERT INTO t2 VALUES (1);
+  SET v= (SELECT COUNT(*) FROM t1);
+  SET lk= GET_LOCK('l1', 120);
+END;
+$$
+DELIMITER ;$$
+--let $routine= p1
+--let $comment= altered_by_control
+--source ps_in_func-locks-01.inc
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Subject: a function with PS, called in an assignment right hand side
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  DECLARE lk INT;
+  EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (1)';
+  SET v= (SELECT COUNT(*) FROM t1);
+  SET lk= GET_LOCK('l1', 120);
+  RETURN v;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  SET v= f1();
+END;
+$$
+DELIMITER ;$$
+--let $routine= p1
+--let $comment= altered_by_subject
+--source ps_in_func-locks-01.inc
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+DROP TABLE t1, t2;
+
+--echo # End of 13.1 tests

@@ -1,0 +1,55 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+# right hand side
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 2;
+END;
+$$
+#
+# The updated table has a trigger
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+INSERT INTO t1 VALUES (1);
+UPDATE t1 SET a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t2;
+a
+DROP TABLE t1, t2;
+#
+# The updated table is referenced by a foreign key with ON UPDATE CASCADE
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT, KEY(b),
+FOREIGN KEY (b) REFERENCES t1(a) ON UPDATE CASCADE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+UPDATE t1 SET a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t2;
+b
+1
+DROP TABLE t2, t1;
+#
+# The inserted table has a DEFAULT expression using a sequence
+#
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (a INT DEFAULT (NEXTVAL(s1)), b INT);
+INSERT INTO t1 (b) VALUES (f1());
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a	b
+DROP TABLE t1;
+DROP SEQUENCE s1;
+DROP FUNCTION f1;
+# End of 13.1 tests

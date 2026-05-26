@@ -2503,6 +2503,14 @@ void THD::reset_globals()
   net.thd= 0;
 }
 
+
+//  See the comment in the declaration in sql_class.h.
+bool THD::stmt_state_conflicts_with_ps() const
+{
+  return lex->query_tables != nullptr || !transaction->stmt.is_empty();
+}
+
+
 /*
   Cleanup after query.
 
@@ -2542,13 +2550,33 @@ void THD::cleanup_after_query()
     Reset RAND_USED so that detection of calls to rand() will save random
     seeds if needed by the slave.
 
-    Do not reset RAND_USED if inside a stored function or trigger because
-    only the call to these operations is logged. Thus only the calling 
+    The reset is needed for:
+    (1) Standalone statements
+    (2) Statements inside a stored procedure
+    (3) Statements inside a stored function with PS, which is called
+        in the assignment right hand, as it's logged per-statement.
+
+    Do not reset RAND_USED if inside a stored function which does not meet (3),
+    or inside a trigger because
+    only the call to these operations is logged. Thus only the calling
     statement needs to detect rand() calls made by its substatements. These
     substatements must not set RAND_USED to 0 because it would remove the
-    detection of rand() by the calling statement. 
+    detection of rand() by the calling statement.
+
+    THD::in_sub_stmt_ps_unsafe() is false in exactly (1),(2),(3): either
+    we are not in a substatement at all, or we are in a stored function
+    entered in a safe PS context. Note, OPTION_BIN_LOG_IN_FUNC alone is not
+    enough here. It stays set for the whole call stack below such a function,
+    including a trigger fired by one of its statements:
+      EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (1)' -- inside a function
+                                                    -- with dynamic SQL
+    The INSERT is logged per statement and the replica fires t1's triggers
+    itself, so a rand() call in a trigger body belongs to the INSERT. Clearing
+    RAND_USED at the end of the trigger's statement would log the INSERT
+    without the preceding Rand event, and the replica would use different
+    random values.
   */
-  if (!in_sub_stmt) /* stored functions and triggers are a special case */
+  if (!in_sub_stmt_ps_unsafe()/*(1),(2),(3)*/)
   {
     /* Forget those values, for next binlogger: */
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
@@ -6311,7 +6339,33 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
       !is_current_stmt_binlog_format_row())
   {
-    variables.option_bits&= ~OPTION_BIN_LOG;
+    if ((new_state & SUB_STMT_FUNCTION) &&
+        (lex->contains_dynamic_sql() ||
+         (variables.option_bits & OPTION_BIN_LOG_IN_FUNC)))
+    {
+      /*
+        We are entering a stored function, and:
+        - The current function contains dynamic SQL, or
+        - The current function is called from another function
+          with dynamic SQL
+        Do not unset the OPTION_BIN_LOG flag - let's do per-statement
+        logging rather than `SELECT f1()` style logging.
+
+        Note, the new_state test is essential. A trigger is not logged
+        per statement: the statement which fired it is logged instead, and
+        the replica fires the trigger again when it applies that statement.
+        Retaining OPTION_BIN_LOG here would log the trigger body as well,
+        so the trigger's changes would be applied twice on the replica.
+        It would also start a nested binlog event union: the union started
+        for the trigger is still open, and a stored function called from
+        the trigger body would call start_union_events() a second time,
+        which either hits its "!do_union" assert or, in a release build,
+        silently discards the trigger's accumulated union state.
+      */
+      variables.option_bits|= OPTION_BIN_LOG_IN_FUNC;
+    }
+    else
+      variables.option_bits&= ~OPTION_BIN_LOG;
   }
 
   if ((backup->option_bits & OPTION_BIN_LOG) &&
@@ -6321,7 +6375,12 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
 
   /* Disable result sets */
   client_capabilities &= ~CLIENT_MULTI_RESULTS;
-  in_sub_stmt|= new_state;
+  /*
+    If p1() calls f1() in a PS-safe way, but then f1() calls f2() in
+    a PS-unsafe way then f2() cannot contain prepared statement.
+    So we cannot inherit the SUB_STMT_PS_SAFE_CONTEXT flag from p1() to f1().
+  */
+  in_sub_stmt= (in_sub_stmt & ~SUB_STMT_PS_SAFE_CONTEXT) | new_state;
   cuted_fields= 0;
   transaction->savepoints= 0;
   first_successful_insert_id_in_cur_stmt= 0;
