@@ -1,0 +1,116 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# ROW variables
+#
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(10))
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=a+11';
+RETURN ROW(100,'b100');
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT,b VARCHAR(10)) DEFAULT f1();
+SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r ROW(a INT,b VARCHAR(10));
+SET r= f1();
+SELECT r.a, r.b;
+END;
+$$
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+CALL p1;
+r.a	r.b
+100	b100
+CALL p2;
+r.a	r.b
+100	b100
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# ROW variables initialized from a nested ROW value
+# This prodices ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+# The test just makes sure Item_rows::set_in_ps_safe_context() works fine
+#
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(10))
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=a+11';
+RETURN ROW(100,'b100');
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW(a INT,b VARCHAR(10)) DEFAULT ROW(f1(),100);
+SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r ROW(a INT,b VARCHAR(10));
+SET r= ROW(f1(),100);
+SELECT r.a, r.b;
+END;
+$$
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+CALL p1;
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `a`
+CALL p2;
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `a`
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# ROW fields
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=a+1';
+RETURN 100;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW (a INT, b VARCHAR(10)) DEFAULT ROW(f1(),'b100');
+SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE r ROW (a INT, b VARCHAR(10));
+SET r.a= f1();
+SET r.b= 'b100';
+SELECT r.a, r.b;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CALL p1;
+r.a	r.b
+100	b100
+CALL p2;
+r.a	r.b
+100	b100
+SELECT * FROM t1;
+a
+12
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+# End of 13.1 tests

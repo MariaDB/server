@@ -29,10 +29,23 @@ CREATE FUNCTION f1() RETURN INT AS
 c0 SYS_REFCURSOR;
 BEGIN
 OPEN c0 FOR PREPARE stmt;
+CLOSE c0;
 RETURN 0;
 END;
 $$
+SELECT f1();
 ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1 AS
+a INT;
+BEGIN
+a:= f1();
+END;
+$$
+PREPARE stmt FROM 'SELECT 1,2';
+CALL p1;
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 CREATE PROCEDURE p1 AS
 c0 SYS_REFCURSOR;
 v0 TEXT;
@@ -57,7 +70,21 @@ OPEN c0 FOR LOCAL spvar;
 RETURN 0;
 END;
 $$
+SELECT f1();
 ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1 AS
+a INT;
+BEGIN
+a:= f1();
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (stmt0) given to OPEN
+PREPARE stmt0 FROM 'SELECT 1,2';
+CALL p1;
+DEALLOCATE PREPARE stmt0;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 CREATE PROCEDURE p1 AS
 c0 SYS_REFCURSOR;
 ps_name VARCHAR(10) := 'stmt';

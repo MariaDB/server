@@ -2887,6 +2887,8 @@ sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
               arena->is_stmt_prepare_or_first_stmt_execute() ||
               arena->is_conventional() ||
               arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS);
+  if (thd->lex->contains_dynamic_sql())
+    return;
   for (Sroutine_hash_entry &rt: *src)
   {
     (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),

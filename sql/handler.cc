@@ -1800,9 +1800,9 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
               trans == &thd->transaction->stmt);
 
-  DBUG_ASSERT(!thd->in_sub_stmt);
+  DBUG_ASSERT(thd->in_sub_stmt_is_ok_for_sub_stmt());
 
-  if (thd->in_sub_stmt)
+  if (!thd->in_sub_stmt_is_ok_for_sub_stmt())
   {
     /*
       Since we don't support nested statement transactions in 5.0,
@@ -2351,7 +2351,7 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 #endif
 
-  if (thd->in_sub_stmt)
+  if (!thd->in_sub_stmt_is_ok_for_sub_stmt())
   {
     DBUG_ASSERT(0);
     /*
@@ -3272,8 +3272,8 @@ void commit_checkpoint_notify_ha(void *cookie)
 bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
 {
   Ha_trx_info *ha_info;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
-                                        &thd->transaction->all);
+  THD_TRANS *trans= !thd->in_sub_stmt_is_ok_for_sub_stmt() ?
+                    &thd->transaction->stmt : &thd->transaction->all;
 
   DBUG_ENTER("ha_rollback_to_savepoint_can_release_mdl");
 
@@ -3297,8 +3297,8 @@ bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
 int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 {
   int error=0;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
-                                        &thd->transaction->all);
+  THD_TRANS *trans= !thd->in_sub_stmt_is_ok_for_sub_stmt() ?
+                    &thd->transaction->stmt : &thd->transaction->all;
   Ha_trx_info *ha_info, *ha_info_next;
 
   DBUG_ENTER("ha_rollback_to_savepoint");
@@ -3335,11 +3335,11 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run before_rollbackha_rollback_trans hook");
-      (void) wsrep_before_rollback(thd, !thd->in_sub_stmt);
+      (void) wsrep_before_rollback(thd, thd->in_sub_stmt_is_ok_for_sub_stmt());
 
     }
 #endif // WITH_WSREP
-    if ((err= ht->rollback(thd, !thd->in_sub_stmt)))
+    if ((err= ht->rollback(thd, thd->in_sub_stmt_is_ok_for_sub_stmt())))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
@@ -3348,7 +3348,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
     {
       WSREP_DEBUG("ha_rollback_to_savepoint: run after_rollback hook");
-      (void) wsrep_after_rollback(thd, !thd->in_sub_stmt);
+      (void) wsrep_after_rollback(thd, thd->in_sub_stmt_is_ok_for_sub_stmt());
     }
 #endif // WITH_WSREP
     status_var_increment(thd->status_var.ha_rollback_count);
@@ -3382,8 +3382,8 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
   }
 #endif /* WITH_WSREP */
   int error=0;
-  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction->stmt :
-                                        &thd->transaction->all);
+  THD_TRANS *trans= !thd->in_sub_stmt_is_ok_for_sub_stmt() ?
+                    &thd->transaction->stmt : &thd->transaction->all;
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_savepoint");
 
@@ -8119,7 +8119,7 @@ static int wsrep_after_row(THD *thd)
       rollback current statement transaction. See comment in ha_commit_trans()
       call for more information.
     */
-    if (!thd->in_sub_stmt)
+    if (thd->in_sub_stmt_is_ok_for_sub_stmt())
       trans_rollback_stmt(thd) || trans_rollback(thd);
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);

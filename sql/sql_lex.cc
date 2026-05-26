@@ -4188,6 +4188,7 @@ void Query_tables_list::reset_query_tables_list(bool init)
   sroutines_list_own_elements= 0;
   binlog_stmt_flags= 0;
   stmt_accessed_table_flag= 0;
+  m_contains_dynamic_sql= false;
 }
 
 
@@ -7039,13 +7040,15 @@ bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 }
 
 
-void LEX::sp_variable_declarations_init(THD *thd, int nvars)
+bool LEX::sp_variable_declarations_init(THD *thd, int nvars)
 {
   sp_variable *spvar= spcont->get_last_context_variable();
-
-  sphead->reset_lex(thd);
+  sp_lex_local *new_lex= new (thd->mem_root) sp_lex_set_var(thd, this);
+  if (!new_lex || sphead->reset_lex(thd, new_lex))
+    return true;
   spcont->declare_var_boundary(nvars);
   thd->lex->init_last_field(&spvar->field_def, &spvar->name);
+  return false;
 }
 
 
@@ -7082,6 +7085,15 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
 
     bool last= i + 1 == (uint) nvars;
     spvar->default_value= dflt_value_item;
+    /*
+      If the expression dflt_value_item is used in a DEFAULT clause of a
+      variable initialization, then it's in a safe PS context,
+      like an assignment right hand. So if dflt_value_item is a stored
+      function then it will be able to execute prepared statements:
+        DECLARE spvar INT DEFAULT f1(); -- OK to use PS inside f1()
+    */
+    dflt_value_item->set_in_ps_safe_context();
+
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (thd->mem_root)
                       sp_instr_set(sphead->instructions(),
@@ -9689,6 +9701,15 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
   sp_pcontext *ctx;
   const Sp_rcontext_handler *rh;
   sp_variable *spv= find_variable(name, &ctx, &rh);
+  if (item && spv)
+  {
+    /*
+      This is an assignment statement. If the right hand is a stored
+      function, it will be able to execute prepared statements:
+        SET spvar= f1(); -- Ok to use PS inside f1()
+    */
+    item->set_in_ps_safe_context();
+  }
   return spv ? sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
                                           expr_str) :
                set_system_variable(option_type, name, item);
@@ -9708,6 +9729,11 @@ bool LEX::set_variable(const Lex_ident_sys_st *name1,
   sp_variable *spv;
   if (spcont && (spv= find_variable(name1, &ctx, &rh)))
   {
+    if (item)
+    {
+      // SET sp_row_var.a= f1(); -- Ok to use PS inside f1()
+      item->set_in_ps_safe_context();
+    }
     if (spv->field_def.is_table_rowtype_ref() ||
         spv->field_def.is_cursor_rowtype_ref())
       return sphead->set_local_variable_row_field_by_name(thd, ctx,

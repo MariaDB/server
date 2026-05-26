@@ -124,6 +124,13 @@
 /** Flag set if setup_tables already done */
 #define OPTION_SETUP_TABLES_DONE        (1ULL << 45) // intern
 
+/*
+  This flag gets set if a stored function contains dynamic SQL.
+  In this case we switch to per-statement binary logging rather
+  than `SELECT f1()` style binary logging for this function.
+*/
+#define OPTION_BIN_LOG_IN_FUNC          (1ULL << 46) // intern
+
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 
 /* The rest of the file is included in the server only */

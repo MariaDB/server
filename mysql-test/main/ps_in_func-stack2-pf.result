@@ -1,0 +1,166 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment
+#
+# p1, f2(immediate)
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f2_immediate() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f2_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+DECLARE a INT;
+SET a= f2_immediate();
+END;
+$$
+CALL p1_default;
+SELECT * FROM t1;
+a
+11
+CALL p1_default;
+SELECT * FROM t1 ORDER BY a;
+a
+11
+11
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+a
+11
+CALL p1_set;
+SELECT * FROM t1 ORDER BY a;
+a
+11
+11
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP FUNCTION f2_immediate;
+DROP TABLE t1;
+# p1, f2(direct+immediate)
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f2_direct_and_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (10);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f2_direct_and_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+DECLARE a INT;
+SET a= f2_direct_and_immediate();
+END;
+$$
+CALL p1_default;
+SELECT * FROM t1;
+a
+10
+11
+CALL p1_default;
+SELECT * FROM t1 ORDER BY a;
+a
+10
+10
+11
+11
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+a
+10
+11
+CALL p1_set;
+SELECT * FROM t1 ORDER BY a;
+a
+10
+10
+11
+11
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP FUNCTION f2_direct_and_immediate;
+DROP TABLE t1;
+# p1, f2a(direct+immediate) + f2b(direct+immediate)
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f2a_direct_and_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (10);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+RETURN 0;
+END;
+$$
+CREATE FUNCTION f2b_direct_and_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (20);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (21)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f2a_direct_and_immediate();
+DECLARE b INT DEFAULT f2b_direct_and_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+DECLARE a,b INT;
+SET a= f2a_direct_and_immediate();
+SET b= f2b_direct_and_immediate();
+END;
+$$
+CALL p1_default;
+SELECT * FROM t1 ORDER BY a;
+a
+10
+11
+20
+21
+CALL p1_default;
+SELECT * FROM t1 ORDER BY a;
+a
+10
+10
+11
+11
+20
+20
+21
+21
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1 ORDER BY a;
+a
+10
+11
+20
+21
+CALL p1_set;
+SELECT * FROM t1 ORDER BY a;
+a
+10
+10
+11
+11
+20
+20
+21
+21
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP FUNCTION f2a_direct_and_immediate;
+DROP FUNCTION f2b_direct_and_immediate;
+DROP TABLE t1;
+# End of 13.1 tests

@@ -917,10 +917,8 @@ DELIMITER ;$$
 DROP FUNCTION f1;
 
 
---echo # Dynamic SQL is not allowed in stored functions
-
+--echo # Declaring a cursor variable is OK inside a function
 DELIMITER $$;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
   DECLARE v INT;
@@ -929,10 +927,14 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
 
+
+--echo # Dynamic SQL is allowed in stored functions with restrictions:
+--echo # OK when the function is used as an assignment right hand
 
 DELIMITER $$;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
   DECLARE v INT;
@@ -944,6 +946,20 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  SET v= f1();
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 
 
 --echo # Static OPEN is OK in SF, both for Standard cursors and SYS_REFCURSORs

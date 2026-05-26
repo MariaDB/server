@@ -1,0 +1,154 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment
+# right hand side
+#
+#
+# Called from the select list or the WHERE clause,
+# function modifies the scanned table
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+RETURN 1;
+END;
+$$
+SELECT * FROM t1 WHERE a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT f1() FROM t1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+1
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Called from the select list of the WHERE clause,
+# function modifies another table
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (2)';
+RETURN 1;
+END;
+$$
+SELECT * FROM t1 WHERE a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT f1() FROM t1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t2;
+a
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+#
+# A caller without tables of its own
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (1)';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE n INT DEFAULT f1();
+SELECT n;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT 1 FROM DUAL WHERE f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CALL p1();
+n
+1
+SELECT * FROM t1;
+a
+1
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# An assignment right hand side is safe even with an open cursor
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE n INT;
+DECLARE v INT;
+DECLARE c CURSOR FOR SELECT a FROM t1 ORDER BY a;
+OPEN c;
+FETCH c INTO v;
+SELECT v;
+SET n= f1();
+SELECT n;
+CLOSE c;
+END;
+$$
+CALL p1();
+v
+1
+n
+1
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# The check is conservative: it is based on the static
+# CONTAINS_DYNAMIC_SQL flag, so a function which only mentions a
+# prepared statement without ever executing one is rejected as well
+# when the caller holds table locks
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+PREPARE stmt FROM 'SELECT a FROM t1';
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE c CURSOR FOR stmt;
+RETURN 10;
+END;
+$$
+SELECT f1();
+f1()
+10
+SELECT f1() FROM t1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1 WHERE a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
+# A function without dynamic SQL keeps pre-MDEV-39518 behavior
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (2);
+RETURN 1;
+END;
+$$
+SELECT * FROM t1 WHERE a=f1();
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+DROP FUNCTION f1;
+DROP TABLE t1;
+# End of 13.1 tests

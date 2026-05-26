@@ -36,18 +36,34 @@ CALL p1;
 DROP PROCEDURE p1;
 
 
-# OPEN c FOR PREPARE stmt - not allowed in a stored function
+# OPEN c FOR PREPARE stmt - allowed in a stored function with restrictions
+# OK when used as an assignment right hand
 
 DELIMITER $$;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION f1() RETURN INT AS
   c0 SYS_REFCURSOR;
 BEGIN
   OPEN c0 FOR PREPARE stmt;
+  CLOSE c0;
   RETURN 0;
 END;
 $$
 DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  a INT;
+BEGIN
+  a:= f1();
+END;
+$$
+DELIMITER ;$$
+PREPARE stmt FROM 'SELECT 1,2';
+CALL p1;
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 
 
 # OPEN c FOR LOCAL var
@@ -70,9 +86,10 @@ CALL p1;
 DROP PROCEDURE p1;
 
 
-# OPEN c FOR LOCAL spvar - not allowed in a stored function
+# OPEN c FOR LOCAL spvar - allowed in a stored function with restrictions
+# OK when used as an assignment right hand
+
 DELIMITER $$;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION f1() RETURN INT AS
   c0 SYS_REFCURSOR;
   spvar VARCHAR(10) DEFAULT 'stmt0';
@@ -82,6 +99,23 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  a INT;
+BEGIN
+  a:= f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+PREPARE stmt0 FROM 'SELECT 1,2';
+CALL p1;
+DEALLOCATE PREPARE stmt0;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 
 
 # OPEN c FOR LOCAL var - not all parameters bound

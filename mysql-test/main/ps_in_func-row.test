@@ -1,0 +1,122 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(10))
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET a=a+11';
+  RETURN ROW(100,'b100');
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT,b VARCHAR(10)) DEFAULT f1();
+  SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE r ROW(a INT,b VARCHAR(10));
+  SET r= f1();
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+SELECT f1();
+CALL p1;
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # ROW variables initialized from a nested ROW value
+--echo # This prodices ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+--echo # The test just makes sure Item_rows::set_in_ps_safe_context() works fine
+--echo #
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(10))
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET a=a+11';
+  RETURN ROW(100,'b100');
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT,b VARCHAR(10)) DEFAULT ROW(f1(),100);
+  SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE r ROW(a INT,b VARCHAR(10));
+  SET r= ROW(f1(),100);
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+SELECT f1();
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # ROW fields
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET a=a+1';
+  RETURN 100;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW (a INT, b VARCHAR(10)) DEFAULT ROW(f1(),'b100');
+  SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE r ROW (a INT, b VARCHAR(10));
+  SET r.a= f1();
+  SET r.b= 'b100';
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+CALL p1;
+CALL p2;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # End of 13.1 tests
