@@ -1,0 +1,12 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+
+CALL mtr.add_suppression("Statement is unsafe because it uses a system function that may return a different value on the slave");
+CALL mtr.add_suppression("Statement is unsafe because it invokes a trigger or a stored function that inserts into an AUTO_INCREMENT column");
+
+SET default_storage_engine=InnoDB;
+--source include/binlog_ps_in_func.inc
+SET default_storage_engine=DEFAULT;
+
+--echo # End of 13.1 tests

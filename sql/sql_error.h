@@ -24,6 +24,20 @@
 #include "mysql_com.h" /* MYSQL_ERRMSG_SIZE */
 #include "my_time.h"   /* MYSQL_TIME */
 #include "decimal.h"
+#include <mysqld_error.h>  /* ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG */
+
+/*
+  Raise ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG for a dynamic SQL statement
+  (PREPARE, EXECUTE, DEALLOCATE PREPARE, EXECUTE IMMEDIATE) which cannot be
+  executed in the current context. Shared by the error_if_*() helpers in THD,
+  in Query_tables_list and in sp_head, and by the direct rejections in
+  open_tables(), so that the wording is decided in one place.
+*/
+static inline void raise_error_dynamic_sql_not_allowed()
+{
+  my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "Dynamic SQL");
+}
+
 
 class THD;
 class my_decimal;
