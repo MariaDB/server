@@ -17,6 +17,10 @@ call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=127, pag
 call mtr.add_suppression("(InnoDB: Plugin|Plugin 'InnoDB')");
 # Allow innodb_force_recovery=1 to write up to 10 FILE_CHECKPOINT records
 call mtr.add_suppression("InnoDB: Page .* Current system log sequence number 123(38|54)");
+call mtr.add_suppression("InnoDB: Your database may be corrupt or you may have copied the InnoDB tablespaces but not the log");
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*ibdata1'");
+call mtr.add_suppression("InnoDB: (File '.*ibdata1'|The change buffer) is corrupted");
+
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
 --move_file $DATADIR/ib_logfile0 $DATADIR/ib_logfile0.old

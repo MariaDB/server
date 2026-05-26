@@ -336,7 +336,8 @@ struct fil_space_t final
   fil_space_t *hash= nullptr;
   /** log_sys.get_lsn() of the most recent fil_names_write_if_was_clean().
   Reset to 0 by fil_names_clear(). Protected by log_sys.latch_have_wr().
-  If and only if this is nonzero, the tablespace will be in named_spaces. */
+  If and only if this is greater than 1,
+  the tablespace will be in named_spaces. */
   lsn_t max_lsn= 0;
   /** base node for the chain of data files; multiple entries are
   only possible for is_temporary() or id==0 */
@@ -1800,15 +1801,9 @@ fil_delete_file(
 @retval nullptr if not found */
 fil_space_t *fil_space_get_by_id(uint32_t id) noexcept;
 
-/** Note that a non-predefined persistent tablespace has been modified
-by redo log.
-@param[in,out]	space	tablespace */
-void fil_names_dirty(fil_space_t *space) noexcept;
-
-
 bool fil_comp_algo_loaded(ulint comp_algo) noexcept;
 
-/** On a log checkpoint, reset fil_names_dirty_and_write() flags
+/** On a log checkpoint, reset mtr_t::name_write() flags
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */

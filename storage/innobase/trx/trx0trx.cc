@@ -1148,6 +1148,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
   if (UNIV_LIKELY(undo != nullptr))
   {
     MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
+    mtr->set_undo_space(rseg->space);
 
     /* We have to hold exclusive rseg->latch because undo log headers have
     to be put to the history list in the (serialisation) order of the

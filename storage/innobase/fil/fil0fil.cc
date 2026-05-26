@@ -888,7 +888,7 @@ static void fil_space_free_low(fil_space_t *space) noexcept
 {
 	/* The tablespace must not be in fil_system.named_spaces. */
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
-	      || space->max_lsn == 0);
+	      || space->max_lsn <= 1);
 	ut_ad(!space->referenced());
 
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
@@ -935,7 +935,7 @@ bool fil_space_free(uint32_t id, bool x_latched) noexcept
 		if (!recv_recovery_is_on()) {
 			log_sys.latch.wr_lock();
 
-			if (space->max_lsn) {
+			if (space->max_lsn > 1) {
 				ut_d(space->max_lsn = 0);
 				fil_system.named_spaces.remove(*space);
 			}
@@ -943,7 +943,7 @@ bool fil_space_free(uint32_t id, bool x_latched) noexcept
 			log_sys.latch.wr_unlock();
 		} else {
 			ut_ad(log_sys.latch_have_wr());
-			if (space->max_lsn) {
+			if (space->max_lsn > 1) {
 				space->max_lsn = 0;
 				fil_system.named_spaces.remove(*space);
 			}
@@ -1558,19 +1558,28 @@ fil_space_t *fil_space_t::get(uint32_t id) noexcept
 @param path           file path
 @param new_path       new file path for type=FILE_RENAME
 @return number of bytes written */
-inline size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
-                                 const char *path, const char *new_path)
-  noexcept
+size_t mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
+                          const char *path, const char *new_path) noexcept
 {
   ut_ad((new_path != nullptr) == (type == FILE_RENAME));
   ut_ad(!(byte(type) & 15));
-  ut_ad(!is_predefined_tablespace(space_id));
+  ut_ad(!is_system_tablespace(space_id));
 
+#ifdef UNIV_DEBUG
+  if (log_sys.archive)
+  {
+    int n{0}; uint32_t id;
+    if (1 == sscanf(path, "undo%03" PRIu32 "%n", &id, &n) && !path[n] &&
+        id - 1 + srv_undo_space_id_start == space_id)
+      goto valid_name;
+  }
+#endif
   /* fil_name_parse() requires that there be at least one path
   separator and that the file path end with ".ibd" or "ibb". */
   ut_ad(strchr(path, '/'));
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD) ||
         !strcmp(&path[strlen(path) - strlen(DOT_IBB)], DOT_IBB));
+  ut_d(valid_name:)
 
   m_modifications= true;
   if (!is_logged())
@@ -1727,7 +1736,7 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
   This clean-up corresponds to fil_space_free(). */
   log_sys.latch.wr_lock();
   ut_ad((space->pending() & ~NEEDS_FSYNC) == (STOPPING | CLOSING));
-  if (space->max_lsn != 0)
+  if (space->max_lsn > 1)
   {
     space->max_lsn= 0;
     fil_system.named_spaces.remove(*space);
@@ -3087,65 +3096,7 @@ void fil_delete_file(const char *ibd_filepath) noexcept
   }
 }
 
-#ifdef UNIV_DEBUG
-/** Check that a tablespace is valid for mtr_commit().
-@param[in]	space	persistent tablespace that has been changed */
-static
-void fil_space_validate_for_mtr_commit(const fil_space_t *space) noexcept
-{
-	mysql_mutex_assert_not_owner(&fil_system.mutex);
-	ut_ad(space != NULL);
-	ut_ad(!is_predefined_tablespace(space->id));
-	ut_ad(!space->is_being_imported());
-
-	/* We are serving mtr_commit(). While there is an active
-	mini-transaction, we should have !space->is_stopping(). This is
-	guaranteed by meta-data locks or transactional locks. */
-	ut_ad(!space->is_stopping() || space->referenced());
-}
-#endif /* UNIV_DEBUG */
-
-/** Note that a non-predefined persistent tablespace has been modified
-by redo log.
-@param[in,out]	space	tablespace */
-void fil_names_dirty(fil_space_t *space) noexcept
-{
-	ut_ad(log_sys.latch_have_wr());
-	ut_ad(recv_recovery_is_on());
-	ut_ad(!srv_read_only_mode);
-	ut_ad(log_sys.get_lsn() != 0);
-	ut_ad(space->max_lsn == 0);
-	ut_d(fil_space_validate_for_mtr_commit(space));
-
-	if (UNIV_UNLIKELY(recv_sys.rpo != 0)) {
-		/* The log is read-only; do not write to it */
-		return;
-	}
-
-	fil_system.named_spaces.push_back(*space);
-	space->max_lsn = log_sys.get_lsn();
-}
-
-/** Write a FILE_MODIFY record when a non-predefined persistent
-tablespace was modified for the first time since fil_names_clear(). */
-ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write() noexcept
-{
-  ut_ad(log_sys.latch_have_wr());
-  ut_d(fil_space_validate_for_mtr_commit(m_user_space));
-  ut_ad(!m_user_space->max_lsn);
-  m_user_space->max_lsn= log_sys.get_lsn();
-
-  fil_system.named_spaces.push_back(*m_user_space);
-  ut_ad(UT_LIST_GET_LEN(m_user_space->chain) == 1);
-
-  mtr_t mtr{nullptr};
-  mtr.start();
-  mtr.log_file_op(FILE_MODIFY, m_user_space->id,
-                  UT_LIST_GET_FIRST(m_user_space->chain)->name);
-  mtr.commit_files();
-}
-
-/** On a log checkpoint, reset fil_names_dirty_and_write() flags
+/** On a log checkpoint, reset mtr_t::name_write() flags
 and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
 @param lsn  checkpoint LSN
 @return current LSN */
@@ -3185,7 +3136,7 @@ ATTRIBUTE_COLD lsn_t fil_names_clear(lsn_t lsn) noexcept
 			fil_system.named_spaces.erase(it);
 		}
 
-		/* max_lsn is the last LSN where fil_names_dirty_and_write()
+		/* max_lsn is the last LSN where mtr_t::name_write()
 		was called. If we kept track of "min_lsn" (the first LSN
 		where max_lsn turned nonzero), we could avoid the
 		fil_names_clear() call if min_lsn > lsn. */

@@ -206,8 +206,10 @@ void mtr_t::start()
   m_latch_ex= false;
   m_modifications= false;
   m_log_mode= MTR_LOG_ALL;
-  ut_d(m_user_space_id= TRX_SYS_SPACE);
   m_user_space= nullptr;
+  m_undo_space= nullptr;
+  ut_d(m_user_space_id= TRX_SYS_SPACE);
+  ut_d(m_undo_space_id= TRX_SYS_SPACE);
   m_commit_lsn= 0;
   m_trim_pages= false;
   m_binlog_page= nullptr;
@@ -814,6 +816,7 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(!m_freed_space);
   ut_ad(!m_freed_pages);
   ut_ad(!m_user_space);
+  ut_ad(!m_undo_space);
   ut_ad(!m_latch_ex);
 
   m_latch_ex= true;
@@ -839,6 +842,38 @@ ATTRIBUTE_COLD lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   return m_commit_lsn;
 }
 
+/** Write a FILE_MODIFY record when a non-predefined persistent
+tablespace was modified for the first time since fil_names_clear().
+@param space  persistent tablespace
+@param undo   whether this is an undo tablespace */
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD
+void mtr_t::name_write(fil_space_t *space, bool undo) noexcept
+{
+  mysql_mutex_assert_not_owner(&fil_system.mutex);
+  ut_ad(space);
+  ut_ad(space->id);
+  ut_ad(!space->is_being_imported());
+  ut_ad(!space->is_stopping() || space->referenced());
+  ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+
+  if (UNIV_UNLIKELY(space->max_lsn))
+    return;
+  const char *name= UT_LIST_GET_FIRST(space->chain)->name;
+  if (undo)
+  {
+    ut_ad(log_sys.archive);
+    name= base_name(name);
+  }
+
+  space->max_lsn= log_sys.get_lsn();
+  fil_system.named_spaces.push_back(*space);
+
+  mtr_t mtr{nullptr};
+  mtr.start();
+  mtr.log_file_op(FILE_MODIFY, space->id, name);
+  mtr.commit_files();
+}
+
 #ifdef UNIV_DEBUG
 /** Check if a tablespace is associated with the mini-transaction
 (needed for generating a FILE_MODIFY record)
@@ -848,8 +883,11 @@ bool
 mtr_t::is_named_space(uint32_t space) const
 {
   ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
-  return !is_logged() || m_user_space_id == space ||
-    is_predefined_tablespace(space);
+  ut_ad(!m_undo_space || m_undo_space->id != TRX_SYS_SPACE);
+  return !space || !is_logged() || m_user_space_id == space ||
+    (log_sys.archive
+     ? (m_undo_space_id == space || srv_startup_is_before_trx_rollback_phase)
+     : srv_is_undo_tablespace(space));
 }
 /** Check if a tablespace is associated with the mini-transaction
 (needed for generating a FILE_MODIFY record)
@@ -858,9 +896,12 @@ mtr_t::is_named_space(uint32_t space) const
 bool mtr_t::is_named_space(const fil_space_t* space) const
 {
   ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
+  ut_ad(!m_undo_space || m_undo_space->id != TRX_SYS_SPACE);
 
-  return !is_logged() || m_user_space == space ||
-    is_predefined_tablespace(space->id);
+  return !is_logged() || !space->id || m_user_space == space ||
+    (log_sys.archive
+     ? (m_undo_space == space || srv_startup_is_before_trx_rollback_phase)
+     : srv_is_undo_tablespace(space->id));
 }
 #endif /* UNIV_DEBUG */
 
@@ -876,6 +917,7 @@ fil_space_t *mtr_t::x_lock_space(uint32_t space_id)
 	if (space_id == TRX_SYS_SPACE) {
 		space = fil_system.sys_space;
 	} else if ((space = m_user_space) && space_id == space->id) {
+	} else if ((space = m_undo_space) && space_id == space->id) {
 	} else {
 		space = fil_space_get(space_id);
 		ut_ad(m_log_mode != MTR_LOG_NO_REDO
@@ -1175,6 +1217,8 @@ std::pair<lsn_t,lsn_t> mtr_t::do_write() noexcept
   ut_ad(!m_latch_ex || log_sys.latch_have_wr());
   ut_ad(!m_user_space ||
         (m_user_space->id > 0 && m_user_space->id < SRV_SPACE_ID_UPPER_BOUND));
+  ut_ad(!m_undo_space ||
+        (m_undo_space->id > 0 && m_undo_space->id < SRV_SPACE_ID_UPPER_BOUND));
   m_commit_lsn= 0;
 
 #ifndef DBUG_OFF
@@ -1198,20 +1242,22 @@ std::pair<lsn_t,lsn_t> mtr_t::do_write() noexcept
   if (!m_latch_ex)
     log_sys.latch.rd_lock();
 
-  if (UNIV_UNLIKELY(m_user_space && !m_user_space->max_lsn &&
-                    !srv_is_undo_tablespace((m_user_space->id))))
+  if (UNIV_UNLIKELY(m_user_space && !m_user_space->max_lsn) ||
+      UNIV_UNLIKELY(m_undo_space && !m_undo_space->max_lsn))
   {
     if (!m_latch_ex)
     {
       m_latch_ex= true;
       log_sys.latch.rd_unlock();
       log_sys.latch.wr_lock();
-      if (UNIV_UNLIKELY(m_user_space->max_lsn != 0))
-        goto func_exit;
     }
-    name_write();
+
+    if (m_user_space)
+      name_write(m_user_space, false);
+    if (m_undo_space)
+      name_write(m_undo_space, true);
   }
-func_exit:
+
   return finish_write(len);
 }
 

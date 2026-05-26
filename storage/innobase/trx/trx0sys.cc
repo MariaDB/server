@@ -258,6 +258,9 @@ static trx_rseg_t *trx_rseg_create(uint32_t space_id)
     ut_ad(!space->is_being_imported());
     if (buf_block_t *sys_header= trx_sysf_get(&mtr))
     {
+      if (space_id && log_sys.archive)
+        mtr.log_file_op(FILE_MODIFY, space->id,
+                        base_name(space->chain.start->name));
       ulint rseg_id= trx_sys_rseg_find_free(sys_header);
       dberr_t err;
       if (buf_block_t *rblock= rseg_id == ULINT_UNDEFINED

@@ -4447,6 +4447,8 @@ xb_load_tablespaces()
 		return(DB_ERROR);
 	}
 
+	log_sys.latch.wr_lock();
+
 	for (int i= 0; i < 10; i++) {
 		err = srv_sys_space.open_or_create(false, false, &sum_of_new_sizes);
 		if (err == DB_PAGE_CORRUPTED || err == DB_CORRUPTION) {
@@ -4456,13 +4458,15 @@ xb_load_tablespaces()
 		 break;
 	}
 
+	log_sys.latch.wr_unlock();
+
 	if (err != DB_SUCCESS) {
 		msg("Could not open data files.\n");
 		return(err);
 	}
 
 	/* Add separate undo tablespaces to fil_system */
-	err = srv_undo_tablespaces_init(false, nullptr);
+	err = srv_undo_tablespaces_init(nullptr);
 
 	if (err != DB_SUCCESS) {
 		return(err);

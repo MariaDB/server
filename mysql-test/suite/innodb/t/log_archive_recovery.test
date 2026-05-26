@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/log_archive_recovery;
+--mkdir $bugdir
+--let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+--let $dirs=$dirs --innodb-undo-directory=$bugdir
+
+--let $restart_parameters= $dirs --innodb-log-archive --innodb-undo-tablespaces=3 --innodb-log-recovery-start=12288
+--source include/restart_mysqld.inc
+CREATE TABLE t(a INT)ENGINE=InnoDB;
+--source include/shutdown_mysqld.inc
+
+--remove_file $bugdir/ibdata1
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t;
+--write_file $bugdir/ibdata1
+EOF
+--source include/restart_mysqld.inc
+SELECT * FROM t;

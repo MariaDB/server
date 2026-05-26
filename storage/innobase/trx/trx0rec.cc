@@ -1931,6 +1931,7 @@ trx_undo_report_row_operation(
 			== dict_table_t::IGNORE_UNDO;
 
 		rseg = trx->rsegs.m_redo.rseg;
+		mtr.set_undo_space(rseg->space);
 		undo_block = trx_undo_assign_low<false>(&mtr, &err,
 							rseg, pundo);
 		if (clear_ignore) {

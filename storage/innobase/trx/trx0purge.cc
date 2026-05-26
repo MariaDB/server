@@ -356,6 +356,7 @@ inline dberr_t purge_sys_t::iterator::free_history_rseg(trx_rseg_t &rseg) const
   const auto last_page= rseg.space->free_limit;
 
   mtr.start();
+  mtr.set_undo_space(rseg.space);
 
   dberr_t err;
   buf_block_t *rseg_hdr= rseg.get(&mtr, &err);

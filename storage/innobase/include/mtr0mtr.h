@@ -244,6 +244,18 @@ struct mtr_t {
 		}
 	}
 
+	/** Set the undo tablespace associated with the mini-transaction
+	(needed for generating a FILE_MODIFY record)
+	@param space  undo tablespace */
+	void set_undo_space(fil_space_t* space)
+	{
+		ut_ad(!m_undo_space_id);
+		ut_d(m_undo_space_id = space->id);
+		if (space->id) {
+			m_undo_space = space;
+		}
+	}
+
 #ifdef UNIV_DEBUG
 	/** Check the tablespace associated with the mini-transaction
 	(needed for generating a FILE_MODIFY record)
@@ -631,9 +643,8 @@ public:
   @param path           file path
   @param new_path       new file path for type=FILE_RENAME
   @return number of bytes written */
-  inline size_t log_file_op(mfile_type_t type, uint32_t space_id,
-                            const char *path,
-                            const char *new_path= nullptr) noexcept;
+  size_t log_file_op(mfile_type_t type, uint32_t space_id,
+                     const char *path, const char *new_path= nullptr) noexcept;
 
   /** Add freed page numbers to freed_pages */
   void add_freed_offset(fil_space_t *space, uint32_t page)
@@ -694,8 +705,11 @@ private:
   inline void log_write_extended(const buf_block_t &block, byte type);
 
   /** Write a FILE_MODIFY record when a non-predefined persistent
-  tablespace was modified for the first time since fil_names_clear(). */
-  ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write() noexcept;
+  tablespace was modified for the first time since fil_names_clear().
+  @param space  persistent tablespace
+  @param trim   whether this is an undo tablespace */
+  static ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write(fil_space_t *space,
+                                                           bool undo) noexcept;
 
   /** Encrypt the log
   @return the total size in bytes, excluding the 8-byte nonce */
@@ -810,11 +824,16 @@ public:
 private:
   /** user tablespace that is being modified by the mini-transaction */
   fil_space_t *m_user_space;
+  /** undo tablespace that is being modified by the mini-transaction */
+  fil_space_t *m_undo_space;
 
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the
   mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
   uint32_t m_user_space_id;
+  /** Persistent undo tablespace associated with the
+  mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
+  uint32_t m_undo_space_id;
 #endif /* UNIV_DEBUG */
 
   /** acquired dict_index_t::lock, fil_space_t::latch, buf_block_t */

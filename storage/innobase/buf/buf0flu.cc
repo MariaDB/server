@@ -2786,7 +2786,7 @@ static void buf_flush_page_cleaner() noexcept
 
       do
       {
-        if (recv_recovery_is_on())
+        if (recv_recovery_is_on() || recv_sys.is_corrupt_log())
           continue;
         create_spare_archive= buf_flush_archive_create(create_spare_archive);
         IF_DBUG(if (log_sys.last_checkpoint_lsn > log_sys.get_first_lsn() &&
@@ -2795,8 +2795,7 @@ static void buf_flush_page_cleaner() noexcept
                      _db_keyword_(nullptr, "ib_log_checkpoint_avoid_hard", 1)))
                   continue,);
         if (log_sys.check_for_checkpoint() ||
-            (!srv_startup_is_before_trx_rollback_phase &&
-             srv_operation <= SRV_OPERATION_EXPORT_RESTORED))
+            srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
           create_spare_archive= log_checkpoint();
       }
       while (false);

@@ -565,6 +565,7 @@ SysTablespace::open_file(
 @return DB_SUCCESS or error code */
 inline dberr_t SysTablespace::read_lsn_and_check_flags()
 {
+	ut_ad(log_sys.latch_have_wr());
 	dberr_t	err;
 
 	files_t::iterator it = m_files.begin();
@@ -629,7 +630,6 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 	if (!log_sys.file_size && log_sys.format == log_t::FORMAT_3_23
 	    && srv_operation == SRV_OPERATION_NORMAL
 	    && srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-		log_sys.latch.wr_lock();
 		/* Upgrade from 0-sized ib_logfile0. */
 		log_sys.last_checkpoint_lsn = mach_read_from_8(
 			first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
@@ -648,8 +648,6 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 			log_sys.set_recovered_lsn(recv_sys.lsn);
 			log_sys.next_checkpoint_no = 0;
 		}
-
-		log_sys.latch.wr_unlock();
 	}
 
 	it->close();
