@@ -112,6 +112,7 @@ public:
   Cost_estimate cost;
   ha_rows max_index_blocks;
   ha_rows max_row_blocks;
+  ulong call_number;
 };
 
 /*
@@ -266,6 +267,7 @@ void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
 
     irc_wrapper.add("max_index_blocks", irc->max_index_blocks);
     irc_wrapper.add("max_row_blocks", irc->max_row_blocks);
+    irc_wrapper.add("call_number", irc->call_number);
   }
 }
 
@@ -869,11 +871,13 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
   if (current_thd->lex->explain->is_query_plan_ready())
     return;
 
+  mrr_counter++;
   auto *range_ctx= new (mem_root) Multi_range_read_const_call_record;
 
   if (unlikely(!range_ctx))
     return; // OOM
 
+  range_ctx->call_number= mrr_counter;
   const char *index_name= tbl->table->key_info[keynr].name.str;
   if (!(range_ctx->idx_name= strdup_root(mem_root, index_name)))
     return; // OOM
@@ -1344,8 +1348,7 @@ static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *er
   Read_named_member array[]= {
       {"index_name", Read_string(mem_root, &out->idx_name), false},
       {"ranges", Read_array_of_strings(mem_root, &out->range_list), false},
-      {"num_rows",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
+      {"num_rows", Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
        false},
       {"cost", Read_range_cost_estimate(mem_root, &out->cost), false},
       {"max_index_blocks",
@@ -1354,6 +1357,8 @@ static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *er
       {"max_row_blocks",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_row_blocks),
        false},
+      {"call_number",
+       Read_non_neg_integer<ulong, ULONG_MAX>(&out->call_number), false},
       {NULL, Read_double(NULL), true}};
 
   return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
@@ -1582,6 +1587,7 @@ bool Optimizer_context_replay::infuse_range_stats(
   if (!has_records() || !is_base_table(table->pos_in_table_list))
     return true;
 
+  mrr_counter++;
   KEY *keyinfo= table->key_info + keynr;
   const char *idx_name= keyinfo->name.str;
   const KEY_PART_INFO *key_part= keyinfo->key_part;
@@ -1612,6 +1618,9 @@ bool Optimizer_context_replay::infuse_range_stats(
     List_iterator<Multi_range_read_const_call_record> range_ctx_itr(mrr_const_calls);
     while (Multi_range_read_const_call_record *range_ctx= range_ctx_itr++)
     {
+      if (range_ctx->call_number != mrr_counter)
+        continue;
+
       List_iterator<char> range_itr(range_ctx->range_list);
       List_iterator<char> text_range_it(text_ranges);
       bool matched= true;

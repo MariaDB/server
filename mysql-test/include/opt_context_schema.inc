@@ -128,6 +128,9 @@ let $opt_context_schema=
                 },
                 "max_row_blocks": {
                   "type": "number"
+                },
+                "call_number": {
+                  "type": "number"
                 }
               },
               "required": [
