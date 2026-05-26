@@ -4831,7 +4831,9 @@ SELECT @@max_sort_length;
 1024
 SET @@max_sort_length=DEFAULT;
 #
-# Similar to prepared EXECUTE, IMMEDIATE is not allowed in stored functions
+# A function with EXECUTE IMMEDIATE can be used with restictions:
+# Usually it's not allowed (e.g. in SELECT list)
+# But it's allowed as an assignment right hand
 #
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
@@ -4839,7 +4841,17 @@ EXECUTE IMMEDIATE 'DO 1';
 RETURN 1;
 END;
 $$
+SELECT f1();
 ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=f1();
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 #
 # Status variables
 #

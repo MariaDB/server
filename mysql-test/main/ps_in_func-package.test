@@ -1,0 +1,73 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # MDEV-40288 PACKAGE BODY initialization section that contains dynamic SQL fails with ER_NO_SUCH_TABLE for a table that exists
+--echo #
+
+# Calling PS in the package instantiating section is not allowed from a function
+
+SET sql_mode=ORACLE;
+SET @px_cnt=NULL;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  FUNCTION f RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION f RETURN INT AS
+  BEGIN
+    RETURN 42;
+  END;
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM t1 INTO @px_cnt';
+END;
+$$
+CREATE PROCEDURE p1() AS
+  v INT;
+BEGIN
+  v := pkg1.f();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+SELECT @px_cnt;
+
+# Calling PS in the package instantiating section is OK from a procedure
+
+SET sql_mode=ORACLE;
+SET @px_cnt=NULL;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS BEGIN
+    SET @a=10;
+  END;
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM t1 INTO @px_cnt';
+END;$$
+CREATE PROCEDURE p1() AS
+  v INT;
+BEGIN
+  CALL pkg1.p1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+SELECT @px_cnt;
+SET sql_mode=DEFAULT;

@@ -2882,6 +2882,8 @@ void
 sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                              Sroutine_hash *src, TABLE_LIST *belong_to_view)
 {
+  if (thd->lex->contains_dynamic_sql())
+    return;
   Query_arena *arena __attribute__((unused))= thd->active_stmt_arena_to_use();
   DBUG_ASSERT(src->is_empty() ||
               arena->is_stmt_prepare_or_first_stmt_execute() ||

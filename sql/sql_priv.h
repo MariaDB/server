@@ -91,6 +91,13 @@
 */
 #define TMP_TABLE_FORCE_MYISAM          (1ULL << 32)
 #define OPTION_PROFILING                (1ULL << 33)
+/*
+  This flag gets set if a stored function contains dynamic SQL.
+  In this case we switch to per-statement binary logging rather
+  than `SELECT f1()` style binary logging.
+*/
+#define OPTION_BIN_LOG_IN_FUNC          (1ULL << 34)
+
 /**
   Indicates that this is a HIGH_PRIORITY SELECT.
   Currently used only for printing of such selects.

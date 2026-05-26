@@ -2685,7 +2685,7 @@ int
 Locked_tables_list::unlock_locked_tables(THD *thd)
 {
   int error;
-  DBUG_ASSERT(!thd->in_sub_stmt &&
+  DBUG_ASSERT(thd->in_sub_stmt_is_ok_for_sub_stmt() &&
               !(thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
   /*
     Sic: we must be careful to not close open tables if
@@ -3909,10 +3909,14 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
         lead to a deadlock. Not locking top-level CALLs does not break
         the binlog as only the statements in the called procedure show
         up there, not the CALL itself.
+        Also, we do not put MDL locks on the routine if the top level
+        LEX (thd->lex) has prepared statement inside substatement functions.
       */
       if (rt != prelocking_ctx->sroutines_list.first ||
-          mdl_type != MDL_key::PROCEDURE)
+          (mdl_type != MDL_key::PROCEDURE &&
+           !thd->lex->contains_dynamic_sql()))
       {
+        MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
         /*
           TODO: If this is a package routine, we should not put MDL
           TODO: on the routine itself. We should put only the package MDL.
@@ -3923,6 +3927,12 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
         /* Ensures the routine is up-to-date and cached, if exists. */
         if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
+        if (sp && mdl_type == MDL_key::FUNCTION && sp->contains_dynamic_sql())
+        {
+          thd->lex->set_contains_dynamic_sql(true);
+          thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+          DBUG_RETURN(FALSE);
+        }
 
         /* Remember the version of the routine in the parse tree. */
         if (check_and_update_routine_version(thd, rt, sp))
@@ -6045,6 +6055,20 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
   */
   if (! thd->locked_tables_mode)
   {
+    if (thd->in_sub_stmt == SUB_STMT_TRIGGER &&
+        thd->lex->contains_dynamic_sql())
+    {
+      /*
+        We're executing a trigger which calls a stored function
+        with prepared statements:
+          CREATE TRIGGER tr BEFORE INSERT ON t1
+            FOR EACH ROW SET NEW.b = sf_with_ps();
+        This combination is now allowed. Let's return with error from
+        here to avoid hitting the assert on thd->lock==0 below.
+      */
+      my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "Dynamic SQL");
+      DBUG_RETURN(TRUE);
+    }
     DBUG_ASSERT(thd->lock == 0);	// You must lock everything at once
     TABLE **start,**ptr;
     bool found_first_not_own= 0;

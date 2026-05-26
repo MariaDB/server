@@ -1,0 +1,149 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment
+--echo #
+
+# Call stack: PROCEDURE - PROCEDURE - FUNCTION
+
+--echo # p1, p2(default), f3(immediate)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f3_immediate() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p2_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f3_immediate();
+  SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  CALL p2_default;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+
+DROP FUNCTION f3_immediate;
+DROP PROCEDURE p2_default;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # p1, p2(default), f3a(immediate) + f3b(immediate)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f3a_immediate() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f3b_immediate() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p2_default()
+BEGIN
+  DECLARE nrows_a INT DEFAULT f3a_immediate();
+  DECLARE nrows_b INT DEFAULT f3b_immediate();
+  SELECT nrows_a, nrows_b;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  CALL p2_default;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+CALL p1;
+SELECT * FROM t1;
+DROP FUNCTION f3a_immediate;
+DROP FUNCTION f3b_immediate;
+DROP PROCEDURE p2_default;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # p1, p2(set), f3(immediate)
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f3_immediate() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p2_set()
+BEGIN
+  DECLARE a INT;
+  SET a=f3_immediate();
+  SELECT * FROM t1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  CALL p2_set();
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+CALL p1();
+DROP FUNCTION f3_immediate;
+DROP PROCEDURE p2_set;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # p1, p2(default), f3(direct_immediate+direct)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f1_direct_immediate_direct() RETURNS INT
+BEGIN
+  -- A mixture of direct and prepared execution
+  DECLARE nrows INT DEFAULT 0;
+  INSERT INTO t1 VALUES(10);
+  SET nrows= nrows + ROW_COUNT();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (20)';
+  SET nrows= nrows + ROW_COUNT();
+  INSERT INTO t1 VALUES(30);
+  SET nrows= nrows + ROW_COUNT();
+  RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p2_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f1_direct_immediate_direct();
+  SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  CALL p2_default;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+CALL p1;
+SELECT * FROM t1;
+DROP FUNCTION f1_direct_immediate_direct;
+DROP PROCEDURE p2_default;
+DROP PROCEDURE p1;
+DROP TABLE t1;

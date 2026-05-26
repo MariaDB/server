@@ -1,0 +1,114 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment
+--echo #
+
+--echo #
+--echo # Prepare a statement outside of the function, open a cursor inside
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+PREPARE stmt FROM 'SELECT MAX(a) FROM t1';
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE v0 INT;
+  OPEN c0 FOR PREPARE stmt;
+  FETCH c0 INTO v0;
+  CLOSE c0;
+  RETURN v0;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+
+# Assignment works
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT;
+  SET n= f1();
+  SELECT n;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+# DEFULT also works
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT DEFAULT f1();
+  SELECT n;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Prepare a statement inside the function, open a cursor
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE v0 INT;
+  PREPARE stmt FROM 'SELECT MAX(a) FROM t1';
+  OPEN c0 FOR PREPARE stmt;
+  FETCH c0 INTO v0;
+  CLOSE c0;
+  DEALLOCATE PREPARE stmt;
+  RETURN v0;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+
+# Assignment works
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT;
+  SET n= f1();
+  SELECT n;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+# DEFULT also works
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT DEFAULT f1();
+  SELECT n;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+DROP FUNCTION f1;
+DROP TABLE t1;

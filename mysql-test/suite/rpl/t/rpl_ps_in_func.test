@@ -1,0 +1,138 @@
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # p3(set) - f2(set,immediate) - f1(immediate)
+--echo #
+
+connection master;
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1_immediate() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 10;
+END;
+$$
+CREATE FUNCTION f2_set_immediate() RETURNS INT
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f1_immediate();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+  RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p3_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2_set_immediate();
+END;
+$$
+DELIMITER ;$$
+CALL p3_set;
+SELECT * FROM t1;
+
+sync_slave_with_master;
+
+SELECT * FROM t1;
+
+connection master;
+
+DROP PROCEDURE p3_set;
+DROP FUNCTION f2_set_immediate;
+DROP FUNCTION f1_immediate;
+DROP TABLE t1;
+
+sync_slave_with_master;
+
+--echo #
+--echo # Package
+--echo #
+
+connection master;
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PACKAGE pkg1
+  PROCEDURE parse(query TEXT);
+  FUNCTION exec() RETURNS INT;
+  PROCEDURE close();
+END;
+$$
+CREATE PACKAGE BODY pkg1
+  PROCEDURE parse(query TEXT)
+  BEGIN
+    PREPARE stmt FROM query;
+  END;
+  FUNCTION exec() RETURNS INT
+  BEGIN
+    EXECUTE stmt;
+    RETURN ROW_COUNT();
+  END;
+  PROCEDURE close()
+  BEGIN
+    DEALLOCATE PREPARE stmt;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pkg1.parse('INSERT INTO t1 VALUES (10)');
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE nrows INT;
+  SET nrows= pkg1.exec();
+  SELECT nrows;
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.close();
+SELECT * FROM t1;
+
+sync_slave_with_master;
+
+SELECT * FROM t1;
+
+connection master;
+
+DROP PACKAGE pkg1;
+SELECT * FROM t1;
+DROP TABLE t1;
+sync_slave_with_master;
+
+
+--echo #
+--echo # MDEV-40227 Replication breaks when a function performs multiple INSERT statements with binlog_format=MIXED or STATEMENT
+--echo #
+
+--connection master
+
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, v INT);
+DELIMITER $$;
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1(v) VALUES (100)';
+  EXECUTE IMMEDIATE 'INSERT INTO t1(v) VALUES (200)';
+  RETURN 0;
+END$$
+CREATE PROCEDURE p() BEGIN DECLARE n INT DEFAULT f(); END$$
+DELIMITER ;$$
+CALL p();
+SELECT id, v FROM t1 ORDER BY id;
+--sync_slave_with_master
+--connection slave
+SELECT id, v FROM t1 ORDER BY id;
+--connection master
+DROP PROCEDURE p;
+DROP FUNCTION f;
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+--source include/rpl_end.inc

@@ -1,0 +1,110 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# A stored function with PS used from a trigger
+# Not allowed even in a safe context (e.g. assignment in right hand)
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=11';
+RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE nrows INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+CALL p1;
+END;
+$$
+INSERT INTO t1 VALUES (12);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-40224 SIGSEGV in THD::is_error | Item::save_in_field | Item_trigger_field::set_value
+#
+CREATE TABLE t1(a INT, b INT);
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET NEW.b = f();
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TABLE t1;
+DROP FUNCTION f;
+CREATE TABLE t1(a INT, b INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE rc INT;
+SET rc= f1();
+RETURN rc;
+END;
+$$
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET NEW.b = f2()
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-40285 Assertion DBUG_ASSERT(thd->lock == 0) failed in lock_tables()
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+UPDATE t1 SET b=f();
+END;
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f;
+DROP TABLE t1;
+CREATE TABLE t1(a INT, b INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1';
+RETURN 5;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE res INT default f1();
+RETURN res;
+END;
+$$
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+UPDATE t1 SET b=f2();
+END;
+$$
+INSERT INTO t1(a) VALUES (1);
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;

@@ -1,0 +1,87 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment
+--echo #
+
+--echo # p1, p2, p3, f1(immediate)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE PROCEDURE p3()
+BEGIN
+  DECLARE nrows INT DEFAULT f1();
+  SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  CALL p3;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  CALL p2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+
+DROP PROCEDURE p3;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # p1, p2, p3, f1(immediate+direct)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  -- A mixture of direct and prepared execution
+  DECLARE nrows INT DEFAULT 0;
+  INSERT INTO t1 VALUES(10);
+  SET nrows= nrows + ROW_COUNT();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (20)';
+  SET nrows= nrows + ROW_COUNT();
+  INSERT INTO t1 VALUES(30);
+  SET nrows= nrows + ROW_COUNT();
+  RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p3()
+BEGIN
+  DECLARE nrows INT DEFAULT f1();
+  SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  CALL p3;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  CALL p2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+
+DROP PROCEDURE p3;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;

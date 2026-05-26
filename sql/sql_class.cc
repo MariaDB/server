@@ -2520,13 +2520,17 @@ void THD::cleanup_after_query()
     Reset RAND_USED so that detection of calls to rand() will save random
     seeds if needed by the slave.
 
-    Do not reset RAND_USED if inside a stored function or trigger because
+    A function call with prepared statements in an assignment right hand
+    is logged per-statememt, thus it needs the reset.
+
+    Otherwise,
+    do not reset RAND_USED if inside a stored function or trigger because
     only the call to these operations is logged. Thus only the calling 
     statement needs to detect rand() calls made by its substatements. These
     substatements must not set RAND_USED to 0 because it would remove the
     detection of rand() by the calling statement. 
   */
-  if (!in_sub_stmt) /* stored functions and triggers are a special case */
+  if (in_sub_stmt_is_ok_for_sub_stmt())
   {
     /* Forget those values, for next binlogger: */
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
@@ -6289,7 +6293,20 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   if ((!lex->requires_prelocking() || is_update_query(lex->sql_command)) &&
       !is_current_stmt_binlog_format_row())
   {
-    variables.option_bits&= ~OPTION_BIN_LOG;
+    if ((lex->contains_dynamic_sql() && (new_state & SUB_STMT_FUNCTION)) ||
+        (variables.option_bits & OPTION_BIN_LOG_IN_FUNC))
+    {
+      /*
+        - The current function contains dynamic SQL, or
+        - The current function is called from another function
+          with dynamic SQL
+        Do not unset the OPTION_BIN_LOG flag - let's do per-statement
+        logging rather than `SELECT f1()` style logging.
+      */
+      variables.option_bits|= OPTION_BIN_LOG_IN_FUNC;
+    }
+    else
+      variables.option_bits&= ~OPTION_BIN_LOG;
   }
 
   if ((backup->option_bits & OPTION_BIN_LOG) &&
@@ -6299,7 +6316,7 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
 
   /* Disable result sets */
   client_capabilities &= ~CLIENT_MULTI_RESULTS;
-  in_sub_stmt|= new_state;
+  in_sub_stmt= (in_sub_stmt & ~SUB_STMT_PS_SAFE_CONTEXT) | new_state;
   cuted_fields= 0;
   transaction->savepoints= 0;
   first_successful_insert_id_in_cur_stmt= 0;

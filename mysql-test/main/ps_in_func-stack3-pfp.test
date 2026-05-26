@@ -1,0 +1,194 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo # Testing various stack combinations
+
+--echo # p1, f2, p3_direct_immediate
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PROCEDURE p3_direct_immediate()
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (9)';
+  INSERT INTO t1 VALUES (10);
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3_direct_immediate();
+  RETURN 0;
+END;
+$$
+# Top-level procedures
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2();
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  SELECT f2();
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f2();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP PROCEDURE p1_select;
+DROP FUNCTION f2;
+DROP PROCEDURE p3_direct_immediate;
+DROP TABLE t1;
+
+
+--echo # p1, f2, p3_immediate_direct
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PROCEDURE p3_direct_immediate()
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3_direct_immediate();
+  RETURN 0;
+END;
+$$
+# Top-level procedures
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2();
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  SELECT f2();
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f2();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP PROCEDURE p1_select;
+DROP FUNCTION f2;
+DROP PROCEDURE p3_direct_immediate;
+DROP TABLE t1;
+
+
+--echo # p1, f2(direct+immediate+direct), p3(direct+immediate+direct)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PROCEDURE p3_direct_immediate_direct(OUT nrows INT)
+BEGIN
+  SET nrows= 0;
+  INSERT INTO t1 VALUES(11);
+  SET nrows= nrows + ROW_COUNT();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (21)';
+  SET nrows= nrows + ROW_COUNT();
+  INSERT INTO t1 VALUES(31);
+  SET nrows= nrows + ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2_direct_immediate_direct() RETURNS INT
+BEGIN
+  DECLARE nrows INT DEFAULT 0;
+  DECLARE nrows1 INT DEFAULT 0;
+  INSERT INTO t1 VALUES(10);
+  SET nrows= nrows + ROW_COUNT();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (20)';
+  SET nrows= nrows + ROW_COUNT();
+  INSERT INTO t1 VALUES(30);
+  SET nrows= nrows + ROW_COUNT();
+  CALL p3_direct_immediate_direct(nrows1);
+  RETURN nrows+nrows1;
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  SELECT f2_direct_immediate_direct();
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f2_direct_immediate_direct();
+  SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2_direct_immediate_direct();
+  SELECT nrows;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+DROP PROCEDURE p3_direct_immediate_direct;
+DROP FUNCTION f2_direct_immediate_direct;
+DROP PROCEDURE p1_select;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP TABLE t1;

@@ -1,0 +1,171 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# A function with PREPARE/EXECUTE/DEALLOCATE can be used with restrictions
+# OK when the function is used in an assignment right hand
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CALL p1;
+EXECUTE stmt;
+SELECT * FROM t1;
+a
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+TRUNCATE TABLE t1;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE stmt;
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+a
+10
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DEALLOCATE PREPARE stmt;
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+DEALLOCATE PREPARE stmt;
+ERROR HY000: Unknown prepared statement handler (stmt) given to DEALLOCATE PREPARE
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT f1();
+END;
+$$
+CALL p1;
+CALL p1;
+SELECT * FROM t1;
+a
+10
+10
+10
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# DML statements
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1(query TEXT) RETURNS INT
+BEGIN
+DECLARE nrows INT;
+PREPARE stmt FROM query;
+EXECUTE stmt;
+SET nrows= ROW_COUNT();
+DEALLOCATE PREPARE stmt;
+RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+DECLARE nrows INT;
+SET nrows= f1(query);
+SELECT nrows;
+SELECT * FROM t1;
+END;
+$$
+CALL p1('INSERT INTO t1 VALUES (10),(20),(30)');
+nrows
+3
+a
+10
+20
+30
+CALL p1('UPDATE t1 SET a=a+1');
+nrows
+3
+a
+11
+21
+31
+CALL p1('DELETE FROM t1 WHERE a>20');
+nrows
+2
+a
+11
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# A stored function with PS used from a view
+# Not allowed
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=11';
+UPDATE t1 SET a=11;
+RETURN ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE nrows INT;
+SET nrows= f1();
+RETURN nrows;
+END;
+$$
+CREATE VIEW v1 AS SELECT f1() AS c1;
+SELECT * FROM v1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE VIEW v2 AS SELECT f2() AS c1;
+SELECT * FROM v2;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP VIEW v1;
+DROP VIEW v2;
+SELECT * FROM t1;
+a
+10
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;

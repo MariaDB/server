@@ -1,0 +1,93 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment
+#
+# p1 - f1(direct+immediate)
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE FUNCTION f1_direct_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (9);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f1_direct_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+DECLARE a INT;
+SET a= f1_direct_immediate();
+END;
+$$
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+9
+10
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+a
+9
+10
+CALL p1_set;
+SELECT * FROM t1;
+a
+9
+10
+9
+10
+DROP FUNCTION f1_direct_immediate;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP TABLE t1;
+# Check that functions with PS do not commit
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE FUNCTION f2_direct_immediate() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (9);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+DECLARE a INT DEFAULT f2_direct_immediate();
+END;
+$$
+START TRANSACTION;
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+ROLLBACK/*This should roll back all f1 changes*/;
+SELECT * FROM t1;
+a
+CALL p1_default;
+SELECT * FROM t1;
+a
+9
+10
+DROP PROCEDURE p1_default;
+DROP FUNCTION f2_direct_immediate;
+DROP TABLE t1;

@@ -3076,8 +3076,20 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
     Disable the binlogging if this is not a SELECT statement. If this is a
     SELECT, leave binlogging on, so execute_function() code writes the
     function call into binlog.
+
+    If the stored function is in a safe PS context, such as in the right
+    hand of an assignment:
+      SET spvar= f1();
+    then pass SUB_STMT_PS_SAFE_CONTEXT into reset_sub_statement_state(),
+    to allow execution of prepared statements inside the function.
   */
-  thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION);
+  Item *item= dynamic_cast<Item*>(this);
+  uint sub_stmt_safe_context=
+      thd->in_sub_stmt_is_ok_for_sub_stmt() &&
+      (bool) (item->base_flags & item_base_t::IS_IN_PS_SAFE_CONTEXT) ?
+      SUB_STMT_PS_SAFE_CONTEXT : 0;
+  thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION |
+                                                   sub_stmt_safe_context);
 
   /*
      If this function is an aggregate function, we want to initialise the
@@ -7345,8 +7357,16 @@ int Item::save_bool_in_field(Field *field, bool no_conversions)
 
 int Item::save_in_field(Field *field, bool no_conversions)
 {
+  /*
+    type_handler()->Item_save_in_field() can call close_thread_tables()
+    if the evaluation of "this" failed because of a stored function with PS
+    used in a non-save context. So cash thd becofe the call:
+    using field->table after type_handler()->Item_save_in_field() is not
+    correct.
+  */
+  THD *thd= field->table->in_use;
   int error= type_handler()->Item_save_in_field(this, field, no_conversions);
-  return error ? error : (field->table->in_use->is_error() ? 1 : 0);
+  return error ? error : (thd->is_error() ? 1 : 0);
 }
 
 
@@ -10763,10 +10783,21 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   field->table->copy_blobs= true;
 
+  DBUG_ASSERT(thd->open_tables != nullptr);
   int err_code= item->save_in_field(field, 0);
 
-  field->table->copy_blobs= copy_blobs_saved;
-  field->set_has_explicit_value();
+  /*
+    Tables can be closed already if we're using stored functions with PS
+    and the PS command failed. Note, PS is not allowed in triggers,
+    so save_in_field() above will always fail if some stored function with PS
+    was called during the NEW/OLD evaluation.
+  */
+  if (thd->open_tables != nullptr)
+  {
+    // Tables have not been closed yet. So using field and field->table is OK.
+    field->table->copy_blobs= copy_blobs_saved;
+    field->set_has_explicit_value();
+  }
 
   return err_code < 0;
 }

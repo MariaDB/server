@@ -5940,7 +5940,7 @@ finish:
       !thd->lex->requires_prelocking())
     thd->locked_tables_list.reopen_tables(thd, true);
 
-  if (! thd->in_sub_stmt)
+  if (thd->in_sub_stmt_is_ok_for_sub_stmt())
   {
     if (thd->killed != NOT_KILLED)
     {

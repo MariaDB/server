@@ -4337,10 +4337,11 @@ SET @@max_sort_length=DEFAULT;
 
 
 --echo #
---echo # Similar to prepared EXECUTE, IMMEDIATE is not allowed in stored functions
+--echo # A function with EXECUTE IMMEDIATE can be used with restictions:
+--echo # Usually it's not allowed (e.g. in SELECT list)
+--echo # But it's allowed as an assignment right hand
 --echo #
 DELIMITER $$;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
   EXECUTE IMMEDIATE 'DO 1';
@@ -4348,6 +4349,19 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a INT;
+  SET a=f1();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 
 
 --echo #

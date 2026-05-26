@@ -2425,6 +2425,7 @@ public:
 #define SUB_STMT_FUNCTION 2
 #define SUB_STMT_STAT_TABLES 4
 #define SUB_STMT_BEFORE_TRIGGER 8
+#define SUB_STMT_PS_SAFE_CONTEXT 16 // e.g. func used in assignmend right hand
 
 class Sub_statement_state
 {
@@ -3622,6 +3623,59 @@ public:
 
   /* <> 0 if we are inside of trigger or stored function. */
   uint in_sub_stmt;
+
+  /*
+    Check if THD::in_sub_stmt allows to go into a substatement,
+    such as a stored function call:
+
+    - Case 1a: in_sub_stmt==0
+      The current evaluation is at the top level.
+      Ok to go into a substatement.
+
+    - Case 1b: in_sub_stmt==0
+      The current evaluation is inside a stored procedure
+      and there are no stored functions or triggers in the call stack.
+      I.e. the call stack consists only of stored procedure calls.
+      OK to into into a substatement.
+
+    - Case 2: in_sub_stmt==(SUB_STMT_FUNCTION | SUB_STMT_PS_SAFE_CONTEXT)
+      The current evaluation is inside a stored function f1() and the function
+      f1() is used in a safe context (e.g. in an assignment right hand).
+      The function f1() can call another stored function f2() in a safe
+      context.
+      OK to go into a substatement.
+
+      Example:
+        CREATE FUNCTION f2() RETURNS INT
+        BEGIN
+          EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+          RETURN ROW_COUNT();
+        END;
+        //
+        CREATE FUNCTION f1() RETURNS INT
+        BEGIN
+          DECLARE nrows INT DEFAULT f2(); -- Assignment right hand: safe context
+          RETURN nrows;
+        END;
+        //
+        CREATE PROCEDURE p1()
+        BEGIN
+          DECLARE nrows INT DEFAULT f1(); -- Assignment right hand: safe context
+        END;
+        //
+        CALL p1//
+      In the above example the procedure p1() calls the function f1()
+      in the safe way. So f1() can also call f2() in the safe way.
+
+    - Case 3: in_sub_stmt is something else
+      Not OK to go into a substatement.
+  */
+  bool in_sub_stmt_is_ok_for_sub_stmt() const
+  {
+    return !in_sub_stmt ||
+           (in_sub_stmt == (SUB_STMT_FUNCTION | SUB_STMT_PS_SAFE_CONTEXT));
+  }
+
   /* True when opt_userstat_running is set at start of query */
   bool userstat_running;
   /*
@@ -5438,7 +5492,8 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
+    if ((wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_MIXED) &&
+        in_sub_stmt_is_ok_for_sub_stmt())
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;

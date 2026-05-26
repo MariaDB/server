@@ -1,0 +1,99 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment
+#
+#
+# Prepare a statement outside of the function, open a cursor inside
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+PREPARE stmt FROM 'SELECT MAX(a) FROM t1';
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v0 INT;
+OPEN c0 FOR PREPARE stmt;
+FETCH c0 INTO v0;
+CLOSE c0;
+RETURN v0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE n INT;
+SET n= f1();
+SELECT n;
+END;
+$$
+CALL p1;
+n
+10
+CALL p1;
+n
+10
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE n INT DEFAULT f1();
+SELECT n;
+END;
+$$
+CALL p1;
+n
+10
+CALL p1;
+n
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
+# Prepare a statement inside the function, open a cursor
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v0 INT;
+PREPARE stmt FROM 'SELECT MAX(a) FROM t1';
+OPEN c0 FOR PREPARE stmt;
+FETCH c0 INTO v0;
+CLOSE c0;
+DEALLOCATE PREPARE stmt;
+RETURN v0;
+END;
+$$
+SELECT f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE n INT;
+SET n= f1();
+SELECT n;
+END;
+$$
+CALL p1;
+n
+10
+CALL p1;
+n
+10
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE n INT DEFAULT f1();
+SELECT n;
+END;
+$$
+CALL p1;
+n
+10
+CALL p1;
+n
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;

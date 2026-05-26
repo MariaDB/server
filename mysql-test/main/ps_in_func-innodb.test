@@ -1,0 +1,73 @@
+source include/have_innodb.inc;
+
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment
+--echo #
+
+--echo # p1 - f1(direct+immediate)
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+DELIMITER $$;
+CREATE FUNCTION f1_direct_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE a INT DEFAULT f1_direct_immediate();
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE a INT;
+  SET a= f1_direct_immediate();
+END;
+$$
+DELIMITER ;$$
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+DROP FUNCTION f1_direct_immediate;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP TABLE t1;
+
+
+--echo # Check that functions with PS do not commit
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+DELIMITER $$;
+CREATE FUNCTION f2_direct_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE a INT DEFAULT f2_direct_immediate();
+END;
+$$
+DELIMITER ;$$
+START TRANSACTION;
+CALL p1_default;
+SELECT * FROM t1;
+ROLLBACK/*This should roll back all f1 changes*/;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP FUNCTION f2_direct_immediate;
+DROP TABLE t1;

@@ -1,0 +1,7 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+SET default_storage_engine=InnoDB;
+--source include/binlog_ps_in_func.inc
+SET default_storage_engine=DEFAULT;

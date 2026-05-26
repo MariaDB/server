@@ -1,0 +1,494 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment
+#
+# P(none,default/set)-F(none,set)-F(immediate)
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f_immediate() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2_set() RETURNS INT
+BEGIN
+DECLARE nrows INT;
+SET nrows= f_immediate();
+RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p3_default()
+BEGIN
+DECLARE nrows INT DEFAULT f2_set();
+END;
+$$
+CREATE PROCEDURE p3_set()
+BEGIN
+DECLARE nrows INT;
+SET nrows= f2_set();
+SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p3_select()
+BEGIN
+SELECT f2_set();
+END;
+$$
+CALL p3_select();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CALL p3_default;
+CALL p3_default;
+SELECT * FROM t1;
+a
+10
+10
+TRUNCATE TABLE t1;
+CALL p3_set;
+nrows
+1
+CALL p3_set;
+nrows
+1
+SELECT * FROM t1;
+a
+10
+10
+DROP PROCEDURE p3_select;
+DROP PROCEDURE p3_default;
+DROP PROCEDURE p3_set;
+DROP FUNCTION f2_set;
+DROP FUNCTION f_immediate;
+DROP TABLE t1;
+# P(none,default/set)-F(none,default)-F(immediate)
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f_immediate() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2_default() RETURNS INT
+BEGIN
+DECLARE nrows INT DEFAULT f_immediate();
+RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p3_default()
+BEGIN
+DECLARE nrows INT DEFAULT f2_default();
+END;
+$$
+CREATE PROCEDURE p3_set()
+BEGIN
+DECLARE nrows INT;
+SET nrows= f2_default();
+SELECT nrows;
+END;
+$$
+CALL p3_default;
+CALL p3_default;
+SELECT * FROM t1;
+a
+10
+10
+TRUNCATE TABLE t1;
+CALL p3_set;
+nrows
+1
+CALL p3_set;
+nrows
+1
+SELECT * FROM t1;
+a
+10
+10
+DROP PROCEDURE p3_default;
+DROP PROCEDURE p3_set;
+DROP FUNCTION f2_default;
+DROP FUNCTION f_immediate;
+DROP TABLE t1;
+# P(none,default/set)-F(none,default)-F(direct+immediate)
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1_direct_immediate() RETURNS INT
+BEGIN
+DECLARE nrows INT;
+INSERT INTO t1 VALUES (9);
+SET nrows= ROW_COUNT();
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN nrows + ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2_default() RETURNS INT
+BEGIN
+DECLARE nrows INT DEFAULT f1_direct_immediate();
+RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p3_select()
+BEGIN
+SELECT f2_default();
+END;
+$$
+CREATE PROCEDURE p3_default()
+BEGIN
+DECLARE nrows INT DEFAULT f2_default();
+SELECT * FROM t1;
+END;
+$$
+CREATE PROCEDURE p3_set()
+BEGIN
+DECLARE nrows INT;
+SET nrows= f2_default();
+SELECT nrows;
+SELECT * FROM t1;
+END;
+$$
+CALL p3_select();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CALL p3_default();
+a
+9
+9
+10
+CALL p3_default();
+a
+9
+9
+10
+9
+10
+TRUNCATE TABLE t1;
+CALL p3_set();
+nrows
+2
+a
+9
+10
+CALL p3_set();
+nrows
+2
+a
+9
+10
+9
+10
+SELECT * FROM t1;
+a
+9
+10
+9
+10
+DROP FUNCTION f1_direct_immediate;
+DROP FUNCTION f2_default;
+DROP PROCEDURE p3_select;
+DROP PROCEDURE p3_default;
+DROP PROCEDURE p3_set;
+DROP TABLE t1;
+# P(direct+immediate,default/set)-F(direct+immediate,set)-F(direct+immediate)
+CREATE TABLE t1 (id SERIAL, a TEXT);
+CREATE FUNCTION f1_direct_immediate() RETURNS INT
+BEGIN
+DECLARE nrows INT;
+INSERT INTO t1 (a) VALUES ('f1_direct_immediate: direct');
+SET nrows= ROW_COUNT();
+EXECUTE IMMEDIATE 'INSERT INTO t1 (a) VALUES (?)' USING 'f1_direct_immediate: immediate';
+RETURN nrows + ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2_set() RETURNS INT
+BEGIN
+DECLARE nrows1, nrows2, nrows3 INT;
+INSERT INTO t1 (a) VALUES ('f2_set: direct before f1_direct_immediate');
+SET nrows1= ROW_COUNT();
+SET nrows2= f1_direct_immediate();
+EXECUTE IMMEDIATE 'INSERT INTO t1 (a) VALUES (?)'
+    USING 'f2_set: immediate after f1_direct_immediate';
+SET nrows3= ROW_COUNT();
+RETURN nrows1 + nrows2 + nrows2;
+END;
+$$
+CREATE PROCEDURE p3_default()
+BEGIN
+DECLARE nrows1 INT DEFAULT f2_set();
+DECLARE nrows2, nrows3 INT;
+INSERT INTO t1 (a) VALUES('p3_default: direct after default f2_set');
+SET nrows2= ROW_COUNT();
+EXECUTE IMMEDIATE 'INSERT INTO t1 (a) VALUES (?)'
+    USING 'p3_default: immediate after default p2_set';
+SET nrows3= ROW_COUNT();
+SELECT nrows1, nrows2, nrows3;
+SELECT * FROM t1;
+END;
+$$
+CREATE PROCEDURE p3_set()
+BEGIN
+DECLARE nrows1, nrows2, nrows3 INT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (a) VALUES (?)'
+    USING 'p3_set: immediate before f2_set';
+SET nrows1= ROW_COUNT();
+SET nrows2= f2_set();
+INSERT INTO t1 (a) VALUES('p3_set: direct after p2_set');
+SET nrows3= ROW_COUNT();
+SELECT nrows1, nrows2, nrows3;
+SELECT * FROM t1;
+END;
+$$
+CALL p3_default();
+nrows1	nrows2	nrows3
+5	1	1
+id	a
+1	f2_set: direct before f1_direct_immediate
+2	f1_direct_immediate: direct
+3	f1_direct_immediate: immediate
+4	f2_set: immediate after f1_direct_immediate
+5	p3_default: direct after default f2_set
+6	p3_default: immediate after default p2_set
+CALL p3_default();
+nrows1	nrows2	nrows3
+5	1	1
+id	a
+1	f2_set: direct before f1_direct_immediate
+2	f1_direct_immediate: direct
+3	f1_direct_immediate: immediate
+4	f2_set: immediate after f1_direct_immediate
+5	p3_default: direct after default f2_set
+6	p3_default: immediate after default p2_set
+7	f2_set: direct before f1_direct_immediate
+8	f1_direct_immediate: direct
+9	f1_direct_immediate: immediate
+10	f2_set: immediate after f1_direct_immediate
+11	p3_default: direct after default f2_set
+12	p3_default: immediate after default p2_set
+TRUNCATE TABLE t1;
+CALL p3_set();
+nrows1	nrows2	nrows3
+1	5	1
+id	a
+1	p3_set: immediate before f2_set
+2	f2_set: direct before f1_direct_immediate
+3	f1_direct_immediate: direct
+4	f1_direct_immediate: immediate
+5	f2_set: immediate after f1_direct_immediate
+6	p3_set: direct after p2_set
+CALL p3_set();
+nrows1	nrows2	nrows3
+1	5	1
+id	a
+1	p3_set: immediate before f2_set
+2	f2_set: direct before f1_direct_immediate
+3	f1_direct_immediate: direct
+4	f1_direct_immediate: immediate
+5	f2_set: immediate after f1_direct_immediate
+6	p3_set: direct after p2_set
+7	p3_set: immediate before f2_set
+8	f2_set: direct before f1_direct_immediate
+9	f1_direct_immediate: direct
+10	f1_direct_immediate: immediate
+11	f2_set: immediate after f1_direct_immediate
+12	p3_set: direct after p2_set
+DROP FUNCTION f1_direct_immediate;
+DROP FUNCTION f2_set;
+DROP PROCEDURE p3_default;
+DROP PROCEDURE p3_set;
+DROP TABLE t1;
+# P(none,default/set)-F(none,default)-F(sys_refcursor)
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (9), (10);
+SET sql_mode=ORACLE;
+CREATE FUNCTION f1_sys_refcursor() RETURN INT AS
+c0 SYS_REFCURSOR;
+va INT;
+BEGIN
+PREPARE stmt FROM 'SELECT MAX(a) FROM t1';
+OPEN c0 FOR PREPARE stmt;
+FETCH c0 INTO va;
+CLOSE c0;
+RETURN va;
+END;
+$$
+CREATE FUNCTION f2_default() RETURN INT AS
+va INT := f1_sys_refcursor();
+BEGIN
+RETURN va;
+END;
+$$
+CREATE PROCEDURE p3_select() AS
+BEGIN
+SELECT f2_default();
+END;
+$$
+CREATE PROCEDURE p3_default() AS
+va INT DEFAULT f2_default();
+BEGIN
+SELECT va;
+END;
+$$
+CREATE PROCEDURE p3_set() AS
+va INT;
+BEGIN
+va:= f2_default();
+SELECT va;
+END;
+$$
+CALL p3_select();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CALL p3_default();
+va
+10
+CALL p3_default();
+va
+10
+CALL p3_set();
+va
+10
+CALL p3_set();
+va
+10
+DROP FUNCTION f1_sys_refcursor;
+DROP FUNCTION f2_default;
+DROP PROCEDURE p3_select;
+DROP PROCEDURE p3_default;
+DROP PROCEDURE p3_set;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+# P(none,default/set)-F(none,default)-F(direct+sys_refcursor)
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (9), (10);
+SET sql_mode=ORACLE;
+CREATE FUNCTION f1_sys_refcursor() RETURN INT AS
+c0 SYS_REFCURSOR;
+va INT;
+BEGIN
+va:= (SELECT MAX(a) FROM t1);
+INSERT INTO t1 VALUES (va+1);
+PREPARE stmt FROM 'SELECT MAX(a) FROM t1';
+OPEN c0 FOR PREPARE stmt;
+FETCH c0 INTO va;
+CLOSE c0;
+RETURN va;
+END;
+$$
+CREATE FUNCTION f2_default() RETURN INT AS
+va INT := f1_sys_refcursor();
+BEGIN
+RETURN va;
+END;
+$$
+CREATE PROCEDURE p3_select() AS
+BEGIN
+SELECT f2_default();
+END;
+$$
+CREATE PROCEDURE p3_default() AS
+va INT DEFAULT f2_default();
+BEGIN
+SELECT va;
+END;
+$$
+CREATE PROCEDURE p3_set() AS
+va INT;
+BEGIN
+va:= f2_default();
+SELECT va;
+END;
+$$
+CALL p3_select();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CALL p3_default();
+va
+12
+CALL p3_default();
+va
+13
+CALL p3_set();
+va
+14
+CALL p3_set();
+va
+15
+DROP FUNCTION f1_sys_refcursor;
+DROP FUNCTION f2_default;
+DROP PROCEDURE p3_select;
+DROP PROCEDURE p3_default;
+DROP PROCEDURE p3_set;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-40240 Dynamic SQL must be rejected with ERROR 1336 when using non-safe context
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f_leaf() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (777)';
+RETURN 1;
+END
+$$
+CREATE FUNCTION f_mid() RETURNS INT
+BEGIN
+DECLARE x INT;
+SET x = 100 + f_leaf();  -- Not safe call
+RETURN x;
+END
+$$
+CREATE PROCEDURE p()
+BEGIN
+DECLARE r INT DEFAULT f_mid();
+END
+$$
+CALL p();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1;
+a
+DROP PROCEDURE p;
+DROP FUNCTION f_mid;
+DROP FUNCTION f_leaf;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f_leaf() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (777)';
+RETURN 1;
+END
+$$
+CREATE FUNCTION f_mid() RETURNS INT
+BEGIN
+DECLARE x INT;
+INSERT INTO t1 VALUES (f_leaf()); -- Not safe call
+RETURN x;
+END;
+$$
+CREATE PROCEDURE p()
+BEGIN
+DECLARE r INT DEFAULT f_mid();
+END;
+$$
+CALL p();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP PROCEDURE p;
+DROP FUNCTION f_mid;
+DROP FUNCTION f_leaf;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f_leaf() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (777,777)'; -- Bad statement
+RETURN 1;
+END;
+$$
+CREATE FUNCTION f_mid() RETURNS INT
+BEGIN
+DECLARE x INT;
+INSERT INTO t1 VALUES (f_leaf());
+RETURN x;
+END;
+$$
+CREATE PROCEDURE p()
+BEGIN
+DECLARE r INT DEFAULT f_mid();
+END;
+$$
+CALL p();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP PROCEDURE p;
+DROP FUNCTION f_mid;
+DROP FUNCTION f_leaf;
+DROP TABLE t1;

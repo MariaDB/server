@@ -1,0 +1,63 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment
+--echo #
+
+--echo # p1, f2(immediate)
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f2_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE a INT DEFAULT f2_immediate();
+END;
+$$
+DELIMITER ;$$
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP FUNCTION f2_immediate;
+DROP TABLE t1;
+
+
+--echo # p1, f2a(immediate) + f2b(immediate)
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f2a_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (10);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+  RETURN 0;
+END;
+$$
+CREATE FUNCTION f2b_immediate() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (20);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (21)';
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE a INT DEFAULT f2a_immediate();
+  DECLARE b INT DEFAULT f2b_immediate();
+END;
+$$
+DELIMITER ;$$
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP FUNCTION f2a_immediate;
+DROP FUNCTION f2b_immediate;
+DROP TABLE t1;
