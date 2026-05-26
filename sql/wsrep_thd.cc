@@ -56,11 +56,37 @@ static void wsrep_replication_process(THD *thd,
   enum wsrep::provider::status
     ret= Wsrep_server_state::get_provider().run_applier(&applier_service);
 
-  WSREP_INFO("Applier thread exiting ret: %d thd: %llu", ret, thd->thread_id);
+  WSREP_INFO("Applier thread exiting ret: %d (%s) thd: %llu",
+             ret, wsrep::provider::to_string(ret).c_str(), thd->thread_id);
+
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   wsrep_close_applier(thd);
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+
+  /*
+    A clean applier exit returns success (operator shrink or shutdown).
+    Any other status means the apply state machine is broken; accepting
+    more write sets would silently lock the cluster, so disconnect the
+    node. Operator restarts to rejoin via IST/SST.
+  */
+  if (ret != wsrep::provider::success)
+  {
+    auto& state= Wsrep_server_state::instance();
+    const auto srv_state= state.state();
+    if (srv_state != Wsrep_server_state::s_disconnecting &&
+        srv_state != Wsrep_server_state::s_disconnected)
+    {
+      WSREP_ERROR("Applier thread %llu exited unexpectedly with status %d "
+                  "(%s). Remaining appliers: %lu/%ld. Disconnecting from "
+                  "cluster to avoid silently lagging the group. Restart node "
+                  "to rejoin via IST/SST.",
+                  thd->thread_id, ret,
+                  wsrep::provider::to_string(ret).c_str(),
+                  wsrep_running_applier_threads, wsrep_slave_threads);
+      state.disconnect();
+    }
+  }
 
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;

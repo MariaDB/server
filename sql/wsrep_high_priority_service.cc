@@ -378,7 +378,13 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
      assert(ws_meta == wsrep::ws_meta());
      assert(ws_handle == wsrep::ws_handle());
   }
-  int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  int rollback_ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  DBUG_EXECUTE_IF("simulate_rollback_failure_in_applier", rollback_ret= 1;);
+  if (rollback_ret)
+    WSREP_WARN("Wsrep_high_priority_service::rollback: trans_rollback "
+               "returned %d for thd %lu (killed=%d, seqno=%lld)",
+               rollback_ret, thd_get_thread_id(m_thd), m_thd->killed,
+               (long long) wsrep_thd_trx_seqno(m_thd));
 
   WSREP_DEBUG("::rollback() thread: %lu, client_state %s "
               "client_mode %s trans_state %s killed %d",
@@ -404,7 +410,13 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
 
-  DBUG_RETURN(ret);
+  /*
+    Always return 0 so the wsrep-lib caller does not short-circuit
+    log_dummy_write_set(), which hands the apply error to
+    commit_order_leave() and triggers the inconsistency vote. Otherwise a
+    non-fatal apply error silently locks the cluster.
+  */
+  DBUG_RETURN(0);
 }
 
 int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
