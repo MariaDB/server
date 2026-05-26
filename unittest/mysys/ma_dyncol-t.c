@@ -735,13 +735,40 @@ static void test_mdev_9773()
   mariadb_dyncol_free(&dynstr);
 }
 
+static void test_named_format_oob_nmpool()
+{
+  /*
+    Named-format record whose declared name pool does not fit into the
+    record.  The read path must reject it instead of letting the name
+    pointer run past the record buffer.
+  */
+  DYNAMIC_COLUMN str;
+  DYNAMIC_COLUMN_VALUE res;
+  int rc;
+  uchar buff[9]=
+  {
+    0x04,        /* flags: named format, offset size 2 */
+    0x01, 0x00,  /* column count = 1 */
+    0x01, 0x00,  /* name pool size = 1 (does not fit the record) */
+    0x00, 0x00,  /* entry: name offset = 0 */
+    0x00, 0x00   /* entry: combined data offset and type */
+  };
+  bzero(&str, sizeof(str));
+  str.str= (char*) buff;
+  str.length= sizeof(buff);
+
+  rc= mariadb_dyncol_get_num(&str, 1, &res);
+  ok(rc != ER_DYNCOL_OK || res.type == DYN_COL_NULL,
+     "%s", "named name pool past record end");
+}
+
 int main(int argc __attribute__((unused)), char **argv)
 {
   uint i;
   char *big_string= (char *)malloc(1024*1024);
 
   MY_INIT(argv[0]);
-  plan(68);
+  plan(69);
 
   if (!big_string)
     exit(1);
@@ -875,6 +902,7 @@ int main(int argc __attribute__((unused)), char **argv)
   test_mdev_4994();
   test_mdev_4995();
   test_mdev_9773();
+  test_named_format_oob_nmpool();
 
   my_end(0);
   return exit_status();

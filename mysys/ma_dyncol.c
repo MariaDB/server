@@ -2101,7 +2101,7 @@ find_column(DYN_HEADER *hdr, uint numkey, LEX_STRING *strkey)
   char nmkeybuff[DYNCOL_NUM_CHAR]; /* to fit max 2 bytes number */
   DBUG_ASSERT(hdr->header != NULL);
 
-  if (hdr->header + hdr->header_size > hdr->data_end)
+  if (hdr->header + hdr->header_size + hdr->nmpool_size > hdr->data_end)
     return TRUE;
 
   /* fix key */
