@@ -203,6 +203,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
 static COND *simplify_joins(JOIN *join, List<TABLE_LIST> *join_list,
                             COND *conds, bool in_sj);
 bool check_full_join_base_tables(List<TABLE_LIST> *join_list);
+static bool check_full_join_after_simplify(List<TABLE_LIST> *join_list);
 static bool check_interleaving_with_nj(JOIN_TAB *next);
 static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
@@ -2492,6 +2493,21 @@ JOIN::optimize_inner()
 
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, FALSE);
+
+    /*
+      simplify_joins may rewrite a FULL JOIN to a one-sided join or swap its
+      operands, so shapes that depend on the post-rewrite structure are
+      checked here, after the existing pre-rewrite check_full_join_base_tables
+      call.  check_full_join_after_simplify rejects a surviving FULL JOIN whose
+      right operand is still a nested join, which the swap could not reduce to
+      a base table.
+    */
+    if (check_full_join_after_simplify(join_list))
+    {
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      DBUG_RETURN(1);
+    }
 
     add_table_function_dependencies(join_list, table_map(-1), &error);
 
@@ -20616,6 +20632,56 @@ check_full_join_base_tables(List<TABLE_LIST> *join_list)
 
     if (table->nested_join &&
         check_full_join_base_tables(&table->nested_join->join_list))
+      return true;  // already set thd error state
+  }
+
+  return false;
+}
+
+
+/**
+  Re-check FULL JOIN shapes after simplify_joins has run.
+
+  check_full_join_base_tables runs before simplify_joins and rejects the
+  shapes that are apparent from the parse tree.  simplify_joins then rewrites
+  FULL JOINs to one-sided joins where the WHERE clause allows, and
+  swap_full_join_sides moves a base table onto the right side of a surviving
+  FULL JOIN when the parser placed a nested join there.  One disallowed shape
+  is only visible after that work:
+
+    A surviving FULL JOIN whose right operand is still a nested join.  The
+    null complement pass keys off a JOIN_TAB carrying JOIN_TYPE_FULL |
+    JOIN_TYPE_RIGHT; a nested join has no such JOIN_TAB, so the right
+    unmatched rows would be dropped.  The swap leaves a nested join on the
+    right when it cannot move a base table there, e.g., both operands are
+    nested joins, the right operand is an inner-join nest, or the right
+    operand's own FULL JOIN was rewritten away before the swap check ran.
+
+  Reject these with ER_FULL_JOIN_BASE_TABLES_ONLY rather than return wrong
+  results.
+
+  @return true if a disallowed shape was found, with the error already raised
+*/
+
+static bool
+check_full_join_after_simplify(List<TABLE_LIST> *join_list)
+{
+  TABLE_LIST *table;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  while ((table= li++))
+  {
+    if ((table->outer_join & JOIN_TYPE_FULL) &&
+        (table->outer_join & JOIN_TYPE_RIGHT) &&
+        table->nested_join)
+    {
+      my_error(ER_FULL_JOIN_BASE_TABLES_ONLY, MYF(0),
+               table->alias.str ? table->alias.str : "(nested join)");
+      return true;
+    }
+
+    if (table->nested_join &&
+        check_full_join_after_simplify(&table->nested_join->join_list))
       return true;  // already set thd error state
   }
 

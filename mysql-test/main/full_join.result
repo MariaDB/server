@@ -4700,6 +4700,11 @@ drop table t1, t2, t3;
 # joins (where the nest carries JOIN_TYPE_FULL but its leaves
 # do not).  These two issues led to an invalid FULL JOIN table
 # order.
+#
+# The shape places a nested join on the right side of a FULL JOIN,
+# which the post simplify_joins check now rejects, so the query no
+# longer reaches the table ordering code.  It is kept as a guard that
+# the shape stays rejected rather than silently dropping rows.
 create table t1 (pk int);
 create table t2 (pk int);
 create table t3 (pk int);
@@ -4713,7 +4718,7 @@ on (true)
 full join t5 as alias2 on (true)
 on (true)
 on t1.pk = alias2.pk;
-field1
+ERROR HY000: FULL JOIN is only supported with base tables on the right side; '(nest_last_join)' is not a base table
 drop table t1, t2, t3, t4, t5;
 # The FULL JOIN table can be a nest of inner joins, so in that
 # case the nest carries JOIN_TYPE_FULL but its leaves do not.
@@ -4729,6 +4734,10 @@ drop table t1, t2, t3;
 # dependency propagation during make_join_statistics.  Rather
 # than make changes there, just carry the ON expression on only
 # one of the FULL JOIN tables, like the other join types do.
+#
+# This shape also places a nested join on the right side of a FULL
+# JOIN and is now rejected after simplify_joins.  Kept as a guard
+# that the shape stays rejected.
 create table t1 (pk int);
 create table t2 (pk int);
 create table t3 (pk int);
@@ -4741,8 +4750,7 @@ full join t1 as alias5
 full join t4 on (true)
 on t3.pk = alias5.pk
 on t1.pk = alias5.pk;
-max(t3.pk)
-NULL
+ERROR HY000: FULL JOIN is only supported with base tables on the right side; '(nest_last_join)' is not a base table
 drop table t1, t2, t3, t4;
 # Inner FULL JOIN tables carrying a constant ON expression did not
 # inherit the dep_tables of their enclosing FULL JOIN nest because
