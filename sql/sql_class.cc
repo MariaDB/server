@@ -8565,11 +8565,11 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
     yet have the MDL_BACKUP_COMMIT_LOCK) and any threads using
     BACKUP LOCK BLOCK_COMMIT.
   */
-  if (thd->backup_commit_lock && thd->backup_commit_lock->ticket)
+  if (thd->backup_commit_lock)
   {
     backup_lock_released= true;
-    thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-    thd->backup_commit_lock->ticket= 0;
+    thd->mdl_context.release_lock(thd->backup_commit_lock);
+    thd->backup_commit_lock= 0;
   }
 
   mysql_mutex_lock(&LOCK_wait_commit);
@@ -8625,15 +8625,17 @@ wait_for_commit::wait_for_prior_commit2(THD *thd, bool allow_kill)
   */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
   if (unlikely(backup_lock_released))
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
+    thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+        MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+        MDL_EXPLICIT, thd->variables.lock_wait_timeout);
   return wakeup_error;
 
 end:
   thd->EXIT_COND(&old_stage);
   if (unlikely(backup_lock_released))
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
+    thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+        MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+        MDL_EXPLICIT, thd->variables.lock_wait_timeout);
   return wakeup_error;
 }
 

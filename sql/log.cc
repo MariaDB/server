@@ -8811,19 +8811,15 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       }
       else
       {
-        MDL_request mdl_request;
-
-        MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_EXPLICIT);
-        if (thd->mdl_context.acquire_lock(&mdl_request,
-                                          thd->variables.lock_wait_timeout))
+        if (!(thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+                MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
           DBUG_RETURN(1);
-        thd->backup_commit_lock= &mdl_request;
 
         if ((res= thd->wait_for_prior_commit()))
         {
-          if (mdl_request.ticket)
-            thd->mdl_context.release_lock(mdl_request.ticket);
+          if (thd->backup_commit_lock)
+            thd->mdl_context.release_lock(thd->backup_commit_lock);
           thd->backup_commit_lock= 0;
           DBUG_RETURN(res);
         }
@@ -8833,8 +8829,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
         prev_binlog_id= current_binlog_id;
         res= write_gtid_event(thd, nullptr, true, using_trans, commit_id,
                               false, false, false);
-        if (mdl_request.ticket)
-          thd->mdl_context.release_lock(mdl_request.ticket);
+        if (thd->backup_commit_lock)
+          thd->mdl_context.release_lock(thd->backup_commit_lock);
         thd->backup_commit_lock= 0;
         if (res)
           goto err;
@@ -8944,7 +8940,6 @@ err:
           &cache_data->engine_binlog_info;
         engine_context->gtid_offset= my_b_tell(file);
         my_off_t binlog_total_bytes;
-        MDL_request mdl_request;
         int res;
 
         if (engine_context->out_of_band_offset)
@@ -8957,17 +8952,15 @@ err:
             goto engine_fail;
         }
 
-        MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_EXPLICIT);
-        if (thd->mdl_context.acquire_lock(&mdl_request,
-                                          thd->variables.lock_wait_timeout))
+        if (!(thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+                MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
           goto engine_fail;
-        thd->backup_commit_lock= &mdl_request;
 
         if (thd->wait_for_prior_commit())
         {
-          if (mdl_request.ticket)
-            thd->mdl_context.release_lock(mdl_request.ticket);
+          if (thd->backup_commit_lock)
+            thd->mdl_context.release_lock(thd->backup_commit_lock);
           thd->backup_commit_lock= 0;
           goto engine_fail;
         }
@@ -8985,8 +8978,8 @@ err:
         mysql_mutex_lock(&LOCK_log);
         res= write_gtid_event(thd, cache_data, true, using_trans, commit_id,
                               false, false, false);
-        if (mdl_request.ticket)
-          thd->mdl_context.release_lock(mdl_request.ticket);
+        if (thd->backup_commit_lock)
+          thd->mdl_context.release_lock(thd->backup_commit_lock);
         thd->backup_commit_lock= 0;
         if (res)
         {
@@ -10258,12 +10251,11 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           yet have the MDL_BACKUP_COMMIT_LOCK) and any threads using
           BACKUP LOCK BLOCK_COMMIT.
         */
-      if (thd->backup_commit_lock && thd->backup_commit_lock->ticket &&
-          !backup_lock_released)
+      if (thd->backup_commit_lock)
       {
         backup_lock_released= 1;
-        thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-        thd->backup_commit_lock->ticket= 0;
+        thd->mdl_context.release_lock(thd->backup_commit_lock);
+        thd->backup_commit_lock= 0;
       }
 
       /*
@@ -10527,8 +10519,9 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
 end:
   if (backup_lock_released)
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
+    thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+        MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+        MDL_EXPLICIT, thd->variables.lock_wait_timeout);
   DBUG_RETURN(result);
 }
 

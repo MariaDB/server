@@ -3369,7 +3369,7 @@ public:
   /* Used for BACKUP LOCK */
   MDL_ticket *mdl_backup_ticket, *mdl_backup_lock;
   /* Used to register that thread has a MDL_BACKUP_WAIT_COMMIT lock */
-  MDL_request *backup_commit_lock;
+  MDL_ticket *backup_commit_lock;
 
   void reset_for_next_command(bool do_clear_errors= 1);
 

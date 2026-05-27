@@ -4490,12 +4490,10 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     /* Scoped locks: Take intention exclusive locks on all involved schemas. */
     if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
     {
-      MDL_request *schema_request= new (thd->mem_root) MDL_request;
-      if (schema_request == NULL)
+      if (MDL_REQUEST_LIST_ADD(&mdl_requests, thd->mem_root,
+                               MDL_key::SCHEMA, table->db.str, "",
+                               MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION))
         DBUG_RETURN(TRUE);
-      MDL_REQUEST_INIT(schema_request, MDL_key::SCHEMA, table->db.str, "",
-                       MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
-      mdl_requests.push_front(schema_request);
     }
 
     mdl_requests.push_front(&table->mdl_request);

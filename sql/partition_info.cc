@@ -926,12 +926,11 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
     create_info.alter_info= &alter_info;
     Alter_table_ctx alter_ctx(thd, tl, 1, &table->s->db, &table->s->table_name);
 
-    MDL_REQUEST_INIT(&tl->mdl_request, MDL_key::TABLE, tl->db.str,
-                    tl->table_name.str, MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
-    if (thd->mdl_context.acquire_lock(&tl->mdl_request,
-                                      thd->variables.lock_wait_timeout))
+    if (!(table->mdl_ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+            MDL_key::TABLE, tl->db.str, tl->table_name.str,
+            MDL_SHARED_NO_WRITE, MDL_TRANSACTION,
+            thd->variables.lock_wait_timeout)))
       goto exit;
-    table->mdl_ticket= tl->mdl_request.ticket;
 
     create_info.db_type= table->s->db_type();
     create_info.options|= HA_VERSIONED_TABLE;

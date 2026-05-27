@@ -1852,7 +1852,7 @@ int ha_commit_trans(THD *thd, bool all)
                                                         &no_rollback);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
-  MDL_request mdl_backup;
+  bool backup_commit_lock_acquired= false;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
@@ -1872,19 +1872,17 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-
     if (!WSREP(thd))
     {
-      if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                        thd->variables.lock_wait_timeout))
+      if (!(thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+              MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
       {
         my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
         ha_rollback_trans(thd, all);
         DBUG_RETURN(1);
       }
-      thd->backup_commit_lock= &mdl_backup;
+      backup_commit_lock_acquired= true;
     }
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
@@ -2134,8 +2132,8 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  // reset the pointer to the ticket when it's stack instantiated
-  if (thd->backup_commit_lock == &mdl_backup)
+  // release the backup commit lock if we acquired it in this function
+  if (backup_commit_lock_acquired && thd->backup_commit_lock)
   {
     /*
       We do not always immediately release transactional locks
@@ -2143,8 +2141,7 @@ end:
       thus we release the commit blocker lock as soon as it's
       not needed.
      */
-    if (mdl_backup.ticket)
-      thd->mdl_context.release_lock(mdl_backup.ticket);
+    thd->mdl_context.release_lock(thd->backup_commit_lock);
     thd->backup_commit_lock= 0;
   }
 #ifdef WITH_WSREP
