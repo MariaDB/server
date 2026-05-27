@@ -4600,12 +4600,14 @@ longlong Item_func_xxh32::val_int()
 {
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(arg_count == 1);
-
-  Hasher hasher(my_hasher_xxh32());
-  args[0]->hash_val_str(&hasher, &buffer);
   if ((null_value= args[0]->null_value))
     return 0;
-  return static_cast<longlong>(hasher.finalize());
+  else
+  {
+    Hasher hasher(my_hasher_xxh32());
+    args[0]->hash_val_str(&hasher, &buffer);
+    return static_cast<longlong>(hasher.finalize());
+  }
 }
 
 bool Item_func_xxh3::check_arguments() const
@@ -4618,11 +4620,14 @@ longlong Item_func_xxh3::val_int()
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(arg_count == 1);
 
-  Hasher hasher(my_hasher_xxh3());
-  args[0]->hash_val_str(&hasher, &buffer);
   if ((null_value= args[0]->null_value))
     return 0;
-  return static_cast<longlong>(hasher.finalize());
+  else
+  {
+    Hasher hasher(my_hasher_xxh3());
+    args[0]->hash_val_str(&hasher, &buffer);
+    return static_cast<longlong>(hasher.finalize());
+  }
 }
 
 #ifdef HAVE_COMPRESS
