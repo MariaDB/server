@@ -2497,13 +2497,14 @@ Sys_slave_parallel_workers(
 
 
 static Sys_var_on_access_global<Sys_var_ulong,
-                                PRIV_SET_SYSTEM_GLOBAL_VAR_PARALLEL_WORKER_THREADS>
+                             PRIV_SET_SYSTEM_GLOBAL_VAR_PARALLEL_WORKER_THREADS>
 Sys_parallel_worker_threads(
        "parallel_worker_threads",
        "Number of worker threads available for parallel query execution. "
        "0 means parallel execution is disabled",
        SESSION_VAR(parallel_worker_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,100), DEFAULT(0), BLOCK_SIZE(1));
+/*       VALID_RANGE(0,100), DEFAULT(1), BLOCK_SIZE(1));     // testing 123  */
 
 
 static bool

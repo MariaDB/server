@@ -525,6 +525,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   spl_opt_info= 0;
   need_tmp= 0;
   hidden_group_fields= 0; /*safety*/
+  parallel_scan_join_tab= nullptr;
   error= 0;
   select= 0;
   return_tab= 0;
@@ -2825,6 +2826,14 @@ int JOIN::optimize_stage2()
   if (get_best_combination())
     DBUG_RETURN(1);
 
+  /*
+    The access methods are now fixed and use_parallel_scan has been set on the
+    eligible full-scan tables: prune it to the single table we will actually
+    scan in parallel.
+  */
+  if (thd->variables.parallel_worker_threads)
+    choose_parallel_scan();
+
   if (make_range_rowid_filters())
     DBUG_RETURN(1);
 
@@ -4374,6 +4383,116 @@ bool JOIN::make_aggr_tables_info()
 }
 
 
+/**
+  @brief
+    Create one temporary scan table per parallel worker.
+
+  Per-worker temporary tables for the parallel scan of the first non-const
+  join table. Each worker reuses its table to ship that table's rows to the
+  manager a batch at a time; the manager reads those rows back into the first
+  join_tab and drives the rest of the join itself.
+
+  These tmp tables are therefore built in the *source table's* format -- one
+  column per field of the first table -- not in the result-projection format
+  of the post-join aggregation table. Only meaningful when that first table is
+  read by a full table scan (JT_ALL).
+*/
+
+bool JOIN::create_parallel_workers_tmp_tables(JOIN_TAB *tab)
+{
+  const uint n= thd->variables.parallel_worker_threads;
+  TABLE *src= (join_tab + const_tables)->table;
+
+  List<Item> scan_fields;
+  for (Field **f= src->field; *f; f++)
+  {
+    Item *item= new (thd->mem_root) Item_field(thd, *f);
+    if (!item || scan_fields.push_back(item, thd->mem_root))
+      return true;
+  }
+
+  TMP_TABLE_PARAM *sparam= new (thd->mem_root) TMP_TABLE_PARAM;
+  if (!sparam)
+    return true;
+  sparam->init();
+  count_field_types(select_lex, sparam, scan_fields, false);
+  sparam->skip_create_table= true;
+
+  /*
+    Force the batch tables into the in-memory HEAP engine. With
+    tmp_memory_table_size == 0 Create_tmp_table::choose_engine would otherwise
+    pick the on-disk Aria engine; but a batch table is created and freed by the
+    manager thread while its rows are written by a worker thread, and the
+    temp-file size callback charges Aria file growth to whichever thread is
+    current (the worker), releasing it only when the file is deleted (on the
+    manager). That cross-thread split leaves the worker's
+    status_var.tmp_space_used non-zero at thread exit, tripping
+    THD::free_connection()'s assertion. A HEAP table creates no temp file, so
+    the callback never fires and the accounting stays balanced. BLOB/TEXT
+    tables are excluded from parallel scan, so batch rows are fixed-width and a
+    PWT_CHUNK_ROWS-sized batch stays comfortably in memory.
+  */
+  ulonglong saved_tmp_memory_table_size= thd->variables.tmp_memory_table_size;
+  if (!saved_tmp_memory_table_size)
+    thd->variables.tmp_memory_table_size= thd->variables.max_heap_table_size;
+
+  bool error= false;
+  tab->parallel_tmp_tables.init(PSI_INSTRUMENT_MEM);
+  for (uint i= 0; i < n; i++)
+  {
+    TABLE* tmp_table= create_tmp_table(thd, sparam, scan_fields,
+                                       nullptr, false, false,
+                                       select_options, HA_POS_ERROR,
+                                       &empty_clex_str, true, false);
+    if (!tmp_table)
+    {
+      error= true;
+      break;
+    }
+    tmp_table->reginfo.join_tab= tab;
+    tab->parallel_tmp_tables.append(tmp_table);
+    // instantiate this now so the parallel workers can write to it
+    if (instantiate_tmp_table(tmp_table, sparam->keyinfo,
+                              sparam->start_recinfo,
+                              &sparam->recinfo,
+                              select_options,
+                              true /*cross_thread*/))
+    {
+      error= true;
+      break;
+    }
+  }
+
+  thd->variables.tmp_memory_table_size= saved_tmp_memory_table_size;
+  if (error)
+  {
+    /*
+      Our caller just returns on failure without reaching create_postjoin_
+      aggr_table's err: cleanup, so free the batch tables we already created
+      here rather than leak them.
+    */
+    free_parallel_tmp_tables(tab);
+    return true;
+  }
+  parallel_scan_join_tab= tab;
+
+  return false;
+}
+
+
+/*
+  Free the per-worker batch tables created by create_parallel_workers_tmp_tables
+  and reset the array. Safe to call when none were created (no-op) and safe to
+  call more than once.
+*/
+
+void JOIN::free_parallel_tmp_tables(JOIN_TAB *tab)
+{
+  while (tab->parallel_tmp_tables.elements())
+    free_tmp_table(thd, tab->parallel_tmp_tables.pop());
+  tab->parallel_tmp_tables.free_memory();
+}
+
 
 bool
 JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
@@ -4407,13 +4526,37 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   if (tmp_table_keep_current_rowid)
     add_fields_for_current_rowid(tab, table_fields);
   tab->tmp_table_param->skip_create_table= true;
+
+  /*
+    When the first non-const table is read by a full scan (JT_ALL) and parallel
+    workers are enabled, create one per-worker batch table now. At execution
+    JOIN::exec spins up workers that stream that table's rows through those
+    batch tables into the first join_tab instead of the manager scanning it
+    itself. (create_parallel_workers_tmp_tables sets parallel_scan_join_tab.)
+  */
+  if (!parallel_scan_join_tab &&
+      thd->variables.parallel_worker_threads &&
+      top_join_tab_count > const_tables &&
+      (join_tab + const_tables)->use_parallel_scan &&
+      (join_tab + const_tables)->type == JT_ALL)
+  {
+    if (create_parallel_workers_tmp_tables(tab))
+      DBUG_RETURN(true);
+  }
+
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
                                  save_sum_fields, select_options,
                                  table_rows_limit,
                                  &empty_clex_str, true, keep_row_order);
   if (!table)
-    DBUG_RETURN(true);
+    goto err;
+  // instantiate this now so the parallel worker manager can write to it
+  if (instantiate_tmp_table(table, tab->tmp_table_param->keyinfo,
+                                tab->tmp_table_param->start_recinfo,
+                                &tab->tmp_table_param->recinfo,
+                                select_options))
+    goto err;
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
@@ -4479,6 +4622,12 @@ err:
   if (table != NULL)
     free_tmp_table(thd, table);
   tab->table= NULL;
+  /*
+    On every path that reaches here tab->aggr is not set yet, so JOIN::cleanup
+    will not free the per-worker batch tables -- release them here. No-op when
+    parallel scan was not used for this query.
+  */
+  free_parallel_tmp_tables(tab);
   DBUG_RETURN(true);
 }
 
@@ -4912,14 +5061,20 @@ int JOIN::exec()
                         dbug_serve_apcs(thd, 1);
                  );
 
-  // If we are a top level select statement
-  // TEMPORARY-PARALLEL-WORK-TEST:
-  if (!select_lex->outer_select() && thd->lex->sql_command == SQLCOM_SELECT &&
+  /*
+    If we need worker threads, are a top level select statement and
+    we haven't initialized our parallel work manager
+  */
+  if (thd->variables.parallel_worker_threads &&
+      !select_lex->outer_select() &&
+      thd->lex->sql_command == SQLCOM_SELECT &&
       !parallel_work_manager)
   {
     if (!(parallel_work_manager= new (thd->mem_root) pwt_management) ||
-          parallel_work_manager->init_parallel_workers(thd))
+          parallel_work_manager->init_parallel_workers(thd, this))
     {
+      delete parallel_work_manager;
+      parallel_work_manager= NULL;
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "Failed to initialize parallel work mgr");
       return 1;
@@ -4929,6 +5084,18 @@ int JOIN::exec()
   ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   res= exec_inner();
   ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
+
+  /*
+    exec_inner() drove the join by consuming the worker channel. Stop the
+    workers, reap them and surface any worker diagnostics, then delete the
+    manager.
+  */
+  if (parallel_work_manager)
+  {
+    parallel_work_manager->finalize_parallel_workers(thd, this);
+    delete parallel_work_manager;
+    parallel_work_manager= NULL;
+  }
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -8788,6 +8955,12 @@ struct best_plan
 };
 
 
+/* Defined in sql_parallel_workers.cc */
+extern bool table_can_be_parallel_scanned(TABLE *table);
+extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
+                                         ALL_READ_COST *cost);
+
+
 void
 best_access_path(JOIN      *join,
                  JOIN_TAB  *s,
@@ -9967,6 +10140,17 @@ best_access_path(JOIN      *join,
         s->cached_forced_index= forced_index;
       }
     }
+
+    /*
+      A full table scan of the driving table can be shared across
+      parallel_worker_threads workers (see make_join_readinfo). Discount its
+      row-read/copy cost accordingly so the optimizer accounts for the
+      parallelism. Only the driving table (idx == const_tables) is ever
+      parallel-scanned, and 'cost' is a local copy, so the cached per-table
+      estimate is untouched.
+    */
+    if (type == JT_ALL && idx == join->const_tables)
+      scale_cost_for_parallel_scan(thd, table, &cost);
 
      /*
        Note: the condition checked here is very out of date and incorrect.
@@ -13490,7 +13674,33 @@ bool JOIN::get_best_combination()
         j->index= cur_pos->forced_index;
       }
       else
+      {
         j->type= JT_ALL;
+        /*
+          Parallel workers ship each scanned row to the manager by value
+          through a per-worker batch table. BLOB/TEXT columns (and the other
+          blob-backed types -- GEOMETRY, JSON) keep their payload in memory off
+          the record buffer, so they are not safely reproduced on the manager
+          side. Exclude any table that has such a column, alongside internal/
+          temporary tables, from parallel scan. (s->blob_fields counts every
+          blob-backed column.)
+
+          Also exclude the MERGE engine (ha_myisammrg): a worker opens its own
+          handler straight from the TABLE_SHARE, which does not attach the
+          MERGE children, so ha_myisammrg::rnd_init() asserts.
+
+          Also exclude fulltext-searched tables: a MATCH ... AGAINST relevance
+          is not a stored column but is derived from the handler's fulltext
+          state for the current row, which the injected row images do not carry,
+          so the relevance would be computed incorrectly.
+        */
+        if (thd->variables.parallel_worker_threads &&
+            j->table->s->tmp_table == NO_TMP_TABLE &&
+            j->table->s->blob_fields == 0 &&
+            j->table->file->ht->db_type != DB_TYPE_MRG_MYISAM &&
+            !j->table->fulltext_searched)
+          j->use_parallel_scan= true;
+      }
       if (cur_pos->use_join_buffer &&
           tablenr != const_tables)
 	full_join= 1;
@@ -16611,6 +16821,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	    tab->read_first_record= join_read_first;
             /* Read with index_first / index_next */
 	    tab->type= tab->type == JT_ALL ? JT_NEXT : JT_HASH_NEXT;
+            tab->use_parallel_scan= false;
 	  }
 	}
         if (have_quick_select &&
@@ -17280,6 +17491,16 @@ void JOIN::join_free()
   bool can_unlock= full;
   DBUG_ENTER("JOIN::join_free");
 
+  /*
+    Parallel-scan workers read this join's source and batch tables. cleanup()
+    below frees those tables, so the workers must be stopped and reaped first
+    -- otherwise a worker that has not yet seen the stop request dereferences a
+    freed table->file. On normal completion the workers have already finished,
+    so this is a cheap no-op.
+  */
+  if (parallel_work_manager)
+    parallel_work_manager->quiesce_workers();
+
   cleanup(full);
 
   for (tmp_unit= select_lex->first_inner_unit();
@@ -17351,16 +17572,6 @@ void JOIN::cleanup(bool full)
   if (full)
     have_query_plan= QEP_DELETED;
 
-  // TEMPORARY-PARALLEL-WORK-TEST:
-  if (parallel_work_manager)
-  {
-    // Finish work and delete the manager
-    if (parallel_work_manager->workers)
-      parallel_work_manager->join_parallel_workers(thd);
-    delete parallel_work_manager;
-    parallel_work_manager= NULL;
-  }
-
   if (original_join_tab)
   {
     /* Free the original optimized join created for the group_by_handler */
@@ -17405,6 +17616,7 @@ void JOIN::cleanup(bool full)
           {
             free_tmp_table(thd, curr_tab->table);
             curr_tab->table= NULL;
+            free_parallel_tmp_tables(curr_tab);
             delete curr_tab->tmp_table_param;
             curr_tab->tmp_table_param= NULL;
             curr_tab->aggr= NULL;
@@ -23355,12 +23567,13 @@ bool Virtual_tmp_table::check_assignability_from(const TABLE &table,
 }
 
 
-bool open_tmp_table(TABLE *table)
+bool open_tmp_table(TABLE *table, bool cross_thread)
 {
   int error;
   if (unlikely((error= table->file->ha_open(table, table->s->path.str, O_RDWR,
                                             HA_OPEN_TMP_TABLE |
-                                            HA_OPEN_INTERNAL_TABLE |
+                                            (cross_thread? 0 :
+                                                       HA_OPEN_INTERNAL_TABLE) |
                                             HA_OPEN_SIZE_TRACKING))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
@@ -24367,7 +24580,8 @@ do_select(JOIN *join, Procedure *procedure)
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            TMP_ENGINE_COLUMNDEF *start_recinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
-                           ulonglong options)
+                           ulonglong options,
+                           bool cross_thread)
 {
   DBUG_ASSERT(table->s->keys == 0 || table->key_info == keyinfo);
   DBUG_ASSERT(table->s->keys <= 1);
@@ -24385,7 +24599,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
     empty_record(table);
     table->status= STATUS_NO_RECORD;
   }
-  if (open_tmp_table(table))
+  if (open_tmp_table(table, cross_thread))
     return TRUE;
 
   return FALSE;
@@ -31238,6 +31452,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
   }
   eta->type= tab_type;
+  eta->use_parallel_scan= use_parallel_scan;
 
   /* Build "possible_keys" value */
   // psergey-todo: why does this use thd MEM_ROOT??? Doesn't this 

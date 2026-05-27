@@ -24,8 +24,10 @@ set session parallel_worker_threads=1;
 --echo # DBUG injection forces both into the OOM branch, so neither the original
 --echo # warning nor the original error reaches the user. We expect just the
 --echo # manager-surfaced ER_OUTOFMEMORY warning.
-select count(*) from seq_1_to_2;
+create table t1 select seq from seq_1_to_2;
+select SQL_BUFFER_RESULT * from t1;
 show warnings;
+drop table t1;
 
 set global debug_dbug=@save_dbug;
 set session parallel_worker_threads=default;
