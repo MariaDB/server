@@ -2751,11 +2751,17 @@ drop table t1, t2, t3;
 --echo # joins (where the nest carries JOIN_TYPE_FULL but its leaves
 --echo # do not).  These two issues led to an invalid FULL JOIN table
 --echo # order.
+--echo #
+--echo # The shape places a nested join on the right side of a FULL JOIN,
+--echo # which the post simplify_joins check now rejects, so the query no
+--echo # longer reaches the table ordering code.  It is kept as a guard that
+--echo # the shape stays rejected rather than silently dropping rows.
 create table t1 (pk int);
 create table t2 (pk int);
 create table t3 (pk int);
 create table t4 (pk int);
 create table t5 (pk int);
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
 select t2.pk as field1 from t1
   full join t2
   full join t4
@@ -2780,11 +2786,16 @@ drop table t1, t2, t3;
 --echo # dependency propagation during make_join_statistics.  Rather
 --echo # than make changes there, just carry the ON expression on only
 --echo # one of the FULL JOIN tables, like the other join types do.
+--echo #
+--echo # This shape also places a nested join on the right side of a FULL
+--echo # JOIN and is now rejected after simplify_joins.  Kept as a guard
+--echo # that the shape stays rejected.
 create table t1 (pk int);
 create table t2 (pk int);
 create table t3 (pk int);
 create table t4 (pk int);
 insert into t1 values (1), (2);
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
 select max(t3.pk) from t1
   full join t2
   full join t3 on t2.pk = t3.pk
