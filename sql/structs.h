@@ -37,7 +37,8 @@ class Type_handler;
 class Field;
 class Index_statistics;
 struct Lex_ident_cli_st;
-
+struct hlindexton;
+struct ha_create_table_option;
 class THD;
 
 /* Array index type for table.field[] */
@@ -179,6 +180,7 @@ typedef struct st_key {
   /** reference to the list of options or NULL */
   engine_option_value *option_list;
   ha_index_option_struct *option_struct;  /* structure with parsed options */
+  hlindexton *hliton;
 
   /*
     Bitmap of key parts where all values are NULL (nulls_ratio == 1.0).
@@ -193,7 +195,8 @@ typedef struct st_key {
                                 key_part_map notnull_part) const;
   const LEX_CSTRING type(enum ha_key_alg alg) const;
   const LEX_CSTRING type() const { return type(algorithm); }
-  bool is_hlindex() const { return algorithm == HA_KEY_ALG_VECTOR; }
+  bool is_hlindex() const { return hliton; }
+  const ha_create_table_option *options(const TABLE *t) const;
 } KEY;
 
 
