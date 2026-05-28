@@ -63,7 +63,7 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -2301,8 +2301,7 @@ static int sort_keys(const void *a_, const void *b_)
   }
 
   /* must be very last */
-  return_if_nonzero((a->algorithm == HA_KEY_ALG_VECTOR) -
-                    (b->algorithm == HA_KEY_ALG_VECTOR));
+  return_if_nonzero(a->is_hlindex() - b->is_hlindex());
 
   return_if_nonzero((a->algorithm == HA_KEY_ALG_FULLTEXT) -
                     (b->algorithm == HA_KEY_ALG_FULLTEXT));
@@ -3784,12 +3783,13 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
 
+      if (sql_field->check_vcol_for_key(thd))
+        DBUG_RETURN(TRUE);
+
       cols2.rewind();
       switch(key->type)
       {
       case Key::VECTOR:
-        if (sql_field->check_vcol_for_key(thd))
-          DBUG_RETURN(TRUE);
         if (!(sql_field->flags & NOT_NULL_FLAG))
         {
           my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "VECTOR");
@@ -3826,8 +3826,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       case Key::FOREIGN_KEY:
         if (key_add_part_check_null(file, key_info, sql_field, column))
           DBUG_RETURN(TRUE);
-        if (sql_field->check_vcol_for_key(thd))
-          DBUG_RETURN(TRUE);
         break;
 
       case Key::IGNORE_KEY:
@@ -3839,8 +3837,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "SPATIAL");
           DBUG_RETURN(TRUE);
         }
-        if (sql_field->check_vcol_for_key(thd))
-          DBUG_RETURN(TRUE);
         break;
       }
 
@@ -3992,10 +3988,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   }
   create_info->null_bits= null_fields;
 
-  if (*key_count >= 2 &&
-      (*key_info_buffer)[*key_count-2].algorithm == HA_KEY_ALG_VECTOR)
+  if (*key_count >= 2 && (*key_info_buffer)[*key_count-2].is_hlindex())
   {
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "multiple VECTOR indexes");
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "multiple VECTOR/FULLTEXT indexes");
     DBUG_RETURN(TRUE);
   }
 
@@ -7470,7 +7465,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->rename_keys.push_back(
           Alter_inplace_info::Rename_key_pair(old_key, new_key));
       /* Renaming high-level index is algorithm=copy operation. */
-      if (old_key->algorithm == HA_KEY_ALG_VECTOR)
+      if (old_key->is_hlindex())
         ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
 
       --ha_alter_info->index_add_count;
@@ -7554,7 +7549,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     else
       ha_alter_info->handler_flags|= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX;
     /* Adding high-level index is algorithm=copy operation. */
-    if (new_key->algorithm == HA_KEY_ALG_VECTOR)
+    if (new_key->is_hlindex())
       ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
   }
 

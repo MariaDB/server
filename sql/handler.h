@@ -1249,7 +1249,7 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_SYSVAR(name, ha_index_option_struct, field, sysvar)
 #define HA_IOPTION_END HA_xOPTION_END
 
-typedef struct st_ha_create_table_option {
+struct ha_create_table_option {
   enum ha_option_type type;
   const char *name;
   size_t name_length;
@@ -1258,7 +1258,7 @@ typedef struct st_ha_create_table_option {
   ulonglong min_value, max_value, block_size;
   const char *values;
   struct st_mysql_sys_var *var;
-} ha_create_table_option;
+};
 
 
 /* Struct used to return binlog file list for SHOW BINARY LOGS from engine. */

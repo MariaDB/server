@@ -48,7 +48,7 @@
 #include "rowid_filter.h"
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -3881,8 +3881,6 @@ PSI_table_share *handler::ha_table_share_psi() const
 
 const char *handler::index_type(uint key_number)
 {
-  static const char* alg2str[]= { "???", "BTREE", "SPATIAL", "HASH",
-                                  "FULLTEXT", "HASH", "HASH", "VECTOR" };
   enum ha_key_alg alg= table_share->key_info[key_number].algorithm;
   if (!alg)
   {
@@ -3891,7 +3889,7 @@ const char *handler::index_type(uint key_number)
     else
       alg= HA_KEY_ALG_HASH;
   }
-  return alg2str[alg];
+  return table_share->key_info[key_number].type(alg).str;
 }
 
 
@@ -6779,9 +6777,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   /* create secondary tables for high level indexes */
   if (share.hlindexes())
   {
-    /* as of now: only one vector index can be here */
+    /* as of now: only one index can be here */
     DBUG_ASSERT(share.hlindexes() == 1);
-    DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
     char index_file_name[FN_REFLEN+1], *UNINIT_VAR(index_file_name_end);

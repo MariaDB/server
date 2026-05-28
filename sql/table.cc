@@ -50,7 +50,7 @@
 #include "sql_delete.h"          // class Sql_cmd_delete
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 #include "opt_group_by_cardinality.h"
 
 #ifdef WITH_WSREP
@@ -886,8 +886,7 @@ static bool create_key_infos(THD *thd, const uchar *strpos,
     {
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
-      if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH &&
-          keyinfo->algorithm != HA_KEY_ALG_VECTOR)
+      if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH && !keyinfo->is_hlindex())
         rec_per_key++;
       key_part->fieldnr=  (uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset=   (uint) uint2korr(strpos+2)-1;
@@ -929,7 +928,7 @@ static bool create_key_infos(THD *thd, const uchar *strpos,
       share->ext_key_parts++;
     }
 
-    if (keyinfo->algorithm != HA_KEY_ALG_VECTOR)
+    if (!keyinfo->is_hlindex())
       share->keys++;
 
     if (i && share->use_ext_keys && !((keyinfo->flags & HA_NOSAME)))
@@ -11228,4 +11227,19 @@ size_t TABLE::key_storage_length(uint index)
     return key_info[index].stat_storage_length;
 
   return key_storage_length_from_ddl(index);
+}
+
+const LEX_CSTRING KEY::type(enum ha_key_alg alg) const
+{
+  static const LEX_CSTRING alg2name[]= {
+    { STRING_WITH_LEN("???") },
+    { STRING_WITH_LEN("BTREE") },
+    { STRING_WITH_LEN("SPATIAL") },
+    { STRING_WITH_LEN("HASH") },
+    { STRING_WITH_LEN("FULLTEXT") },
+    { STRING_WITH_LEN("HASH") },
+    { STRING_WITH_LEN("HASH") },
+    { STRING_WITH_LEN("VECTOR") }
+  };
+  return alg2name[alg];
 }

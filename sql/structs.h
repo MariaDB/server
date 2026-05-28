@@ -21,12 +21,12 @@
 
 /* The old structures from unireg */
 
-#include "sql_plugin.h"                         /* plugin_ref */
-#include "sql_const.h"                          /* MAX_REFLENGTH */
+#include "sql_plugin.h"                /* plugin_ref */
+#include "sql_const.h"                 /* MAX_REFLENGTH */
 #include "my_time.h"                   /* enum_mysql_timestamp_type */
 #include "thr_lock.h"                  /* thr_lock_type */
 #include "my_base.h"                   /* ha_rows, ha_key_alg */
-#include <mysql_com.h>                  /* USERNAME_LENGTH */
+#include <mysql_com.h>                 /* USERNAME_LENGTH */
 #include "sql_bitmap.h"
 #include "lex_charset.h"
 #include "lex_ident.h"
@@ -175,9 +175,10 @@ typedef struct st_key {
  
   TABLE *table;
   LEX_CSTRING comment;
+
   /** reference to the list of options or NULL */
   engine_option_value *option_list;
-  ha_index_option_struct *option_struct;                  /* structure with parsed options */
+  ha_index_option_struct *option_struct;  /* structure with parsed options */
 
   /*
     Bitmap of key parts where all values are NULL (nulls_ratio == 1.0).
@@ -190,6 +191,9 @@ typedef struct st_key {
   double actual_rec_per_key(uint last_key_part_in_prefix) const;
   double rec_per_key_null_aware(uint last_key_part_in_prefix,
                                 key_part_map notnull_part) const;
+  const LEX_CSTRING type(enum ha_key_alg alg) const;
+  const LEX_CSTRING type() const { return type(algorithm); }
+  bool is_hlindex() const { return algorithm == HA_KEY_ALG_VECTOR; }
 } KEY;
 
 
