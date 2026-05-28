@@ -1,5 +1,11 @@
 #enable optimizer_record_context
 set optimizer_record_context=ON;
+show create table information_schema.optimizer_context;
+Table	Create Table
+OPTIMIZER_CONTEXT	CREATE TEMPORARY TABLE `OPTIMIZER_CONTEXT` (
+  `QUERY` longtext NOT NULL,
+  `CONTEXT` longblob NOT NULL
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=0
 create database db1;
 use db1;
 create table t1
