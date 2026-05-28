@@ -10302,6 +10302,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
       set_field(tmp_field);
       // the index is important when read bits set
       tmp_field->field_index= field_arg->field->field_index;
+      tmp_field->vcol_info= field_arg->field->vcol_info;
     }
   }
   return FALSE;
