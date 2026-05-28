@@ -6,6 +6,8 @@ set optimizer_record_context=ON;
 
 --disable_replay testfile Dont replay a replay test
 
+show create table information_schema.optimizer_context;
+
 create database db1;
 use db1;
 
