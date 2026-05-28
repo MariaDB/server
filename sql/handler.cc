@@ -48,7 +48,7 @@
 #include "rowid_filter.h"
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"

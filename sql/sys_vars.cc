@@ -55,7 +55,7 @@
 #include "opt_trace_context.h"
 #include "log_event.h"
 #include "optimizer_defaults.h"
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
@@ -4159,6 +4159,7 @@ static const char *old_mode_names[]=
   "SESSION_USER_IS_USER",               // 8: deprecated since 11.7
   "2_DIGIT_YEAR",                       // 9: deprecated since 13.0
   "UTF8_IS_UTF8MB3",                    // 10: deprecated since 13.1
+  "FULLTEXT_USING_ENGINE",              // 11: on by default
   0
 };
 

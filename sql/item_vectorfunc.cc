@@ -21,7 +21,7 @@
 */
 
 #include "item_vectorfunc.h"
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 #include "sql_type_vector.h"
 
 static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)

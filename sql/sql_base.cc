@@ -59,7 +59,7 @@
 #include "datadict.h"                           // dd_frm_is_view()
 #include "rpl_mi.h"                             // Master_info_index
 #include "rpl_rli.h"                            // rpl_group_info
-#include "vector_mhnsw.h"
+#include "index/vector_mhnsw.h"
 #ifdef  _WIN32
 #include <io.h>
 #endif
