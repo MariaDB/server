@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2022, MariaDB Corporation.
+# Copyright (c) 2010, 2026, MariaDB plc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -116,7 +116,7 @@ SET (SQL_SOURCE
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc vector_mhnsw.cc
+               opt_range.cc index/vector_mhnsw.cc
                opt_group_by_cardinality.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc

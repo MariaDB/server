@@ -72,6 +72,7 @@
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
 #include "item_vectorfunc.h"
+#include "index/hlindex.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -16810,7 +16811,7 @@ void JOIN_TAB::cleanup()
     table->file->ha_end_keyread();
     if (type == JT_FT)
       table->file->ha_ft_end();
-    else if (table->hlindex && table->hlindex->context)
+    else if (table->hli && table->hli->reading())
       table->hlindex_read_end();
     else
       table->file->ha_index_or_rnd_end();
@@ -31090,7 +31091,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
                          key_map possible_keys)
 {
   uint j;
-  for (j=0 ; j < table->s->keys ; j++)
+  for (j=0 ; j < table->s->total_keys ; j++)
   {
     if (possible_keys.is_set(j))
       if (!(list.append_str(alloc, table->key_info[j].name.str)))

@@ -63,7 +63,8 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "log.h"
-#include "vector_mhnsw.h"
+#include "index/hlindex.h"
+#include "index/vector_mhnsw.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -3638,8 +3639,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   {
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
-    st_plugin_int *index_plugin= hton2plugin[create_info->db_type->slot];
-    ha_create_table_option *index_options= file->partition_ht()->index_options;
+    st_plugin_int *index_plugin= 0;
+    ha_create_table_option *index_options;
 
     if (key->type == Key::IGNORE_KEY)
     {
@@ -3679,15 +3680,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_number--;                             // Skip this key
       continue;
     case Key::VECTOR:
-        if (IF_PARTITIONING(thd->work_part_info, false))
-        {
-          my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "VECTOR");
-          DBUG_RETURN(TRUE);
-        }
         if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
           key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
         index_plugin= mhnsw_plugin;
-        index_options= mhnsw_index_options;
         break;
     case Key::IGNORE_KEY:
       DBUG_ASSERT(0);
@@ -3697,6 +3692,30 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_info->flags = HA_NOSAME;
       break;
     }
+
+    if (index_plugin)
+    {
+      if (IF_PARTITIONING(thd->work_part_info, false))
+      {
+        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
+                 index_plugin->name.str);
+        DBUG_RETURN(TRUE);
+      }
+      if (create_info->tmp_table())
+      {
+        my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0), index_plugin->name.str,
+                 file->table_type());
+        DBUG_RETURN(TRUE);
+      }
+      key_info->hliton= (hlindexton*)(index_plugin->data);
+      index_options= key_info->hliton->options;
+    }
+    else
+    {
+      index_plugin= hton2plugin[create_info->db_type->slot];
+      index_options= file->partition_ht()->index_options;
+    }
+
     if (key->generated)
       key_info->flags|= HA_GENERATED_KEY;
 
@@ -3721,15 +3740,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 	DBUG_RETURN(TRUE);
       }
     }
-    /*
-       Make SPATIAL to be RTREE by default
-       SPATIAL only on BLOB or at least BINARY, this
-       actually should be replaced by special GEOM type
-       in near future when new frm file is ready
-       checking for proper key parts number:
-    */
 
-    /* TODO: Add proper checks if handler supports key_type and algorithm */
     if (key_info->algorithm == HA_KEY_ALG_RTREE)
     {
       if (!(file->ha_table_flags() & HA_CAN_RTREEKEYS))
@@ -3789,19 +3800,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       cols2.rewind();
       switch(key->type)
       {
-      case Key::VECTOR:
-        if (!(sql_field->flags & NOT_NULL_FLAG))
-        {
-          my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "VECTOR");
-          DBUG_RETURN(TRUE);
-        }
-        if (create_info->tmp_table())
-        {
-          my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0), "VECTOR",
-                   file->table_type());
-          DBUG_RETURN(TRUE);
-        }
-        break;
       case Key::FULLTEXT:
         if (ft_key_charset && sql_field->charset != ft_key_charset)
         {
@@ -3831,10 +3829,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       case Key::IGNORE_KEY:
         break;
 
+      case Key::VECTOR:
       case Key::SPATIAL:
         if (!(sql_field->flags & NOT_NULL_FLAG))
         {
-          my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), "SPATIAL");
+          static const char *type[]= {0, 0, 0, 0, "SPATIAL", "VECTOR"};
+          my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), type[key->type]);
           DBUG_RETURN(TRUE);
         }
         break;
@@ -6132,8 +6132,7 @@ err:
 
 
 /* table_list should contain just one table */
-int mysql_discard_or_import_tablespace(THD *thd,
-                                       TABLE_LIST *table_list,
+int mysql_discard_or_import_tablespace(THD *thd, TABLE_LIST *table_list,
                                        bool discard)
 {
   Alter_table_prelocking_strategy alter_prelocking_strategy;
@@ -6197,8 +6196,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
   }
   for (uint i= table->s->keys; i < table->s->total_keys; i++)
   {
-    error= table->hlindex->file->
-      ha_discard_or_import_tablespace(discard);
+    error= table->hli->table->file->ha_discard_or_import_tablespace(discard);
     if (unlikely(error))
       goto err;
   }
@@ -6917,9 +6915,7 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     return Compare_keys::NotEqual;
 
   if (engine_options_differ(table_key->option_struct, new_key->option_struct,
-                            table_key->algorithm == HA_KEY_ALG_VECTOR ?
-                            mhnsw_index_options :
-                            table->file->ht->index_options))
+                            table_key->options(table)))
     return Compare_keys::NotEqual;
 
   Compare_keys result= Compare_keys::Equal;

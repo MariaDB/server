@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2011, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2022, MariaDB Corporation
+# Copyright (c) 2009, 2026, MariaDB plc.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -117,7 +117,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_alter.cc ../sql/sql_partition_admin.cc
            ../sql/event_parse_data.cc
            ../sql/sql_signal.cc
-           ../sql/sys_vars.cc ../sql/vector_mhnsw.cc
+           ../sql/sys_vars.cc ../sql/index/vector_mhnsw.cc
            ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc
            ../sql/mdl.cc ../sql/transaction.cc
            ../sql/sql_join_cache.cc

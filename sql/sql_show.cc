@@ -72,7 +72,7 @@
 #include "my_cpu.h"
 #include "key.h"
 #include "scope.h"
-#include "vector_mhnsw.h"
+#include "index/hlindex.h"
 #include "lex_symbol.h"
 #include "mysql/plugin_function.h"
 
@@ -2595,8 +2595,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
         append_identifier(thd, packet, parser_name);
       }
       append_create_options(thd, packet, key_info->option_list, check_options,
-                            (key_info->algorithm == HA_KEY_ALG_VECTOR
-                             ? mhnsw_index_options : hton->index_options));
+                            key_info->options(table));
     }
   }
 
@@ -6131,9 +6130,9 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       if (show_table->s->hlindexes())
       {
           // make sure hlindex is opened
-          if (show_table->hlindex || !show_table->hlindex_open(show_table->s->keys))
+          if (show_table->hli || !show_table->hlindex_open(show_table->s->keys))
           {
-              handler *hi= show_table->hlindex->file;
+              handler *hi= show_table->hli->table->file;
               if (!hi->info(HA_STATUS_VARIABLE))
                   file->stats.index_file_length+= hi->stats.data_file_length;
           }
