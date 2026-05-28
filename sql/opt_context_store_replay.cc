@@ -158,9 +158,18 @@ namespace Show
 {
 extern ST_FIELD_INFO optimizer_costs_fields_info[];
 
+/*
+  Fields for INFORMATION_SCHEMA.OPTIMIZER_CONTEXT.
+
+  CONTEXT uses binary charset so that it is not converted to the client's
+  @@character_set_results.
+*/
 ST_FIELD_INFO optimizer_context_capture_info[]= {
-    Column("QUERY", Longtext(65535), NOT_NULL),
-    Column("CONTEXT", Longtext(65535), NOT_NULL), CEnd()};
+  Column("QUERY",   Longtext(65535),                  NOT_NULL),
+  Column("CONTEXT", Longtext(65535, &my_charset_bin), NOT_NULL),
+  CEnd()
+};
+
 } // namespace Show
 
 static void append_full_table_name(const TABLE_LIST *tbl, String *buf);
