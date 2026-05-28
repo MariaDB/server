@@ -859,7 +859,9 @@ create table t3 (a int primary key, b int)
 
 --echo # These will not be eliminated because contains a FULL OUTER JOIN.
 explain extended select t1.a from t1 full join t2 on t2.a=t1.a;
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
 explain extended select t1.a from t1 full join (t2 full join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a;
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
 explain extended select t1.a from t1 full join (t2 left join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a;
 
 drop table t1, t2, t3;
