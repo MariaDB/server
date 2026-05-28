@@ -600,4 +600,22 @@ SELECT (SELECT 1 FROM foo) FROM t1;
 ERROR 42S02: Table 'test.foo' doesn't exist
 INSERT INTO t1 (d1) VALUES ('2009-07-02');
 DROP TABLE t1;
+#
+# MDEV-26820 Assertion `marked_for_read()' failed upon SELECT with VALUE(virtual column)
+#
+CREATE TABLE t1 (a VARCHAR(8), b VARCHAR(8) AS (REPEAT(a,1)) VIRTUAL) ENGINE=MyISAM;
+INSERT INTO t1 (a) VALUES ('foo'),('bar');
+SELECT VALUE(b) FROM (SELECT * FROM t1) sq;
+VALUE(b)
+NULL
+NULL
+DROP TABLE t1;
+CREATE TABLE t1 ( id uuid, vid varchar(255) GENERATED always AS (id)) engine=aria;
+INSERT INTO t1 (id) values (uuid()),(uuid()),(uuid());
+SELECT VALUE( vid ) FROM (select * from t1)dt;
+VALUE( vid )
+NULL
+NULL
+NULL
+DROP TABLE t1;
 # End of 10.11 tests
