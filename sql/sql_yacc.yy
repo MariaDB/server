@@ -6357,14 +6357,25 @@ column_def:
           }
         ;
 
-key_def:
+multiple_or_array_key_prefix:
           key_or_index opt_if_not_exists opt_ident opt_USING_key_algorithm
           {
             Lex->option_list= NULL;
             if (unlikely(Lex->add_key(Key::MULTIPLE, &$3, $4, $2)))
               MYSQL_YYABORT;
           }
+          ;
+
+key_def:  multiple_or_array_key_prefix
           '(' key_list ')' normal_key_options { }
+          | multiple_or_array_key_prefix
+          '(' // this is not compatible with MDEV-35853
+            CAST_SYM '(' key_part_simple AS cast_type ARRAY_SYM ')'
+          ')' normal_key_options
+          {
+            Lex->last_key->columns.push_back($5, thd->mem_root);
+            Lex->last_key->type= Key::ARRAY;
+          }
         | key_or_index opt_if_not_exists ident TYPE_SYM btree_or_rtree
           {
             Lex->option_list= NULL;
@@ -7514,11 +7525,8 @@ fulltext:
         ;
 
 spatial_or_vector:
-          SPATIAL_SYM
-          {
-            $$= Key::SPATIAL;
-          }
-        | VECTOR_SYM { $$= Key::VECTOR;}
+          SPATIAL_SYM { $$= Key::SPATIAL; }
+        | VECTOR_SYM  { $$= Key::VECTOR;  }
         ;
 
 normal_key_options:

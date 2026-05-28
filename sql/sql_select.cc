@@ -72,6 +72,7 @@
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
 #include "item_vectorfunc.h"
+#include "index/hlindex.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -7151,6 +7152,30 @@ Item_func_between::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
       add_key_equal_fields(join, key_fields, *and_level, this, field_item,
                            equal_func, args, 1, usable_tables, sargables);
   }
+}
+
+
+void
+Item_func_member_of::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                    uint *and_level, table_map usable_tables,
+                                    SARGABLE_PARAM **sargables)
+{
+  /*
+    "value MEMBER OF (json_col)" is handled like a spatial relation
+    predicate (Item_func_spatial_rel::add_key_fields(), item_geofunc.h):
+    json_col (args[1]) is the fixed field side, value (args[0]) the value
+    side -- there is no reversed "json_col MEMBER OF value" form.
+    eq_func=false because this is not a literal equality on the field's
+    own value (it is a per-array-element containment test), exactly as a
+    spatial relation is not a literal comparison of the field's raw bytes
+    either; this still lets a const/available value populate
+    const_keys/cond_set/sargables for the field's ARRAY index, which is
+    what makes range analysis (get_mm_leaf(), see item_jsonfunc.h/.cc) get
+    attempted for it at all.
+  */
+  if (Item_field *field_item= get_local_field(args[1]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         false /*eq_func*/, args, 1, usable_tables, sargables);
 }
 
 
@@ -16809,7 +16834,7 @@ void JOIN_TAB::cleanup()
     table->file->ha_end_keyread();
     if (type == JT_FT)
       table->file->ha_ft_end();
-    else if (table->hlindex && table->hlindex->context)
+    else if (table->hli && table->hli->reading())
       table->hlindex_read_end();
     else
       table->file->ha_index_or_rnd_end();
@@ -31089,7 +31114,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
                          key_map possible_keys)
 {
   uint j;
-  for (j=0 ; j < table->s->keys ; j++)
+  for (j=0 ; j < table->s->total_keys ; j++)
   {
     if (possible_keys.is_set(j))
       if (!(list.append_str(alloc, table->key_info[j].name.str)))

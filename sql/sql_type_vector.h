@@ -49,7 +49,11 @@ public:
                                         column_definition_type_t type)
                                                        const override;
   bool Key_part_spec_init_vector(Key_part_spec *part,
-                                 const Column_definition &def) const override;
+                                 const Column_definition &def) const override
+  {
+    return no_part_keypart(part);
+  }
+
   Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,
            const Record_addr &addr, const Type_all_attributes &attr,
            TABLE_SHARE *share) const override;

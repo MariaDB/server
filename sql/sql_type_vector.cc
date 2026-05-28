@@ -97,17 +97,6 @@ bool Type_handler_vector::Column_definition_set_attributes(THD *thd,
   return false;
 }
 
-bool Type_handler_vector::Key_part_spec_init_vector(Key_part_spec *part,
-       const Column_definition &def) const
-{
-  if (part->length)
-  {
-    my_error(ER_WRONG_SUB_KEY, MYF(0));
-    return true;
-  }
-  return false;
-}
-
 Item *Type_handler_vector::create_typecast_item(THD *thd, Item *item,
         const Type_cast_attributes &attr) const
 {

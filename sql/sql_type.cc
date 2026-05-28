@@ -9929,3 +9929,14 @@ const Type_handler *Type_typelib_attributes::type_handler() const
 {
   return &type_handler_enum;
 }
+
+
+/* helper */
+bool no_part_keypart(Key_part_spec *part)
+{
+  if (!part->length)
+    return false;
+
+  my_error(ER_WRONG_SUB_KEY, MYF(0));
+  return true;
+}

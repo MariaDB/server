@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, 2022, MariaDB Corporation.
+/* Copyright (c) 2016, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,9 @@
 #include "item.h"
 #include "sql_parse.h" // For check_stack_overrun
 #include "json_schema_helper.h"
+#include "opt_range.h"          // RANGE_OPT_PARAM, SEL_ARG, SEL_TREE, GEOM_FLAG
+#include "index/hlindex.h"      // hlindex (TABLE::hli)
+#include "index/json.h"         // JSON_INDEX_KEY_MAX_LEN
 
 static bool get_current_value(json_engine_t *, const uchar *&, size_t &);
 static int check_overlaps(json_engine_t *, json_engine_t *, bool, MEM_ROOT*, json_engine_t *temp_je, MEM_ROOT_DYNAMIC_ARRAY *stack);
@@ -6956,6 +6959,90 @@ void Item_func_member_of::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN(" member of ("));
   args[1]->print(str, query_type);
   str->append(')');
+}
+
+
+/*
+  Range-optimizer hooks, following the same pattern
+  Item_func_spatial_rel::get_mm_leaf() uses to hook spatial predicates onto
+  RTREE indexes (sql/item_geofunc.cc), adapted for a JSON array
+  (HA_KEY_ALG_ARRAY / hlindex) index: args[1] (the array/field side) is
+  fixed -- MEMBER OF has no reversed "array MEMBER OF value" form -- so
+  this mirrors Item_func_between's get_mm_tree()/get_func_mm_tree() shape
+  rather than Item_bool_func2_with_rev's.
+*/
+
+SEL_TREE *Item_func_member_of::get_mm_tree(RANGE_OPT_PARAM *param,
+                                           Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_member_of::get_mm_tree");
+  /*
+    A range built from get_mm_leaf() below is a point lookup for rows whose
+    array *contains* the value -- the correct (and only) shape for MEMBER
+    OF. NOT MEMBER OF asks for rows whose array does *not* contain it,
+    which is not expressible as a range against this index at all,
+    so let it fall back to a full scan + row filter, same as before this
+    range-optimizer hookup existed.
+  */
+  if (negated)
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_full_func_mm_tree_for_args(param, args[1], args[0]));
+}
+
+SEL_TREE *Item_func_member_of::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_member_of::get_func_mm_tree");
+  DBUG_RETURN(get_mm_parts(param, field, functype(), value));
+}
+
+
+static SEL_ARG sel_arg_impossible_member_of(SEL_ARG::IMPOSSIBLE);
+
+SEL_ARG *
+Item_func_member_of::get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                                 KEY_PART *key_part,
+                                 Item_func::Functype type, Item *value)
+{
+  DBUG_ENTER("Item_func_member_of::get_mm_leaf");
+  if (key_part->image_type != Field::itMVI)
+    DBUG_RETURN(0);
+
+  uint keynr= param->real_keynr[key_part->key];
+  if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
+    DBUG_RETURN(0);
+
+  uchar *key_buf= (uchar*) alloc_root(param->mem_root, JSON_INDEX_KEY_MAX_LEN);
+  if (!key_buf)
+    DBUG_RETURN(0); // out of memory
+
+  /*
+    json_quote_item (built once in fix_length_and_dec(), for the same
+    args[0]) already renders the candidate as JSON text -- the same
+    rendering val_bool()'s JSON_CONTAINS(array, JSON_QUOTE(value)) uses.
+    Reuse it instead of building another Item_func_json_quote here.
+  */
+  DBUG_ASSERT(value == args[0]);
+  Item *json_value= json_quote_item ? (Item *) json_quote_item : value;
+  if (param->table->hli->make_key(param->thd, json_value, key_buf))
+    DBUG_RETURN(&sel_arg_impossible_member_of); // NULL, or a JSON object/array
+
+  SEL_ARG *tree;
+  if (!(tree= new (param->mem_root) SEL_ARG(field, key_buf, key_buf)))
+    DBUG_RETURN(0); // out of memory
+
+  /*
+    Reuse GEOM_FLAG as the generic "opaque, don't combine algebraically"
+    marker (SEL_ARG::min_flag/max_flag are uint8 and GEOM_FLAG=128 is
+    already the top bit): key_and()/key_or()'s refusal to AND/OR-combine
+    two GEOM_FLAG ranges on the same keypart applies here too, and is the
+    correct, conservative behavior for MEMBER OF -- two differently-valued
+    membership tests against the same array are not contradictory the way
+    two differently-valued equalities on a scalar field would be.
+  */
+  tree->min_flag= GEOM_FLAG;
+  tree->max_flag= NO_MAX_RANGE;
+  DBUG_RETURN(tree);
 }
 
 

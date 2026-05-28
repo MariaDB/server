@@ -106,6 +106,11 @@ public:
     hybrid->set_handler(json_type_handler_from_generic(hybrid->type_handler()));
     return false;
   }
+  bool Key_part_spec_init_json(Key_part_spec *part,
+                               const Column_definition &def) const override
+  {
+    return no_part_keypart(part);
+  }
 };
 
 

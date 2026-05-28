@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2022, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,8 +50,10 @@
 #include "sql_delete.h"          // class Sql_cmd_delete
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
-#include "vector_mhnsw.h"
 #include "opt_group_by_cardinality.h"
+#include "index/hlindex.h"
+#include "index/vector_mhnsw.h"
+#include "index/json.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -504,11 +506,8 @@ void TABLE_SHARE::destroy()
   }
   delete sequence;
 
-  if (hlindex)
-  {
-    mhnsw_free(this);
-    hlindex->destroy();
-  }
+  if (hls)
+    delete hls;
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -927,6 +926,10 @@ static bool create_key_infos(THD *thd, const uchar *strpos,
       rec_per_key++;   // Only one rec_per_key needed for the hash
       share->ext_key_parts++;
     }
+    else if (keyinfo->algorithm == HA_KEY_ALG_VECTOR)
+      keyinfo->hliton= (hlindexton*)(mhnsw_plugin->data);
+    else if (keyinfo->algorithm == HA_KEY_ALG_ARRAY)
+      keyinfo->hliton= (hlindexton*)(json_index_plugin->data);
 
     if (!keyinfo->is_hlindex())
       share->keys++;
@@ -1517,7 +1520,7 @@ void TABLE_SHARE::set_overlapped_keys()
 void TABLE_SHARE::set_ignored_indexes()
 {
   KEY *keyinfo= key_info;
-  for (uint i= 0; i < keys; i++, keyinfo++)
+  for (uint i= 0; i < total_keys; i++, keyinfo++)
     if (keyinfo->is_ignored)
       ignored_indexes.set_bit(i);
 }
@@ -1531,11 +1534,12 @@ void TABLE_SHARE::set_ignored_indexes()
 key_map TABLE_SHARE::usable_indexes(THD *thd)
 {
   key_map usable_indexes(keys_in_use);
-  usable_indexes.subtract(ignored_indexes);
 
   /* take into account keys that the engine knows nothing about */
   for (uint i= keys; i < total_keys; i++)
     usable_indexes.set_bit(i);
+
+  usable_indexes.subtract(ignored_indexes);
 
   return usable_indexes;
 }
@@ -3489,7 +3493,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_ASSERT(share->hlindexes() == 1);
     keyinfo= share->key_info + share->keys;
     if (parse_option_list(thd, &keyinfo->option_struct, &keyinfo->option_list,
-                          mhnsw_index_options, TRUE, thd->mem_root))
+                          keyinfo->options(0), TRUE, thd->mem_root))
       goto err;
   }
 
@@ -4898,8 +4902,8 @@ int closefrm(TABLE *table)
   DBUG_ENTER("closefrm");
   DBUG_PRINT("enter", ("table: %p", table));
 
-  if (table->hlindex)
-    closefrm(table->hlindex);
+  if (table->hli)
+    delete table->hli;
 
   if (table->db_stat)
     error=table->file->ha_close();
@@ -7889,7 +7893,7 @@ static void do_mark_index_columns(TABLE *table, uint index,
   mark columns used by key, but don't reset other fields
 */
 
-inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
+void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 {
   do_mark_index_columns(this, index, bitmap, false);
 }
@@ -11242,4 +11246,19 @@ const LEX_CSTRING KEY::type(enum ha_key_alg alg) const
     { STRING_WITH_LEN("VECTOR") }
   };
   return alg2name[alg];
+}
+
+const ha_create_table_option *KEY::options(const TABLE *t) const
+{
+  return hliton ? hliton->options : t->file->partition_ht()->index_options;
+}
+
+hlindex::~hlindex()
+{
+  closefrm(table);
+}
+
+hlindex_share::~hlindex_share()
+{
+  free_table_share(s);
 }

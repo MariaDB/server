@@ -38,6 +38,7 @@
                                                 // mysql_derived_filling
 #include "sql_handler.h"                        // mysql_ha_flush
 #include "sql_test.h"
+#include "key.h"                                // is_key_used
 #include "sql_partition.h"                      // ALTER_PARTITION_PARAM_TYPE
 #include "log_event.h"                          // Query_log_event
 #include "sql_select.h"
@@ -59,7 +60,7 @@
 #include "datadict.h"                           // dd_frm_is_view()
 #include "rpl_mi.h"                             // Master_info_index
 #include "rpl_rli.h"                            // rpl_group_info
-#include "vector_mhnsw.h"
+#include "index/hlindex.h"
 #ifdef  _WIN32
 #include <io.h>
 #endif
@@ -761,8 +762,8 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
       if (extra != HA_EXTRA_NOT_USED && table->db_stat)
       {
         table->file->extra(extra);
-        if (table->hlindex)
-          table->hlindex->file->extra(extra);
+        if (table->hli)
+          table->hli->table->file->extra(extra);
         extra= HA_EXTRA_NOT_USED;               // Call extra once!
       }
 
@@ -10122,10 +10123,12 @@ int TABLE::hlindex_open(uint nr)
 {
   DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
-  if (!hlindex)
+  if (!hli)
   {
+    hlindexton *hliton= s->key_info[nr].hliton;
+
     s->lock_share();
-    if (!s->hlindex)
+    if (!s->hls)
     {
       size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
       TABLE_SHARE *share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof *share);
@@ -10140,9 +10143,11 @@ int TABLE::hlindex_open(uint nr)
                            path, false);
       share->db_plugin= s->db_plugin;
 
-      LEX_CSTRING sql= mhnsw_hlindex_table_def(in_use, file->ref_length);
-      if (share->init_from_sql_statement_string(in_use, false,
-                        sql.str, sql.length))
+      hlindex_share *hls;
+      LEX_CSTRING sql= hliton->table_def(in_use, s->key_info + nr,
+                                         file->ref_length);
+      if (share->init_from_sql_statement_string(in_use, 0, sql.str, sql.length)
+          || !(hls= hliton->create(share, &s->mem_root)))
       {
         if (share->db_plugin == s->db_plugin)
           share->db_plugin= NULL;
@@ -10151,25 +10156,26 @@ int TABLE::hlindex_open(uint nr)
       }
 
       s->lock_share();
-      if (!s->hlindex)
+      if (!s->hls)
       {
-        s->hlindex= share;
+        s->hls= hls;
         s->unlock_share();
       }
       else
       {
         s->unlock_share();
-        free_table_share(share);
+        delete hls;
       }
     }
     else
       s->unlock_share();
+
     TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
-    if (!table || open_table_from_share(in_use, s->hlindex, &empty_clex_str,
-                    db_stat, EXTRA_RECORD, in_use->open_options, table, 0))
+    if (!table || open_table_from_share(in_use, s->hls->s, &empty_clex_str,
+                    db_stat, EXTRA_RECORD, in_use->open_options, table, 0)
+        || !(hli= s->hls->create(table, &mem_root)))
       return 1;
-    hlindex= table;
-    hlindex->in_use= NULL;
+    table->in_use= NULL;
   }
   return 0;
 }
@@ -10178,20 +10184,21 @@ int TABLE::hlindex_lock(uint nr)
 {
   DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
-  DBUG_ASSERT(hlindex);
-  if (hlindex->in_use == in_use)
+  DBUG_ASSERT(hli);
+  hli->update_needed= is_key_used(this, nr, write_set);
+  if (hli->table->in_use == in_use)
     return 0;
-  hlindex->use_all_columns();
+  hli->table->use_all_columns();
 
   THR_LOCK_DATA *lock_data;
-  DBUG_ASSERT(hlindex->file->lock_count() <= 1);
-  hlindex->file->store_lock(in_use, &lock_data, reginfo.lock_type);
+  DBUG_ASSERT(hli->table->file->lock_count() <= 1);
+  hli->table->file->store_lock(in_use, &lock_data, reginfo.lock_type);
 
-  int res= hlindex->file->ha_external_lock(in_use,
+  int res= hli->table->file->ha_external_lock(in_use,
              reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
   if (res == 0)
-    hlindex->in_use= in_use;      // mark in use for this query
-  if (hlindex->file->lock_count() > 0)
+    hli->table->in_use= in_use;      // mark in use for this query
+  if (hli->table->file->lock_count() > 0)
   {
     /*
       This code is here mostly for Aria. It requires start_trans() call
@@ -10215,32 +10222,32 @@ int TABLE::open_hlindexes_for_write()
 
 int TABLE::unlock_hlindexes()
 {
-  if (hlindex && hlindex->in_use)
+  if (hli&& hli->table->in_use)
   {
-    hlindex->file->ha_external_unlock(in_use);
-    hlindex->in_use= 0;
+    hli->table->file->ha_external_unlock(in_use);
+    hli->table->in_use= 0;
   }
   return 0;
 }
 
 int TABLE::hlindexes_on_insert()
 {
-  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
-  if (hlindex && hlindex->in_use)
-    if (int err= mhnsw_insert(this, key_info + s->keys))
+  DBUG_ASSERT(s->hlindexes() == (hli != NULL));
+  if (hli && hli->table->in_use)
+    if (int err= hli->insert_row(this, key_info + s->keys))
       return err;
   return 0;
 }
 
 int TABLE::hlindexes_on_update()
 {
-  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
-  if (hlindex && hlindex->in_use)
+  DBUG_ASSERT(s->hlindexes() == (hli != NULL));
+  if (hli && hli->update_needed)
   {
     int err;
     // mark deleted node invalid and insert node for new row
-    if ((err= mhnsw_invalidate(this, record[1], key_info + s->keys)) ||
-        (err= mhnsw_insert(this, key_info + s->keys)))
+    if ((err= hli->delete_row(this, record[1], key_info + s->keys)) ||
+        (err= hli->insert_row(this, key_info + s->keys)))
       return err;
   }
 
@@ -10249,19 +10256,19 @@ int TABLE::hlindexes_on_update()
 
 int TABLE::hlindexes_on_delete(const uchar *buf)
 {
-  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  DBUG_ASSERT(s->hlindexes() == (hli != NULL));
   DBUG_ASSERT(buf == record[0] || buf == record[1]); // note: REPLACE
-  if (hlindex && hlindex->in_use)
-    if (int err= mhnsw_invalidate(this, buf, key_info + s->keys))
+  if (hli && hli->table->in_use)
+    if (int err= hli->delete_row(this, buf, key_info + s->keys))
       return err;
   return 0;
 }
 
 int TABLE::hlindexes_on_delete_all(bool truncate)
 {
-  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
-  if (hlindex && hlindex->in_use)
-    if (int err= mhnsw_delete_all(this, key_info + s->keys, truncate))
+  DBUG_ASSERT(s->hlindexes() == (hli != NULL));
+  if (hli && hli->table->in_use)
+    if (int err= hli->delete_all(this, key_info + s->keys, truncate))
       return err;
   return 0;
 }
@@ -10275,17 +10282,17 @@ int TABLE::hlindex_read_first(uint nr, const uchar *value, size_t value_len,
   if (hlindex_open(nr) || hlindex_lock(nr))
     return HA_ERR_CRASHED;
 
-  DBUG_ASSERT(hlindex->in_use == in_use);
+  DBUG_ASSERT(hli->table->in_use == in_use);
 
-  return mhnsw_read_first(this, key_info + s->keys, value, value_len, limit);
+  return hli->read_first(this, key_info + s->keys, value, value_len, limit);
 }
 
 int TABLE::hlindex_read_next()
 {
-  return mhnsw_read_next(this);
+  return hli->read_next(this);
 }
 
 int TABLE::hlindex_read_end()
 {
-  return mhnsw_read_end(this);
+  return hli->read_end(this);
 }

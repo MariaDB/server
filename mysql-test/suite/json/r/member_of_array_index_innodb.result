@@ -1,0 +1,46 @@
+#
+# UPDATE that changes the PRIMARY KEY while filtered by MEMBER OF
+# (tags): on InnoDB, handler::position() (and so the hlindex's
+# "tref" column, see json_index) is derived from the PRIMARY KEY
+# (HA_PRIMARY_KEY_REQUIRED_FOR_POSITION), so every hlindex entry for
+# the row becomes stale the moment its PK changes -- is_key_used()
+# must treat the PK as part of the array key too, both so
+# TABLE::hlindexes_on_update() still does the delete+insert (else
+# the stored tref would point at a PK value that no longer exists),
+# and so sql_update.cc buffers the plan (else the freshly re-inserted
+# hlindex entry could sort ahead of the read scan's cursor within the
+# same "5 MEMBER OF" group and get visited again, endlessly for
+# "SET id = id + 10")
+#
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1, '[5]'),
+(2, '[5]'),
+(3, '[5]'),
+(4, '[5]'),
+(5, '[1]');
+EXPLAIN UPDATE t1 SET id = id + 100 WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	arr_idx	arr_idx	257	NULL	4	Using where; Using buffer
+UPDATE t1 SET id = id + 100 WHERE 5 MEMBER OF (tags);
+# all four rows must have moved, exactly once each
+SELECT id FROM t1;
+id
+101
+102
+103
+104
+5
+# and must still be found via MEMBER OF at their new id (fresh tref)
+SELECT id FROM t1 WHERE 5 MEMBER OF (tags);
+id
+101
+102
+103
+104
+DROP TABLE t1;
+# End of 13.3 tests

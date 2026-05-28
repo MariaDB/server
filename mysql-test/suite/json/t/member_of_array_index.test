@@ -1,0 +1,318 @@
+--echo #
+--echo # WL: MEMBER OF using a JSON array (ARRAY / hlindex) index
+--echo #
+--echo # Item_func_member_of::get_mm_leaf() lets "value MEMBER OF (json_col)"
+--echo # use an ARRAY index on json_col, the same way spatial predicates use
+--echo # get_mm_leaf() to hook onto RTREE indexes.
+--echo #
+
+--echo # 1. Numeric array index: basic membership lookups use the index
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+
+INSERT INTO t1 VALUES
+  (1, '[1, 2, 3]'),
+  (2, '[4, 5, 6]'),
+  (3, '[3, 6, 9]'),
+  (4, '[]'),
+  (5, '[7]');
+
+--echo # EXPLAIN should pick the array index for a MEMBER OF lookup
+EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 WHERE 6 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 WHERE 7 MEMBER OF (tags);
+
+--echo # No match: empty result, no crash
+--sorted_result
+SELECT id FROM t1 WHERE 42 MEMBER OF (tags);
+
+--echo # Cross-check: IGNORE INDEX forces the non-indexed (row-by-row
+--echo # JSON_CONTAINS) evaluation -- results must be identical to the
+--echo # indexed queries above
+EXPLAIN SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 6 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 7 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 42 MEMBER OF (tags);
+
+--echo # NOT MEMBER OF does not use the array index (it is not a sargable
+--echo # single-value lookup) -- still must return correct results
+--sorted_result
+SELECT id FROM t1 WHERE 3 NOT MEMBER OF (tags);
+
+--echo # A plain comparison on the same JSON column must not try to use the
+--echo # array index (it indexes array elements, not the column's own value)
+EXPLAIN SELECT id FROM t1 WHERE tags = '[3, 6, 9]';
+SELECT id FROM t1 WHERE tags = '[3, 6, 9]';
+
+DROP TABLE t1;
+
+--echo #
+--echo # 2. String array index
+--echo #
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS CHAR(20) ARRAY))
+);
+
+INSERT INTO t2 VALUES
+  (1, '["red", "green", "blue"]'),
+  (2, '["green", "yellow"]'),
+  (3, '["black"]');
+
+EXPLAIN SELECT id FROM t2 WHERE 'green' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 WHERE 'green' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 WHERE 'black' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 WHERE 'purple' MEMBER OF (tags);
+
+--echo # Case/type-strict: a JSON string element must not match a differently
+--echo # cased or differently typed lookup value
+--sorted_result
+SELECT id FROM t2 WHERE 'GREEN' MEMBER OF (tags);
+
+--echo # Cross-check: IGNORE INDEX must give identical results
+EXPLAIN SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'green' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'green' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'black' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'purple' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'GREEN' MEMBER OF (tags);
+
+DROP TABLE t2;
+
+--echo #
+--echo # 3. A correlated (non-constant) MEMBER OF value re-evaluates per row
+--echo #
+CREATE TABLE t3 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t3 VALUES (1, '[10, 20]'), (2, '[20, 30]'), (3, '[30, 40]');
+
+CREATE TABLE probe (v INT);
+INSERT INTO probe VALUES (20), (40), (99);
+
+--sorted_result
+SELECT probe.v, t3.id FROM probe, t3 WHERE probe.v MEMBER OF (t3.tags);
+
+DROP TABLE probe, t3;
+
+--echo #
+--echo # 4. A second, plain index on the same JSON column: get_mm_leaf() must
+--echo # see key_part->image_type != itMVI for that index's key part and
+--echo # decline it, still picking the array index for MEMBER OF
+--echo #
+CREATE TABLE t4 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX plain_idx (tags(100)),
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t4 VALUES
+  (1, '[1, 2, 3]'),
+  (2, '[4, 5, 6]'),
+  (3, '[3, 6, 9]');
+
+EXPLAIN SELECT id FROM t4 WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t4 WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t4 WHERE 6 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t4 WHERE 42 MEMBER OF (tags);
+
+DROP TABLE t4;
+
+--echo #
+--echo # 5. A function-wrapped array column is never a bare field reference,
+--echo # so get_full_func_mm_tree_for_args() can't match it to arr_idx and
+--echo # MEMBER OF falls back to non-indexed evaluation on its own (no
+--echo # IGNORE INDEX needed) -- results must still agree with the indexed
+--echo # form
+--echo #
+CREATE TABLE t5 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t5 VALUES
+  (1, '[1, 2, 3]'),
+  (2, '[4, 5, 6]'),
+  (3, '[3, 6, 9]');
+
+EXPLAIN SELECT id FROM t5 WHERE 3 MEMBER OF (tags);
+EXPLAIN SELECT id FROM t5 WHERE 3 MEMBER OF (JSON_COMPACT(tags));
+--sorted_result
+SELECT id FROM t5 WHERE 3 MEMBER OF (JSON_COMPACT(tags));
+--sorted_result
+SELECT id FROM t5 WHERE 6 MEMBER OF (JSON_COMPACT(tags));
+--sorted_result
+SELECT id FROM t5 WHERE 42 MEMBER OF (JSON_COMPACT(tags));
+
+DROP TABLE t5;
+
+--echo #
+--echo # 6. DELETE removes the deleted row's elements from the array index
+--echo #
+CREATE TABLE t6 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t6 VALUES
+  (1, '[1, 2, 3]'),
+  (2, '[4, 5, 6]'),
+  (3, '[3, 6, 9]');
+
+--sorted_result
+SELECT id FROM t6 WHERE 3 MEMBER OF (tags);
+
+DELETE FROM t6 WHERE id = 1;
+
+--echo # id 1's "3" is gone from the index, id 3's is not
+--sorted_result
+SELECT id FROM t6 WHERE 3 MEMBER OF (tags);
+
+DROP TABLE t6;
+
+--echo #
+--echo # 7. UPDATE replaces a row's elements in the array index
+--echo #
+CREATE TABLE t7 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t7 VALUES
+  (1, '[1, 2, 3]'),
+  (2, '[4, 5, 6]');
+
+UPDATE t7 SET tags = '[100]' WHERE id = 1;
+
+--echo # the old elements are gone, the new one is there
+--sorted_result
+SELECT id FROM t7 WHERE 1 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t7 WHERE 2 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t7 WHERE 3 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t7 WHERE 100 MEMBER OF (tags);
+
+DROP TABLE t7;
+
+--echo #
+--echo # 8. UPDATE/DELETE filtered by MEMBER OF against the same array index
+--echo # they also (potentially) write to, matching more than one row
+--echo #
+CREATE TABLE t8 (
+  id INT PRIMARY KEY,
+  other INT,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t8 VALUES
+  (1, 0, '[5]'),
+  (2, 0, '[5]'),
+  (3, 0, '[5]'),
+  (4, 0, '[5]'),
+  (5, 0, '[1]');
+
+--echo # (a) SET doesn't touch "tags" -- TABLE::hlindexes_on_update() skips
+--echo # delete_row()/insert_row() entirely (the indexed column can't have
+--echo # changed), so there is nothing to interleave with the read scan
+EXPLAIN UPDATE t8 SET other = 9 WHERE 5 MEMBER OF (tags);
+UPDATE t8 SET other = 9 WHERE 5 MEMBER OF (tags);
+
+--echo # all four rows with a "5" must be updated, not just the first match
+--sorted_result
+SELECT id, other FROM t8;
+
+--echo # (b) DELETE always removes every indexed element of the row -- this
+--echo # is the one case that genuinely interleaves the read scan
+--echo # (QUICK_RANGE_SELECT_ARRAY::get_next(), via ha_index_next_same())
+--echo # with the per-row delete_row() (via hlindexes_on_delete()) on the
+--echo # very same hlindex handler, row by row: delete_row() must not
+--echo # disturb the read scan's position, or later matches get silently
+--echo # dropped
+DELETE FROM t8 WHERE 5 MEMBER OF (tags);
+
+--echo # all four rows with a "5" must be deleted, not just the first match
+--sorted_result
+SELECT id FROM t8;
+
+DROP TABLE t8;
+
+--echo # (c) SET touches "tags" itself -- sql_update.cc's used_key_is_modified
+--echo # check (is_keys_used() -> is_key_used(), which resolves against the
+--echo # array key's real key number in table->key_info, same as any
+--echo # ordinary index) detects "tags" is both scanned via arr_idx and
+--echo # being SET, and forces a buffered plan ("Using buffer"): the read
+--echo # scan fully finishes before any row is written, so this doesn't
+--echo # interleave either
+CREATE TABLE t8b (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t8b VALUES
+  (1, '[5]'),
+  (2, '[5]'),
+  (3, '[5]'),
+  (4, '[5]'),
+  (5, '[1]');
+
+EXPLAIN UPDATE t8b SET tags = JSON_ARRAY(99) WHERE 5 MEMBER OF (tags);
+UPDATE t8b SET tags = JSON_ARRAY(99) WHERE 5 MEMBER OF (tags);
+
+--echo # all four rows with a "5" must be updated, not just the first match
+--sorted_result
+SELECT id FROM t8b WHERE 99 MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t8b WHERE 5 MEMBER OF (tags);
+
+DROP TABLE t8b;
+
+--echo #
+--echo # 9. Bulk DELETE (no WHERE) and TRUNCATE use delete_all(), not a
+--echo # per-row loop -- both must still leave the array index consistent
+--echo # (empty) for the (now-empty) table
+--echo #
+CREATE TABLE t9 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t9 VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]');
+DELETE FROM t9;
+INSERT INTO t9 VALUES (1, '[1, 2, 3]');
+--sorted_result
+SELECT id FROM t9 WHERE 1 MEMBER OF (tags);
+
+TRUNCATE TABLE t9;
+INSERT INTO t9 VALUES (1, '[1, 2, 3]');
+--sorted_result
+SELECT id FROM t9 WHERE 1 MEMBER OF (tags);
+
+DROP TABLE t9;
+
+--echo # End of 13.3 tests
