@@ -16,6 +16,9 @@ eval grant select on test.* to '$USER';
 --let $replace2=$USER@%
 --replace_result $replace1 "USER@localhost" $replace2 "USER@%"
 select user(), current_user(), database();
+# Enforce the cleanup so the next execution of in DROP USER
+# doesn't see this connection active.
+--ping
 EOF
 
 --echo #
