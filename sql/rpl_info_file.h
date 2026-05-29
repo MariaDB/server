@@ -294,9 +294,9 @@ private:
     auto &line1= dynamic_cast<String_value<> &>(values[0](this));
     if (line1.load_from(&file))
       return true;
-    char *end= str2int(line1.buf, 10, 0, INT32_MAX, &val);
+    char *end= str2int(line1.buf, 10, 1, INT32_MAX, &val);
     /**
-      If this first line was not a number - the line count,
+      If this first line was not a positive number - the line count,
       then it was the first value for real,
       so the for loop should then skip over it, the index 0 of the list.
     */
@@ -305,7 +305,8 @@ private:
       Set the default after parsing: While std::from_chars() does not replace
       the output if it failed, it does replace if the line is not fully spent.
     */
-    size_t line_count= i ? default_line_count: static_cast<size_t>(val);
+    size_t line_count= i ? default_line_count :
+      static_cast<size_t>(val - 1); // remove the line count line from the count
     for (; i < line_count; ++i)
     {
       int c;
@@ -355,10 +356,11 @@ private:
     }
     /*
       Pad additional reserved lines:
-      (1 for the line count line + line count) inclusive -> max line inclusive
-       = line count exclusive <- max line inclusive
+      (1 for the line count line + line count) exclusive -> max line inclusive
+       = line count exclusive -> max line exclusive
     */
-    for (; total_line_count > size; --total_line_count)
+    // Pad additional reserved lines
+    while ((++size) < total_line_count)
       my_b_write_byte(&file, '\n');
   }
 
