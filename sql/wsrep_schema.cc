@@ -34,6 +34,7 @@
 #include "log_event.h"
 #include "sql_class.h"
 
+#include <mysql/psi/mysql_transaction.h>
 #include <string>
 #include <sstream>
 
@@ -1663,13 +1664,15 @@ int Wsrep_schema::store_gtid_event(THD* thd,
 
   if (in_ddl)
   {
-    // Commit transaction if this GTID is part of DDL-clause because
-    // DDL causes implicit commit assuming there is no multi statement
-    // transaction ongoing.
-    if((error= trans_commit_stmt(thd)))
-      goto out;
-
-    (void)trans_commit(thd);
+    /* gtid slave state recording above has started a trasaction and called for
+       statemet commit. Resetting here the transaction state for the actual DDL
+       execution to happen by following events
+    */
+    thd->transaction->cleanup();
+    MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
+    thd->m_transaction_psi= NULL;
+    thd->server_status&=
+      ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   }
 
 out:
