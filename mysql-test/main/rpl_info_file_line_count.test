@@ -1,0 +1,75 @@
+# Line count / upgrading test for `@@master_info_file` & `@@relay_log_info_file`
+#
+# This regression test reminds that the line count includes the line count line.
+#
+# Reference:
+# MDEV-39788 CHANGE MASTER savefiles read and write one line to many
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+CHANGE MASTER TO master_host='127.0.0.1'; # have_info_files
+
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+
+
+# `using_gtid` is the key-value section, not the 33rd option.
+--remove_file $MYSQLD_DATADIR/master.info
+--write_file $MYSQLD_DATADIR/master.info
+33
+
+4
+127.0.0.1
+root
+
+3306
+60
+1
+
+
+
+
+
+1
+60.000
+
+
+
+101010
+
+
+
+
+
+
+
+
+
+
+
+
+
+using_gtid=1
+EOF
+
+# This file does not have the 6th option
+# (neither does the current `@@relay_log_info_file`).
+--cat_file $MYSQLD_DATADIR/relay-log.info
+--remove_file $MYSQLD_DATADIR/relay-log.info
+--write_file $MYSQLD_DATADIR/relay-log.info
+6
+./mysqld-relay-bin.000001
+4
+
+0
+0
+EOF
+
+
+--let $restart_parameters= --skip-slave-start
+--source include/restart_mysqld.inc
+
+--let $status_items= Master_SSL_Key, Using_Gtid, SQL_Delay
+--source include/show_slave_status.inc
+
+
+# Reset
+CHANGE MASTER TO master_use_gtid=slave_pos;

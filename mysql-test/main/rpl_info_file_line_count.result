@@ -1,0 +1,12 @@
+CHANGE MASTER TO master_host='127.0.0.1';
+5
+./mysqld-relay-bin.000001
+4
+
+0
+0
+# restart: --skip-slave-start
+Master_SSL_Key = ''
+Using_Gtid = 'Current_Pos'
+SQL_Delay = '0'
+CHANGE MASTER TO master_use_gtid=slave_pos;
