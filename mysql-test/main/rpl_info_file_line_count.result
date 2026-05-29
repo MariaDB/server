@@ -9,4 +9,6 @@ CHANGE MASTER TO master_host='127.0.0.1';
 Master_SSL_Key = ''
 Using_Gtid = 'Current_Pos'
 SQL_Delay = '0'
-CHANGE MASTER TO master_use_gtid=slave_pos;
+RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
