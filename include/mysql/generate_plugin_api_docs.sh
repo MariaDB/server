@@ -12,6 +12,8 @@
 # Note: target_dir is created if not present.
 # Note: requires at least moxygen 2.1.11
 
+set -euo pipefail
+
 # If no target_dir is specified, the current directory is used.
 if [ -n "$1" ]; then
     TARGET_DIR="$1"
@@ -29,6 +31,10 @@ rm -rf "$TARGET_DIR/xml"
 # Create the markdown output directory
 mkdir -p "$TARGET_DIR/md"
 
+echo "Doxygen version"
+doxygen --version
+echo "Moxygen version"
+moxygen --version
 # run doxygen to generate the plugin API documentation XML
 # Need to pass output directory so that XML docs get generated in it.
 # Need to EXCLUDE the output directory so that doxygen does not try to parse the generated XML and markdown files
