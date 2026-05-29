@@ -31,7 +31,7 @@ root
 1
 60.000
 
-
+0
 
 100000
 
@@ -52,7 +52,6 @@ EOF
 
 # This file does not have the 6th option
 # (neither does the current `@@relay_log_info_file`).
---cat_file $MYSQLD_DATADIR/relay-log.info
 --remove_file $MYSQLD_DATADIR/relay-log.info
 --write_file $MYSQLD_DATADIR/relay-log.info
 6
