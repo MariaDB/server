@@ -20280,6 +20280,64 @@ static void rewrite_full_to_left(TABLE_LIST *left_table,
 
 
 /**
+   Swap the left and right operands of a FULL JOIN that survives
+   simplify_joins.
+
+   FULL JOIN is symmetric on its operands, so swapping does not
+   change query semantics.  The swap is needed because the null
+   complement pass keys off a JOIN_TAB carrying JOIN_TYPE_FULL |
+   JOIN_TYPE_RIGHT.  alloc_full_join_duplicate_filters attaches the
+   fj_dups filter to that JOIN_TAB, and the rescan reads its rowid.
+
+   This is a temporary limitation given that, at this point in time,
+   we don't support anything but base tables on the right side of
+   a FULL JOIN.
+
+   When the parser places a nested join expression as the
+   right operand and a single base table as the left operand,
+   the FULL|RIGHT bits land on the nest, so no
+   fj_dups is allocated and the null complement pass never
+   fires.  Swapping puts the leaf on the right where the filter can
+   be attached and the rescan can run.
+
+   @param left_table  table t1 in t1 FULL JOIN t2
+   @param right_table table t2 in t1 FULL JOIN t2
+*/
+
+static void swap_full_join_sides(TABLE_LIST *left_table,
+                                 TABLE_LIST *right_table)
+{
+  DBUG_ASSERT(test_all_bits(left_table->outer_join,
+                            JOIN_TYPE_FULL | JOIN_TYPE_LEFT));
+  DBUG_ASSERT(test_all_bits(right_table->outer_join,
+                            JOIN_TYPE_FULL | JOIN_TYPE_RIGHT));
+  DBUG_ASSERT(right_table->on_expr);
+
+  /*
+    Swap the LEFT|RIGHT roles, keeping the FULL bit (and any other
+    bits, e.g., JOIN_TYPE_NATURAL) intact on both sides.
+  */
+  left_table->outer_join= (left_table->outer_join & ~JOIN_TYPE_LEFT)
+                          | JOIN_TYPE_RIGHT;
+  right_table->outer_join= (right_table->outer_join & ~JOIN_TYPE_RIGHT)
+                          | JOIN_TYPE_LEFT;
+
+  /*
+    The parser attaches the ON clause to the right operand of a FULL
+    JOIN.  After the swap the new right operand (was left) carries it.
+  */
+  left_table->on_expr= right_table->on_expr;
+  right_table->on_expr= nullptr;
+
+  left_table->prep_on_expr= right_table->prep_on_expr;
+  right_table->prep_on_expr= nullptr;
+
+  left_table->on_context= right_table->on_context;
+  right_table->on_context= nullptr;
+}
+
+
+/**
    Rewrite a FULL JOIN to a RIGHT JOIN by mutating the
    left and right table state to make them appear as though
    the user wrote the FULL JOIN as a RIGHT JOIN originally.
@@ -20476,6 +20534,20 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     {
       rewrite_full_to_left(left_table, *right_table);
       --join->thd->lex->full_join_count;
+    }
+    else if (!left_table->nested_join && (*right_table)->nested_join &&
+             (*right_table)->contains_full_join())
+    {
+      /*
+        The FULL JOIN survives simplification with a leaf on the left
+        and a nested join on the right, so the FULL|RIGHT bits sit on
+        a nest, which is never a JOIN_TAB, and the null complement
+        pass has no JOIN_TAB to attach an fj_dups filter to.  Swap so
+        the leaf carries those bits; see swap_full_join_sides.
+      */
+      swap_full_join_sides(left_table, *right_table);
+      *used_tables= left_used_tables;
+      *right_table= li->swap_next();
     }
     *not_null_tables= left_not_null_tables;
     // else the FULL JOIN cannot be rewritten, pass it along.
