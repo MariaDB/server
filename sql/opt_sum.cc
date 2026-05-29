@@ -78,13 +78,17 @@ static int maxmin_in_range(bool max_fl, Field* field, COND *cond);
     #			Multiplication of number of rows in all tables
 */
 
-static ulonglong get_exact_record_count(List<TABLE_LIST> &tables)
+static ulonglong get_exact_record_count(THD *thd, List<TABLE_LIST> &tables)
 {
   ulonglong count= 1;
   TABLE_LIST *tl;
   List_iterator<TABLE_LIST> ti(tables);
   while ((tl= ti++))
   {
+    if (thd->opt_ctx_replay)
+    {
+      thd->opt_ctx_replay->infuse_table_rows(tl->table);
+    }
     ha_rows tmp= tl->table->file->records();
     if (tmp == HA_POS_ERROR)
       return ULONGLONG_MAX;
@@ -366,7 +370,7 @@ int opt_sum_query(THD *thd,
         {
           if (!is_exact_count)
           {
-            if ((count= get_exact_record_count(tables)) == ULONGLONG_MAX)
+            if ((count= get_exact_record_count(thd, tables)) == ULONGLONG_MAX)
             {
               /* Error from handler in counting rows. Don't optimize count() */
               const_result= 0;

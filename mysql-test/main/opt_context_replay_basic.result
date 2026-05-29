@@ -354,4 +354,50 @@ trace like '%foo%'
 select context like '%bar%' from information_schema.optimizer_context;
 context like '%bar%'
 1
+drop table t1;
+#
+# MDEV-39791: Handle count aggregate optimization for replay purpose
+#
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+set optimizer_record_context=1;
+explain
+select count(a), count(b), count(c) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain
+select count(a), count(b), count(c) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+set optimizer_replay_context='';
+drop table t1;
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+set optimizer_record_context=1;
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# Same query as above, must have same explain:
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+set optimizer_replay_context='';
+drop table t1;
 drop database db1;
