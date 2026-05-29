@@ -19,11 +19,31 @@ include/reset_slave.inc
 
 *** Reset slave affect ***
 SET @@global.slave_net_timeout=30;
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=5;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20;
 include/reset_slave.inc
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
 Slave_heartbeat_period	15.000
+
+# Specify MASTER_HEARTBEAT_PERIOD
+
+SET @@global.slave_net_timeout=60;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=5;
+include/reset_slave.inc
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	5.000
+RESET MASTER;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20;
+include/reset_slave.inc
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	5.000
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=DEFAULT;
+include/reset_slave.inc
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	30.000
 
 *** Default value if slave_net_timeout changed ***
 SET @@global.slave_net_timeout=50;
@@ -70,7 +90,7 @@ SET @@global.slave_net_timeout=500;
 connection slave;
 SET @@global.slave_net_timeout=200;
 RESET SLAVE;
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=DEFAULT;
 include/start_slave.inc
 connection master;
 connection slave;
@@ -138,8 +158,10 @@ Slave_received_heartbeats	0
 RESET SLAVE;
 SELECT SLAVE_HEARTBEAT_TIMEOUT = 0 AS Result;
 Result
-0
-
+1
+#
+# Check limits for slave_heartbeat_timeout
+#
 *** Min slave_heartbeat_timeout ***
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.001;
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';

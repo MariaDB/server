@@ -21,7 +21,6 @@
 #ifndef SQL_LEX_INCLUDED
 #define SQL_LEX_INCLUDED
 
-#include <functional>
 #include "lex_ident_sys.h"
 #include "violite.h"                            /* SSL_type */
 #include "sql_trigger.h"
@@ -492,20 +491,25 @@ struct LEX_MASTER_INFO
     repl_ignore_server_ids_opt,
     repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
 
-  /**TODO
-    Going through this struct means it must contain a repeated set of CHANGE
-    MASTER and START SLAVE variables that additionally knows which values are
-    not changing, not to mention support for `CHANGE MASTER ...= DEFAULT`.
-    This creates complexity and leads to inconsistency.
-    Instead, it is possible to track and apply CHANGE MASTER configs during
-    parsing (in `sql_yacc.yy`) without stashing them in a @ref LEX_MASTER_INFO.
-    But for now, lambdas in `sql_yacc.yy` demonstrates this concept while
-    keeping them deferred to the "post-processing" in change_master().
+  /*
+    DEFAULT-capable CHANGE MASTER options. The parser sets one of:
+      mi_used_options bit  -- user provided a value (stored in the value
+                              field below)
+      mi_used_default bit  -- user wrote DEFAULT (no value; change_master()
+                              calls the corresponding set_default())
+    Neither bit set means the user didn't mention the option at all.
   */
-  using mi_functor= std::function<void(Master_info_file *mi)>;
-  mi_functor connect_retry, heartbeat_period, ssl,
-    ssl_key, ssl_cert, ssl_ca, ssl_capath, ssl_cipher, ssl_crl, ssl_crlpath,
-    ssl_verify_server_cert, retry_count, use_gtid;
+  ulonglong mi_used_options;
+  ulonglong mi_used_default;
+
+  /* Values for the DEFAULT-capable options. */
+  uint                 connect_retry;
+  ulonglong            retry_count;
+  uint32               heartbeat_period;       /* milliseconds */
+  bool                 ssl, ssl_verify_server_cert;
+  enum_master_use_gtid use_gtid;
+  const char *ssl_ca, *ssl_capath, *ssl_cert, *ssl_cipher,
+             *ssl_key, *ssl_crl, *ssl_crlpath;
 
   void init()
   {
@@ -530,27 +534,48 @@ struct LEX_MASTER_INFO
     }
 
     host= user= password= log_file_name= relay_log_name= NULL;
-    ssl_key= nullptr;
-    ssl_cert= nullptr;
-    ssl_ca= nullptr;
-    ssl_capath= nullptr;
-    ssl_cipher= nullptr;
-    ssl_crl= nullptr;
-    ssl_crlpath= nullptr;
     pos= relay_log_pos= server_id= port= 0;
-    retry_count= nullptr;
-    connect_retry= nullptr;
-    heartbeat_period= nullptr;
-    ssl= nullptr;
-    ssl_verify_server_cert= nullptr;
     repl_ignore_server_ids_opt=
       repl_do_domain_ids_opt= repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_clex_str;
-    use_gtid= nullptr;
     sql_delay= -1;
     is_demotion_opt= 0;
     is_until_before_gtids= false;
+    /*
+      Clearing the bitmasks suffices for the DEFAULT-capable options;
+      the value fields are only read when their bit is set.
+    */
+    mi_used_options= mi_used_default= 0;
   }
+};
+
+
+/*
+  Bit positions in LEX_MASTER_INFO::mi_used_options and
+  LEX_MASTER_INFO::mi_used_default. Each names a DEFAULT-capable
+  CHANGE MASTER option.
+*/
+enum mi_used_option_bits : ulonglong
+{
+  MI_USED_OPTION_CONNECT_RETRY          = 1ULL << 0,
+  MI_USED_OPTION_HEARTBEAT_PERIOD       = 1ULL << 1,
+  MI_USED_OPTION_SSL                    = 1ULL << 2,
+  MI_USED_OPTION_SSL_KEY                = 1ULL << 3,
+  MI_USED_OPTION_SSL_CERT               = 1ULL << 4,
+  MI_USED_OPTION_SSL_CA                 = 1ULL << 5,
+  MI_USED_OPTION_SSL_CAPATH             = 1ULL << 6,
+  MI_USED_OPTION_SSL_CIPHER             = 1ULL << 7,
+  MI_USED_OPTION_SSL_CRL                = 1ULL << 8,
+  MI_USED_OPTION_SSL_CRLPATH            = 1ULL << 9,
+  MI_USED_OPTION_SSL_VERIFY_SERVER_CERT = 1ULL << 10,
+  MI_USED_OPTION_RETRY_COUNT            = 1ULL << 11,
+  MI_USED_OPTION_USE_GTID               = 1ULL << 12,
+  /* Mask of all the SSL-related bits, for the OPENSSL warning. */
+  MI_USED_OPTION_ANY_SSL=
+    MI_USED_OPTION_SSL | MI_USED_OPTION_SSL_KEY | MI_USED_OPTION_SSL_CERT |
+    MI_USED_OPTION_SSL_CA | MI_USED_OPTION_SSL_CAPATH |
+    MI_USED_OPTION_SSL_CIPHER | MI_USED_OPTION_SSL_CRL |
+    MI_USED_OPTION_SSL_CRLPATH | MI_USED_OPTION_SSL_VERIFY_SERVER_CERT
 };
 
 typedef struct st_lex_reset_slave

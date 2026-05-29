@@ -53,7 +53,7 @@ if ($tmp)
   --echo Master_SSL_Cipher	
   --echo Master_SSL_Key	
   --echo Seconds_Behind_Master	NULL
-  --echo Master_SSL_Verify_Server_Cert	No
+  --echo Master_SSL_Verify_Server_Cert	#
   --echo Last_IO_Errno	0
   --echo Last_IO_Error	
   --echo Last_SQL_Errno	0
@@ -79,7 +79,7 @@ if ($tmp)
 }
 if (!$tmp) {
   # Note: after WL#5177, fields 13-18 shall not be filtered-out.
-  --replace_column 4 # 5 # 6 # 7 # 8 # 9 # 10 # 13 # 14 # 15 # 16 # 17 # 18 # 22 # 23 # 24 # 25 # 26 # 40 # 41 # 42 # 44 # 51 # 52 # 53 # 54 # 55 # 56 #
+  --replace_column 4 # 5 # 6 # 7 # 8 # 9 # 10 # 13 # 14 # 15 # 16 # 17 # 18 # 22 # 23 # 24 # 25 # 26 # 34 # 40 # 41 # 42 # 44 # 51 # 52 # 53 # 54 # 55 # 56 #
   query_vertical
   SHOW SLAVE STATUS;
 }

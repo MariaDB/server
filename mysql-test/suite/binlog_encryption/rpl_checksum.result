@@ -128,8 +128,6 @@ must be zero
 connection slave;
 stop slave;
 include/reset_slave.inc
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 set @@global.binlog_checksum= IF(floor((rand()*1000)%2), "CRC32", "NONE");
 flush logs;
 connection master;

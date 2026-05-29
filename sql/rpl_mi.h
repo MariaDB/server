@@ -193,15 +193,8 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
     return rli.max_relay_log_size;
   }
 
-  /* the variables below are needed because we can change masters on the fly */
-  char (&master_log_name)[FN_REFLEN]= master_log_file.buf;
-  char (&host)[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1]= master_host.buf;
-  char (&user)[USERNAME_LENGTH+1]= master_user.buf;
-  char (&password)[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1]=
-    master_password.buf;
   LEX_CSTRING connection_name; 		/* User supplied connection name */
   LEX_CSTRING cmp_connection_name;	/* Connection name in lower case */
-
   my_off_t &master_log_pos= Master_info_file::master_log_pos.value;
   File fd; // we keep the file open, so we need to remember the file pointer
 
@@ -267,14 +260,6 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
     silent change of master server during reconnects.
   */
   ulong prev_master_id;
-  /*
-    Which kind of GTID position (if any) is used when connecting to master.
-
-    Note that you can not change the numeric values of these, they are used
-    in master.info.
-  */
-  decltype(master_use_gtid) &using_gtid= master_use_gtid;
-
   /*
     This GTID position records how far we have fetched into the relay logs.
     This is used to continue fetching when the IO thread reconnects to the
@@ -366,13 +351,6 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
     at time its alter info struct is about to be appended to the list.
   */
   bool is_shutdown= false;
-
-  /*
-    A slave will default to Slave_Pos for using Using_Gtid; however, we
-    first need to test if the master supports GTIDs. If not, fall back to 'No'.
-    Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
-  */
-  bool &master_supports_gtid= master_use_gtid.gtid_supported;
 
   /*
     When TRUE, transition this server from being an active master to a slave.

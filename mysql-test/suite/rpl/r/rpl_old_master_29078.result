@@ -72,8 +72,6 @@ drop table t1;
 include/stop_slave.inc
 set global explicit_defaults_for_timestamp=1;
 include/reset_slave.inc
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
 show create table t1;
 Table	Create Table

@@ -208,9 +208,9 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
   m_row.user_length= static_cast<uint>(strlen(temp_store));
   memcpy(m_row.user, temp_store, m_row.user_length);
 
-  if (mi->using_gtid == Master_info::USE_GTID_NO)
+  if (mi->using_gtid() == Master_info::USE_GTID_NO)
     m_row.using_gtid= PS_USE_GTID_NO;
-  else if (mi->using_gtid == Master_info::USE_GTID_CURRENT_POS)
+  else if (mi->using_gtid() == Master_info::USE_GTID_CURRENT_POS)
     m_row.using_gtid= PS_USE_GTID_CURRENT_POS;
   else
     m_row.using_gtid= PS_USE_GTID_SLAVE_POS;
@@ -260,7 +260,7 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
 
   m_row.connection_retry_count= mi->retry_count;
 
-  m_row.heartbeat_interval= mi->master_heartbeat_period / 1000.0;
+  m_row.heartbeat_interval= mi->master_heartbeat_period.get_value() / 1000.0;
 
   m_row.ignore_server_ids= convert_array_to_str(&mi->ignore_server_ids);
   if (m_row.ignore_server_ids == NULL)

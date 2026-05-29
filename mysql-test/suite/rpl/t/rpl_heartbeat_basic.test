@@ -63,9 +63,33 @@ let $result= query_get_value(SELECT $slave_net_timeout/$slave_heartbeat_timeout 
 SET @@global.slave_net_timeout=30;
 --enable_warnings
 --replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry;
+--source include/reset_slave.inc
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+
+--echo
+--echo # Specify MASTER_HEARTBEAT_PERIOD
+--echo
+--disable_warnings
+SET @@global.slave_net_timeout=60;
+--enable_warnings
+--replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry, MASTER_HEARTBEAT_PERIOD=5;
 --source include/reset_slave.inc
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+
+RESET MASTER;
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry;
+--source include/reset_slave.inc
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry, MASTER_HEARTBEAT_PERIOD=DEFAULT;
+--source include/reset_slave.inc
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+
 --echo
 
 # Check default value of slave_heartbeat_timeout if slave_net_timeout is changed
@@ -124,7 +148,7 @@ SET @@global.slave_net_timeout=500;
 SET @@global.slave_net_timeout=200;
 RESET SLAVE;
 --replace_result $MASTER_MYPORT MASTER_PORT
-eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry;
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=$connect_retry, MASTER_HEARTBEAT_PERIOD=DEFAULT;
 --source include/start_slave.inc
 --connection master
 --sync_slave_with_master
@@ -186,11 +210,10 @@ RESET SLAVE;
 let $slave_heartbeat_timeout= query_get_value(SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period', Value, 1);
 --replace_result $slave_heartbeat_timeout SLAVE_HEARTBEAT_TIMEOUT
 --eval SELECT $slave_heartbeat_timeout = 0 AS Result
---echo 
 
-#
-# Check limits for slave_heartbeat_timeout
-#
+--echo #
+--echo # Check limits for slave_heartbeat_timeout
+--echo #
 
 --echo *** Min slave_heartbeat_timeout ***
 --replace_result $MASTER_MYPORT MASTER_PORT

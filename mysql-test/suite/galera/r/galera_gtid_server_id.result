@@ -26,6 +26,7 @@ gtid_ignore_duplicates	OFF
 gtid_pos_auto_engines	
 gtid_slave_pos	
 gtid_strict_mode	OFF
+master_use_gtid	Slave_Pos
 wsrep_gtid_domain_id	1
 wsrep_gtid_mode	ON
 connection node_2;
@@ -44,6 +45,7 @@ gtid_ignore_duplicates	OFF
 gtid_pos_auto_engines	
 gtid_slave_pos	
 gtid_strict_mode	OFF
+master_use_gtid	Slave_Pos
 wsrep_gtid_domain_id	1
 wsrep_gtid_mode	ON
 SET GLOBAL server_id=200;
@@ -73,6 +75,7 @@ gtid_ignore_duplicates	OFF
 gtid_pos_auto_engines	
 gtid_slave_pos	
 gtid_strict_mode	OFF
+master_use_gtid	Slave_Pos
 wsrep_gtid_domain_id	1
 wsrep_gtid_mode	ON
 connection node_1;
@@ -90,6 +93,7 @@ gtid_ignore_duplicates	OFF
 gtid_pos_auto_engines	
 gtid_slave_pos	
 gtid_strict_mode	OFF
+master_use_gtid	Slave_Pos
 wsrep_gtid_domain_id	1
 wsrep_gtid_mode	ON
 DROP TABLE t1;

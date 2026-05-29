@@ -107,8 +107,6 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 ### Slave: Shutdown the server
 include/rpl_stop_server.inc [server_number=2]
 ### Master: Run a transaction while the slave is shut down

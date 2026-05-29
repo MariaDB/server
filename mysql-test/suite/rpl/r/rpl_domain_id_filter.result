@@ -264,6 +264,8 @@ CHANGE MASTER TO DO_DOMAIN_IDS=(1), MASTER_USE_GTID=SLAVE_POS;
 ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 1
+# MASTER_USE_GTID can't be set to NO when either of IGNORE_DOMAIN_IDS or
+# DO_DOMAIN_IDS is non-empty.
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;

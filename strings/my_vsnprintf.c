@@ -699,7 +699,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
       switch (fmt[1]) // look-ahead (will at most land on the terminating `\0`)
       {
       case 'Q':
-        suffix_q= TRUE;
+        suffix_q= TRUE;                         /* Add '' around argument */
         ++fmt;
         break;
       case 'B':

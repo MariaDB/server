@@ -13076,9 +13076,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     or otherwise cause wakeup_subsequent_commits() before completion. So
     suspend those wakeups temporarily.
   */
-  std::unique_ptr<wait_for_commit, std::function<void(wait_for_commit *)> >
-    suspended_wfc(thd->suspend_subsequent_commits(),
-        [thd](wait_for_commit *wfc) { thd->resume_subsequent_commits(wfc); });
+  Suspend_subsequent_commits suspended_wfc(thd);
 
   // Relay_log_info is too big to put on a stack
   if (!(rli_buff= thd->alloc(sizeof(Relay_log_info))) ||

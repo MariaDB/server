@@ -36,8 +36,6 @@ if ($SYSTEM_PATH_SEPARATOR != /) {
 --let $status_items= Master_Log_File, Read_Master_Log_Pos, Master_SSL_Key, Using_Gtid, Relay_Master_Log_File, Exec_Master_Log_Pos, SQL_Delay
 --source include/show_slave_status.inc
 
-
-
 # Compatibility test with erroneous files from 12.3.0-12.3.2
 # (from MDEV-37530, fixed in MDEV-39788)
 

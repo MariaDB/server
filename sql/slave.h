@@ -113,7 +113,6 @@ struct rpl_parallel_thread;
   (so that you have to update the .index file).
 */
 
-extern uint64_t master_retry_count;
 extern MY_BITMAP slave_error_mask;
 extern char slave_skip_error_names[];
 extern bool use_slave_mask;

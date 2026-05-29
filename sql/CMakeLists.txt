@@ -156,7 +156,8 @@ SET (SQL_SOURCE
                events.cc ../sql-common/my_user.c
                partition_info.cc rpl_utility.cc rpl_utility_server.cc
                rpl_injector.cc sql_locale.cc
-               rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
+               rpl_rli.cc rpl_mi.cc rpl_info_file.cc rpl_master_info_file.cc
+               sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc

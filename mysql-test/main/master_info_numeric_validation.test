@@ -19,6 +19,7 @@
 call mtr.add_suppression("Error reading master configuration");
 call mtr.add_suppression("Failed to initialize the master info structure");
 call mtr.add_suppression("error connecting to master");
+call mtr.add_suppression("Incorrect master_port value.*9999");
 
 --let $MYSQLD_DATADIR= `select @@datadir`
 

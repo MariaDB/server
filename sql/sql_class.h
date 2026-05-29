@@ -8375,6 +8375,27 @@ class Sql_mode_save
 
 
 /*
+  Suspend wakeup of subsequent commits for the lifetime of the
+  object and resume them when it goes out of scope.
+*/
+
+class Suspend_subsequent_commits
+{
+  THD *thd;
+  wait_for_commit *suspended_wfc;
+public:
+  Suspend_subsequent_commits(THD *thd_arg)
+    :thd(thd_arg), suspended_wfc(thd_arg->suspend_subsequent_commits())
+  {}
+  ~Suspend_subsequent_commits()
+  {
+    if (suspended_wfc)
+      thd->resume_subsequent_commits(suspended_wfc);
+  }
+};
+
+
+/*
   Save the current sql_mode. Switch off sql_mode flags which can prevent
   normal parsing of VIEWs, expressions in generated columns.
   Restore the old sql_mode on destructor.

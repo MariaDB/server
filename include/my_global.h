@@ -752,6 +752,8 @@ inline unsigned long long my_double2ulonglong(double d)
 #define LONGLONG_MIN	((long long) 0x8000000000000000LL)
 #define LONGLONG_MAX	((long long) 0x7FFFFFFFFFFFFFFFLL)
 #endif
+/* Max length needed for a buffer to hold an int or uint + end \0 */
+#define INT_BUFFER_SIZE 12
 /* Max length needed for a buffer to hold a longlong or ulonglong + end \0 */
 #define LONGLONG_BUFFER_SIZE 21
 

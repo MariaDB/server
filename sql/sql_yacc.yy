@@ -234,17 +234,11 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   uint sp_instr_addr;
 
   /* structs */
-  /**
-    This is a stand-in for @ref std::optional,
-    which is not trivially `union`-safe.
-  */
+  /* Holds has_value + value for the "_or_default" uint grammar rules. */
   struct
   {
-    bool has_value; uint64_t value;
-#if __cplusplus >= 201703L || _MSVC_LANG >= 201703L
-    template<typename I> operator std::optional<I>()
-    { return has_value ? std::optional(static_cast<I>(value)) : std::nullopt; }
-#endif
+    bool has_value;
+    uint64_t value;
   } optional_uint;
   LEX_CSTRING lex_str;
   Lex_comment_st lex_comment;
@@ -2398,15 +2392,23 @@ master_def:
           }
         | MASTER_CONNECT_RETRY_SYM '=' uint32_or_default
           {
-            Lex->mi.connect_retry= [optional=
-              static_cast<std::optional<uint32_t>>($3)](Master_info_file *mi)
-            { mi->master_connect_retry= std::move(optional); };
+            if ($3.has_value)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_CONNECT_RETRY;
+              Lex->mi.connect_retry= (uint) $3.value;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_CONNECT_RETRY;
           }
         | MASTER_RETRY_COUNT_SYM '=' uint64_or_default
           {
-            Lex->mi.retry_count= [optional=
-              static_cast<std::optional<uint64_t>>($3)](Master_info_file *mi)
-            { mi->master_retry_count= std::move(optional); };
+            if ($3.has_value)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_RETRY_COUNT;
+              Lex->mi.retry_count= $3.value;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_RETRY_COUNT;
           }
         | MASTER_DELAY_SYM '=' ulong_num
           {
@@ -2420,61 +2422,106 @@ master_def:
           }
         | MASTER_SSL_SYM '=' bool_or_default
           {
-            Lex->mi.ssl= [trilean= $3](Master_info_file *mi)
-            { mi->master_ssl= trilean; };
+            if ($3 == trilean::DEFAULT)
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL;
+            else
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL;
+              Lex->mi.ssl= ($3 == trilean::YES);
+            }
           }
         | MASTER_SSL_CA_SYM '=' path_or_default
           {
-            Lex->mi.ssl_ca= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_ca= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_CA;
+              Lex->mi.ssl_ca= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_CA;
           }
         | MASTER_SSL_CAPATH_SYM '=' path_or_default
           {
-            Lex->mi.ssl_capath= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_capath= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_CAPATH;
+              Lex->mi.ssl_capath= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_CAPATH;
           }
         | MASTER_SSL_CERT_SYM '=' path_or_default
           {
-            Lex->mi.ssl_cert= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_cert= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_CERT;
+              Lex->mi.ssl_cert= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_CERT;
           }
         | MASTER_SSL_CIPHER_SYM '=' path_or_default
           {
-            Lex->mi.ssl_cipher= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_cipher= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_CIPHER;
+              Lex->mi.ssl_cipher= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_CIPHER;
           }
         | MASTER_SSL_KEY_SYM '=' path_or_default
           {
-            Lex->mi.ssl_key= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_key= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_KEY;
+              Lex->mi.ssl_key= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_KEY;
           }
         | MASTER_SSL_VERIFY_SERVER_CERT_SYM '=' bool_or_default
           {
-            Lex->mi.ssl_verify_server_cert= [trilean= $3](Master_info_file *mi)
-            { mi->master_ssl_verify_server_cert= trilean; };
+            if ($3 == trilean::DEFAULT)
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_VERIFY_SERVER_CERT;
+            else
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_VERIFY_SERVER_CERT;
+              Lex->mi.ssl_verify_server_cert= ($3 == trilean::YES);
+            }
           }
         | MASTER_SSL_CRL_SYM '=' path_or_default
           {
-            Lex->mi.ssl_crl= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_crl= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_CRL;
+              Lex->mi.ssl_crl= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_CRL;
           }
         | MASTER_SSL_CRLPATH_SYM '=' path_or_default
           {
-            Lex->mi.ssl_crlpath= [path= $3](Master_info_file *mi)
-            { mi->master_ssl_crlpath= path; };
+            if ($3)
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_SSL_CRLPATH;
+              Lex->mi.ssl_crlpath= $3;
+            }
+            else
+              Lex->mi.mi_used_default|= MI_USED_OPTION_SSL_CRLPATH;
           }
 
         | MASTER_HEARTBEAT_PERIOD_SYM '=' num_or_default
           {
             if ($3)
             {
-              uint32_t milliseconds;
+              uint32 milliseconds;
               bool overprecise;
-              auto decimal_buf= my_decimal(),
-                  *decimal= $3->val_decimal(&decimal_buf);
+              my_decimal decimal_buf;
+              my_decimal *decimal= $3->val_decimal(&decimal_buf);
               DBUG_ASSERT(decimal);
               if (Master_info_file::Heartbeat_period_value::from_decimal(
-                milliseconds, *decimal, overprecise
+                &milliseconds, decimal, &overprecise
               ))
                 my_yyabort_error((ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE, MYF(0),
                   Master_info_file::Heartbeat_period_value::MAX));
@@ -2486,12 +2533,11 @@ master_def:
                 push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                   ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN,
                   ER_THD(thd, ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN));
-              Lex->mi.heartbeat_period= [milliseconds](Master_info_file *mi)
-              { mi->master_heartbeat_period= milliseconds; };
+              Lex->mi.mi_used_options|= MI_USED_OPTION_HEARTBEAT_PERIOD;
+              Lex->mi.heartbeat_period= milliseconds;
             }
             else
-              Lex->mi.heartbeat_period= [](Master_info_file *mi)
-              { mi->master_heartbeat_period.set_default(); };
+              Lex->mi.mi_used_default|= MI_USED_OPTION_HEARTBEAT_PERIOD;
           }
         | IGNORE_SERVER_IDS_SYM '=' '(' ignore_server_id_list ')'
           {
@@ -2606,10 +2652,16 @@ master_file_def:
           }
         | MASTER_USE_GTID_SYM '=' master_use_gtid_enum
           {
-            if (Lex->mi.use_gtid)
+            if ((Lex->mi.mi_used_options | Lex->mi.mi_used_default) &
+                MI_USED_OPTION_USE_GTID)
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid"));
-            Lex->mi.use_gtid= [use_gtid= $3](Master_info_file *mi)
-            { mi->master_use_gtid= use_gtid; };
+            if ($3 == enum_master_use_gtid::DEFAULT)
+              Lex->mi.mi_used_default|= MI_USED_OPTION_USE_GTID;
+            else
+            {
+              Lex->mi.mi_used_options|= MI_USED_OPTION_USE_GTID;
+              Lex->mi.use_gtid= $3;
+            }
           }
         | MASTER_DEMOTE_TO_SLAVE_SYM '=' bool
           {
