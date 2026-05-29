@@ -33,7 +33,7 @@ root
 
 
 
-101010
+100000
 
 
 
@@ -72,4 +72,4 @@ EOF
 
 
 # Reset
-CHANGE MASTER TO master_use_gtid=slave_pos;
+RESET SLAVE ALL;
