@@ -242,12 +242,18 @@ void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
     Json_writer_object irc_wrapper(ctx_writer);
     irc_wrapper.add("index_name", irc->idx_name);
 
+    List_iterator rc_li(irc->range_list);
+    Json_writer_array ranges_wrapper(ctx_writer, "ranges");
+    StringBuffer<128> escaped_range_info;
+    while (const char *range_str= rc_li++)
     {
-      Json_writer_array ranges_wrapper(ctx_writer, "ranges");
-      List_iterator rc_li(irc->range_list);
-      while (const char *range_str= rc_li++)
-        ranges_wrapper.add(range_str, strlen(range_str));
+      const String range_info(range_str, strlen(range_str),
+                              system_charset_info);
+      json_escape_to_string(&range_info, &escaped_range_info);
+      ranges_wrapper.add(escaped_range_info.c_ptr_safe(),
+                         escaped_range_info.length());
     }
+    ranges_wrapper.end();
 
     irc_wrapper.add("num_rows", irc->rows);
     {
@@ -529,6 +535,31 @@ static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &script,
 
 /*
   @brief
+    Append the json "str" to sql_script, by escaping only backslash,
+    and single quote
+*/
+static void escape_json_for_sql_literal(String &sql_script, const char *str,
+                                        size_t len)
+{
+  const char *end= str + len;
+  for (; str < end; str++)
+  {
+    switch (*str)
+    {
+    case '\\':
+      sql_script.append(STRING_WITH_LEN("\\\\"));
+      break;
+    case '\'':
+      sql_script.append(STRING_WITH_LEN("\\'"));
+      break;
+    default:
+      sql_script.append(*str);
+    }
+  }
+}
+
+/*
+  @brief
     Dump definitions, basic stats of all tables and views used by the
     statement into the optimizer_context IS table.
     The goal is to eventually save everything that is needed to
@@ -728,9 +759,12 @@ bool store_optimizer_context(THD *thd)
     const char *SET_OPT_CONTEXT_VAR= "set @opt_context=\'\n";
     const char *SET_REPLAY_CONTEXT_VAR=
         "set optimizer_replay_context=\'opt_context\'";
-    String *s= const_cast<String *>(ctx_writer.output.get_string());
     sql_script.append(SET_OPT_CONTEXT_VAR, strlen(SET_OPT_CONTEXT_VAR));
-    sql_script.append(*s);
+    String *opt_context= const_cast<String *>(ctx_writer.output.get_string());
+    // require extra escaping of the opt_ctx so as to counter the
+    // unescaping done by sql parse
+    escape_json_for_sql_literal(sql_script, opt_context->c_ptr_safe(),
+                                opt_context->length());
     sql_script.append(STRING_WITH_LEN("\n\';#opt_context_ends\n\n"));
     sql_script.append(SET_REPLAY_CONTEXT_VAR, strlen(SET_REPLAY_CONTEXT_VAR));
     sql_script.append(STRING_WITH_LEN(";\n\n"));

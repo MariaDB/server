@@ -39,25 +39,29 @@ int main(int args, char **argv)
   MEM_ROOT alloc;
   json_engine_t je;
   int rc;
+  const char *esc_str_val= "a\bc";
   init_alloc_root(0, &alloc, 32768, 0, 0);
   mem_root_dynamic_array_init(&alloc, 0, &je.stack,
                               sizeof(int), NULL, JSON_DEPTH_DEFAULT,
                               JSON_DEPTH_INC, MYF(0));
   system_charset_info= &my_charset_utf8mb3_bin;
-  const char *js_doc="{ \"str_val\": \"abc\", \"double_val\": 1234.5 }";
+  const char *js_doc= "{ \"str_val\": \"abc\", \"double_val\": 1234.5, "
+                      "\"esc_str_val\": \"a\\bc\" }";
   json_scan_start(&je, &my_charset_utf8mb3_bin, (const uchar *) js_doc,
                   (const uchar *) js_doc + strlen(js_doc));
   
   char *parsed_name;
   double parsed_dbl;
+  char *parsed_esc_str;
   Read_named_member array[]= {
-      {"str_val",    Read_string(&alloc, &parsed_name), false},
+      {"str_val", Read_string(&alloc, &parsed_name), false},
       {"double_val", Read_double(&parsed_dbl), false},
-      {NULL, Read_double(NULL), false }
-  };
+      {"esc_str_val", Read_string(&alloc, &parsed_esc_str), false},
+      {NULL, Read_double(NULL), false}};
   String err_buf;
 
-  rc= json_read_object(&je, array, &err_buf);
+  rc= json_read_object(&je, array, &err_buf) ||
+      strcmp(parsed_esc_str, esc_str_val);
   ok(!rc, "Basic object read");
   free_root(&alloc, 0);
 #if 0
