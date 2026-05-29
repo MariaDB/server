@@ -78,7 +78,7 @@ bool read_string(MEM_ROOT *mem_root, json_engine_t *je, const char *read_elem_ke
   if (check_reading_of_elem_key(je, read_elem_key, err_buf))
     return true;
 
-  StringBuffer<128> val_buf;
+  StringBuffer<128> val_buf(&my_charset_utf8mb4_bin);
   if (json_unescape_to_string((const char *) je->value, je->value_len,
                               &val_buf))
   {
