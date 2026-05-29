@@ -4769,6 +4769,13 @@ drop table t1, t2, t3, t4;
 # unlinked.  add_found_match_trig_cond walked off the broken
 # chain and dereferenced NULL when make_join_select pushed an
 # ON condition to that table.
+#
+# Separately, the outermost FULL JOIN's right operand was a
+# nested join expression rather than a single base table (the
+# parser places it there when the FULL JOIN chain's ONs are all
+# trailing), and the null complement pass had no JOIN_TAB
+# carrying FULL|RIGHT to attach an fj_dups filter to, so the
+# unmatched rows from the right side were never emitted.
 create table t1 (pk int);
 create table t2 (pk int);
 create table t3 (pk int);
@@ -4790,6 +4797,9 @@ pk
 1
 1
 2
+NULL
+NULL
+NULL
 drop table t1, t2, t3, t4, t5;
 # When an IN subquery in the ON clause of a JOIN to a FULL JOIN
 # nest was converted into a semijoin, the semijoin nest was inserted

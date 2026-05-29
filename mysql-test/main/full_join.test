@@ -2817,6 +2817,13 @@ drop table t1, t2, t3, t4;
 --echo # unlinked.  add_found_match_trig_cond walked off the broken
 --echo # chain and dereferenced NULL when make_join_select pushed an
 --echo # ON condition to that table.
+--echo #
+--echo # Separately, the outermost FULL JOIN's right operand was a
+--echo # nested join expression rather than a single base table (the
+--echo # parser places it there when the FULL JOIN chain's ONs are all
+--echo # trailing), and the null complement pass had no JOIN_TAB
+--echo # carrying FULL|RIGHT to attach an fj_dups filter to, so the
+--echo # unmatched rows from the right side were never emitted.
 create table t1 (pk int);
 create table t2 (pk int);
 create table t3 (pk int);
