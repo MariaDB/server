@@ -228,5 +228,57 @@ explain select * from t1 where a >'foo' or a < 'bar';
 select trace like '%foo%' from information_schema.optimizer_trace;
 select context like '%bar%' from information_schema.optimizer_context;
 
+drop table t1;
 
+--echo #
+--echo # MDEV-39791: Handle count aggregate optimization for replay purpose
+--echo #
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+
+set optimizer_record_context=1;
+
+explain
+select count(a), count(b), count(c) from t1;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain
+select count(a), count(b), count(c) from t1;
+
+set optimizer_replay_context='';
+drop table t1;
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+create table t1 (a int primary key, b int not null, c varchar(10));
+insert into t1 select seq, seq%5, concat('a-', seq) from seq_1_to_10;
+
+set optimizer_record_context=1;
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Same query as above, must have same explain:
+explain
+select count(c) from t1 where b = (select count(b) from t1) or a = (select count(a) from t1);
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table t1;
 drop database db1;

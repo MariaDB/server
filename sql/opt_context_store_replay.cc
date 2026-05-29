@@ -308,9 +308,9 @@ void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
   }
 }
 
-static
-void dump_recorded_table_calls(THD *thd, uchar *tbl_name, size_t tbl_name_len,
-                               Json_writer *ctx_writer)
+static void dump_recorded_table_calls(THD *thd, uchar *tbl_name,
+                                      size_t tbl_name_len,
+                                      Json_writer *ctx_writer)
 {
   table_context_for_store *table_context=
       thd->opt_ctx_recorder->search(tbl_name, tbl_name_len);
@@ -1679,10 +1679,10 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
     }
   }
 
-  String warn_msg;
+  String warn_msg(256);
   warn_msg.append(tbl_name);
   warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.append(keynr);
+  warn_msg.q_append(keynr);
   warn_msg.append(STRING_WITH_LEN(", records:"));
   warn_msg.q_append_int64(records);
   warn_msg.append(STRING_WITH_LEN(", eq_ref:"));
@@ -1801,10 +1801,10 @@ bool Optimizer_context_replay::infuse_records_in_range(
     }
   }
 
-  String warn_msg;
+  String warn_msg(256);
   warn_msg.append(tbl_name);
   warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.append(keynr);
+  warn_msg.q_append(keynr);
   warn_msg.append(STRING_WITH_LEN(" with min_key:"));
   warn_msg.append(min_key);
   warn_msg.append(STRING_WITH_LEN(" with max_key:"));
