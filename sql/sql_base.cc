@@ -10145,11 +10145,15 @@ int TABLE::unlock_hlindexes()
 
 int TABLE::hlindexes_on_insert()
 {
-  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
-  if (hlindex && hlindex->in_use)
-    if (int err= mhnsw_insert(this, key_info + s->keys))
-      return err;
-  return 0;
+    DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+    if (hlindex && hlindex->in_use)
+    {
+        if (hlindex->bulk_insert_active)
+            return mhnsw_bulk_insert_row(this, key_info + s->keys);
+        else
+            return mhnsw_insert(this, key_info + s->keys);
+    }
+    return 0;
 }
 
 int TABLE::hlindexes_on_update()
@@ -10207,4 +10211,24 @@ int TABLE::hlindex_read_next()
 int TABLE::hlindex_read_end()
 {
   return mhnsw_read_end(this);
+}
+
+int TABLE::hlindexes_bulk_insert_begin(ha_rows rows)
+{
+    if (hlindex && hlindex->in_use)
+    {
+        hlindex->bulk_insert_active= true;
+        return mhnsw_bulk_insert_begin(this, key_info + s->keys, rows);
+    }
+    return 0;
+}
+
+int TABLE::hlindexes_bulk_insert_end()
+{
+    if (hlindex && hlindex->in_use)
+    {
+        hlindex->bulk_insert_active= false;
+        return mhnsw_bulk_insert_end(this, key_info + s->keys);
+    }
+    return 0;
 }

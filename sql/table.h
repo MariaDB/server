@@ -1632,6 +1632,7 @@ public:
   */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  bool bulk_insert_active;           /* mhnsw bulk_insert_started flag */
 private:
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
