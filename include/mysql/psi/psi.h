@@ -1544,7 +1544,6 @@ typedef void (*unbind_table_v1_t)
   Rebind a table handle to the current thread.
   This operation happens when a table from the open table cache
   is reused for a thread.
-  @param table the table to unbind
 */
 typedef PSI_table* (*rebind_table_v1_t)
   (PSI_table_share *share, const void *identity, PSI_table *table);
@@ -1552,7 +1551,6 @@ typedef PSI_table* (*rebind_table_v1_t)
 /**
   Close an instrumentation table handle.
   Note that the table handle is invalid after this call.
-  @param table the table handle to close
 */
 typedef void (*close_table_v1_t)(struct TABLE_SHARE *server_share,
                                  struct PSI_table *table);
@@ -1586,6 +1584,7 @@ typedef int (*spawn_thread_v1_t)(PSI_thread_key key,
   Create instrumentation for a thread.
   @param key the registered key
   @param identity an address typical of the thread
+  @param thread_id the id of the thread
   @return an instrumented thread
 */
 typedef struct PSI_thread* (*new_thread_v1_t)
@@ -2020,6 +2019,7 @@ typedef void (*end_stage_v1_t) (void);
   @param state data storage for the locker
   @param key the statement instrumentation key
   @param charset client character set
+  @param sp_share the share
   @return a statement locker, or NULL
 */
 typedef struct PSI_statement_locker* (*get_thread_statement_locker_v1_t)
@@ -2348,7 +2348,6 @@ typedef void (*set_socket_thread_owner_v1_t)(struct PSI_socket *socket);
 
 /**
   Get a prepare statement.
-  @param locker a statement locker for the running thread.
 */
 typedef PSI_prepared_stmt* (*create_prepared_stmt_v1_t)
   (void *identity, uint stmt_id, PSI_statement_locker *locker,
