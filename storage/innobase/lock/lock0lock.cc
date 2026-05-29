@@ -567,7 +567,11 @@ static void wsrep_assert_valid_bf_bf_wait(const lock_t *lock, const trx_t *trx,
 		    << " index: "
 		    << lock->index->name()
 		    << " that has lock ";
-	lock_rec_print(stderr, lock, mtr);
+	if (!lock->is_table()) {
+		lock_rec_print(stderr, lock, mtr);
+	} else {
+		lock_table_print(stderr, lock);
+	}
 
 	ib::error() << "WSREP state: ";
 
@@ -1068,10 +1072,20 @@ void wsrep_report_error(const lock_t* victim_lock, const trx_t *bf_trx)
   // should not execute concurrently
   mtr_t mtr;
   WSREP_ERROR("BF request is not compatible with victim");
+
+  auto print_lock_details = [&](const lock_t* lock) {
+    if (!lock->is_table()) {
+      lock_rec_print(stderr, lock, mtr);
+    } else {
+      lock_table_print(stderr, lock);
+    }
+  };
+
   WSREP_ERROR("BF requesting lock: ");
-  lock_rec_print(stderr, bf_trx->lock.wait_lock, mtr);
+  print_lock_details(bf_trx->lock.wait_lock);
+
   WSREP_ERROR("victim holding lock: ");
-  lock_rec_print(stderr, victim_lock, mtr);
+  print_lock_details(victim_lock);
 }
 #endif /* WITH_DEBUG */
 

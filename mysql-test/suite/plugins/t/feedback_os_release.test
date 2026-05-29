@@ -47,17 +47,17 @@ let $plugin_val= `select variable_value from information_schema.feedback
                   where variable_name = 'Uname_distribution'`;
 
 # Skip if plugin returned empty (e.g. FreeBSD with MTR_FEEDBACK_PLUGIN=0)
-if (`select '$plugin_val' = ''`)
+if (`select "$plugin_val" = ''`)
 {
   --skip Uname_distribution not available on this platform
 }
 
 let $expected_val= `select TRIM(LOAD_FILE('$MYSQLTEST_VARDIR/tmp/mdev39126_pretty_name'))`;
 
-if (`select '$plugin_val' != '$expected_val'`)
+if (`select "$plugin_val" != "$expected_val"`)
 {
-  --echo Mismatch! Plugin: '$plugin_val'
-  --echo Expected:         '$expected_val'
+  --echo Mismatch! Plugin: "$plugin_val"
+  --echo Expected:         "$expected_val"
   --die Uname_distribution does not match /etc/os-release PRETTY_NAME
 }
 

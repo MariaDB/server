@@ -8,6 +8,8 @@
 source include/not_asan.inc;
 source include/not_embedded.inc;
 source include/not_ubsan.inc;
+# MSAN with debug exceeds the stack early.
+source include/not_msan_with_debug.inc;
 
 #
 # Bug#10100 function (and stored procedure?) recursivity problem

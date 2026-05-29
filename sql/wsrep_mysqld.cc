@@ -1844,14 +1844,30 @@ bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
       FOREIGN_KEY_INFO *f_key_info;
       List<FOREIGN_KEY_INFO> f_key_list;
 
-      table->table->file->get_foreign_key_list(thd, &f_key_list);
-      List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-      while ((f_key_info= it++))
+      /* find FK parents */
       {
-        WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
-        keys->push_back(wsrep_prepare_key_for_toi(
+        table->table->file->get_foreign_key_list(thd, &f_key_list);
+        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+        while ((f_key_info= it++))
+        {
+          WSREP_DEBUG("appended parent FK key %s", f_key_info->referenced_table->str);
+          keys->push_back(wsrep_prepare_key_for_toi(
             f_key_info->referenced_db->str, f_key_info->referenced_table->str,
             wsrep::key::shared));
+        }
+      }
+
+      /* find FK children */
+      {
+        table->table->file->get_parent_foreign_key_list(thd, &f_key_list);
+        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+        while ((f_key_info= it++))
+        {
+          WSREP_DEBUG("appended child FK key %s", f_key_info->foreign_table->str);
+          keys->push_back(wsrep_prepare_key_for_toi(
+            f_key_info->foreign_db->str, f_key_info->foreign_table->str,
+            wsrep::key::shared));
+        }
       }
     }
   }

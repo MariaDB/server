@@ -251,6 +251,12 @@ int ha_sequence::write_row(const uchar *buf)
       - Check that the new row is an accurate SEQUENCE object
     */
     /* mark a full binlog image insert to force non-parallel slave */
+#ifdef WITH_WSREP
+    if (WSREP_ON && WSREP(thd) && wsrep_thd_is_applying(thd))
+    {
+      WSREP_DEBUG("skipped to mark trx as DDL due to sequence table insert");
+    } else
+#endif /* WITH_WSREP */
     thd->transaction->stmt.mark_trans_did_ddl();
     if (table->s->tmp_table == NO_TMP_TABLE &&
         thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
