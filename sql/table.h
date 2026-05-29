@@ -2024,6 +2024,8 @@ public:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
                              Open_table_context *ot_ctx);
+  bool range_interval_check_partition(THD *thd, TABLE_LIST *table_list,
+                                      Open_table_context *ot_ctx);
 #endif
   bool vers_implicit() const;
 

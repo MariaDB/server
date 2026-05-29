@@ -569,7 +569,8 @@ public:
     OT_REOPEN_TABLES,
     OT_DISCOVER,
     OT_REPAIR,
-    OT_ADD_HISTORY_PARTITION
+    OT_ADD_HISTORY_PARTITION,
+    OT_ADD_RANGE_INTERVAL_PARTITION
   };
   Open_table_context(THD *thd, uint flags);
 
@@ -645,6 +646,7 @@ private:
 
 public:
   uint vers_create_count;
+  uint range_interval_create_count;
 };
 
 

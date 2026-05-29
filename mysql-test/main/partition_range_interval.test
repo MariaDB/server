@@ -1,0 +1,588 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo # simple case with DATETIME column showing partitions added in INSERT
+set timestamp= unix_timestamp('2026-05-02 00:00:00');
+
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+
+set timestamp= unix_timestamp('2026-05-06 00:00:00');
+
+insert into t1 values ('2026-05-04');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+
+drop table t1;
+
+--echo # simple case with DATE column
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 DAY AUTO
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-30')
+);
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # oracle interval syntax
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL (NUMTODSINTERVAL(1, 'DAY'))
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-30')
+);
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL (NUMTOYMINTERVAL(1, 'MONTH'))
+(
+  PARTITION p0 VALUES LESS THAN ('2025-04-30')
+);
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo ## NUMTODSINTERVAL takes only DAY, HOUR, MINUTE or SECOND
+--error ER_PART_WRONG_VALUE
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL (NUMTODSINTERVAL(1, 'YEAR'))
+(
+  PARTITION p0 VALUES LESS THAN ('2024-04-30')
+);
+
+--echo ## NUMTOYMINTERVAL takes only YEAR or MONTH
+--error ER_PART_WRONG_VALUE
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL (NUMTOYMINTERVAL(1, 'HOUR'))
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-30')
+);
+
+--echo # 1.5 day interval truncated to +1d, +2d, +1d, +2d, ...
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 36 Hour
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-30')
+);
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # DATE column with 1 week interval
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Week
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # DATETIME column with 1 hour interval
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 hour
+(
+  PARTITION p0 VALUES LESS THAN ('2026-05-05')
+);
+show create table t1;
+insert into t1 values ('2026-05-05 03:00:00');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # DATETIME column with some decimal points in partition range value
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 hour
+(
+  PARTITION p0 VALUES LESS THAN ('2026-05-05 01:23:45.6789')
+);
+show create table t1;
+insert into t1 values ('2026-05-05 03:00:00');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # more than 1 starting partition
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20'),
+  PARTITION p1 VALUES LESS THAN ('2026-04-25')
+);
+
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+drop table t1;
+
+--echo # no need to create new partition when existing ones are sufficient
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01'),
+  PARTITION p1 VALUES LESS THAN ('2026-05-06')
+);
+
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+drop table t1;
+
+--echo # find a gap big enough for names of 10 new partition names
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p9 VALUES LESS THAN ('2026-04-01'),
+  PARTITION p29 VALUES LESS THAN ('2026-04-04'),
+  PARTITION p19 VALUES LESS THAN ('2026-04-23'),
+  PARTITION p40 VALUES LESS THAN ('2026-04-27')
+);
+
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+drop table t1;
+
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p40 VALUES LESS THAN ('2026-04-27')
+);
+
+show create table t1;
+insert into t1 values ('2026-05-01');
+select * from t1;
+show create table t1;
+drop table t1;
+
+--echo # CREATE TABLE ... SELECT
+--echo # does not work probably because of MDEV-29769
+select to_days('2026-04-01') = 740072;
+select to_days('2026-05-01') = 740102;
+
+--echo # somehow ps protocol has different results
+--disable_ps_protocol
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01')
+)
+select from_days(seq) as c from seq_740073_to_740102;
+--enable_ps_protocol
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # INSERT ... SELECT
+select to_days('2026-04-01') = 740072;
+select to_days('2026-05-01') = 740102;
+
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01')
+);
+insert into t1 select from_days(seq) from seq_740073_to_740102;
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+select to_days('2026-05-01') = 740102;
+select to_days('2026-05-08') = 740109;
+
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01')
+);
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+insert into t1 select from_days(seq) from seq_740102_to_740109;
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+drop table t1;
+
+--echo # LOAD DATA INFILE
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--let $mysqld_datadir= `select @@datadir`
+--write_file $mysqld_datadir/test/load.data
+2026-05-01
+2026-05-02
+2026-05-03
+2026-05-04
+2026-05-05
+EOF
+load data infile 'load.data' into table t1;
+--remove_file $mysqld_datadir/test/load.data
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+drop table t1;
+
+--echo # LOAD DATA INFILE failure for future dates
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--let $mysqld_datadir= `select @@datadir`
+--write_file $mysqld_datadir/test/load.data
+2026-05-05
+2026-05-06
+2026-05-07
+2026-05-08
+EOF
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+load data infile 'load.data' into table t1;
+--remove_file $mysqld_datadir/test/load.data
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+drop table t1;
+
+--echo # LOAD DATA INFILE IGNORE for future dates
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--let $mysqld_datadir= `select @@datadir`
+--write_file $mysqld_datadir/test/load.data
+2026-05-05
+2026-05-06
+2026-05-07
+2026-05-08
+EOF
+load data infile 'load.data' ignore into table t1;
+--remove_file $mysqld_datadir/test/load.data
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+drop table t1;
+
+--echo # UPDATE
+set timestamp= unix_timestamp('2026-05-02 00:00:00');
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+
+insert into t1 values ('2026-04-28'), ('2026-04-29'), ('2026-04-30');
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+set timestamp= unix_timestamp('2026-05-06 00:00:00');
+update t1 set c = date_add(c, interval 6 day);
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+set timestamp= unix_timestamp('2026-05-08 00:00:00');
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+update t1 set c = date_add(c, interval 3 day);
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+set timestamp= unix_timestamp('2026-05-06 00:00:00');
+drop table t1;
+
+--echo # ALTER TABLE, no interval => have interval
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+insert into t1 values ('2026-05-01');
+ALTER TABLE t1 PARTITION BY RANGE COLUMNS (c) INTERVAL 1 DAY
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+insert into t1 values ('2026-05-01');
+SELECT * FROM t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+drop table t1;
+
+--echo # ALTER TABLE, have interval => no interval
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 DAY
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+show create table t1;
+alter table t1
+PARTITION BY RANGE COLUMNS (c)
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+show create table t1;
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+insert into t1 values ('2026-05-01');
+drop table t1;
+
+--echo # ALTER TABLE, adding a partition to a RANGE COLUMNS INTERVAL
+--echo # partitioned table
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 3 DAY
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+ALTER TABLE t1 ADD PARTITION (PARTITION p1 VALUES LESS THAN ('2026-04-27'));
+show create table t1;
+insert into t1 values ('2026-05-01');
+--error ER_RANGE_NOT_INCREASING_ERROR
+ALTER TABLE t1 ADD PARTITION (PARTITION p6 VALUES LESS THAN ('2026-05-02'));
+show create table t1;
+ALTER TABLE t1 ADD PARTITION (PARTITION p7 VALUES LESS THAN ('2026-05-10'));
+show create table t1;
+--error ER_PARTITION_INTERVAL_MAXVALUE
+ALTER TABLE t1 ADD PARTITION (PARTITION p8 VALUES LESS THAN MAXVALUE);
+show create table t1;
+drop table t1;
+
+--echo # with subpartitions.
+--echo # note that only [LINEAR] KEY and [LINEAR] HASH are allowed
+--echo # subpartitioning methods
+select to_days('2026-04-20') = 740091;
+select to_days('2026-05-01') = 740102;
+
+create table t1 (c date, d int) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 3 DAY
+  SUBPARTITION BY KEY ALGORITHM=XXH3 (d) SUBPARTITIONS 2
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);
+insert into t1 select from_days(seq), seq from seq_740091_to_740102;
+select * from t1;
+show create table t1;
+select partition_name, subpartition_name, partition_method, partition_description, table_rows from information_schema.partitions where table_name='t1' and table_rows > 0;
+drop table t1;
+
+--echo # failing insertion of dates in the future
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01')
+);
+
+show create table t1;
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+insert into t1 values ('2026-05-07');
+show create table t1;
+drop table t1;
+
+--echo # passthrough behaviour
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01')
+);
+show create table t1;
+begin;
+insert into t1 values ('2026-05-01');
+insert into t1 values ('2026-05-02');
+select * from t1;
+rollback;
+select * from t1;
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+select to_days('2026-04-01') = 740072;
+select to_days('2026-05-01') = 740102;
+
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01')
+);
+begin;
+insert into t1 select from_days(seq) from seq_740073_to_740102;
+select * from t1;
+rollback;
+select * from t1;
+show create table t1;
+drop table t1;
+
+--echo # failures
+
+--error ER_TOO_MANY_PARTITION_FUNC_FIELDS_ERROR
+create table t1 (c1 datetime, c2 datetime)
+PARTITION BY RANGE COLUMNS (c1, c2)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-01', '2026-04-01')
+);
+
+--error ER_PARTITION_INTERVAL_NOT_LIST
+create table t1 (c datetime)
+PARTITION BY LIST COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES IN ('2026-04-01')
+);
+
+--error ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD
+create table t1 (c int)
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN (740072)
+);
+
+--echo # timestamp
+create table t1 (c timestamp) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 hour
+(
+  PARTITION p0 VALUES LESS THAN ('2026-05-04 12:34:56.789')
+);
+show create table t1;
+insert into t1 values ('2026-05-05 10:00:00.123456');
+show create table t1;
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+drop table t1;
+
+--echo # year is not allowed in range column partitioning
+--error ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD
+create table t1 (c year) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 minute
+(
+  PARTITION p0 VALUES LESS THAN ('2025')
+);
+
+# TODO: somehow 23.59.59 HOUR_SECOND causes parsing error
+--echo # interval less than a day for date column
+--error ER_PARTITION_INTERVAL_FINER_THAN_DATE
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 23.59 HOUR_MINUTE
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--echo # bad interval values
+--error ER_PART_WRONG_VALUE
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL -1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--error ER_PART_WRONG_VALUE
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 0 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--error ER_PART_WRONG_VALUE
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1.1 SECOND_MICROSECOND
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+--error ER_PARTITION_INTERVAL_MAXVALUE
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p1 VALUES LESS THAN ('2026-04-01'),
+  PARTITION p0 VALUES LESS THAN MAXVALUE
+);
+
+--error ER_PARTITIONS_MUST_BE_DEFINED_ERROR
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day;
+
+create table t1 (c datetime) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Second
+(
+  PARTITION p1 VALUES LESS THAN ('2026-04-01')
+);
+--error ER_TOO_MANY_PARTITIONS_ERROR
+insert into t1 values ('2026-01-01');
+drop table t1;
+
+--error ER_DATETIME_FUNCTION_OVERFLOW
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 999999999 DAY
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-25')
+);

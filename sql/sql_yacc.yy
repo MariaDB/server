@@ -1024,6 +1024,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NOWAIT_SYM
 %token  <kwd>  NUMBER_MARIADB_SYM            /* SQL-2003-N  */
 %token  <kwd>  NUMBER_ORACLE_SYM             /* Oracle-R, PLSQL-R */
+%token  <kwd>  NUMTODSINTERVAL_SYM
+%token  <kwd>  NUMTOYMINTERVAL_SYM
 %token  <kwd>  NVARCHAR_SYM
 %token  <kwd>  OBJECT_SYM
 %token  <kwd>  OF_SYM                        /* SQL-1992-R, Oracle-R */
@@ -5111,7 +5113,11 @@ part_type_def:
 	    Select->parsing_place= NO_MATTER;
 	  }
         | LIST_SYM part_column_list
-          { Lex->part_info->part_type= LIST_PARTITION; }
+          {
+            Lex->part_info->part_type= LIST_PARTITION;
+            if (Lex->part_info->int_type != INTERVAL_LAST)
+              my_yyabort_error((ER_PARTITION_INTERVAL_NOT_LIST, MYF(0)));
+          }
         | SYSTEM_TIME_SYM
           {
              if (unlikely(Lex->part_info->vers_init_info(thd)))
@@ -5179,14 +5185,53 @@ part_field_item:
         ;
 
 part_column_list:
-          COLUMNS '(' part_field_list ')'
+          COLUMNS '(' part_field_list ')' opt_part_interval
           {
             partition_info *part_info= Lex->part_info;
             part_info->column_list= TRUE;
             part_info->list_of_part_fields= TRUE;
+            if (part_info->int_type != INTERVAL_LAST &&
+                part_info->num_columns > 1)
+              my_yyabort_error((ER_TOO_MANY_PARTITION_FUNC_FIELDS_ERROR, MYF(0),
+                                "range interval partition fields"));
           }
         ;
 
+opt_part_interval:
+          /* empty */ {}
+        | INTERVAL_SYM expr interval opt_auto
+          {
+            partition_info *part_info= Lex->part_info;
+            const char *table_name=
+              Lex->create_last_non_select_table ?
+              Lex->create_last_non_select_table->table_name.str : "";
+            if (unlikely(part_info->set_range_interval(thd, $2, $3,
+                                                       table_name)))
+              MYSQL_YYABORT;
+          }
+        | INTERVAL_SYM '(' NUMTODSINTERVAL_SYM
+                           '(' NUM ',' TEXT_STRING_sys ')' ')'
+          {
+            partition_info *part_info= Lex->part_info;
+            const char *table_name=
+              Lex->create_last_non_select_table ?
+              Lex->create_last_non_select_table->table_name.str : "";
+            if (unlikely(part_info->set_range_interval(atoi($5.str), $7,
+                                                       true, table_name)))
+              MYSQL_YYABORT;
+          }
+        | INTERVAL_SYM '(' NUMTOYMINTERVAL_SYM
+                           '(' NUM ',' TEXT_STRING_sys ')' ')'
+          {
+            partition_info *part_info= Lex->part_info;
+            const char *table_name=
+              Lex->create_last_non_select_table ?
+              Lex->create_last_non_select_table->table_name.str : "";
+            if (unlikely(part_info->set_range_interval(atoi($5.str), $7,
+                                                       false, table_name)))
+              MYSQL_YYABORT;
+          }
+        ;
 
 part_func:
           '(' part_func_expr ')'
@@ -5446,6 +5491,11 @@ part_func_max:
             {
               part_info->print_debug("Kilroy II", NULL);
               thd->parse_error(ER_PARTITION_COLUMN_LIST_ERROR);
+              MYSQL_YYABORT;
+            }
+            else if (part_info->is_range_interval())
+            {
+              my_error(ER_PARTITION_INTERVAL_MAXVALUE, MYF(0));
               MYSQL_YYABORT;
             }
             else
@@ -5757,6 +5807,12 @@ opt_vers_auto_part:
            $$= 1;
          }
        ;
+
+opt_auto:
+          /* empty */ {}
+        | AUTO_SYM {}
+        ;
+
 /*
  End of partition parser part
 */

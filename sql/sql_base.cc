@@ -1922,6 +1922,41 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
 
   return false;
 }
+
+/*
+  Similar to vers_switch_partition, find how many partitions to create
+  and calls oc_ctx->request_backoff_action for actions to take when
+  failing opening_and_process_table
+*/
+bool TABLE::range_interval_check_partition(THD *thd, TABLE_LIST *table_list,
+                                           Open_table_context *ot_ctx)
+{
+  if (!part_info || !part_info->is_range_interval() ||
+      table_list->mdl_request.type == MDL_EXCLUSIVE ||
+      ot_ctx->range_interval_create_count > 0)
+    return false;
+  switch (thd->lex->sql_command)
+  {
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_INSERT:
+  case SQLCOM_LOAD:
+  case SQLCOM_UPDATE:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_UPDATE_MULTI:
+    break;
+  default:
+    return false;
+  }
+  if (part_info->range_interval_set_count(
+        thd, &ot_ctx->range_interval_create_count))
+    return true;
+  if (ot_ctx->range_interval_create_count == 0)
+    return false;
+  ot_ctx->request_backoff_action(
+    Open_table_context::OT_ADD_RANGE_INTERVAL_PARTITION, table_list);
+  return true;
+}
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
 
@@ -2348,7 +2383,9 @@ retry_share:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (!part_names_error &&
-      table->vers_switch_partition(thd, table_list, ot_ctx))
+      (table->vers_switch_partition(thd, table_list, ot_ctx) ||
+       table->range_interval_check_partition(thd, table_list, ot_ctx))
+  )
   {
     MYSQL_UNBIND_TABLE(table->file);
     tc_release_table(table);
@@ -3421,7 +3458,7 @@ Open_table_context::Open_table_context(THD *thd, uint flags)
    m_action(OT_NO_ACTION),
    m_has_locks(thd->mdl_context.has_locks()),
    m_has_protection_against_grl(0),
-   vers_create_count(0)
+   vers_create_count(0), range_interval_create_count(0)
 {}
 
 
@@ -3502,7 +3539,8 @@ request_backoff_action(enum_open_table_action action_arg,
   if (table)
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
-                action_arg == OT_ADD_HISTORY_PARTITION);
+                action_arg == OT_ADD_HISTORY_PARTITION ||
+                action_arg == OT_ADD_RANGE_INTERVAL_PARTITION);
     m_failed_table= m_thd->alloc<TABLE_LIST>(1);
     if (m_failed_table == NULL)
       return TRUE;
@@ -3570,6 +3608,7 @@ Open_table_context::recover_from_failed_open()
       break;
     case OT_DISCOVER:
     case OT_REPAIR:
+    case OT_ADD_RANGE_INTERVAL_PARTITION:
     case OT_ADD_HISTORY_PARTITION:
       DEBUG_SYNC(m_thd, "add_history_partition");
       if (!m_thd->locked_tables_mode)
@@ -3611,7 +3650,8 @@ Open_table_context::recover_from_failed_open()
          We don't need to remove share under OT_ADD_HISTORY_PARTITION.
          Moreover fast_alter_partition_table() works with TABLE instance.
       */
-      if (m_action != OT_ADD_HISTORY_PARTITION)
+      if (m_action != OT_ADD_HISTORY_PARTITION &&
+          m_action != OT_ADD_RANGE_INTERVAL_PARTITION)
         tdc_remove_table(m_thd, m_failed_table->db.str,
                         m_failed_table->table_name.str);
 
@@ -3641,6 +3681,76 @@ Open_table_context::recover_from_failed_open()
         case OT_REPAIR:
           result= auto_repair_table(m_thd, m_failed_table);
           break;
+        case OT_ADD_RANGE_INTERVAL_PARTITION:
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        {
+          result= false;
+          TABLE *table= open_ltable(m_thd, m_failed_table, TL_WRITE,
+                    MYSQL_OPEN_HAS_MDL_LOCK | MYSQL_OPEN_IGNORE_LOGGING_FORMAT);
+          if (table == NULL)
+          {
+            m_thd->clear_error();
+            break;
+          }
+
+          result= range_interval_create_partitions(
+            m_thd, m_failed_table, range_interval_create_count);
+          range_interval_create_count= 0;
+          if (!m_thd->transaction->stmt.is_empty())
+            trans_commit_stmt(m_thd);
+          DBUG_ASSERT(!result ||
+                      !m_thd->locked_tables_mode ||
+                      m_thd->lock->lock_count);
+          if (result)
+            break;
+          if (!m_thd->locked_tables_mode)
+          {
+            /*
+              alter_partition_lock_handling() does mysql_lock_remove() but
+              does not clear thd->lock completely.
+            */
+            DBUG_ASSERT(m_thd->lock->lock_count == 0);
+            if (!(m_thd->lock->flags & GET_LOCK_ON_THD))
+              my_free(m_thd->lock);
+            m_thd->lock= NULL;
+          }
+          /*
+            TODO(MDEV-15621): here I just copied code from
+            OT_ADD_HISTORY_PARTITION
+          */
+          else if (m_thd->locked_tables_mode == LTM_PRELOCKED)
+          {
+            MYSQL_LOCK *lock;
+            MYSQL_LOCK *merged_lock;
+
+            /*
+              In LTM_LOCK_TABLES table was reopened via locked_tables_list,
+              but not in prelocked environment where we have to reopen
+              the table manually.
+            */
+            Open_table_context ot_ctx(m_thd, MYSQL_OPEN_REOPEN);
+            if (open_table(m_thd, m_failed_table, &ot_ctx))
+            {
+              result= true;
+              break;
+            }
+            TABLE *table= m_failed_table->table;
+            table->reginfo.lock_type= m_thd->update_lock_default;
+            m_thd->in_lock_tables= 1;
+            lock= mysql_lock_tables(m_thd, &table, 1,
+                                    MYSQL_OPEN_REOPEN | MYSQL_LOCK_USE_MALLOC);
+            m_thd->in_lock_tables= 0;
+            if (lock == NULL ||
+                !(merged_lock= mysql_lock_merge(m_thd->lock, lock, m_thd)))
+            {
+              result= true;
+              break;
+            }
+            m_thd->lock= merged_lock;
+          }
+          break;
+        }
+#endif
         case OT_ADD_HISTORY_PARTITION:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         {
