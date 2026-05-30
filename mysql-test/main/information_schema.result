@@ -900,7 +900,6 @@ information_schema	COLUMNS	COLUMN_TYPE
 information_schema	COLUMNS	GENERATION_EXPRESSION
 information_schema	EVENTS	EVENT_DEFINITION
 information_schema	OPTIMIZER_CONTEXT	QUERY
-information_schema	OPTIMIZER_CONTEXT	CONTEXT
 information_schema	OPTIMIZER_TRACE	QUERY
 information_schema	OPTIMIZER_TRACE	TRACE
 information_schema	PARAMETERS	DTD_IDENTIFIER
