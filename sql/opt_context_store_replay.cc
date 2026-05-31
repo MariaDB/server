@@ -377,8 +377,14 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
   System variables that are related to the optimizer but
   do not have "optimizer" in their name.
 */
-static const char *opt_related_sys_vars[]= {"join_cache_level",
-                                            "join_buffer_size", NULL};
+static const char *opt_related_sys_vars[]=
+{
+  "join_cache_level",
+  "join_buffer_size",
+  "timestamp",
+  "old_mode",
+  NULL
+};
 
 static const char *excluded_sys_vars[]= {"optimizer_replay_context",
                                          "optimizer_record_context", NULL};
