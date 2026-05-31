@@ -1250,6 +1250,8 @@ protected:
 class Item_func_coalesce :public Item_func_case_expression
 {
 public:
+  Item_func_coalesce(THD *thd, Item *a):
+    Item_func_case_expression(thd, a) {}
   Item_func_coalesce(THD *thd, Item *a, Item *b):
     Item_func_case_expression(thd, a, b) {}
   Item_func_coalesce(THD *thd, List<Item> &list):
@@ -1286,6 +1288,23 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_coalesce>(thd, this); }
+};
+
+
+class Item_func_any_value final :public Item_func_coalesce
+{
+public:
+  Item_func_any_value(THD *thd, Item *a):
+    Item_func_coalesce(thd, a) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("any_value") };
+    return name;
+  }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_any_value>(thd, this); }
 };
 
 
