@@ -310,13 +310,11 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
           */
           in_sum_func->outer_fields.push_back(field, thd->mem_root);
         }
-        else
+        else if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY && sel->join)
         {
           sel->set_non_agg_field_used(true);
-          if (sel->join)
-          {
-            sel->join->non_agg_fields.push_back(field, thd->mem_root);
-          }
+          sel->join->non_agg_fields.push_back(field, thd->mem_root);
+          field->marker= sel->cur_pos_in_select_list;
         }
       }
       else if (sel->nest_level > aggr_level)
@@ -327,9 +325,10 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
                      ER_THD(thd, ER_MIX_OF_GROUP_FUNC_AND_FIELDS), MYF(0));
           return TRUE;
         }
-        else if (sel->join)
+        if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY && sel->join)
         {
           sel->join->non_agg_fields.push_back(field, thd->mem_root);
+          field->marker= sel->cur_pos_in_select_list;
         }
       }
     }
@@ -2725,6 +2724,46 @@ bool Item_sum_max::add()
     arg_cache->store(tmp_item);
   }
   DBUG_RETURN(0);
+}
+
+
+bool Item_sum_any_value::add()
+{
+  DBUG_ENTER("Item_sum_any_value::add");
+
+  if (!has_value)
+  {
+    value->store(args[0]);
+    value->cache_value();
+    null_value= args[0]->null_value;
+    has_value= 1;
+  }
+  DBUG_RETURN(0);
+}
+
+
+void Item_sum_any_value::clear()
+{
+  DBUG_ENTER("Item_sum_any_value::clear");
+  if (!const_item())
+  {
+    value->clear();
+    null_value= 1;
+    has_value= 0;
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+void Item_sum_any_value::update_field() {}
+
+
+Item *Item_sum_any_value::copy_or_same(THD* thd)
+{
+  DBUG_ENTER("Item_sum_any_value::copy_or_same");
+  Item_sum_any_value *item= new (thd->mem_root) Item_sum_any_value(thd, this);
+  item->setup_hybrid(thd, args[0], value);
+  DBUG_RETURN(item);
 }
 
 

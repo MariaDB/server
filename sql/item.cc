@@ -6369,6 +6369,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (*from_field)
       {
         if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+            !thd->lex->in_sum_func &&
             select->cur_pos_in_select_list != UNDEF_POS)
         {
           /*
@@ -6378,8 +6379,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           if (select->join)
           {
             marker= select->cur_pos_in_select_list;
-            if (!thd->lex->in_sum_func)
-              select->join->non_agg_fields.push_back(this, thd->mem_root);
+            select->join->non_agg_fields.push_back(this, thd->mem_root);
           }
           else
           {

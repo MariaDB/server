@@ -206,3 +206,18 @@ SHOW WARNINGS;
 DROP FUNCTION sf_bug50192;
 DROP TRIGGER tr_bug50192;
 DROP TABLE t1, t2, t3, t4;
+
+--echo #
+--echo # MDEV-41200 ANY_VALUE not marked BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE TABLE t2 (a int);
+
+INSERT INTO t2 SELECT ANY_VALUE(a) FROM t1;
+
+DROP TABLE t1, t2;
+
+--echo # End of 13.2 test
