@@ -529,6 +529,32 @@ static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &script,
 
 /*
   @brief
+    Append the json "str" to sql_script, by escaping only backslash,
+    and single quote
+*/
+static void escape_json_for_sql_literal(String &sql_script, const char *str,
+                                        size_t len)
+{
+  const char *end= str + len;
+  for (; str < end; str++)
+  {
+    switch (*str)
+    {
+    case '\\':
+      sql_script.append(STRING_WITH_LEN("\\\\"));
+      break;
+    case '\'':
+      sql_script.append(STRING_WITH_LEN("\\'"));
+      break;
+    default:
+      sql_script.append(*str);
+    }
+  }
+}
+
+
+/*
+  @brief
     Dump definitions, basic stats of all tables and views used by the
     statement into the optimizer_context IS table.
     The goal is to eventually save everything that is needed to
@@ -728,9 +754,15 @@ bool store_optimizer_context(THD *thd)
     const char *SET_OPT_CONTEXT_VAR= "set @opt_context=\'\n";
     const char *SET_REPLAY_CONTEXT_VAR=
         "set optimizer_replay_context=\'opt_context\'";
-    String *s= const_cast<String *>(ctx_writer.output.get_string());
+
+    const String *opt_context= ctx_writer.output.get_string();
     sql_script.append(SET_OPT_CONTEXT_VAR, strlen(SET_OPT_CONTEXT_VAR));
-    sql_script.append(*s);
+
+    // require extra escaping of the opt_ctx so as to counter the
+    // unescaping done by sql parse
+    escape_json_for_sql_literal(sql_script, opt_context->ptr(),
+                                opt_context->length());
+
     sql_script.append(STRING_WITH_LEN("\n\';#opt_context_ends\n\n"));
     sql_script.append(SET_REPLAY_CONTEXT_VAR, strlen(SET_REPLAY_CONTEXT_VAR));
     sql_script.append(STRING_WITH_LEN(";\n\n"));
