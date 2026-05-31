@@ -11270,6 +11270,21 @@ static int ensure_replay_server_connection()
   }
   
   verbose_msg("ReplayTest: Connected to replay server (database: test)");
+
+  /*
+    Replay server runs against arbitrary recorded contexts; disable FK
+    checks so trace-driven CREATE/INSERT side effects don't fail on
+    referential integrity.
+  */
+  if (mysql_real_query(replay_server_mysql,
+                       STRING_WITH_LEN("SET foreign_key_checks=0")))
+  {
+    fprintf(stdout,
+            "ReplayTest: Warning - failed to set foreign_key_checks=0 "
+            "on replay server: %d %s\n",
+            mysql_errno(replay_server_mysql),
+            mysql_error(replay_server_mysql));
+  }
   DBUG_RETURN(0);
 }
 
