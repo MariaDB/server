@@ -3753,10 +3753,13 @@ public:
   }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
  
-  /* Call from the master thread to initiate the parallel scanning */
+  /* Call from the master thread to initiate the parallel scanning.
+     The default means "this handler does not support parallel scan"; the
+     SQL layer (parallel_init_read_record) treats HA_ERR_UNSUPPORTED as a
+     signal to fall back to the serial reader. */
   virtual int pscan_init_coordinator(size_t n_threads) __attribute__ ((warn_unused_result))
   {
-    return -1; // OLEGS: return more meaningful error
+    return HA_ERR_UNSUPPORTED;
   }
 
   /* Call from the master thread to finish the parallel scanning */
@@ -3776,17 +3779,23 @@ public:
   virtual int pscan_init_worker(Parallel_scan::Worker_ctx *wctx)
     __attribute__ ((warn_unused_result))
   {
-    return -1; // OLEGS: other error code?
+    return HA_ERR_UNSUPPORTED;
   }
 
   /*
     To be called by worker (child) threads of a parallel scan.
     Reads next row from a chunk assigned to this worker
+
+    1. Public non-virtual wrapper, called by SQL layer (parallel_rr_next).
+    Does the same bookkeeping ha_rnd_next does.
   */
+  int ha_pscan_get_next_row(Parallel_scan::Worker_ctx *ctx);
+
+  // Engine-private virtual: just fetch the next row, no SQL-side bookkeeping.
   virtual int pscan_get_next_row(Parallel_scan::Worker_ctx *ctx)
     __attribute__ ((warn_unused_result))
   {
-    return 0;
+    return HA_ERR_UNSUPPORTED;
   }
 
   int ha_reset();

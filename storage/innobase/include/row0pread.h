@@ -343,14 +343,6 @@ class Parallel_reader : public Parallel_scan::Coordinator
   [[nodiscard]] static size_t available_threads(size_t n_required,
                                                 bool use_reserved);
 
-  /** Release the parallel read threads. */
-  /// OLEGS
-  // static void release_threads(size_t n_threads) {
-  //   const auto SEQ_CST = std::memory_order_seq_cst;
-  //   auto active = s_active_threads.fetch_sub(n_threads, SEQ_CST);
-  //   ut_a(active >= n_threads);
-  // }
-
   /** Add scan context.
   @param[in,out]  trx         Covering transaction.
   @param[in]      config      Scan condfiguration.
@@ -624,7 +616,8 @@ class Parallel_reader::Scan_ctx {
   @return the leaf node page cursor. */
   [[nodiscard]] page_cur_t start_range(page_no_t page_no, mtr_t *mtr,
                                        const dtuple_t *key,
-                                       Savepoints &savepoints) const;
+                                       Savepoints &savepoints,
+                                       dberr_t *err) const;
 
   /** Create and add the range to the scan ranges.
   @param[in,out]  ranges        Ranges to scan.

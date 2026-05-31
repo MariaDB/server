@@ -16580,9 +16580,18 @@ int parallel_init_read_record(JOIN_TAB *tab)
   TABLE *table = tab->table;
   handler *file = table->file;
 
-  int err= file->pscan_init_coordinator(4);
+  int err= file->pscan_init_coordinator(4); // OLEGS: 4 is an arbitrary number of workers to start with
+  if (err == HA_ERR_UNSUPPORTED)
+  {
+    // Fall back to the serial record reader
+    tab->read_first_record= join_init_read_record;
+    return join_init_read_record(tab);
+  }
   if (err)
+  {
+    file->print_error(err, MYF(0));
     return 1;
+  }
 
   tab->read_record.table            = tab->table;
   tab->read_record.thd              = tab->join->thd;
@@ -16592,11 +16601,18 @@ int parallel_init_read_record(JOIN_TAB *tab)
   Parallel_scan::Worker_ctx *worker_ctx= file->pscan_get_worker_context(0);
   DBUG_ASSERT(worker_ctx);
   err= file->pscan_init_worker(worker_ctx);
+  if (err == HA_ERR_END_OF_FILE)
+    return -1;  // No rows — read_first_record's "empty result" sentinel.
   if (err)
-    return err; // -1 (no data); >0 (real error)
+  {
+    // Real error from the engine
+    file->print_error(err, MYF(0));
+    return 1;
+  }
   tab->read_record.pscan_worker_ctx = worker_ctx;
 
-  // Fetch the first row before returning — this is what join_init_read_record does.
+  /* Fetch the first row before returning — this is what
+   join_init_read_record does.*/
   return tab->read_record.read_record();
 }
 
@@ -16882,6 +16898,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                  str.append(STRING_WITH_LEN(" final_pushdown_cond"));
                  print_where(tab->select_cond, str.c_ptr_safe(), QT_ORDINARY););
   }
+
   uint n_top_tables= (uint)(join->join_tab_ranges.head()->end -  
                      join->join_tab_ranges.head()->start);
 
@@ -16935,23 +16952,26 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       }
       break;
     }
-    //const String test_table("t1_parallel", 11, system_charset_info);
-    if (tab->type == JT_ALL                                    // full scan
-      && tab == join->join_tab                               // first table
-      && (tab->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN)
-      && !tab->table->part_info // exclude partitioned tables
-      // && tab->table->alias.eq(&test_table, system_charset_info))
-      )
-    {
-      tab->read_first_record       = parallel_init_read_record;     // <- new
-      tab->read_record.read_record_func = parallel_rr_next;          // <- new
-    }
-    else
-    {
-      tab->read_first_record = join_init_read_record;          // existing
-    }
   }
-
+  /*
+    Leverage parallel scan for the first join table if possible.
+    Engine-intrinsic constraints (consistent-read-only / locking reads,
+    record format, discarded tablespace, ...) are enforced inside
+    pscan_init_coordinator(), which declines with HA_ERR_UNSUPPORTED and we
+    fall back to the serial reader. Here we only check what needs the SQL-layer
+    JOIN context.
+  */
+  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+  if (first && first->type == JT_ALL &&
+    first->read_first_record == join_init_read_record &&
+    !(first->select && first->select->quick) && // no range quick select
+    first->table->s->tmp_table == NO_TMP_TABLE &&
+    (first->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN) &&
+    !first->table->part_info)
+  {
+    first->read_first_record       = parallel_init_read_record;
+    first->read_record.read_record_func = parallel_rr_next;
+  }
 
   DBUG_RETURN(FALSE);
 }

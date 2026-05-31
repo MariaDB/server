@@ -4091,6 +4091,35 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(result);
 }
 
+int handler::ha_pscan_get_next_row(Parallel_scan::Worker_ctx *ctx)
+{
+  int result;
+  DBUG_ENTER("handler::ha_pscan_get_next_row");
+
+  TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, MAX_KEY, result,
+    { result = pscan_get_next_row(ctx); });
+
+  if (result == 0)
+  {
+    update_rows_read();
+    if (table->vfield)
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    table->status= 0;
+  }
+  else if (result != HA_ERR_END_OF_FILE)
+  {
+    table->status= STATUS_NOT_FOUND;
+  }
+  else
+  {
+    table->status= STATUS_NOT_FOUND;   // EOF also marks not-found
+  }
+  status_var_increment(table->in_use->status_var.ha_read_rnd_next_count);
+
+  DEBUG_SYNC(ha_thd(), "handler_rnd_next_end");
+
+  DBUG_RETURN(result);
+}
 
 int handler::ha_index_init(uint idx, bool sorted)
 {

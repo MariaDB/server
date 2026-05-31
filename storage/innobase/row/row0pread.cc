@@ -719,33 +719,61 @@ bool Parallel_reader::Scan_ctx::check_visibility(const rec_t *&rec,
 
 void Parallel_reader::Scan_ctx::copy_row(const rec_t *rec, Iter *iter) const
 {
-  // OLEGS: todo 
+  // OLEGS: old (MySQL)  version:
 
-  auto index= m_config.m_index;
-  iter->m_offsets =
-      rec_get_offsets(rec, index, iter->m_offsets, index->n_core_fields,
-                      ULINT_UNDEFINED, &iter->m_heap);
+  // auto index= m_config.m_index;
+  // iter->m_offsets =
+  //     rec_get_offsets(rec, index, iter->m_offsets, index->n_core_fields,
+  //                     ULINT_UNDEFINED, &iter->m_heap);
 
-  /* Copy the row from the page to the scan iterator. The copy should use
-  memory from the iterator heap because the scan iterator owns the copy. */
-  auto rec_len = rec_offs_size(iter->m_offsets);
+  // /* Copy the row from the page to the scan iterator. The copy should use
+  // memory from the iterator heap because the scan iterator owns the copy. */
+  // auto rec_len = rec_offs_size(iter->m_offsets);
 
-  auto copy_rec = static_cast<rec_t *>(mem_heap_alloc(iter->m_heap, rec_len));
+  // auto copy_rec = static_cast<rec_t *>(mem_heap_alloc(iter->m_heap, rec_len));
 
+  // memcpy(copy_rec, rec, rec_len);
+
+  // iter->m_rec = copy_rec;
+
+  // auto tuple = row_rec_to_index_entry_low(iter->m_rec, m_config.m_index,
+  //                                         iter->m_offsets, iter->m_heap);
+
+  // ut_ad(dtuple_validate(tuple));
+
+  // /* We have copied the entire record but we only need to compare the
+  // key columns when we check for boundary conditions. */
+  // const auto n_compare = dict_index_get_n_unique_in_tree(m_config.m_index);
+
+  // dtuple_set_n_fields_cmp(tuple, n_compare);
+
+  // iter->m_tuple = tuple;
+
+  // OLEGS: new version, copies only key fields rather than full tuple
+
+  const ulint n_core = page_rec_is_leaf(rec) ? m_config.m_index->n_core_fields : 0;
+  iter->m_offsets = rec_get_offsets(rec, m_config.m_index, nullptr,
+                                    n_core, ULINT_UNDEFINED, &iter->m_heap);
+
+  // Copy the raw record bytes into the iter's heap.
+  ulint rec_len = rec_offs_size(iter->m_offsets);
+  rec_t *copy_rec = static_cast<rec_t *>(mem_heap_alloc(iter->m_heap, rec_len));
   memcpy(copy_rec, rec, rec_len);
-
   iter->m_rec = copy_rec;
 
-  auto tuple = row_rec_to_index_entry_low(iter->m_rec, m_config.m_index,
-                                          iter->m_offsets, iter->m_heap);
+  // Build a key-only dtuple (just the unique-in-tree fields).
+  const ulint n_unique = dict_index_get_n_unique_in_tree(m_config.m_index);
 
-  ut_ad(dtuple_validate(tuple));
+  dtuple_t *tuple = dtuple_create(iter->m_heap, n_unique);
+  dict_index_copy_types(tuple, m_config.m_index, n_unique);
 
-  /* We have copied the entire record but we only need to compare the
-  key columns when we check for boundary conditions. */
-  const auto n_compare = dict_index_get_n_unique_in_tree(m_config.m_index);
-
-  dtuple_set_n_fields_cmp(tuple, n_compare);
+  for (ulint i = 0; i < n_unique; ++i) {
+    ulint len;
+    const byte *data = rec_get_nth_field(iter->m_rec, iter->m_offsets, i, &len);
+    dfield_t *dfield = dtuple_get_nth_field(tuple, i);
+    dfield_set_data(dfield, data, len);
+  }
+  dtuple_set_n_fields_cmp(tuple, n_unique);
 
   iter->m_tuple = tuple;
 }
@@ -1232,8 +1260,9 @@ page_no_t Parallel_reader::Scan_ctx::search(buf_block_t *block,
 
 page_cur_t Parallel_reader::Scan_ctx::start_range(
     page_no_t page_no, mtr_t *mtr, const dtuple_t *key,
-    Savepoints &savepoints) const {
+    Savepoints &savepoints, dberr_t *err) const {
   ut_ad(index_s_own());
+  *err = DB_SUCCESS;
 
   auto index = m_config.m_index;
   page_id_t page_id(index->table->space_id, page_no);
@@ -1244,6 +1273,12 @@ page_cur_t Parallel_reader::Scan_ctx::start_range(
     auto savepoint = mtr->get_savepoint();
 
     auto block = block_get_s_latched(page_id, mtr, __LINE__);
+
+    if (block == nullptr) {
+      /* Page fetch failed — typically tablespace corruption. */
+      *err = DB_CORRUPTION;
+      return page_cur_t{};
+    }
 
     height = btr_page_get_level(buf_block_get_frame(block));
 
@@ -1318,6 +1353,13 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
   auto block = block_get_s_latched(page_id, mtr, __LINE__);
 
+  if (block == nullptr) {
+    /* Page fetch failed — typically tablespace corruption. The I/O
+    subsystem has already logged a [ERROR]; surface DB_CORRUPTION so the
+    SQL layer renders ER_GET_ERRNO (or equivalent) instead of crashing. */
+    return DB_CORRUPTION;
+  }
+
   /* read_level requested should be less than the tree height. */
   ut_ad(m_config.m_read_level <
         btr_page_get_level(buf_block_get_frame(block)) + 1);
@@ -1374,8 +1416,11 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
   {
     const rec_t *rec = page_cur_get_rec(&page_cursor);
 
-    ut_a(at_leaf || rec_get_node_ptr_flag(rec) ||
-         !dict_table_is_comp(index->table));
+    /* rec_get_node_ptr_flag() reads the new-style status byte and asserts
+    bits <= REC_STATUS_INSTANT — only valid for COMPACT/DYNAMIC tables.
+    Check the format first so we never invoke it on REDUNDANT records. */
+    ut_a(at_leaf || !dict_table_is_comp(index->table) ||
+         rec_get_node_ptr_flag(rec));
 
     if (heap == nullptr) {
       heap = mem_heap_create(srv_page_size / 4);
@@ -1409,7 +1454,11 @@ dberr_t Parallel_reader::Scan_ctx::create_ranges(const Scan_range &scan_range,
       }
 
       /* Find the range start in the leaf node. */
-      level_page_cursor = start_range(page_no, mtr, start, savepoints);
+      dberr_t sr_err = DB_SUCCESS;
+      level_page_cursor = start_range(page_no, mtr, start, savepoints, &sr_err);
+      if (sr_err != DB_SUCCESS) {
+        return sr_err;
+      }
     }
     else
     {

@@ -14634,6 +14634,61 @@ func_exit:
 
 int ha_innobase::pscan_init_coordinator(size_t n_threads)
 {
+	/* Reset any state left by a prior execution (correlateds subquery
+	re-execution, stored procedure loop, etc.) before initializing fresh.*/
+	(void) pscan_end();
+
+	/* Parallel scan performs consistent (non-locking) reads only. If this
+	statement requires row locks, decline so the caller falls back to a
+	serial scan that acquires them. */
+	if (m_prebuilt->select_lock_type != LOCK_NONE)
+		return HA_ERR_UNSUPPORTED;
+
+	/* ROW_TYPE_REDUNDANT uses the old (pre-COMPACT) record header layout;
+	the partitioner uses rec_get_node_ptr_flag() which assumes the new-style
+	status byte. Decline so REDUNDANT tables take the serial path.*/
+	if (dict_tf_get_rec_format(m_prebuilt->table->flags) ==
+	    											REC_FORMAT_REDUNDANT) {
+		return HA_ERR_UNSUPPORTED;
+	}
+
+	/* The partitioner and the end-of-chunk check (cmp_dtuple_rec(...) <= 0)
+	assume ascending physical key order. A descending key column in the
+	clustered index reverses B+Tree traversal, breaking range boundaries
+	and dropping rows. Decline; fall back to the serial scan. */
+	const dict_index_t *clust = m_prebuilt->table->indexes.start;
+	for (unsigned i = dict_index_get_n_unique_in_tree(clust); i--; ) {
+		if (clust->fields[i].descending) {
+			return HA_ERR_UNSUPPORTED;
+		}
+	}
+
+	/* Refuse the scan if the tablespace is discarded or unreadable. */
+	if (!m_prebuilt->table->space) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_ERROR,
+			    ER_TABLESPACE_DISCARDED,
+			    table->s->table_name.str);
+		return HA_ERR_TABLESPACE_MISSING;
+	}
+	if (!m_prebuilt->table->is_readable()) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_ERROR,
+			    ER_TABLESPACE_MISSING,
+			    table->s->table_name.str);
+		return HA_ERR_TABLESPACE_MISSING;
+	}
+
+	/* Open the transaction's ReadView NOW, before any worker runs.
+	  A serial rnd_next() opens it lazily inside row_search_mvcc(). For
+	  parallel scan, an empty partition (no rows) skips row_search_mvcc()
+	  entirely, leaving the transaction with no snapshot — a later SELECT
+	  in the same RR transaction would then see uncommitted (to us) writes
+	  from other transactions. Open the ReadView here to match serial
+	  semantics. open() is a no-op if already open. */
+	if (m_prebuilt->select_lock_type == LOCK_NONE) {
+		trx_start_if_not_started(m_prebuilt->trx, false);
+		m_prebuilt->trx->read_view.open(m_prebuilt->trx);
+	}
+
 	const Parallel_reader::Scan_range FULL_SCAN;
   	m_parallel_reader.initialize(n_threads);
 
@@ -14642,8 +14697,13 @@ int ha_innobase::pscan_init_coordinator(size_t n_threads)
 	ut_ad(index->is_clust());
 	Parallel_reader::Config config(FULL_SCAN, index);
 
-	return m_parallel_reader.add_scan(m_prebuilt->trx, config, 
+	dberr_t err = m_parallel_reader.add_scan(m_prebuilt->trx, config,
 		[&](const Parallel_reader::Ctx *ctx) {return DB_SUCCESS;});
+	if (err != DB_SUCCESS) {
+		return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
+						   m_user_thd);
+	}
+	return 0;
 }
 
 ::Parallel_scan::Worker_ctx *ha_innobase::pscan_get_worker_context(
@@ -14657,92 +14717,108 @@ int ha_innobase::pscan_init_worker(::Parallel_scan::Worker_ctx *wctx)
 	auto worker_ctx= static_cast<Parallel_reader::Worker_ctx*>(wctx);
 	auto ctx= m_parallel_reader.get_job_for_worker(worker_ctx);
 	if (ctx == nullptr)
-	  return -1; // No more data
-	if (ha_index_init(0, /*sorted*/ true)) return 1;   // template built
+		return HA_ERR_END_OF_FILE; // No more data
+	if (int err= ha_rnd_init(/*scan*/ true))
+		return err; // preserve HA_ERR_* (e.g. HA_ERR_TABLE_DEF_CHANGED)
 
 	worker_ctx->exec_ctx= ctx;
 	auto start_tuple= const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
 	auto end_tuple= const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
 	ut_ad(start_tuple != nullptr);
 
-	m_pscan_start_tuple = start_tuple;
-    m_pscan_end_tuple   = end_tuple;    // may be null (+infinity)
-    m_pscan_first_call  = true;
+	m_pscan_start_tuple= start_tuple;
+    m_pscan_end_tuple= end_tuple;    // may be null (+infinity)
+    m_pscan_first_call= true;
 
+	/*
+	  Save the prebuilt-owned search_tuple ONCE at worker init.
+      Restored in pscan_end before parallel_reader.cleanup() frees the chunks.
+	*/
+    m_pscan_saved_search_tuple= m_prebuilt->search_tuple;
+	ut_ad(m_pscan_start_tuple != nullptr);
     return 0; 
 }
 
 
 int ha_innobase::pscan_get_next_row(Parallel_scan::Worker_ctx *wctx)
 {
-  dberr_t err;
-
-  if (m_pscan_first_call) {
-    m_pscan_first_call = false;
-    m_pscan_saved_search_tuple = m_prebuilt->search_tuple;
-	if (m_pscan_start_tuple) {
-      // Position at first record >= start, AND load it.
-      m_prebuilt->search_tuple = const_cast<dtuple_t *>(m_pscan_start_tuple);
-      err = row_search_mvcc(table->record[0], PAGE_CUR_GE,
-                            m_prebuilt, 0, 0 /*opening*/);
-    } else {
-      // -infinity: empty (0-field) tuple + PAGE_CUR_G = first user record.
-      m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
-      err = row_search_mvcc(table->record[0], PAGE_CUR_G,
-                            m_prebuilt, 0, 0 /*opening*/);
-    }
-  } else {
-    // Continuation: advance from stored position.
-    err = row_search_mvcc(table->record[0], PAGE_CUR_UNSUPP,
-                          m_prebuilt, 0, ROW_SEL_NEXT);
-  }
-
-  if (err != DB_SUCCESS) {
-    if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
-      return HA_ERR_END_OF_FILE;
-    return convert_error_code_to_mysql(err, m_prebuilt->table->flags, m_user_thd);
-  }
-
-  // End-of-chunk check
-  if (m_pscan_end_tuple) {
-    rec_t *rec = btr_pcur_get_rec(m_prebuilt->pcur);
-    rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
-    rec_offs_init(offsets_);
-    mem_heap_t *heap = nullptr; // OLEGS: pre-allocate and reuse heap
-    rec_offs *offsets = rec_get_offsets(rec, m_prebuilt->index, offsets_,
-                                        m_prebuilt->index->n_core_fields,
-                                        ULINT_UNDEFINED, &heap);
-    int cmp = cmp_dtuple_rec(m_pscan_end_tuple, rec, m_prebuilt->index, offsets);
-    if (heap) mem_heap_free(heap);
-    if (cmp <= 0)
+	dberr_t err;
 	{
-		// End of chunk, request more work
-		// OLEGS: duplication with pscan_init_worker
-		auto worker_ctx= static_cast<Parallel_reader::Worker_ctx*>(wctx);
-		auto ctx= worker_ctx->preader->get_job_for_worker(worker_ctx);
-		if (ctx == nullptr)
-		  return HA_ERR_END_OF_FILE; // No more data
+		mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
 
-		worker_ctx->exec_ctx= ctx;
-		auto start_tuple= const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
-		auto end_tuple= const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
-		ut_ad(start_tuple != nullptr);
+		/* Disable prefetch cache by keeping n_rows_fetched below threshold.
+  		The cache would otherwise leave m_prebuilt->pcur up to 8 records ahead
+  		of the actually-returned record, breaking our end-of-chunk check. 
+		TODO: consider extending the InnoDB prefetch cache to handle this.*/
+  		m_prebuilt->n_rows_fetched = 0;
 
-		m_pscan_start_tuple = start_tuple;
-		m_pscan_end_tuple   = end_tuple;    // may be null (+infinity)
-		m_pscan_first_call  = true;
-		return pscan_get_next_row(worker_ctx);
-	} 
-  }
-  return 0;
+		if (m_pscan_first_call) {
+			m_pscan_first_call = false;
+			if (m_pscan_start_tuple) {
+				// Position at first record >= start, AND load it.
+				m_prebuilt->search_tuple = m_pscan_start_tuple;
+				err= row_search_mvcc(table->record[0], PAGE_CUR_GE,
+										m_prebuilt, 0, 0 /*opening*/);
+			} else {
+				// -infinity: empty (0-field) tuple + PAGE_CUR_G = first user record.
+				m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
+				err = row_search_mvcc(table->record[0], PAGE_CUR_G,
+										m_prebuilt, 0, 0 /*opening*/);
+			}
+		}
+		else {
+			// Continuation: advance from stored position.
+			err= row_search_mvcc(table->record[0], PAGE_CUR_UNSUPP,
+								m_prebuilt, 0, ROW_SEL_NEXT);
+		}
+	} // <-- mariadb_set_stats destructor
+
+	if (err != DB_SUCCESS) {
+		if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+			return HA_ERR_END_OF_FILE;
+		return convert_error_code_to_mysql(err, m_prebuilt->table->flags, m_user_thd);
+	}
+
+	// End-of-chunk check
+	if (m_pscan_end_tuple) {
+		rec_t *rec = btr_pcur_get_rec(m_prebuilt->pcur);
+		rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+		rec_offs_init(offsets_);
+		mem_heap_t *heap = nullptr; // OLEGS: pre-allocate and reuse heap
+		rec_offs *offsets = rec_get_offsets(rec, m_prebuilt->index, offsets_,
+											m_prebuilt->index->n_core_fields,
+											ULINT_UNDEFINED, &heap);
+		int cmp= cmp_dtuple_rec(m_pscan_end_tuple, rec, m_prebuilt->index, offsets);
+		if (heap)
+			mem_heap_free(heap);
+		if (cmp <= 0) {
+			// End of chunk, request more work
+			// OLEGS: duplication with pscan_init_worker
+			auto worker_ctx = static_cast<Parallel_reader::Worker_ctx*>(wctx);
+			auto ctx = worker_ctx->preader->get_job_for_worker(worker_ctx);
+			if (ctx == nullptr)
+				return HA_ERR_END_OF_FILE; // No more data
+
+			worker_ctx->exec_ctx = ctx;
+			auto start_tuple = const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
+			auto end_tuple = const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
+			ut_ad(start_tuple != nullptr);
+
+			m_pscan_start_tuple = start_tuple;
+			m_pscan_end_tuple   = end_tuple;    // may be null (+infinity)
+			m_pscan_first_call  = true;
+			return pscan_get_next_row(worker_ctx);
+		}
+	}
+	return 0;
 }
 
 int ha_innobase::pscan_end()
 {
 	if (m_pscan_saved_search_tuple)
 	{
-		m_prebuilt->search_tuple= m_pscan_saved_search_tuple;
-		m_pscan_saved_search_tuple= nullptr;
+		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
+		m_pscan_saved_search_tuple = nullptr;
 	}
 	m_pscan_first_call  = false;
 	m_pscan_start_tuple = nullptr;
