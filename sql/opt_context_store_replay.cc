@@ -383,6 +383,7 @@ static const char *opt_related_sys_vars[]=
   "join_buffer_size",
   "timestamp",
   "old_mode",
+  "sql_mode",
   NULL
 };
 
