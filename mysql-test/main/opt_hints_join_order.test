@@ -73,12 +73,10 @@ EXPLAIN EXTENDED
   SELECT /*+ QB_NAME(q1) JOIN_ORDER(t2@q1, t1) JOIN_ORDER(t3, t2@q1)*/ count(*)
   FROM t1, t2, t3;
   
---echo # Invalid mix of notations
 EXPLAIN EXTENDED
   SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1 t2, t1@q1)*/ count(*)
   FROM t1, t2, t3;
 
---echo # Hint is correct
 EXPLAIN EXTENDED
   SELECT /*+ QB_NAME(qb1) JOIN_SUFFIX(t1@qb1, t2)*/ count(*) FROM t1, t2;
 
@@ -145,6 +143,13 @@ eval explain extended $query;
 
 --echo # Check name resolving
 let $query= SELECT /*+ QB_NAME(q1) JOIN_PREFIX(t3, t2, t2@subq2) */ count(*) FROM t1 JOIN t2 JOIN t3
+              WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t2) AND
+                    t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t2);
+eval $query;
+eval explain extended $query;
+
+--echo # Variation of above (JOIN_PREFIX hint includes QB name here)
+let $query= SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1 t3, t2, t2@subq2) */ count(*) FROM t1 JOIN t2 JOIN t3
               WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t2) AND
                     t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t2);
 eval $query;

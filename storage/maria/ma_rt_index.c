@@ -931,7 +931,6 @@ static int maria_rtree_delete_req(MARIA_HA *info, const MARIA_KEY *key,
                                   my_off_t page_pos, uint *page_size,
                                   stPageList *ReinsertList, int level)
 {
-  ulong i;
   uint nod_flag;
   int res;
   my_bool buff_alloced;
@@ -959,9 +958,9 @@ static int maria_rtree_delete_req(MARIA_HA *info, const MARIA_KEY *key,
   k= rt_PAGE_FIRST_KEY(share, page_buf, nod_flag);
   last= rt_PAGE_END(&page);
 
-  for (i= 0;
+  for (;
        k < last;
-       k= rt_PAGE_NEXT_KEY(share, k, key->data_length, nod_flag), i++)
+       k= rt_PAGE_NEXT_KEY(share, k, key->data_length, nod_flag))
   {
     if (nod_flag)
     {

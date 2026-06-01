@@ -349,7 +349,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
   {
-    if (!lex->describe && !lex->analyze_stmt)
+    if (!lex->has_returning() && !lex->describe && !lex->analyze_stmt)
       flags= 0;
     else
       flags= sp_head::MULTI_RESULTS; 
@@ -3901,6 +3901,7 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
 
 
 bool sp_head::add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
+                                      const Lex_ident_column &cursor_name,
                                       const sp_rcontext_ref &cursor_ref,
                                       sp_lex_cursor *stmt,
                                       List<sp_assignment_lex> *using_clause)
@@ -3914,7 +3915,8 @@ bool sp_head::add_open_cursor_for_stmt(THD *thd, sp_pcontext *spcont,
   DBUG_ASSERT(instructions() >= set_ps_placeholder_count);
 
   auto *i= new (thd->mem_root) sp_instr_copen_by_ref(instructions(),
-                                                     spcont, cursor_ref, stmt,
+                                                     spcont, cursor_name,
+                                                     cursor_ref, stmt,
                                                      set_ps_placeholder_count);
   return !i || add_instr(i);
 }
@@ -3972,15 +3974,16 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
   if (instr_copen == NULL || add_instr(instr_copen))
     return true;
 
+  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
+  const List<sp_fetch_target> target_list(sp_fetch_target(index->name, raddr),
+                                          thd->mem_root);
+  if (!target_list.elements)
+    return true; // EOM
+
   sp_instr_cfetch *instr_cfetch=
     new (thd->mem_root) sp_instr_cfetch(instructions(),
-                                        spcont, coffset, false);
-  if (instr_cfetch == NULL || add_instr(instr_cfetch))
-    return true;
-  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
-  sp_fetch_target *target=
-    new (thd->mem_root) sp_fetch_target(index->name, raddr);
-  return !target || instr_cfetch->add_to_fetch_target_list(target);
+                                        spcont, coffset, target_list, false);
+  return instr_cfetch == NULL || add_instr(instr_cfetch);
 }
 
 

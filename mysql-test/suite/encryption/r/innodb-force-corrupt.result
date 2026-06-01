@@ -18,7 +18,7 @@ INSERT INTO t3 select * from t1;
 COMMIT;
 # Backup tables before corrupting
 # Corrupt tables
-# restart
+# restart: --innodb-log-recovery-start=0
 SELECT * FROM t1;
 ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 SELECT * FROM t2;

@@ -1897,11 +1897,6 @@ int Field::warn_if_overflow(int op_result)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (op_result == E_DEC_TRUNCATED)
-  {
-    set_note(WARN_DATA_TRUNCATED, 1);
-    /* We return 0 here as this is not a critical issue */
-  }
   return 0;
 }
 
@@ -1934,8 +1929,8 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-  :ptr(ptr_arg),
-  null_ptr(null_ptr_arg), table(0), orig_table(0),
+  :ptr(ptr_arg),  ptr_old(nullptr),
+  null_ptr(null_ptr_arg), null_ptr_old(nullptr), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), vcol_direct_part_of_key(0), part_of_sortkey(0),
@@ -2085,6 +2080,40 @@ int Field::store_from_statistical_minmax_field(Field *stat_field, String *str,
 {
   stat_field->val_str(str);
   return store_text(str->ptr(), str->length(), &my_charset_bin);
+}
+
+
+/**
+  Set a field value from another field
+
+  @param from             Field to take the value from
+  @param no_conversions   How to deal with NULL value
+
+  @details
+  The method takes the value of the field 'from' and:
+  - if this value is not null, it saves in 'this'
+  - otherwise 'this' is set to null (possibly with null-conversion)
+
+  @retval 0    OK
+  @retval !=0  Error or warning or note happened
+*/
+
+int Field::store_field_maybe_null(Field *from, bool no_conversions)
+{
+  int res;
+  DBUG_ENTER("Field::store_field_maybe_null");
+  if (from->is_null())
+    DBUG_RETURN(set_field_to_null_with_conversions(this, no_conversions));
+  set_notnull();
+  /*
+    If we're setting the same field as the one we're reading from there's
+    nothing to do. This can happen in 'SET x = x' type of scenarios.
+  */
+  if (this == from)
+    DBUG_RETURN(0);
+
+  res= field_conv(this, from);
+  DBUG_RETURN(res);
 }
 
 
@@ -2254,31 +2283,28 @@ longlong Field::convert_decimal2longlong(const my_decimal *val,
                                          bool unsigned_flag, int *err)
 {
   longlong i;
+  int res= E_DEC_OVERFLOW;
   if (unsigned_flag)
   {
     if (val->sign())
     {
       set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
       i= 0;
-      *err= 1;
     }
-    else if (warn_if_overflow(my_decimal2int((E_DEC_ERROR &
-                                              ~E_DEC_OVERFLOW &
-                                              ~E_DEC_TRUNCATED),
-                                             val, TRUE, &i)))
+    else if (warn_if_overflow(res= my_decimal2int(E_DEC_FATAL_ERROR &
+                                                  ~E_DEC_OVERFLOW,
+                                                  val, TRUE, &i)))
     {
       i= ~(longlong) 0;
-      *err= 1;
     }
   }
-  else if (warn_if_overflow(my_decimal2int((E_DEC_ERROR &
-                                            ~E_DEC_OVERFLOW &
-                                            ~E_DEC_TRUNCATED),
-                                           val, FALSE, &i)))
+  else if (warn_if_overflow(res= my_decimal2int(E_DEC_FATAL_ERROR &
+                                                ~E_DEC_OVERFLOW,
+                                                val, FALSE, &i)))
   {
     i= (val->sign() ? LONGLONG_MIN : LONGLONG_MAX);
-    *err= 1;
   }
+  *err= res != 0;
   return i;
 }
 
@@ -4521,12 +4547,12 @@ int Field_long::store(const char *from,size_t len,CHARSET_INFO *cs)
 }
 
 
-int Field_long::store(double nr)
+int Field_long::store(double val)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= 0;
   int32 res;
-  nr=rint(nr);
+  double nr= rint(val);
   if (unsigned_flag)
   {
     if (nr < 0)
@@ -4560,6 +4586,8 @@ int Field_long::store(double nr)
   }
   if (unlikely(error))
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+  else if (nr != val)
+    error= 1;
 
   int4store(ptr,res);
   return error;
@@ -4857,6 +4885,10 @@ int Field_float::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_float::store(double nr)
 {
+  if (nr == 0.0)
+  {
+    nr= 0.0; // correct negative zero
+  }
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
@@ -5001,6 +5033,10 @@ int Field_double::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_double::store(double nr)
 {
+  if (nr == 0.0)
+  {
+    nr= 0.0; // correct negative zero
+  }
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
@@ -6760,11 +6796,15 @@ longlong Field_year::val_int(void)
 String *Field_year::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
-  DBUG_ASSERT(field_length < 5);
-  val_buffer->alloc(5);
+  /* "YYYY" + NUL terminator */
+  static const size_t YEAR_STR_BUFF_LEN= 5;
+  DBUG_ASSERT(field_length < YEAR_STR_BUFF_LEN);
+  val_buffer->alloc(YEAR_STR_BUFF_LEN);
   val_buffer->length(field_length);
   char *to=(char*) val_buffer->ptr();
-  sprintf(to,field_length == 2 ? "%02d" : "%04d",(int) Field_year::val_int());
+  snprintf(to, YEAR_STR_BUFF_LEN,
+           field_length == 2 ? "%02d" : "%04d",
+           (int) Field_year::val_int());
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
 }
@@ -8929,7 +8969,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= table->in_use->variables.group_concat_max_len;
+    copy_length= table->in_use->gconcat_max_len();
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,
@@ -9557,7 +9597,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 
   /* Remove end space */
   length= (uint) field_charset()->lengthsp(from, length);
-  uint tmp=find_type2(m_typelib, from, length, 0, field_charset());
+  uint tmp= find_type2(typelib(), from, length, 0, field_charset());
   if (!tmp)
   {
     if (length < 6) // Can't be more than 99999 enums
@@ -9565,7 +9605,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
       /* This is for reading numbers with LOAD DATA INFILE */
       char *end;
       tmp=(uint) cs->strntoul(from,length,10,&end,&err);
-      if (err || end != from + length || tmp > m_typelib->count)
+      if (err || end != from + length || !tmp || tmp > typelib()->count)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);
@@ -9595,7 +9635,7 @@ int Field_enum::store(longlong nr, bool unsigned_val)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= 0;
-  if ((ulonglong) nr > m_typelib->count || nr == 0)
+  if ((ulonglong) nr > typelib()->count || nr == 0)
   {
     set_warning(WARN_DATA_TRUNCATED, 1);
     if (nr != 0 || get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
@@ -9641,7 +9681,7 @@ Binlog_type_info Field_enum::binlog_type_info() const
 {
   DBUG_ASSERT(Field_enum::type() == binlog_type());
   return Binlog_type_info(Field_enum::type(), real_type() + (pack_length() << 8),
-                          2, charset(), m_typelib, NULL);
+                          2, charset(), typelib_attr(), NULL);
 }
 
 
@@ -9649,11 +9689,11 @@ String *Field_enum::val_str(String *val_buffer __attribute__((unused)),
 			    String *val_ptr)
 {
   uint tmp=(uint) Field_enum::val_int();
-  if (!tmp || tmp > m_typelib->count)
+  if (!tmp || tmp > typelib()->count)
     val_ptr->set("", 0, field_charset());
   else
-    val_ptr->set((const char*) m_typelib->type_names[tmp - 1],
-                 m_typelib->type_lengths[tmp - 1],
+    val_ptr->set((const char*) typelib()->type_names[tmp - 1],
+                 typelib()->type_lengths[tmp - 1],
                  field_charset());
   return val_ptr;
 }
@@ -9686,8 +9726,8 @@ void Field_enum::sql_type(String &res) const
   res.append(STRING_WITH_LEN("enum("));
 
   bool flag=0;
-  uint *len= m_typelib->type_lengths;
-  for (const char **pos= m_typelib->type_names; *pos; pos++, len++)
+  uint *len= typelib()->type_lengths;
+  for (const char **pos= typelib()->type_names; *pos; pos++, len++)
   {
     uint dummy_errors;
     if (flag)
@@ -9704,10 +9744,12 @@ void Field_enum::sql_type(String &res) const
 Field *Field_enum::make_new_field(MEM_ROOT *root, TABLE *new_table,
                                   bool keep_type)
 {
+  DBUG_ASSERT(m_typelib_attr);
   Field_enum *res= (Field_enum*) Field::make_new_field(root, new_table,
                                                        keep_type);
-  if (res)
-    res->m_typelib= copy_typelib(root, m_typelib);
+  if (!res ||
+      !(res->m_typelib_attr= m_typelib_attr->deep_copy(root)))
+    return nullptr;
   return res;
 }
 
@@ -9740,7 +9782,7 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
     from= tmpstr.ptr();
     length=  tmpstr.length();
   }
-  ulonglong tmp= find_set(m_typelib, from, length, field_charset(),
+  ulonglong tmp= find_set(typelib(), from, length, field_charset(),
                           &not_used, &not_used2, &got_warning);
   if (!tmp && length && length < 22)
   {
@@ -9768,10 +9810,10 @@ int Field_set::store(longlong nr, bool unsigned_val)
   int error= 0;
   ulonglong max_nr;
 
-  if (sizeof(ulonglong) * 8 <= m_typelib->count)
+  if (sizeof(ulonglong) * 8 <= typelib()->count)
     max_nr= ULONGLONG_MAX;
   else
-    max_nr= (1ULL << m_typelib->count) - 1;
+    max_nr= (1ULL << typelib()->count) - 1;
 
   if ((ulonglong) nr > max_nr)
   {
@@ -9792,13 +9834,13 @@ String *Field_set::val_str(String *val_buffer,
 
   val_buffer->copy("", 0, field_charset());
 
-  while (tmp && bitnr < (uint) m_typelib->count)
+  while (tmp && bitnr < (uint) typelib()->count)
   {
     if (tmp & 1)
     {
       if (val_buffer->length())
 	val_buffer->append(&field_separator, 1, &my_charset_latin1);
-      String str(m_typelib->type_names[bitnr], m_typelib->type_lengths[bitnr],
+      String str(typelib()->type_names[bitnr], typelib()->type_lengths[bitnr],
 		 field_charset());
       val_buffer->append(str);
     }
@@ -9818,8 +9860,8 @@ void Field_set::sql_type(String &res) const
   res.append(STRING_WITH_LEN("set("));
 
   bool flag=0;
-  uint *len= m_typelib->type_lengths;
-  for (const char **pos= m_typelib->type_names; *pos; pos++, len++)
+  uint *len= typelib()->type_lengths;
+  for (const char **pos= typelib()->type_names; *pos; pos++, len++)
   {
     uint dummy_errors;
     if (flag)
@@ -9836,7 +9878,7 @@ Binlog_type_info Field_set::binlog_type_info() const
 {
   DBUG_ASSERT(Field_set::type() == binlog_type());
   return Binlog_type_info(Field_set::type(), real_type()
-           + (pack_length() << 8), 2, charset(), NULL, m_typelib);
+           + (pack_length() << 8), 2, charset(), NULL, typelib_attr());
 }
 
 /**
@@ -9883,13 +9925,13 @@ bool Field_enum::eq_def(const Field *field) const
   if (!Field::eq_def(field))
     return FALSE;
 
-  values= ((Field_enum*) field)->m_typelib;
+  values= ((Field_enum*) field)->typelib();
 
   /* Definition must be strictly equal. */
-  if (m_typelib->count != values->count)
+  if (typelib()->count != values->count)
     return FALSE;
 
-  return compare_type_names(field_charset(), m_typelib, values);
+  return compare_type_names(field_charset(), typelib(), values);
 }
 
 
@@ -9918,11 +9960,11 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
     enumeration or set members to the end of the list of valid member
     values only alters table metadata and not table data.
   */
-  if (m_typelib->count > new_field.typelib()->count)
+  if (typelib()->count > new_field.typelib()->count)
     return false;
 
   /* Check whether there are modification before the end. */
-  if (! compare_type_names(field_charset(), m_typelib, new_field.typelib()))
+  if (! compare_type_names(field_charset(), typelib(), new_field.typelib()))
     return false;
 
   return true;
@@ -10616,10 +10658,10 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
 {
   DBUG_ENTER("Column_definition::create_interval_from_interval_list");
   DBUG_ASSERT(!typelib());
-  TYPELIB *tmpint;
-  if (!set_typelib(tmpint= (TYPELIB*) alloc_root(mem_root, sizeof(TYPELIB))).
-         typelib())
+  Type_typelib_attributes *tmpint= new (mem_root) Type_typelib_attributes();
+  if (!tmpint)
     DBUG_RETURN(true); // EOM
+  Type_typelib_ptr_attributes(tmpint).save_in_type_extra_attributes(this);
 
   List_iterator<String> it(interval_list);
   StringBuffer<64> conv;
@@ -10688,7 +10730,7 @@ bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
   DBUG_RETURN(false);
 err:
   // Avoid having both non-empty interval_list and the typelib attribute
-  set_typelib(NULL);
+  Type_typelib_ptr_attributes(nullptr).save_in_type_extra_attributes(this);
   DBUG_RETURN(true);
 }
 
@@ -10740,8 +10782,11 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
       cycle of "this".
     */
     DBUG_ASSERT(typelib());
-    if (!set_typelib(copy_typelib(mem_root, typelib())).typelib())
-      DBUG_RETURN(true);
+    const Type_typelib_ptr_attributes typelib_ptr_attr(
+            typelib_attr()->deep_copy(mem_root));
+    if (!typelib_ptr_attr.typelib_attr())
+      DBUG_RETURN(true); // EOM
+    typelib_ptr_attr.save_in_type_extra_attributes(this);
   }
   prepare_interval_field_calc_length();
   DBUG_RETURN(false);
@@ -10988,7 +11033,7 @@ bool Column_definition::check(THD *thd)
     */
     Item_func *fn= static_cast<Item_func*>(default_value->expr);
     if (fn->functype() == Item_func::NOW_FUNC &&
-        (fn->decimals == 0 || fn->decimals >= length))
+        (fn->decimals == 0 || fn->decimals >= decimals))
     {
       default_value= 0;
       unireg_check= Field::TIMESTAMP_DN_FIELD;
@@ -10998,7 +11043,7 @@ bool Column_definition::check(THD *thd)
   if (on_update)
   {
     if (mysql_timestamp_type() != MYSQL_TIMESTAMP_DATETIME ||
-        on_update->decimals < length)
+        on_update->decimals < decimals)
     {
       my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name.str);
       DBUG_RETURN(TRUE);
@@ -11008,9 +11053,6 @@ bool Column_definition::check(THD *thd)
   }
   else if (flags & AUTO_INCREMENT_FLAG)
     unireg_check= Field::NEXT_NUMBER;
-
-  if (type_handler()->Column_definition_fix_attributes(this))
-    DBUG_RETURN(true);
 
   /* Remember the value of length */
   char_length= (uint)length;
@@ -11097,8 +11139,9 @@ Field *Column_definition_attributes::make_field(TABLE_SHARE *share,
                                                 const
 {
   DBUG_ASSERT(length <= UINT_MAX32);
-  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, interval: %p, pack_flag: %s%s%s%s%s",
-                       handler->name().ptr(), (uint) length, typelib(),
+  DBUG_PRINT("debug", ("field_type: %s, field_length: %u, typelib_attr: %p, "
+                       "pack_flag: %s%s%s%s%s",
+                       handler->name().ptr(), (uint) length, typelib_attr(),
                        FLAGSTR(pack_flag, FIELDFLAG_BINARY),
                        FLAGSTR(pack_flag, FIELDFLAG_INTERVAL),
                        FLAGSTR(pack_flag, FIELDFLAG_NUMBER),

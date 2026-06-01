@@ -2828,7 +2828,7 @@ static inline int part_val_int(Item *item_expr, longlong *result)
     my_decimal buf;
     my_decimal *val= item_expr->val_decimal(&buf);
     if (val && my_decimal2int(E_DEC_FATAL_ERROR, val, item_expr->unsigned_flag,
-                              result, FLOOR) != E_DEC_OK)
+                              result, FLOOR) & E_DEC_FATAL_ERROR)
       return true;
     break;
   }
@@ -4262,7 +4262,6 @@ void get_partition_set(const TABLE *table, uchar *buf, const uint index,
 {
   partition_info *part_info= table->part_info;
   uint num_parts= part_info->get_tot_partitions();
-  uint i, part_id;
   uint sub_part= num_parts;
   uint32 part_part= num_parts;
   KEY *key_info= NULL;
@@ -4410,9 +4409,11 @@ void get_partition_set(const TABLE *table, uchar *buf, const uint index,
       part_spec->start_part= sub_part;
       part_spec->end_part=sub_part+
                            (part_info->num_subparts*(part_info->num_parts-1));
-      for (i= 0, part_id= sub_part; i < part_info->num_parts;
+#if 0 // FIXME: empty loop!
+      for (uint i= 0; part_id= sub_part; i < part_info->num_parts;
            i++, part_id+= part_info->num_subparts)
         ; //Set bit part_id in bit array
+#endif
     }
   }
   if (found_part_field)

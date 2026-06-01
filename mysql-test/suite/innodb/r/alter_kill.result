@@ -16,7 +16,7 @@ connection default;
 disconnect con1;
 # Corrupt FIL_PAGE_TYPE in bug16720368.ibd,
 # and recompute innodb_checksum_algorithm=crc32
-# restart: --innodb-flush-method=O_DIRECT
+# restart: --innodb-flush-method=O_DIRECT --innodb-log-recovery-start=0
 SELECT @@innodb_doublewrite;
 @@innodb_doublewrite
 OFF
@@ -26,7 +26,7 @@ INSERT INTO bug16720368 VALUES(1);
 ERROR HY000: Table `test`.`bug16720368` is corrupted. Please drop the table and recreate.
 INSERT INTO bug16720368_1 VALUES(1);
 # Shut down the server to uncorrupt the data.
-# restart
+# restart: --innodb-log-recovery-start=0
 INSERT INTO bug16720368 VALUES(9,1);
 SELECT COUNT(*) FROM bug16720368;
 COUNT(*)
@@ -53,9 +53,9 @@ connection default;
 # Kill the server
 disconnect con1;
 # Attempt to start without an *.ibd file.
-# restart
+# restart: --innodb-log-recovery-start=0
 FOUND 1 /\[ERROR\] InnoDB: Tablespace [0-9]+ was not found at .*test.bug16735660.ibd/ in mysqld.1.err
-# restart
+# restart: --innodb-log-recovery-start=0
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM bug16735660;
 a

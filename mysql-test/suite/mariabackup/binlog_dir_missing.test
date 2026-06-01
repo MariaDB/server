@@ -1,0 +1,15 @@
+# MDEV-38810: MariaBackup crashes in common_engine::BackupImpl::copy_engine_binlogs
+# The server has --binlog-directory configured, but is running without binlogs,
+# so the directory does not exist.
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE t(a varchar(60));
+INSERT INTO t VALUES(1);
+SHOW VARIABLES like 'log_bin';
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+rmdir $basedir;
+
+DROP TABLE t;

@@ -722,19 +722,19 @@ lineitem	1	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
 lineitem	1	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO
 lineitem	1	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO
 SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='lineitem';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
-def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
-def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED	CREATE_OPTIONS
+def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO	
+def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO	
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO	
 SELECT
 COUNT(DISTINCT l_orderkey), COUNT(DISTINCT l_orderkey,l_linenumber),
 COUNT(DISTINCT l_shipDATE),

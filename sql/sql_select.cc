@@ -1172,7 +1172,7 @@ int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
     if (!table->table)
       continue;
     vers_select_conds_t &conds= table->period_conditions;
-    if (!table->table->s->period.name.streq(conds.name))
+    if (!table->table->s->period.name.streq_safe(conds.name))
     {
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
       if (arena)
@@ -7718,7 +7718,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
 {
   uint	and_level,i;
   KEY_FIELD *key_fields, *end, *field;
-  uint sz;
+  size_t sz;
   uint m= MY_MAX(select_lex->max_equal_elems,1);
   DBUG_ENTER("update_ref_and_keys");
   DBUG_PRINT("enter", ("normal_tables: %llx", normal_tables));
@@ -7886,7 +7886,8 @@ static void remember_if_eq_ref_key(JOIN *join, KEYUSE *use)
 */
 
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
-                            bool skip_unprefixed_keyparts)
+                            bool skip_unprefixed_keyparts,
+                            bool is_splitting)
 {
   THD *thd= join->thd;
   KEYUSE key_end, *prev, *save_pos, *use;
@@ -7914,7 +7915,8 @@ bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
   {
     if (!use->is_for_hash_join())
     {
-      if (!(use->used_tables & ~OUTER_REF_TABLE_BIT) && 
+      if (!is_splitting &&
+          !(use->used_tables & ~OUTER_REF_TABLE_BIT) &&
           use->optimize != KEY_OPTIMIZE_REF_OR_NULL)
         use->table->const_key_parts[use->key]|= use->keypart_map;
       if (use->keypart != FT_KEYPART)
@@ -14400,15 +14402,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           Json_writer_object trace_const_cond(thd);
           trace_const_cond.add("condition_on_constant_tables", const_cond);
-          if (const_cond->is_expensive())
+          if (const_cond->can_eval_in_optimize())
           {
-            if (unlikely(trace_const_cond.trace_started()))
-              trace_const_cond.
-                add("evalualted", "false").
-                add("cause", "expensive cond");
-          }
-          else
-          {
+
             bool const_cond_result;
             {
               Json_writer_array a(thd, "computing_condition");
@@ -14424,6 +14420,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
+          }
+          else
+          {
+            trace_const_cond.add("evaluated", "false")
+                            .add("cause", "expensive cond");
           }
           join->exec_const_cond= const_cond;
         }
@@ -22074,8 +22075,8 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = temp_pool_set_next();
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
-            current_pid, m_temp_pool_slot);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
+             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
@@ -22616,7 +22617,7 @@ bool Create_tmp_table::finalize(THD *thd,
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
-      else
+      else if (orig_field->default_value == NULL)
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
@@ -23227,6 +23228,87 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
   return false;
 }
 
+
+bool Virtual_tmp_table::check_assignability_from(const List<Item> &items,
+                                                 const char *spvar_name,
+                                                 const char *op) const
+{
+  DBUG_ASSERT(spvar_name);
+  if (s->fields != items.elements)
+  {
+    if (spvar_name)
+      my_error(ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(items.elements).ptr(),
+               RowTypeBuffer(s->fields).ptr(), spvar_name, op);
+    else
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(items.elements).ptr(),
+               RowTypeBuffer(s->fields).ptr(), op);
+    return true;
+  }
+  List<Item> items2= items;
+  List_iterator<Item> it(items2);
+  Item *item;
+  for (uint i= 0; (item= it++); i++)
+  {
+    // Check assignability of the i'th field
+    Type_handler_hybrid_field_type th(item->type_handler());
+    if (th.aggregate_for_result(field[i]->type_handler()))
+    {
+      if (spvar_name)
+        my_error(ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION, MYF(0),
+                 item->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(),
+                 spvar_name, field[i]->field_name.str, op);
+      else
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+                 item->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(), op);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::check_assignability_from(const TABLE &table,
+                                                 const char *spvar_name,
+                                                 const char *op) const
+{
+  if (s->fields != table.s->fields)
+  {
+    if (spvar_name)
+      my_error(ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(table.s->fields).ptr(),
+               RowTypeBuffer(s->fields).ptr(), spvar_name, op);
+    else
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               RowTypeBuffer(table.s->fields).ptr(),
+               RowTypeBuffer(s->fields).ptr(), op);
+    return true;
+  }
+  for (uint i= 0; i < s->fields; i++)
+  {
+    // Check assignability of the i'th field
+    Type_handler_hybrid_field_type th(field[i]->type_handler());
+    if (th.aggregate_for_result(table.field[i]->type_handler()))
+    {
+      if (spvar_name)
+        my_error(ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION, MYF(0),
+                 table.field[i]->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(),
+                 spvar_name, field[i]->field_name.str, op);
+      else
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+                 table.field[i]->type_handler()->name().ptr(),
+                 field[i]->type_handler()->name().ptr(), op);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 bool open_tmp_table(TABLE *table)
 {
   int error;
@@ -23251,6 +23333,68 @@ bool open_tmp_table(TABLE *table)
   return 0;
 }
 
+
+bool Virtual_tmp_table::sp_set_from_select_list(THD *thd,
+                                                const List<Item> &items)
+{
+  DBUG_ASSERT(items.elements == s->fields);
+  List<Item> item_list(items);
+  List_iterator_fast<Item> item_iter(item_list);
+  Item *item;
+  uint pos;
+  for (pos= 0, item= item_iter++; item; pos++, (item= item_iter++))
+  {
+    if (thd->sp_eval_expr(field[pos], &item))
+      return true;
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_save_in_vtable(THD *thd, Virtual_tmp_table *to) const
+{
+  DBUG_ASSERT(to);
+  DBUG_ASSERT(to->s->fields == s->fields);
+  for (uint pos= 0; pos < s->fields; pos++)
+  {
+    Sp_eval_expr_state state(thd);
+    Field *src_field= field[pos];
+    Field *trg_field= to->field[pos];
+    trg_field->store_field_maybe_null(src_field, false);
+    if (thd->is_error())
+      return true;
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_save_in_target_list(THD *thd,
+                                               const List<sp_fetch_target> &to)
+                                                                          const
+{
+  DBUG_ASSERT(s->fields == to.elements);
+  List<sp_fetch_target> targets(to);
+  List_iterator_fast<sp_fetch_target> target_iter(targets);
+  sp_fetch_target *trg;
+  uint pos;
+  for (pos= 0, trg= target_iter++; trg; pos++, (trg= target_iter++))
+  {
+    Sp_eval_expr_state state(thd);
+    Field *src_field= field[pos];
+    Field *trg_field= thd->get_variable(*trg)->field;
+    DBUG_ASSERT(trg_field);
+    if (!trg_field->type_handler()->is_scalar_type())
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+               trg_field->type_handler()->name().ptr(), "FETCH");
+      return true;
+    }
+    trg_field->store_field_maybe_null(src_field, false);
+    if (thd->is_error())
+      return true;
+  }
+  return false;
+}
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
 /*
@@ -32594,29 +32738,32 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   // PROCEDURE unsupported here
 }
 
-
-void st_select_lex::print_hints(THD *thd,
-                                String *str)
+void st_select_lex::print_hints(THD *thd, String *str)
 {
+  if (!parent_lex->opt_hints_global)
+    return;
+
+  const bool is_view= parent_lex->sql_command == SQLCOM_CREATE_VIEW ||
+                      parent_lex->sql_command == SQLCOM_SHOW_CREATE;
   constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
   str->append(header);
   const uint32 len_before_hints= str->length();
 
   if (opt_hints_qb)
     opt_hints_qb->append_qb_hint(thd, str);
-
-  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
-      thd->lex->sql_command == SQLCOM_SHOW_CREATE)
+  if (this == parent_lex->unit.first_select() && !is_view)
   {
-    if (str->length() <= len_before_hints &&
-        opt_hints_qb && opt_hints_qb->get_parent())
-      opt_hints_qb->get_parent()->print(thd, str);
+    /*
+      For normal queries (not views creation/show) opt_hints_global will
+      print itself and all children recursively into the first select.
+      Global hints are not supported inside views, so it is safe to skip them
+    */
+    parent_lex->opt_hints_global->print(thd, str);
   }
-  else
+  if (is_view && opt_hints_qb)
   {
-    if (thd->lex->opt_hints_global &&
-        select_number == 1)  // toplevel SELECT
-      thd->lex->opt_hints_global->print(thd, str);
+    // For views print hints related to a QB right into the QB they target
+    opt_hints_qb->print(thd, str);
   }
 
   // If no hints were added, then rollback the previouly added header.
@@ -34748,7 +34895,7 @@ bool Sql_cmd_dml::prepare(THD *thd)
   MYSQL_DML_START(thd);
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
-
+  lex->resolve_optimizer_hints();
   if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
                             get_dml_prelocking_strategy()))
   {
@@ -34803,6 +34950,7 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   SELECT_LEX_UNIT *unit = &lex->unit;
   SELECT_LEX *select_lex= lex->first_select_lex();
+
 
   if (!is_prepared())
   {

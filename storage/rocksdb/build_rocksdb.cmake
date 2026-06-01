@@ -511,7 +511,7 @@ else()
     PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=40960")
   set_source_files_properties(${ROCKSDB_SOURCE_DIR}/options/cf_options.cc
     PROPERTIES COMPILE_FLAGS "-Wframe-larger-than=32768")
-  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul")
 
   CHECK_CXX_SOURCE_COMPILES("
 #include <cstdint>
@@ -545,5 +545,5 @@ list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/build_version.cc)
 ADD_CONVENIENCE_LIBRARY(rocksdblib ${SOURCES})
 target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -Wno-error")
-endif()
+  SET_TARGET_PROPERTIES(rocksdblib PROPERTIES COMPILE_FLAGS "-fno-builtin-memcmp -Wno-error")
+ENDIF()

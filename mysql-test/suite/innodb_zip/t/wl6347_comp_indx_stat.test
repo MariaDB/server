@@ -63,6 +63,8 @@ SET @inl_val=2;
 SET @inl_val=2;
 --source suite/innodb_zip/include/innodb_stats_comp_index.inc
 
+# Avoid crash recovery that would access compressed pages
+--let $restart_parameters=--innodb-log-recovery-start=0
 -- source include/restart_mysqld.inc
 
 --echo # set the flag on (default off)

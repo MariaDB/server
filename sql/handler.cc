@@ -68,6 +68,9 @@
 #include "wsrep_var.h"            /* wsrep_hton_check() */
 #endif /* WITH_WSREP */
 
+/* DEFAULT (0), YES (1), NO (2) */
+const char *table_hint_options= "DEFAULT,YES,NO";
+
 /**
   @def MYSQL_TABLE_LOCK_WAIT
   Instrumentation helper for table io_waits.
@@ -123,7 +126,7 @@ ulong total_ha_2pc= 0;
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
-  have not occured.
+  have not occurred.
 */
 ulong failed_ha_2pc= 0;
 #endif
@@ -1080,13 +1083,11 @@ bool handler::log_not_redoable_operation(const char *operation)
       new log entry (and re-copy the table if needed).
     */
     THD *thd= table->in_use;
-    MDL_request mdl_backup;
     backup_log_info ddl_log;
 
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                     MDL_STATEMENT);
-    if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                      thd->variables.lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
+                                       MDL_STATEMENT,
+                                       thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
 
     bzero(&ddl_log, sizeof(ddl_log));
@@ -4780,6 +4781,8 @@ int handler::update_auto_increment()
 /** @brief
   MySQL signal that it changed the column bitmap
 
+  @param mark_for_update  whether to mark indexed virtual columns
+			  for UPDATE operations
   USAGE
     This is for handlers that needs to setup their own column bitmaps.
     Normally the handler should set up their own column bitmaps in
@@ -4790,7 +4793,7 @@ int handler::update_auto_increment()
     rnd_init() call is made as after this, MySQL will not use the bitmap
     for any program logic checking.
 */
-void handler::column_bitmaps_signal()
+void handler::column_bitmaps_signal(bool mark_for_update)
 {
   DBUG_ENTER("column_bitmaps_signal");
   if (table)
@@ -6090,12 +6093,15 @@ Alter_inplace_info::Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
     : create_info(create_info_arg),
     alter_info(alter_info_arg),
     key_info_buffer(key_info_arg),
-    key_count(key_count_arg),
-    rename_keys(current_thd->mem_root),
     modified_part_info(modified_part_info_arg),
-    ignore(ignore_arg),
+    rename_keys(current_thd->mem_root),
+    key_count(key_count_arg),
     inplace_supported(HA_ALTER_ERROR),
-    error_if_not_empty(error_non_empty)
+    online(false),
+    file_per_table(false),
+    ignore(ignore_arg),
+    error_if_not_empty(error_non_empty),
+    mdl_exclusive_after_prepare(false)
   {}
 
 void Alter_inplace_info::report_unsupported_error(const char *not_supported,
@@ -6691,8 +6697,15 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
   if (error)
   {
     if (!thd->is_error())
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
-               share->table_name.str, error);
+    {
+      if (create_info->options & HA_CREATE_TMP_ALTER)
+        my_printf_error(ER_CANT_CREATE_TABLE,
+                        ER_THD(thd, ER_CANT_CREATE_TMP_ALTER_TABLE),
+                        MYF(0), share->db.str, share->table_name.str, error);
+      else
+        my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
+                 share->table_name.str, error);
+    }
     table.file->print_error(error, MYF(ME_WARNING));
   }
   *ref_length= table.file->ref_length; // for hlindexes
@@ -9043,7 +9056,9 @@ static Create_field *vers_init_sys_field(THD *thd,
   else
   {
     f->set_handler(&type_handler_timestamp2);
-    f->length= MAX_DATETIME_PRECISION;
+    f->length= MAX_DATETIME_FULL_WIDTH;
+    f->decimals= MAX_DATETIME_PRECISION;
+    f->flags|= UNSIGNED_FLAG;
   }
   f->invisible= DBUG_IF("sysvers_show") ? VISIBLE : INVISIBLE_SYSTEM;
 

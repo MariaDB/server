@@ -1,0 +1,22 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (f INT);
+INSERT INTO t VALUES (1),(2);
+SET @a = 4;
+SET @a = NULL;
+CREATE TABLE t_spider LIKE t;
+ALTER TABLE t_spider ENGINE=SPIDER COMMENT = 'wrapper "mysql", srv "srv", table "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+DELETE FROM t_spider WHERE f > 0 or f < @a;
+SELECT * FROM t_spider;
+f
+drop table t, t_spider;
+drop server srv;
+for master_1
+for child2
+for child3

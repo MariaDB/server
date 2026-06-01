@@ -1,4 +1,7 @@
 call mtr.add_suppression("InnoDB: In RENAME TABLE table `test`.`t4` is referenced in foreign key constraints which are not compatible with the new table definition.");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=20480<");
 CREATE DATABASE test_jfg;
 CREATE DATABASE test_jfg2;
 CREATE TABLE test_jfg.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
@@ -8,6 +11,13 @@ FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE filename LIKE '%test%';
 path
 ./test_jfg2/test.ibd
 DROP DATABASE test_jfg;
+# restart: --innodb-log-recovery-target=20480
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+0
+FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target=20480</ in mysqld.1.err
 # restart
 DROP DATABASE test_jfg2;
 CREATE DATABASE abc_def;

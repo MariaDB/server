@@ -56,7 +56,7 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1
 1v` AS SELECT
- 1 AS `foobar
+ NULL AS `foobar
 raboof` */;
 SET character_set_client = @saved_cs_client;
 
@@ -75,7 +75,8 @@ SET character_set_client = @saved_cs_client;
 DELIMITER ;;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
 select * from `v1
-1v` ;;
+1v`
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;

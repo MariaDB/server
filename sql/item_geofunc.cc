@@ -66,7 +66,7 @@ String *Item_func_geometry_from_text::val_str(String *str)
   Gis_read_stream trs(wkt->charset(), wkt->ptr(), wkt->length());
   uint32 srid= 0;
 
-  if ((arg_count == 2) && !args[1]->null_value)
+  if (arg_count == 2)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
@@ -92,13 +92,14 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
   {
     String *str_ret= args[0]->val_str(str);
     null_value= args[0]->null_value;
-    if (!null_value && arg_count == 2 && !args[1]->null_value) {
+    if (!null_value && arg_count == 2)
+    {
       srid= (uint32)args[1]->val_int();
 
       if (str->copy(*str_ret))
         return 0;
 
-      int4store(str->ptr(), srid);
+      int4store(const_cast<char *>(str->ptr()), srid);
       return str;
     }
     return str_ret;
@@ -106,7 +107,7 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 
   wkb= args[0]->val_str(&arg_val);
 
-  if ((arg_count == 2) && !args[1]->null_value)
+  if (arg_count == 2)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
@@ -146,10 +147,10 @@ String *Item_func_geometry_from_json::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0;
 
-  if (arg_count > 1 && !args[1]->null_value)
+  if (arg_count > 1)
   {
     options= args[1]->val_int();
-    if (options > 4 || options < 1)
+    if (!args[1]->null_value && (options > 4 || options < 1))
     {
       String *sv= args[1]->val_str(&tmp_js);
       my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
@@ -159,7 +160,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
     }
   }
 
-  if ((arg_count == 3) && !args[2]->null_value)
+  if (arg_count == 3)
     srid= (uint32)args[2]->val_int();
 
   str->set_charset(&my_charset_bin);
@@ -291,11 +292,7 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
     if (args[1]->null_value)
       max_dec= FLOATING_POINT_DECIMALS;
     if (arg_count > 2)
-    {
       options= args[2]->val_int();
-      if (args[2]->null_value)
-        options= 0;
-    }
   }
 
   str->length(0);
@@ -1389,6 +1386,8 @@ public:
   }
   int store_shapes(Gcalc_shape_transporter *trn) const
   { return geom->store_shapes(trn); }
+  int shape_type() const
+  { return geom->get_class_info()->m_type_id; }
 };
 
 
@@ -1521,6 +1520,16 @@ bool Item_func_spatial_precise_rel::val_bool()
                          Gcalc_function::op_intersection, 2);
       null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
+    case SP_CROSSES_FUNC:
+      if (g1.shape_type() == Geometry::wkb_polygon ||
+          g1.shape_type() == Geometry::wkb_multipolygon ||
+          g2.shape_type() == Geometry::wkb_point ||
+          g2.shape_type() == Geometry::wkb_multipoint)
+      {
+        null_value= true;
+        goto exit;
+      }
+      /* fall through */
     case SP_OVERLAPS_FUNC:
     {
       // Both geometries must have the same number of dimensions.
@@ -1534,10 +1543,6 @@ bool Item_func_spatial_precise_rel::val_bool()
                                   shape_a, shape_b, null_value);
       break;
     }
-    case SP_CROSSES_FUNC:
-      handle_sp_crosses_func_case(func, trn, g1, g2,
-                                  shape_a, shape_b, null_value);
-      break;
     case SP_TOUCHES_FUNC:
       if (func.reserve_op_buffer(5))
         break;
@@ -1559,6 +1564,14 @@ bool Item_func_spatial_precise_rel::val_bool()
                          Gcalc_function::op_intersection, 2);
       func.repeat_expression(shape_a);
       func.repeat_expression(shape_b);
+      break;
+    case SP_COVEREDBY_FUNC:
+      if (!g1.mbr.coveredby(&g2.mbr))
+        goto exit;
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     default:
       DBUG_ASSERT(FALSE);
@@ -3334,6 +3347,16 @@ String *Item_func_pointfromgeohash::val_str(String *str)
 }
 
 
+static double count_h_x(double x1, double y1, double x2, double y2, double h)
+{
+  double dy= y2 - y1;
+  double dx= x2 - x1;
+  double dh= h - y1;
+
+  return x1 + dx * dh / dy;
+}
+
+
 String *Item_func_pointonsurface::val_str(String *str)
 {
   Gcalc_operation_transporter trn(&func, &collector);
@@ -3342,7 +3365,7 @@ String *Item_func_pointonsurface::val_str(String *str)
   Geometry *g;
   MBR mbr;
   const char *c_end;
-  double UNINIT_VAR(px), UNINIT_VAR(py), x0, UNINIT_VAR(y0);
+  double UNINIT_VAR(px), UNINIT_VAR(py);
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
@@ -3365,54 +3388,54 @@ String *Item_func_pointonsurface::val_str(String *str)
 
   while (scan_it.more_points())
   {
+    double h;
+
     if (scan_it.step())
       goto mem_error;
 
-    if (scan_it.get_h() > GIS_ZERO)
-    {
-      y0= scan_it.get_y();
-      break;
-    }
-  }
+    if (!scan_it.more_points())
+      goto exit;
 
-  if (!scan_it.more_points())
-  {
-    goto exit;
-  }
-
-  if (scan_it.step())
-    goto mem_error;
-
-  for (Gcalc_point_iterator pit(&scan_it); pit.point(); ++pit)
-  {
-    if (pprev == NULL)
-    {
-      pprev= pit.point();
+    if ((h= scan_it.get_h()) <= GIS_ZERO)
       continue;
-    }
-    x0= scan_it.get_sp_x(pprev);
-    px= scan_it.get_sp_x(pit.point());
-    if (px - x0 > GIS_ZERO)
+
+    py= scan_it.get_y() + h/2.0;
+
+    for (Gcalc_point_iterator pit(&scan_it); pit.point(); ++pit)
     {
-      if (scan_it.get_h() > GIS_ZERO)
+      const Gcalc_scan_iterator::point *p= pit.point();
+      double x1, y1, x2, y2, xa, xb;
+
+      if (pprev == NULL)
       {
-        px= (px + x0) / 2.0;
-        py= scan_it.get_y();
+        pprev= pit.point();
+        continue;
       }
-      else
+
+      pprev->pi->get_xy(&x1, &y1);
+      pprev->next_pi->get_xy(&x2, &y2);
+
+      xa= count_h_x(x1, y1, x2, y2, py);
+
+      p->pi->get_xy(&x1, &y1);
+      p->next_pi->get_xy(&x2, &y2);
+      xb= count_h_x(x1, y1, x2, y2, py);
+
+      if (xb - xa > GIS_ZERO)
       {
-        px= (px + x0) / 2.0;
-        py= (y0 + scan_it.get_y()) / 2.0;
+        px= (xa + xb) / 2.0;
+        null_value= 0;
+        goto point_found;
       }
-      null_value= 0;
-      break;
+
+      pprev= NULL;
     }
-    pprev= NULL;
   }
 
   if (null_value)
     goto exit;
 
+point_found:
   str->set_charset(&my_charset_bin);
   str->length(0);
   if (str->reserve(SRID_SIZE, 512))

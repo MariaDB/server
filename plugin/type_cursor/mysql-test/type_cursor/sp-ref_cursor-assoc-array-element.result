@@ -1,0 +1,28 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF SYS_REFCURSOR INDEX BY INT;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation '<array element data type>'
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR;
+TYPE assoc0_t IS TABLE OF cur0_t INDEX BY INT;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation '<array element data type>'
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD(a INT, b VARCHAR(2));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE assoc0_t IS TABLE OF cur0_t INDEX BY INT;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type sys_refcursor for operation '<array element data type>'

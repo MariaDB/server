@@ -1125,3 +1125,15 @@ DROP TABLE t1;
 SET NAMES latin1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-39673 group_concat ignores max_allowed_packet
+--echo #
+connect u,localhost,root;
+set group_concat_max_len=2*1024*1024*1024;
+select @@group_concat_max_len;
+select length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1))) from dual;
+disconnect u;
+connection default;
+
+--echo # End of 10.6 tests

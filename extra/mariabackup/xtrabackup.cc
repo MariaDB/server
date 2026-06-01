@@ -406,6 +406,7 @@ char *opt_defaults_group;
 char *opt_socket;
 uint opt_port;
 char *opt_log_bin;
+char *opt_login_path;
 
 const char *query_type_names[] = { "ALL", "UPDATE", "SELECT", NullS};
 
@@ -1852,6 +1853,11 @@ struct my_option xb_client_options[]= {
      &opt_log_innodb_page_corruption, &opt_log_innodb_page_corruption, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
+    {"login-path", 0, 0, &opt_login_path, &opt_login_path, 0,
+      GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+    {"apply-log", 0, 0, &xtrabackup_prepare, &xtrabackup_prepare,
+      0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
 #undef MYSQL_CLIENT
@@ -2677,15 +2683,15 @@ static void log_hdr_init()
                   log_sys.format == log_t::FORMAT_ENC_11
                   ? log_t::FORMAT_ENC_11 : log_t::FORMAT_10_8);
   mach_write_to_8(LOG_HEADER_START_LSN + log_hdr_buf,
-                  log_sys.next_checkpoint_lsn);
+                  log_sys.last_checkpoint_lsn);
   snprintf(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr_buf),
            16, "Backup %u.%u.%u",
            MYSQL_VERSION_ID / 10000, MYSQL_VERSION_ID / 100 % 100,
            MYSQL_VERSION_ID % 100);
   if (log_sys.is_encrypted())
-    log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END);
+    log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END, false);
   mach_write_to_4(508 + log_hdr_buf, my_crc32c(0, log_hdr_buf, 508));
-  mach_write_to_8(log_hdr_buf + 0x1000, log_sys.next_checkpoint_lsn);
+  mach_write_to_8(log_hdr_buf + 0x1000, log_sys.last_checkpoint_lsn);
   mach_write_to_8(log_hdr_buf + 0x1008, recv_sys.lsn);
   mach_write_to_4(log_hdr_buf + 0x103c,
                   my_crc32c(0, log_hdr_buf + 0x1000, 60));
@@ -2717,9 +2723,14 @@ static bool innodb_init()
   }
 
   ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
+  mysql_mutex_lock(&recv_sys.mutex);
   ut_ad(recv_no_log_write);
-  buf_flush_sync();
+  if (recv_sys.recovery_on)
+    recv_sys.apply(true);
+  mysql_mutex_unlock(&recv_sys.mutex);
   recv_sys.debug_free();
+
+  buf_flush_sync_batch(0, false);
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -2737,7 +2748,7 @@ static bool innodb_init()
     srv_log_group_home_dir= xtrabackup_target_dir;
 
   bool ret;
-  const std::string ib_logfile0{get_log_file_path()};
+  const std::string ib_logfile0{log_sys.get_circular_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
                                       OS_FILE_CREATE,
@@ -2754,7 +2765,7 @@ static bool innodb_init()
     return true;
   }
 
-  recv_sys.lsn= log_sys.next_checkpoint_lsn=
+  recv_sys.lsn= log_sys.last_checkpoint_lsn=
     log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
@@ -3661,7 +3672,7 @@ static bool backup_wait_timeout(lsn_t lsn, lsn_t last_lsn)
     return true;
   msg("Was only able to copy log from " LSN_PF " to " LSN_PF
       ", not " LSN_PF "; try increasing innodb_log_file_size",
-      log_sys.next_checkpoint_lsn, last_lsn, lsn);
+      log_sys.last_checkpoint_lsn.load(), last_lsn, lsn);
   return false;
 }
 
@@ -4189,13 +4200,15 @@ next_file:
 
 	strcpy(info->name, ent->d_name);
 
+	size_t full_path_size= strlen(dirname) + strlen(ent->d_name) + 10;
 	full_path = static_cast<char*>(
-		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
+		ut_malloc_nokey(full_path_size));
 	if (!full_path) {
 		return -1;
 	}
 
-	sprintf(full_path, "%s/%s", dirname, ent->d_name);
+	snprintf(full_path, full_path_size,
+		 "%s/%s", dirname, ent->d_name);
 
 	ret = stat(full_path, &statinfo);
 
@@ -4849,11 +4862,14 @@ static ulong xb_set_max_open_files(rlim_t max_file_limit)
 		goto end;
 	}
 
-	rlimit.rlim_cur = rlimit.rlim_max = max_file_limit;
+	rlimit.rlim_cur = max_file_limit;
 
 	if (setrlimit(RLIMIT_NOFILE, &rlimit)) {
 		/* Use original value */
 		max_file_limit = static_cast<ulong>(old_cur);
+
+		msg( "setrlimit failed %d %s limit S: %" PRIu64 " H: %" PRIu64,
+		     errno, strerror(errno), rlimit.rlim_cur, rlimit.rlim_max);
 	} else {
 
 		rlimit.rlim_cur = 0;	/* Safety if next call fails */
@@ -4914,11 +4930,13 @@ static bool backup_wait_for_commit_lsn()
   lsn_t last_lsn= recv_sys.lsn;
 
   /* read the latest checkpoint lsn */
+  log_sys.last_checkpoint_lsn= 0;
+  recv_sys.file_checkpoint= 0;
   if (recv_sys.find_checkpoint() == DB_SUCCESS && log_sys.is_latest())
   {
-    if (log_sys.next_checkpoint_lsn > lsn)
-      lsn= log_sys.next_checkpoint_lsn;
-    metadata_to_lsn= log_sys.next_checkpoint_lsn;
+    metadata_to_lsn= log_sys.last_checkpoint_lsn;
+    if (metadata_to_lsn > lsn)
+      lsn= metadata_to_lsn;
     msg("mariabackup: The latest check point (for incremental): '"
         LSN_PF "'", metadata_to_lsn);
   }
@@ -4994,15 +5012,15 @@ bool Backup_datasinks::backup_low()
 	if (xtrabackup_extra_lsndir) {
 		char	filename[FN_REFLEN];
 
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
-			MB_METADATA_FILENAME);
+		snprintf(filename,  sizeof(filename), "%s/%s",
+			 xtrabackup_extra_lsndir, MB_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 			msg("Error: failed to write metadata "
 			    "to '%s'.", filename);
 			return false;
 		}
-		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
-			MB_INFO);
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 xtrabackup_extra_lsndir, MB_INFO);
 		if (!write_xtrabackup_info(m_data,
 		                           mysql_connection, filename, false, false)) {
 			msg("Error: failed to write info "
@@ -5371,6 +5389,13 @@ class BackupStages {
                                 return false;
                         }
 
+                        if (!backup_files_from_datadir(backup_datasinks.m_data,
+                                                       fil_path_to_mysql_datadir,
+                                                       "mariadb_upgrade_info")) {
+                                msg("Error on root data dir files backup");
+                                return false;
+                        }
+
 			if (has_rocksdb_plugin()) {
 				rocksdb_create_checkpoint();
 			}
@@ -5401,7 +5426,7 @@ class BackupStages {
 				 xtrabackup. */
 			if (opt_galera_info) {
                           if (!write_galera_info(backup_datasinks.m_data,
-                                                 mysql_connection)) {
+                                                 m_bs_con)) {
 					return(false);
 				}
 			}
@@ -5539,6 +5564,7 @@ static bool xtrabackup_backup_func()
 
 	srv_n_purge_threads = 1;
 	srv_read_only_mode = TRUE;
+	recv_sys.rpo = LSN_MAX;
 
 	srv_operation = SRV_OPERATION_BACKUP;
 	log_file_op = backup_file_op;
@@ -5589,7 +5615,7 @@ fail:
 
 	/* get current checkpoint_lsn */
 	{
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		mysql_mutex_lock(&recv_sys.mutex);
 		dberr_t err = recv_sys.find_checkpoint();
 		log_sys.latch.wr_unlock();
@@ -5631,10 +5657,11 @@ fail:
 
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
-	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
+	dst_log_file =
+		ds_open(backup_datasinks.m_redo, "ib_logfile0", &stat_info);
 	if (dst_log_file == NULL) {
-		msg("Error: failed to open the target stream for '%s'.",
-		    LOG_FILE_NAME);
+		msg("Error: failed to open the target stream"
+		    " for 'ib_logfile0'.");
 		goto fail;
 	}
 
@@ -5650,7 +5677,7 @@ fail:
 	}
 
 	/* label it */
-	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
+	recv_sys.file_checkpoint = log_sys.last_checkpoint_lsn;
 	log_hdr_init();
 	/* Write log header*/
 	if (ds_write(dst_log_file, log_hdr_buf, 12288)) {
@@ -5681,7 +5708,7 @@ fail:
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	backup_log_parse = recv_sys.get_backup_parser();
-	recv_sys.lsn = log_sys.next_checkpoint_lsn;
+	recv_sys.lsn = log_sys.last_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile(true);
 
@@ -5740,7 +5767,7 @@ fail:
 	backup_datasinks.destroy();
 
 	msg("Redo log (from LSN " LSN_PF " to " LSN_PF ") was copied.",
-	    log_sys.next_checkpoint_lsn, recv_sys.lsn);
+	    log_sys.last_checkpoint_lsn.load(), recv_sys.lsn);
 	xb_filters_free();
 
 	xb_data_files_close();
@@ -6999,7 +7026,7 @@ error:
         if (xtrabackup_incremental)
         {
           char inc_filename[FN_REFLEN];
-          sprintf(inc_filename, "%s/%s", xtrabackup_incremental_dir,
+          snprintf(inc_filename, sizeof(inc_filename), "%s/%s", xtrabackup_incremental_dir,
                   MB_CORRUPTED_PAGES_FILE);
           corrupted_pages.read_from_file(inc_filename);
         }
@@ -7068,14 +7095,14 @@ error:
 			metadata_last_lsn = incremental_last_lsn;
 		}
 
-		sprintf(filename, "%s/%s", xtrabackup_target_dir, MB_METADATA_FILENAME);
+		snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_target_dir, MB_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 
 			msg("mariabackup: Error: failed to write metadata "
 			    "to '%s'", filename);
 			ok = false;
 		} else if (xtrabackup_extra_lsndir) {
-			sprintf(filename, "%s/%s", xtrabackup_extra_lsndir, MB_METADATA_FILENAME);
+			snprintf(filename, sizeof(filename), "%s/%s", xtrabackup_extra_lsndir, MB_METADATA_FILENAME);
 			if (!xtrabackup_write_metadata(filename)) {
 				msg("mariabackup: Error: failed to write "
 				    "metadata to '%s'", filename);
@@ -7352,6 +7379,13 @@ void setup_error_messages()
 	  die("could not initialize error messages");
 }
 
+
+my_bool xb_early_options(const struct my_option *opt, const char *argument,
+                         const char *)
+{
+  return 0;
+}
+
 /** Handle mariabackup options. The options are handled with the following
 order:
 
@@ -7412,7 +7446,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
         mysqld_args.push_back(argv[0]);
         mariabackup_args.push_back(argv[0]);
 
-        /* scan options for group and config file to load defaults from */
         for (i= 1; i < argc; i++)
         {
           char *optend= strcend(argv[i], '=');
@@ -7424,40 +7457,44 @@ void handle_options(int argc, char **argv, char ***argv_server,
           }
           else
             mariabackup_args.push_back(argv[i]);
-
-          if (strncmp(argv[i], "--defaults-group", optend - argv[i]) == 0)
-          {
-            defaults_group= optend + 1;
-            server_default_groups.push_back(defaults_group);
-          }
-          else if (strncmp(argv[i], "--login-path", optend - argv[i]) == 0)
-          {
-            append_defaults_group(optend + 1, xb_client_default_groups,
-                                  array_elements(xb_client_default_groups));
-          }
-          else if (!strncmp(argv[i], "--prepare", optend - argv[i]))
-          {
-            prepare= true;
-          }
-          else if (!strncmp(argv[i], "--apply-log", optend - argv[i]))
-          {
-            prepare= true;
-          }
-          else if (!strncmp(argv[i], "--incremental-dir", optend - argv[i]) &&
-                   *optend)
-          {
-            target_dir= optend + 1;
-          }
-          else if (!strncmp(argv[i], "--target-dir", optend - argv[i]) &&
-                   *optend && !target_dir)
-          {
-            target_dir= optend + 1;
-          }
-          else if (!*optend && argv[i][0] != '-' && !target_dir)
-          {
-            target_dir= argv[i];
-          }
         }
+
+        mariabackup_args.push_back(nullptr);
+        *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
+        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
+        int argc_client= argc_backup;
+        int argc_server= argc_backup;
+
+        auto early_args= mariabackup_args;
+        char **argv_early= &early_args[0];
+        int argc_early= argc_backup;
+
+	/* We want xtrabackup to ignore unknown options, because it only
+	recognizes a small subset of server variables */
+	my_getopt_skip_unknown = TRUE;
+
+        handle_options(&argc_early, &argv_early, xb_server_options,
+                                     xb_early_options);
+        argv_early--; argc_early++;
+        handle_options(&argc_early, &argv_early, xb_client_options,
+                                     xb_early_options);
+
+        if (defaults_group)
+          server_default_groups.push_back(defaults_group);
+
+        if (xtrabackup_prepare)
+          prepare= true;
+
+        if (opt_login_path)
+          append_defaults_group(opt_login_path, xb_client_default_groups,
+                                array_elements(xb_client_default_groups));
+
+        if (xtrabackup_incremental_dir)
+          target_dir= xtrabackup_incremental_dir;
+        else if (xtrabackup_target_dir !=  xtrabackup_real_target_dir)
+          target_dir= xtrabackup_target_dir;
+        else if (argc_early > 0)
+            target_dir= argv_early[0];
 
         server_default_groups.push_back(NULL);
 	snprintf(conf_file, sizeof(conf_file), "my");
@@ -7476,12 +7513,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 			}
 	}
 
-        mariabackup_args.push_back(nullptr);
-        *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
-        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
-        int argc_client= argc_backup;
-        int argc_server= argc_backup;
-
         /* 1) Load server groups and process server options, ignore unknown
          options */
 
@@ -7496,10 +7527,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 	print_param_str <<
 		"# This MySQL options file was generated by XtraBackup.\n"
 		"[" << defaults_group << "]\n";
-
-	/* We want xtrabackup to ignore unknown options, because it only
-	recognizes a small subset of server variables */
-	my_getopt_skip_unknown = TRUE;
 
 	/* Reset u_max_value for all options, as we don't want the
 	--maximum-... modifier to set the actual option values */

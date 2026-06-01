@@ -194,6 +194,7 @@ DROP TABLE t1;
 
 --connection node_3
 DROP TABLE t1;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection node_1

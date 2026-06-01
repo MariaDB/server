@@ -41,3 +41,16 @@ insert into t1 values ('x','foo');
 ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`a` at row 1
 drop temporary table t1;
 # End of 10.2 tests
+#
+# MDEV-23507 Wrong duplicate key value printed in ER_DUP_ENTRY
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (8);
+insert into t1 select seq from seq_1_to_100;
+alter table t1 add unique (a);
+ERROR 23000: Duplicate entry '8' for key 'a'
+alter table t1 engine=aria;
+alter table t1 add unique (a);
+ERROR 23000: Duplicate entry '8' for key 'a'
+drop table t1;
+# End of 10.11 tests

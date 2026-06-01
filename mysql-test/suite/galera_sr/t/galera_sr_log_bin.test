@@ -56,15 +56,11 @@ COMMIT;
 --connection node_1
 SELECT COUNT(*) = 2 FROM t4;
 
---replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
---replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+--source include/show_binlog_events.inc
 
 --connection node_2
 SELECT COUNT(*) = 2 FROM t4;
 
---replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
---replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+--source include/show_binlog_events.inc
 
 DROP TABLE t1,t2,t3,t4;

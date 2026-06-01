@@ -110,12 +110,6 @@ struct ora_join_processor_param
 };
 
 
-#ifdef DBUG_OFF
-static inline const char *dbug_print_item(Item *item) { return NULL; }
-#else
-const char *dbug_print_item(Item *item);
-#endif
-
 class Virtual_tmp_table;
 class sp_head;
 class sp_rcontext;
@@ -125,6 +119,7 @@ void item_init(void);			/* Init item functions */
 class Item_basic_value;
 class Item_result_field;
 class Item_field;
+class Item_old_field;
 class Item_ref;
 class Item_param;
 class user_var_entry;
@@ -133,6 +128,7 @@ struct KEY_FIELD;
 struct SARGABLE_PARAM;
 class RANGE_OPT_PARAM;
 class SEL_TREE;
+class sp_cursor;
 
 enum precedence {
   LOWEST_PRECEDENCE,
@@ -857,7 +853,7 @@ public:
              PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
-             PARAM_ITEM, TRIGGER_FIELD_ITEM,
+             PARAM_ITEM, TRIGGER_FIELD_ITEM, FIELD_OLD_ITEM,
              EXPR_CACHE_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
@@ -950,6 +946,13 @@ protected:
       res= NULL;
     return res;
   }
+  bool val_native_result_from_item(THD *thd, Item *item, Native *to)
+  {
+    DBUG_ASSERT(fixed());
+    null_value= item->val_native_result(thd, to);
+    DBUG_ASSERT(null_value == item->null_value);
+    return null_value;
+  }
   bool val_native_from_item(THD *thd, Item *item, Native *to)
   {
     DBUG_ASSERT(fixed());
@@ -985,7 +988,7 @@ protected:
     return rc;
   }
 public:
-
+    bool is_old_value_reference;
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
     expressions with subqueries in the ORDER/GROUP clauses.
@@ -2293,7 +2296,14 @@ public:
     tree. Used for updating the index coverings of vcols.
   */
   virtual bool intersect_field_part_of_key(void *arg) { return 0; }
-
+  /*
+    Get the name resolution context from the item and assign it to
+    arg, which should be the context of a newly created Item_field of
+    an indexed vcol in an indexed vcol substitution and the vcol
+    should have the same expression as the item for which walk is
+    invoked with this processor
+  */
+  virtual bool get_context_for_vcol_processor(void *arg) { return 0; }
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
@@ -2947,7 +2957,12 @@ protected:
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (args[i]->const_item())
+      /*
+        Constant expression doesn't need to be checked.
+        BUT if it still reports to have references to tables, we must check
+        that only allowed table is referred.
+      */
+      if (args[i]->const_item() && !args[i]->used_tables())
         continue;
       if (!args[i]->excl_dep_on_table(tab_map))
         return false;
@@ -3347,6 +3362,10 @@ public:
   Type type() const override { return m_type; }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return this_item()->type_extra_attributes();
+  }
   uint cols() const override { return this_item()->cols(); }
   Item* element_index(uint i) override
   { return this_item()->element_index(i); }
@@ -3810,10 +3829,10 @@ public:
   Item_field(THD *thd, Name_resolution_context *context_arg,
              const LEX_CSTRING &field_name_arg)
    :Item_field(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
-  { }
+  {}
   Item_field(THD *thd, Name_resolution_context *context_arg)
    :Item_field(thd, context_arg, null_clex_str, null_clex_str, null_clex_str)
-  { }
+  {}
   /*
     Constructor needed to process subselect with temporary tables (see Item)
   */
@@ -3830,7 +3849,20 @@ public:
     reset_field() before fix_fields() for all fields created this way.
   */
   Item_field(THD *thd, Field *field);
+
   Type type() const override { return FIELD_ITEM; }
+  /*
+    Resolve the data type from a cursor.
+    Example 1:
+      r0 cursor0%ROWTYPE;
+    Example 2:
+      c0 IS REF CURSOR RETURN cursor0%ROWTYPE;
+  */
+  virtual bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   bool eq(const Item *item, const Eq_config &config) const override;
   double val_real() override;
   longlong val_int() override;
@@ -3976,6 +4008,7 @@ public:
   bool register_field_in_write_map(void *arg) override;
   bool register_field_in_bitmap(void *arg) override;
   bool intersect_field_part_of_key(void *arg) override;
+  bool get_context_for_vcol_processor(void *arg) override;
   bool check_partition_func_processor(void *) override {return false;}
   bool post_fix_fields_part_expr_processor(void *bool_arg) override;
   bool check_valid_arguments_processor(void *bool_arg) override;
@@ -4054,6 +4087,46 @@ protected:
 };
 
 
+class Item_old_field: public Item_field
+{
+public:
+  Item_old_field(THD *thd,
+                 Name_resolution_context *context_arg,
+                 const LEX_CSTRING &db_arg,
+                 const LEX_CSTRING &table_name_arg,
+                 const LEX_CSTRING &field_name_arg)
+    : Item_field(thd, context_arg, db_arg, table_name_arg, field_name_arg)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd,
+                 Name_resolution_context *context_arg,
+                 const LEX_CSTRING &field_name_arg)
+    : Item_field(thd, context_arg, field_name_arg)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd, Item_field *item)
+    : Item_field(thd, item)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd,
+                 Name_resolution_context *context_arg,
+                 Field *field)
+    : Item_field(thd, context_arg, field)
+  { is_old_value_reference= true; }
+
+  Item_old_field(THD *thd, Field *field)
+    : Item_field(thd, field)
+  { is_old_value_reference= true; }
+
+  bool send(Protocol *protocol, st_value *buffer) override;
+  Type type() const override { return FIELD_OLD_ITEM; }
+  bool fix_fields(THD *, Item **) override;
+  void change_field_ptr();
+
+private:
+  uchar *saved_row_ref;
+};
+
 /**
   Item_field for the ROW data type
 */
@@ -4090,6 +4163,8 @@ public:
     }
     return false;
   }
+  virtual bool resolve_spvar_cursor_rowtype(THD *thd, const sp_cursor &cursor)
+                                                                     override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -7401,6 +7476,10 @@ public:
   { return NULL; }
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override
   { return NULL; }
+  /*
+    Note that grouping_field_transformer_for_where() is not implemented for
+    some reason.
+  */
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
 
@@ -8722,7 +8801,11 @@ public:
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override
   { return m_item->excl_dep_on_grouping_fields(sel); }
   bool is_expensive() override { return m_item->is_expensive(); }
-  void set_item(Item *item) { m_item= item; }
+  void set_item(Item *item)
+  {
+    m_item= item;
+    ref= &m_item;
+  }
   Item *deep_copy(THD *thd) const override
   {
     Item *clone_item= m_item->deep_copy_with_checks(thd);

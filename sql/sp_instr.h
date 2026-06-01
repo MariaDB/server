@@ -1809,22 +1809,13 @@ class sp_instr_fetch_cursor: public sp_instr
   sp_instr_fetch_cursor(const sp_instr_fetch_cursor &) = delete;
   void operator=(sp_instr_fetch_cursor &) = delete;
 public:
-  sp_instr_fetch_cursor(uint ip, sp_pcontext *ctx, bool error_on_no_data)
+  sp_instr_fetch_cursor(uint ip, sp_pcontext *ctx,
+                        const List<sp_fetch_target> &target_list,
+                        bool error_on_no_data)
    :sp_instr(ip, ctx),
+    m_fetch_target_list(target_list),
     m_error_on_no_data(error_on_no_data)
-  {
-    m_fetch_target_list.empty();
-  }
-
-  bool add_to_fetch_target_list(sp_fetch_target *target)
-  {
-    return m_fetch_target_list.push_back(target);
-  }
-
-  void set_fetch_target_list(List<sp_fetch_target> *list)
-  {
-    m_fetch_target_list= *list;
-  }
+  { }
 
 protected:
   List<sp_fetch_target> m_fetch_target_list;
@@ -1838,8 +1829,10 @@ class sp_instr_cfetch : public sp_instr_fetch_cursor
   void operator=(sp_instr_cfetch &);
 
 public:
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
-   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c,
+                  const List<sp_fetch_target> &target_list,
+                  bool error_on_no_data)
+   :sp_instr_fetch_cursor(ip, ctx, target_list, error_on_no_data),
     m_cursor(c)
   { }
 
@@ -1896,11 +1889,13 @@ class sp_instr_copen_by_ref : public sp_lex_instr,
 
 public:
   sp_instr_copen_by_ref(uint ip, sp_pcontext *ctx,
+                        const Lex_ident_column &cursor_name,
                         const sp_rcontext_ref &ref,
                         sp_lex_cursor *lex,
                         uint set_ps_placeholder_count)
    :sp_lex_instr(ip, ctx, lex, true),
     sp_rcontext_ref(ref),
+    m_cursor_name(cursor_name),
     m_set_ps_placeholder_count(set_ps_placeholder_count),
     m_metadata_changed(false),
     m_cursor_stmt(lex->get_expr_str())
@@ -1955,6 +1950,7 @@ public:
   }
 
 private:
+  const Lex_ident_column &m_cursor_name;
   /*
     The number of sp_instr_set_ps_placeholder instructions
     associated with this OPEN..USING statement.
@@ -2006,8 +2002,9 @@ class sp_instr_cfetch_by_ref : public sp_instr_fetch_cursor,
 public:
   sp_instr_cfetch_by_ref(uint ip, sp_pcontext *ctx,
                          const sp_rcontext_ref &ref,
+                         const List<sp_fetch_target> &target_list,
                          bool error_on_no_data)
-   :sp_instr_fetch_cursor(ip, ctx, error_on_no_data),
+   :sp_instr_fetch_cursor(ip, ctx, target_list, error_on_no_data),
     sp_rcontext_ref(ref)
   { }
 

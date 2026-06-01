@@ -983,6 +983,12 @@ let $values1 = '04/30/2004',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 
+--echo # STR_TO_DATE() STORED
+let $cols = a varchar(64), b datetime as (str_to_date(a,'%d %M %Y','en_US')) stored;
+let $values1 = '04 April 2004',default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+
 --echo # SUBDATE()
 let $cols = a datetime, b datetime as (subdate(a,interval 1 month));
 let $values1 = '2008-08-31',default;

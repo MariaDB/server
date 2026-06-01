@@ -1109,8 +1109,6 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
   if (!m_state)
   {
     MDL_deadlock_and_lock_abort_error_handler mdl_deadlock_handler;
-    MDL_request mdl_request;
-    bool result;
 
     if (thd->current_backup_stage != BACKUP_FINISHED)
     {
@@ -1129,22 +1127,20 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
                                                  MDL_BACKUP_FTWRL1));
     DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
                                                  MDL_BACKUP_FTWRL2));
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1,
-                     MDL_EXPLICIT);
 
     do
     {
       mdl_deadlock_handler.init();
       thd->push_internal_handler(&mdl_deadlock_handler);
-      result= thd->mdl_context.acquire_lock(&mdl_request,
-                                            thd->variables.lock_wait_timeout);
+      m_mdl_global_read_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1,
+          MDL_EXPLICIT, thd->variables.lock_wait_timeout);
       thd->pop_internal_handler();
     } while (mdl_deadlock_handler.need_reopen());
 
-    if (result)
+    if (!m_mdl_global_read_lock)
       DBUG_RETURN(true);
 
-    m_mdl_global_read_lock= mdl_request.ticket;
     m_state= GRL_ACQUIRED;
   }
   /*

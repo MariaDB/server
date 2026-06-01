@@ -2034,8 +2034,6 @@ innodb_binlog_discover()
                               &header);
       if (res < 0) {
         file_no= binlog_files.last_file_no;
-        if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
-          return -1;
         binlog_discover_init(file_no, innodb_binlog_state_interval);
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;
@@ -4388,9 +4386,8 @@ ibb_xid_hash::grab_xid(const XID *xid)
 void
 ibb_get_filename(char name[FN_REFLEN], uint64_t file_no)
 {
-  static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN,
-                "FN_REFLEN too shot to hold InnoDB binlog name");
-  binlog_name_make_short(name, file_no);
+  static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN);
+  binlog_name_make_short(name, FN_REFLEN, file_no);
 }
 
 
@@ -4970,7 +4967,7 @@ innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins)
     if (!purge_warning_given)
     {
       char filename[BINLOG_NAME_MAX_LEN];
-      binlog_name_make_short(filename, file_no);
+      binlog_name_make_short(filename, sizeof filename, file_no);
       if (purge_info.nonpurge_reason)
         sql_print_information("InnoDB: Binlog file %s could not be purged "
                               "because %s",
@@ -5046,7 +5043,8 @@ innodb_binlog_purge(handler_binlog_purge_info *purge_info)
   {
     static_assert(sizeof(purge_info->nonpurge_filename) >= BINLOG_NAME_MAX_LEN,
                   "No room to return filename");
-    binlog_name_make_short(purge_info->nonpurge_filename, file_no);
+    binlog_name_make_short(purge_info->nonpurge_filename,
+                           sizeof purge_info->nonpurge_filename, file_no);
     if (!purge_info->nonpurge_reason)
     {
       if (limit_file_no == file_no)

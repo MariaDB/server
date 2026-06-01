@@ -1353,10 +1353,12 @@ bool dict_sys_t::load_sys_tables() noexcept
 
 dberr_t dict_sys_t::create_or_check_sys_tables() noexcept
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   if (sys_tables_exist())
     return DB_SUCCESS;
 
-  if (srv_read_only_mode || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
+  if (recv_sys.rpo || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
     return DB_READ_ONLY;
 
   if (load_sys_tables())
@@ -1455,6 +1457,28 @@ err_exit:
       goto err_exit;
     }
   }
+
+  DBUG_EXECUTE_IF("create_sys_tablespaces",
+                  {
+                    error= que_eval_sql(
+                      nullptr, "PROCEDURE CREATE_DUMMY_1() IS\n"
+                      "BEGIN\n"
+                      "CREATE TABLE\n"
+                      "SYS_TABLESPACES(DUMMY_ID BIGINT, POS INT);\n"
+                      "CREATE UNIQUE CLUSTERED INDEX DUMMY_IND"
+                      " ON SYS_TABLESPACES(DUMMY_ID, POS);\n"
+                      "CREATE TABLE\n"
+                      "SYS_METADATA(DUMMY_ID_1 BIGINT, POS INT);\n"
+                      "CREATE UNIQUE CLUSTERED INDEX DUMMY_IND_1"
+                      " ON SYS_METADATA(DUMMY_ID_1, POS);\n"
+                      "DELETE FROM SYS_TABLES WHERE NAME= 'SYS_METADATA';"
+                      "END;\n", trx);
+                    if (error)
+                    {
+                      tablename = "DUMMY";
+                      goto err_exit;
+                    }
+                  });
 
   trx->commit();
   row_mysql_unlock_data_dictionary(trx);

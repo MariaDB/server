@@ -105,8 +105,6 @@ class Vcol_subst_context
   THD *thd;
   /* Indexed virtual columns that we can try substituting */
   List<Field> vcol_fields;
-  /* Name resolution context for new vcol Item_field's */
-  Name_resolution_context *context;
 
   /*
     How many times substitution was done. Used to determine whether to print
@@ -295,7 +293,6 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
   if (!ctx.vcol_fields.elements)
     return false; // Ok, nothing to do
 
-  ctx.context= &join->select_lex->context;
   if (join->conds)
     subst_vcols_in_item(&ctx, join->conds, "WHERE");
   if (join->join_list)
@@ -449,16 +446,35 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   THD *thd= ctx->thd;
 
   const char *fail_cause= NULL;
-  if (vcol_expr->type_handler_for_comparison() !=
-      vcol_field->type_handler_for_comparison() ||
-      (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
-    fail_cause="type mismatch";
-  else
+  if (cond)                     /* WHERE substitution (MDEV-39525) */
   {
-    CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
-    if (vcol_expr->collation.collation != vcol_field->charset() &&
-        cs != vcol_field->charset())
-      fail_cause="collation mismatch";
+    if (vcol_expr->type_handler_for_comparison() !=
+        vcol_field->type_handler_for_comparison() ||
+        (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
+      fail_cause="type mismatch";
+    else
+    {
+      CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
+      if (vcol_expr->collation.collation != vcol_field->charset() &&
+          cs != vcol_field->charset())
+        fail_cause= "collation mismatch";
+    }
+  }
+  else                          /* ORDER/GROUP BY substitution */
+  {
+    if (!vcol_field->type_handler()->is_supertype(
+        vcol_field->type_std_attributes(),
+        vcol_field->type_extra_attributes(),
+        vcol_expr->type_handler(),
+        *vcol_expr /*Type_std_attributes*/,
+        vcol_expr->type_extra_attributes()))
+      fail_cause="failed supertype check";
+    else if (vcol_expr->maybe_null() && !vcol_field->maybe_null())
+    {
+      /* NOT NULL is not allowed for vcol definition */
+      DBUG_ASSERT(0);
+      fail_cause= "nullability mismatch";
+    }
   }
 
   if (fail_cause)
@@ -470,7 +486,7 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   Item_field *itf= new (thd->mem_root) Item_field(thd, vcol_field);
   if (!itf)
     return; // Out of memory, caller will know from thd->is_error()
-  itf->context= ctx->context;
+  vcol_expr->walk(&Item::get_context_for_vcol_processor, &itf->context, 0);
   bitmap_set_bit(vcol_field->table->read_set, vcol_field->field_index);
   DBUG_ASSERT(itf->fixed());
   thd->change_item_tree(vcol_expr_ref, itf);

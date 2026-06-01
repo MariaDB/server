@@ -1,0 +1,21 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+ 
+--connection slave
+SET @row_image_save = @@global.binlog_row_image;
+SET GLOBAL binlog_row_image=MINIMAL;
+--source include/stop_slave.inc
+--source include/start_slave.inc
+ 
+--connection master
+SET binlog_row_image=MINIMAL;
+CREATE TABLE t (pk int primary key, a text, b text, unique(b));
+INSERT INTO t VALUES (1,'foo', 'bar');
+UPDATE t SET a = 'baz';
+ 
+--sync_slave_with_master
+SET GLOBAL binlog_row_image = @row_image_save;
+ 
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

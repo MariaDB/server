@@ -237,9 +237,9 @@ void COLBLK::Printf(PGLOBAL, FILE *f, uint n)
 /***********************************************************************/
 /*  Make string output of a column descriptor block.                   */
 /***********************************************************************/
-void COLBLK::Prints(PGLOBAL, char *ps, uint)
+void COLBLK::Prints(PGLOBAL, char *ps, uint z)
   {
-  sprintf(ps, "R%d.%s", To_Tdb->GetTdb_No(), Name);
+  snprintf(ps, z, "R%d.%s", To_Tdb->GetTdb_No(), Name);
   } // end of Prints
 
 

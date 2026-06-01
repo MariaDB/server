@@ -38,7 +38,7 @@ SELECT @encryption_threads_running;
 # MDEV-11835: InnoDB: Failing assertion: free_slot != NULL on
 # restarting server with encryption and read-only
 #
---let $restart_parameters= --innodb-read-only=1 --innodb-encrypt-tables=1
+--let $restart_parameters= --innodb-read-only=1 --innodb-encrypt-tables=1 --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 # Server read-only mode

@@ -191,6 +191,15 @@ ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
 
+# I/O buffer size. May be smaller than the disk page size.
+# 4096 is a common block size on SSDs.
+# This influences the speed of the isam btree library.
+# E.g.: too big may become too slow.
+SET(IO_SIZE 4096 CACHE STRING "Specify the I/O buffer size")
+MATH(EXPR IS_POWER_OF_TWO "(${IO_SIZE} & (${IO_SIZE} - 1))")
+IF(IO_SIZE LESS 512 OR NOT IS_POWER_OF_TWO EQUAL 0)
+  MESSAGE(FATAL_ERROR "IO_SIZE ${IO_SIZE} must be >= 512 and a power of 2.")
+ENDIF()
 
 SET(MEMPROTECT_DEFAULT ON)
 
@@ -263,6 +272,16 @@ IF (WITH_MSAN)
   IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
     MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
   ENDIF()
+ENDIF()
+
+# SANs, with their additional processing workload, should have a basic
+# but debuggable optimization unless user specifies otherwise.
+IF((WITH_ASAN OR WITH_UBSAN OR WITH_TSAN OR WITH_MSAN)
+	AND NOT CMAKE_C_FLAGS MATCHES "-O[0-9sgzf]"
+	AND NOT CMAKE_CXX_FLAGS MATCHES "-O[0-9sgzf]"
+	AND NOT CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE} MATCHES "-O[0-9sgzf]"
+	AND NOT CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE} MATCHES "-O[0-9sgzf]")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Og")
 ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
@@ -490,7 +509,6 @@ ADD_SUBDIRECTORY(vio)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(client)
-ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
 ADD_SUBDIRECTORY(sql/share)
 
@@ -515,6 +533,8 @@ IF(NOT WITHOUT_SERVER)
     ADD_SUBDIRECTORY(win/packaging)
   ENDIF()
 ENDIF()
+
+ADD_SUBDIRECTORY(extra)
 
 IF(UNIX)
   ADD_SUBDIRECTORY(man)
@@ -565,9 +585,6 @@ INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
 
 IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
-  IF(WITH_WSREP)
-    INSTALL_DOCUMENTATION(Docs/README-wsrep COMPONENT Readme)
-  ENDIF()
 ENDIF()
 
 INCLUDE(build_depends)

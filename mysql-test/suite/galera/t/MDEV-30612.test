@@ -1,0 +1,17 @@
+#
+# MDEV-30612: Executing CREATE TRIGGER prepared statement twice led to a crash.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t(a INT) ENGINE=INNODB;
+PREPARE s FROM 'CREATE TRIGGER tr AFTER DELETE ON t FOR EACH ROW SET @a=1';
+EXECUTE s;
+--error ER_TRG_ALREADY_EXISTS
+EXECUTE s;
+
+DROP TRIGGER tr;
+DROP TABLE t;
+
+--source include/galera_end.inc

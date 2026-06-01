@@ -61,7 +61,7 @@ row_format=redundant;
 insert into t3 values(444, 'dddd', 'bbbbb', 'aaaaa');
 insert into t3 values(555, 'eeee', 'ccccc', 'aaaaa');
 
---let $restart_parameters= $d --innodb-read-only
+--let $restart_parameters= $d --innodb-read-only --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 SELECT COUNT(*) FROM t1;
@@ -75,7 +75,7 @@ TRUNCATE TABLE t2;
 --error ER_OPEN_AS_READONLY
 TRUNCATE TABLE t3;
 
---let $restart_parameters= $d --skip-innodb-fast-shutdown
+--let $restart_parameters= $d --skip-innodb-fast-shutdown --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 TRUNCATE TABLE t1;
@@ -153,6 +153,10 @@ DROP TABLE t2,t3;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 
+if (!`select @@innodb_log_archive=0`)
+{
+--replace_result ib_0000000000003000.log ib_logfile0
+}
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir

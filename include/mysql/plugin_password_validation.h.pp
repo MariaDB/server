@@ -59,7 +59,7 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
   int res1, res2;
   unsigned int d1, d2= *dlen;
   assert(*dlen >= slen);
-  assert((dst[*dlen - 1]= 1));
+  assert((dst[*dlen - 1]= 1) == 1);
   if (src < dst)
     assert(src + slen <= dst);
   else
@@ -437,9 +437,11 @@ extern "C" {
 extern struct thd_timezone_service_st {
   my_time_t (*thd_TIME_to_gmt_sec)(THD* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
   void (*thd_gmt_sec_to_TIME)(THD* thd, MYSQL_TIME *ltime, my_time_t t);
+  void (*thd_TIME_to_str)(THD* thd, const MYSQL_TIME *ltime, const char *format, char *buf, unsigned int buf_len);
 } *thd_timezone_service;
 my_time_t thd_TIME_to_gmt_sec(THD* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(THD* thd, MYSQL_TIME *ltime, my_time_t t);
+void thd_TIME_to_str(THD* thd, const MYSQL_TIME *ltime, const char *format, char *buf, unsigned int buf_len);
 }
 extern "C" {
 typedef enum _thd_wait_type_e {
@@ -560,7 +562,7 @@ enum enum_mysql_show_type
 };
 enum enum_var_type
 {
-  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL, SHOW_OPT_SESSION_NO_LOCK
 };
 struct st_mysql_show_var {
   const char *name;

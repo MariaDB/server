@@ -1367,7 +1367,7 @@ static int drop_db(MYSQL *mysql, const char *db)
       return -1;
     }
   }
-  snprintf(name_buff,sizeof(name_buff), "drop database `%.*s`",FN_REFLEN,db);
+  snprintf(name_buff, sizeof(name_buff), "drop database `%.*s`",FN_REFLEN,db);
   if (mysql_query(mysql,name_buff))
   {
     my_printf_error(0, "DROP DATABASE %s failed;\nerror: '%s'", error_flags,

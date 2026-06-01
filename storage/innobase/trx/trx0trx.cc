@@ -113,10 +113,6 @@ trx_init(
 
 	trx->op_info = "";
 
-	trx->active_commit_ordered = false;
-
-	trx->active_prepare = false;
-
 	trx->isolation_level = TRX_ISO_REPEATABLE_READ;
 
 	trx->check_foreigns = true;
@@ -523,13 +519,15 @@ inline void trx_t::release_locks()
 TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 {
 	ut_ad(trx->is_recovered);
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
 	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		 && (!srv_was_started
 		     || srv_operation == SRV_OPERATION_RESTORE
 		     || srv_operation == SRV_OPERATION_RESTORE_EXPORT
-		     || srv_read_only_mode
+		     || recv_sys.rpo
 		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
 		     || (!srv_is_being_started
 		         && !srv_undo_sources && srv_fast_shutdown))));
@@ -740,7 +738,7 @@ corrupted:
 
 	if (trx_sys.is_undo_empty()) {
 func_exit:
-		purge_sys.clone_oldest_view<true>();
+		purge_sys.clone_oldest_view<true>(nullptr);
 		return DB_SUCCESS;
 	}
 
@@ -965,7 +963,7 @@ trx_start_low(
 	    && (!trx->mysql_thd || read_write || trx->dict_operation)) {
 		/* Temporary rseg is assigned only if the transaction
 		updates a temporary table */
-		if (!high_level_read_only) {
+		if (!high_level_read_only && !recv_sys.rpo) {
 			trx_assign_rseg_low(trx);
 		}
 	} else {
@@ -976,7 +974,7 @@ trx_start_low(
 			to write to the temporary table. */
 
 			if (read_write) {
-				ut_ad(!srv_read_only_mode);
+				ut_ad(!recv_sys.rpo);
 				trx_sys.register_rw(trx);
 			}
 		} else {
@@ -1445,6 +1443,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(mtr_t *mtr)
         ut_ad(!l);
 #endif /* UNIV_DEBUG */
     commit_state();
+    DEBUG_SYNC_C("trx_after_commit_state");
 
     if (id)
     {
@@ -1873,8 +1872,7 @@ state_ok:
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys.latch.
-When possible, use trx_print() instead. */
+The caller must hold lock_sys.latch. */
 void
 trx_print_latched(
 /*==============*/
@@ -1887,27 +1885,6 @@ trx_print_latched(
 		      trx->lock.n_rec_locks,
 		      UT_LIST_GET_LEN(trx->lock.trx_locks),
 		      mem_heap_get_size(trx->lock.lock_heap));
-}
-
-/**********************************************************************//**
-Prints info about a transaction.
-Acquires and releases lock_sys.latch. */
-TRANSACTIONAL_TARGET
-void
-trx_print(
-/*======*/
-	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx)		/*!< in: transaction */
-{
-  ulint n_rec_locks, n_trx_locks, heap_size;
-  {
-    TMLockMutexGuard g{SRW_LOCK_CALL};
-    n_rec_locks= trx->lock.n_rec_locks;
-    n_trx_locks= UT_LIST_GET_LEN(trx->lock.trx_locks);
-    heap_size= mem_heap_get_size(trx->lock.lock_heap);
-  }
-
-  trx_print_low(f, trx, n_rec_locks, n_trx_locks, heap_size);
 }
 
 /** Prepare a transaction.
@@ -2267,7 +2244,7 @@ trx_set_rw_mode(
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id == 0);
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		return;
 	}
 

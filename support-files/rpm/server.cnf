@@ -54,4 +54,4 @@
 # This group is only read by MariaDB servers of the specific version.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-13.0]
+[mariadb-13.1]

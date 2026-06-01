@@ -107,7 +107,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   {
-    decimals=0; 
+    decimals=0;
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
     set_maybe_null();
     return FALSE;
@@ -141,7 +141,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   {
-    decimals=0; 
+    decimals=0;
     fix_char_length(12);
     set_maybe_null();
     return FALSE;
@@ -174,7 +174,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   {
-    decimals=0; 
+    decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     set_maybe_null();
     return FALSE;
@@ -810,7 +810,7 @@ public:
   bool fix_length_and_dec(THD *thd) override
   { fix_attributes_time(decimals); return FALSE; }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
-  /* 
+  /*
     Abstract method that defines which time zone is used for conversion.
     Converts time current time in my_time_t representation to broken-down
     MYSQL_TIME representation using UTC-SYSTEM or per-thread time zone.
@@ -1222,7 +1222,7 @@ protected:
 };
 
 
-/* 
+/*
   We need Time_zone class declaration for storing pointers in
   Item_func_convert_tz.
 */
@@ -1839,14 +1839,23 @@ protected:
 
 class Item_func_str_to_date :public Item_handled_func
 {
+  bool check_arguments() const override
+  {
+    return check_argument_types_can_return_text(0, arg_count);
+  }
   bool const_item;
   String subject_converter;
   String format_converter;
   CHARSET_INFO *internal_charset;
+  const MY_LOCALE *locale;
 public:
   Item_func_str_to_date(THD *thd, Item *a, Item *b):
     Item_handled_func(thd, a, b), const_item(false),
-    internal_charset(NULL)
+    internal_charset(NULL),locale(0)
+  {}
+  Item_func_str_to_date(THD *thd, Item *a, Item *b, Item *c):
+    Item_handled_func(thd, a, b, c), const_item(false),
+    internal_charset(NULL), locale(0)
   {}
   bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
                        timestamp_type) override;
@@ -1856,6 +1865,12 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  bool check_vcol_func_processor(void *arg) override
+  {
+    if (arg_count > 2)
+      return false;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override

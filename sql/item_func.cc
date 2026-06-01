@@ -783,6 +783,19 @@ void Item_udf_func::fix_num_length_and_dec()
 #endif
 
 
+double Item_func::signal_log_domain_error(double value)
+{
+  THD *thd= current_thd;
+  if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_STD_INVALID_ARGUMENT,
+                        ER_THD(thd, ER_STD_INVALID_ARGUMENT),
+                        ErrConvDouble(value).ptr(), func_name());
+  null_value= 1;
+  return 0.0;
+}
+
+
 void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
@@ -2020,10 +2033,7 @@ double Item_func_ln::val_real()
   if ((null_value= args[0]->null_value))
     return 0.0;
   if (value <= 0.0)
-  {
-    signal_divide_by_null();
-    return 0.0;
-  }
+    return signal_log_domain_error(value);
   return log(value);
 }
 
@@ -2036,27 +2046,23 @@ double Item_func_ln::val_real()
 double Item_func_log::val_real()
 {
   DBUG_ASSERT(fixed());
-  double value= args[0]->val_real();
+  double base= args[0]->val_real();
   if ((null_value= args[0]->null_value))
     return 0.0;
-  if (value <= 0.0)
-  {
-    signal_divide_by_null();
-    return 0.0;
-  }
   if (arg_count == 2)
   {
-    double value2= args[1]->val_real();
+    double value= args[1]->val_real();
     if ((null_value= args[1]->null_value))
       return 0.0;
-    if (value2 <= 0.0 || value == 1.0)
-    {
-      signal_divide_by_null();
-      return 0.0;
-    }
-    return log(value2) / log(value);
+    if (base <= 0.0 || base == 1.0)
+      return signal_log_domain_error(base);
+    if (value <= 0.0)
+      return signal_log_domain_error(value);
+    return log(value) / log(base);
   }
-  return log(value);
+  if (base <= 0.0)
+    return signal_log_domain_error(base);
+  return log(base);
 }
 
 double Item_func_log2::val_real()
@@ -2067,10 +2073,7 @@ double Item_func_log2::val_real()
   if ((null_value=args[0]->null_value))
     return 0.0;
   if (value <= 0.0)
-  {
-    signal_divide_by_null();
-    return 0.0;
-  }
+    return signal_log_domain_error(value);
   return log(value) / M_LN2;
 }
 
@@ -2081,10 +2084,7 @@ double Item_func_log10::val_real()
   if ((null_value= args[0]->null_value))
     return 0.0;
   if (value <= 0.0)
-  {
-    signal_divide_by_null();
-    return 0.0;
-  }
+    return signal_log_domain_error(value);
   return log10(value);
 }
 
@@ -4375,14 +4375,11 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(0);
   }
 
-  MDL_request ull_request;
-  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, res->c_ptr_safe(), "",
-                   MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
-  MDL_key *ull_key= &ull_request.key;
+  const MDL_key ull_key(MDL_key::USER_LOCK, res->c_ptr_safe(), "");
 
 
   if ((ull= (User_level_lock*)
-       my_hash_search(&thd->ull_hash, ull_key->ptr(), ull_key->length())))
+       my_hash_search(&thd->ull_hash, ull_key.ptr(), ull_key.length())))
   {
     /* Recursive lock */
     ull->refs++;
@@ -4393,9 +4390,10 @@ longlong Item_func_get_lock::val_int()
 
   Lock_wait_timeout_handler lock_wait_timeout_handler;
   thd->push_internal_handler(&lock_wait_timeout_handler);
-  bool error= thd->mdl_context.acquire_lock(&ull_request, timeout);
+  MDL_ticket *ticket= thd->mdl_context.MDL_ACQUIRE_LOCK_BY_KEY(
+      &ull_key, MDL_SHARED_NO_WRITE, MDL_EXPLICIT, timeout);
   (void) thd->pop_internal_handler();
-  if (unlikely(error))
+  if (unlikely(!ticket))
   {
     if (lock_wait_timeout_handler.m_lock_wait_timeout)
       null_value= 0;
@@ -4407,11 +4405,11 @@ longlong Item_func_get_lock::val_int()
                                     MYF(MY_WME|MY_THREAD_SPECIFIC));
   if (ull == NULL)
   {
-    thd->mdl_context.release_lock(ull_request.ticket);
+    thd->mdl_context.release_lock(ticket);
     DBUG_RETURN(0);
   }
 
-  ull->lock= ull_request.ticket;
+  ull->lock= ticket;
   ull->refs= 1;
 
   if (my_hash_insert(&thd->ull_hash, (uchar*) ull))

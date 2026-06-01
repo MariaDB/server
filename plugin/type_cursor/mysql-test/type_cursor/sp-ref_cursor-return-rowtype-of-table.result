@@ -1,0 +1,42 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN cat1.db1.t1.v0%ROWTYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.v0%ROWTYPE;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN cat1.db1.t1%ROWTYPE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROWTYPE;
+BEGIN
+NULL;
+END' at line 2
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN test.t1%ROWTYPE;
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE cur0_t IS REF CURSOR RETURN test.t1%ROWTYPE;
+c0 cur0_t;
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP PROCEDURE p1;

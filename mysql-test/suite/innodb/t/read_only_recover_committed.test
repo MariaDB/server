@@ -62,7 +62,7 @@ SELECT * FROM t;
 --enable_ps2_protocol
 # refused on MySQL 5.6, MariaDB 10.0, 10.1, but not MariaDB 10.2+
 UPDATE t SET a=3 WHERE a=1;
---let $restart_parameters= --innodb-read-only
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 SET GLOBAL innodb_status_output= @@GLOBAL.innodb_status_output;
 --echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.

@@ -4,6 +4,7 @@
 
 --source include/have_innodb.inc
 --source include/no_valgrind_without_big.inc
+--source include/skip_innodb_log_archive.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Could not create undo tablespace.*undo002");
@@ -188,9 +189,15 @@ let SEARCH_PATTERN=InnoDB: Failed to open the undo tablespace;
 --list_files $bugdir
 --source include/start_mysqld.inc
 eval $check_no_innodb;
---source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=redo log file .*ib_logfile0.* exists\. Creating system tablespace with existing redo log file is not recommended\. Please delete redo log file before creating new system tablespace\.;
+let SEARCH_PATTERN=redo log file '.*ib_logfile0' exists\. Creating system tablespace with existing redo log file is not recommended\. Please delete redo log file before creating new system tablespace\.;
 --source include/search_pattern_in_file.inc
+
+--move_file $bugdir/ib_logfile0 $bugdir/ib_0000000000003000.log
+--source include/restart_mysqld.inc
+let SEARCH_PATTERN=redo log file '.*ib_[?03]*\.log' exists\. Creating system tablespace with existing redo log file is not recommended\. Please delete redo log file before creating new system tablespace\.;
+--source include/search_pattern_in_file.inc
+--move_file $bugdir/ib_0000000000003000.log $bugdir/ib_logfile0
+--source include/shutdown_mysqld.inc
 
 # clean up & Restore
 --source ../include/log_file_cleanup.inc

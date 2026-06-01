@@ -1,0 +1,220 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39278 Validate .cfg file parser string lengths
+--echo #
+--echo # Test that IMPORT TABLESPACE rejects .cfg files with
+--echo # invalid string lengths in the metadata header.
+--echo #
+
+call mtr.add_suppression("InnoDB: Importing tablespace for table `test`\\.`t1`");
+call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Discarding tablespace of table `test`\\.`t1`");
+
+let MYSQLD_DATADIR = `SELECT @@datadir`;
+
+--echo # Export a valid .ibd/.cfg pair to reuse across tests.
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2), (3);
+
+FLUSH TABLES t1 FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.bak
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg.bak
+
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # Test 1: Corrupt hostname length in .cfg
+--echo # .cfg format: [4 bytes version][4 bytes hostname_len]...
+--echo # Patch offset 4 to 0x00001000 (4096), exceeding
+--echo # HOSTNAME_LENGTH + 1 (256).
+--echo #
+
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.bak $MYSQLD_DATADIR/test/t1.cfg.corrupt
+
+perl;
+use strict;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.cfg.corrupt";
+open(FILE, "+<", $file) or die "Cannot open $file: $!";
+binmode FILE;
+seek(FILE, 4, 0) or die "Cannot seek: $!";
+# Write 0x00001000 (4096) in big-endian
+print FILE pack("N", 4096);
+close FILE or die "Cannot close: $!";
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.bak $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t1.cfg.corrupt $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_IO_READ_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 2: Zero hostname length in .cfg
+--echo #
+
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.bak $MYSQLD_DATADIR/test/t1.cfg.corrupt
+
+perl;
+use strict;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.cfg.corrupt";
+open(FILE, "+<", $file) or die "Cannot open $file: $!";
+binmode FILE;
+seek(FILE, 4, 0) or die "Cannot seek: $!";
+# Write 0 in big-endian
+print FILE pack("N", 0);
+close FILE or die "Cannot close: $!";
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.bak $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t1.cfg.corrupt $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_IO_READ_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 3: Table name length zero in .cfg
+--echo #
+
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.bak $MYSQLD_DATADIR/test/t1.cfg.corrupt
+
+perl;
+use strict;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.cfg.corrupt";
+open(FILE, "+<", $file) or die "Cannot open $file: $!";
+binmode FILE;
+# Read hostname length at offset 4
+seek(FILE, 4, 0) or die "Cannot seek: $!";
+my $buf;
+read(FILE, $buf, 4) == 4 or die "Cannot read: $!";
+my $hostname_len = unpack("N", $buf);
+# Table name length is at offset 4 + 4 + hostname_len
+my $tablename_offset = 4 + 4 + $hostname_len;
+seek(FILE, $tablename_offset, 0) or die "Cannot seek: $!";
+# Write 0 in big-endian
+print FILE pack("N", 0);
+close FILE or die "Cannot close: $!";
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.bak $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t1.cfg.corrupt $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_IO_READ_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 4: Hostname length just over limit (257)
+--echo # HOSTNAME_LENGTH + 1 = 256 is the max valid value.
+--echo # 257 should be rejected.
+--echo #
+
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.bak $MYSQLD_DATADIR/test/t1.cfg.corrupt
+
+perl;
+use strict;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.cfg.corrupt";
+open(FILE, "+<", $file) or die "Cannot open $file: $!";
+binmode FILE;
+seek(FILE, 4, 0) or die "Cannot seek: $!";
+# Write 257 (HOSTNAME_LENGTH + 2) in big-endian
+print FILE pack("N", 257);
+close FILE or die "Cannot close: $!";
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.bak $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t1.cfg.corrupt $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_IO_READ_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 5: Hostname length 0xFFFFFFFF (max uint32)
+--echo #
+
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.bak $MYSQLD_DATADIR/test/t1.cfg.corrupt
+
+perl;
+use strict;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.cfg.corrupt";
+open(FILE, "+<", $file) or die "Cannot open $file: $!";
+binmode FILE;
+seek(FILE, 4, 0) or die "Cannot seek: $!";
+# Write 0xFFFFFFFF in big-endian
+print FILE pack("N", 0xFFFFFFFF);
+close FILE or die "Cannot close: $!";
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.bak $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t1.cfg.corrupt $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_IO_READ_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 6: Corrupt table name length in .cfg
+--echo # The table name length field follows the hostname string.
+--echo # We need to find and patch it dynamically.
+--echo #
+
+--copy_file $MYSQLD_DATADIR/test/t1.cfg.bak $MYSQLD_DATADIR/test/t1.cfg.corrupt
+
+perl;
+use strict;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.cfg.corrupt";
+open(FILE, "+<", $file) or die "Cannot open $file: $!";
+binmode FILE;
+# Read hostname length at offset 4
+seek(FILE, 4, 0) or die "Cannot seek: $!";
+my $buf;
+read(FILE, $buf, 4) == 4 or die "Cannot read: $!";
+my $hostname_len = unpack("N", $buf);
+# Table name length is at offset 4 + 4 + hostname_len
+my $tablename_offset = 4 + 4 + $hostname_len;
+seek(FILE, $tablename_offset, 0) or die "Cannot seek: $!";
+# Write 0x10000000 (268 million) in big-endian
+print FILE pack("N", 0x10000000);
+close FILE or die "Cannot close: $!";
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.bak $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t1.cfg.corrupt $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_IO_READ_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+--remove_files_wildcard $MYSQLD_DATADIR/test t1.*
+
+--echo # End of 10.11 tests

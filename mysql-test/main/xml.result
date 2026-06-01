@@ -1322,6 +1322,98 @@ foo
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-39210 ExtractValue/UpdateXML crash
+#
+SELECT ExtractValue('<!a/><!b/>', '/a');
+ExtractValue('<!a/><!b/>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SELECT UpdateXML('<!a/><!b/>', '/a', '<new/>');
+UpdateXML('<!a/><!b/>', '/a', '<new/>')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SELECT ExtractValue('<!a/><!b/><!c/>', '/a');
+ExtractValue('<!a/><!b/><!c/>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SELECT ExtractValue('<?a/?><?b/?>', '/a');
+ExtractValue('<?a/?><?b/?>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 5: unknown token unexpected (ident wanted)'
+SELECT ExtractValue('<!a/><?b/?>', '/a');
+ExtractValue('<!a/><?b/?>', '/a')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 2: unknown token unexpected (ident or '/' wanted)'
+SET @xml='<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE note [
+  <!ELEMENT note (to, from, heading, body)>
+  <!ELEMENT to (#PCDATA)>
+  <!ELEMENT from (#PCDATA)>
+  <!ELEMENT heading (#PCDATA)>
+  <!ELEMENT body (#PCDATA)>
+]>
+<note>
+  <to>Tove</to>
+  <from>Jani</from>
+  <heading>Reminder</heading>
+  <body>See you this weekend!</body>
+</note>
+';
+SELECT ExtractValue(@xml, '/note/from');
+ExtractValue(@xml, '/note/from')
+Jani
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ?>
+</employee>
+<?employee ABSDEV !@#$ ?>';
+SELECT ExtractValue(@xml, '/employee/dt3');
+ExtractValue(@xml, '/employee/dt3')
+--02--
+set @xml= '<? xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ?>
+</employee>
+<?  employee ABSDEV !@#$ ?>';
+SELECT ExtractValue(@xml, '/employee/dt3');
+ExtractValue(@xml, '/employee/dt3')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 21: unknown token unexpected ('>' wanted)'
+set @xml= '<?xml version="1.0"?>
+<employee>
+  <dt1>--01--+01:00</dt1>
+  <dt2>--12--+01:00</dt2>
+  <?dt3 123456 ?>
+  <dt3>--02--</dt3>
+  <dt4>--03--Z</dt4>
+  <?dt4 123456 ? >
+</employee>
+<?employee ABSDEV !@#$ ?>';
+SELECT ExtractValue(@xml, '/employee/dt3');
+ExtractValue(@xml, '/employee/dt3')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END-OF-INPUT'
 # Start of 11.4 tests
 #
 # MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit
@@ -1334,3 +1426,19 @@ SELECT  ucase((extractvalue('a', 'a'))) a FROM (select 1) dt;
 a
 
 # End of 11.4 tests
+#
+# MDEV-ASAN heap-buffer-overflow in process_str_arg upon ER_TRUNCATED_WRONG_VALUE "Incorrect XML value".
+#
+CREATE TABLE t1 (name varchar(10));
+INSERT INTO t1 VALUES ("one"), ("two"), ("three"), ("four"), ("five");
+SELECT UpdateXML(1, '/a', '') a
+FROM t1
+GROUP BY a, name;
+a
+1
+1
+1
+1
+1
+DROP TABLE t1;
+# End of 12.3 tests

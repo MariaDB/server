@@ -39,9 +39,7 @@ drop table t1, t3_ok, t8;
 #
 create table t1 (a int, b serial as (a+1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as (a+1))' at line 1
-#
 # End of 10.2 tests
-#
 create table t1 (a int, b real as (rand()), c real as (b) stored);
 ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS AS clause of `c`
 create table t1 (a int, b real as (rand()), c real as (b) unique);
@@ -52,9 +50,7 @@ ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS A
 create table t1 (a int auto_increment primary key,
 b int as (a+1), c int as (b+1) unique);
 ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS AS clause of `c`
-#
 # End of 10.3 tests
-#
 #
 # MDEV-29155 CREATE OR REPLACE with self-referencing CHECK hangs forever, cannot be killed
 #
@@ -83,6 +79,25 @@ ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT c
 create table t3 (c int, d int generated always as (select a from t1 limit 1));
 ERROR HY000: Function or expression 'select ...' cannot be used in the GENERATED ALWAYS AS clause of `d`
 drop tables t1, t2, t3;
-#
 # End of 10.4 tests
-#
+create table t1 (a varchar(64), b datetime as (str_to_date(a,'%m/%d/%Y')) stored);
+ERROR HY000: Function or expression 'str_to_date()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a char(2), b int as (ascii(a)) stored);
+ERROR HY000: Function or expression 'ascii(`a`)' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a long, b datetime as (from_unixtime(a)) stored);
+ERROR HY000: Function or expression 'from_unixtime()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a long, b time as (sec_to_time(a)) stored);
+ERROR HY000: Function or expression 'sec_to_time(`a`)' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a varchar(1024), b varchar(1024) as (aes_encrypt(aes_decrypt(a,'adf'),'adf')) stored);
+ERROR HY000: Function or expression 'aes_decrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a date, b varchar(100) as (monthname(a)) stored);
+ERROR HY000: Function or expression 'monthname()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a date, b varchar(100) as (dayname(a)) stored);
+ERROR HY000: Function or expression 'dayname()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a date, b varchar(100) as (date_format(a, '%W %a %M %b')) stored);
+ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 ( a char, b varchar(32) as (current_user()) stored);
+ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a char, b varchar(1024) as (uncompressed_length(compress(repeat(a,30)))) stored);
+ERROR HY000: Function or expression 'uncompressed_length(compress(repeat(`a`,30)))' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# End of 12.3 test

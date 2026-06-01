@@ -1,5 +1,4 @@
 --source include/have_sequence.inc
---disable_view_protocol
 create table t1 select seq as i, 10*seq as j from seq_1_to_10;
 create view v1 as select * from t1 where i % 2 = 0;
 
@@ -62,6 +61,10 @@ WHERE dt.a = dt2.a and dt.b = dt2.b AND dt.a < 3 AND dt.b > 8;
 set optimizer_switch=@save_optimizer_switch;
 
 # Test warnings
+# Warnings during views creation have different format: query block names are stripped.
+# So disable view protocol here
+--disable_view_protocol
+
 explain extended select /*+ NO_MERGE(t) */ * from (select * from t1) t;
 explain extended select /*+ MERGE(t) */ * from (select * from t1) t;
 create table t2 select seq as i, 10*seq as j from seq_1_to_10;

@@ -43,9 +43,13 @@ select @@default_master_connection;
 @@default_master_connection
 
 select @@global.default_master_connection;
-ERROR HY000: Variable 'default_master_connection' is a SESSION variable
+@@global.default_master_connection
+
 set @@global.default_master_connection='qqq';
-ERROR HY000: Variable 'default_master_connection' is a SESSION variable and can't be used with SET GLOBAL
+select @@global.default_master_connection;
+@@global.default_master_connection
+qqq
+set @@global.default_master_connection='';
 set @@default_master_connection='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
 ERROR 42000: Variable 'default_master_connection' can't be set to the value of 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
 select @@default_master_connection;

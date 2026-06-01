@@ -274,13 +274,13 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -2 in function ln.
 select * from t1;
 a	b
 -2	NULL
 2	0.693147
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -2 in function ln.
 drop table t1;
 set sql_warnings = 0;
 # LOG()
@@ -297,14 +297,14 @@ insert into t1 values (2,65536,default);
 insert into t1 values (10,100,default);
 insert into t1 values (1,100,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: 1 in function log.
 select * from t1;
 a	b	c
 1	100	NULL
 10	100	2
 2	65536	16
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: 1 in function log.
 drop table t1;
 set sql_warnings = 0;
 set sql_warnings = 1;
@@ -318,13 +318,13 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -2 in function log.
 select * from t1;
 a	b
 -2	NULL
 2	0.693147
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -2 in function log.
 drop table t1;
 set sql_warnings = 0;
 # LOG2()
@@ -339,13 +339,13 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (65536,default);
 insert into t1 values (-100,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -100 in function log2.
 select * from t1;
 a	b
 -100	NULL
 65536	16
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -100 in function log2.
 drop table t1;
 set sql_warnings = 0;
 # LOG10()
@@ -361,14 +361,14 @@ insert into t1 values (2,default);
 insert into t1 values (100,default);
 insert into t1 values (-100,default);
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -100 in function log10.
 select * from t1;
 a	b
 -100	NULL
 100	2
 2	0.30103
 Warnings:
-Warning	1365	Division by 0
+Warning	3047	Invalid argument error: -100 in function log10.
 drop table t1;
 set sql_warnings = 0;
 # -

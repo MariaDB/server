@@ -15,7 +15,7 @@ use d;
 set debug_dbug= "+d,test_completely_invisible";
 create table t1(a int);
 insert into t1 values(1);
-select a,invisible from t1;
+select a,invisible1 from t1;
 set debug_dbug=@old_debug;
 grant insert(a) on t1 to user_1;
 grant update(a) on t1 to user_1;
@@ -30,7 +30,7 @@ select * from t1;
 insert into t1(a) values(3);
 select * from t1;
 --error ER_BAD_FIELD_ERROR
-select invisible,a from t1;
+select invisible1,a from t1;
 delete from t1 where a =1;
 update t1 set a=1 where a=3;
 select * from t1;
@@ -42,14 +42,14 @@ connection con1;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from t1;
 --error ER_TABLEACCESS_DENIED_ERROR
-select invisible from t1;
+select invisible1 from t1;
 
 disconnect con1;
 --echo
 --echo #Final Cleanup
 connection default;
 set debug_dbug= "+d,test_completely_invisible";
-select a,invisible from t1;
+select a,invisible1 from t1;
 drop user user_1;
 drop database d;
 set @old_debug= @@debug_dbug;

@@ -137,7 +137,11 @@ public:
                                           const uchar *buffer,
                                           LEX_CUSTRING *gis_options) const
     override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *c,
                                               const Field *field) const
@@ -218,6 +222,16 @@ public:
     override;
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const
     override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    return this == src_th ||
+      (geometry_type() == GEOM_GEOMETRY &&
+       dynamic_cast<const Type_handler_geometry*>(src_th));
+  }
 };
 
 

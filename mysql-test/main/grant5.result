@@ -280,7 +280,7 @@ Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 a	int(11)	NULL	YES	MUL	NULL		select,insert,update,references	
 # we don't expect to show temporary tables in information_schema.columns
 select * from information_schema.columns where table_schema='db';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END	CREATE_OPTIONS
 disconnect con1;
 connect  con1,localhost,bar,,db;
 show full columns in tmp;
@@ -478,3 +478,25 @@ DROP USER foo@localhost;
 CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
 ERROR HY000: Plugin 'not_installed_plugin' is not loaded
 # End of 10.5 tests
+#
+# MDEV-37256: The permission check of LOAD INDEX INTO CACHE and CACHE INDEX is broken
+#
+create table t1 (c int primary key);
+insert t1 values (1),(2);
+create user foo@localhost;
+connect foo,localhost,foo;
+use test;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'test'
+cache index test.t1 in default;
+ERROR 42000: CACHE INDEX command denied to user 'foo'@'localhost' for table `test`.`t1`
+load index into cache test.t1 key (primary);
+ERROR 42000: LOAD INDEX INTO CACHE command denied to user 'foo'@'localhost' for table `test`.`t1`
+cache index test.t2 in default;
+ERROR 42000: CACHE INDEX command denied to user 'foo'@'localhost' for table `test`.`t2`
+load index into cache test.t2 key (i2);
+ERROR 42000: LOAD INDEX INTO CACHE command denied to user 'foo'@'localhost' for table `test`.`t2`
+disconnect foo;
+connection default;
+drop table t1;
+drop user foo@localhost;
+# End of 10.11 tests

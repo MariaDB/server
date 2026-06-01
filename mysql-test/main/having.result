@@ -1020,3 +1020,27 @@ SET optimizer_trace= @save_optimizer_trace;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-38070 wrong resultset with having and or condition
+#
+CREATE TABLE t1 ( a int, PRIMARY KEY (a)) ;
+INSERT INTO t1 values (3),(4),(5),(6),(7);
+CREATE TABLE t2 (b int , c TIMESTAMP );
+INSERT INTO t2 VALUES (1,'2025-11-06 09:24:27'),(1,'2025-11-06 09:24:27'),
+(2,'2025-11-06 09:24:27'),(2,'2025-11-06 09:24:27'),(3,'2025-11-06 09:24:27'),
+(3,'2025-11-06 09:24:27'),(4,'2025-11-06 09:24:27'),(4,'2025-11-06 09:24:27'),
+(5,'2025-11-06 09:24:27'),(5,'2025-11-06 09:24:27'),(6,'2025-11-06 09:24:27'),
+(6,'2025-11-06 09:24:27'),(7,'2025-11-06 11:24:27'),(7,'2025-11-06 11:24:27');
+SELECT t1.a, tbl.b
+FROM t1
+JOIN ( SELECT t2.b as id2,  max(t2.c) AS b FROM t2 GROUP BY t2.b ) tbl
+ON tbl.id2 = t1.a
+GROUP BY t1.a
+HAVING  (tbl.b < '2025-11-06 10:40:00');
+a	b
+3	2025-11-06 09:24:27
+4	2025-11-06 09:24:27
+5	2025-11-06 09:24:27
+6	2025-11-06 09:24:27
+DROP TABLE t1, t2;
+# End of 11.4 tests

@@ -48,6 +48,7 @@ void report_path_error_ex(const char *ps, json_path_t *p,
 void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
+int st_append_escaped(String *s, const String *a);
 
 class Json_engine_scan: public json_engine_t
 {
@@ -81,7 +82,7 @@ protected:
   bool extract(MEM_ROOT *mem_root, String *to, Item *js,
                Item *jp, CHARSET_INFO *cs,
                MEM_ROOT_DYNAMIC_ARRAY *,
-               LEX_CSTRING *func_name);
+               const char *func_name, bool allow_wildcard);
   void init_json_engine_stack(MEM_ROOT *mem_root);
 public:
   Json_path_extractor() {}
@@ -341,6 +342,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   longlong val_int() override;
+  bool val_bool() override;
   double val_real() override;
   my_decimal *val_decimal(my_decimal *) override;
   uint get_n_paths() const override { return arg_count - 1; }
@@ -905,6 +907,8 @@ public:
   longlong val_int() override { return 0; }
   my_decimal *val_decimal(my_decimal *decimal_value) override
   {
+    if (null_value)
+      return 0;
     my_decimal_set_zero(decimal_value);
     return decimal_value;
   }
@@ -1013,7 +1017,7 @@ protected:
   bool item_hash_inited, seen_hash_inited, hash_root_inited;
   HASH items, seen;
   MEM_ROOT hash_root;
-  bool parse_for_each_row;
+  bool parse_for_each_row, is_array;;
   json_engine_t je1, je2, res_je, temp_je;
   MEM_ROOT_DYNAMIC_ARRAY stack;
 
@@ -1022,7 +1026,7 @@ public:
     Item_str_func(thd, a, b)
     {
       item_hash_inited= seen_hash_inited= hash_root_inited=
-        parse_for_each_row= false;
+        parse_for_each_row= is_array= false;
     }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;

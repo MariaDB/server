@@ -6913,6 +6913,19 @@ EOF
 select * from v1;
 drop view v1;
 
+--echo #
+--echo # MDEV-38798 Assertion `mdl_key->length() == 3' failed in MDL_map::find_or_insert
+--echo #
+create view v as select * from (select 'foo' as a) sq;
+create procedure p() alter table v truncate partition p;
+--error ER_PARTITION_MGMT_ON_NONPARTITIONED
+caLL p;
+--error ER_PARTITION_MGMT_ON_NONPARTITIONED
+CAll p;
+
+drop procedure p;
+drop view v;
+
 --echo # End of 10.11 test
 
 --source include/test_db_charset_restore.inc

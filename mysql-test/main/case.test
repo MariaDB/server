@@ -416,6 +416,43 @@ select case 'X' when null then 1 when 'X' then 2 else 3 end;
 select case 'X' when 1/1 then 1 when 'X' then 2 else 3 end;
 select case 'X' when 1/0 then 1 when 'X' then 2 else 3 end;
 
+--echo #
+--echo # MDEV-23278: Incorrect Calculation with AVG() Function
+--echo #
+create table avg_calc_test (
+  id int(11) not null auto_increment,
+  name varchar(255) default null,
+  primary key (id)
+) auto_increment=1 default charset=latin1;
+insert into avg_calc_test (name) values ('orange'), ('blue'), ('black'), ('orange'), ('black');
+
+select * from (
+  select
+    avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+  from avg_calc_test
+) t;
+
+create table t1 as
+  select
+    avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+  from avg_calc_test;
+
+select * from t1;
+
+create or replace table t1 as
+  select
+    avg(least(1,2)) as metric_val
+  from avg_calc_test;
+
+select * from t1;
+
+create or replace table t1 as
+  select avg(coalesce(1,2)) as metric_val from avg_calc_test;
+
+select * from t1;
+
+drop table avg_calc_test, t1;
+
 --echo # End of 10.11 test
 
 --echo #
@@ -524,3 +561,21 @@ SELECT NULLIF(NULL, ROW(1,2));
 SELECT NULLIF(ROW(1,2), NULL);
 
 --echo # End of 12.0 tests
+
+--echo #
+--echo # MDEV-37534: Assertion `a == &type_handler_row || a == &type_handler_null` failed on `CREATE TABLE ... ROW()`
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t (c INT CHECK(c=CASE c WHEN ROW(1, 1) THEN c=0 END IN (c)=1));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select CASE 1 WHEN ROW(1, 2) THEN 0 END from dual;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select CASE WHEN NULLIF(1, ROW(1,1)) THEN 0 ELSE 1 END from dual;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+select NULLIF(1, ROW(1,2));
+
+--echo # End of 12.3 tests

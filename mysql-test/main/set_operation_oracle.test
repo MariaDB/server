@@ -74,3 +74,50 @@ set SQL_MODE=oracle;
 --error ER_NO_SUCH_TABLE
 select * from t13 union select * from t234 intersect all select * from t12;
 set SQL_MODE=default;
+
+--echo #
+--echo # MDEV-38799 Some views are broken in Oracle mode after upgrade to Q1 2026
+--echo #
+set sql_mode='';
+create view v as select 'foo' as a union select 'bar' as a;
+create view v2 as select 'foo' as a, 'baz' as b union select 'bar' as a, 'qux' as b;
+create view v3 as select * from (select 'foo' as a, 'baz' as b) s union select * from (select 'bar' as a, 'qux' as b) s2;
+create view v4 as select * from (select 'foo' as a) s union select * from (select 'bar' as a) s2;
+select a from v;
+select a, b from v2;
+select a, b from v3;
+select a from v4;
+set sql_mode=oracle;
+show create view v;
+show create view v2;
+select a from v;
+select a, b from v2;
+select a, b from v3;
+select a from v4;
+drop view v;
+drop view v2;
+drop view v3;
+drop view v4;
+set sql_mode=default;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-38987 ASAN heap-use-after-free upon using a view through a trigger in ORACLE mode
+--echo #
+set sql_mode = oracle;
+
+create table t1 (f int);
+create table t2 (a int);
+create view v as select 'x' union select 'x' union select 'x';
+create trigger tr before insert on t1 for each row delete from v;
+--error ER_NON_UPDATABLE_TABLE
+insert into t1 values (1);
+drop view v;
+create view v as select * from t2;
+INSERT into t1 values (2);
+
+drop view v;
+drop table t1, t2;
+
+--echo # End of 11.4 tests

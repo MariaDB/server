@@ -228,7 +228,7 @@ inline void setup_fpu()
 #endif
 
 #ifdef HAVE_FESETROUND
-    /* Set FPU rounding mode to "round-to-nearest" */
+  /* Set FPU rounding mode to "round-to-nearest" */
   fesetround(FE_TONEAREST);
 #endif /* HAVE_FESETROUND */
 
@@ -341,7 +341,7 @@ PSI_statement_info stmt_info_rpl;
 static bool lower_case_table_names_used= 0;
 static bool volatile select_thread_in_use, signal_thread_in_use;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
-static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
+static my_bool opt_short_log_format= 0;
 
 ulong max_used_connections;
 time_t max_used_connections_time;
@@ -364,6 +364,7 @@ static const char *character_set_collations_str=
 Thread_cache thread_cache;
 static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
+mysql_cond_t COND_slave_deadlock_handler;
 static DYNAMIC_ARRAY all_options;
 static longlong start_memory_used;
 
@@ -382,6 +383,7 @@ uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes, opt_support_flashback= 0;
+my_bool opt_silent_startup= 0;
 static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
@@ -757,7 +759,8 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn,
-  LOCK_error_messages;
+  LOCK_error_messages,
+  LOCK_slave_deadlock_handler;
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
 
@@ -984,7 +987,8 @@ PSI_mutex_key key_LOCK_stats,
 PSI_mutex_key key_LOCK_gtid_waiting;
 
 PSI_mutex_key key_LOCK_after_binlog_sync;
-PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
+  key_LOCK_slave_deadlock_handler;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 PSI_mutex_key key_TABLE_SHARE_LOCK_statistics;
 PSI_mutex_key key_LOCK_ack_receiver;
@@ -1062,6 +1066,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
+  { &key_LOCK_slave_deadlock_handler, "LOCK_slave_deadlock_handler", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
   { &key_LOCK_start_thread, "LOCK_start_thread", PSI_FLAG_GLOBAL},
@@ -1130,7 +1135,7 @@ PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
-  key_COND_prepare_ordered;
+  key_COND_prepare_ordered, key_COND_slave_deadlock_handler;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 PSI_cond_key key_COND_ack_receiver;
 
@@ -1177,6 +1182,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
+  { &key_COND_slave_deadlock_handler, "COND_slave_deadlock_handler", 0},
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
@@ -1188,7 +1194,7 @@ static PSI_cond_info all_server_conds[]=
 PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_background, key_rpl_parallel_thread;
+  key_thread_slave_deadlock_handler, key_rpl_parallel_thread;
 PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
@@ -1198,7 +1204,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_background, "slave_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_slave_deadlock_handler, "slave_deadlock_handler", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel", 0}
 };
@@ -1956,6 +1962,11 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
+#ifdef HAVE_OPENSSL
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+  OPENSSL_cleanup();
+#endif
+#endif
   if (global_status_var.global_memory_used)
     fprintf(stderr, "Warning: Internal memory accounting error of %lld bytes\n",
             (longlong) global_status_var.global_memory_used);
@@ -2186,6 +2197,8 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
   mysql_mutex_destroy(&LOCK_commit_ordered);
+  mysql_mutex_destroy(&LOCK_slave_deadlock_handler);
+  mysql_cond_destroy(&COND_slave_deadlock_handler);
 #ifndef EMBEDDED_LIBRARY
   mysql_mutex_destroy(&LOCK_error_log);
 #endif
@@ -2496,8 +2509,8 @@ static void activate_tcp_port(uint port,
       {
         char buff[100];
         int s_errno= socket_errno;
-        sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
-                (int) s_errno);
+        snprintf(buff, sizeof(buff), "Can't start server: Bind on TCP/IP port. Got error: %d",
+                 (int) s_errno);
         sql_perror(buff);
         /*
           Linux will quite happily bind to addresses not present. The
@@ -2695,6 +2708,57 @@ err:
 }
 
 
+#ifdef HAVE_SYS_UN_H
+/*
+  Unlink an existing Unix socket file if no process is listening
+  on it, or abort startup if the socket is still active.
+*/
+static void unlink_socket_or_abort(const char *path)
+{
+  struct sockaddr_un addr;
+  MY_STAT stat_buf;
+  int fd;
+
+  if (!my_stat(path, &stat_buf, MYF(0)))
+    return;
+
+  if (!S_ISSOCK(stat_buf.st_mode))
+    goto do_unlink;
+
+  fd= socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0)
+  {
+    sql_print_error("Cannot create a socket: %iE. Aborting.",
+                    errno);
+    unireg_abort(1);
+  }
+
+  bzero((char*) &addr, sizeof(addr));
+  addr.sun_family= AF_UNIX;
+  strmov(addr.sun_path, path);
+  if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == 0)
+  {
+    close(fd);
+    sql_print_error("Another process is already listening "
+                    "on the socket file '%s'. Aborting.",
+                    path);
+    unireg_abort(1);
+  }
+  if (errno != ECONNREFUSED && errno != ENOENT)
+  {
+    close(fd);
+    sql_print_error("Error checking socket file '%s': %iE. "
+                    "Aborting.", path, errno);
+    unireg_abort(1);
+  }
+  close(fd);
+
+do_unlink:
+  (void) unlink(path);
+}
+#endif /* HAVE_SYS_UN_H */
+
+
 static void network_init(void)
 {
 #ifdef HAVE_SYS_UN_H
@@ -2772,7 +2836,7 @@ static void network_init(void)
     else
 #endif
     {
-      (void) unlink(mysqld_unix_port);
+      unlink_socket_or_abort(mysqld_unix_port);
       port_len= sizeof(UNIXaddr);
     }
     arg= 1;
@@ -3994,7 +4058,7 @@ static int init_common_variables()
 
   my_tzset();
   my_tzname(system_time_zone, sizeof(system_time_zone));
-  init_oracle_data_locale();                    // For TO_DATE()
+  init_locale();                    // For TO_DATE()
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -4553,6 +4617,9 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
+  mysql_mutex_init(key_LOCK_slave_deadlock_handler, &LOCK_slave_deadlock_handler,
+                   MY_MUTEX_INIT_SLOW);
+  mysql_cond_init(key_COND_slave_deadlock_handler, &COND_slave_deadlock_handler, NULL);
   mysql_mutex_init(key_LOCK_backup_log, &LOCK_backup_log, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_optimizer_costs, &LOCK_optimizer_costs,
                    MY_MUTEX_INIT_FAST);
@@ -6331,6 +6398,12 @@ int mysqld_main(int argc, char **argv)
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   }
 
+#ifdef HAVE_PAUSE_INSTRUCTION
+  if (global_system_variables.log_warnings > 2)
+    sql_print_information("Using PAUSE multiplier %u",
+                          my_cpu_relax_multiplier);
+#endif
+
 #ifndef _WIN32
   // try to keep fd=0 busy
   if (please_close_stdin && !freopen("/dev/null", "r", stdin))
@@ -6362,11 +6435,7 @@ int mysqld_main(int argc, char **argv)
     my_free(user);
 
 #ifdef WITH_WSREP
-  /* Stop wsrep threads in case they are running. */
-  if (wsrep_running_threads > 0)
-  {
-    wsrep_shutdown_replication();
-  }
+  wsrep_shutdown();
   /* Release threads if they are waiting in WSREP_SYNC_WAIT_UPTO_GTID */
   wsrep_gtid_server.signal_waiters(0, true);
 #endif
@@ -7074,9 +7143,6 @@ struct my_option my_long_options[]=
    "which is whether to validate the master's certificate in TLS replication",
    &master_ssl_verify_server_cert, nullptr, nullptr, GET_BOOL, NO_ARG,
    master_ssl_verify_server_cert, 0, 0, nullptr, 0, nullptr},
-  {"init-rpl-role", 0, "Set the replication role",
-   &rpl_status, &rpl_status, &rpl_role_typelib,
-   GET_ENUM, REQUIRED_ARG, RPL_AUTH_MASTER, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
   {"memlock", 0, "Lock mariadbd process in memory", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -7141,8 +7207,10 @@ struct my_option my_long_options[]=
    "Don't allow new user creation by the user who has no write privileges to the mysql.user table",
    &opt_safe_user_create, &opt_safe_user_create, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"silent-startup", OPT_SILENT, "Don't print [Note] to the error log during startup",
-   &opt_silent_startup, &opt_silent_startup, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"silent-startup", OPT_SILENT, "Don't print [Note] or failed plugin_loads "
+   "to the error log during startup",
+   &opt_silent_startup, &opt_silent_startup, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-slave-start", 0,
@@ -7363,7 +7431,7 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, void *buff,
       get_master_info(&thd->variables.default_master_connection,
                       Sql_condition::WARN_LEVEL_NOTE))
   {
-    sprintf(static_cast<char*>(buff), "%.3lf",
+    snprintf(static_cast<char*>(buff), SHOW_VAR_FUNC_BUFF_SIZE, "%.3lf",
             mi->master_heartbeat_period/1000.0);
     mi->release();
     var->type= SHOW_CHAR;
@@ -7383,7 +7451,7 @@ static int show_max_used_connections_time(THD *, SHOW_VAR *var, void *buff,
   var->type= SHOW_CHAR;
   var->value= buff;
 
-  get_date(static_cast<char*>(buff),
+  get_date(static_cast<char*>(buff), SHOW_VAR_FUNC_BUFF_SIZE,
            GETDATE_DATE_TIME | GETDATE_FIXEDLENGTH, max_used_connections_time);
   return 0;
 }
@@ -8154,14 +8222,15 @@ static void print_help()
 static void usage(void)
 {
   DBUG_ENTER("usage");
-  myf utf8_flag= global_system_variables.old_behavior &
-                 OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
-  if (!(default_charset_info= get_charset_by_csname(default_character_set_name,
-					           MY_CS_PRIMARY,
-						         MYF(utf8_flag | MY_WME))))
-    exit(1);
   if (!default_collation_name)
-    default_collation_name= (char*) default_charset_info->coll_name.str;
+  {
+    myf utf8_flag= global_system_variables.old_behavior &
+                   OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
+    default_charset_info= get_charset_by_csname(default_character_set_name,
+                            MY_CS_PRIMARY, MYF(utf8_flag | MY_WME));
+    if (default_charset_info)
+      default_collation_name= (char*) default_charset_info->coll_name.str;
+  }
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   puts("Starts the MariaDB database server.\n");
@@ -9092,6 +9161,11 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   opt_init_connect.length=strlen(opt_init_connect.str);
   opt_init_slave.length=strlen(opt_init_slave.str);
 
+#ifdef HAVE_REPLICATION
+  global_system_variables.default_master_connection.length=
+    strlen(global_system_variables.default_master_connection.str);
+#endif
+
   if (global_system_variables.low_priority_updates)
     thr_upgraded_concurrent_insert_lock= TL_WRITE_LOW_PRIORITY;
 
@@ -9124,6 +9198,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     flush_time= 0;
 
 #ifdef HAVE_REPLICATION
+  rpl_status= init_rpl_role_val;
   if (init_slave_skip_errors(opt_slave_skip_errors))
     return 1;
   if (init_slave_transaction_retry_errors(opt_slave_transaction_retry_errors))

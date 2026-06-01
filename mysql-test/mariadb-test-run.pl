@@ -327,7 +327,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_](group[-_]home[-_]dir|archive)|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
 
 sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
@@ -1799,7 +1799,7 @@ sub collect_mysqld_features {
   my $args;
   mtr_init_args(\$args);
   mtr_add_arg($args, "--no-defaults");
-  mtr_add_arg($args, "--datadir=.");
+  mtr_add_arg($args, "--datadir=%s", $opt_vardir);
   mtr_add_arg($args, "--basedir=%s", $basedir);
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");
@@ -2286,6 +2286,14 @@ sub environment_setup {
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
 
   # ----------------------------------------------------
+  # mariadb-migrate-config-file
+  # ----------------------------------------------------
+  my $exe_mariadb_migrate_config_file=
+    mtr_exe_maybe_exists("$bindir/extra$multiconfig/mariadb-migrate-config-file",
+		   "$path_client_bindir/mariadb-migrate-config-file");
+  $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file) if $exe_mariadb_migrate_config_file;
+
+  # ----------------------------------------------------
   # myisam tools
   # ----------------------------------------------------
   $ENV{'MYISAMLOG'}= tool_arguments("storage/myisam", "myisamlog", );
@@ -2547,6 +2555,7 @@ sub setup_vardir() {
       mkpath($plugindir);
       if (IS_WINDOWS)
       {
+        $ENV{PATH} .= ";".$plugindir; # to load vcpkg dependencies (libcurl.dll etc)
         if (!$opt_embedded_server)
         {
           for (<$bindir/storage/*$multiconfig/*.dll>,
@@ -3146,7 +3155,7 @@ sub mysql_install_db {
   # need to be given to the bootstrap process as well as the
   # server process.
   foreach my $extra_opt ( @opt_extra_mysqld_opt ) {
-    if ($extra_opt =~ /--innodb/) {
+    if ($extra_opt =~ /--((loose|skip)[-_])*innodb/) {
       mtr_add_arg($args, $extra_opt);
     }
   }

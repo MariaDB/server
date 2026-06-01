@@ -1613,7 +1613,9 @@ static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr, int is_loca
     goto error;
   }
 
-  switch (SSL_get_verify_result(ssl))
+  switch (DBUG_IF("simulate_ssl_unable_to_get_issuer_cert")
+              ? X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+              : SSL_get_verify_result(ssl))
   {
   case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:     /* OpenSSL */
   case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:       /* OpenSSL */

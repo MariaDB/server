@@ -44,8 +44,19 @@ struct ha_table_option_struct
 						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
-	uint		encryption;		/*!<  DEFAULT, ON, OFF */
+	uint		adaptive_hash_index;	/*!< DEFAULT, ON, OFF */
+	uint		encryption;		/*!< DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
+};
+
+struct ha_index_option_struct
+{
+	uint		adaptive_hash_index;	/*!< DEFAULT, ON, OFF */
+	ulonglong	complete_fields;
+	ulonglong	bytes_from_incomplete_field;
+	/** DEFAULT (0), YES (1), NO (2)
+	DEFAULT means no fixed recommendation for this AHI parameter. */
+	uint		for_equal_hash_point_to_last_record;
 };
 
 /** The class defining a handle to an Innodb table */
@@ -77,7 +88,7 @@ public:
 
 	const key_map* keys_to_use_for_scanning() override;
 
-	void column_bitmaps_signal() override;
+	void column_bitmaps_signal(bool mark_for_update) override;
 
 	/** Opens dictionary table object using table name. For partition, we need to
 	try alternative lower/upper case names to support moving data files across
@@ -797,14 +808,14 @@ innobase_fts_check_doc_id_index_in_def(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
-Copy table flags from MySQL's TABLE_SHARE into an InnoDB table object.
+Copy table flags from MariaDB TABLE into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
 but are frequently used inside InnoDB so we keep their copies into the
-InnoDB table object. */
-void
-innobase_copy_frm_flags_from_table_share(
-	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
-	const TABLE_SHARE*	table_share);	/*!< in: table share */
+InnoDB table object.
+@param innodb_table  InnoDB table
+@param table         MariaDB table handle */
+void innobase_copy_frm_flags_from_table(dict_table_t *innodb_table,
+                                        const TABLE *table) noexcept;
 
 /** Set up base columns for virtual column
 @param[in]	table	the InnoDB table
@@ -920,8 +931,10 @@ bool too_big_key_part_length(size_t max_field_len, const KEY& key);
 Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param table InnoDB table that was rebuilt by ALTER TABLE
-@param trx   user transaction */
-void alter_stats_rebuild(dict_table_t *table, trx_t *trx) noexcept;
+@param trx   user transaction
+@param copy       caller is from COPY algorithm */
+void alter_stats_rebuild(dict_table_t *table, trx_t *trx,
+			 bool copy=false) noexcept;
 
 /** Find an auto-generated foreign key constraint identifier.
 @param table   InnoDB table

@@ -2299,3 +2299,37 @@ improbable
 drop table t1;
 set global query_cache_type= @qcache;
 # End of 10.10 tests
+#
+# MDEV-25365 Server hangs or crashes in Query_cache::move_by_type upon FLUSH QUERY CACHE
+#
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= on;
+set query_cache_type= on;
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+create view v4 as select * from t4;
+create table t5 (e int);
+create view v5 as select * from t5;
+create table t6 (f int);
+create view v6 as select * from t6;
+create table t7 (g int);
+select * from t1, t2;
+a	b
+select * from t2;
+b
+select t7.* from t3 t3a, t3 t3b, t3 t3c, t3 t3d, t3 t3e, v4 v4a, v4 v4b, v4 v4c, v4 v4d, v5, v6, t6, t7;
+g
+alter table t1 force;
+select * from t5, t6 /* this query needs to be of a certain length, so i am trying to make the comment at least 175 symbols long. now i am out of ideas what to write, so.............................. */;
+e	f
+flush QUERY cache;
+reset query cache;
+FLUSH query cache;
+drop view v4;
+drop view v5;
+drop view v6;
+drop table t1, t2, t3, t4, t5, t6, t7;
+set global query_cache_type= @qcache;
+# End of 10.11 tests

@@ -83,7 +83,7 @@ set global server_audit_logging=off;
 --exec perl $MYSQL_TEST_DIR/suite/plugins/t/normalize_query_id.pl $SEARCH_FILE
 
 # Output the log without heavy replacements so we can see the actual order
---replace_regex /\d\d\d\d\d\d\d\d \d\d:\d\d:\d\d/TIMESTAMP/ /,[^,]+,root,(localhost|localhost:[0-9]+),/,HOSTNAME,root,localhost,/
+--replace_regex /\d\d\d\d\d\d\d\d \d\d:\d\d:\d\d/TIMESTAMP/ /,[^,]+,root,(localhost|localhost:[0-9]+),\d+,\d+,/,HOSTNAME,root,localhost,ID,ID,/
 
 cat_file $SEARCH_FILE;
 remove_file $SEARCH_FILE;

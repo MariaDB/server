@@ -85,6 +85,12 @@ extern size_t sql_functions_length;
 
 extern Native_func_registry_array native_func_registry_array;
 
+/*
+  This is needed for gcc 15.1.1 as it also count static structures in
+  the limits
+*/
+PRAGMA_DISABLE_CHECK_STACK_FRAME;
+
 enum enum_i_s_events_fields
 {
   ISE_EVENT_CATALOG= 0,
@@ -1375,6 +1381,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
 
+  thd->lex->resolve_optimizer_hints();
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
                                          Protocol::SEND_EOF))
@@ -2616,7 +2623,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
     {
       Virtual_column_info *check= table->check_constraints[i];
       // period constraint is implicit
-      if (share->period.constr_name.streq(check->name))
+      if (share->period.constr_name.streq_safe(check->name))
         continue;
 
       str.set_buffer_if_not_allocated(&my_charset_utf8mb4_general_ci);
@@ -2936,6 +2943,39 @@ static const char *thread_state_info(THD *tmp)
 }
 
 
+/*
+  Check if user can see a THD in "show processlist" or in I_S.processlist.
+
+  Non-privileged users can see own foreground THDs and also event worker
+  threads that run in user's security context.
+
+  Privileged users can see all THDs.
+
+  @param user - user name or NULL for privileged users.
+  @param thd  - THD
+
+  @retval true  - THD visible in processlist
+  @retval false - THD not visible in processlist
+*/
+static bool thd_visible_in_processlist(const char *user, THD *thd)
+{
+  if (!thd->vio_ok() && !thd->system_thread)
+    return false; // "something bad happened" thread, don't show it
+
+  if (!user)
+    return true; // privileged user can see all threads
+
+  const char *thd_user= thd->security_ctx->user;
+  if (!thd_user)
+    return false; // dunno if this ever happens, safety first
+
+  bool user_or_event_worker_thread=
+       !thd->system_thread ||  thd->system_thread & SYSTEM_THREAD_EVENT_WORKER;
+
+  return user_or_event_worker_thread && !strcmp(thd_user, user);
+}
+
+
 struct list_callback_arg
 {
   list_callback_arg(const char *u, THD *t, ulong m):
@@ -2952,9 +2992,7 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
 
   Security_context *tmp_sctx= tmp->security_ctx;
   bool got_thd_data;
-  if ((tmp->vio_ok() || tmp->system_thread) &&
-      (!arg->user || (!tmp->system_thread &&
-                      tmp_sctx->user && !strcmp(tmp_sctx->user, arg->user))))
+  if (thd_visible_in_processlist(arg->user, tmp))
   {
     thread_info *thd_info= new (arg->thd->mem_root) thread_info;
 
@@ -3461,9 +3499,7 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
           arg->thd->security_ctx->master_access & PRIV_STMT_SHOW_PROCESSLIST ?
           NullS : arg->thd->security_ctx->priv_user;
 
-  if ((!tmp->vio_ok() && !tmp->system_thread) ||
-      (user && (tmp->system_thread || !tmp_sctx->user ||
-                strcmp(tmp_sctx->user, user))))
+  if (!thd_visible_in_processlist(user, tmp))
     return 0;
 
   restore_record(arg->table, s->default_values);
@@ -5839,17 +5875,10 @@ static int get_schema_sequence_record(THD *thd, TABLE_LIST *tables,
     table->field[8]->store(seq->min_value, seq->is_unsigned);
     table->field[9]->store(seq->max_value, seq->is_unsigned);
     table->field[10]->store(seq->increment, 0);
-    table->field[11]->store(seq->cycle);
+    table->field[11]->store(Show::Yes_or_no::value(seq->cycle), cs);
     DBUG_RETURN(schema_table_store_record(thd, table));
   }
   DBUG_RETURN(0);
-}
-
-static int store_yesno(Field *field, bool predicate)
-{
-  static const LEX_CSTRING yes{STRING_WITH_LEN("YES")};
-  static const LEX_CSTRING no {STRING_WITH_LEN("NO")};
-  return field->store(predicate ? yes : no, system_charset_info);
 }
 
 
@@ -6072,6 +6101,17 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       {
         file->print_error(info_error, MYF(0));
         goto err;
+      }
+
+      if (show_table->s->hlindexes())
+      {
+          // make sure hlindex is opened
+          if (show_table->hlindex || !show_table->hlindex_open(show_table->s->keys))
+          {
+              handler *hi= show_table->hlindex->file;
+              if (!hi->info(HA_STATUS_VARIABLE))
+                  file->stats.index_file_length+= hi->stats.data_file_length;
+          }
       }
 
       enum row_type row_type = file->get_row_type();
@@ -6579,7 +6619,7 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
     }
-    store_yesno(table->field[6], (field->flags & NOT_NULL_FLAG) == 0);
+    table->field[6]->store(Show::Yes_or_no::value((field->flags & NOT_NULL_FLAG) == 0), cs);
     store_column_type(table, field, cs, 7);
     pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
                  (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
@@ -6639,10 +6679,21 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     const auto &vers= show_table->s->vers;
-    store_yesno(table->field[22], show_table->versioned() &&
-                                  vers.start_fieldno == field->field_index);
-    store_yesno(table->field[23], show_table->versioned() &&
-                                  vers.end_fieldno == field->field_index);
+    table->field[22]->store(Show::Yes_or_no::value(show_table->versioned() &&
+                                                   vers.start_fieldno == field->field_index), cs);
+    table->field[23]->store(Show::Yes_or_no::value(show_table->versioned() &&
+                                                   vers.end_fieldno == field->field_index), cs);
+
+    // Populate CREATE_OPTIONS with engine-defined column options
+    {
+      StringBuffer<512> str(system_charset_info);
+      append_create_options(thd, &str, field->option_list, false, 0);
+      if (str.length())
+      {
+        /* Trim the leading space added by append_create_options */
+        table->field[24]->store(str.ptr() + 1, str.length() - 1, cs);
+      }
+    }
 
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
@@ -6729,12 +6780,14 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      store_yesno(table->field[3],
-                  hton->commit && !(hton->flags & HTON_NO_ROLLBACK));
+      table->field[3]->store(
+          Show::Yes_or_no::value(hton->commit &&
+                                 !(hton->flags & HTON_NO_ROLLBACK)),
+          scs);
       table->field[3]->set_notnull();
-      store_yesno(table->field[4], hton->prepare);
+      table->field[4]->store(Show::Yes_or_no::value(hton->prepare), scs);
       table->field[4]->set_notnull();
-      store_yesno(table->field[5], hton->savepoint_set);
+      table->field[5]->store(Show::Yes_or_no::value(hton->savepoint_set), scs);
       table->field[5]->set_notnull();
 
       if (schema_table_store_record(thd, table))
@@ -6758,6 +6811,11 @@ int fill_schema_engines(THD *thd, TABLE_LIST *tables, COND *cond)
 
 int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
 {
+  /*
+    Historical exception for backward compatibility: I_S.COLLATIONS (IS_DEFAULT,
+    IS_COMPILED) and I_S.COLLATION_CHARACTER_SET_APPLICABILITY (IS_DEFAULT)
+    use "Yes" or "" rather than YES/NO.
+  */
   CHARSET_INFO **cs;
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
   TABLE *table= tables->table;
@@ -6816,7 +6874,10 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           table->field[2]->store((longlong) tmp_cl->number, TRUE);
           table->field[3]->set_notnull(); // IS_DEFAULT
           table->field[3]->store(
-            Show::Yes_or_empty::value(def_cl == tmp_cl), scs);
+              ((def_cl == tmp_cl) ?
+               Lex_cstring(STRING_WITH_LEN("Yes")) :
+               Lex_cstring()),
+              scs);
           if (tmp_cl->comment)
           {
             LEX_CSTRING comment;
@@ -6826,7 +6887,10 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           }
         }
         table->field[4]->store(
-          Show::Yes_or_empty::value(tmp_cl->compiled_flag()), scs);
+            ((tmp_cl->compiled_flag()) ?
+             Lex_cstring(STRING_WITH_LEN("Yes")) :
+             Lex_cstring()),
+            scs);
         table->field[5]->store((longlong) tmp_cl->strxfrm_multiply, TRUE);
         // PAD_ATTRIBUTE
         table->field[6]->store(1 + (bool)(tmp_cl->state & MY_CS_NOPAD), true);
@@ -6874,7 +6938,10 @@ int fill_schema_coll_charset_app(THD *thd, TABLE_LIST *tables, COND *cond)
       table->field[2]->store(full_collation_name, scs);
       table->field[3]->store(tmp_cl->number);
       table->field[4]->store(
-        Show::Yes_or_empty::value(def_cl == tmp_cl), scs);
+          ((def_cl == tmp_cl) ?
+           Lex_cstring(STRING_WITH_LEN("Yes")) :
+           Lex_cstring()),
+          scs);
       if (schema_table_store_record(thd, table))
         return 1;
     }
@@ -7481,8 +7548,19 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
                                   key_info->comment.length, cs);
 
         // IGNORED column
-        store_yesno(table->field[16], key_info->is_ignored);
+        table->field[16]->store(Show::Yes_or_no::value(key_info->is_ignored), cs);
         table->field[16]->set_notnull();
+
+        // Populate CREATE_OPTIONS with engine-defined index options
+        {
+          StringBuffer<512> str(system_charset_info);
+          append_create_options(thd, &str, key_info->option_list, false, 0);
+          if (str.length())
+          {
+            /* Trim the leading space added by append_create_options */
+            table->field[17]->store(str.ptr() + 1, str.length() - 1, cs);
+          }
+        }
 
         if (schema_table_store_record(thd, table))
           DBUG_RETURN(1);
@@ -7600,7 +7678,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         if (updatable_view && !tables->view->can_be_merged())
           updatable_view= 0;
       }
-      store_yesno(table->field[5], updatable_view);
+      table->field[5]->store(Show::Yes_or_no::value(updatable_view), cs);
     }
 
     definer_len= (uint)(strxmov(definer, tables->definer.user.str, "@",
@@ -10095,7 +10173,7 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("ORDINAL_POSITION",        ULonglong(), NOT_NULL,          OPEN_FRM_ONLY),
   Column("COLUMN_DEFAULT", Longtext(MAX_FIELD_VARCHARLENGTH),
                                                  NULLABLE, "Default",OPEN_FRM_ONLY),
-  Column("IS_NULLABLE",          Yes_or_empty(), NOT_NULL, "Null",  OPEN_FRM_ONLY),
+  Column("IS_NULLABLE",             Yes_or_no(),    NOT_NULL, "Null",  OPEN_FRM_ONLY),
   Column("DATA_TYPE",               Name(),      NOT_NULL,          OPEN_FRM_ONLY),
   Column("CHARACTER_MAXIMUM_LENGTH",ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
   Column("CHARACTER_OCTET_LENGTH",  ULonglong(), NULLABLE,          OPEN_FRM_ONLY),
@@ -10113,8 +10191,9 @@ ST_FIELD_INFO columns_fields_info[]=
   Column("IS_GENERATED",            Varchar(6),  NOT_NULL,       OPEN_FRM_ONLY),
   Column("GENERATION_EXPRESSION",   Longtext(MAX_FIELD_VARCHARLENGTH),
                                                  NULLABLE,       OPEN_FRM_ONLY), // 21
-  Column("IS_SYSTEM_TIME_PERIOD_START", Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 22
-  Column("IS_SYSTEM_TIME_PERIOD_END",   Varchar(3),  NOT_NULL,   OPEN_FRM_ONLY), // 23
+  Column("IS_SYSTEM_TIME_PERIOD_START",    Yes_or_no(), NOT_NULL,   OPEN_FRM_ONLY), // 22
+  Column("IS_SYSTEM_TIME_PERIOD_END",      Yes_or_no(), NOT_NULL,   OPEN_FRM_ONLY), // 23
+  Column("CREATE_OPTIONS", Varchar(2048), NOT_NULL, OPEN_FRM_ONLY),              // 24
   CEnd()
 };
 
@@ -10154,8 +10233,8 @@ ST_FIELD_INFO collation_fields_info[]=
   Column("COLLATION_NAME",               CLName(),     NOT_NULL, "Collation"),
   Column("CHARACTER_SET_NAME",           CSName(),     NULLABLE, "Charset"),
   Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NULLABLE, "Id"),
-  Column("IS_DEFAULT",                 Yes_or_empty(), NULLABLE, "Default"),
-  Column("IS_COMPILED",                Yes_or_empty(), NOT_NULL, "Compiled"),
+  Column("IS_DEFAULT",                    Yes_or_no(), NULLABLE, "Default"),
+  Column("IS_COMPILED",                   Yes_or_no(), NOT_NULL, "Compiled"),
   Column("SORTLEN",                    SLonglong(3),   NOT_NULL, "Sortlen"),
   Column("PAD_ATTRIBUTE",              CollationPAD(), NOT_NULL, "Pad_attribute"),
   Column("COMMENT",                    Varchar(80),    NOT_NULL),
@@ -10167,8 +10246,8 @@ ST_FIELD_INFO applicable_roles_fields_info[]=
 {
   Column("GRANTEE",                  Userhost(),     NOT_NULL),
   Column("ROLE_NAME", Varchar(USERNAME_CHAR_LENGTH), NOT_NULL),
-  Column("IS_GRANTABLE",             Yes_or_empty(), NOT_NULL),
-  Column("IS_DEFAULT",               Yes_or_empty(), NULLABLE),
+  Column("IS_GRANTABLE",                Yes_or_no(), NOT_NULL),
+  Column("IS_DEFAULT",                  Yes_or_no(), NULLABLE),
   CEnd()
 };
 
@@ -10197,9 +10276,9 @@ ST_FIELD_INFO engines_fields_info[]=
   Column("ENGINE",       Varchar(64),  NOT_NULL, "Engine"),
   Column("SUPPORT",      Varchar(8),   NOT_NULL, "Support"),
   Column("COMMENT",      Varchar(160), NOT_NULL, "Comment"),
-  Column("TRANSACTIONS", Varchar(3),   NULLABLE, "Transactions"),
-  Column("XA",           Varchar(3),   NULLABLE, "XA"),
-  Column("SAVEPOINTS",   Varchar(3),   NULLABLE, "Savepoints"),
+  Column("TRANSACTIONS", Yes_or_no(),  NULLABLE, "Transactions"),
+  Column("XA",           Yes_or_no(),  NULLABLE, "XA"),
+  Column("SAVEPOINTS",   Yes_or_no(),  NULLABLE, "Savepoints"),
   CEnd()
 };
 
@@ -10242,7 +10321,7 @@ ST_FIELD_INFO coll_charset_app_fields_info[]=
   Column("CHARACTER_SET_NAME", CSName(), NOT_NULL),
   Column("FULL_COLLATION_NAME",CLName(), NOT_NULL),
   Column("ID", SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
-  Column("IS_DEFAULT",   Yes_or_empty(), NOT_NULL),
+  Column("IS_DEFAULT",         Yes_or_no(), NOT_NULL),
   CEnd()
 };
 
@@ -10304,7 +10383,7 @@ ST_FIELD_INFO sequence_fields_info[]=
   Column("MINIMUM_VALUE",               Decimal(2100), NOT_NULL),
   Column("MAXIMUM_VALUE",               Decimal(2100), NOT_NULL),
   Column("INCREMENT",                   SLonglong(21), NOT_NULL),
-  Column("CYCLE_OPTION",                Yes_or_empty(), NOT_NULL),
+  Column("CYCLE_OPTION",                Yes_or_no(), NOT_NULL),
   CEnd()
 };
 
@@ -10328,7 +10407,8 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("COMMENT",       Varchar(16), NOT_NULL, "Comment",     OPEN_FULL_TABLE),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
-  Column("IGNORED",      Varchar(3),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
+  Column("IGNORED",       Yes_or_no(),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
+  Column("CREATE_OPTIONS", Varchar(2048), NOT_NULL, OPEN_FRM_ONLY),
   CEnd()
 };
 
@@ -10340,7 +10420,7 @@ ST_FIELD_INFO view_fields_info[]=
   Column("TABLE_NAME",           Name(),     NOT_NULL, OPEN_FRM_ONLY),
   Column("VIEW_DEFINITION", Longtext(65535), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHECK_OPTION",         Varchar(8), NOT_NULL, OPEN_FRM_ONLY),
-  Column("IS_UPDATABLE",     Yes_or_empty(), NOT_NULL, OPEN_FULL_TABLE),
+  Column("IS_UPDATABLE",         Yes_or_no(), NOT_NULL, OPEN_FULL_TABLE),
   Column("DEFINER",              Definer(),  NOT_NULL, OPEN_FRM_ONLY),
   Column("SECURITY_TYPE",        Varchar(7), NOT_NULL, OPEN_FRM_ONLY),
   Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
@@ -10355,7 +10435,7 @@ ST_FIELD_INFO user_privileges_fields_info[]=
   Column("GRANTEE",        Userhost(),     NOT_NULL),
   Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
   Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
-  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_no(), NOT_NULL),
   CEnd()
 };
 
@@ -10366,7 +10446,7 @@ ST_FIELD_INFO schema_privileges_fields_info[]=
   Column("TABLE_CATALOG",  Catalog(),      NOT_NULL),
   Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
   Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
-  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_no(), NOT_NULL),
   CEnd()
 };
 
@@ -10378,7 +10458,7 @@ ST_FIELD_INFO table_privileges_fields_info[]=
   Column("TABLE_SCHEMA",   Name(),         NOT_NULL),
   Column("TABLE_NAME",     Name(),         NOT_NULL),
   Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
-  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_no(), NOT_NULL),
   CEnd()
 };
 
@@ -10391,7 +10471,7 @@ ST_FIELD_INFO column_privileges_fields_info[]=
   Column("TABLE_NAME",     Name(),         NOT_NULL),
   Column("COLUMN_NAME",    Name(),         NOT_NULL),
   Column("PRIVILEGE_TYPE", Name(),         NOT_NULL),
-  Column("IS_GRANTABLE",   Yes_or_empty(), NOT_NULL),
+  Column("IS_GRANTABLE",   Yes_or_no(), NOT_NULL),
   CEnd()
 };
 
@@ -10532,21 +10612,23 @@ ST_FIELD_INFO variables_fields_info[]=
 
 ST_FIELD_INFO sysvars_fields_info[]=
 {
-  Column("VARIABLE_NAME",        Name(),                           NOT_NULL),
-  Column("SESSION_VALUE",        Varchar(2048),                    NULLABLE),
-  Column("GLOBAL_VALUE",         Varchar(2048),                    NULLABLE),
-  Column("GLOBAL_VALUE_ORIGIN",  Name(),                           NOT_NULL),
-  Column("DEFAULT_VALUE",        Varchar(2048),                    NULLABLE),
-  Column("VARIABLE_SCOPE",       Name(),                           NOT_NULL),
-  Column("VARIABLE_TYPE",        Name(),                           NOT_NULL),
-  Column("VARIABLE_COMMENT",     Varchar(TABLE_COMMENT_MAXLEN),    NOT_NULL),
-  Column("NUMERIC_MIN_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
-  Column("NUMERIC_MAX_VALUE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
-  Column("NUMERIC_BLOCK_SIZE",   Varchar(MY_INT64_NUM_DECIMAL_DIGITS), NULLABLE),
-  Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
-  Column("READ_ONLY",            Yes_or_empty(),                   NOT_NULL),
-  Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
-  Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
+  Column("VARIABLE_NAME",         Name(),                            NOT_NULL),
+  Column("SESSION_VALUE",         Varchar(2048),                     NULLABLE),
+  Column("GLOBAL_VALUE",          Varchar(2048),                     NULLABLE),
+  Column("GLOBAL_VALUE_ORIGIN",   Name(),                            NOT_NULL),
+  Column("DEFAULT_VALUE",         Varchar(2048),                     NULLABLE),
+  Column("VARIABLE_SCOPE",        Name(),                            NOT_NULL),
+  Column("VARIABLE_TYPE",         Name(),                            NOT_NULL),
+  Column("VARIABLE_COMMENT",      Varchar(TABLE_COMMENT_MAXLEN),     NOT_NULL),
+  Column("NUMERIC_MIN_VALUE",     Varchar(MY_INT64_NUM_DECIMAL_DIGITS),  NULLABLE),
+  Column("NUMERIC_MAX_VALUE",     Varchar(MY_INT64_NUM_DECIMAL_DIGITS),  NULLABLE),
+  Column("NUMERIC_BLOCK_SIZE",    Varchar(MY_INT64_NUM_DECIMAL_DIGITS),  NULLABLE),
+  Column("ENUM_VALUE_LIST",       Longtext(65535),                   NULLABLE),
+  Column("READ_ONLY",             Yes_or_no(),                       NOT_NULL),
+  Column("COMMAND_LINE_ARGUMENT", Name(),                            NULLABLE),
+  Column("GLOBAL_VALUE_PATH",     Varchar(2048),                     NULLABLE),
+  Column("IS_DEPRECATED",         Yes_or_no(),                       NOT_NULL),
+  Column("DEPRECATED_REPLACEMENT",Name(),                            NULLABLE),
   CEnd()
 };
 

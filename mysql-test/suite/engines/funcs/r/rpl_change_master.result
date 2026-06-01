@@ -26,4 +26,28 @@ connection master;
 CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
 MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
 CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
+#
+# MDEV-15327 Reset Master_Server_Id on CHANGE MASTER and RESET SLAVE
+#
+connection slave;
+include/assert.inc [Master_Server_Id should be non-zero after replication setup]
+include/stop_slave.inc
+change master to master_user='root';
+include/assert.inc [Master_Server_Id should be 0 after CHANGE MASTER]
+include/start_slave.inc
+connection master;
+create table t1 (a int);
+connection slave;
+include/assert.inc [Master_Server_Id should be non-zero after reconnection]
+include/stop_slave.inc
+reset slave;
+include/assert.inc [Master_Server_Id should be 0 after RESET SLAVE]
+include/start_slave.inc
+connection master;
+insert into t1 values (1);
+connection slave;
+include/assert.inc [Master_Server_Id should be non-zero after reconnection following RESET SLAVE]
+connection master;
+drop table t1;
+connection slave;
 include/rpl_end.inc

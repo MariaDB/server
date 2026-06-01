@@ -68,3 +68,41 @@ list_files $targetdir undo*;
 XA COMMIT 'zombie';
 DROP TABLE t;
 rmdir $targetdir;
+
+--echo #
+--echo # MDEV-34713: mariadb_upgrade_info should be backed up and restored
+--echo #
+
+CREATE TABLE t2(i INT) ENGINE INNODB;
+INSERT INTO t2 VALUES(100);
+
+let $_datadir=`SELECT @@datadir`;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_upgrade_info;
+
+--write_file $_datadir/mariadb_upgrade_info
+10.11.0-MariaDB
+EOF
+
+--echo # xtrabackup backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+--file_exists $targetdir/mariadb_upgrade_info
+
+--echo # xtrabackup prepare
+--disable_result_log
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--source include/restart_and_restore.inc
+--enable_result_log
+
+--file_exists $_datadir/mariadb_upgrade_info
+
+--let SEARCH_FILE=$_datadir/mariadb_upgrade_info
+--let SEARCH_PATTERN=^[0-9]+\.[0-9]+\.[0-9]+
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM t2;
+DROP TABLE t2;
+--remove_file $_datadir/mariadb_upgrade_info
+rmdir $targetdir;

@@ -50,7 +50,7 @@ bool has_rocksdb_plugin();
 void rocksdb_create_checkpoint();
 void foreach_file_in_db_dirs(
 	const char *dir_path, std::function<bool(const char *)> func);
-void foreach_file_in_datadir(
+bool foreach_file_in_datadir(
 	const char *dir_path, std::function<bool(const char *)> func);
 bool ends_with(const char *str, const char *suffix);
 bool starts_with(const char *str, const char *prefix);

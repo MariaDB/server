@@ -39,8 +39,6 @@
 #include "debug.h"              // debug_crash_here
 #include "wsrep_mysqld.h"
 
-#define MD5_BUFF_LENGTH 33
-
 const LEX_CSTRING view_type= { STRING_WITH_LEN("VIEW") };
 
 static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
@@ -559,6 +557,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   /* prepare select to resolve all fields */
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+  lex->resolve_optimizer_hints();
   if (unit->prepare(unit->derived, 0, 0))
   {
     /*
@@ -945,7 +944,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   {
     if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
+       if ((view->md5.str= thd->alloc(MD5_BUFF_LENGTH)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
@@ -1722,8 +1721,12 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
         /* We have to keep the lock type for sequence tables */
         if (!tbl->sequence)
 	  tbl->lock_type= view_table_alias->lock_type;
-        tbl->mdl_request.set_type(view_table_alias->mdl_request.type);
-        tbl->updating= view_table_alias->updating;
+        /* VIEWs with derived are non-writable */
+        if (!tbl->is_pure_alias())
+        {
+          tbl->mdl_request.set_type(view_table_alias->mdl_request.type);
+          tbl->updating= view_table_alias->updating;
+        }
       }
       /*
         If the view is mergeable, we might want to
@@ -1761,7 +1764,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
     if (view_query_lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE)
       parent_query_lex->first_select_lex()->options|= OPTION_TO_QUERY_CACHE;
 
-    parent_query_lex->default_used= view_query_lex->default_used;
+    parent_query_lex->default_used|= view_query_lex->default_used;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (view_table_alias->view_suid)
@@ -1860,7 +1863,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
       {
         view_table_alias->select_lex->order_list.
           push_back(&view_query_lex->first_select_lex()->order_list);
-        view_query_lex->first_select_lex()->order_list.empty();
+        view_query_lex->first_select_lex()->optimize_out_order_list();
       }
       else
       {

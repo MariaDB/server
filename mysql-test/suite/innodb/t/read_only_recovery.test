@@ -30,7 +30,7 @@ SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 UPDATE t SET a=3 WHERE a=1;
---let $restart_parameters= --innodb-read-only
+--let $restart_parameters= --innodb-read-only --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 --echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
 --echo # In earlier versions, this would return the last committed version

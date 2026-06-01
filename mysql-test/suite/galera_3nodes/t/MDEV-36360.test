@@ -61,7 +61,7 @@ SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_after_write_row';
 # Insert a child row that will be applied on node #3, but should not
 # grab table-level X-lock.
 --connection node_1
-INSERT INTO child VALUES (1, 1);
+INSERT INTO child VALUES (1, 2);
 
 --connection node_3
 SET DEBUG_SYNC = 'now WAIT_FOR sync.wsrep_after_write_row_reached';
@@ -75,14 +75,6 @@ SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL signal.wsrep_after_write_row';
 # grabs table-level X-lock, they'll both deadlock forever.
 INSERT INTO child VALUES (2, 2);
 SET DEBUG_SYNC = 'RESET';
-
---let $assert_select = foreign key constraint fails
---let $assert_count = 0
---let $assert_text = no FK constraint failure
---let $assert_only_after = CURRENT_TEST
---let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.3.err
---source include/assert_grep.inc
-
 # Child row insert is applied even though there's no parent row.
 --echo Server 3
 SELECT COUNT(*) AS EXPECT_1 FROM parent;

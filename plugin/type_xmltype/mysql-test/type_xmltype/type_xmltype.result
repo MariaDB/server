@@ -134,10 +134,10 @@ t1	CREATE TABLE `t1` (
   `x` xmltype DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
-CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN 'aaa';
+CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN '<a></a>';
 SELECT xmi(1);
 xmi(1)
-aaa
+<a></a>
 CREATE TABLE t1 SELECT xmi(10) as x;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -223,7 +223,149 @@ CREATE TABLE t1 AS SELECT UpdateXML('<a><b>ccc</b><d></d></a>', '/a', '<e>fff</e
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` xmltype CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+  `x` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+CREATE TABLE t1(a XMLTYPE);
+INSERT INTO t1 VALUES(1);
+ERROR HY000: Cannot cast 'int' as 'xmltype' in assignment of `test`.`t1`.`a`
+INSERT INTO t1 VALUES(11.2);
+ERROR HY000: Cannot cast 'decimal' as 'xmltype' in assignment of `test`.`t1`.`a`
+INSERT INTO t1 VALUES(11e-2);
+ERROR HY000: Cannot cast 'double' as 'xmltype' in assignment of `test`.`t1`.`a`
+INSERT INTO t1 VALUES("one");
+ERROR HY000: Incorrect XMLTYPE value: 'one'
+INSERT INTO t1 VALUES("<a><b></b>");
+ERROR HY000: Incorrect XMLTYPE value: '<a><b></b>'
+INSERT INTO t1 VALUES("<a><b></b></a>");
+INSERT INTO t1 VALUES("<to>JOHN</to><from></from>");
+ERROR HY000: Incorrect XMLTYPE value: '<to>JOHN</to><from></from>'
+INSERT INTO t1 VALUES('<note><to>JOHN</to><from></from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <note><to>JOHN</to><from></from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <?xml?> <note><to>JOHN</to><from></from></note>');
+ERROR HY000: Incorrect XMLTYPE value: '<?xml version="1.0" ?> <?xml?> <note><to>JOHN</to><from></from></note>'
+INSERT INTO t1 VALUES('<note><to>JOHN</to><from></from></note> <?xml version="1.0" ?> ');
+ERROR HY000: Incorrect XMLTYPE value: '<note><to>JOHN</to><from></from></note> <?xml version="1.0" ?> '
+INSERT INTO t1 VALUES('<?somePI pi content ?> <?xml version="1.0" ?> <note><from>Lisa</from></note>');
+ERROR HY000: Incorrect XMLTYPE value: '<?somePI pi content ?> <?xml version="1.0" ?> <note><from>Lisa</from></note>'
+INSERT INTO t1 VALUES('<?somePI pi content ?> <note><from>Lisa</from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <note><?somePI pi content ?><from>Lisa</from></note>');
+DROP TABLE t1;
 # End of 11.8 tests
+#
+# MDEV-39570 LeakSanitizer: detected memory leaks after insert with xmltype.
+#
+CREATE TABLE t1(a XMLTYPE);
+SET @x = CONCAT(REPEAT('<element_with_long_name>', 30), 'leaf',
+REPEAT('</element_with_long_name>', 30));
+INSERT INTO t1 VALUES(@x);
+DROP TABLE t1;
+#
+# MDEV-39575 Protocol::end_statement(): Assertion `0' failed after insert into xmltype union of valid and invalid xml.
+#
+CREATE TABLE t1(x XMLTYPE) Engine=MyISAM;
+INSERT INTO t1 SELECT '<a/>' UNION SELECT 'a';
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+SELECT * FROM t1;
+x
+<a/>
+DROP TABLE t1;
+#
+# MDEV-39577 Protocol::end_statement(): Assertion `0' failed with invalid xmltype + sql_mode=''
+#
+set sql_mode='';
+CREATE TABLE t1(x XMLTYPE);
+INSERT INTO t1 SELECT 'a';
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+DROP TABLE t1;
+set sql_mode= DEFAULT;
+#
+# MDEV-39573 Server crashes in Item_char_typecast::fix_length_and_dec_internal after select xmltype
+#
+SELECT XMLTYPE(1);
+XMLTYPE(1)
+NULL
+SELECT XMLTYPE("<a></a>");
+XMLTYPE("<a></a>")
+<a></a>
+SELECT CAST(1 AS XMLTYPE);
+CAST(1 AS XMLTYPE)
+NULL
+SELECT CAST("<a></a>" AS XMLTYPE);
+CAST("<a></a>" AS XMLTYPE)
+<a></a>
+SELECT CAST(1 AS XMLTYPE CHARSET utf32);
+ERROR 42000: This version of MariaDB doesn't yet support 'CAST(AS XMLTYPE CHARACTER SET ucs2/utf16/utf32)'
+SELECT CAST("<a></a>" AS XMLTYPE CHARSET utf32);
+ERROR 42000: This version of MariaDB doesn't yet support 'CAST(AS XMLTYPE CHARACTER SET ucs2/utf16/utf32)'
+#
+# MDEV-39589 Wrong results with xmltype as a virtual column.
+#
+CREATE TABLE t1(a VARCHAR(50), b XMLTYPE AS (a) VIRTUAL);
+INSERT INTO t1(a) VALUES('<yyyyyyyyy>xxxxxxxxxxxxxxxxxxx</yyyyyyyyy>');
+INSERT INTO t1(a) VALUES('a');
+INSERT INTO t1(a) VALUES('b');
+INSERT INTO t1(a) VALUES('<dddddddddd>tttttttttttttttttttttt</dddddddddd>');
+INSERT INTO t1(a) VALUES('e');
+SELECT * FROM t1;
+a	b
+<yyyyyyyyy>xxxxxxxxxxxxxxxxxxx</yyyyyyyyy>	<yyyyyyyyy>xxxxxxxxxxxxxxxxxxx</yyyyyyyyy>
+a	NULL
+b	NULL
+<dddddddddd>tttttttttttttttttttttt</dddddddddd>	<dddddddddd>tttttttttttttttttttttt</dddddddddd>
+e	NULL
+Warnings:
+Warning	1525	Incorrect XMLTYPE value: 'a'
+Warning	1525	Incorrect XMLTYPE value: 'b'
+Warning	1525	Incorrect XMLTYPE value: 'e'
+DROP TABLE t1;
+#
+# MDEV-39592 ALTER.. with xmltype silently overwrites row with prior rows data.
+#
+SET sql_mode = '';
+CREATE TABLE t(id INT, s VARCHAR(100));
+INSERT INTO t VALUES (1,'<abc>aaaaaaaaaa</abc>'), (2,'a'), (3,'b'), (4,'<c/>');
+ALTER TABLE t MODIFY COLUMN s XMLTYPE;
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+SELECT id, s FROM t;
+id	s
+1	<abc>aaaaaaaaaa</abc>
+2	a
+3	b
+4	<c/>
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) DEFAULT NULL,
+  `s` varchar(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t;
+SET sql_mode= default;
+#
+# MDEV-39599 heap-use-after-free in escape_string_for_mysql after sp with invalid xml (xmltype))
+#
+SET sql_mode = '';
+CREATE TABLE t(s VARCHAR(50));
+INSERT INTO t VALUES ('<a/>'), ('a');
+CREATE PROCEDURE sp()
+BEGIN
+DECLARE v XMLTYPE;
+SELECT s INTO v FROM t WHERE s = '<a/>';
+SELECT s INTO v FROM t WHERE s = 'a';
+SELECT v;
+END//
+CALL sp();
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+SET sql_mode= default;
+DROP PROCEDURE sp;
+DROP TABLE t;
+#
+# MDEV-39653 AddressSanitizer: heap-use-after-free in my_mb_wc_latin1/../Field_xmltype::store after invalid xml.
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+CREATE TABLE t2 (x XMLTYPE not null);
+INSERT IGNORE INTO t2 SELECT i FROM t1;
+ERROR HY000: Incorrect XMLTYPE value: '1'
+DROP TABLE t1, t2;
+# End of 12.3 tests

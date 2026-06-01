@@ -768,6 +768,23 @@ DROP TABLE t1;
 --echo # End of 10.6 tests
 
 --echo #
+--echo # Failed CREATE TEMPORARY ... SELECT must not roll back transaction
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CREATE TEMPORARY TABLE tmp2 (a INT) ENGINE=InnoDB SELECT 'x' AS a;
+SELECT * FROM t ORDER BY pk;
+--error ER_DUP_ENTRY
+INSERT INTO t VALUES (1);
+COMMIT;
+SELECT * FROM t ORDER BY pk;
+DROP TABLE t;
+
+--echo #
 --echo # MDEV-38716: Server crashes in TABLE::evaluate_update_default_function
 --echo #
 
@@ -793,3 +810,15 @@ INSERT INTO tmp_38716_2 (b) VALUES (20);
 SELECT * FROM tmp_38716_2 where b=20;
 
 DROP TABLE tmp_38716_2;
+
+
+--echo #
+--echo # MDEV-38830
+--echo #
+CREATE TEMPORARY TABLE tmp_38830 (c INT KEY);
+INSERT INTO tmp_38830 VALUES (1);
+ALTER TABLE tmp_38830 ADD COLUMN (d TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+UPDATE tmp_38830 SET c=c+1;
+select * from tmp_38830;
+
+DROP TEMPORARY TABLE tmp_38830;

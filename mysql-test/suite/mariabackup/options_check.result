@@ -6,3 +6,12 @@
 # Check if unknown options that follow --mysqld-args are ingored
 # Check if [mariadb-client] group is not loaded (MDEV-22894)
 # Check if --help presents
+#
+# MDEV-39565 missing filename check in mariadb-backup --decompress
+#
+[##] ####-##-## ##:##:## decompressing ./a;touch b.qp
+
+[##] ####-##-## ##:##:## Error: invalid file name
+
+[##] ####-##-## ##:##:## Error: thread # failed.
+# End of 10.6 tests

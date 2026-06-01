@@ -18,6 +18,7 @@ server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
 server_audit_syslog_priority	LOG_INFO
+server_audit_timestamp_format	%Y%m%d %H:%i:%s
 set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
@@ -104,6 +105,7 @@ server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
 server_audit_syslog_priority	LOG_INFO
+server_audit_timestamp_format	%Y%m%d %H:%i:%s
 set global server_audit_mode=1;
 set global server_audit_events='';
 create database sa_db;
@@ -391,6 +393,7 @@ server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
 server_audit_syslog_priority	LOG_INFO
+server_audit_timestamp_format	%Y%m%d %H:%i:%s
 uninstall plugin server_audit;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
@@ -553,8 +556,8 @@ TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M! SELECT 5 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!100100 SELECT 6 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M!100100 SELECT 7 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!! SELECT 8 */',0
-TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!!999999 SELECT 9 */',0
-TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M!!999999 SELECT 10 */',0
+TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*!!       SELECT 9 */',0
+TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'/*M!!       SELECT 10 */',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'CREATE USER u1 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'GRANT ALL ON sa_db TO u2 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost:PORT,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0

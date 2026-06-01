@@ -59,8 +59,8 @@
 #define HMT_high()
 #endif
 
-#if defined __i386__ || defined __x86_64__ || defined _WIN32
-# define HAVE_PAUSE_INSTRUCTION /* added in Intel Pentium 4 */
+#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
+# define HAVE_PAUSE_INSTRUCTION /* no-op repurposed in Intel Pentium 4 */
 #endif
 
 #ifdef _WIN32

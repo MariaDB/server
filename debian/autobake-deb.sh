@@ -19,6 +19,9 @@ export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 # shellcheck source=/dev/null
 source ./VERSION
 
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+uname_machine=$(uname -m)
+
 # Look up distro-version specific stuff
 #
 # Always keep the actual packaging as up-to-date as possible following the latest
@@ -62,8 +65,13 @@ remove_package_notes()
   sed -e '/package.notes/d' -i debian/rules debian/control
 }
 
-architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
-uname_machine=$(uname -m)
+remove_columnstore_boost_deps()
+{
+  # libboost-dev still needed for oqgraph
+  # The rest, atomic, chrono, regex, filesystem, thread
+  # are columnstore, and it insists on 1.88+
+  sed -e '/libboost-[^d]/d' -i debian/control
+}
 
 # Parse release name and number from Linux standard base release
 # Example:
@@ -109,7 +117,10 @@ in
       remove_uring
     fi
     ;&
-  "trixie"|"forky"|"duke"|"sid")
+  "trixie")
+    remove_columnstore_boost_deps
+    ;&
+  "forky"|"duke"|"sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
     ;;
@@ -128,7 +139,10 @@ in
       replace_uring_with_aio
     fi
     ;&
-  "noble"|"oracular"|"plucky"|"questing"|"resolute")
+  "noble"|"oracular"|"plucky")
+    remove_columnstore_boost_deps
+    ;&
+  "questing"|"resolute")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.

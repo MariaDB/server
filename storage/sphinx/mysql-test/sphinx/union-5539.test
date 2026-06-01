@@ -1,3 +1,4 @@
+source have_sphinx.inc;
 #
 # MDEV-5539 Empty results in UNION with Sphinx engine
 #

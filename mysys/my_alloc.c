@@ -41,6 +41,8 @@
 
 #define TRASH_MEM(X) TRASH_FREE(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
+#undef ALIGN_SIZE
+#define ALIGN_SIZE(X) MY_ALIGN(X, 16)
 
 /*
   Alloc memory through either my_malloc or mmap()

@@ -120,13 +120,13 @@ ALTER TABLE t10_1b IMPORT TABLESPACE;
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
 
---let $restart_parameters=--innodb-read-only --read-only
+--let $restart_parameters=--innodb-read-only --read-only --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b FOR UPGRADE;
 
---let $restart_parameters=--innodb-read-only
+--let $restart_parameters=--innodb-read-only --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 CHECK TABLE t1, t1b, t1t, t1z, t5_7, t5_7b, t10_1, t10_1b;

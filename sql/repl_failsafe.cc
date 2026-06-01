@@ -52,6 +52,7 @@ struct Slave_info
 
 Atomic_counter<uint32_t> binlog_dump_thread_count;
 ulong rpl_status=RPL_NULL;
+ulong init_rpl_role_val= 0;
 mysql_mutex_t LOCK_rpl_status;
 
 const char *rpl_role_type[] = {"MASTER","SLAVE",NullS};

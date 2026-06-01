@@ -1137,7 +1137,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_G);
   /* We do a dirty read of btr_search.enabled below,
   and btr_search_guess_on_hash() will have to check it again. */
-  else if (!btr_search.enabled);
+  else if (!btr_search.is_enabled(index())) ;
   else if (btr_search_guess_on_hash(index(), tuple, mode != PAGE_CUR_LE,
                                     latch_mode, this, mtr))
   {
@@ -1145,6 +1145,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
     ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+    DBUG_EXECUTE_IF("btr_cur_n_sea_delay", my_sleep(200000););
     ++btr_cur_n_sea;
 
     return DB_SUCCESS;
@@ -1661,7 +1662,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
       /* We do a dirty read of btr_search.enabled here.  We will recheck in
       btr_search_build_page_hash_index() before building a page hash
       index, while holding search latch. */
-      if (!btr_search.enabled);
+      if (!btr_search.is_enabled(index())) ;
       else if (tuple->info_bits & REC_INFO_MIN_REC_FLAG)
         /* This may be a search tuple for btr_pcur_t::restore_position(). */
         ut_ad(tuple->is_metadata() ||
@@ -2167,7 +2168,7 @@ btr_cur_ins_lock_and_undo(
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
 	ut_ad((flags & BTR_NO_UNDO_LOG_FLAG)
-	      || !index->table->skip_alter_undo);
+	      || index->table->skip_alter_undo != dict_table_t::NO_UNDO);
 
 	ut_ad(mtr->is_named_space(index->table->space));
 

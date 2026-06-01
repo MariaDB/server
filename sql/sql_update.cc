@@ -49,6 +49,11 @@
 #include "wsrep_mysqld.h"
 #endif
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h" // wsrep_max_ws_rows, wsrep_max_ws_size
+#include "wsrep_binlog.h" // WSREP_MAX_WS_SIZE
+#endif
+
 /**
    True if the table's input and output record buffers are comparable using
    compare_record(TABLE*).
@@ -288,7 +293,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   /* Add all fields used by unique index to read_set. */
   bitmap_union(table->read_set, &unique_map);
   /* Tell the engine about the new set. */
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
 
   if ((error= table->file->ha_index_or_rnd_end()) ||
       (error= table->file->ha_rnd_init(0)))
@@ -391,6 +396,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+  bool record_was_same, need_update, trg_skip_row;
 
   // For System Versioning (may need to insert new fields to a table).
   ha_rows rows_inserted= 0;
@@ -971,6 +977,15 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  if (thd->lex->has_returning())
+  {
+    if (unlikely(returning_result->send_result_set_metadata(
+                            thd->lex->returning()->returning_list,
+                            Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
+      goto error;
+  }
+
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -987,7 +1002,7 @@ update_begin:
         cut_fields_for_portion_of_time(thd, table,
                                        table_list->period_conditions);
 
-      bool trg_skip_row= false;
+      trg_skip_row= false;
       if (fill_record_n_invoke_before_triggers(thd, table, *fields, *values, 0,
                                                TRG_EVENT_UPDATE,
                                                &trg_skip_row))
@@ -1002,8 +1017,8 @@ update_begin:
 
       found++;
 
-      bool record_was_same= false;
-      bool need_update= !can_compare_record || compare_record(table);
+      record_was_same= false;
+      need_update= !can_compare_record || compare_record(table);
 
       if (need_update)
       {
@@ -1063,6 +1078,13 @@ update_begin:
           /* Non-batched update */
           error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
+        }
+
+        if (likely(!error) && thd->lex->has_returning() &&
+            returning_result->send_data(thd->lex->returning()->returning_list) < 0)
+        {
+          error= 1;
+          break;
         }
 
         record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
@@ -1300,8 +1322,11 @@ update_end:
   }
   if (!binlogged)
     table->mark_as_not_binlogged();
-
   DBUG_ASSERT(transactional_table || !updated || thd->transaction->stmt.modified_non_trans_table);
+
+  if (unlikely(thd->lex->analyze_stmt))
+    goto send_nothing_and_leave;
+
   free_underlaid_joins(thd, select_lex);
   delete file_sort;
   if (table->file->pushed_cond)
@@ -1314,7 +1339,7 @@ update_end:
   id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
 
-  if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
+  if (likely(error < 0))
   {
     char buff[MYSQL_ERRMSG_SIZE];
     if (!table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
@@ -1329,8 +1354,13 @@ update_end:
     thd->collect_unit_results(
             id,
             (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated);
-    my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
-          id, buff);
+
+    if (thd->lex->has_returning())
+      returning_result->send_eof();
+    else
+      my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ?
+                  found : updated, id, buff);
+
     if (thd->get_stmt_da()->is_bulk_op())
     {
       /*
@@ -1358,11 +1388,9 @@ update_end:
   ((multi_update *)result)->set_found(found);
   ((multi_update *)result)->set_updated(updated);
 
-  if (unlikely(thd->lex->analyze_stmt))
-    goto emit_explain_and_leave;
-
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
+send_nothing_and_leave:
 err:
   delete select;
   delete file_sort;
@@ -1374,7 +1402,7 @@ err:
   if (table->file->pushed_cond)
     table->file->cond_pop();
   thd->abort_on_warning= 0;
-  DBUG_RETURN(1);
+  DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 produce_explain_and_leave:
   /* 
@@ -1384,16 +1412,13 @@ produce_explain_and_leave:
   if (unlikely(!query_plan.save_explain_update_data(thd, query_plan.mem_root)))
     goto err;
 
-emit_explain_and_leave:
   if (!thd->is_error() && need_to_optimize &&
       select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
-  bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
-  int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
   free_underlaid_joins(thd, select_lex);
-  DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
+  DBUG_RETURN((thd->is_error()) ? 1 : 0);
 }
 
 
@@ -1686,6 +1711,10 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
                                 MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
     DBUG_RETURN(1);
 
+  if (thd->lex->has_returning() &&
+      setup_returning_fields(thd, select_lex->get_table_list()))
+    DBUG_RETURN(1);
+
   // Check if we have a view in the list ...
   for (tl= table_list; tl ; tl= tl->next_local)
     if (tl->view)
@@ -1790,8 +1819,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 }
 
 
-multi_update::multi_update(THD *thd_arg,
-                           TABLE_LIST *table_list,
+multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
                            List<TABLE_LIST> *leaves_list,
                            List<Item> *field_list,
                            List<Item> *value_list,
@@ -1902,6 +1930,30 @@ int multi_update::prepare(List<Item> &not_used_values,
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
   THD_STAGE_INFO(thd, stage_updating_main_table);
+
+#ifdef WITH_WSREP
+  if (WSREP(thd) &&
+      (wsrep_max_ws_rows || wsrep_max_ws_size != WSREP_MAX_WS_SIZE))
+  {
+    int trans{0};
+    while (TABLE_LIST *tablel= update_targets_iter++)
+      trans|= 1 << tablel->table->file->has_transactions_and_rollback();
+    update_targets_iter.rewind();
+    /* In multi-table update Galera does not support update to both
+       transactional and non-transactional engines if write-set
+       size is limited. */
+    if (trans == 3)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_GALERA_REPLICATION_NOT_SUPPORTED,
+                          "Galera does not support multi-table update"
+                          " to both transactional and non-transactional engines"
+                          " if write-set size is limited.");
+      DBUG_RETURN(1);
+    }
+  }
+#endif /* WITH_WSREP */
 
   /*
     We gather the set of columns read during evaluation of SET expression in
@@ -3232,6 +3284,33 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   bool res= 0;
   Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
+  if (!multitable)
+  {
+    if (lex->has_returning())
+    {
+      /* This is UPDATE ... RETURNING.  It will return output to the client */
+      if (thd->lex->analyze_stmt)
+      {
+        if (!(returning_result= new (thd->mem_root) select_send_analyze(thd)))
+        {
+          return true;
+        }
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+      else
+      {
+        if (!(returning_result= new
+                        (thd->mem_root) select_send(thd)))
+        {
+          return true;
+        }
+      }
+      if (thd->lex->has_returning())
+        (void) returning_result->prepare(thd->lex->returning()->returning_list, NULL);
+    }
+  }
+
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (!multitable)
     res= update_single_table(thd);
@@ -3242,17 +3321,24 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   }
 
   res|= thd->is_error();
-  if (multitable)
+
+  if (save_protocol)
   {
-    if (unlikely(res))
+    delete thd->protocol;
+    thd->protocol= save_protocol;
+    save_protocol= nullptr;
+  }
+  if (unlikely(res))
+  {
+    if (multitable)
       result->abort_result_set();
-    else
+  }
+  else
+  {
+    if (thd->lex->describe || thd->lex->analyze_stmt)
     {
-      if (thd->lex->describe || thd->lex->analyze_stmt)
-      {
-        bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
-        res= thd->lex->explain->send_explain(thd, extended);
-      }
+      bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
+      res= thd->lex->explain->send_explain(thd, extended);
     }
   }
 

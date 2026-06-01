@@ -9,6 +9,7 @@
 --source include/have_innodb.inc
 --source include/galera_cluster.inc
 --source include/have_sequence.inc
+--source include/force_restart.inc
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
 # we open the node_3 connection here
@@ -143,4 +144,5 @@ DROP TABLE t1,t2,t3;
 DROP TABLE t1,t2,t3;
 
 --connection node_3
-RESET MASTER;
+--source include/reset_master.inc
+

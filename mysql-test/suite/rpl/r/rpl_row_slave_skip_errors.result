@@ -1,0 +1,38 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t (name VARCHAR(25) DEFAULT NULL, age INT);
+include/sync_slave_sql_with_master.inc
+ALTER TABLE t MODIFY name VARCHAR(255);
+connection master;
+INSERT INTO t VALUE ('Omar', 22);
+include/sync_slave_sql_with_master.inc
+include/check_slave_no_error.inc
+connection slave;
+ALTER TABLE t alter name set default "slave_default";
+connection master;
+INSERT INTO t VALUE ('Khokh', 22);
+include/sync_slave_sql_with_master.inc
+include/check_slave_no_error.inc
+# The skipped conversions take the default value defined for the column.
+connection master;
+SELECT * FROM t;
+name	age
+Omar	22
+Khokh	22
+connection slave;
+SELECT * FROM t;
+name	age
+NULL	22
+slave_default	22
+connection master;
+SELECT COUNT(*) AS master_count FROM t;
+master_count
+2
+connection slave;
+SELECT COUNT(*) AS slave_count FROM t;
+slave_count
+2
+==== Clean up ====
+connection master;
+DROP TABLE t;
+include/rpl_end.inc

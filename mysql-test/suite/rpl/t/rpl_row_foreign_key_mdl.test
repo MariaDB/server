@@ -8,6 +8,7 @@
 #   MDEV-25039: MDL BF-BF conflict because of foreign key
 #
 source include/have_innodb.inc;
+source include/have_perfschema.inc;
 source include/have_debug_sync.inc;
 source include/have_binlog_format_row.inc;
 source include/master-slave.inc;

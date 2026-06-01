@@ -203,7 +203,10 @@ static bool set_one_value(ha_create_table_option *opt, THD *thd,
             *val= num;
             DBUG_RETURN(0);
           }
-          str+= len+1;
+          str+= len;
+          if (*str == ',')
+            ++str;
+          len= 0;
         }
       }
 

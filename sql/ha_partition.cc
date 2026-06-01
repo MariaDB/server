@@ -413,7 +413,7 @@ void ha_partition::init_handler_variables()
   m_scan_value= 2;
   m_ref_length= 0;
   m_part_spec.end_part= NO_CURRENT_PART_ID;
-  m_unordered_reverse_index= false;
+  m_unordered_reverse_scan= false;
   m_index_scan_type= partition_no_index_scan;
   m_start_key.key= NULL;
   m_start_key.length= 0;
@@ -2133,12 +2133,12 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
   DBUG_ASSERT(m_new_file == 0);
   m_new_file= new_file_array;
   for (i= 0; i < part_count; i++)
-    m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    m_added_file[i]->extra(HA_EXTRA_BEGIN_COPY);
   error= copy_partitions(copied, deleted);
   for (i= 0; i < part_count; i++)
     m_added_file[i]->extra(error
-                           ? HA_EXTRA_ABORT_ALTER_COPY
-                           : HA_EXTRA_END_ALTER_COPY);
+                           ? HA_EXTRA_ABORT_COPY
+                           : HA_EXTRA_END_COPY);
   if (unlikely(error))
   {
     /*
@@ -7477,8 +7477,8 @@ bool ha_partition::can_skip_merging_scans()
     /* Currently, we disallow indexes with mixed ASC and DESC key parts: */
     bool kp_is_reverse= MY_TEST(key_part->key_part_flag & HA_REVERSE_SORT);
     if (i == 0)
-      m_unordered_reverse_index= kp_is_reverse;
-    else if (m_unordered_reverse_index != kp_is_reverse)
+      m_unordered_reverse_scan= kp_is_reverse;
+    else if (m_unordered_reverse_scan != kp_is_reverse)
       return false;
   }
 
@@ -7507,7 +7507,7 @@ bool ha_partition::can_skip_merging_scans()
     else
     {
       key_part_map prefix= (1 << i) - 1;
-      m_unordered_reverse_index=
+      m_unordered_reverse_scan=
         (key_part->key_part_flag & HA_REVERSE_SORT) ? true : false;
       if (m_index_scan_type == partition_index_read)
       {
@@ -7853,7 +7853,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     Start from the highest partition if the relevant index is a
     reverse index.
   */
-  uint i= m_unordered_reverse_index ?
+  uint i= m_unordered_reverse_scan ?
     m_part_spec.end_part : m_part_spec.start_part;
   DBUG_ENTER("ha_partition::handle_unordered_next");
 
@@ -7907,7 +7907,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     if (unlikely(error == HA_ERR_END_OF_FILE))
   {
     // Start using next part
-    if (m_unordered_reverse_index)
+    if (m_unordered_reverse_scan)
       m_part_spec.end_part--;
     else
       m_part_spec.start_part++;
@@ -7942,10 +7942,12 @@ int ha_partition::handle_unordered_prev(uchar *buf)
     Start from the highest partition if the relevant index is a
     reverse index.
   */
-  uint i= m_unordered_reverse_index ?
+  uint i= m_unordered_reverse_scan ?
     m_part_spec.start_part : m_part_spec.end_part;
   DBUG_ENTER("ha_partition::handle_unordered_prev");
   DBUG_PRINT("enter", ("partition: %p", this));
+  if (m_part_spec.start_part == NO_CURRENT_PART_ID)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
   if (i >= m_tot_parts)
   {
     /* Should never happen! */
@@ -7967,7 +7969,7 @@ int ha_partition::handle_unordered_prev(uchar *buf)
   }
   if (error == HA_ERR_END_OF_FILE)
   {
-    if (m_unordered_reverse_index)
+    if (m_unordered_reverse_scan)
       m_part_spec.start_part++;
     else
       m_part_spec.end_part--;
@@ -8001,7 +8003,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
                                                        bool is_last_or_prev)
 {
   /* Whether to start from the highest partition. */
-  bool reverse_order= (is_last_or_prev != m_unordered_reverse_index);
+  bool reverse_order= (is_last_or_prev != m_unordered_reverse_scan);
   uint i= reverse_order ? m_part_spec.end_part : m_part_spec.start_part;
   int saved_error= HA_ERR_END_OF_FILE;
   DBUG_ENTER("ha_partition::handle_unordered_scan_next_partition");
@@ -8087,12 +8089,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
       i= bitmap_get_next_set(&m_part_info->read_partitions, i);
   }
   if (saved_error == HA_ERR_END_OF_FILE)
-  {
-    if (reverse_order)
-      m_part_spec.end_part= NO_CURRENT_PART_ID;
-    else
-      m_part_spec.start_part= NO_CURRENT_PART_ID;
-  }
+    m_part_spec.start_part= NO_CURRENT_PART_ID;
   DBUG_RETURN(saved_error);
 }
 
@@ -9737,9 +9734,10 @@ int ha_partition::extra(enum ha_extra_function operation)
   */
     DBUG_RETURN(ER_UNSUPORTED_LOG_ENGINE);
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
-  case HA_EXTRA_BEGIN_ALTER_COPY:
-  case HA_EXTRA_END_ALTER_COPY:
-  case HA_EXTRA_ABORT_ALTER_COPY:
+  case HA_EXTRA_BEGIN_COPY:
+  case HA_EXTRA_END_COPY:
+  case HA_EXTRA_ABORT_COPY:
+  case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {

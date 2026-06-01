@@ -474,7 +474,7 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
           a number of modified rows
 */
 
-uint sql_command_flags[SQLCOM_END+1];
+cf_flags_t sql_command_flags[SQLCOM_END+1];
 uint server_command_flags[COM_END+1];
 
 void init_update_queries(void)
@@ -689,14 +689,19 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_TABLE_STATUS]= (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
 
 
+  sql_command_flags[SQLCOM_CREATE_SERVER]=     CF_CHANGES_DATA;
+  sql_command_flags[SQLCOM_ALTER_SERVER]=      CF_CHANGES_DATA;
+  sql_command_flags[SQLCOM_DROP_SERVER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_USER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_RENAME_USER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_DROP_USER]=         CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_ALTER_USER]=        CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_ROLE]=       CF_CHANGES_DATA;
+  sql_command_flags[SQLCOM_DROP_ROLE]=         CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_GRANT]=             CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_GRANT_ROLE]=        CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_REVOKE]=            CF_CHANGES_DATA;
+  sql_command_flags[SQLCOM_REVOKE_ALL]=        CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_REVOKE_ROLE]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_OPTIMIZE]=          CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_FUNCTION]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -764,16 +769,16 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_ROLE]|=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_ROLE]|=         CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_REVOKE]|=            CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_REVOKE_ALL]=         CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_REVOKE_ALL]|=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_REVOKE_ROLE]|=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_GRANT]|=             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_GRANT_ROLE]|=        CF_AUTO_COMMIT_TRANS;
 
   sql_command_flags[SQLCOM_FLUSH]=              CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_RESET]=              CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_CREATE_SERVER]=      CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_CREATE_SERVER]|=     CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_ALTER_SERVER]|=      CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_DROP_SERVER]|=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP_LOCK]=        CF_AUTO_COMMIT_TRANS;
 
@@ -1601,8 +1606,10 @@ public:
     1   request of thread shutdown, i. e. if command is
         COM_QUIT/COM_SHUTDOWN
 */
-dispatch_command_return dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length, bool blocking)
+dispatch_command_return dispatch_command(enum enum_server_command command,
+                                         THD *thd,
+                                         char* packet, uint packet_length,
+                                         bool blocking)
 {
   NET *net= &thd->net;
   bool error= 0;
@@ -3539,7 +3546,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   lex->first_lists_tables_same();
   lex->fix_first_select_number();
-  lex->resolve_optimizer_hints();
   /* should be assigned after making first tables same */
   all_tables= lex->query_tables;
   /* set context for commands which do not use setup_tables */
@@ -3973,15 +3979,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       lex->exchange != NULL implies SELECT .. INTO OUTFILE and this
       requires FILE_ACL access.
     */
-    privilege_t privileges_requested= lex->exchange ? SELECT_ACL | FILE_ACL :
-                                                      SELECT_ACL;
+    if (lex->exchange && (res= check_global_access(thd, FILE_ACL, false)))
+      break;
 
     if (all_tables)
-      res= check_table_access(thd,
-                              privileges_requested,
-                              all_tables, FALSE, UINT_MAX, FALSE);
+      res= check_table_access(thd, SELECT_ACL, all_tables, 0, UINT_MAX, 0);
     else
-      res= check_access(thd, privileges_requested, any_db.str, NULL,NULL,0,0);
+      res= check_access(thd, SELECT_ACL, any_db.str, NULL,NULL, 0, 0);
 
     if (!res)
       res= execute_sqlcom_select(thd, all_tables);
@@ -4674,6 +4678,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       select_lex->table_list.first= second_table;
       select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
+      lex->resolve_optimizer_hints();
       res= mysql_insert_select_prepare(thd, result);
       Write_record write;
       if (!res &&
@@ -5158,6 +5163,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res= show_create_db(thd, lex);
     break;
   case SQLCOM_SHOW_CREATE_SERVER:
+    if (check_global_access(thd, PRIV_STMT_SHOW_CREATE_SERVER))
+      break;
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     res= mysql_show_create_server(thd, &lex->name);
     break;
@@ -6129,6 +6136,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
+    lex->resolve_optimizer_hints();
     if (lex->describe)
     {
       /*
@@ -8045,7 +8053,12 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
   order->used=0;
   order->counter_used= 0;
-  order->fast_field_copier_setup= 0; 
+  order->fast_field_copier_setup= 0;
+  if (thd->lex->clause_winfuncs.is_empty())
+    order->window_funcs.empty();
+  else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))
+    DBUG_RETURN(1);
+  order->in_field_list= false;
   list.insert(order, &order->next);
   DBUG_RETURN(0);
 }
@@ -8239,6 +8252,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     MDL_REQUEST_INIT(&ptr->mdl_request, MDL_key::TABLE, ptr->db.str,
                      ptr->table_name.str, mdl_type, MDL_TRANSACTION);
   }
+  else
+    ptr->mdl_request.type= MDL_NOT_INITIALIZED;
   DBUG_RETURN(ptr);
 }
 

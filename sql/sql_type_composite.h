@@ -101,10 +101,6 @@ public:
     MY_ASSERT_UNREACHABLE();
     return nullptr;
   }
-  bool Column_definition_fix_attributes(Column_definition *) const override
-  {
-    return false;
-  }
   void Column_definition_reuse_fix_attributes(THD *, Column_definition *,
                                               const Field *) const override
   {
@@ -441,6 +437,19 @@ public:
   }
   virtual bool finalize_for_set(Item_field *item) const
   {
+    return false;
+  }
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    /*
+      It's not possible to have a composite data type in a table
+      column for now
+    */
+    DBUG_ASSERT(0);
     return false;
   }
 };

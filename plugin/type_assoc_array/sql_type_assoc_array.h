@@ -41,6 +41,7 @@ public:
   static bool check_subscript_expression(const Type_handler *formal_th,
                                          Item *key);
 public:
+  uint get_column_attributes() const override { return ATTR_NONE; }
   bool has_methods() const override { return true; }
   bool has_functors() const override { return true; }
   bool is_complex() const override

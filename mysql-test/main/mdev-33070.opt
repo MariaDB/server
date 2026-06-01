@@ -1,0 +1,1 @@
+--thread-handling=pool-of-threads --loose-thread-pool-mode=generic --thread-pool-size=1 --thread-pool-max-threads=3 --thread-pool-oversubscribe=1 --thread-pool-stall-limit=10000 --thread-pool-dedicated-listener

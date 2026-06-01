@@ -241,6 +241,11 @@ const uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   return session_var_ptr(thd);
 }
 
+const uchar *sys_var::session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const
+{
+  return session_value_ptr(thd, base);
+}
+
 const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return global_var_ptr();
@@ -284,6 +289,8 @@ const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
     AutoRLock lock(guard);
     return global_value_ptr(thd, base);
   }
+  else if (type == SHOW_OPT_SESSION_NO_LOCK)
+    return session_no_lock_value_ptr(thd, base);
   else
     return session_value_ptr(thd, base);
 }
@@ -806,6 +813,7 @@ int set_var::check(THD *thd)
   switch (type) {
   case SHOW_OPT_DEFAULT:
   case SHOW_OPT_SESSION:
+  case SHOW_OPT_SESSION_NO_LOCK:
     DBUG_ASSERT(var->scope() != sys_var::GLOBAL);
     if (var->on_check_access_session(thd))
       return -1;
@@ -1286,13 +1294,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     }
 
     // READ_ONLY
-    static const LEX_CSTRING yesno[]=
-    {
-      { STRING_WITH_LEN("NO") },
-      { STRING_WITH_LEN("YES") }
-    };
-    const LEX_CSTRING *yn = yesno + var->is_readonly();
-    fields[12]->store(yn->str, yn->length, scs);
+    fields[12]->store(Show::Yes_or_no::value(var->is_readonly()), scs);
 
     // COMMAND_LINE_ARGUMENT
     if (var->option.id >= 0)
@@ -1314,6 +1316,17 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       fields[14]->set_notnull();
       fields[14]->store(var->origin_filename, strlen(var->origin_filename),
                         files_charset_info);
+    }
+
+    // IS_DEPRECATED
+    fields[15]->store(Show::Yes_or_no::value(var->option.deprecation_substitute != NULL), scs);
+
+    // DEPRECATED_REPLACEMENT
+    if (var->option.deprecation_substitute != NULL && !IS_DEPRECATED_NO_REPLACEMENT(var->option.deprecation_substitute))
+    {
+      fields[16]->set_notnull();
+      fields[16]->store(var->option.deprecation_substitute,
+                        strlen(var->option.deprecation_substitute), scs);
     }
 
     if (schema_table_store_record(thd, tables->table))

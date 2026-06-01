@@ -556,7 +556,7 @@ class String;
 #define OPTIONS_WRITTEN_TO_BIN_LOG (OPTION_EXPLICIT_DEF_TIMESTAMP |\
    OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
    OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS |\
-   OPTION_INSERT_HISTORY)
+   OPTION_INSERT_HISTORY | OPTION_NO_CHECK_CONSTRAINT_CHECKS)
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**
@@ -2970,7 +2970,7 @@ private:
   @return  the value of the buffer pointer
 */
 
-inline char *serialize_xid(char *buf, size_t sizeof_buf, long fmt, long gln,
+inline char *serialize_xid(char *buf, size_t bufsize, long fmt, long gln,
                            long bln, const char *dat)
 {
   int i;
@@ -3003,7 +3003,7 @@ inline char *serialize_xid(char *buf, size_t sizeof_buf, long fmt, long gln,
     c+= 2;
   }
   c[0]= '\'';
-  snprintf(c+1, sizeof_buf - (c+1 - buf), ",%lu", fmt);
+  snprintf(c + 1, bufsize - (size_t)(c + 1 - buf), ",%lu", fmt);
 
  return buf;
 }
@@ -3036,7 +3036,7 @@ struct event_xid_t : XID
 
   char *serialize(char *buf_arg, size_t sizeof_buf_arg)
   {
-    return serialize_xid(buf_arg, sizeof_buf_arg, formatID, gtrid_length,
+    return serialize_xid(buf_arg, ser_buf_size, formatID, gtrid_length,
                          bqual_length, data);
   }
   char *serialize()
@@ -3090,8 +3090,8 @@ private:
   const char* get_query() override
   {
     snprintf(query, sizeof(query),
-            (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
-            m_xid.serialize());
+             (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
+             m_xid.serialize());
     return query;
   }
 #endif

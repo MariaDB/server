@@ -15,10 +15,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 --source ../../include/mroonga/have_mroonga.inc
-
---disable_warnings
-DROP TABLE IF EXISTS diaries;
---enable_warnings
+--source include/no_view_protocol.inc
 
 SET NAMES UTF8;
 CREATE TABLE diaries (

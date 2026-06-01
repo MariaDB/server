@@ -41,7 +41,7 @@ CREATE TABLE `t1` (
 insert into t1 values (1,2,'maria','db','encryption');
 alter table t1 encrypted='yes' `encryption_key_id`=1;
 
---let $restart_parameters=--innodb-encrypt-tables=OFF
+--let $restart_parameters=--innodb-encrypt-tables=OFF --innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 --error ER_TABLE_CORRUPT

@@ -70,43 +70,6 @@ IF(MSVC_ARM64)
  SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
 ENDIF()
 
-# This plugin needs recent C++ compilers (it is using C++11 features)
-# Skip build for the old compilers
-SET(CXX11_FLAGS)
-SET(OLD_COMPILER_MSG "requires c++11 -capable compiler (minimal supported versions are g++ 4.8, clang 3.3, VS2015)")
-
-IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
-  IF (GCC_VERSION VERSION_LESS 4.8)
-    SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
-  ENDIF()
-  SET(CXX11_FLAGS "-std=c++11")
-  IF (GCC_VERSION VERSION_LESS 5.0)
-    SET(CXX11_FLAGS "-std=c++11 -Wno-missing-field-initializers")
-  ENDIF()
-ELSEIF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  IF ((CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS  3.3) OR
-     (CLANG_VERSION_STRING AND CLANG_VERSION_STRING VERSION_LESS  3.3))
-    SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
-  ENDIF()
-  SET(CXX11_FLAGS "-std=c++11 -stdlib=libstdc++")
-  IF(MSVC)
-    # clang-cl does not work yet
-    SKIP_ROCKSDB_PLUGIN("Clang-cl is not supported")
-  ENDIF()
-ELSEIF(MSVC)
-  IF (MSVC_VERSION LESS 1900)
-    SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
-  ENDIF()
-ELSE()
-  SKIP_ROCKSDB_PLUGIN("Compiler not supported")
-ENDIF()
-
-IF(CMAKE_VERSION GREATER 3.0)
-  SET(CMAKE_CXX_STANDARD  11)
-ELSEIF(CXX11_FLAGS)
-  ADD_DEFINITIONS(${CXX11_FLAGS})
-ENDIF()
 
 SET(ROCKSDB_SE_SOURCES
   rdb_mariadb_server_port.cc

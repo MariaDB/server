@@ -175,6 +175,12 @@
 #ifndef __has_feature
 #define __has_feature(x) 0
 #endif
+/*
+  Note, rather than trying to micro adjust these every time
+  slightly different test fails, potentially on slightly different
+  compiler, look at adjusting the test. For example main.sp-error
+  at Bug#15192.
+*/
 #if defined(__clang__) && __has_feature(memory_sanitizer) && !defined(DBUG_OFF)
 #define STACK_MIN_SIZE          44000
 #else

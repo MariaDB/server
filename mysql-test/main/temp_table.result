@@ -699,6 +699,27 @@ UNLOCK TABLES;
 DROP TABLE t1;
 # End of 10.6 tests
 #
+# Failed CREATE TEMPORARY ... SELECT must not roll back transaction
+#
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1);
+CREATE TEMPORARY TABLE tmp2 (a INT) ENGINE=InnoDB SELECT 'x' AS a;
+ERROR 22007: Incorrect integer value: 'x' for column `test`.`tmp2`.`a` at row 1
+SELECT * FROM t ORDER BY pk;
+pk
+0
+1
+INSERT INTO t VALUES (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+COMMIT;
+SELECT * FROM t ORDER BY pk;
+pk
+0
+1
+DROP TABLE t;
+#
 # MDEV-38716: Server crashes in TABLE::evaluate_update_default_function
 #
 # Test case where ALTER doesn't add any new columns with default values
@@ -725,3 +746,14 @@ SELECT * FROM tmp_38716_2 where b=20;
 a	b	c
 NULL	20	21
 DROP TABLE tmp_38716_2;
+#
+# MDEV-38830
+#
+CREATE TEMPORARY TABLE tmp_38830 (c INT KEY);
+INSERT INTO tmp_38830 VALUES (1);
+ALTER TABLE tmp_38830 ADD COLUMN (d TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+UPDATE tmp_38830 SET c=c+1;
+select * from tmp_38830;
+c	d
+2	2001-01-01 10:20:30
+DROP TEMPORARY TABLE tmp_38830;

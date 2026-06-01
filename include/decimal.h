@@ -46,9 +46,9 @@ int decimal2string(const decimal_t *from, char *to, int *to_len,
                    decimal_digits_t fixed_precision,
                    decimal_digits_t fixed_decimals,
                    char filler);
-int decimal2ulonglong(const decimal_t *from, ulonglong *to);
+int decimal2ulonglong(const decimal_t *from, ulonglong *to, decimal_round_mode);
 int ulonglong2decimal(ulonglong from, decimal_t *to);
-int decimal2longlong(const decimal_t *from, longlong *to);
+int decimal2longlong(const decimal_t *from, longlong *to, decimal_round_mode);
 int longlong2decimal(longlong from, decimal_t *to);
 int decimal2double(const decimal_t *from, double *to);
 int double2decimal(double from, decimal_t *to);

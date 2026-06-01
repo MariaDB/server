@@ -1,6 +1,9 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+call mtr.add_suppression("Slave: ER_CONNECTION_KILLED .* is not allowed in --slave-skip-errors");
+include/assert_grep.inc [Warning about ER_CONNECTION_KILLED should appear in error log]
+connection slave;
 connection master;
 ==== Test Without sql_mode=strict_trans_tables ====
 create table t1 (n int not null primary key);

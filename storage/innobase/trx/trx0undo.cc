@@ -1173,6 +1173,8 @@ trx_undo_mem_create(
 
 	undo->rseg = rseg;
 
+	undo->top_offset = 0;
+	undo->old_offset = 0;
 	undo->hdr_page_no = page_no;
 	undo->hdr_offset = offset;
 	undo->last_page_no = page_no;
@@ -1494,6 +1496,8 @@ void trx_undo_set_state_at_prepare(trx_undo_t *undo, bool rollback, mtr_t *mtr)
 /** At shutdown, frees the undo logs of a transaction. */
 void trx_undo_free_at_shutdown(trx_t *trx)
 {
+	ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
 	if (trx_undo_t*& undo = trx->rsegs.m_redo.undo) {
 		switch (undo->state) {
 		case TRX_UNDO_PREPARED:
@@ -1507,7 +1511,7 @@ void trx_undo_free_at_shutdown(trx_t *trx)
 			/* trx_t::commit_state() assigns
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY. */
 			ut_a(!srv_was_started
-			     || srv_read_only_mode
+			     || recv_sys.rpo
 			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
 			     || srv_fast_shutdown);
 			break;

@@ -1122,11 +1122,11 @@ int longlong2decimal(longlong from, decimal_t *to)
   return ull2dec(from, to);
 }
 
-int decimal2ulonglong(const decimal_t *from, ulonglong *to)
+int decimal2ulonglong(const decimal_t *from, ulonglong *to, decimal_round_mode mode)
 {
   dec1 *buf=from->buf;
   ulonglong x=0;
-  int intg, frac;
+  int intg, frac= from->frac;
 
   if (from->sign)
   {
@@ -1152,18 +1152,38 @@ int decimal2ulonglong(const decimal_t *from, ulonglong *to)
 
     x=x*DIG_BASE + *buf++;
   }
-  *to=x;
-  for (frac=from->frac; unlikely(frac > 0); frac-=DIG_PER_DEC1)
-    if (*buf++)
-      return E_DEC_TRUNCATED;
-  return E_DEC_OK;
+
+  *to= x;
+  if (frac > 0)
+  {
+    int carry= 0;
+
+    for (dec1 *b= buf; frac > 0 && !*b++; frac-=DIG_PER_DEC1) /* no-op */;
+
+    switch (mode) {
+    case HALF_UP:   carry= *buf >= 5*DIG_MASK; break;
+    case HALF_EVEN: carry= *buf >= (6-(int)(x%2))*DIG_MASK; break;
+    case CEILING:   carry= frac > 0; break;
+    case FLOOR:     carry= 0; break;
+    case TRUNCATE:  carry= 0; break;
+    default: DBUG_ASSERT(0);
+    }
+    if (carry)
+    {
+      if (x == ULONGLONG_MAX)
+        return E_DEC_OVERFLOW;
+      (*to)++;
+    }
+  }
+
+  return frac > 0 ? E_DEC_TRUNCATED : E_DEC_OK;
 }
 
-int decimal2longlong(const decimal_t *from, longlong *to)
+int decimal2longlong(const decimal_t *from, longlong *to, decimal_round_mode mode)
 {
   dec1 *buf=from->buf;
   longlong x=0;
-  int intg, frac;
+  int intg, frac= from->frac;
 
   for (intg=from->intg; intg > 0; intg-=DIG_PER_DEC1)
   {
@@ -1191,6 +1211,31 @@ int decimal2longlong(const decimal_t *from, longlong *to)
 
     x=x*DIG_BASE - *buf++;
   }
+  if (frac > 0)
+  {
+    int carry= 0;
+
+    for (dec1 *b= buf; frac > 0 && !*b++; frac-=DIG_PER_DEC1) /* no-op */;
+
+    switch (mode) {
+    case HALF_UP:   carry= *buf >= 5*DIG_MASK; break;
+    case HALF_EVEN: carry= *buf >= (6-x%2)*DIG_MASK; break;
+    case CEILING:   carry= frac > 0 && !from->sign; break;
+    case FLOOR:     carry= frac > 0 && from->sign; break;
+    case TRUNCATE:  carry= 0; break;
+    default: DBUG_ASSERT(0);
+    }
+    if (carry)
+    {
+      if (x == LONGLONG_MIN)
+      {
+        *to= from->sign ? LONGLONG_MIN : LONGLONG_MAX;
+        return E_DEC_OVERFLOW;
+      }
+      x--;
+    }
+  }
+
   /* boundary case: 9223372036854775808 */
   if (unlikely(from->sign==0 && x == LONGLONG_MIN))
   {
@@ -1199,10 +1244,7 @@ int decimal2longlong(const decimal_t *from, longlong *to)
   }
 
   *to=from->sign ? x : -x;
-  for (frac=from->frac; unlikely(frac > 0); frac-=DIG_PER_DEC1)
-    if (*buf++)
-      return E_DEC_TRUNCATED;
-  return E_DEC_OK;
+  return frac > 0 ? E_DEC_TRUNCATED : E_DEC_OK;
 }
 
 /*
@@ -2134,17 +2176,22 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     }
     else                                         /* bounded fract part */
     {
-      j-=frac0;
-      i=j >> 1;
-      if (frac1 <= frac2)
+      dec1 *b1=buf1-1, *b2= buf2-1; /* shortcuts */
+      while (j > frac0)
       {
-        frac1-= i;
-        frac2-=j-i;
-      }
-      else
-      {
-        frac2-= i;
-        frac1-=j-i;
+        if (b1[frac1] == 0)      /* lossless */
+          frac1--;
+        else if (b2[frac2] == 0) /* lossless */
+          frac2--;
+        else if (frac1 > frac2)    /* lossy, MUST be after lossless */
+          frac1--;
+        else if (frac2 > frac1)
+          frac2--;
+        else if (b1[frac1] < b2[frac2])
+          frac1--;
+        else
+          frac2--;
+        j--;
       }
     }
   }
@@ -2181,21 +2228,26 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     }
   }
 
-  /* Remove trailing zero words in frac part */
-  frac0= ROUND_UP(to->frac);
-
-  if (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0)
+  /* Now we have to check for -0.000 case */
+  if (to->sign)
   {
-    do
+    dec1 *buf= to->buf;
+    dec1 *end= to->buf + intg0 + frac0;
+    DBUG_ASSERT(buf != end);
+    for (;;)
     {
-      frac0--;
-    } while (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0);
-    to->frac= DIG_PER_DEC1 * frac0;
+      if (*buf)
+        break;
+      if (++buf == end)
+      {
+        /* We got decimal zero */
+        decimal_make_zero(to);
+        break;
+      }
+    }
   }
-
-  /* Remove heading zero words in intg part */
   buf1= to->buf;
-  d_to_move= intg0 + frac0;
+  d_to_move= intg0 + ROUND_UP(to->frac);
   while (!*buf1 && (to->intg > DIG_PER_DEC1))
   {
     buf1++;
@@ -2207,14 +2259,6 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     dec1 *cur_d= to->buf;
     for (; d_to_move--; cur_d++, buf1++)
       *cur_d= *buf1;
-  }
-
-  /* Now we have to check for -0.000 case */
-  if (to->sign && to->frac == 0 && to->buf[0] == 0)
-  {
-    DBUG_ASSERT(to->intg <= DIG_PER_DEC1);
-    /* We got decimal zero */
-    decimal_make_zero(to);
   }
   return error;
 }
@@ -2618,7 +2662,7 @@ void test_s2d(const char *s, const char *orig, int ex)
 {
   char s1[100], *end;
   int res;
-  sprintf(s1, "'%s'", s);
+  snprintf(s1, sizeof(s1), "'%s'", s);
   end= strend(s);
   printf("len=%2d %-30s => res=%d    ", a.len, s1,
          (res= string2decimal(s, &a, &end)));
@@ -2632,7 +2676,7 @@ void test_d2f(const char *s, int ex)
   double x;
   int res;
 
-  sprintf(s1, "'%s'", s);
+  snprintf(s1, sizeof(s1), "'%s'", s);
   end= strend(s);
   string2decimal(s, &a, &end);
   res=decimal2double(&a, &x);
@@ -2647,7 +2691,7 @@ void test_d2b2d(const char *str, int p, int s, const char *orig, int ex)
   uchar buf[100];
   int res, i, size=decimal_bin_size(p, s);
 
-  sprintf(s1, "'%s'", str);
+  snprintf(s1, sizeof(s1), "'%s'", str);
   end= strend(str);
   string2decimal(str, &a, &end);
   res=decimal2bin(&a, buf, p, s);
@@ -2742,7 +2786,7 @@ void test_da(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' + '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' + '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2757,7 +2801,7 @@ void test_ds(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' - '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' - '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2772,7 +2816,7 @@ void test_dc(const char *s1, const char *s2, int orig)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' <=> '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' <=> '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2790,7 +2834,7 @@ void test_dm(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' * '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' * '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2805,7 +2849,7 @@ void test_dv(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' / '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' / '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2824,7 +2868,7 @@ void test_md(const char *s1, const char *s2, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' %% '%s'", s1, s2);
+  snprintf(s, sizeof(s), "'%s' %% '%s'", s1, s2);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   end= strend(s2);
@@ -2847,7 +2891,7 @@ void test_ro(const char *s1, int n, decimal_round_mode mode, const char *orig,
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s', %d, %s", s1, n, round_mode[mode]);
+  snprintf(s, sizeof(s), "'%s', %d, %s", s1, n, round_mode[mode]);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   res=decimal_round(&a, &b, n, mode);
@@ -2860,7 +2904,7 @@ void test_ro(const char *s1, int n, decimal_round_mode mode, const char *orig,
 void test_mx(int precision, int frac, const char *orig)
 {
   char s[100];
-  sprintf(s, "%d, %d", precision, frac);
+  snprintf(s, sizeof(s), "%d, %d", precision, frac);
   max_decimal(precision, frac, &a);
   printf("%-40s =>          ", s);
   print_decimal(&a, orig, 0, 0);
@@ -2876,8 +2920,9 @@ void test_pr(const char *s1, int prec, int dec, char filler, const char *orig,
   int slen= sizeof(s2);
   int res;
 
-  sprintf(s, filler ? "'%s', %d, %d, '%c'" : "'%s', %d, %d, '\\0'",
-          s1, prec, dec, filler);
+  snprintf(s, sizeof(s),
+           filler ? "'%s', %d, %d, '%c'" : "'%s', %d, %d, '\\0'",
+           s1, prec, dec, filler);
   end= strend(s1);
   string2decimal(s1, &a, &end);
   res= decimal2string(&a, s2, &slen, prec, dec, filler);
@@ -2896,7 +2941,7 @@ void test_sh(const char *s1, int shift, const char *orig, int ex)
 {
   char s[100], *end;
   int res;
-  sprintf(s, "'%s' %s %d", s1, ((shift < 0) ? ">>" : "<<"), abs(shift));
+  snprintf(s, sizeof(s), "'%s' %s %d", s1, ((shift < 0) ? ">>" : "<<"), abs(shift));
   end= strend(s1);
   string2decimal(s1, &a, &end);
   res= decimal_shift(&a, shift);
@@ -2909,7 +2954,7 @@ void test_sh(const char *s1, int shift, const char *orig, int ex)
 void test_fr(const char *s1, const char *orig)
 {
   char s[100], *end;
-  sprintf(s, "'%s'", s1);
+  snprintf(s, sizeof(s), "'%s'", s1);
   printf("%-40s =>          ", s);
   end= strend(s1);
   string2decimal(s1, &a, &end);

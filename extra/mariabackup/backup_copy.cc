@@ -1519,6 +1519,9 @@ ibx_copy_incremental_over_full()
 		    !(ret = backup_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir,
 						      "aria_log")) ||
+		    !(ret = backup_files_from_datadir(ds_data,
+						      xtrabackup_incremental_dir,
+						      "mariadb_upgrade_info")) ||
 		    !(ret = backup_mroonga_files_from_datadir(ds_data,
 						      xtrabackup_incremental_dir)))
 			goto cleanup;
@@ -1779,7 +1782,7 @@ copy_back()
 	if it exists. */
 
 	ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
-	if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
+	if (!(ret = copy_or_move_file(ds_tmp, "ib_logfile0", "ib_logfile0",
 				      dst_dir, 1))) {
 		goto cleanup;
 	}
@@ -1890,7 +1893,7 @@ copy_back()
 		}
 
 		/* skip the redo log (it was already copied) */
-		if (!strcmp(filename, LOG_FILE_NAME)) {
+		if (!strcmp(filename, "ib_logfile0")) {
 			continue;
 		}
 
@@ -1975,6 +1978,14 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
  	if (needs_action) {
 
 		msg(thread_n,"%s\n", message.str().c_str());
+
+                /* all valid *.qp files are table-name-safe */
+                for (const char *s=filepath; *s; s++)
+                  if (!isalnum(*s) && !strchr("-.@/_#", *s))
+                  {
+                    msg(thread_n,"Error: invalid file name\n");
+                    return(false);
+                  }
 
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);
@@ -2399,11 +2410,14 @@ void foreach_file_in_db_dirs(
 	datadir_node_free(&node);
 }
 
-void foreach_file_in_datadir(
+bool
+foreach_file_in_datadir(
 	const char *dir_path, std::function<bool(const char *)> func)
 {
 	DBUG_ASSERT(dir_path);
 	os_file_dir_t dir = os_file_opendir(dir_path);
+	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr))
+          return false;
 	os_file_stat_t info;
 	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {
 		if (info.type != OS_FILE_TYPE_FILE)
@@ -2415,4 +2429,5 @@ void foreach_file_in_datadir(
 			break;
 	}
 	os_file_closedir(dir);
+        return true;
 }

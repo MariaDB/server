@@ -241,3 +241,37 @@ CHECK TABLE t1;
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-38079 Crash recovery fails after ALTER TABLE…PAGE_COMPRESSED=1
+--echo #
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INSTANT;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-38928  Assertion undo_no <= 1 in reset_and_truncate_undo
+--echo #  during ALTER IGNORE on temporary table
+--echo #
+CREATE TEMPORARY TABLE t1 (f1 INT) ENGINE=INNODB;
+INSERT INTO t1 (f1) VALUES (0),(0);
+ALTER IGNORE TABLE t1 FORCE;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-38951 Assertion `0' upon ALTER IGNORE handling duplicate keys
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1), (1);
+ALTER IGNORE TABLE t1 ADD UNIQUE(f1);
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-38993 Assertion `trx->undo_no == 1' fails upon ALTER IGNORE
+--echo #
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(1),(2);
+ALTER IGNORE TABLE t ADD UNIQUE(a);
+DROP TABLE t;

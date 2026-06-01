@@ -5,7 +5,7 @@ if ($mysql_errno)
 {
   Skip No ODBC support;
 }
-if (!`SELECT count(*) FROM t1 WHERE Description='SQLite3 ODBC Driver'`)
+if (!`SELECT count(*) FROM t1 WHERE Description='SQLite3'`)
 {
   DROP TABLE t1;
   Skip Need SQLite3 ODBC Driver;

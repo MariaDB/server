@@ -5,6 +5,8 @@
 
 --source include/have_innodb.inc
 --source hashicorp_plugin.inc
+# Unixism - exec grep
+--source include/not_windows.inc
 
 --exec vault secrets disable bug1 > /dev/null
 --exec vault secrets disable good > /dev/null

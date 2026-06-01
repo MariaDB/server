@@ -125,7 +125,7 @@ void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf, /*!< in: buffer where to sprintf */
-	size_t size); /*!< in: size of buf, in bytes */
+	size_t	buf_size); /*!< in: size of the buffer */
 
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */

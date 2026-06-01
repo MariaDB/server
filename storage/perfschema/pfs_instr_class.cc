@@ -1591,6 +1591,30 @@ PFS_memory_class *sanitize_memory_class(PFS_memory_class *unsafe)
   SANITIZE_ARRAY_BODY(PFS_memory_class, memory_class_array, memory_class_max, unsafe);
 }
 
+
+#ifndef DBUG_OFF
+/*
+  Return the name of a MEM_ROOT for use from a debugger.
+  @param root the MEM_ROOT to identify (may be NULL)
+  @return the instrument name, or "<NULL>"
+*/
+extern "C"
+const char *dbug_print_memroot_name(MEM_ROOT *root)
+{
+  if (!root)
+    return "<NULL>";
+
+  if (root->psi_key != PSI_NOT_INSTRUMENTED)
+  {
+    PFS_memory_class *klass= find_memory_class(root->psi_key);
+    if (klass != NULL && klass->m_name[0])
+      return klass->m_name;
+  }
+
+  return "";
+}
+#endif
+
 PFS_instr_class *find_table_class(uint index)
 {
   if (index == 1)

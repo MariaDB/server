@@ -134,6 +134,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0, opt_update_history= 0,
                 opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0;
+static my_bool opt_galera_info= 0;
+
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -174,12 +176,11 @@ static uint opt_use_gtid;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int   first_error=0;
-/*
-  multi_source is 0 if old server or 2 if server that support multi source 
-  This is chosen this was as multi_source has 2 extra columns first in
-  SHOW ALL SLAVES STATUS.
+/**
+  `true` for 11.6 or above servers, `false` otherwise.
+  @deprecated This and its `false` branches are to be removed after 11.4's EOL.
 */
-static uint multi_source= 0;
+static bool have_info_schema_slave_status;
 static DYNAMIC_STRING extended_row;
 static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
@@ -626,6 +627,9 @@ static struct my_option my_long_options[] =
   {"default_auth", 0, "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"galera-info", 0, "Include galera info at the end of dump.",
+   &opt_galera_info, &opt_galera_info, 0, GET_BOOL,
+   NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -679,6 +683,7 @@ static inline int cmp_table(const char *a, const char *b)
   return my_strcasecmp_latin1(a, b);
 }
 
+static int dump_galera_info(MYSQL *mysql_con);
 
 /*
   Print the supplied message if in verbose mode
@@ -878,7 +883,7 @@ static void write_footer(FILE *sql_file)
     if (opt_dump_date)
     {
       char time_str[20];
-      get_date(time_str, GETDATE_DATE_TIME, 0);
+      get_date(time_str, sizeof(time_str), GETDATE_DATE_TIME, 0);
       print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
     }
     else
@@ -2817,7 +2822,7 @@ static uint dump_events_for_db(char *db)
                                           C_STRING_WITH_LEN(" EVENT"));
 
           fprintf(sql_file,
-                  "/*!50106 %s */ %s\n",
+                  "/*!50106 %s \n*/ %s\n",
                   (const char *) (query_str != NULL ? query_str : row[3]),
                   (const char *) delimiter);
 
@@ -3043,7 +3048,8 @@ static uint dump_routines_for_db(char *db)
 
             fprintf(sql_file,
                     "DELIMITER ;;\n"
-                    "%s ;;\n"
+                    "%s\n"
+                    ";;\n"
                     "DELIMITER ;\n",
                     (const char *) row[2]);
 
@@ -3420,13 +3426,13 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
             The actual column value doesn't matter anyway, since the view will
             be dropped at run time.
           */
-          fprintf(sql_file, " 1 AS %s",
+          fprintf(sql_file, " NULL AS %s",
                   quote_name(row[0], name_buff, 0));
 
           while((row= mysql_fetch_row(result)))
           {
             /* col name, col type */
-            fprintf(sql_file, ",\n  1 AS %s",
+            fprintf(sql_file, ",\n NULL AS %s",
                     quote_name(row[0], name_buff, 0));
           }
 
@@ -3981,7 +3987,7 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
                                     C_STRING_WITH_LEN(" TRIGGER"));
     fprintf(sql_file,
             "DELIMITER ;;\n"
-            "/*!50003 %s */;;\n"
+            "/*!50003 %s \n*/;;\n"
             "DELIMITER ;\n",
             (const char *) (query_str != NULL ? query_str : row[2]));
 
@@ -6364,7 +6370,8 @@ const char fmt_gtid_pos[]= "%sSET GLOBAL gtid_slave_pos='%s';\n";
 
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                                  int have_mariadb_gtid, int use_gtid,
-                                 char *set_gtid_pos, size_t set_gtid_pos_size)
+                                 char *set_gtid_pos,
+                                 size_t set_gtid_pos_size)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
@@ -6440,7 +6447,7 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                     "later in the file.\n");
     }
     snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
-            (!use_gtid ? "-- " : comment_prefix), gtid_pos);
+             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
 
   /* SHOW MASTER STATUS reports file and position */
@@ -6471,35 +6478,28 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
 static int do_stop_slave_sql(MYSQL *mysql_con)
 {
   MYSQL_ROW row;
-  DBUG_ASSERT(
-    !slave_status_res // do_stop_slave_sql() should only be called once
-  );
+  // do_stop_slave_sql() should only be called once
+  DBUG_ASSERT(!slave_status_res);
 
   if (mysql_query_with_error_report(mysql_con, &slave_status_res,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
+    have_info_schema_slave_status ?
+      "SELECT Connection_name FROM information_schema.SLAVE_STATUS"
+      // If the slave's SQL thread is not running, we don't stop (or start) it.
+      " WHERE Slave_SQL_Running <> 'No'" :
+      "SHOW ALL SLAVES STATUS"
+  ))
     return(1);
-
-  /* Loop over all slaves */
+  // Loop over all slaves
   while ((row= mysql_fetch_row(slave_status_res)))
   {
-    if (row[11 + multi_source])
+    if ((have_info_schema_slave_status ||
+        strcmp(row[/* Slave_SQL_Running */ 13], "No")))
     {
-      /* if SLAVE SQL is not running, we don't stop it */
-      if (strcmp(row[11 + multi_source], "No"))
-      {
-        char query[160];
-        if (multi_source)
-          snprintf(query, sizeof(query), "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
-        else
-          strmov(query, "STOP SLAVE SQL_THREAD");
-
-        if (mysql_query_with_error_report(mysql_con, 0, query))
-        {
-          return 1;
-        }
-      }
+      char query[25 + NAME_CHAR_LEN]; // sizeof(snprintf)
+        snprintf(query, sizeof(query), "STOP SLAVE '%.*s' SQL_THREAD",
+          NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+      if (mysql_query_with_error_report(mysql_con, nullptr, query))
+        return 1;
     }
   }
   return(0);
@@ -6510,10 +6510,7 @@ static int add_stop_slave(void)
   if (opt_comments)
     fprintf(md_result_file,
             "\n--\n-- stop slave statement to make a recovery dump)\n--\n\n");
-  if (multi_source)
-    fprintf(md_result_file, "STOP ALL SLAVES;\n");
-  else
-    fprintf(md_result_file, "STOP SLAVE;\n");
+  fprintf(md_result_file, "STOP ALL SLAVES;\n");
   return(0);
 }
 
@@ -6522,106 +6519,88 @@ static int add_slave_statements(void)
   if (opt_comments)
     fprintf(md_result_file,
             "\n--\n-- start slave statement to make a recovery dump)\n--\n\n");
-  if (multi_source)
-    fprintf(md_result_file, "START ALL SLAVES;\n");
-  else
-    fprintf(md_result_file, "START SLAVE;\n");
+  fprintf(md_result_file, "START ALL SLAVES;\n");
   return(0);
 }
 
-static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
-                                int use_gtid, char* set_gtid_pos,
+static int do_show_slave_status(MYSQL *mysql_con,
+                                int use_gtid, char *set_gtid_pos,
                                 size_t set_gtid_pos_size)
 {
-  MYSQL_RES *UNINIT_VAR(slave);
+  MYSQL_RES *slave;
   MYSQL_ROW row;
   const char *comment_prefix=
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
+  char gtid_pos[MAX_GTID_LENGTH];
 
-  if (mysql_query_with_error_report(mysql_con, &slave,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
+  if (have_info_schema_slave_status)
   {
-    if (!ignore_errors)
+    if (mysql_query_with_error_report(mysql_con, &slave,
+      "SELECT Connection_name, Master_Host, Master_Port, Relay_Master_Log_File,"
+      " Exec_Master_Log_Pos FROM information_schema.SLAVE_STATUS"
+    ))
     {
-      /* SHOW SLAVE STATUS reports nothing and --force is not enabled */
-      fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
-    }
-    mysql_free_result(slave);
-    return 1;
-  }
-
-  print_comment(md_result_file, 0,
-                "\n--\n-- The following is the SQL position of the replication "
-                "taken from SHOW SLAVE STATUS at the time of backup.\n"
-                "-- Use this position when creating a clone of, or replacement "
-                "server, from where the backup was taken."
-                "\n-- This new server will connects to the same primary "
-                "server%s.\n--\n",
-                multi_source ? "(s)" : "");
-
-  if (multi_source)
-  {
-    char gtid_pos[MAX_GTID_LENGTH];
-    if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
-    {
+      if (!ignore_errors)
+        // Query fails and --force is not enabled
+        fprintf(stderr, "%s: Error: Slave not set up\n", my_progname_short);
       mysql_free_result(slave);
       return 1;
     }
-    /* defer print similarly to do_show_master_status */
-    print_comment(md_result_file, 0,
-                  "\n-- A corresponding to the below dump-slave "
-                  "CHANGE-MASTER settings to the slave gtid state is printed "
-                  "later in the file.\n");
-    snprintf(set_gtid_pos, set_gtid_pos_size,
-             fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
   }
+  else
+  {
+    // Reuse the SHOW ALL SLAVES STATUS results from do_stop_slave_sql()
+    mysql_data_seek(slave_status_res, 0);
+    slave= slave_status_res;
+  }
+
+  if (get_gtid_pos(gtid_pos, false))
+  {
+    mysql_free_result(slave);
+    return 1;
+  }
+  snprintf(set_gtid_pos, set_gtid_pos_size,
+           fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
+
+  print_comment(md_result_file, 0,
+    "\n-- The following is the replication SQL position "
+      "taken from SHOW SLAVE STATUS at the time of backup.\n"
+    "-- Use this position when creating a clone or replacement "
+      "server from where the backup was taken."
+    "\n-- This new server will connects to the same primary server(s).\n--\n"
+    // defer print similarly to do_show_master_status()
+      "-- The replica GTID position corresponding to the below "
+        "CHANGE-MASTER settings is printed later in the file.\n"
+  );
   if (use_gtid)
     print_comment(md_result_file, 0,
-                  "\n-- Use only the MASTER_USE_GTID=slave_pos or "
+                  "-- Use only the MASTER_USE_GTID=slave_pos or "
                   "MASTER_LOG_FILE/MASTER_LOG_POS in the statements below."
                   "\n\n");
 
   while ((row= mysql_fetch_row(slave)))
   {
-    if (row[9 + multi_source] && row[21 + multi_source])
-    {
-      if (use_gtid)
-      {
-        if (multi_source)
-          fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO "
-                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix, row[0]);
-        else
-          fprintf(md_result_file, "%sCHANGE MASTER TO "
-                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix);
-      }
-
-      /* SHOW MASTER STATUS reports file and position */
-      if (multi_source)
-        fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
-                nogtid_comment_prefix, row[0]);
-      else
-        fprintf(md_result_file, "%sCHANGE MASTER TO ", nogtid_comment_prefix);
-      
-      if (opt_include_master_host_port)
-      {
-        if (row[1 + multi_source])
-          fprintf(md_result_file, "MASTER_HOST='%s', ", row[1 + multi_source]);
-        if (row[3])
-          fprintf(md_result_file, "MASTER_PORT=%s, ", row[3 + multi_source]);
-      }
+    if (use_gtid)
       fprintf(md_result_file,
-              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
-              row[9 + multi_source], row[21 + multi_source]);
-
-      check_io(md_result_file);
-    }
+        "%sCHANGE MASTER '%.*s' TO MASTER_USE_GTID=slave_pos;\n",
+        gtid_comment_prefix, NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+    fprintf(md_result_file, "%sCHANGE MASTER '%.*s' TO ",
+      nogtid_comment_prefix, NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+    if (opt_include_master_host_port)
+      fprintf(md_result_file, "MASTER_HOST='%s', MASTER_PORT=%s, ",
+        row[have_info_schema_slave_status ? 1 : /* Master_Host */ 3],
+        row[have_info_schema_slave_status ? 2 : /* Master_Port */ 5]);
+    fprintf(md_result_file, "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
+      row[have_info_schema_slave_status ? 3 : /* Relay_Master_Log_File */ 11],
+      row[have_info_schema_slave_status ? 4 : /*  Exec_Master_Log_Pos  */ 23]);
+    check_io(md_result_file);
   }
+
+  if (have_info_schema_slave_status)
+    mysql_free_result(slave);
   fprintf(md_result_file, "\n");
-  mysql_free_result(slave);
   return 0;
 }
 
@@ -6638,33 +6617,23 @@ static int do_start_slave_sql(MYSQL *mysql_con)
   if (!slave_status_res)
     DBUG_RETURN(error);
   mysql_data_seek(slave_status_res, 0);
-
+  /*
+    If SLAVE_SQL was not running but is now,
+    we start it anyway to warn the unexpected state change.
+  */
   while ((row= mysql_fetch_row(slave_status_res)))
   {
-    DBUG_PRINT("info", ("Connection: '%s'  status: '%s'",
-                        multi_source ? row[0] : "", row[11 + multi_source]));
-    if (row[11 + multi_source])
+    char query[26 + NAME_CHAR_LEN]; // sizeof(snprintf)
+    snprintf(query, sizeof(query),
+                   "START SLAVE '%.*s' SQL_THREAD",
+            NAME_CHAR_LEN, row[/* Connection_name */ 0]);
+    if ((have_info_schema_slave_status ||
+         strcmp(row[/* Slave_SQL_Running */ 13], "No")
+        ) && mysql_query_with_error_report(mysql_con, nullptr, query))
     {
-      /*
-        If SLAVE_SQL was not running but is now,
-        we start it anyway to warn the unexpected state change.
-      */
-      if (strcmp(row[11 + multi_source], "No"))
-      {
-        char query[160];
-        if (multi_source)
-          snprintf(query, sizeof(query),
-                   "START SLAVE '%.80s' SQL_THREAD", row[0]);
-        else
-          strmov(query, "START SLAVE SQL_THREAD");
-
-        if (mysql_query_with_error_report(mysql_con, 0, query))
-        {
-          fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
-                  my_progname_short, multi_source ? row[0] : "");
-          error= 1;
-        }
-      }
+      fprintf(stderr, "%s: Error: Unable to start slave '%s'\n",
+              my_progname_short, row[0]);
+      error= 1;
     }
   }
   DBUG_RETURN(error);
@@ -7687,9 +7656,10 @@ int main(int argc, char **argv)
     init_connection_pool(opt_parallel);
 
   /* Check if the server support multi source */
-  if (mysql_get_server_version(mysql) >= 100000)
+  unsigned long server_version= mysql_get_server_version(mysql);
+  if (server_version >= 100000)
   {
-    multi_source= 2;
+    have_info_schema_slave_status= server_version >= 110600;
     have_mariadb_gtid= 1;
   }
 
@@ -7753,12 +7723,13 @@ int main(int argc, char **argv)
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
                                                have_mariadb_gtid,
-                                               opt_use_gtid, master_set_gtid_pos,
+                                               opt_use_gtid,
+                                               master_set_gtid_pos,
                                                sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
-                                             have_mariadb_gtid,
-                                             opt_use_gtid, slave_set_gtid_pos,
+                                             opt_use_gtid,
+                                             slave_set_gtid_pos,
                                              sizeof(slave_set_gtid_pos)))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
@@ -7847,6 +7818,8 @@ int main(int argc, char **argv)
   if (opt_slave_data && slave_set_gtid_pos[0])
     do_print_set_gtid_slave_pos(slave_set_gtid_pos, FALSE);
 
+  if (opt_galera_info && dump_galera_info(mysql)) goto err;
+
   /* add 'START SLAVE' to end of dump */
   if (opt_slave_apply && add_slave_statements())
     goto err;
@@ -7886,3 +7859,46 @@ err:
 
   return(first_error);
 } /* main */
+
+static int dump_galera_info(MYSQL *mysql_con)
+{
+  MYSQL_RES *wsrep_on_res;
+  MYSQL_ROW wsrep_on_row;
+  my_bool wsrep_on = FALSE;
+  char *wsrep_on_val = NULL;
+
+  // Galera information exists only if this node is part of cluster
+  if (mysql_query_with_error_report(mysql_con, &wsrep_on_res,
+                                    "SHOW VARIABLES LIKE 'wsrep_on'"))
+    return 1;
+
+  wsrep_on_row = mysql_fetch_row(wsrep_on_res);
+  wsrep_on_val = wsrep_on_row ? (char *)wsrep_on_row[1] : NULL;
+  wsrep_on = (wsrep_on_val && strcmp(wsrep_on_val, "OFF")) ? TRUE : FALSE;
+  mysql_free_result(wsrep_on_res);
+
+  if (wsrep_on)
+  {
+    MYSQL_RES *wsrep_checkpoint_res;
+    MYSQL_ROW wsrep_checkpoint_row;
+    char *wsrep_checkpoint_val = NULL;
+
+    if (mysql_query_with_error_report(mysql_con, &wsrep_checkpoint_res,
+                                      "SHOW STATUS LIKE 'wsrep_checkpoint_position'"))
+      return 1;
+
+    wsrep_checkpoint_row = mysql_fetch_row(wsrep_checkpoint_res);
+    wsrep_checkpoint_val = wsrep_checkpoint_row ? (char *)wsrep_checkpoint_row[1] : NULL;
+
+    if (wsrep_checkpoint_val)
+    {
+      fprintf(md_result_file,
+              "SET GLOBAL wsrep_start_position = '%s';\n",
+              wsrep_checkpoint_val);
+
+    }
+    mysql_free_result(wsrep_checkpoint_res);
+  }
+
+  return 0;
+}

@@ -507,33 +507,33 @@ ER_CANT_SET_WD
         swe "Kan inte byta till '%-.192s' (Felkod: %iE)"
         ukr "Не можу перейти у теку '%-.192s' (помилка: %iE)"
 ER_CHECKREAD  
-        chi "这个表自上次读后数据有变化'%-.192s'"
+        chi "这个表自上次读后数据有变化'%-.192s';尝试重新启动事务"
         cze "Záznam byl změněn od posledního čtení v tabulce '%-.192s'"
-        dan "Posten er ændret siden sidste læsning '%-.192s'"
-        eng "Record has changed since last read in table '%-.192s'"
-        est "Kirje tabelis '%-.192s' on muutunud viimasest lugemisest saadik"
-        fre "Enregistrement modifié depuis sa dernière lecture dans la table '%-.192s'"
-        ger "Datensatz hat sich seit dem letzten Zugriff auf Tabelle '%-.192s' geändert"
-        geo "ცხრილში '%-.192s' ჩანაწერი შეიცვალა ბოლო წაკითხვის შემდეგ"
+        dan "Posten er ændret siden sidste læsning '%-.192s'; Prøv at genstarte transaktionen"
+        eng "Record has changed since last read in table '%-.192s'; try restarting transaction"
+        est "Kirje tabelis '%-.192s' on muutunud viimasest lugemisest saadik; alusta transaktsiooni otsast"
+        fre "Enregistrement modifié depuis sa dernière lecture dans la table '%-.192s' : essayez de redémarrer la transaction"
+        ger "Datensatz hat sich seit dem letzten Zugriff auf Tabelle '%-.192s' geändert. Versuchen Sie, die Transaktion neu zu starten"
+        geo "ცხრილში '%-.192s' ჩანაწერი შეიცვალა ბოლო წაკითხვის შემდეგ. სცადეთ, ტრანზაქცია თავიდან გაუშვათ"
         greek "Η εγγραφή έχει αλλάξει από την τελευταία φορά που ανασύρθηκε από τον πίνακα '%-.192s'"
         hindi "रिकॉर्ड टेबल '%-.192s' पिछली बार पढ़े जाने के बाद से बदल गया है"
         hun "A(z) '%-.192s' tablaban talalhato rekord megvaltozott az utolso olvasas ota"
-        ita "Il record e` cambiato dall'ultima lettura della tabella '%-.192s'"
-        jpn "表 '%-.192s' の最後の読み込み時点から、レコードが変化しました。"
+        ita "Il record e` cambiato dall'ultima lettura della tabella '%-.192s'; Provare a far ripartire la transazione"
+        jpn "表 '%-.192s' の最後の読み込み時点から、レコードが変化しました。トランザクションを再試行してください。"
         kor "테이블 '%-.192s'에서 마지막으로 읽은 후 Record가 변경되었습니다."
-        nla "Record is veranderd sinds de laatste lees activiteit in de tabel '%-.192s'"
+        nla "Record is veranderd sinds de laatste lees activiteit in de tabel '%-.192s'; Probeer herstart van de transactie"
         nor "Posten har blitt endret siden den ble lest '%-.192s'"
-        norwegian-ny "Posten har vorte endra sidan den sist vart lesen '%-.192s'"
+        norwegian-ny "Posten har vorte endra sidan den sist vart lesen '%-.192s'; Prøv å starte transaksjonen på nytt"
         pol "Rekord został zmieniony od ostaniego odczytania z tabeli '%-.192s'"
-        por "Registro alterado desde a última leitura da tabela '%-.192s'"
+        por "Registro alterado desde a última leitura da tabela '%-.192s'. Tente reiniciar a transação"
         rum "Cimpul a fost schimbat de la ultima citire a tabelei '%-.192s'"
-        rus "Запись изменилась с момента последней выборки в таблице '%-.192s'"
-        serbian "Slog je promenjen od zadnjeg čitanja tabele '%-.192s'"
+        rus "Запись изменилась с момента последней выборки в таблице '%-.192s'; Попробуйте перезапустить транзакцию"
+        serbian "Slog je promenjen od zadnjeg čitanja tabele '%-.192s'; Probajte da restartujete transakciju"
         slo "Záznam bol zmenený od posledného čítania v tabuľke '%-.192s'"
-        spa "El registro ha cambiado desde la ultima lectura de la tabla '%-.192s'"
-        sw "Rekodi imebadilika tangu kusomeka mara ya mwisho kwenye jedwali '%-.192s'"
-        swe "Posten har förändrats sedan den lästes i register '%-.192s'"
-        ukr "Запис було змінено з часу останнього читання з таблиці '%-.192s'"
+        spa "El registro ha cambiado desde la ultima lectura de la tabla '%-.192s'; intente volver a comenzar la transacción"
+        swe "Posten har förändrats sedan den lästes i register '%-.192s'. Försök att starta om transaktionen"
+        sw "Rekodi imebadilika tangu kusomeka mara ya mwisho kwenye jedwali '%-.192s'; jaribu kuanzisha upya muamala"
+        ukr "Запис було змінено з часу останнього читання з таблиці '%-.192s'; спробуйте перезапустити транзакцію."
 ER_DISK_FULL
         chi "磁盘已满(%s);等待释放一些空间...（错误号码：%iE）"
         cze "Disk je plný (%s), čekám na uvolnění nějakého místa ... (chybový kód: %iE)"
@@ -12388,3 +12388,21 @@ ER_SLAVE_INCOMPATIBLE_TABLE_DEF
         eng "Table structure for binlog event is not compatible with the table definition on this slave: %s"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_CANT_CREATE_TMP_ALTER_TABLE
+        eng "Can't create temporary table for ALTER TABLE %sQ.%sQ (errno: %iE)"
+ER_CANNOT_CAST_ON_IDENT1_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ for operation %s"
+ER_CANNOT_CAST_ON_IDENT2_ASSIGNMENT_FOR_OPERATION
+        eng "Cannot cast '%s' as '%s' in assignment of %sQ.%sQ for operation %s"
+ER_WARN_AMBIGUOUS_QB_NAME
+	eng "Query block name %s is ambiguous for %s hint"
+ER_WARN_IMPLICIT_QB_NAME_FOR_UNION
+	eng "Implicit query block name %s is not supported for derived tables and views with UNION/EXCEPT/INTERSECT and is ignored for %s hint"
+ER_WARN_QB_NAME_PATH_INVALID_SELECT
+        eng "Hint %s is ignored. Element #%u of the path contains invalid select number (expected: @SEL_1, @SEL_2, ...)."
+ER_WARN_QB_NAME_PATH_SELECT_NOT_FOUND
+        eng "Hint %s is ignored. SEL_%u required at element #%u of the path is not found in the target query block."
+ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
+        eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
+ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
+        eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."

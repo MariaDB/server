@@ -61,10 +61,10 @@ f1	f2
 DROP TABLE t1;
 connection node_1;
 CALL mtr.add_suppression("Replica SQL: Column 1 of table 'test.t1' cannot be converted from type 'longblob' to type 'blob', Error_code: MY-013146");
-CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 3, seqno");
+call mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed: 1, seqno 5");
 connection node_2;
 CALL mtr.add_suppression("Replica SQL: Column 1 of table 'test.t1' cannot be converted from type 'longblob' to type 'blob', Error_code: MY-013146");
-CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 3, seqno");
+call mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed: 1, seqno 5");
 connection node_3;
 CALL mtr.add_suppression("Vote 0 \\(success\\) on (.*) is inconsistent with group. Leaving cluster.");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");

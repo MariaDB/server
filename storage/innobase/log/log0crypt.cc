@@ -375,11 +375,13 @@ constexpr size_t LOG_CHECKPOINT_CRYPT_NONCE= 36;
 constexpr size_t LOG_CHECKPOINT_CRYPT_MESSAGE= 40;
 
 /** Add the encryption information to the log header buffer.
-@param buf   part of log header buffer */
-void log_crypt_write_header(byte *buf)
+@param buf      part of log header buffer
+@param archive  the expected value of innodb_log_archive */
+void log_crypt_write_header(byte *buf, bool archive) noexcept
 {
   ut_ad(info.key_version);
-  mach_write_to_4(my_assume_aligned<4>(buf), LOG_DEFAULT_ENCRYPTION_KEY);
+  static_assert(LOG_DEFAULT_ENCRYPTION_KEY == 1, "compatibility");
+  mach_write_to_4(my_assume_aligned<4>(buf), !archive);
   mach_write_to_4(my_assume_aligned<4>(buf + 4), info.key_version);
   memcpy_aligned<8>(buf + 8, info.crypt_msg, MY_AES_BLOCK_SIZE);
   static_assert(MY_AES_BLOCK_SIZE == 16, "compatibility");
@@ -388,13 +390,14 @@ void log_crypt_write_header(byte *buf)
 
 /** Read the encryption information from a log header buffer.
 @param buf   part of log header buffer
+@param archive  the expected value of innodb_log_archive
 @return whether the operation was successful */
-bool log_crypt_read_header(const byte *buf)
+bool log_crypt_read_header(const byte *buf, bool archive) noexcept
 {
   MEM_UNDEFINED(&info.checkpoint_no, sizeof info.checkpoint_no);
   MEM_NOACCESS(&info.checkpoint_no, sizeof info.checkpoint_no);
-  if (mach_read_from_4(my_assume_aligned<4>(buf)) !=
-      LOG_DEFAULT_ENCRYPTION_KEY)
+  static_assert(LOG_DEFAULT_ENCRYPTION_KEY == 1, "compatibility");
+  if (mach_read_from_4(my_assume_aligned<4>(buf)) != !archive)
     return false;
   info.key_version= mach_read_from_4(my_assume_aligned<4>(buf + 4));
   memcpy_aligned<8>(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);

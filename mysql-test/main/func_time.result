@@ -3741,9 +3741,7 @@ SELECT DATE_FORMAT('2001-01-01','%Y',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable);
 DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable)
-2001
-Warnings:
-Warning	1649	Unknown locale: 'NULL'
+NULL
 CREATE TABLE t1 AS SELECT
 DATE_FORMAT('2001-01-01',NULL) AS c0,
 DATE_FORMAT('2001-01-01','10') AS c1,

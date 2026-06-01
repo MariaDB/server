@@ -617,4 +617,17 @@ select * from t1;
 drop table t1;
 set sql_mode=default;
 
+--echo #
+--echo # MDEV-39043 ENUM can be set to empty string by giving an index value as string "0"
+--echo #
+set sql_mode=STRICT_ALL_TABLES;
+create table t1 (a enum('Value1', 'Value2') NOT NULL DEFAULT 'Value1');
+--error WARN_DATA_TRUNCATED
+insert into t1 values ('0');
+--error WARN_DATA_TRUNCATED
+insert into t1 values (0);
+select * from t1;
+drop table t1;
+set sql_mode=default;
+
 --echo # End of 10.11 tests

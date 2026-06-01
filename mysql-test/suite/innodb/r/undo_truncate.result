@@ -1,5 +1,5 @@
 SET GLOBAL innodb_fast_shutdown=0;
-# restart: --innodb_undo_tablespaces=2
+# restart: --innodb_undo_tablespaces=2 --innodb-log-recovery-start=0
 SET GLOBAL innodb_undo_log_truncate = 0;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
@@ -39,5 +39,5 @@ SET GLOBAL innodb_max_purge_lag_wait=0;
 SET GLOBAL innodb_max_undo_log_size=DEFAULT;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
-# restart
+# restart: --innodb-log-recovery-start=0
 drop table t1, t2;

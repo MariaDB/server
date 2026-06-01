@@ -28,6 +28,12 @@
 
 static void init_master_log_pos(Master_info* mi);
 
+static void init_ssl_config(Master_info* mi);
+
+static void init_connection_config(Master_info* mi);
+
+static void init_group_counters(Master_info* mi);
+
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery):
    Master_info_file(ignore_server_ids, domain_id_filter.m_domain_ids[0],
@@ -49,6 +55,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   char *tmp;
   port= MYSQL_PORT;
   host[0] = 0; user[0] = 0; password[0] = 0;
+  master_log_pos = 0;
+  master_log_name[0] = 0;
 
   /*
     Store connection name and lower case connection name
@@ -184,8 +192,46 @@ void Master_info::clear_in_memory_info(bool all)
     host[0] = 0; user[0] = 0; password[0] = 0;
     domain_id_filter.clear_ids();
     reset_dynamic(&ignore_server_ids);
+    init_ssl_config(this);
+    init_connection_config(this);
+    init_group_counters(this);
   }
 }
+
+
+void init_ssl_config(Master_info* mi)
+{
+  DBUG_ENTER("init_ssl_config");
+  mi->master_ssl= 1;
+  mi->master_ssl_verify_server_cert= 0;
+  mi->master_ssl_ca= nullptr; mi->master_ssl_capath= nullptr; mi->master_ssl_cert= nullptr;
+  mi->master_ssl_cipher= nullptr; mi->master_ssl_key= nullptr; mi->master_ssl_crl= nullptr;
+  mi->master_ssl_crlpath= nullptr;
+  DBUG_VOID_RETURN;
+}
+
+
+void init_group_counters(Master_info* mi)
+{
+  DBUG_ENTER("init_group_counters");
+  mi->total_ddl_groups= 0;
+  mi->total_non_trans_groups= 0;
+  mi->total_trans_groups= 0;
+  DBUG_VOID_RETURN;
+}
+
+
+void init_connection_config(Master_info* mi)
+{
+  DBUG_ENTER("init_connection_config");
+  mi->connect_retry.set_default();
+  mi->retry_count.set_default();
+  mi->master_id= 0;
+  mi->prev_master_id= 0;
+  mi->received_heartbeats= 0;
+  DBUG_VOID_RETURN;
+}
+
 
 void init_master_log_pos(Master_info* mi)
 {
@@ -1520,17 +1566,17 @@ static size_t store_ids(DYNAMIC_ARRAY *ids, char *buff, size_t buff_len)
     ulong id, len;
     char dbuff[FN_REFLEN];
     get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
+    len= snprintf(dbuff, sizeof(dbuff), (i == 0 ? "%lu" : ", %lu"), id);
     if (cur_len + len + 4 > buff_len)
     {
       /*
         break the loop whenever remained space could not fit
         ellipses on the next cycle
       */
-      cur_len+= sprintf(dbuff + cur_len, "...");
+      cur_len+= snprintf(dbuff + cur_len, sizeof(dbuff) - cur_len, "...");
       break;
     }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+    cur_len+= snprintf(buff + cur_len, sizeof(dbuff) - cur_len, "%s", dbuff);
   }
   return cur_len;
 }
@@ -1609,8 +1655,17 @@ void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
                   mi->master_ssl_capath, mi->master_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->master_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->master_ssl_crlpath);
+    /*
+      mysql_options() expects a pointer to my_bool. master_ssl_verify_server_cert
+      is a trilean that can be -1 (default), 0 (no), or 1 (yes). When the default
+      value is used, the bool() conversion operator redirects to the global option
+      ::master_ssl_verify_server_cert. We must use this conversion rather than
+      passing a pointer directly, as (my_bool*)&trilean would not handle the
+      default case correctly.
+    */
+    bool ssl_verify_server_cert= mi->master_ssl_verify_server_cert;
     mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->master_ssl_verify_server_cert);
+                  &ssl_verify_server_cert);
   }
   else
 #endif

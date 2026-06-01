@@ -6,7 +6,7 @@
 --source include/have_wsrep.inc
 --source include/have_innodb.inc
 
---let $galera_version=26.4.14
+--let $galera_version=26.4.26
 source include/check_galera_version.inc;
 
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;

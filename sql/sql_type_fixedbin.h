@@ -1243,9 +1243,14 @@ public:
     const Record_addr tmp(NULL, Bit_addr(true));
     return new (table->in_use->mem_root) Field_fbt(&empty_clex_str, tmp);
   }
-  // Fix attributes after the parser
-  bool Column_definition_fix_attributes(Column_definition *c) const override
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *c,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                        const override
   {
+    if (Type_handler::Column_definition_set_attributes(thd, c, attr, type))
+      return true;
     c->length= FbtImpl::max_char_length();
     return false;
   }
@@ -1943,6 +1948,17 @@ public:
   {
     static Type_handler_fbt th;
     return &th;
+  }
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (this != src_th)
+      return false;
+    DBUG_ASSERT(dst_std_attr.max_length == src_std_attr.max_length);
+    return true;
   }
 };
 

@@ -4272,7 +4272,7 @@ SET SESSION JOIN_cache_level=4;
 SET SESSION optimizer_switch='optimize_JOIN_buffer_size=OFF';
 --error ER_OUTOFMEMORY
 SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
-SET JOIN_buffer_size=16384;
+SET JOIN_buffer_size=32768;
 --disable_result_log
 SELECT * FROM information_schema.statistics JOIN information_schema.COLUMNS USING (table_name,column_name);
 --enable_result_log

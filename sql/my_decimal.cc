@@ -345,34 +345,28 @@ void my_decimal_trim(ulonglong *precision, decimal_digits_t *scale)
   Convert a decimal to an ulong with a descriptive error message
 */
 
-int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
+int my_decimal2int(uint mask, const decimal_t *d, bool is_unsigned,
 		   longlong *l, decimal_round_mode round_type)
 {
   int res;
-  my_decimal rounded;
-  /* decimal_round can return only E_DEC_TRUNCATED */
-  decimal_round(d, &rounded, 0, round_type);
-  res= (unsigned_flag ?
-        decimal2ulonglong(&rounded, (ulonglong *) l) :
-        decimal2longlong(&rounded, l));
+  res= is_unsigned ? decimal2ulonglong(d, (ulonglong *) l, round_type)
+                   : decimal2longlong(d, l, round_type);
   if (res & mask)
   {
     char buff[DECIMAL_MAX_STR_LENGTH];
     int length= sizeof(buff);
     decimal2string(d, buff, &length, 0, 0, 0);
 
-    decimal_operation_results(res, buff,
-                              unsigned_flag ? "UNSIGNED INT" :
-                              "INT");
+    decimal_operation_results(res, buff, is_unsigned ? "UNSIGNED INT" : "INT");
   }
   return res;
 }
 
 
-longlong my_decimal::to_longlong(bool unsigned_flag) const
+longlong my_decimal::to_longlong(bool is_unsigned) const
 {
   longlong result;
-  my_decimal2int(E_DEC_FATAL_ERROR, this, unsigned_flag, &result);
+  my_decimal2int(E_DEC_FATAL_ERROR, this, is_unsigned, &result);
   return result;
 }
 
@@ -397,14 +391,16 @@ void
 print_decimal(const my_decimal *dec)
 {
   int i, end;
-  char buff[512], *pos;
+  char buff[512], *pos, *buf_end;
   pos= buff;
-  pos+= sprintf(buff, "Decimal: sign: %d  intg: %d  frac: %d  { ",
-                dec->sign(), dec->intg, dec->frac);
+  buf_end= buff + sizeof(buff);
+  pos+= snprintf(buff, sizeof(buff),
+                 "Decimal: sign: %d  intg: %d  frac: %d  { ",
+                 dec->sign(), dec->intg, dec->frac);
   end= ROUND_UP(dec->frac)+ROUND_UP(dec->intg)-1;
   for (i=0; i < end; i++)
-    pos+= sprintf(pos, "%09d, ", dec->buf[i]);
-  pos+= sprintf(pos, "%09d }\n", dec->buf[i]);
+    pos+= snprintf(pos, buf_end - pos, "%09d, ", dec->buf[i]);
+  pos+= snprintf(pos, buf_end - pos, "%09d }\n", dec->buf[i]);
   fputs(buff, DBUG_FILE);
 }
 

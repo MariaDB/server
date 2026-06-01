@@ -926,7 +926,7 @@ class Year
 protected:
   uint m_year;
   bool m_truncated;
-  uint year_precision(const Item *item) const;
+  static uint year_precision(const Item *item);
 public:
   Year(): m_year(0), m_truncated(false) { }
   Year(longlong value, bool unsigned_flag, uint length);
@@ -3419,8 +3419,9 @@ public:
   void aggregate_attributes_int(Item **items, uint nitems)
   {
     collation= DTCollation_numeric();
-    fix_char_length(find_max_char_length(items, nitems));
     unsigned_flag= count_unsigned(items, nitems) > 0;
+    fix_char_length(find_max_decimal_int_part(items, nitems) +
+                    (unsigned_flag ? 0 : 1));
     decimals= 0;
   }
   void aggregate_attributes_real(Item **items, uint nitems)
@@ -3546,6 +3547,14 @@ public:
 };
 
 
+class Type_generic_attributes
+{
+public:
+  virtual ~Type_generic_attributes() { }
+  virtual const Type_handler *type_handler() const = 0;
+};
+
+
 /*
   A container for very specific data type attributes.
   For now it provides space for:
@@ -3554,29 +3563,30 @@ public:
 */
 class Type_extra_attributes
 {
-  const void *m_attr_const_void_ptr[1];
+  const Type_generic_attributes *m_attr_const_generic_attributes_ptr[1];
   uint32 m_attr_uint32[1];
 public:
   Type_extra_attributes()
-   :m_attr_const_void_ptr{0},
+   :m_attr_const_generic_attributes_ptr{0},
     m_attr_uint32{0}
   { }
-  Type_extra_attributes(const void *const_void_ptr)
-   :m_attr_const_void_ptr{const_void_ptr},
+  Type_extra_attributes(const Type_generic_attributes *ptr)
+   :m_attr_const_generic_attributes_ptr{ptr},
     m_attr_uint32{0}
   { }
   /*
     Generic const pointer attributes.
     The ENUM and SET data types store TYPELIB information here.
   */
-  Type_extra_attributes & set_attr_const_void_ptr(uint i, const void *value)
+  Type_extra_attributes & set_attr_const_generic_ptr(uint i,
+                                          const Type_generic_attributes *value)
   {
-    m_attr_const_void_ptr[i]= value;
+    m_attr_const_generic_attributes_ptr[i]= value;
     return *this;
   }
-  const void *get_attr_const_void_ptr(uint i) const
+  const Type_generic_attributes *get_attr_const_generic_ptr(uint i) const
   {
-    return m_attr_const_void_ptr[i];
+    return m_attr_const_generic_attributes_ptr[i];
   }
   /*
     Generic uint32 attributes.
@@ -3591,49 +3601,57 @@ public:
   {
     return m_attr_uint32[i];
   }
-  /*
-    Helper methods for TYPELIB attributes.
-    They are mostly needed to simplify the code
-    in Column_definition_attributes and Column_definition methods.
-    Eventually we should move this code into Type_typelib_attributes
-    and remove these methods.
-  */
-  Type_extra_attributes & set_typelib(const TYPELIB *typelib)
+};
+
+
+class Type_typelib_attributes: public Sql_alloc,
+                               public Type_generic_attributes,
+                               public TYPELIB
+{
+public:
+  Type_typelib_attributes()
+   :TYPELIB{0, nullptr, nullptr, nullptr, nullptr}
+  { }
+  Type_typelib_attributes(const TYPELIB &typelib)
+   :TYPELIB(typelib)
+  { }
+  const Type_handler *type_handler() const override;
+  Type_typelib_attributes *deep_copy(MEM_ROOT *root) const
   {
-    return set_attr_const_void_ptr(0, typelib);
-  }
-  const TYPELIB *typelib() const
-  {
-    return (const TYPELIB*) get_attr_const_void_ptr(0);
+    TYPELIB *typelib= copy_typelib(root, this);
+    if (!typelib)
+      return nullptr;
+    return new (root) Type_typelib_attributes(*typelib);
   }
 };
 
 
-class Type_typelib_attributes
+class Type_typelib_ptr_attributes
 {
 protected:
-  const TYPELIB *m_typelib;
+  const Type_typelib_attributes *m_typelib_attr;
 public:
-  Type_typelib_attributes()
-   :m_typelib(nullptr)
+  Type_typelib_ptr_attributes()
+   :m_typelib_attr(nullptr)
   { }
-  Type_typelib_attributes(const TYPELIB *typelib)
-   :m_typelib(typelib)
+  Type_typelib_ptr_attributes(const Type_typelib_attributes *typelib)
+   :m_typelib_attr(typelib)
   { }
-  Type_typelib_attributes(const Type_extra_attributes &eattr)
-   :m_typelib((const TYPELIB *) eattr.get_attr_const_void_ptr(0))
+  Type_typelib_ptr_attributes(const Type_extra_attributes &eattr)
+   :m_typelib_attr(dynamic_cast<const Type_typelib_attributes *>
+                     (eattr.get_attr_const_generic_ptr(0)))
   { }
-  void store(Type_extra_attributes *to) const
+  void save_in_type_extra_attributes(Type_extra_attributes *to) const
   {
-    to->set_attr_const_void_ptr(0, m_typelib);
+    to->set_attr_const_generic_ptr(0, m_typelib_attr);
+  }
+  const Type_typelib_attributes *typelib_attr() const
+  {
+    return m_typelib_attr;
   }
   const TYPELIB *typelib() const
   {
-    return m_typelib;
-  }
-  void set_typelib(const TYPELIB *typelib)
-  {
-    m_typelib= typelib;
+    return m_typelib_attr;
   }
 };
 
@@ -3997,6 +4015,20 @@ public:
 
   void set_name(Name n) { DBUG_ASSERT(!m_name.ptr()); m_name= n; }
   const Name name() const { return m_name; }
+
+  /*
+    Check if the data type supports attributes (coming from the parser)
+    @param name           - requested name, e.g. as in TYPE (typedef)
+    @param length_and_dec - length and scale
+    @param coll           - character set and/or collation
+    @param srid           - SRID (spatial attribute)
+    @return true          - on error, SQL error is also raised to DA
+    @return false         - on success
+  */
+  bool check_data_type_attributes(const LEX_CSTRING &name,
+                              const Lex_length_and_dec_st &length_and_dec,
+                              const Lex_column_charset_collation_attrs_st &coll,
+                              uint32 srid) const;
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }
@@ -4202,6 +4234,15 @@ public:
                                             CHARSET_INFO *cs) const
   { return this; }
   /*
+    Resolve data type references in variable declarations:
+      var1 t1.col1%TYPE;
+      var2 ROW(a t1.col1%TYPE, b t1.col2.TYPE);
+    and in TYPE declarations:
+      TYPE rec0_t (a t1.col1%TYPE, b t1.col2.TYPE);
+  */
+  virtual bool Spvar_definition_resolve_type_refs(THD *thd,
+                                                  Spvar_definition *def) const;
+  /*
     Check if an Spvar_definition instance is of a complex data type,
     or contains a complex data type in its components (e.g. a ROW member).
   */
@@ -4335,8 +4376,6 @@ public:
                                                 const Lex_field_type_st &attr,
                                                 column_definition_type_t type)
                                                 const;
-  // Fix attributes after the parser
-  virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   /*
     Fix attributes from an existing field. Used for:
     - ALTER TABLE (for columns that do not change)
@@ -4900,6 +4939,17 @@ public:
   void raise_bad_data_type_for_functor(const Qualified_ident &ident,
                                        const Lex_ident_sys &field=
                                          Lex_ident_sys()) const;
+  /*
+    Check (this, dst_std_attr, dst_extra_attr) is a supertype to
+    (src_th, src_std_attr, src_extra_attr).
+
+    The method has 100% precision, but may return false negatives.
+  */
+  virtual bool is_supertype(const Type_std_attributes &dst_std_attr,
+                            const Type_extra_attributes &dst_extra_attr,
+                            const Type_handler *src_th,
+                            const Type_std_attributes &src_std_attr,
+                            const Type_extra_attributes &src_extra_attr) const = 0;
 };
 
 
@@ -5057,6 +5107,19 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (this != src_th)
+      return false;
+    if (dst_std_attr.unsigned_flag && !src_std_attr.unsigned_flag)
+      return false;
+    return dst_std_attr.max_length >= src_std_attr.max_length &&
+      dst_std_attr.decimals >= src_std_attr.decimals;
+  }
 };
 
 
@@ -5097,6 +5160,11 @@ public:
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
                                  String *tmp) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5195,6 +5263,23 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (type_handler_for_comparison() != src_th->type_handler_for_comparison())
+      return false;
+    if (dst_std_attr.unsigned_flag && !src_std_attr.unsigned_flag)
+      return false;
+    if (dst_std_attr.decimals < src_std_attr.decimals)
+      return false;
+    if (dst_std_attr.unsigned_flag == src_std_attr.unsigned_flag)
+      return dst_std_attr.max_length >= src_std_attr.max_length;
+    /* dst is signed and src is unsigned. compare the unsigned range */
+    return dst_std_attr.max_length - 1 >= src_std_attr.max_length;
+  }
 };
 
 
@@ -5248,6 +5333,24 @@ public:
   { }
   uint32 precision() const { return m_precision; }
   uint32 char_length() const { return m_char_length; }
+  bool contains(bool this_unsigned_flag,
+                const Type_limits_int &other,
+                bool other_unsigned_flag) const
+  {
+    if (!this_unsigned_flag && !other_unsigned_flag)
+      return min_signed() <= other.min_signed() &&
+        max_signed() >= other.max_signed();
+    if (this_unsigned_flag && other_unsigned_flag)
+      return max_unsigned() >= other.max_unsigned();
+    /*
+      Unsigned cannot be supertype of signed because it cannot be
+      negative.
+    */
+    if (this_unsigned_flag && !other_unsigned_flag)
+      return false;
+    /* !this_unsigned_flag && other_unsigned_flag */
+    return (ulonglong) max_signed() >= other.max_unsigned();
+  }
 };
 
 
@@ -5473,6 +5576,11 @@ public:
   {
     return type_limits_int()->char_length();
   }
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                      const override;
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
@@ -5491,6 +5599,18 @@ public:
                                     partition_value_print_mode_t)
                                     const override;
   const Vers_type_handler *vers() const override { return &vers_type_trx; }
+  bool is_supertype(const Type_std_attributes &, const Type_extra_attributes &,
+                    const Type_handler *src_th, const Type_std_attributes &,
+                    const Type_extra_attributes &) const override
+  {
+    const Type_handler_general_purpose_int *src_gp=
+      dynamic_cast<const Type_handler_general_purpose_int*>(src_th);
+    if (!src_gp)
+      return false;
+    return type_limits_int()->contains(is_unsigned(),
+                                       *src_gp->type_limits_int(),
+                                       src_th->is_unsigned());
+  };
 };
 
 
@@ -5579,6 +5699,14 @@ public:
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
   const Vers_type_handler *vers() const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    return this == src_th && dst_std_attr.decimals >= src_std_attr.decimals;
+  }
 };
 
 
@@ -5807,7 +5935,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -5858,7 +5985,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -5909,7 +6035,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6009,7 +6134,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6074,7 +6198,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *mem_root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                      const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6120,7 +6248,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *c,
                                               const Field *field)
@@ -6148,6 +6280,17 @@ public:
                                             date_mode_t fuzzydate)
                                             const override;
   const Vers_type_handler *vers() const override { return NULL; }
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (!dynamic_cast<const Type_handler_year *>(src_th))
+      return false;
+    /* YEAR(4) is a supertype of YEAR(2) */
+    return dst_std_attr.max_length >= src_std_attr.max_length;
+  }
 };
 
 
@@ -6185,7 +6328,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -6212,6 +6359,16 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (this != src_th)
+      return false;
+    return dst_std_attr.max_length >= src_std_attr.max_length;
+  }
 };
 
 
@@ -6242,7 +6399,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6297,7 +6458,11 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -6383,7 +6548,11 @@ public:
                                const override;
   void Column_definition_implicit_upgrade_to_this(
                                          Column_definition *old) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6581,7 +6750,11 @@ public:
   bool validate_implicit_default_value(THD *thd,
                                        const Column_definition &def)
                                        const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -6708,7 +6881,11 @@ public:
                                        const override;
   void Column_definition_implicit_upgrade_to_this(
                                          Column_definition *old) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6880,7 +7057,11 @@ public:
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return Item_decimal_scale_with_seconds(item);
@@ -7003,7 +7184,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -7036,7 +7216,6 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -7093,7 +7272,6 @@ public:
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
   bool union_element_finalize(Item_type_holder* item) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -7126,6 +7304,14 @@ public:
                                    uint32 flags) const override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    return this == src_th;
+  }
 };
 
 
@@ -7135,6 +7321,33 @@ public:
   bool type_can_have_key_part() const override
   {
     return true;
+  }
+  /*
+    BLOB/TEXT have a different max_length notation versus
+    CHAR/VARCHAR/BINARY/VARBINARY: max octet length vs max character
+    length.
+  */
+  virtual bool capacity_limit_is_in_characters() const { return true; };
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    /*
+      BLOB/TEXT have a different max_length notation versus
+      CHAR/VARCHAR/BINARY/VARBINARY: max octet length vs max character
+      length. So don't mix types of different notations for safety.
+    */
+    const Type_handler_longstr* src_th_longstr=
+      dynamic_cast<const Type_handler_longstr *>(src_th);
+    if (!src_th_longstr ||
+        capacity_limit_is_in_characters() !=
+          src_th_longstr->capacity_limit_is_in_characters())
+      return false;
+    if (dst_std_attr.collation.collation != src_std_attr.collation.collation)
+      return false;
+    return dst_std_attr.max_length >= src_std_attr.max_length;
   }
 };
 
@@ -7171,7 +7384,6 @@ public:
                                         const Lex_field_type_st &attr,
                                         column_definition_type_t type)
                                         const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7211,7 +7423,6 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override
@@ -7268,7 +7479,6 @@ public:
                                         const Lex_field_type_st &attr,
                                         column_definition_type_t type)
                                         const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7348,6 +7558,7 @@ public:
       return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
     return HA_PACK_KEY;
   }
+  bool capacity_limit_is_in_characters() const override { return false; };
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -7367,7 +7578,11 @@ public:
   }
   bool is_param_long_data_type() const override { return true; }
   uint calc_key_length(const Column_definition &def) const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7546,6 +7761,19 @@ public:
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
   const Vers_type_handler *vers() const override { return NULL; }
+  bool is_supertype(const Type_std_attributes &,
+                    const Type_extra_attributes &,
+                    const Type_handler *,
+                    const Type_std_attributes &,
+                    const Type_extra_attributes &) const override
+  {
+    /*
+      We can implement this method to return true in some cases
+      eventually. It'll need deep comparison of the TYPELIBs of the
+      two sides. Let's skip for now for simplicity.
+    */
+    return false;
+  }
 };
 
 
@@ -7567,7 +7795,11 @@ public:
                                      TABLE *table, uint metadata,
                                      const Field *target)
                                      const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -7608,7 +7840,11 @@ public:
                                      TABLE *table, uint metadata,
                                      const Field *target)
                                      const override;
-  bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;

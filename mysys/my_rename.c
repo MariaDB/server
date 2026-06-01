@@ -71,11 +71,8 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   if (!win_rename_with_retries(from, to))
   {
     my_osmaperr(GetLastError());
-#elif defined(HAVE_RENAME)
-  if (rename(from,to))
-  {
 #else
-  if (link(from, to) || unlink(from))
+  if (rename(from,to))
   {
 #endif
     if (errno == ENOENT && !access(from, F_OK))

@@ -139,6 +139,35 @@ dberr_t trx_t::drop_table_statistics(const table_name_t &name)
   return err;
 }
 
+dberr_t dict_drop_table_metadata(table_id_t table_id, trx_t *trx) noexcept
+{
+  pars_info_t *info= pars_info_create();
+  pars_info_add_ull_literal(info, "id", table_id);
+  return que_eval_sql(info,
+                      "PROCEDURE DROP_TABLE() IS\n"
+                      "iid CHAR;\n"
+
+                      "DECLARE CURSOR idx IS\n"
+                      "SELECT ID FROM SYS_INDEXES\n"
+                      "WHERE TABLE_ID=:id FOR UPDATE;\n"
+
+                      "BEGIN\n"
+
+                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
+                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
+
+                      "OPEN idx;\n"
+                      "WHILE 1 = 1 LOOP\n"
+                      "  FETCH idx INTO iid;\n"
+                      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+                      "  DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
+                      "END LOOP;\n"
+                      "CLOSE idx;\n"
+
+                      "END;\n", trx);
+}
+
 /** Try to drop a persistent table.
 @param table       persistent table
 @param fk          whether to drop FOREIGN KEY metadata
@@ -201,31 +230,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   mod_tables.emplace(const_cast<dict_table_t*>(&table), undo_no).
     first->second.set_dropped();
 
-  pars_info_t *info= pars_info_create();
-  pars_info_add_ull_literal(info, "id", table.id);
-  return que_eval_sql(info,
-                      "PROCEDURE DROP_TABLE() IS\n"
-                      "iid CHAR;\n"
-
-                      "DECLARE CURSOR idx IS\n"
-                      "SELECT ID FROM SYS_INDEXES\n"
-                      "WHERE TABLE_ID=:id FOR UPDATE;\n"
-
-                      "BEGIN\n"
-
-                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
-                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
-
-                      "OPEN idx;\n"
-                      "WHILE 1 = 1 LOOP\n"
-                      "  FETCH idx INTO iid;\n"
-                      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-                      "  DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
-                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
-                      "END LOOP;\n"
-                      "CLOSE idx;\n"
-
-                      "END;\n", this);
+  return dict_drop_table_metadata(table.id, this);
 }
 
 /** Commit the transaction, possibly after drop_table().

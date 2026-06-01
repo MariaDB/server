@@ -1,0 +1,30 @@
+if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'mroonga' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip needs mroonga plugin
+}
+
+--echo #
+--echo # MDEV-36444: Expose engine-specific field/index options in I_S
+--echo #
+
+CREATE TABLE t1 (
+  c1 TEXT GROONGA_TYPE="ShortText",
+  c2 TEXT,
+  FULLTEXT INDEX (c2) TOKENIZER="TokenBigram"
+) ENGINE=Mroonga;
+
+--echo # Checking information_schema.COLUMNS
+SELECT TABLE_NAME, COLUMN_NAME, CREATE_OPTIONS 
+FROM information_schema.COLUMNS 
+WHERE table_name = 't1' AND table_schema = 'test'
+ORDER BY COLUMN_NAME;
+
+--echo # Checking information_schema.STATISTICS
+SELECT TABLE_NAME, INDEX_NAME, CREATE_OPTIONS 
+FROM information_schema.STATISTICS 
+WHERE table_name = 't1' AND table_schema = 'test'
+ORDER BY INDEX_NAME;
+
+DROP TABLE t1;
+
+--echo # End of test

@@ -3,8 +3,10 @@
 [mysqld.1]
 max_allowed_packet=1024
 net_buffer_length=1024
+binlog_row_event_max_size=8192
 
 [mysqld.2]
 max_allowed_packet=1024
 net_buffer_length=1024
 slave_max_allowed_packet=1024
+binlog_row_event_max_size=8192

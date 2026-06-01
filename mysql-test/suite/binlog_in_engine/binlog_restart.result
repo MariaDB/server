@@ -19,3 +19,9 @@ INSERT INTO t1 VALUES (7, 0, REPEAT('&', 243700));
 INSERT INTO t1 VALUES (8, 0, REPEAT('&', $length));
 # restart
 DROP TABLE t1;
+*** Test restarting on malicious binlog file with invalid chunk_len
+RESET MASTER;
+# restart
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb';
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: error reading event data
+CALL mtr.add_suppression("InnoDB: Corrupt binlog found on page 1 in binlog number 0: Invalid chunk length");

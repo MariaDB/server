@@ -1,0 +1,43 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-38497 RESET SLAVE ALL doesn't remove all slave related configurations
+--echo #
+
+# Test replica should clear ALL master connection info
+
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval CHANGE MASTER TO
+  MASTER_HOST='localhost',
+  MASTER_USER='replssl',
+  MASTER_PASSWORD='password',
+  MASTER_PORT=3001,
+  MASTER_CONNECT_RETRY=7,
+  MASTER_HEARTBEAT_PERIOD=3,
+  MASTER_SSL=1,
+  MASTER_SSL_CA='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  MASTER_SSL_CAPATH='$MYSQL_TEST_DIR/std_data',
+  MASTER_SSL_CERT='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  MASTER_SSL_KEY='$MYSQL_TEST_DIR/std_data/client-key.pem',
+  MASTER_SSL_CRL='$MYSQL_TEST_DIR/std_data/crl.pem',
+  MASTER_SSL_CRLPATH='$MYSQL_TEST_DIR/std_data',
+  MASTER_SSL_CIPHER='AES256-SHA',
+  MASTER_SSL_VERIFY_SERVER_CERT=1,
+  MASTER_RETRY_COUNT=17,
+  MASTER_USE_GTID=current_pos,
+  IGNORE_SERVER_IDS=(123),
+  DO_DOMAIN_IDS=(19);
+
+#
+# Everything must be cleared / set to default values
+#
+RESET SLAVE ALL;
+
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
+
+--query_vertical SHOW SLAVE STATUS
+
+# Cleanup
+RESET SLAVE ALL;
+
+--echo # End of reset_slave_all_leaks_master_info.test

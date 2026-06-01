@@ -1265,9 +1265,9 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     update_nullability_post_fix_fields();
-    if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
+    if (aggregate_for_result(func_name_cstring(), args, arg_count, true) ||
+        fix_attributes(args, arg_count))
       return TRUE;
-    fix_attributes(args, arg_count);
     return FALSE;
   }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
@@ -1300,20 +1300,20 @@ class Item_func_case_abbreviation2 :public Item_func_case_expression
 protected:
   bool fix_length_and_dec2(Item **items)
   {
-    if (aggregate_for_result(func_name_cstring(), items, 2, true))
+    if (aggregate_for_result(func_name_cstring(), items, 2, true) ||
+        fix_attributes(items, 2))
       return TRUE;
-    fix_attributes(items, 2);
     return FALSE;
   }
 
   bool cache_type_info(THD *thd, Item *source, bool maybe_null_arg)
   {
+    set_handler(source->type_handler());
     if (source->type_handler()->
           Item_hybrid_func_fix_attributes(thd, func_name_cstring(),
                                           this, this, &source, 1))
       return true;
     Type_std_attributes::set(source);
-    set_handler(source->type_handler());
     set_maybe_null(maybe_null_arg);
     return false;
   }
@@ -2951,16 +2951,18 @@ public:
   /* Optimize case of not_null_column IS NULL */
   void update_used_tables() override
   {
+    args[0]->update_used_tables();
+    used_tables_cache= args[0]->used_tables();
+    const_item_cache= args[0]->const_item();
+
     if (!args[0]->maybe_null() && !arg_is_datetime_notnull_field())
     {
-      used_tables_cache= 0;			/* is always false */
+      /*
+        The result is always false.
+        But do NOT set used_tables_cache=0 as that will confuse derived
+        condition pushdown.
+      */
       const_item_cache= 1;
-    }
-    else
-    {
-      args[0]->update_used_tables();
-      used_tables_cache= args[0]->used_tables();
-      const_item_cache= args[0]->const_item();
     }
   }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,

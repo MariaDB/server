@@ -1599,7 +1599,7 @@ void DsMrr_impl::reset_buffer_sizes(void *dsmrr_arg)
 void DsMrr_impl::redistribute_buffer_space(void *dsmrr_arg)
 {
   DsMrr_impl *dsmrr= (DsMrr_impl*)dsmrr_arg;
-  uchar *unused_start, *unused_end;
+  uchar *unused_start, *unused_end= nullptr;
   dsmrr->key_buffer->remove_unused_space(&unused_start, &unused_end);
   dsmrr->rowid_buffer.grow(unused_start, unused_end);
 }

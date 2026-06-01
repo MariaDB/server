@@ -120,7 +120,7 @@ PWMIUT InitWMI(PGLOBAL g, PCSZ nsp, PCSZ classname)
   res = wp->Svc->GetObject(bstr_t(p), 0, 0, &wp->Cobj, 0);
 
   if (FAILED(res)) {
-    snprintf(g->Message, sizeof(g->Message), "failed GetObject %s in %s\n", classname, nsp);
+    snprintf(g->Message, sizeof(g->Message), "failed GetObject %s in %s", classname, nsp);
     wp->Svc->Release();
     wp->Svc = NULL;    // MUST be set to NULL  (why?)
     return NULL;
@@ -165,12 +165,12 @@ PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info)
     res = wp->Cobj->Get(bstr_t("__Property_Count"), 0, &val, NULL, NULL);
 
     if (FAILED(res)) {
-      snprintf(g->Message, sizeof(g->Message), "failed Get(__Property_Count) res=%d\n", res);
+      snprintf(g->Message, sizeof(g->Message), "failed Get(__Property_Count) res=%d", res);
       goto err;
       }  // endif res
 
     if (!(n = val.lVal)) {
-      snprintf(g->Message, sizeof(g->Message), "Class %s in %s has no properties\n",
+      snprintf(g->Message, sizeof(g->Message), "Class %s in %s has no properties",
                           cls, nsp);
       goto err;
       }  // endif res
@@ -183,7 +183,7 @@ PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info)
           NULL, &prnlist);
 
     if (FAILED(res)) {
-      snprintf(g->Message, sizeof(g->Message), "failed GetNames res=%d\n", res);
+      snprintf(g->Message, sizeof(g->Message), "failed GetNames res=%d", res);
       goto err;
       }  // endif res
 
@@ -195,7 +195,7 @@ PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info)
       res = SafeArrayGetElement(prnlist, &i, &propname);
 
       if (FAILED(res)) {
-        snprintf(g->Message, sizeof(g->Message), "failed GetArrayElement res=%d\n", res);
+        snprintf(g->Message, sizeof(g->Message), "failed GetArrayElement res=%d", res);
         goto err;
         }  // endif res
 
@@ -222,7 +222,7 @@ PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info)
   res = wp->Cobj->BeginEnumeration(WBEM_FLAG_NONSYSTEM_ONLY);
 
   if (FAILED(res)) {
-    snprintf(g->Message, sizeof(g->Message), "failed BeginEnumeration hr=%d\n", res);
+    snprintf(g->Message, sizeof(g->Message), "failed BeginEnumeration hr=%d", res);
     qrp = NULL;
     goto err;
     }  // endif hr
@@ -231,7 +231,7 @@ PQRYRES WMIColumns(PGLOBAL g, PCSZ nsp, PCSZ cls, bool info)
     res = wp->Cobj->Next(0, &propname, &val, &type, NULL);
 
     if (FAILED(res)) {
-      snprintf(g->Message, sizeof(g->Message), "failed getting Next hr=%d\n", res);
+      snprintf(g->Message, sizeof(g->Message), "failed getting Next hr=%d", res);
       qrp = NULL;
       goto err;
     }  else if (res == WBEM_S_NO_MORE_DATA) {

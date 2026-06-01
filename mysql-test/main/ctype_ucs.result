@@ -1514,19 +1514,19 @@ LOWER(DAYNAME(19700101))
 четверг
 SELECT LOWER(MONTHNAME(19700101));
 LOWER(MONTHNAME(19700101))
-января
+январь
 SELECT UPPER(DAYNAME(19700101));
 UPPER(DAYNAME(19700101))
 ЧЕТВЕРГ
 SELECT UPPER(MONTHNAME(19700101));
 UPPER(MONTHNAME(19700101))
-ЯНВАРЯ
+ЯНВАРЬ
 SELECT HEX(MONTHNAME(19700101));
 HEX(MONTHNAME(19700101))
-042F043D043204300440044F
+044F043D043204300440044C
 SELECT HEX(DAYNAME(19700101));
 HEX(DAYNAME(19700101))
-0427043504420432043504400433
+0447043504420432043504400433
 SET character_set_connection=latin1;
 #
 # Bug#52120 create view cause Assertion failed: 0, file .\item_subselect.cc, line 817
@@ -2210,7 +2210,7 @@ create table t1 as select concat(least(1,2)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select hex(concat(greatest(1,2)));
@@ -2220,7 +2220,7 @@ create table t1 as select concat(greatest(1,2)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select hex(concat(case when 11 then 22 else 33 end));
@@ -2230,7 +2230,7 @@ create table t1 as select concat(case when 11 then 22 else 33 end) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(3) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select hex(concat(coalesce(1,2)));
@@ -2240,7 +2240,7 @@ create table t1 as select concat(coalesce(1,2)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select hex(concat_ws(1,2,3));
@@ -2671,7 +2671,7 @@ create table t1 as select concat(ifnull(1,1)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select hex(concat(ifnull(1.1,1.1)));
@@ -2711,7 +2711,7 @@ create table t1 as select concat(if(1,1,1)) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select hex(concat(nullif(1,2)));

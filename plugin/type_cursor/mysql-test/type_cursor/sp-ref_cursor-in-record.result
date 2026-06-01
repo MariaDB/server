@@ -1,0 +1,22 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(32));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE rec1_t IS RECORD (a INT, b VARCHAR(32));
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+TYPE rec_cur01_t IS RECORD(a cur0_t, b cur1_t);
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+ERROR HY000: Unknown data type: 'cur0_t'
+DROP PACKAGE pkg1;

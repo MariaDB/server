@@ -57,6 +57,7 @@
 #include "rpl_filter.h"
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
+#include "rpl_mi.h"   // Master_info_index
 #include "rpl_rli.h"   // rpl_group_info
 #include "vector_mhnsw.h"
 #ifdef  _WIN32
@@ -430,7 +431,6 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       Get an explicit MDL lock for all requested tables to ensure they are
       not used by any other thread
     */
-    MDL_request_list mdl_requests;
 
     DBUG_PRINT("info", ("Waiting for other threads to close their open tables"));
     DEBUG_SYNC(thd, "after_flush_unlock");
@@ -440,19 +440,16 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
-      MDL_request *mdl_request= new (thd->mem_root) MDL_request;
-      if (mdl_request == NULL)
+      if (MDL_ticket *ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::TABLE, table->db.str, table->table_name.str,
+              MDL_EXCLUSIVE, MDL_EXPLICIT, timeout))
+      {
+        tdc_remove_table(thd, table->db.str, table->table_name.str);
+        thd->mdl_context.release_lock(ticket);
+      }
+      else
         DBUG_RETURN(true);
-      MDL_REQUEST_INIT_BY_KEY(mdl_request, &table->mdl_request.key,
-                              MDL_EXCLUSIVE, MDL_STATEMENT);
-      mdl_requests.push_front(mdl_request);
     }
-
-    if (thd->mdl_context.acquire_locks(&mdl_requests, timeout))
-      DBUG_RETURN(true);
-
-    for (TABLE_LIST *table= tables; table; table= table->next_local)
-      tdc_remove_table(thd, table->db.str, table->table_name.str);
   }
   DBUG_RETURN(false);
 }
@@ -618,13 +615,9 @@ bool flush_tables(THD *thd, flush_tables_type flag)
         In this case we cannot sending the HA_EXTRA_FLUSH signal.
       */
 
-      MDL_request mdl_request;
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                       share->db.str,
-                       share->table_name.str,
-                       MDL_SHARED, MDL_EXPLICIT);
-
-      if (!thd->mdl_context.acquire_lock(&mdl_request, 0))
+      if (MDL_ticket *mdl_ticket= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::TABLE, share->db.str, share->table_name.str,
+              MDL_SHARED, MDL_EXPLICIT, 0))
       {
         /*
           HA_OPEN_FOR_FLUSH is used to allow us to open the table even if
@@ -646,7 +639,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
           */
           closefrm(tmp_table);
         }
-        thd->mdl_context.release_lock(mdl_request.ticket);
+        thd->mdl_context.release_lock(mdl_ticket);
       }
     }
     tdc_release_share(share);
@@ -838,7 +831,7 @@ int close_thread_tables_for_query(THD *thd)
     leave prelocked mode if needed.
 */
 
-int close_thread_tables(THD *thd)
+int close_thread_tables(THD *thd) noexcept
 {
   TABLE *table;
   int error= 0;
@@ -1284,7 +1277,7 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
 TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
 {
   subselect_table_finder_param param= {thd, table, NULL};
-  List_iterator_fast<Item> it(sel->item_list);
+  List_iterator_fast<Item> it(sel->returning_list);
   Item *item;
   while ((item= it++))
   {
@@ -2403,7 +2396,6 @@ retry_share:
                     MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)) &&
         ! ot_ctx->has_protection_against_grl(mdl_type))
     {
-      MDL_request protection_request;
       MDL_deadlock_handler mdl_deadlock_handler(ot_ctx);
 
       if (thd->has_read_only_protection())
@@ -2414,16 +2406,15 @@ retry_share:
         DBUG_RETURN(TRUE);
       }
 
-      MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "", mdl_type,
-                       MDL_STATEMENT);
-
       /*
         Install error handler which if possible will convert deadlock error
         into request to back-off and restart process of opening tables.
       */
       thd->push_internal_handler(&mdl_deadlock_handler);
-      bool result= thd->mdl_context.acquire_lock(&protection_request,
-                                                 ot_ctx->get_timeout());
+      bool result= !thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "",
+                                                   mdl_type,
+                                                   MDL_STATEMENT,
+                                                   ot_ctx->get_timeout());
       thd->pop_internal_handler();
 
       if (result)
@@ -3319,15 +3310,19 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
     entry->file->implicit_emptied= 0;
     if (mysql_bin_log.is_open())
     {
-      char query_buf[2*FN_REFLEN + 21];
-      String query(query_buf, sizeof(query_buf), system_charset_info);
-
-      query.length(0);
-      query.append(STRING_WITH_LEN("TRUNCATE TABLE "));
+      static const char
+        QUERY_START[]= "TRUNCATE TABLE ",
+        QUERY_COMMENT[]=
+          " /* generated by server for memory table after a restart */";
+      StringBuffer<
+        (sizeof(QUERY_START)-1) + (sizeof(QUERY_COMMENT)-1) +
+        2 * (FN_REFLEN+3) // identifiers, quotes, and '.' & '\0'
+      > query(system_charset_info);
+      query.append(STRING_WITH_LEN(QUERY_START));
       append_identifier(thd, &query, &share->db);
       query.append('.');
       append_identifier(thd, &query, &share->table_name);
-
+      query.append(STRING_WITH_LEN(QUERY_COMMENT));
       /*
         we bypass thd->binlog_query() here,
         as it does a lot of extra work, that is simply wrong in this case
@@ -3336,6 +3331,34 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
                             FALSE, TRUE, TRUE, 0);
       if (mysql_bin_log.write(&qinfo))
         return TRUE;
+#ifdef HAVE_REPLICATION
+      // Verbosity Level "Binlog/Replication"
+      if (opt_readonly && global_system_variables.log_warnings >= 1)
+      {
+        extern Master_info_index *master_info_index;
+        extern Master_info *active_mi;
+        /*
+          Use the count to tell whether this server is a slave (candidate).
+          Though currently this count is always at least 1,
+          with a permanent @ref active_mi entry that's invalidated when
+          @ref Master_info::host is empty.
+          The atomicity of this check is not important here, since results are
+          influenced by the timing of any concurrent CHANGE MASTER regardless.
+        */
+        if (active_mi->host[0] ||
+            master_info_index->master_info_hash.records > 1)
+        {
+          const rpl_gtid *gtid= thd->get_last_commit_gtid();
+          sql_print_warning(
+            "A server restart has recreated the memory table %sQ.%sQ; "
+            "a TRUNCATE query is written to the binary log at GTID %u-%u-%llu. "
+            "As this server is a read-only slave, "
+            "this event may diverge replication in domain %u.",
+            share->db.str, share->table_name.str,
+            PARAM_GTID(gtid[0]), gtid->domain_id);
+        }
+      }
+#endif
     }
   }
   return FALSE;
@@ -3694,7 +3717,8 @@ Open_table_context::recover_from_failed_open()
         on table which was discovered but preserve locks from previous statements
         in current transaction.
       */
-      m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
+      if (!result)
+        m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
       break;
     case OT_NO_ACTION:
       DBUG_ASSERT(0);
@@ -4440,7 +4464,6 @@ lock_table_names(THD *thd, const DDL_options_st &options,
 {
   MDL_request_list mdl_requests;
   TABLE_LIST *table;
-  MDL_request global_request;
   MDL_savepoint mdl_savepoint;
   DBUG_ENTER("lock_table_names");
 
@@ -4493,32 +4516,35 @@ lock_table_names(THD *thd, const DDL_options_st &options,
   if (thd->has_read_only_protection())
     DBUG_RETURN(true);
 
-  MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                   MDL_STATEMENT);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&
          !upgrade_lock_if_not_exists(thd, options, tables_start,
-                                     lock_wait_timeout) &&
-         !thd->mdl_context.try_acquire_lock(&global_request))
+                                     lock_wait_timeout))
   {
-    if (global_request.ticket)
+    bool error;
+    MDL_ticket *backup_ticket= thd->mdl_context.MDL_TRY_ACQUIRE_LOCK(
+        MDL_key::BACKUP, "", "", MDL_BACKUP_DDL, MDL_STATEMENT, error);
+    if (backup_ticket)
     {
-      thd->mdl_backup_ticket= global_request.ticket;
+      thd->mdl_backup_ticket= backup_ticket;
       DBUG_RETURN(false);
     }
+    else if (error)
+      break;
 
     /*
       There is ongoing or pending BACKUP STAGE or FTWRL.
       Wait until it finishes and re-try.
     */
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-    if (thd->mdl_context.acquire_lock(&global_request, lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "",
+                                           MDL_BACKUP_DDL, MDL_STATEMENT,
+                                           lock_wait_timeout))
       break;
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
     /* Reset tickets for all acquired locks */
-    global_request.ticket= 0;
     MDL_request_list::Iterator it(mdl_requests);
     while (auto mdl_request= it++)
       mdl_request->ticket= 0;
@@ -5085,7 +5111,29 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
     }
 
+    /*
+      Debug hook: Verify we only allocate once per internal table.
+    */
+     DBUG_EXECUTE_IF("assert_no_alloc_internal_tables", { DBUG_ASSERT(0); });
+
+    /*
+      When a prepared statement uses DEFAULT (like sequence tables) in its
+      second or further execution AND if the table is not already on statement's
+      mem_root, temporarily allow allocating on statement mem_root.
+    */
+#ifdef PROTECT_STATEMENT_MEMROOT
+    const bool read_only_mem_root= (thd->mem_root->flags & ROOT_FLAG_READ_ONLY);
+    if (read_only_mem_root)
+      thd->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
     TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (read_only_mem_root)
+      thd->mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+
     if (!tl)
       DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
@@ -5809,8 +5857,17 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
   uint counter;
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("open_normal_and_derived_tables");
-  if (open_tables(thd, &tables, &counter, flags, &prelocking_strategy) ||
-      mysql_handle_derived(thd->lex, dt_phases))
+  if (open_tables(thd, &tables, &counter, flags, &prelocking_strategy))
+    goto end;
+
+  // Process initialization phase if it is requested in dt_phases
+  if ((dt_phases & DT_INIT) && mysql_handle_derived(thd->lex, DT_INIT))
+    goto end;
+
+  thd->lex->resolve_optimizer_hints();
+
+  // Process all phases remaining after DT_INIT
+  if (mysql_handle_derived(thd->lex, dt_phases & ~DT_INIT))
     goto end;
 
   DBUG_RETURN(0);
@@ -6330,6 +6387,28 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
         DBUG_RETURN(0);
       if (!ref)
         DBUG_RETURN((Field*) view_ref_found);
+
+      /*
+        If we are fixing fields for items in the RETURNING clause for
+        UPDATE statement, we might have OLD_VALUE() in returning list.
+        If we are updating a view, then the real item will start pointing
+        to select item list used while creating the view. Hence it will be of
+        type Item::FIELD_ITEM even for OLD_VALUE() instead of Item::FIELD_OLD_ITEM.
+        This will eventually result in calling the incorrect ::send() function.
+        So, we need to correct its type.
+      */
+      if (thd->is_setting_returning &&
+          (*ref)->is_old_value_reference)
+      {
+        Item *real = item->real_item();
+        if (real->type() == Item::FIELD_ITEM)
+        {
+          Item_old_field *old =
+               new (thd->mem_root) Item_old_field(thd, (Item_field*) real);
+          item = old;
+        }
+      }
+
       /*
        *ref != NULL means that *ref contains the item that we need to
        replace. If the item was aliased by the user, set the alias to
@@ -8070,8 +8149,9 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   Item *item;
   List_iterator<Item> it(fields);
   Query_arena *arena, backup;
-  uint *with_wild= returning_field ? &(thd->lex->returning()->with_wild) :
-                                     &(select_lex->with_wild);
+  uint *with_wild= returning_field ?
+                   &(thd->lex->returning()->with_wild_returning) :
+                   &(select_lex->with_wild);
   DBUG_ENTER("setup_wild");
 
   if (!(*with_wild))
@@ -8212,7 +8292,24 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   while ((item= it++))
   {
     if (make_pre_fix)
-      pre_fix->push_back(item, thd->active_stmt_arena_to_use()->mem_root);
+    {
+      DBUG_EXECUTE_IF("assert_no_alloc_pre_fix", { DBUG_ASSERT(0); });
+      Query_arena *arena= thd->active_stmt_arena_to_use();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+      const bool read_only_mem_root= !arena->is_conventional() &&
+                                (arena->mem_root->flags & ROOT_FLAG_READ_ONLY);
+      if (read_only_mem_root)
+        arena->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
+      pre_fix->push_back(item, arena->mem_root);
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+      if (read_only_mem_root)
+        arena->mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+    }
 
     if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {
@@ -8274,12 +8371,17 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   saved_grant= &table_list->table->grant;
   table_list->table->grant.want_privilege|= SELECT_ACL;
 
-  res= setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
-                     thd->lex->returning(), true)
-       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                       MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
+  thd->is_setting_returning= true;
+
+  res= setup_wild(thd, table_list, thd->lex->returning()->returning_list,
+                  NULL, thd->lex->returning(), true)
+       || setup_fields(thd, Ref_ptr_array(),
+                       thd->lex->returning()->returning_list,
+                       MARK_COLUMNS_READ, NULL, NULL, 0,
+                       THD_WHERE::RETURNING);
 
   table_list->table->grant= *saved_grant;
+  thd->is_setting_returning= false;
 
   return res;
 }

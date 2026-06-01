@@ -1,3 +1,4 @@
+usr/lib/mysql/plugin/test_pam_modules
 usr/share/mariadb/mariadb-test/collections
 usr/share/mariadb/mariadb-test/include
 usr/share/mariadb/mariadb-test/main
