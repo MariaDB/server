@@ -50,10 +50,7 @@ call mtr.add_suppression("WSREP: Illegal character in variable:");
 --echo # cleanup
 # we have to kill joiner's socat here, because the donor has aborted SST
 # and joiner's socat will timeout in 5 minutes
-# pkill exit code varies by platform 0 or 1
---error 0,1
---exec pkill -f 'socat.*server-new-cert'
-
+--exec pkill -f 'socat.*[s]erver-new-cert'
 --exec echo ssl-cert=$MYSQL_TEST_DIR/std_data/server-cert.pem >> $MYSQLTEST_VARDIR/my.cnf
 --exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-key.pem >> $MYSQLTEST_VARDIR/my.cnf
 --source $MYSQL_TEST_DIR/include/start_mysqld.inc
