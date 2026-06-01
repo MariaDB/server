@@ -2306,6 +2306,7 @@ select * from t1
     where f1(t1.id, '1980-01-01') in (select id from t2 where x=1);
 
 eval $q1;
+--disable_replay next_query Dont support SPs
 eval explain extended $q1;
 
 --echo # Non-deterministic function in left part of IN subq: semi-join is OK
