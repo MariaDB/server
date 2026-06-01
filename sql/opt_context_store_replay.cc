@@ -778,9 +778,7 @@ bool store_optimizer_context(THD *thd)
     sql_script.append(thd->variables.character_set_client->cs_name);
     sql_script.append(STRING_WITH_LEN(";\n"));
 
-    sql_script.append(STRING_WITH_LEN("SET NAMES "));
-    sql_script.append(thd->variables.collation_connection->cs_name);
-    sql_script.append(STRING_WITH_LEN(" COLLATE "));
+    sql_script.append(STRING_WITH_LEN("SET collation_connection="));
     sql_script.append(thd->variables.collation_connection->coll_name);
     sql_script.append(STRING_WITH_LEN(";\n"));
 
