@@ -11519,7 +11519,8 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         {
           char buf[512];
           size_t len=
-              my_snprintf(buf, sizeof(buf), "ReplayTest: Query error: %s\n",
+              my_snprintf(buf, sizeof(buf), "ReplayTest: Query error: %.*s: %s\n",
+                          (int)query_len, query_start,
                           mysql_error(replay_server_mysql));
           fputs(buf, stdout);
           print_replay_test_location(stdout);
@@ -11566,7 +11567,8 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
           {
             char buf[512];
             size_t len=
-                my_snprintf(buf, sizeof(buf), "ReplayTest: Query error: %s\n",
+                my_snprintf(buf, sizeof(buf), "ReplayTest: Query error: %.*s :%s\n",
+                            (int)query_len, query_start,
                             mysql_error(replay_server_mysql));
             fputs(buf, stdout);
             if (is_explain)
