@@ -904,6 +904,14 @@ typedef struct st_print_event_info
   uint32 domain_id;
   uint8 common_header_len;
   enum_base64_output_mode base64_output_mode;
+  /*
+    MDEV-37602: when true, Query_log_events are printed as BINLOG '<base64>'
+    statements so they replay through the applier like row events.
+    Transaction-control queries (BEGIN/COMMIT/...) are always printed as plain
+    SQL regardless of this flag. False by default, which is the historical
+    raw-SQL output; --query-events-as-binlog turns it on.
+  */
+  bool binlog_query_events;
   my_off_t hexdump_from;
 
   /*

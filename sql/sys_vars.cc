@@ -7322,10 +7322,24 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
     if (!val)
     {
 #ifndef EMBEDDED_LIBRARY
-      delete thd->rli_fake;
-      thd->rli_fake= NULL;
       delete thd->rgi_fake;
       thd->rgi_fake= NULL;
+      if (thd->mi_fake)
+      {
+        /*
+          rli_fake is the Relay_log_info embedded in the session-scoped
+          Master_info, so it must not be freed on its own; deleting mi_fake
+          frees it. mi_fake is not registered in master_info_index.
+        */
+        delete thd->mi_fake;
+        thd->mi_fake= NULL;
+        thd->rli_fake= NULL;
+      }
+      else
+      {
+        delete thd->rli_fake;
+        thd->rli_fake= NULL;
+      }
 #endif
     }
     else if (previous_val && val)

@@ -1,0 +1,152 @@
+# MDEV-37602: replaying Query_log_events through the slave applier
+#
+# By default mariadb-binlog prints Query_log_events as their original SQL text
+# and they are re-parsed as ordinary client statements, bypassing the applier
+# entirely.  --query-events-as-binlog instead emits them as BINLOG '<base64>'
+# statements, so replay drives the same applier entry point as row events.
+#
+# The option is off by default: the historical output is unchanged.
+#
+# This test covers the *client-side emission contract*:
+#   1. the default output is still raw SQL, with no BINLOG statement for a
+#      query event (the backward-compatibility guarantee)
+#   2. --query-events-as-binlog emits them as BINLOG instead, while
+#      transaction control stays plain SQL
+#   3. modes that suppress base64 fall back to SQL even with the option on
+#   4. both forms replay to identical table contents
+#
+# The server-side applier context is covered by main.mysqlbinlog_replay_context.
+
+--source include/have_log_bin.inc
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+
+RESET MASTER;
+
+--echo #
+--echo # A workload mixing DDL, autocommit DML and an explicit transaction.
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'one');
+BEGIN;
+INSERT INTO t1 VALUES (2,'two');
+UPDATE t1 SET b='ONE' WHERE a=1;
+COMMIT;
+
+let $datadir= `SELECT @@datadir`;
+let $binlog= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+
+--let $checksum_before= `CHECKSUM TABLE t1`
+
+# ----------------------------------------------------------------------------
+--echo #
+--echo # 1. Default output is unchanged: Query_log_events print as SQL, and no
+--echo #    query event is emitted as a BINLOG statement.  The only BINLOG
+--echo #    statement in the dump is the format-description event.
+--echo #
+--exec $MYSQL_BINLOG $datadir/$binlog > $MYSQL_TMP_DIR/default.sql
+
+--let SEARCH_FILE= $MYSQL_TMP_DIR/default.sql
+--let SEARCH_PATTERN= \nCREATE TABLE t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \nINSERT INTO t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \nUPDATE t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= BINLOG '
+--source include/search_pattern_in_file.inc
+
+# ----------------------------------------------------------------------------
+--echo #
+--echo # 2. --query-events-as-binlog emits those same events as BINLOG
+--echo #    statements instead, so the raw statement text is gone.
+--echo #
+--exec $MYSQL_BINLOG --query-events-as-binlog $datadir/$binlog > $MYSQL_TMP_DIR/binlog.sql
+
+--let SEARCH_FILE= $MYSQL_TMP_DIR/binlog.sql
+--let SEARCH_PATTERN= \nCREATE TABLE t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \nINSERT INTO t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \nUPDATE t1
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # ... but transaction control still arrives as plain SQL, because that
+--echo # cleanup must run through dispatch_command() rather than the applier.
+--echo #
+--let SEARCH_PATTERN= \nSTART TRANSACTION
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \nCOMMIT
+--source include/search_pattern_in_file.inc
+
+# ----------------------------------------------------------------------------
+--echo #
+--echo # 3. Modes that suppress base64 output keep the raw SQL even when the
+--echo #    option is given, exactly as they already do for row events.
+--echo #    Without this, --base64-output=NEVER would silently produce a dump
+--echo #    with no statements in it at all.
+--echo #
+--exec $MYSQL_BINLOG --query-events-as-binlog --base64-output=NEVER $datadir/$binlog > $MYSQL_TMP_DIR/never.sql
+--let SEARCH_FILE= $MYSQL_TMP_DIR/never.sql
+--let SEARCH_PATTERN= \nCREATE TABLE t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= BINLOG '
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL_BINLOG --query-events-as-binlog --base64-output=DECODE-ROWS --verbose $datadir/$binlog > $MYSQL_TMP_DIR/decode.sql
+--let SEARCH_FILE= $MYSQL_TMP_DIR/decode.sql
+--let SEARCH_PATTERN= \nCREATE TABLE t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= BINLOG '
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL_BINLOG --query-events-as-binlog --short-form $datadir/$binlog > $MYSQL_TMP_DIR/short.sql
+--let SEARCH_FILE= $MYSQL_TMP_DIR/short.sql
+--let SEARCH_PATTERN= \nCREATE TABLE t1
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= BINLOG '
+--source include/search_pattern_in_file.inc
+
+# ----------------------------------------------------------------------------
+--echo #
+--echo # 4. Round trip: the default dump replays to the original contents.
+--echo #
+DROP TABLE t1;
+--exec $MYSQL test < $MYSQL_TMP_DIR/default.sql
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 ORDER BY a;
+
+--let $checksum_after= `CHECKSUM TABLE t1`
+if ($checksum_before != $checksum_after)
+{
+  --echo # checksum before replay: $checksum_before
+  --echo # checksum after  replay: $checksum_after
+  --die Default replay did not reproduce the table contents
+}
+--echo # Checksum matches the pre-replay value.
+
+--echo #
+--echo # 5. The --query-events-as-binlog dump must replay to the same state,
+--echo #    this time through the applier.
+--echo #
+DROP TABLE t1;
+--exec $MYSQL test < $MYSQL_TMP_DIR/binlog.sql
+SELECT * FROM t1 ORDER BY a;
+
+--let $checksum_binlog= `CHECKSUM TABLE t1`
+if ($checksum_before != $checksum_binlog)
+{
+  --die Applier replay diverged from the default replay
+}
+--echo # Checksum matches the pre-replay value.
+
+# cleanup
+DROP TABLE t1;
+--remove_file $MYSQL_TMP_DIR/default.sql
+--remove_file $MYSQL_TMP_DIR/binlog.sql
+--remove_file $MYSQL_TMP_DIR/never.sql
+--remove_file $MYSQL_TMP_DIR/decode.sql
+--remove_file $MYSQL_TMP_DIR/short.sql

@@ -36,6 +36,7 @@
 #include "sql_base.h"
 #include "sql_handler.h"                      // mysql_ha_cleanup
 #include "rpl_rli.h"
+#include "rpl_mi.h"
 #include "rpl_filter.h"
 #include "rpl_record.h"
 #include "slave.h"
@@ -714,7 +715,7 @@ const char *thd_where(THD *thd)
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
-   rli_fake(0), rgi_fake(0), rgi_slave(NULL),
+   mi_fake(0), rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0), start_time(0), start_time_sec_part(0),
    in_sub_stmt(0), log_all_errors(0),
@@ -1792,8 +1793,22 @@ void THD::free_connection()
   net_end(&net);
   delete(rgi_fake);
   rgi_fake= NULL;
-  delete(rli_fake);
-  rli_fake= NULL;
+  if (mi_fake)
+  {
+    /*
+      The session-scoped Master_info owns its embedded Relay_log_info, which is
+      what rli_fake points at, so deleting mi_fake frees the rli too. It is not
+      registered in master_info_index, so no deregistration is needed here.
+    */
+    delete mi_fake;
+    mi_fake= NULL;
+    rli_fake= NULL;
+  }
+  else
+  {
+    delete(rli_fake);
+    rli_fake= NULL;
+  }
 #endif
  if (!cleanup_done)
    cleanup();
