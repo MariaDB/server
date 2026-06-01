@@ -257,6 +257,7 @@ eval $no_pushdown $query;
 eval $query;
 --disable_replay next_query Dont support SPs
 eval explain $query;
+--disable_replay next_query Dont support SPs
 --source include/explain-no-costs.inc
 eval explain format=json $query;
 let $query=
