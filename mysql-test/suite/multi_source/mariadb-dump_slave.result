@@ -17,14 +17,14 @@ Slave_SQL_Running = 'No'
 # Basic
 $MYSQL_DUMP --compact --dump-slave --include-master-host-port test
 /*M!999999\- enable the sandbox mode */ 
-CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_2, MASTER_LOG_FILE='', MASTER_LOG_POS=4;
+CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_2, MASTER_LOG_FILE='', MASTER_LOG_POS=0;
 CHANGE MASTER 'inactive' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_3, MASTER_LOG_FILE='', MASTER_LOG_POS=0;
 
 -- SET GLOBAL gtid_slave_pos='';
 # MDEV-7611 mysqldump --dump-slave always starts stopped slave
 $MYSQL_DUMP --compact --dump-slave test
 /*M!999999\- enable the sandbox mode */ 
-CHANGE MASTER '' TO MASTER_LOG_FILE='', MASTER_LOG_POS=4;
+CHANGE MASTER '' TO MASTER_LOG_FILE='', MASTER_LOG_POS=0;
 CHANGE MASTER 'inactive' TO MASTER_LOG_FILE='', MASTER_LOG_POS=0;
 
 -- SET GLOBAL gtid_slave_pos='';
@@ -38,7 +38,7 @@ Slave_SQL_Running = 'No'
 # MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
 $MYSQL_DUMP --compact --dump-slave no_such_db
 /*M!999999\- enable the sandbox mode */ 
-CHANGE MASTER '' TO MASTER_LOG_FILE='', MASTER_LOG_POS=4;
+CHANGE MASTER '' TO MASTER_LOG_FILE='', MASTER_LOG_POS=0;
 CHANGE MASTER 'inactive' TO MASTER_LOG_FILE='', MASTER_LOG_POS=0;
 
 include/wait_for_slave_sql_to_start.inc

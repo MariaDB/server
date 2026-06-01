@@ -9496,9 +9496,9 @@ ER_GTID_START_FROM_BINLOG_HOLE
         eng "The binlog on the master is missing the GTID %u-%u-%llu requested by the slave (even though a subsequent sequence number does exist), and GTID strict mode is enabled"
 	spa "Al binlog del maestro (master) le falta el GTID %u-%u-%llu requerido por el esclavo (incluso aunque existe un número posterior de secuencia) y está activado GTID en modo estricto"
 ER_SLAVE_UNEXPECTED_MASTER_SWITCH
-        chi "重新连接后，从master收到意外的GTID。这通常表示在不重新启动从线程的情况下替换主服务器。%s."
-        eng "Unexpected GTID received from master after reconnect. This normally indicates that the master server was replaced without restarting the slave threads. %s"
-	spa "Se ha recibido un GTID inesperado desde el maestro (master) tras reconectar. Esto indica normalmente que el servidor maestro (master) ha sido reemplazado sin rearrancar los hilos (threads) del esclavo. %s"
+        chi "重新连接后，从master收到意外的GTID。这通常表示在不重新启动从中继日志的情况下替换主服务器。%s."
+        eng "Unexpected GTID received from master after reconnect. This normally indicates that the master server was replaced without restarting the slave relay logs. %s"
+	spa "Se ha recibido un GTID inesperado desde el maestro (master) tras reconectar. Esto indica normalmente que el servidor maestro (master) ha sido reemplazado sin rearrancar los historiales (logs) de reenvío del esclavo. %s"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         chi "无法修改@@sessient.gtid_domain_id或@@session.gtid_seq_no"
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction"

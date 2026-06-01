@@ -14,6 +14,7 @@ include/save_master_gtid.inc
 # Have the replica "reconnect" and the primary will send Gtid, Glle, DDL
 connection slave;
 set global gtid_slave_pos="0-3-1";
+RESET SLAVE;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 #

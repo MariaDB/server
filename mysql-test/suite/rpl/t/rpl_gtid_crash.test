@@ -95,6 +95,7 @@ SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 
 --connection server_2
+RESET SLAVE;
 --source include/start_slave.inc
 
 --connection server_1

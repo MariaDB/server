@@ -90,7 +90,7 @@ include/wait_for_slave_sql_error.inc [errno=1942]
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)
 1	6
-2	2
+2	3
 *** Stop both slaves, see that the drop of mysql.gtid_slave_pos_innodb is now picked up ***
 connection slave1;
 set default_master_connection = 'slave1';

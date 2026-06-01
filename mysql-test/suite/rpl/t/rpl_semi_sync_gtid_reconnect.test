@@ -51,8 +51,8 @@ RESET MASTER;
 
 # The resume gtid is set up to point to the very first binlog file
 --connection slave
-CHANGE MASTER TO MASTER_USE_GTID = slave_pos;
 --eval SET @@global.gtid_slave_pos = '$resume_gtid'
+CHANGE MASTER TO MASTER_USE_GTID = slave_pos;
 # Yet the slave io first submits the last received binlog file name:pos.
 --source include/start_slave.inc
 

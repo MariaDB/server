@@ -41,6 +41,7 @@
 
 call mtr.add_suppression('Attempting backtrace');
 call mtr.add_suppression("Recovery from master pos .* and file master-bin.000001");
+call mtr.add_suppression("Recovery with GTID");
 # Use innodb so we do not get "table should be repaired" issues.
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 flush tables;

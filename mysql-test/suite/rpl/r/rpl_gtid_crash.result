@@ -49,6 +49,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid_list	#	#	[]
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 connection server_2;
+RESET SLAVE;
 include/start_slave.inc
 connection server_1;
 SET gtid_domain_id= 1;
