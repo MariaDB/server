@@ -203,4 +203,27 @@ set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
 drop table t1;
 
+--echo #
+--echo #
+--echo #
+create table t1 (a varchar(32));
+insert into t1 values ('aaaaaa'),('bbbbbb');
+
+--echo #
+--echo # Test 1: Reading optimizer context preserves optimizer trace:
+--echo #
+set optimizer_record_context=1, optimizer_trace=1;
+explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+select trace like '%foo%' from information_schema.optimizer_trace;
+
+
+--echo # 
+--echo # Test 2: Reading optimizer trace preserves optimizer context:
+--echo #
+explain select * from t1 where a >'foo' or a < 'bar';
+select trace like '%foo%' from information_schema.optimizer_trace;
+select context like '%bar%' from information_schema.optimizer_context;
+
+
 drop database db1;
