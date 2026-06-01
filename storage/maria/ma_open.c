@@ -711,9 +711,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     {
       HA_KEYSEG *pos=share->keyparts;
       uint32 ftkey_nr= 1;
-      for (i=0 ; i < keys ; i++)
+      for (i=0 ; i < keys ; i++, pos++)
       {
         MARIA_KEYDEF *keyinfo= &share->keyinfo[i];
+        uint total_seg_length= 0;
+
         keyinfo->share= share;
 	disk_pos=_ma_keydef_read(disk_pos, keyinfo);
         keyinfo->key_nr= i;
@@ -760,6 +762,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 	  }
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
+          total_seg_length+= pos->length;
 	}
 	if (keyinfo->flag & HA_SPATIAL)
 	{
@@ -806,13 +809,17 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
           }
           keyinfo->ftkey_nr= ftkey_nr++;
 	}
+        else if (total_seg_length > MARIA_MAX_KEY_LENGTH)
+        {
+          _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
+          goto err;
+        }
         setup_key_functions(keyinfo);
 	keyinfo->end=pos;
 	pos->type=HA_KEYTYPE_END;			/* End */
 	pos->length=share->base.rec_reflength;
 	pos->null_bit=0;
 	pos->flag=0;					/* For purify */
-	pos++;
       }
       for (i=0 ; i < uniques ; i++)
       {
