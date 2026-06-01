@@ -122,13 +122,6 @@ longlong Item_func_uuid_version::val_int()
     return 0;
   }
 
-  // Display warning if version 2 as it is deprecated
-  if (version == 2)
-  {
-    my_printf_error(ER_INVALID_CHARACTER_STRING,
-                    "Version 2 UUIDs are deprecated", ME_WARNING);
-  }
-
   null_value= false;
   return version;
 }

@@ -36,6 +36,12 @@ ERROR 22007: Incorrect uuid value: 'lefred'
 SELECT UUID_VERSION("AF39A01C-E29D-0C4C-8072-60CEB26A82F1") AS version;
 ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-0C4C-8072-60CEB26A82F1'
 #
+# valid with uuid (version 2)
+#
+SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
+version
+2
+#
 # valid with uuid (version 8)
 #
 SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
@@ -61,14 +67,6 @@ ERROR 22007: Incorrect uuid value: '--------------1---------------------'
 #
 SELECT UUID_VERSION("f7525aa0-1eba-11f1-4c6e-5e1b9081e705") AS version;
 ERROR 22007: Incorrect uuid value (variant check failed): 'f7525aa0-1eba-11f1-4c6e-5e1b9081e705'
-#
-# deprecated uuid version 2
-#
-SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
-version
-2
-Warnings:
-Warning	1300	Version 2 UUIDs are deprecated
 #
 # no argument
 #
@@ -175,10 +173,4 @@ id	v
 0000c350-beef-2345-b678-1234567890ab	2
 00000064-dead-2bad-a123-abcdefabcdef	2
 00000001-cafe-2ace-8ace-feedfacecafe	2
-Warnings:
-Warning	1300	Version 2 UUIDs are deprecated
-Warning	1300	Version 2 UUIDs are deprecated
-Warning	1300	Version 2 UUIDs are deprecated
-Warning	1300	Version 2 UUIDs are deprecated
-Warning	1300	Version 2 UUIDs are deprecated
 DROP TABLE t1;

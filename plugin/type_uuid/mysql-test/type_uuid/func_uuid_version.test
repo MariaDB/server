@@ -35,6 +35,11 @@ SELECT UUID_VERSION("lefred") AS version;
 SELECT UUID_VERSION("AF39A01C-E29D-0C4C-8072-60CEB26A82F1") AS version;
 
 --echo #
+--echo # valid with uuid (version 2)
+--echo #
+SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
+
+--echo #
 --echo # valid with uuid (version 8)
 --echo #
 SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
@@ -62,11 +67,6 @@ SELECT UUID_VERSION("--------------1---------------------") AS version;
 --echo #
 --error ER_TRUNCATED_WRONG_VALUE
 SELECT UUID_VERSION("f7525aa0-1eba-11f1-4c6e-5e1b9081e705") AS version;
-
---echo #
---echo # deprecated uuid version 2
---echo #
-SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
 
 --echo #
 --echo # no argument
