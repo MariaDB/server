@@ -19,8 +19,8 @@
 #include "opt_context_store_replay.h"
 #include "sql_show.h"
 #include "my_json_writer.h"
-#include "mysql.h"
 #include "hash.h"
+#include "opt_trace.h"
 
 #include "sql_select.h"
 #include "sql_explain.h"
@@ -1486,13 +1486,19 @@ void init_optimizer_context_replay_if_needed(THD *thd)
   }
 }
 
-void init_optimizer_context_recorder_if_needed(THD *thd)
+void init_optimizer_context_recorder_if_needed(THD *thd,
+                                               const TABLE_LIST *query_tables)
 {
   if (thd->spcont)
   {
     /* This is a sub-statement inside SP. Don't do anything */
     return;
   }
+
+  /* Do not record queries that query I_S.OPTIMIZER_{TRACE,CONTEXT} tables */
+  if (list_has_optimizer_trace_table(query_tables))
+    return;
+
   if (!thd->variables.optimizer_record_context)
   {
     clean_captured_ctx(thd);

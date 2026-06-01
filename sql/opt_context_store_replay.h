@@ -33,7 +33,8 @@ class Range_print_enumerator;
 class table_context_for_store;
 class Multi_range_read_const_call_record;
 
-void init_optimizer_context_recorder_if_needed(THD *thd);
+void init_optimizer_context_recorder_if_needed(THD *thd,
+                                               const TABLE_LIST *query_tables);
 
 /*
   Recorder is used to capture the environment during query optimization run.
