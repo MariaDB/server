@@ -9328,6 +9328,16 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   Query_arena backup_arena;
   Counting_error_handler count_errors;
   Suppress_warnings_error_handler warning_handler;
+  /*
+    Do not use tmp_set here: it may be the active read_set (filesort,
+    keyread), and the engine may call this in the middle of a scan.
+  */
+  MY_BITMAP done_vcols;
+  const uint bitmap_size= bitmap_buffer_size(s->fields);
+  my_bitmap_map *done_buf= (my_bitmap_map *) my_safe_alloca(bitmap_size);
+  if (!done_buf)
+    DBUG_RETURN(1);
+  my_bitmap_init(&done_vcols, done_buf, s->fields);
   in_use->push_internal_handler(&count_errors);
   bool abort_on_warning= ignore_warnings;
   if (ignore_warnings)
@@ -9342,8 +9352,8 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
           TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
   */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
-  bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &done_vcols);
+  my_safe_afree(done_buf, bitmap_size);
   DBUG_FIX_WRITE_SET(vf);
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf);
