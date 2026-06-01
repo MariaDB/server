@@ -1257,5 +1257,12 @@ SELECT JSON_EXISTS('[[[[[Y[[[[n[[[[[[[[[[[n[[[Vn]]]]]]]]]]]]]],]]:]]]](', '$[0 t
 SELECT JSON_EXISTS('[[[[[Y[[[[[[[[[[[[[[[[[[Vn]]]]]]]]]]]]]],]]:]]]](', '$[0 to rrrrRR-1]') as je;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-39817 JSON_ARRAYAGG() returns garbage because of off-by-one error
 --echo #
+set session group_concat_max_len = 9;
+create temporary table t (c varchar(20) character set latin1);
+insert into t values ('ab'), ('cd'), ('ef');
+select json_arrayagg(c order by c) from t;
+drop temporary table t;
+
+--echo # End of 10.6 tests
