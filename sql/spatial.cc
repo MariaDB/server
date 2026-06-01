@@ -2533,6 +2533,9 @@ uint Gis_multi_line_string::init_from_wkb(const char *wkb, uint len,
     Gis_line_string ls;
     int ls_len;
 
+    if ((uchar) wkb[0] > wkb_ndr) /* invalid */
+      return 0;
+
     if ((len < WKB_HEADER_SIZE) ||
         res->reserve(WKB_HEADER_SIZE, 512))
       return 0;
