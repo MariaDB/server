@@ -96,6 +96,7 @@ enum wsrep_consistency_check_mode {
 
 class Reprepare_observer;
 class Relay_log_info;
+class Master_info;
 struct rpl_group_info;
 struct rpl_parallel_thread;
 class Rpl_filter;
@@ -3195,6 +3196,15 @@ public:
   MDL_context mdl_context;
 
   /* Used to execute base64 coded binlog events in MySQL server */
+  /*
+    Session-scoped Master_info backing rli_fake for BINLOG statement replay.
+    It is NOT registered in master_info_index (that is future work); it merely
+    provides a stable Relay_log_info / Master_info pair so that Query_log_events
+    replayed via BINLOG statements have the execution context they require
+    without recreating a throwaway Master_info per event. NULL until the first
+    BINLOG statement on the connection; freed in THD::free_connection().
+  */
+  Master_info* mi_fake;
   Relay_log_info* rli_fake;
   rpl_group_info* rgi_fake;
   /* Slave applier execution context */

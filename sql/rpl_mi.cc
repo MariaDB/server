@@ -35,10 +35,12 @@ static void init_connection_config(Master_info* mi);
 static void init_group_counters(Master_info* mi);
 
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
-                         bool is_slave_recovery):
+                         bool is_slave_recovery,
+                         const char *rli_thread_name):
    Master_info_file(ignore_server_ids, domain_id_filter.m_domain_ids[0],
                                        domain_id_filter.m_domain_ids[1]),
-   Slave_reporting_capability("I/O"), fd(-1), io_thd(0), rli(is_slave_recovery),
+   Slave_reporting_capability("I/O"), fd(-1), io_thd(0),
+   rli(is_slave_recovery, rli_thread_name),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connects_tried(0), binlog_storage_engine(0), inited(0), abort_slave(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), slave_run_id(0),

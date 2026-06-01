@@ -2173,35 +2173,55 @@ bool Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     goto err;
   if (!is_flashback)
   {
-    if (gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
-                            Gtid_log_event::FL_COMMIT_ALTER_E1 |
-                            Gtid_log_event::FL_ROLLBACK_ALTER_E1))
+    bool do_print_encoded=
+      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+      !print_event_info->short_form;
+    bool is_alter=
+      gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
+                          Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                          Gtid_log_event::FL_ROLLBACK_ALTER_E1);
+    /*
+      MDEV-37602: by default emit the query as a BINLOG '<base64>' statement so
+      it is replayed through the applier, the same path used by row events (and,
+      already, by ALTER Start/Commit/Rollback events). Transaction-control
+      queries (BEGIN/COMMIT/...) are kept as plain SQL so their transaction
+      cleanup goes through dispatch_command(), matching how GTID events emit
+      START TRANSACTION as plain SQL.
+    */
+    bool emit_base64= do_print_encoded &&
+      (is_alter ||
+       (print_event_info->binlog_query_events &&
+        !is_trans_keyword(print_event_info->is_xa_trans())));
+
+    if (emit_base64)
     {
-      bool do_print_encoded=
-        print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
-        print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
-        !print_event_info->short_form;
-      bool comment_mode= do_print_encoded &&
+      bool comment_mode=
         gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
                             Gtid_log_event::FL_ROLLBACK_ALTER_E1);
 
-      if(comment_mode)
+      if (comment_mode)
         my_b_printf(&cache, "/*!100600 ");
-      if (do_print_encoded)
-        my_b_printf(&cache, "BINLOG '\n");
-      if (print_base64(&cache, print_event_info, do_print_encoded))
+      my_b_printf(&cache, "BINLOG '\n");
+      if (print_base64(&cache, print_event_info, true))
         goto err;
-      if (do_print_encoded)
-      {
-        if(comment_mode)
-           my_b_printf(&cache, "' */%s\n", print_event_info->delimiter);
-        else
-           my_b_printf(&cache, "'%s\n", print_event_info->delimiter);
-      }
+      if (comment_mode)
+        my_b_printf(&cache, "' */%s\n", print_event_info->delimiter);
+      else
+        my_b_printf(&cache, "'%s\n", print_event_info->delimiter);
       if (print_event_info->verbose && print_verbose(&cache, print_event_info))
-      {
         goto err;
-      }
+    }
+    else if (is_alter)
+    {
+      /*
+        base64 disabled (--short-form / --base64-output=NEVER|DECODE-ROWS):
+        keep the historical ALTER behavior of only printing the decoded form.
+      */
+      if (print_base64(&cache, print_event_info, false))
+        goto err;
+      if (print_event_info->verbose && print_verbose(&cache, print_event_info))
+        goto err;
     }
     else
     {
@@ -3861,6 +3881,7 @@ st_print_event_info::st_print_event_info()
   printed_fd_event=FALSE;
   file= 0;
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
+  binlog_query_events= true;
   m_is_event_group_active= TRUE;
   m_is_event_group_filtering_enabled= FALSE;
   m_is_partial_rows_ev_group_active= TRUE;

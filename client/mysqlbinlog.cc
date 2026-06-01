@@ -177,6 +177,13 @@ static bool opt_skip_annotate_row_events= 0;
 
 static my_bool opt_flashback;
 static bool opt_print_table_metadata;
+/*
+  By default (MDEV-37602) mariadb-binlog emits Query_log_events as
+  BINLOG '<base64>' statements so that replay takes the same code path as the
+  slave applier. --query-events-as-sql restores the historical behavior of
+  printing Query_log_events as their original SQL text.
+*/
+static my_bool opt_query_events_as_sql;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
 static my_bool opt_flashback_review;
 static char *flashback_review_dbname, *flashback_review_tablename;
@@ -1152,6 +1159,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       print_event_info->hexdump_from= pos;
 
     print_event_info->base64_output_mode= opt_base64_output_mode;
+    print_event_info->binlog_query_events= !opt_query_events_as_sql;
     print_event_info->print_table_metadata= opt_print_table_metadata;
 
     DBUG_PRINT("debug", ("event_type: %s", ev->get_type_str()));
@@ -1174,6 +1182,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         */
         qe->flags|= LOG_EVENT_SUPPRESS_USE_F;
       }
+      /*
+        MDEV-37602: whether the query is emitted as raw SQL or as a
+        BINLOG '<base64>' statement is decided inside Query_log_event::print()
+        (see print_event_info->binlog_query_events), the same level at which
+        row events decide their own base64 output.
+      */
       print_use_stmt(print_event_info, qe);
       print_skip_replication_statement(print_event_info, ev);
       if (ev->print(result_file, print_event_info))
@@ -1651,6 +1665,13 @@ static struct my_option my_options[] =
    "statements. Output files named after server logs.",
    &opt_raw_mode, &opt_raw_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
+  {"query-events-as-sql", 0, "Print Query_log_events as their original SQL "
+   "text instead of as BINLOG '<base64>' statements. By default (MDEV-37602) "
+   "Query_log_events are emitted as BINLOG statements so that replay uses the "
+   "same applier code path as row events. Transaction-control queries "
+   "(BEGIN/COMMIT/...) are always printed as plain SQL.",
+   &opt_query_events_as_sql, &opt_query_events_as_sql, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
   {"result-file", 'r', "Direct output to a given file. With --raw this is a "
    "prefix for the file names.",
    &result_file_name, &result_file_name, 0, GET_STR, REQUIRED_ARG,

@@ -1897,7 +1897,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             ::do_apply_event(), then the companion SET also have so
             we don't need to reset_one_shot_variables().
   */
-  if (rpl_filter->is_db_empty() ||
+  if (!thd->slave_thread /* filtering is for slave only (MDEV-37602) */ ||
+      rpl_filter->is_db_empty() ||
       is_trans_keyword(
           (rgi->gtid_ev_flags2 & (Gtid_log_event::FL_PREPARED_XA |
                                   Gtid_log_event::FL_COMPLETED_XA))) ||
