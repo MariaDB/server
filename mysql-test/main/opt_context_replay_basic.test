@@ -20,7 +20,8 @@ create table t1
 );
 
 insert into t1 select seq%2, seq%3 from seq_1_to_20;
-
+--echo # Make the testcase reproducible:
+set timestamp= unix_timestamp('2026-05-31 10:20:30');
 select count(*) from t1;
 
 --source include/get_sys_vars_from_opt_ctx.inc
