@@ -39,6 +39,10 @@ CALL p2(z => 30, x => 10, y => 20);
 --echo # Mixed: 1 positional + 2 named
 CALL p2(1, z => 30, y => 20);
 
+--echo # Error: too many positional arguments
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p2(1, 2, 3, 4);
+
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 

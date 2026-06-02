@@ -43,6 +43,9 @@ x	y	z
 CALL p2(1, z => 30, y => 20);
 x	y	z
 1	20	30
+# Error: too many positional arguments
+CALL p2(1, 2, 3, 4);
+ERROR 42000: Too many positional arguments for PROCEDURE test.p2; argument 4 has no matching parameter
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 # Error: unknown parameter name

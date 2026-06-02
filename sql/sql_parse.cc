@@ -3081,7 +3081,6 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   {
     sp_pcontext *pctx= sp->get_parse_context();
     const uint param_count= pctx->context_var_count();
-    const uint call_count= thd->lex->call_param_list.elements;
     Item **arg_array= nullptr;
     uint positional_idx= 0;
 
@@ -3100,8 +3099,11 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
         }
         if (positional_idx >= param_count)
         {
-          my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
-                   ErrConvDQName(sp).ptr(), param_count, call_count);
+          my_printf_error(ER_SP_WRONG_NO_OF_ARGS,
+                          "Too many positional arguments for PROCEDURE %s; "
+                          "argument %u has no matching parameter",
+                          MYF(0), ErrConvDQName(sp).ptr(),
+                          positional_idx + 1);
           return 1;
         }
         thd->lex->value_list.push_back(cp->value, thd->mem_root);
@@ -3148,7 +3150,8 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
         if (!arg_array[i])
         {
           my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
-                   ErrConvDQName(sp).ptr(), param_count, call_count);
+                   ErrConvDQName(sp).ptr(), param_count,
+                   thd->lex->call_param_list.elements);
           return 1;
         }
       }
