@@ -3390,6 +3390,9 @@ TidesDB_share::TidesDB_share()
       isolation_level(TDB_ISOLATION_REPEATABLE_READ),
       default_ttl(0),
       ttl_field_idx(TIDESDB_TTL_FIELD_NONE),
+      encrypted(false),
+      encryption_key_id(TIDESDB_DEFAULT_ENCRYPTION_KEY_ID),
+      encryption_key_version(0),
       has_blobs(false),
       has_ttl(false),
       num_secondary_indexes(0)
@@ -6691,8 +6694,10 @@ int ha_tidesdb::write_row(const uchar *buf)
                 for (auto &tok : fts_tokens) tf_map[tok.word]++;
                 uint32 word_count = (uint32)fts_tokens.size();
 
-                for (auto &[term, tf] : tf_map)
+                for (auto &kv : tf_map)
                 {
+                    const auto &term = kv.first;
+                    auto &tf = kv.second;
                     uchar fk[FTS_KEY_BUF_LEN];
                     uint fk_len = fts_build_key(term.data(), (uint)term.size(), pk, pk_len, fk);
                     uchar fv[FTS_VALUE_LEN];
@@ -7895,16 +7900,19 @@ int ha_tidesdb::update_row(const uchar *old_data, const uchar *new_data)
                     /* PK changed -- the row identity changed so every old
                        (term, old_pk) must be deleted and every new (term, new_pk)
                        inserted.  No diffing possible across different PKs. */
-                    for (auto &[term, tf] : old_tf)
+                    for (auto &kv : old_tf)
                     {
+                        const auto &term = kv.first;
                         uchar fk[FTS_KEY_BUF_LEN];
                         uint fk_len =
                             fts_build_key(term.data(), (uint)term.size(), old_pk, old_pk_len, fk);
                         tdb_txn_delete_cf_blocking(cached_thd_, txn, share->idx_cfs[i], fk, fk_len,
                                                    true);
                     }
-                    for (auto &[term, tf] : new_tf)
+                    for (auto &kv : new_tf)
                     {
+                        const auto &term = kv.first;
+                        auto &tf = kv.second;
                         uchar fk[FTS_KEY_BUF_LEN];
                         uint fk_len =
                             fts_build_key(term.data(), (uint)term.size(), new_pk, new_pk_len, fk);
@@ -7923,8 +7931,9 @@ int ha_tidesdb::update_row(const uchar *old_data, const uchar *new_data)
                        the stored value used by BM25). */
                     bool doc_len_changed = (old_wc != new_wc);
 
-                    for (auto &[term, old_cnt] : old_tf)
+                    for (auto &kv : old_tf)
                     {
+                        const auto &term = kv.first;
                         if (new_tf.find(term) != new_tf.end()) continue;
                         uchar fk[FTS_KEY_BUF_LEN];
                         uint fk_len =
@@ -7933,8 +7942,10 @@ int ha_tidesdb::update_row(const uchar *old_data, const uchar *new_data)
                                                    true);
                     }
 
-                    for (auto &[term, new_cnt] : new_tf)
+                    for (auto &kv : new_tf)
                     {
+                        const auto &term = kv.first;
+                        auto &new_cnt = kv.second;
                         auto it = old_tf.find(term);
                         bool need_put;
                         if (it == old_tf.end())
@@ -8203,8 +8214,9 @@ int ha_tidesdb::delete_row(const uchar *buf)
                 for (auto &tok : fts_tokens) tf_map[tok.word]++;
                 uint32 word_count = (uint32)fts_tokens.size();
 
-                for (auto &[term, tf] : tf_map)
+                for (auto &kv : tf_map)
                 {
+                    const auto &term = kv.first;
                     uchar fk[FTS_KEY_BUF_LEN];
                     uint fk_len = fts_build_key(term.data(), (uint)term.size(), current_pk_buf_,
                                                 current_pk_len_, fk);
@@ -8600,13 +8612,15 @@ ha_rows ha_tidesdb::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq, v
                                                         bufsz, mrr_mode, limit, cost);
     if (rows == HA_POS_ERROR) return rows;
 
-    /* Partitioned tables are served by ha_partition, which dispatches
-       multi_range_read_* across child handlers using its own DS-MRR-backed
-       logic.  If we clear HA_MRR_USE_DEFAULT_IMPL here, ha_partition's
-       ordered-index-scan path ends up invoking our custom _next without
-       the state its own ordering logic expects and crashes.  Refuse to
-       accept MRR for partitioned tables -- the default path runs correctly. */
+        /* Partitioned tables are served by ha_partition, which dispatches
+           multi_range_read_* across child handlers using its own DS-MRR-backed
+           logic.  If we clear HA_MRR_USE_DEFAULT_IMPL here, ha_partition's
+           ordered-index-scan path ends up invoking our custom _next without
+           the state its own ordering logic expects and crashes.  Refuse to
+           accept MRR for partitioned tables -- the default path runs correctly. */
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (table && table->part_info) return rows;
+#endif
 
     /* Probe the sequence, we accept only if every range is a full single-point
        equality.  A single non-point range forces us back to the default path. */
@@ -9847,8 +9861,10 @@ FT_INFO *ha_tidesdb::ft_init_ext(uint flags, uint inx, String *key)
     info->current_rank = 0.0f;
     info->match_count = 0;
 
-    for (auto &[pk_str, score] : doc_scores)
+    for (auto &kv : doc_scores)
     {
+        const auto &pk_str = kv.first;
+        auto &score = kv.second;
         tdb_fts_result_t r;
         r.pk_len = (uint)pk_str.size();
         r.pk = (uchar *)my_malloc(PSI_NOT_INSTRUMENTED, r.pk_len, MYF(0));

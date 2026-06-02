@@ -840,7 +840,7 @@ class ha_tidesdb : public handler
 
    public:
     ha_tidesdb(handlerton *hton, TABLE_SHARE *table_arg);
-    ~ha_tidesdb() = default;
+    ~ha_tidesdb() override = default;
 
     ulonglong table_flags() const override
     {
