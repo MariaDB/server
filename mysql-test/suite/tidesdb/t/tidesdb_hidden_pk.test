@@ -1,0 +1,65 @@
+--source include/have_tidesdb.inc
+#
+# Test: Tables without explicit PRIMARY KEY (hidden auto-generated row ID)
+#
+
+--echo #
+--echo # TEST 1: Basic CRUD without PK
+--echo #
+
+CREATE TABLE t_nopk (a INT, b VARCHAR(100)) ENGINE=TidesDB;
+
+INSERT INTO t_nopk VALUES (1, 'one'), (2, 'two'), (3, 'three');
+INSERT INTO t_nopk VALUES (1, 'duplicate_a');
+
+SELECT * FROM t_nopk ORDER BY a, b;
+
+--echo #
+--echo # TEST 2: UPDATE and DELETE without PK
+--echo #
+
+UPDATE t_nopk SET b = 'UPDATED' WHERE a = 2;
+SELECT * FROM t_nopk WHERE a = 2;
+
+DELETE FROM t_nopk WHERE b = 'duplicate_a';
+SELECT * FROM t_nopk ORDER BY a;
+
+--echo #
+--echo # TEST 3: Hidden PK with secondary index
+--echo #
+
+CREATE TABLE t_nopk_idx (x INT, y INT, KEY(x)) ENGINE=TidesDB;
+INSERT INTO t_nopk_idx VALUES (10, 100), (20, 200), (10, 300), (30, 400);
+
+SELECT y FROM t_nopk_idx WHERE x = 10 ORDER BY y;
+SELECT COUNT(*) FROM t_nopk_idx;
+
+--echo #
+--echo # TEST 4: Hidden PK with BLOB
+--echo #
+
+CREATE TABLE t_nopk_blob (data LONGBLOB, tag VARCHAR(20)) ENGINE=TidesDB;
+INSERT INTO t_nopk_blob VALUES (REPEAT('X', 50000), 'big');
+INSERT INTO t_nopk_blob VALUES (REPEAT('Y', 100), 'small');
+
+SELECT tag, LENGTH(data) FROM t_nopk_blob ORDER BY tag;
+
+UPDATE t_nopk_blob SET data = REPEAT('Z', 60000) WHERE tag = 'big';
+SELECT tag, LENGTH(data) FROM t_nopk_blob WHERE tag = 'big';
+
+--echo #
+--echo # TEST 5: TRUNCATE hidden PK table
+--echo #
+
+TRUNCATE TABLE t_nopk;
+INSERT INTO t_nopk VALUES (10, 'after_truncate');
+SELECT * FROM t_nopk;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_nopk, t_nopk_idx, t_nopk_blob;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

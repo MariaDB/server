@@ -1,0 +1,30 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+CREATE TABLE r (
+id  INT PRIMARY KEY,
+v   INT NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO r VALUES (1, 100);
+connect  a, localhost, root,,;
+connection a;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM r WHERE id = 1 FOR UPDATE;
+v
+100
+SELECT v FROM r WHERE id = 1 FOR UPDATE;
+v
+100
+UPDATE r SET v = v + 1 WHERE id = 1;
+SELECT v FROM r WHERE id = 1;
+v
+101
+COMMIT;
+connection default;
+# Row 1 incremented exactly once.
+SELECT * FROM r WHERE id = 1;
+id	v
+1	101
+disconnect a;
+connection default;
+DROP TABLE r;
+# Done.

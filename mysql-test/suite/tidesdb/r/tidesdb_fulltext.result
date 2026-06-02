@@ -1,0 +1,122 @@
+#
+# Setup
+#
+CREATE TABLE articles (
+id    INT NOT NULL PRIMARY KEY,
+title VARCHAR(200),
+body  TEXT,
+FULLTEXT ft_content (title, body)
+) ENGINE=TidesDB;
+INSERT INTO articles VALUES (1, 'MySQL Tutorial', 'DBMS stands for DataBase Management System');
+INSERT INTO articles VALUES (2, 'How To Use MySQL', 'After you went through a tutorial you can start');
+INSERT INTO articles VALUES (3, 'Optimizing MySQL', 'In this tutorial we show optimization techniques');
+INSERT INTO articles VALUES (4, 'TidesDB Guide', 'TidesDB is an LSM tree storage engine');
+INSERT INTO articles VALUES (5, 'Database Systems', 'A database management system manages data efficiently');
+#
+# TEST 1: Natural language search
+#
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('tutorial')
+ORDER BY MATCH(title, body) AGAINST('tutorial') DESC;
+id	title
+3	Optimizing MySQL
+1	MySQL Tutorial
+2	How To Use MySQL
+#
+# TEST 2: Multi-term natural language search
+#
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('database management')
+ORDER BY MATCH(title, body) AGAINST('database management') DESC;
+id	title
+5	Database Systems
+1	MySQL Tutorial
+#
+# TEST 3: No match returns empty
+#
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('nonexistent');
+id	title
+#
+# TEST 4: Boolean mode - required term
+#
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('+mysql +tutorial' IN BOOLEAN MODE)
+ORDER BY id;
+id	title
+1	MySQL Tutorial
+2	How To Use MySQL
+3	Optimizing MySQL
+#
+# TEST 5: Boolean mode - excluded term
+#
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('+mysql -tutorial' IN BOOLEAN MODE)
+ORDER BY id;
+id	title
+#
+# TEST 6: Boolean mode - prefix wildcard
+#
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('optim*' IN BOOLEAN MODE)
+ORDER BY id;
+id	title
+3	Optimizing MySQL
+#
+# TEST 7: UPDATE changes FTS results
+#
+UPDATE articles SET body = 'This tutorial covers advanced optimization and tuning' WHERE id = 4;
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('tutorial')
+ORDER BY MATCH(title, body) AGAINST('tutorial') DESC;
+id	title
+3	Optimizing MySQL
+1	MySQL Tutorial
+4	TidesDB Guide
+2	How To Use MySQL
+#
+# TEST 8: DELETE removes from FTS results
+#
+DELETE FROM articles WHERE id = 3;
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('tutorial')
+ORDER BY MATCH(title, body) AGAINST('tutorial') DESC;
+id	title
+1	MySQL Tutorial
+4	TidesDB Guide
+2	How To Use MySQL
+#
+# TEST 9: Single-column FULLTEXT index
+#
+DROP TABLE articles;
+CREATE TABLE articles (
+id    INT NOT NULL PRIMARY KEY,
+title VARCHAR(200),
+FULLTEXT (title)
+) ENGINE=TidesDB;
+INSERT INTO articles VALUES (1, 'Introduction to MySQL');
+INSERT INTO articles VALUES (2, 'Advanced PostgreSQL');
+INSERT INTO articles VALUES (3, 'MySQL Performance Tuning');
+SELECT id, title FROM articles
+WHERE MATCH(title) AGAINST('mysql')
+ORDER BY MATCH(title) AGAINST('mysql') DESC;
+id	title
+1	Introduction to MySQL
+3	MySQL Performance Tuning
+#
+# TEST 10: Oversize query terms must not overflow the stack key buffer.
+# fts_build_key truncates inserted keys to 512 bytes, but a user can pass
+# a multi-byte search term whose byte length exceeds the on-disk cap.
+# The query must complete without crashing and return no match.
+#
+SELECT id, title FROM articles
+WHERE MATCH(title) AGAINST(REPEAT('a', 1024) IN BOOLEAN MODE);
+id	title
+SELECT id, title FROM articles
+WHERE MATCH(title) AGAINST(CONCAT(REPEAT('a', 1024), '*') IN BOOLEAN MODE);
+id	title
+#
+# Cleanup
+#
+DROP TABLE articles;
+# Done.

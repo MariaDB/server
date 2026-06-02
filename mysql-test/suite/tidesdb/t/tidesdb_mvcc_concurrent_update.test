@@ -1,0 +1,87 @@
+--source include/have_tidesdb.inc
+
+#
+# Concurrent same-row update test for TidesDB optimistic MVCC.
+#
+# Drives 8 concurrent client processes against a single counter row,
+# each doing 3000 iterations of a New-Order-shaped transaction:
+#
+#   BEGIN;
+#   SELECT d_next_o_id ... FOR UPDATE;
+#   UPDATE district SET d_next_o_id = d_next_o_id + 1 ...;
+#   INSERT INTO txn_log (vu, ts) VALUES (vu, ts);
+#   COMMIT;
+#
+# The txn_log INSERT shares the transaction.  Each transaction either
+# commits both writes or rolls back both, so COUNT(*) FROM txn_log
+# equals the number of committed transactions.  The invariant the
+# engine must preserve is:
+#
+#   d_next_o_id - 3001 == COUNT(*) FROM txn_log
+#
+# When the invariant fails the engine acknowledged commits whose
+# UPDATE writes collapsed onto the same target value -- two
+# transactions read the same snapshot, both wrote read+1, both
+# committed without TDB_ERR_CONFLICT firing.  The test passes
+# deterministically (OK) when MVCC conflict detection serialises the
+# concurrent increments correctly.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*hton_commit: tidesdb_txn_commit returned");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+--disable_warnings
+DROP TABLE IF EXISTS district;
+DROP TABLE IF EXISTS txn_log;
+--enable_warnings
+
+CREATE TABLE district (
+  d_w_id      INT NOT NULL,
+  d_id        INT NOT NULL,
+  d_next_o_id INT NOT NULL,
+  PRIMARY KEY (d_w_id, d_id)
+) ENGINE=TidesDB;
+
+CREATE TABLE txn_log (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  vu INT NOT NULL,
+  ts BIGINT NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=TidesDB;
+
+INSERT INTO district VALUES (1, 1, 3001);
+
+# 8 parallel client processes, each running 3000 increment transactions
+# on the same row.  Brace expansion in bash keeps MTR's $-substitution
+# from rewriting the loop variables.  Worker stderr is silenced because
+# TDB_ERR_CONFLICT rollbacks are expected and would otherwise flood
+# the test output.  The vu number is interpolated into the txn_log
+# INSERT so the row counts are attributable per-worker if needed.
+--exec bash -c "for vu in {1..8}; do (for i in {1..3000}; do $MYSQL --no-defaults --socket=$MASTER_MYSOCK -uroot test -e \"BEGIN; SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1 FOR UPDATE; UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1; INSERT INTO txn_log (vu, ts) VALUES (\$vu, UNIX_TIMESTAMP()); COMMIT;\" >/dev/null 2>&1; done) & done; wait"
+
+# Compute the invariant.  With correct optimistic MVCC every committed
+# transaction increments d_next_o_id by exactly 1 and lands one
+# txn_log row.  A lost update commits both writes but collapses the
+# UPDATE result, so commits_logged ends up greater than counter_delta.
+#
+# The absolute counts vary by conflict rate so we mask them; only the
+# verdict column is asserted by the .result file.  OK means delta ==
+# commits_logged.  LOST_UPDATE / PHANTOM_INCREMENT diff against OK
+# and fail the test, with the gap visible in the failure diff.
+--replace_column 1 # 2 #
+SELECT
+  d_next_o_id - 3001 AS counter_delta,
+  (SELECT COUNT(*) FROM txn_log) AS commits_logged,
+  CASE
+    WHEN d_next_o_id - 3001 = (SELECT COUNT(*) FROM txn_log)
+      THEN 'OK'
+    WHEN d_next_o_id - 3001 < (SELECT COUNT(*) FROM txn_log)
+      THEN 'LOST_UPDATE'
+    ELSE 'PHANTOM_INCREMENT'
+  END AS verdict
+FROM district WHERE d_w_id=1 AND d_id=1;
+
+DROP TABLE district;
+DROP TABLE txn_log;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc

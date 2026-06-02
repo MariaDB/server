@@ -1,0 +1,111 @@
+--source include/have_tidesdb.inc
+#
+# Test: Object store mode (S3-compatible backend)
+#
+# This test is designed to run with MinIO in CI:
+#   --mysqld=--tidesdb_object_store_backend=S3
+#   --mysqld=--tidesdb_s3_endpoint=localhost:9000
+#   --mysqld=--tidesdb_s3_bucket=tidesql-test
+#   --mysqld=--tidesdb_s3_access_key=minioadmin
+#   --mysqld=--tidesdb_s3_secret_key=minioadmin
+#   --mysqld=--tidesdb_s3_use_ssl=OFF
+#   --mysqld=--tidesdb_s3_path_style=ON
+#
+# When run without S3 config, tests still pass using local storage.
+#
+
+--echo #
+--echo # TEST 1: Basic CRUD over object store
+--echo #
+
+CREATE TABLE t_obj (
+  id INT NOT NULL PRIMARY KEY,
+  name VARCHAR(100),
+  data TEXT
+) ENGINE=TidesDB;
+
+INSERT INTO t_obj VALUES (1, 'alpha', REPEAT('A', 500));
+INSERT INTO t_obj VALUES (2, 'beta',  REPEAT('B', 500));
+INSERT INTO t_obj VALUES (3, 'gamma', REPEAT('C', 500));
+INSERT INTO t_obj VALUES (4, 'delta', REPEAT('D', 500));
+INSERT INTO t_obj VALUES (5, 'epsilon', REPEAT('E', 500));
+
+SELECT id, name, LENGTH(data) FROM t_obj ORDER BY id;
+
+--echo #
+--echo # TEST 2: UPDATE and DELETE
+--echo #
+
+UPDATE t_obj SET name = 'ALPHA', data = REPEAT('X', 1000) WHERE id = 1;
+DELETE FROM t_obj WHERE id = 3;
+
+SELECT id, name, LENGTH(data) FROM t_obj ORDER BY id;
+
+--echo #
+--echo # TEST 3: Secondary index over object store
+--echo #
+
+CREATE TABLE t_idx (
+  id INT NOT NULL PRIMARY KEY,
+  category INT NOT NULL,
+  val VARCHAR(200),
+  KEY idx_cat (category)
+) ENGINE=TidesDB;
+
+INSERT INTO t_idx VALUES (1, 10, 'widget'), (2, 20, 'gadget'), (3, 10, 'sprocket');
+INSERT INTO t_idx VALUES (4, 30, 'gizmo'), (5, 10, 'doohickey');
+
+SELECT id, val FROM t_idx WHERE category = 10 ORDER BY id;
+
+--echo #
+--echo # TEST 4: Transaction commit and rollback
+--echo #
+
+BEGIN;
+INSERT INTO t_obj VALUES (10, 'txn_test', 'committed');
+COMMIT;
+
+BEGIN;
+INSERT INTO t_obj VALUES (11, 'txn_rollback', 'should_not_exist');
+ROLLBACK;
+
+SELECT id, name FROM t_obj WHERE id >= 10 ORDER BY id;
+
+--echo #
+--echo # TEST 5: Bulk insert (triggers flush to SSTables -> S3 upload)
+--echo #
+
+CREATE TABLE t_bulk (
+  id INT NOT NULL PRIMARY KEY,
+  payload VARCHAR(500)
+) ENGINE=TidesDB;
+
+--disable_query_log
+let $i = 1;
+while ($i <= 200)
+{
+  eval INSERT INTO t_bulk VALUES ($i, REPEAT('Z', 200));
+  inc $i;
+}
+--enable_query_log
+
+SELECT COUNT(*) AS bulk_count FROM t_bulk;
+
+--echo #
+--echo # TEST 6: OPTIMIZE TABLE (triggers compaction -> S3 re-upload)
+--echo #
+
+OPTIMIZE TABLE t_bulk;
+
+SELECT COUNT(*) AS after_optimize FROM t_bulk;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_obj;
+DROP TABLE t_idx;
+DROP TABLE t_bulk;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

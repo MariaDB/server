@@ -1,0 +1,164 @@
+--source include/have_tidesdb.inc
+#
+# TidesDB TPC-C contention test -- reproduces the exact NEWORD district
+# counter read-modify-write pattern that causes 0 NOPM in HammerDB.
+#
+# The district row is a serial bottleneck: every New Order transaction
+# must SELECT d_next_o_id FOR UPDATE, then UPDATE d_next_o_id + 1.
+# With InnoDB this serializes via row locks. With TidesDB's optimistic
+# MVCC, two concurrent transactions both read the same value, both
+# write the incremented value, and the second to commit fails with
+# TDB_ERR_CONFLICT (mapped to ER_LOCK_DEADLOCK / ER_ERROR_DURING_COMMIT).
+#
+# This test verifies that concurrent counter increments produce correct
+# results without lost updates or permanent failures.
+#
+
+--echo #
+--echo # === Setup: TPC-C district table (simplified) ===
+--echo #
+
+CREATE TABLE district (
+  d_w_id INT NOT NULL,
+  d_id   INT NOT NULL,
+  d_next_o_id INT NOT NULL,
+  d_tax  DECIMAL(4,4),
+  PRIMARY KEY (d_w_id, d_id)
+) ENGINE=TIDESDB;
+
+INSERT INTO district VALUES (1, 1, 3001, 0.1000);
+
+CREATE TABLE orders (
+  o_id   INT NOT NULL,
+  o_w_id INT NOT NULL,
+  o_d_id INT NOT NULL,
+  o_c_id INT NOT NULL,
+  PRIMARY KEY (o_w_id, o_d_id, o_id)
+) ENGINE=TIDESDB;
+
+CREATE TABLE new_order (
+  no_w_id INT NOT NULL,
+  no_d_id INT NOT NULL,
+  no_o_id INT NOT NULL,
+  PRIMARY KEY (no_w_id, no_d_id, no_o_id)
+) ENGINE=TIDESDB;
+
+--echo #
+--echo # === TEST 1: Single-session NEWORD (baseline) ===
+--echo #
+
+BEGIN;
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1 FOR UPDATE;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+INSERT INTO orders VALUES (3001, 1, 1, 42);
+INSERT INTO new_order VALUES (1, 1, 3001);
+COMMIT;
+
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # === TEST 2: Two concurrent UPDATEs on same district row ===
+--echo # With pessimistic_locking=ON, the second UPDATE blocks on the
+--echo # row lock until the first commits.  Both succeed, counter
+--echo # increments by 2 with no conflicts and no lost updates.
+--echo #
+
+connect (connA, localhost, root,,);
+connect (connB, localhost, root,,);
+
+# Connection A: UPDATE district (acquires row lock, held until COMMIT)
+connection connA;
+BEGIN;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+
+# Connection B: send UPDATE async -- will block on row lock until A commits
+connection connB;
+send UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+
+# Connection A: commit -- releases row lock, unblocks B
+connection connA;
+COMMIT;
+
+# Connection B: reap -- should succeed now that A released the lock
+connection connB;
+reap;
+
+# Check results
+connection default;
+--echo # Both UPDATEs succeeded: 3002 + 2 = 3004
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # === TEST 3: Serial counter increment (10 iterations) ===
+--echo # Verify the counter works correctly when serialized.
+--echo #
+
+--disable_query_log
+let $i= 0;
+while ($i < 10)
+{
+  BEGIN;
+  eval UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+  COMMIT;
+  inc $i;
+}
+--enable_query_log
+
+--echo # Should be initial(3004) + 10 = 3014
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # === TEST 4: 4 concurrent autocommit UPDATEs on same row ===
+--echo # With pessimistic_locking=ON, all 4 serialize through the row lock.
+--echo # Counter should advance by exactly 4.
+--echo #
+
+# Reset counter
+UPDATE district SET d_next_o_id = 5001 WHERE d_w_id=1 AND d_id=1;
+
+connect (storm1, localhost, root,,);
+connect (storm2, localhost, root,,);
+connect (storm3, localhost, root,,);
+connect (storm4, localhost, root,,);
+
+# Each connection does 5 serial increments (autocommit)
+connection storm1;
+send UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm2;
+send UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm3;
+send UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm4;
+send UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+
+connection storm1;
+reap;
+connection storm2;
+reap;
+connection storm3;
+reap;
+connection storm4;
+reap;
+
+connection default;
+--echo # All 4 UPDATEs succeeded through serialized row locks: 5001 + 4 = 5005
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # === Cleanup ===
+--echo #
+
+disconnect connA;
+disconnect connB;
+disconnect storm1;
+disconnect storm2;
+disconnect storm3;
+disconnect storm4;
+
+connection default;
+DROP TABLE district;
+DROP TABLE orders;
+DROP TABLE new_order;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

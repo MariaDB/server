@@ -1,0 +1,31 @@
+--source include/have_tidesdb.inc
+#
+# A user-supplied full-text stop word table must resolve to its TidesDB
+# column family.  CF names join the database and table with CF_DB_TABLE_SEP,
+# so the lookup has to use that separator and not the slash from the
+# db/table spec.  When the lookup failed the custom words were never
+# loaded and the stop word set stayed at the built in default list.
+#
+
+--echo # a TidesDB table holding one custom stop word per row
+CREATE TABLE swords (value VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO swords VALUES ('zebra'), ('quokka');
+
+--echo # point the engine at the custom stop word table
+SET GLOBAL tidesdb_ft_stopword_table = 'test/swords';
+
+--echo # build a full-text document that contains a custom stop word
+CREATE TABLE docs (id INT PRIMARY KEY, body TEXT, FULLTEXT (body)) ENGINE=TidesDB;
+INSERT INTO docs VALUES (1, 'zebra crossing beside the apple tree');
+
+--echo # zebra is now a stop word, so it is never indexed and matches nothing
+SELECT id FROM docs WHERE MATCH(body) AGAINST('zebra' IN BOOLEAN MODE);
+--echo # a normal word still matches
+SELECT id FROM docs WHERE MATCH(body) AGAINST('apple' IN BOOLEAN MODE);
+
+DROP TABLE docs;
+DROP TABLE swords;
+SET GLOBAL tidesdb_ft_stopword_table = DEFAULT;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

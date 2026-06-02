@@ -1,0 +1,103 @@
+--source include/have_tidesdb.inc
+#
+# Test: Spatial indexes (Hilbert curve, MBR predicates)
+#
+# Covers:
+#   1. CREATE TABLE with SPATIAL INDEX
+#   2. INSERT POINT geometries
+#   3. MBRIntersects query
+#   4. MBRContains query
+#   5. MBRWithin query
+#   6. UPDATE geometry column
+#   7. DELETE geometry row
+#
+
+--echo #
+--echo # Setup
+--echo #
+
+CREATE TABLE places (
+  id   INT NOT NULL PRIMARY KEY,
+  name VARCHAR(100),
+  loc  GEOMETRY NOT NULL,
+  SPATIAL INDEX (loc)
+) ENGINE=TidesDB;
+
+INSERT INTO places VALUES (1, 'NYC',     ST_GeomFromText('POINT(40.7128 -74.0060)'));
+INSERT INTO places VALUES (2, 'LA',      ST_GeomFromText('POINT(34.0522 -118.2437)'));
+INSERT INTO places VALUES (3, 'Chicago', ST_GeomFromText('POINT(41.8781 -87.6298)'));
+INSERT INTO places VALUES (4, 'Houston', ST_GeomFromText('POINT(29.7604 -95.3698)'));
+INSERT INTO places VALUES (5, 'Phoenix', ST_GeomFromText('POINT(33.4484 -112.074)'));
+
+--echo #
+--echo # TEST 1: MBRIntersects - find cities near northeast US
+--echo #
+
+SELECT name FROM places
+WHERE MBRIntersects(loc,
+  ST_GeomFromText('POLYGON((39 -76, 43 -76, 43 -72, 39 -72, 39 -76))'))
+ORDER BY name;
+
+--echo #
+--echo # TEST 2: MBRContains - all cities within big US box
+--echo #
+
+SELECT name FROM places
+WHERE MBRContains(
+  ST_GeomFromText('POLYGON((25 -125, 45 -125, 45 -70, 25 -70, 25 -125))'),
+  loc)
+ORDER BY name;
+
+--echo #
+--echo # TEST 3: MBRWithin - same as above using MBRWithin
+--echo #
+
+SELECT name FROM places
+WHERE MBRWithin(loc,
+  ST_GeomFromText('POLYGON((25 -125, 45 -125, 45 -70, 25 -70, 25 -125))'))
+ORDER BY name;
+
+--echo #
+--echo # TEST 4: UPDATE geometry and verify search
+--echo #
+
+UPDATE places SET loc = ST_GeomFromText('POINT(40.0 -74.5)') WHERE id = 1;
+
+SELECT name FROM places
+WHERE MBRIntersects(loc,
+  ST_GeomFromText('POLYGON((39 -76, 43 -76, 43 -72, 39 -72, 39 -76))'))
+ORDER BY name;
+
+--echo #
+--echo # TEST 5: DELETE and verify search
+--echo #
+
+DELETE FROM places WHERE id = 1;
+
+SELECT name FROM places
+WHERE MBRIntersects(loc,
+  ST_GeomFromText('POLYGON((39 -76, 43 -76, 43 -72, 39 -72, 39 -76))'))
+ORDER BY name;
+
+--echo #
+--echo # TEST 6: Simple point-in-box
+--echo #
+
+DROP TABLE places;
+CREATE TABLE pts (id INT PRIMARY KEY, g GEOMETRY NOT NULL, SPATIAL INDEX(g)) ENGINE=TidesDB;
+INSERT INTO pts VALUES (1, ST_GeomFromText('POINT(10 20)'));
+INSERT INTO pts VALUES (2, ST_GeomFromText('POINT(30 40)'));
+INSERT INTO pts VALUES (3, ST_GeomFromText('POINT(50 60)'));
+
+SELECT id FROM pts
+WHERE MBRWithin(g, ST_GeomFromText('POLYGON((5 15, 35 15, 35 45, 5 45, 5 15))'))
+ORDER BY id;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE pts;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

@@ -1,0 +1,301 @@
+#
+# ============================================
+# TEST 1: HASH partitioning
+# ============================================
+#
+CREATE TABLE t_hash (
+id INT NOT NULL,
+val VARCHAR(50),
+PRIMARY KEY (id)
+) ENGINE=TIDESDB
+PARTITION BY HASH(id) PARTITIONS 4;
+INSERT INTO t_hash VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'f'),(7,'g'),(8,'h');
+SELECT * FROM t_hash ORDER BY id;
+id	val
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+SELECT COUNT(*) AS total FROM t_hash;
+total
+8
+# Update across potential partition boundary
+UPDATE t_hash SET val = 'updated' WHERE id = 3;
+SELECT * FROM t_hash WHERE id = 3;
+id	val
+3	updated
+# Delete
+DELETE FROM t_hash WHERE id IN (2, 5);
+SELECT * FROM t_hash ORDER BY id;
+id	val
+1	a
+3	updated
+4	d
+6	f
+7	g
+8	h
+DROP TABLE t_hash;
+#
+# ============================================
+# TEST 2: KEY partitioning
+# ============================================
+#
+CREATE TABLE t_key (
+id INT NOT NULL,
+name VARCHAR(50),
+PRIMARY KEY (id)
+) ENGINE=TIDESDB
+PARTITION BY KEY(id) PARTITIONS 3;
+INSERT INTO t_key VALUES (1,'alice'),(2,'bob'),(3,'charlie'),(4,'dave'),(5,'eve'),(6,'frank');
+SELECT * FROM t_key ORDER BY id;
+id	name
+1	alice
+2	bob
+3	charlie
+4	dave
+5	eve
+6	frank
+DELETE FROM t_key WHERE id = 4;
+SELECT * FROM t_key ORDER BY id;
+id	name
+1	alice
+2	bob
+3	charlie
+5	eve
+6	frank
+DROP TABLE t_key;
+#
+# ============================================
+# TEST 3: RANGE partitioning
+# ============================================
+#
+CREATE TABLE t_range (
+id INT NOT NULL,
+val VARCHAR(50),
+PRIMARY KEY (id)
+) ENGINE=TIDESDB
+PARTITION BY RANGE(id) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30),
+PARTITION p3 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t_range VALUES (1,'r0'),(5,'r0'),(9,'r0');
+INSERT INTO t_range VALUES (10,'r1'),(15,'r1'),(19,'r1');
+INSERT INTO t_range VALUES (20,'r2'),(25,'r2');
+INSERT INTO t_range VALUES (30,'r3'),(50,'r3'),(100,'r3');
+SELECT * FROM t_range ORDER BY id;
+id	val
+1	r0
+5	r0
+9	r0
+10	r1
+15	r1
+19	r1
+20	r2
+25	r2
+30	r3
+50	r3
+100	r3
+SELECT COUNT(*) AS total FROM t_range;
+total
+11
+# Query that should hit only partition p1
+SELECT * FROM t_range WHERE id >= 10 AND id < 20 ORDER BY id;
+id	val
+10	r1
+15	r1
+19	r1
+# Delete from specific range
+DELETE FROM t_range WHERE id >= 20 AND id < 30;
+SELECT * FROM t_range ORDER BY id;
+id	val
+1	r0
+5	r0
+9	r0
+10	r1
+15	r1
+19	r1
+30	r3
+50	r3
+100	r3
+# Update across range boundary
+UPDATE t_range SET val = 'moved' WHERE id = 5;
+SELECT * FROM t_range WHERE id = 5;
+id	val
+5	moved
+DROP TABLE t_range;
+#
+# ============================================
+# TEST 4: LIST partitioning
+# ============================================
+#
+CREATE TABLE t_list (
+id INT NOT NULL,
+region INT NOT NULL,
+name VARCHAR(50),
+PRIMARY KEY (id, region)
+) ENGINE=TIDESDB
+PARTITION BY LIST(region) (
+PARTITION p_east VALUES IN (1, 2, 3),
+PARTITION p_west VALUES IN (4, 5, 6),
+PARTITION p_central VALUES IN (7, 8, 9)
+);
+INSERT INTO t_list VALUES (1,1,'NY'),(2,2,'NJ'),(3,3,'CT');
+INSERT INTO t_list VALUES (4,4,'CA'),(5,5,'OR'),(6,6,'WA');
+INSERT INTO t_list VALUES (7,7,'IL'),(8,8,'OH'),(9,9,'MI');
+SELECT * FROM t_list ORDER BY id;
+id	region	name
+1	1	NY
+2	2	NJ
+3	3	CT
+4	4	CA
+5	5	OR
+6	6	WA
+7	7	IL
+8	8	OH
+9	9	MI
+# Query specific list partition
+SELECT * FROM t_list WHERE region IN (4,5,6) ORDER BY id;
+id	region	name
+4	4	CA
+5	5	OR
+6	6	WA
+DELETE FROM t_list WHERE region = 8;
+SELECT * FROM t_list ORDER BY id;
+id	region	name
+1	1	NY
+2	2	NJ
+3	3	CT
+4	4	CA
+5	5	OR
+6	6	WA
+7	7	IL
+9	9	MI
+DROP TABLE t_list;
+#
+# ============================================
+# TEST 5: RANGE COLUMNS partitioning
+# ============================================
+#
+CREATE TABLE t_range_col (
+id INT NOT NULL,
+created DATE NOT NULL,
+val VARCHAR(50),
+PRIMARY KEY (id, created)
+) ENGINE=TIDESDB
+PARTITION BY RANGE COLUMNS(created) (
+PARTITION p_2024 VALUES LESS THAN ('2025-01-01'),
+PARTITION p_2025 VALUES LESS THAN ('2026-01-01'),
+PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t_range_col VALUES (1,'2024-06-15','old'),(2,'2024-12-31','old');
+INSERT INTO t_range_col VALUES (3,'2025-03-10','current'),(4,'2025-11-20','current');
+INSERT INTO t_range_col VALUES (5,'2026-05-01','future');
+SELECT * FROM t_range_col ORDER BY created;
+id	created	val
+1	2024-06-15	old
+2	2024-12-31	old
+3	2025-03-10	current
+4	2025-11-20	current
+5	2026-05-01	future
+# Query specific partition by date range
+SELECT * FROM t_range_col WHERE created >= '2025-01-01' AND created < '2026-01-01' ORDER BY id;
+id	created	val
+3	2025-03-10	current
+4	2025-11-20	current
+DROP TABLE t_range_col;
+#
+# ============================================
+# TEST 6: Partition with secondary index
+# ============================================
+#
+CREATE TABLE t_part_idx (
+id INT NOT NULL,
+category INT,
+name VARCHAR(50),
+PRIMARY KEY (id),
+KEY idx_cat (category)
+) ENGINE=TIDESDB
+PARTITION BY HASH(id) PARTITIONS 3;
+INSERT INTO t_part_idx VALUES (1,10,'a'),(2,20,'b'),(3,10,'c'),(4,30,'d'),(5,20,'e'),(6,10,'f');
+# Scan via secondary index across partitions
+SELECT * FROM t_part_idx WHERE category = 10 ORDER BY id;
+id	category	name
+1	10	a
+3	10	c
+6	10	f
+SELECT * FROM t_part_idx WHERE category = 20 ORDER BY id;
+id	category	name
+2	20	b
+5	20	e
+DROP TABLE t_part_idx;
+#
+# ============================================
+# TEST 7: ALTER TABLE add/drop partition (RANGE)
+# ============================================
+#
+CREATE TABLE t_alter_part (
+id INT NOT NULL,
+val VARCHAR(50),
+PRIMARY KEY (id)
+) ENGINE=TIDESDB
+PARTITION BY RANGE(id) (
+PARTITION p0 VALUES LESS THAN (100),
+PARTITION p1 VALUES LESS THAN (200)
+);
+INSERT INTO t_alter_part VALUES (1,'lo'),(50,'lo'),(100,'hi'),(150,'hi');
+SELECT * FROM t_alter_part ORDER BY id;
+id	val
+1	lo
+50	lo
+100	hi
+150	hi
+# Add a new partition
+ALTER TABLE t_alter_part ADD PARTITION (PARTITION p2 VALUES LESS THAN MAXVALUE);
+INSERT INTO t_alter_part VALUES (200,'new'),(300,'new');
+SELECT * FROM t_alter_part ORDER BY id;
+id	val
+1	lo
+50	lo
+100	hi
+150	hi
+200	new
+300	new
+# Drop a partition (removes data in that range)
+ALTER TABLE t_alter_part DROP PARTITION p1;
+SELECT * FROM t_alter_part ORDER BY id;
+id	val
+1	lo
+50	lo
+200	new
+300	new
+DROP TABLE t_alter_part;
+#
+# ============================================
+# TEST 8: SHOW CREATE TABLE with partitions
+# ============================================
+#
+CREATE TABLE t_show_part (
+id INT NOT NULL,
+val VARCHAR(50),
+PRIMARY KEY (id)
+) ENGINE=TIDESDB
+PARTITION BY HASH(id) PARTITIONS 2;
+SHOW CREATE TABLE t_show_part;
+Table	Create Table
+t_show_part	CREATE TABLE `t_show_part` (
+  `id` int(11) NOT NULL,
+  `val` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+ PARTITION BY HASH (`id`)
+PARTITIONS 2
+DROP TABLE t_show_part;
+#
+#
+# Done.

@@ -1,0 +1,54 @@
+--source include/have_tidesdb.inc
+--echo #
+--echo # Large-table ALTER under REPEATABLE_READ.
+--echo #
+--echo # Copy-phase ALTER scans every row of the source table into the
+--echo # rebuilt table while a single REPEATABLE_READ transaction is open
+--echo # (autocommit=0 forces this), so the engine must keep the read-set
+--echo # bookkeeping bounded as the scan grows.  Unbounded growth here
+--echo # used to crash the server inside tidesdb_txn_add_to_read_set.
+--echo # The test asserts that the scan completes, the rebuild commits,
+--echo # and the row count is preserved.
+--echo #
+
+CREATE TABLE t_alter_big (
+    a INT AUTO_INCREMENT PRIMARY KEY,
+    b INT
+) ENGINE=TidesDB;
+
+INSERT INTO t_alter_big (a, b) VALUES (DEFAULT, 10), (DEFAULT, 20), (DEFAULT, 30);
+
+--echo # Double the rows repeatedly to get ~100K rows
+let $i = 15;
+while ($i)
+{
+  INSERT INTO t_alter_big (b) SELECT b FROM t_alter_big;
+  dec $i;
+}
+
+SELECT COUNT(*) FROM t_alter_big;
+
+--echo # autocommit=0 makes the surrounding session use REPEATABLE_READ,
+--echo # which is the isolation that loaded the read-set during ALTER.
+SET autocommit=0;
+
+--echo # Sanity-check ALTER's error reporting on contradictory key DDL.
+--error ER_MULTIPLE_PRI_KEY
+ALTER TABLE t_alter_big ADD PRIMARY KEY (a);
+
+--error ER_WRONG_AUTO_KEY
+ALTER TABLE t_alter_big DROP PRIMARY KEY;
+
+--echo # Copy-based ALTER over ~100K rows under REPEATABLE_READ.  Must
+--echo # complete cleanly without exhausting memory or crashing the
+--echo # server in the read-set machinery.
+ALTER TABLE t_alter_big DROP PRIMARY KEY, CHANGE a a INT;
+
+SELECT COUNT(*) FROM t_alter_big;
+
+SET autocommit=1;
+DROP TABLE t_alter_big;
+
+--echo #
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

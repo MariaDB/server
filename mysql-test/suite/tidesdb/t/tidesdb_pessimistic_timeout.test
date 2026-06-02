@@ -1,0 +1,60 @@
+--source include/have_tidesdb.inc
+#
+# Bounded lock-wait.  tidesdb_lock_wait_timeout_ms controls how long a
+# pessimistic acquire blocks before giving up.  This test sets a short
+# 300 ms timeout on connection b, has connection a hold X on row 1,
+# then issues UPDATE on b and confirms it returns
+# ER_LOCK_WAIT_TIMEOUT within the budget rather than waiting forever.
+# It also checks that tidesdb_lock_timeouts increments by exactly one.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE w (
+  id  INT PRIMARY KEY,
+  v   INT NOT NULL
+) ENGINE=TidesDB;
+
+INSERT INTO w VALUES (1, 100);
+
+connect (a, localhost, root,,);
+connect (b, localhost, root,,);
+
+connection default;
+let $timeouts_before =
+  `SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+    WHERE VARIABLE_NAME = 'TIDESDB_LOCK_TIMEOUTS'`;
+
+connection a;
+BEGIN;
+UPDATE w SET v = v + 1 WHERE id = 1;
+
+connection b;
+SET SESSION tidesdb_lock_wait_timeout_ms = 300;
+BEGIN;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE w SET v = v + 1 WHERE id = 1;
+ROLLBACK;
+
+connection a;
+COMMIT;
+
+connection default;
+let $timeouts_after =
+  `SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+    WHERE VARIABLE_NAME = 'TIDESDB_LOCK_TIMEOUTS'`;
+
+--disable_query_log
+eval SELECT $timeouts_after - $timeouts_before AS timeout_delta;
+--enable_query_log
+
+--echo # Row 1 incremented by T1 only.
+SELECT * FROM w WHERE id = 1;
+
+disconnect a;
+disconnect b;
+connection default;
+DROP TABLE w;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

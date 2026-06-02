@@ -1,0 +1,192 @@
+DROP TABLE IF EXISTS t_pk, t_autoinc, t_secidx, t_combined;
+#
+# ============================================
+# TEST 1: PRIMARY KEY - point lookups & range
+# ============================================
+#
+CREATE TABLE t_pk (
+id   INT NOT NULL PRIMARY KEY,
+val  VARCHAR(50)
+) ENGINE=TIDESDB;
+INSERT INTO t_pk VALUES (10, 'ten'), (20, 'twenty'), (30, 'thirty');
+# Point lookup by PK
+SELECT * FROM t_pk WHERE id = 20;
+id	val
+20	twenty
+# Range scan on PK
+SELECT * FROM t_pk WHERE id >= 15 AND id <= 25;
+id	val
+20	twenty
+# Full scan (should still work)
+SELECT * FROM t_pk ORDER BY id;
+id	val
+10	ten
+20	twenty
+30	thirty
+# UPDATE via PK lookup
+UPDATE t_pk SET val = 'TWO-ZERO' WHERE id = 20;
+SELECT * FROM t_pk WHERE id = 20;
+id	val
+20	TWO-ZERO
+# DELETE via PK lookup
+DELETE FROM t_pk WHERE id = 10;
+SELECT * FROM t_pk ORDER BY id;
+id	val
+20	TWO-ZERO
+30	thirty
+DROP TABLE t_pk;
+#
+# ============================================
+# TEST 2: AUTO_INCREMENT
+# ============================================
+#
+CREATE TABLE t_autoinc (
+id   INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(50)
+) ENGINE=TIDESDB;
+INSERT INTO t_autoinc (name) VALUES ('alice');
+INSERT INTO t_autoinc (name) VALUES ('bob');
+INSERT INTO t_autoinc (name) VALUES ('carol');
+SELECT * FROM t_autoinc ORDER BY id;
+id	name
+1	alice
+2	bob
+3	carol
+# Explicit id should also work
+INSERT INTO t_autoinc (id, name) VALUES (100, 'dave');
+SELECT * FROM t_autoinc WHERE id = 100;
+id	name
+100	dave
+# Next auto-inc should continue past 100
+INSERT INTO t_autoinc (name) VALUES ('eve');
+SELECT * FROM t_autoinc ORDER BY id;
+id	name
+1	alice
+2	bob
+3	carol
+100	dave
+101	eve
+DROP TABLE t_autoinc;
+#
+# ============================================
+# TEST 3: Secondary index (KEY)
+# ============================================
+#
+CREATE TABLE t_secidx (
+id  INT NOT NULL PRIMARY KEY,
+k   INT NOT NULL,
+val VARCHAR(50),
+KEY k_idx (k)
+) ENGINE=TIDESDB;
+INSERT INTO t_secidx VALUES (1, 100, 'a'), (2, 200, 'b'), (3, 100, 'c'), (4, 300, 'd');
+# Lookup via secondary index
+SELECT * FROM t_secidx WHERE k = 100 ORDER BY id;
+id	k	val
+1	100	a
+3	100	c
+SELECT * FROM t_secidx WHERE k = 200;
+id	k	val
+2	200	b
+# Range on secondary index
+SELECT * FROM t_secidx WHERE k >= 200 ORDER BY k;
+id	k	val
+2	200	b
+4	300	d
+# UPDATE a row and verify secondary index is maintained
+UPDATE t_secidx SET k = 999 WHERE id = 2;
+SELECT * FROM t_secidx WHERE k = 200;
+id	k	val
+SELECT * FROM t_secidx WHERE k = 999;
+id	k	val
+2	999	b
+# DELETE and verify index entry removed
+DELETE FROM t_secidx WHERE id = 3;
+SELECT * FROM t_secidx WHERE k = 100 ORDER BY id;
+id	k	val
+1	100	a
+DROP TABLE t_secidx;
+#
+# ============================================
+# TEST 4: Combined PK + AUTO_INCREMENT + secondary index
+# (sysbench-like schema)
+# ============================================
+#
+CREATE TABLE t_combined (
+id  INT NOT NULL AUTO_INCREMENT,
+k   INT NOT NULL DEFAULT 0,
+c   CHAR(120) NOT NULL DEFAULT '',
+pad CHAR(60) NOT NULL DEFAULT '',
+PRIMARY KEY (id),
+KEY k_1 (k)
+) ENGINE=TIDESDB;
+# Insert rows (sysbench-style)
+INSERT INTO t_combined (k, c, pad) VALUES
+(1, REPEAT('a', 120), REPEAT('x', 60)),
+(2, REPEAT('b', 120), REPEAT('y', 60)),
+(3, REPEAT('c', 120), REPEAT('z', 60)),
+(1, REPEAT('d', 120), REPEAT('w', 60));
+SELECT id, k, LENGTH(c) AS c_len, LENGTH(pad) AS pad_len FROM t_combined ORDER BY id;
+id	k	c_len	pad_len
+1	1	120	60
+2	2	120	60
+3	3	120	60
+4	1	120	60
+# Point select by PK (sysbench oltp_point_select)
+SELECT id, k FROM t_combined WHERE id = 2;
+id	k
+2	2
+# Range select by PK
+SELECT id, k FROM t_combined WHERE id BETWEEN 2 AND 3 ORDER BY id;
+id	k
+2	2
+3	3
+# Lookup via secondary index
+SELECT id, k FROM t_combined WHERE k = 1 ORDER BY id;
+id	k
+1	1
+4	1
+# Update indexed column (sysbench oltp_update_index)
+UPDATE t_combined SET k = k + 1 WHERE id = 1;
+SELECT id, k FROM t_combined WHERE id = 1;
+id	k
+1	2
+# Verify old index entry gone, new one present
+SELECT id, k FROM t_combined WHERE k = 1 ORDER BY id;
+id	k
+4	1
+SELECT id, k FROM t_combined WHERE k = 2 ORDER BY id;
+id	k
+1	2
+2	2
+# Delete
+DELETE FROM t_combined WHERE id = 3;
+SELECT COUNT(*) AS cnt FROM t_combined;
+cnt
+3
+# TRUNCATE
+TRUNCATE TABLE t_combined;
+SELECT COUNT(*) AS cnt FROM t_combined;
+cnt
+0
+DROP TABLE t_combined;
+#
+# ============================================
+# TEST 5: BIGINT PRIMARY KEY
+# ============================================
+#
+CREATE TABLE t_bigpk (
+id  BIGINT NOT NULL PRIMARY KEY,
+val VARCHAR(20)
+) ENGINE=TIDESDB;
+INSERT INTO t_bigpk VALUES (9223372036854775806, 'near_max');
+INSERT INTO t_bigpk VALUES (1, 'one');
+INSERT INTO t_bigpk VALUES (9223372036854775807, 'max');
+SELECT * FROM t_bigpk ORDER BY id;
+id	val
+1	one
+9223372036854775806	near_max
+9223372036854775807	max
+SELECT * FROM t_bigpk WHERE id = 9223372036854775807;
+id	val
+9223372036854775807	max
+DROP TABLE t_bigpk;

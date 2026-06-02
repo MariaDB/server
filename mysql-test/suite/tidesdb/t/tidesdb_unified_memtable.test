@@ -1,0 +1,101 @@
+--source include/have_tidesdb.inc
+#
+# Test: Unified memtable mode behavior
+# This test runs with the server's default unified_memtable=ON.
+# It exercises operations that stress the shared WAL and memtable:
+# concurrent table access, cross-CF consistency, and flush behavior.
+#
+
+--echo #
+--echo # TEST 1: Verify unified memtable is ON
+--echo #
+
+SELECT @@tidesdb_unified_memtable AS unified;
+
+--echo #
+--echo # TEST 2: Multiple tables sharing the unified memtable
+--echo #
+
+CREATE TABLE t_um1 (id INT PRIMARY KEY, v VARCHAR(100)) ENGINE=TidesDB;
+CREATE TABLE t_um2 (id INT PRIMARY KEY, v VARCHAR(100)) ENGINE=TidesDB;
+CREATE TABLE t_um3 (id INT PRIMARY KEY, v VARCHAR(100)) ENGINE=TidesDB;
+
+BEGIN;
+INSERT INTO t_um1 VALUES (1, 'table1_row1');
+INSERT INTO t_um2 VALUES (1, 'table2_row1');
+INSERT INTO t_um3 VALUES (1, 'table3_row1');
+COMMIT;
+
+SELECT * FROM t_um1;
+SELECT * FROM t_um2;
+SELECT * FROM t_um3;
+
+--echo #
+--echo # TEST 3: Cross-table transaction atomicity
+--echo #
+
+BEGIN;
+INSERT INTO t_um1 VALUES (2, 'committed');
+INSERT INTO t_um2 VALUES (2, 'committed');
+INSERT INTO t_um3 VALUES (2, 'committed');
+COMMIT;
+
+BEGIN;
+INSERT INTO t_um1 VALUES (3, 'rolled_back');
+INSERT INTO t_um2 VALUES (3, 'rolled_back');
+ROLLBACK;
+
+SELECT COUNT(*) AS t1_rows FROM t_um1;
+SELECT COUNT(*) AS t2_rows FROM t_um2;
+SELECT COUNT(*) AS t3_rows FROM t_um3;
+
+--echo #
+--echo # TEST 4: Bulk write across tables (stresses unified WAL)
+--echo #
+
+--disable_query_log
+let $i = 10;
+while ($i <= 50)
+{
+  eval INSERT INTO t_um1 VALUES ($i, REPEAT('A', 50));
+  eval INSERT INTO t_um2 VALUES ($i, REPEAT('B', 50));
+  inc $i;
+}
+--enable_query_log
+
+SELECT COUNT(*) AS t1_total FROM t_um1;
+SELECT COUNT(*) AS t2_total FROM t_um2;
+
+--echo #
+--echo # TEST 5: OPTIMIZE TABLE with unified memtable
+--echo #
+
+OPTIMIZE TABLE t_um1;
+OPTIMIZE TABLE t_um2;
+
+SELECT COUNT(*) AS after_optimize FROM t_um1;
+
+--echo #
+--echo # TEST 6: Secondary indexes across multiple CFs in unified mode
+--echo #
+
+CREATE TABLE t_um_idx (
+  id INT PRIMARY KEY,
+  a INT,
+  b INT,
+  KEY(a),
+  KEY(b)
+) ENGINE=TidesDB;
+
+INSERT INTO t_um_idx VALUES (1, 10, 100), (2, 20, 200), (3, 10, 300);
+SELECT id FROM t_um_idx WHERE a = 10 ORDER BY id;
+SELECT id FROM t_um_idx WHERE b = 200;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_um1, t_um2, t_um3, t_um_idx;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

@@ -1,0 +1,490 @@
+#
+# === Setup ===
+#
+CREATE TABLE stress_main (
+id    INT PRIMARY KEY,
+val   VARCHAR(200),
+score INT,
+KEY idx_score (score)
+) ENGINE=TIDESDB;
+CREATE TABLE stress_nopk (
+a INT,
+b VARCHAR(100)
+) ENGINE=TIDESDB;
+CREATE TABLE stress_wide (
+id      INT PRIMARY KEY,
+c1      VARCHAR(100),
+c2      VARCHAR(100),
+c3      INT,
+c4      BIGINT,
+c5      DECIMAL(10,2),
+c6      DATE,
+KEY idx_c3 (c3),
+KEY idx_c4 (c4)
+) ENGINE=TIDESDB;
+#
+# ============================================
+# TEST 1: Multi-statement transaction -- deferred commit path
+#   Exercises: tidesdb_commit(all=false) returning early,
+#   iterator reuse across statements, single commit at END.
+# ============================================
+#
+BEGIN;
+INSERT INTO stress_main VALUES (1, 'txn_row_1', 10);
+INSERT INTO stress_main VALUES (2, 'txn_row_2', 20);
+INSERT INTO stress_main VALUES (3, 'txn_row_3', 30);
+UPDATE stress_main SET val = 'updated_in_txn' WHERE id = 2;
+DELETE FROM stress_main WHERE id = 3;
+SELECT COUNT(*) AS cnt FROM stress_main;
+cnt
+2
+COMMIT;
+SELECT * FROM stress_main ORDER BY id;
+id	val	score
+1	txn_row_1	10
+2	updated_in_txn	20
+#
+# ============================================
+# TEST 2: Autocommit path -- each statement commits immediately
+#   Exercises: tidesdb_commit(all=false) with autocommit (real commit).
+# ============================================
+#
+INSERT INTO stress_main VALUES (3, 'autocommit_3', 30);
+INSERT INTO stress_main VALUES (4, 'autocommit_4', 40);
+UPDATE stress_main SET score = score + 100;
+SELECT * FROM stress_main ORDER BY id;
+id	val	score
+1	txn_row_1	110
+2	updated_in_txn	120
+3	autocommit_3	130
+4	autocommit_4	140
+#
+# ============================================
+# TEST 3: Explicit ROLLBACK -- transaction-level rollback
+#   Exercises: tidesdb_rollback(all=true), txn_reset after rollback.
+# ============================================
+#
+BEGIN;
+INSERT INTO stress_main VALUES (99, 'will_rollback', 999);
+UPDATE stress_main SET val = 'dirty' WHERE id = 1;
+SELECT COUNT(*) AS cnt FROM stress_main;
+cnt
+5
+ROLLBACK;
+SELECT * FROM stress_main ORDER BY id;
+id	val	score
+1	txn_row_1	110
+2	updated_in_txn	120
+3	autocommit_3	130
+4	autocommit_4	140
+#
+# ============================================
+# TEST 4: Mixed reads and writes in one transaction
+#   Exercises: iterator reuse across read+write statements,
+#   scan_iter surviving F_UNLCK when txn is deferred.
+# ============================================
+#
+BEGIN;
+SELECT COUNT(*) AS before_cnt FROM stress_main;
+before_cnt
+4
+INSERT INTO stress_main VALUES (5, 'mixed_5', 50);
+SELECT COUNT(*) AS mid_cnt FROM stress_main;
+mid_cnt
+5
+UPDATE stress_main SET score = 0 WHERE id = 5;
+SELECT * FROM stress_main WHERE id = 5;
+id	val	score
+5	mixed_5	0
+DELETE FROM stress_main WHERE id = 4;
+SELECT COUNT(*) AS after_cnt FROM stress_main;
+after_cnt
+4
+COMMIT;
+SELECT * FROM stress_main ORDER BY id;
+id	val	score
+1	txn_row_1	110
+2	updated_in_txn	120
+3	autocommit_3	130
+5	mixed_5	0
+#
+# ============================================
+# TEST 5: Secondary index scan under transaction
+#   Exercises: index_read_map, sec_idx_key, iterator on index CF.
+# ============================================
+#
+BEGIN;
+INSERT INTO stress_main VALUES (6, 'idx_6', 60);
+INSERT INTO stress_main VALUES (7, 'idx_7', 70);
+INSERT INTO stress_main VALUES (8, 'idx_8', 60);
+COMMIT;
+SELECT id, val, score FROM stress_main WHERE score = 60 ORDER BY id;
+id	val	score
+6	idx_6	60
+8	idx_8	60
+SELECT id, val, score FROM stress_main WHERE score >= 100 ORDER BY id;
+id	val	score
+1	txn_row_1	110
+2	updated_in_txn	120
+3	autocommit_3	130
+SELECT id, val, score FROM stress_main WHERE score BETWEEN 50 AND 120 ORDER BY id;
+id	val	score
+1	txn_row_1	110
+2	updated_in_txn	120
+6	idx_6	60
+7	idx_7	70
+8	idx_8	60
+#
+# ============================================
+# TEST 6: Hidden PK table -- exercises next_row_id generation
+# ============================================
+#
+BEGIN;
+INSERT INTO stress_nopk VALUES (1, 'nopk_a');
+INSERT INTO stress_nopk VALUES (2, 'nopk_b');
+INSERT INTO stress_nopk VALUES (3, 'nopk_c');
+COMMIT;
+SELECT * FROM stress_nopk ORDER BY a;
+a	b
+1	nopk_a
+2	nopk_b
+3	nopk_c
+UPDATE stress_nopk SET b = 'updated' WHERE a = 2;
+SELECT * FROM stress_nopk ORDER BY a;
+a	b
+1	nopk_a
+2	updated
+3	nopk_c
+DELETE FROM stress_nopk WHERE a = 1;
+SELECT COUNT(*) AS cnt FROM stress_nopk;
+cnt
+2
+#
+# ============================================
+# TEST 7: Large batch insert -- memtable pressure
+#   Exercises: write_buffer flush, iterator over many keys.
+# ============================================
+#
+SELECT COUNT(*) AS cnt FROM stress_main;
+cnt
+507
+SELECT COUNT(*) AS high_score FROM stress_main WHERE score >= 40;
+high_score
+106
+#
+# ============================================
+# TEST 8: Large batch in single transaction
+#   Exercises: many writes buffered in one txn, single commit.
+# ============================================
+#
+BEGIN;
+COMMIT;
+SELECT COUNT(*) AS cnt FROM stress_wide;
+cnt
+500
+SELECT COUNT(*) AS idx_match FROM stress_wide WHERE c3 = 50;
+idx_match
+5
+SELECT COUNT(*) AS idx_range FROM stress_wide WHERE c4 BETWEEN 10000 AND 10100;
+idx_range
+11
+#
+# ============================================
+# TEST 9: Bulk UPDATE + DELETE in transaction
+#   Exercises: update_row and delete_row across many rows,
+#   secondary index maintenance (old key delete + new key insert).
+# ============================================
+#
+BEGIN;
+UPDATE stress_wide SET c3 = c3 + 200 WHERE c3 < 10;
+DELETE FROM stress_wide WHERE c4 > 14000;
+COMMIT;
+SELECT COUNT(*) AS cnt FROM stress_wide;
+cnt
+401
+SELECT MIN(c3) AS min_c3, MAX(c3) AS max_c3 FROM stress_wide;
+min_c3	max_c3
+10	209
+#
+# ============================================
+# TEST 10: TRUNCATE -- exercises delete_all_rows
+#   Exercises: txn rollback+free before CF drop, CF recreate,
+#   share->cf pointer update.
+# ============================================
+#
+SELECT COUNT(*) AS before_trunc FROM stress_wide;
+before_trunc
+401
+TRUNCATE TABLE stress_wide;
+SELECT COUNT(*) AS after_trunc FROM stress_wide;
+after_trunc
+0
+INSERT INTO stress_wide VALUES (1, 'post_trunc', 'ok', 1, 1, 1.00, '2025-06-01');
+SELECT * FROM stress_wide;
+id	c1	c2	c3	c4	c5	c6
+1	post_trunc	ok	1	1	1.00	2025-06-01
+#
+# ============================================
+# TEST 11: Concurrent readers and writers
+#   Exercises: multiple connections with overlapping transactions,
+#   lock-free MVCC concurrency, separate per-connection txns.
+# ============================================
+#
+DELETE FROM stress_main WHERE id >= 100;
+SELECT COUNT(*) AS base_cnt FROM stress_main;
+base_cnt
+7
+connect  writer1, localhost, root,,;
+connect  writer2, localhost, root,,;
+connect  reader1, localhost, root,,;
+connection writer1;
+BEGIN;
+INSERT INTO stress_main VALUES (1001, 'w1_a', 11);
+connection writer2;
+INSERT INTO stress_main VALUES (2001, 'w2_a', 22);
+connection writer1;
+INSERT INTO stress_main VALUES (1002, 'w1_b', 12);
+connection writer2;
+INSERT INTO stress_main VALUES (2002, 'w2_b', 23);
+connection writer1;
+connection writer2;
+connection reader1;
+SELECT COUNT(*) AS reader_sees FROM stress_main;
+reader_sees
+9
+connection writer1;
+COMMIT;
+connection writer2;
+INSERT INTO stress_main VALUES (2003, 'w2_c', 24);
+connection default;
+SELECT COUNT(*) AS final_cnt FROM stress_main WHERE id >= 1000;
+final_cnt
+5
+disconnect writer1;
+disconnect writer2;
+disconnect reader1;
+#
+# ============================================
+# TEST 12: Concurrent transactions with rollback
+#   Exercises: one connection commits, another rolls back.
+# ============================================
+#
+connect  conn_commit, localhost, root,,;
+connect  conn_rollback, localhost, root,,;
+connection conn_commit;
+BEGIN;
+INSERT INTO stress_main VALUES (3001, 'will_commit', 31);
+connection conn_rollback;
+BEGIN;
+INSERT INTO stress_main VALUES (4001, 'will_rollback', 41);
+connection conn_commit;
+INSERT INTO stress_main VALUES (3002, 'will_commit_2', 32);
+connection conn_rollback;
+INSERT INTO stress_main VALUES (4002, 'will_rollback_2', 42);
+connection conn_commit;
+COMMIT;
+connection conn_rollback;
+ROLLBACK;
+connection default;
+SELECT id, val FROM stress_main WHERE id IN (3001, 3002, 4001, 4002) ORDER BY id;
+id	val
+3001	will_commit
+3002	will_commit_2
+disconnect conn_commit;
+disconnect conn_rollback;
+#
+# ============================================
+# TEST 13: Rapid open/close cycle -- exercises close() cleanup
+#   Multiple short-lived connections each doing a quick operation.
+# ============================================
+#
+connect  rapid1, localhost, root,,;
+connection rapid1;
+SELECT COUNT(*) > 0 AS has_rows FROM stress_main;
+has_rows
+1
+disconnect rapid1;
+connect  rapid2, localhost, root,,;
+connection rapid2;
+INSERT INTO stress_main VALUES (5001, 'rapid', 50);
+disconnect rapid2;
+connect  rapid3, localhost, root,,;
+connection rapid3;
+BEGIN;
+INSERT INTO stress_main VALUES (5002, 'rapid_txn', 51);
+COMMIT;
+disconnect rapid3;
+connection default;
+SELECT COUNT(*) AS rapid_cnt FROM stress_main WHERE id IN (5001, 5002);
+rapid_cnt
+2
+#
+# ============================================
+# TEST 14: INSERT...SELECT across TidesDB tables in transaction
+#   Exercises: read from one CF + write to another in same txn.
+# ============================================
+#
+TRUNCATE TABLE stress_wide;
+BEGIN;
+INSERT INTO stress_wide (id, c1, c2, c3, c4, c5, c6)
+SELECT id, val, val, score, score * 10, score + 0.50, '2025-01-01'
+  FROM stress_main
+WHERE id <= 8;
+COMMIT;
+SELECT COUNT(*) AS copied FROM stress_wide;
+copied
+7
+SELECT * FROM stress_wide ORDER BY id;
+id	c1	c2	c3	c4	c5	c6
+1	txn_row_1	txn_row_1	110	1100	110.50	2025-01-01
+2	updated_in_txn	updated_in_txn	120	1200	120.50	2025-01-01
+3	autocommit_3	autocommit_3	130	1300	130.50	2025-01-01
+5	mixed_5	mixed_5	0	0	0.50	2025-01-01
+6	idx_6	idx_6	60	600	60.50	2025-01-01
+7	idx_7	idx_7	70	700	70.50	2025-01-01
+8	idx_8	idx_8	60	600	60.50	2025-01-01
+#
+# ============================================
+# TEST 15: UPDATE that changes secondary index key
+#   Exercises: sec index delete(old) + insert(new) in update_row.
+# ============================================
+#
+SELECT id, score FROM stress_main WHERE id <= 5 ORDER BY id;
+id	score
+1	110
+2	120
+3	130
+5	0
+BEGIN;
+UPDATE stress_main SET score = score + 1000 WHERE id <= 5;
+COMMIT;
+SELECT id, score FROM stress_main WHERE score >= 1000 ORDER BY id;
+id	score
+1	1110
+2	1120
+3	1130
+5	1000
+BEGIN;
+UPDATE stress_main SET score = score - 1000 WHERE id <= 5;
+COMMIT;
+SELECT id, score FROM stress_main WHERE id <= 5 ORDER BY id;
+id	score
+1	110
+2	120
+3	130
+5	0
+#
+# ============================================
+# TEST 16: Concurrent bulk writers + reader
+#   Exercises: heavy concurrent write pressure from multiple
+#   connections, verifies no data corruption.
+# ============================================
+#
+CREATE TABLE stress_bulk (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+connect  bulk1, localhost, root,,;
+connect  bulk2, localhost, root,,;
+connect  bulk3, localhost, root,,;
+connection bulk1;
+BEGIN;
+connection bulk2;
+BEGIN;
+connection bulk1;
+connection bulk2;
+connection bulk1;
+COMMIT;
+connection bulk2;
+COMMIT;
+connection bulk1;
+connection bulk2;
+connection bulk3;
+SELECT COUNT(*) AS bulk_total FROM stress_bulk;
+bulk_total
+200
+SELECT COUNT(DISTINCT id) AS unique_ids FROM stress_bulk;
+unique_ids
+200
+connection default;
+disconnect bulk1;
+disconnect bulk2;
+disconnect bulk3;
+DROP TABLE stress_bulk;
+#
+# ============================================
+# TEST 17: Repeated TRUNCATE + re-insert cycle
+#   Exercises: repeated CF drop/recreate, share->cf pointer
+#   update, txn discard before drop.
+# ============================================
+#
+CREATE TABLE stress_trunc (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+TRUNCATE TABLE stress_trunc;
+TRUNCATE TABLE stress_trunc;
+TRUNCATE TABLE stress_trunc;
+TRUNCATE TABLE stress_trunc;
+TRUNCATE TABLE stress_trunc;
+SELECT COUNT(*) AS after_cycles FROM stress_trunc;
+after_cycles
+0
+INSERT INTO stress_trunc VALUES (1, 'final');
+SELECT * FROM stress_trunc;
+id	val
+1	final
+DROP TABLE stress_trunc;
+#
+# ============================================
+# TEST 18: Transaction with only reads (read-only txn path)
+#   Exercises: tidesdb_commit with dirty=false, rollback+reset path.
+# ============================================
+#
+BEGIN;
+SELECT COUNT(*) AS ro_cnt FROM stress_main;
+ro_cnt
+16
+SELECT * FROM stress_main WHERE id = 1;
+id	val	score
+1	txn_row_1	110
+SELECT MIN(score) AS min_s, MAX(score) AS max_s FROM stress_main;
+min_s	max_s
+0	130
+COMMIT;
+#
+# ============================================
+# TEST 19: PK uniqueness enforcement and REPLACE INTO
+#   Duplicate PK INSERT must return an error.
+#   REPLACE INTO overwrites the existing row.
+# ============================================
+#
+CREATE TABLE stress_uniq (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO stress_uniq VALUES (1, 'first');
+INSERT INTO stress_uniq VALUES (1, 'should_fail');
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+REPLACE INTO stress_uniq VALUES (1, 'replaced');
+BEGIN;
+INSERT INTO stress_uniq VALUES (2, 'second');
+REPLACE INTO stress_uniq VALUES (1, 'overwritten');
+INSERT INTO stress_uniq VALUES (3, 'third');
+COMMIT;
+SELECT * FROM stress_uniq ORDER BY id;
+id	val
+1	overwritten
+2	second
+3	third
+DROP TABLE stress_uniq;
+#
+# ============================================
+# TEST 20: Verify data integrity after all stress
+#   Final consistency check on the main table.
+# ============================================
+#
+SELECT COUNT(*) AS total FROM stress_main;
+total
+16
+SELECT COUNT(*) AS idx_total FROM stress_main WHERE score >= 0 OR score < 0 OR score IS NULL;
+idx_total
+16
+#
+# === Cleanup ===
+#
+DROP TABLE stress_main;
+DROP TABLE stress_nopk;
+DROP TABLE stress_wide;
+# Done.

@@ -1,0 +1,76 @@
+--source include/have_tidesdb.inc
+--source include/have_innodb.inc
+#
+# Test: Mixed-engine transactions (TidesDB + InnoDB in same transaction)
+#
+
+--echo #
+--echo # TEST 1: Cross-engine transaction commit
+--echo #
+
+CREATE TABLE t_tdb (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+CREATE TABLE t_inn (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+
+BEGIN;
+INSERT INTO t_tdb VALUES (1, 100);
+INSERT INTO t_inn VALUES (1, 100);
+INSERT INTO t_tdb VALUES (2, 200);
+INSERT INTO t_inn VALUES (2, 200);
+COMMIT;
+
+SELECT * FROM t_tdb ORDER BY id;
+SELECT * FROM t_inn ORDER BY id;
+
+--echo #
+--echo # TEST 2: Cross-engine transaction rollback
+--echo #
+
+BEGIN;
+INSERT INTO t_tdb VALUES (3, 300);
+INSERT INTO t_inn VALUES (3, 300);
+ROLLBACK;
+
+SELECT COUNT(*) AS tdb_count FROM t_tdb;
+SELECT COUNT(*) AS inn_count FROM t_inn;
+
+--echo #
+--echo # TEST 3: Cross-engine JOIN query
+--echo #
+
+INSERT INTO t_tdb VALUES (3, 300);
+INSERT INTO t_inn VALUES (3, 999);
+
+SELECT a.id, a.v AS tdb_val, b.v AS inn_val
+FROM t_tdb a JOIN t_inn b ON a.id = b.id
+ORDER BY a.id;
+
+--echo #
+--echo # TEST 4: INSERT ... SELECT across engines
+--echo #
+
+CREATE TABLE t_tdb2 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_tdb2 SELECT * FROM t_inn;
+SELECT * FROM t_tdb2 ORDER BY id;
+
+CREATE TABLE t_inn2 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t_inn2 SELECT * FROM t_tdb;
+SELECT * FROM t_inn2 ORDER BY id;
+
+--echo #
+--echo # TEST 5: Multi-table UPDATE across engines
+--echo #
+
+UPDATE t_tdb a JOIN t_inn b ON a.id = b.id
+SET a.v = a.v + 1, b.v = b.v + 1
+WHERE a.id = 1;
+
+SELECT a.v AS tdb_v, b.v AS inn_v FROM t_tdb a, t_inn b WHERE a.id = 1 AND b.id = 1;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_tdb, t_inn, t_tdb2, t_inn2;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

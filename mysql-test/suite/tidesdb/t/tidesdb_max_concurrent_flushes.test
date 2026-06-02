@@ -1,0 +1,26 @@
+--source include/have_tidesdb.inc
+
+# This test deliberately starts the server with a misaligned configuration
+# so it can assert on the resulting warning, so the MTR warning checker
+# must be told to expect it.
+call mtr.add_suppression("\\[TIDESDB\\] tidesdb_max_concurrent_flushes=.* is lower than tidesdb_flush_threads=");
+
+#
+# tidesdb_max_concurrent_flushes caps in-flight memtable flushes.  When 0
+# (default) the cap aligns with tidesdb_flush_threads so every configured
+# worker can run.  An explicit cap below the worker count is honoured but
+# logs a startup warning since some flush workers will remain idle.
+# The .opt for this test sets flush_threads=4 and max_concurrent_flushes=2
+# to exercise that warning path.
+#
+
+SELECT @@global.tidesdb_flush_threads AS flush_threads,
+       @@global.tidesdb_max_concurrent_flushes AS max_concurrent_flushes;
+
+--echo # the server error log carries the misalignment warning
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= tidesdb_max_concurrent_flushes=2 is lower than tidesdb_flush_threads=4
+--source include/search_pattern_in_file.inc
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

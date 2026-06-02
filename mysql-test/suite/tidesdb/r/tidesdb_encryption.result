@@ -1,0 +1,143 @@
+#
+# ============================================
+# TEST 1: Basic encrypted table - CRUD
+# ============================================
+#
+CREATE TABLE t_enc1 (
+id INT NOT NULL PRIMARY KEY,
+val VARCHAR(100)
+) ENGINE=TIDESDB `ENCRYPTED`=YES;
+INSERT INTO t_enc1 VALUES (1, 'secret_one');
+INSERT INTO t_enc1 VALUES (2, 'secret_two');
+INSERT INTO t_enc1 VALUES (3, 'secret_three');
+SELECT * FROM t_enc1 ORDER BY id;
+id	val
+1	secret_one
+2	secret_two
+3	secret_three
+UPDATE t_enc1 SET val = 'updated_secret' WHERE id = 2;
+SELECT * FROM t_enc1 WHERE id = 2;
+id	val
+2	updated_secret
+DELETE FROM t_enc1 WHERE id = 1;
+SELECT * FROM t_enc1 ORDER BY id;
+id	val
+2	updated_secret
+3	secret_three
+DROP TABLE t_enc1;
+#
+# ============================================
+# TEST 2: SHOW CREATE TABLE shows ENCRYPTED option
+# ============================================
+#
+CREATE TABLE t_enc2 (
+id INT NOT NULL PRIMARY KEY,
+name VARCHAR(50),
+amount INT
+) ENGINE=TIDESDB `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=2;
+SHOW CREATE TABLE t_enc2;
+Table	Create Table
+t_enc2	CREATE TABLE `t_enc2` (
+  `id` int(11) NOT NULL,
+  `name` varchar(50) DEFAULT NULL,
+  `amount` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=2
+INSERT INTO t_enc2 VALUES (1, 'alice', 100);
+SELECT * FROM t_enc2;
+id	name	amount
+1	alice	100
+DROP TABLE t_enc2;
+#
+# ============================================
+# TEST 3: Non-encrypted table still works
+# ============================================
+#
+CREATE TABLE t_noenc (
+id INT NOT NULL PRIMARY KEY,
+val VARCHAR(50)
+) ENGINE=TIDESDB;
+INSERT INTO t_noenc VALUES (1, 'plain_text');
+SELECT * FROM t_noenc;
+id	val
+1	plain_text
+DROP TABLE t_noenc;
+#
+# ============================================
+# TEST 4: Encrypted table with secondary index
+# ============================================
+#
+CREATE TABLE t_enc_idx (
+id INT NOT NULL PRIMARY KEY,
+name VARCHAR(50),
+age INT,
+KEY idx_name (name)
+) ENGINE=TIDESDB `ENCRYPTED`=YES;
+INSERT INTO t_enc_idx VALUES (1, 'alice', 30);
+INSERT INTO t_enc_idx VALUES (2, 'bob', 25);
+INSERT INTO t_enc_idx VALUES (3, 'charlie', 35);
+INSERT INTO t_enc_idx VALUES (4, 'alice', 28);
+SELECT * FROM t_enc_idx WHERE name = 'alice' ORDER BY id;
+id	name	age
+1	alice	30
+4	alice	28
+SELECT * FROM t_enc_idx ORDER BY id;
+id	name	age
+1	alice	30
+2	bob	25
+3	charlie	35
+4	alice	28
+DROP TABLE t_enc_idx;
+#
+# ============================================
+# TEST 5: Encrypted table with AUTO_INCREMENT
+# ============================================
+#
+CREATE TABLE t_enc_auto (
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+data VARCHAR(100)
+) ENGINE=TIDESDB `ENCRYPTED`=YES;
+INSERT INTO t_enc_auto (data) VALUES ('row_a');
+INSERT INTO t_enc_auto (data) VALUES ('row_b');
+INSERT INTO t_enc_auto (data) VALUES ('row_c');
+SELECT * FROM t_enc_auto ORDER BY id;
+id	data
+1	row_a
+2	row_b
+3	row_c
+DROP TABLE t_enc_auto;
+#
+# ============================================
+# TEST 6: Encrypted table with BLOB data
+# ============================================
+#
+CREATE TABLE t_enc_blob (
+id INT NOT NULL PRIMARY KEY,
+payload BLOB
+) ENGINE=TIDESDB `ENCRYPTED`=YES;
+INSERT INTO t_enc_blob VALUES (1, REPEAT('A', 500));
+INSERT INTO t_enc_blob VALUES (2, REPEAT('B', 1000));
+SELECT id, LENGTH(payload) AS plen, LEFT(payload, 5) AS head FROM t_enc_blob ORDER BY id;
+id	plen	head
+1	500	AAAAA
+2	1000	BBBBB
+DROP TABLE t_enc_blob;
+#
+# ============================================
+# TEST 7: Encrypted table with NULL values
+# ============================================
+#
+CREATE TABLE t_enc_null (
+id INT NOT NULL PRIMARY KEY,
+val VARCHAR(50) NULL
+) ENGINE=TIDESDB `ENCRYPTED`=YES;
+INSERT INTO t_enc_null VALUES (1, NULL);
+INSERT INTO t_enc_null VALUES (2, 'not_null');
+INSERT INTO t_enc_null VALUES (3, NULL);
+SELECT * FROM t_enc_null ORDER BY id;
+id	val
+1	NULL
+2	not_null
+3	NULL
+DROP TABLE t_enc_null;
+# Done.

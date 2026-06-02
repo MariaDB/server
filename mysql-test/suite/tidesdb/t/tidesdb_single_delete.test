@@ -1,0 +1,200 @@
+--source include/have_tidesdb.inc
+#
+# Test coverage for the tidesdb_single_delete_primary session variable
+# and the unconditional single-delete semantics on secondary-index CFs.
+#
+# The single-delete contract is "at most one put between single-deletes
+# on the same key".  Secondary-index CFs satisfy that by construction
+# for every (col_values, pk) composite and use single-delete on every
+# delete path automatically.  The primary CF only satisfies the
+# contract when the session does no UPDATE on non-PK columns and no
+# REPLACE INTO / INSERT ... ON DUPLICATE KEY UPDATE overwrite path on
+# tables without secondary indexes -- the session variable is the
+# caller's explicit promise.
+#
+
+--echo #
+--echo # === sysvar: default is OFF ===
+--echo #
+
+SHOW VARIABLES LIKE 'tidesdb_single_delete_primary';
+SELECT @@SESSION.tidesdb_single_delete_primary;
+
+--echo #
+--echo # === Secondary-index single-delete is always on (no flag needed). ===
+--echo # Reads must remain correct across INSERT, SELECT, UPDATE, DELETE on a
+--echo # table with multiple secondary indexes.  This exercises update_row's
+--echo # old-entry delete path and delete_row's secondary-index dispatch loop.
+--echo #
+
+CREATE TABLE t_sec (
+  pk BIGINT PRIMARY KEY,
+  c0 INT,
+  c1 INT,
+  c2 INT,
+  KEY k0 (c0),
+  KEY k1 (c1),
+  KEY k2 (c2)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_sec VALUES (1,10,100,1000),(2,20,200,2000),(3,30,300,3000);
+
+SELECT * FROM t_sec ORDER BY pk;
+SELECT pk FROM t_sec WHERE c0 = 20;
+SELECT pk FROM t_sec WHERE c1 = 300;
+SELECT pk FROM t_sec WHERE c2 = 1000;
+
+UPDATE t_sec SET c0 = 11, c1 = 111 WHERE pk = 1;
+
+SELECT * FROM t_sec ORDER BY pk;
+SELECT pk FROM t_sec WHERE c0 = 10;
+SELECT pk FROM t_sec WHERE c0 = 11;
+SELECT pk FROM t_sec WHERE c1 = 100;
+SELECT pk FROM t_sec WHERE c1 = 111;
+
+DELETE FROM t_sec WHERE pk = 2;
+
+SELECT * FROM t_sec ORDER BY pk;
+SELECT pk FROM t_sec WHERE c0 = 20;
+SELECT pk FROM t_sec WHERE c1 = 200;
+
+DELETE FROM t_sec;
+SELECT COUNT(*) FROM t_sec;
+
+--echo #
+--echo # REPLACE INTO on a table with secondary indexes: the server routes
+--echo # through delete_row + write_row, so each specific (col_vals, pk) is
+--echo # still put-once-delete-once.  Secondary-index single-delete stays
+--echo # safe.
+--echo #
+
+INSERT INTO t_sec VALUES (5,50,500,5000);
+REPLACE INTO t_sec VALUES (5,55,555,5555);
+SELECT * FROM t_sec WHERE pk = 5;
+SELECT pk FROM t_sec WHERE c0 = 50;
+SELECT pk FROM t_sec WHERE c0 = 55;
+
+DROP TABLE t_sec;
+
+--echo #
+--echo # === Primary-CF single-delete under the sysvar: insert-then-delete. ===
+--echo # The contract holds because we only INSERT and DELETE -- no UPDATE,
+--echo # no REPLACE.  Reads must agree with the non-sysvar baseline.
+--echo #
+
+SET SESSION tidesdb_single_delete_primary = 1;
+SELECT @@SESSION.tidesdb_single_delete_primary;
+
+CREATE TABLE t_pri (
+  pk BIGINT PRIMARY KEY,
+  v  VARCHAR(32)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_pri VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+SELECT * FROM t_pri ORDER BY pk;
+
+DELETE FROM t_pri WHERE pk IN (2,4);
+SELECT * FROM t_pri ORDER BY pk;
+
+DELETE FROM t_pri;
+SELECT COUNT(*) FROM t_pri;
+
+--echo #
+--echo # Insert a fresh batch, delete every row, read nothing back.  This
+--echo # matches the iibench-shaped workload.
+--echo #
+
+INSERT INTO t_pri VALUES (10,'x'),(20,'y'),(30,'z'),(40,'w'),(50,'v');
+SELECT COUNT(*) FROM t_pri;
+DELETE FROM t_pri;
+SELECT COUNT(*) FROM t_pri;
+
+DROP TABLE t_pri;
+
+--echo #
+--echo # === Primary-CF single-delete with secondary indexes present. ===
+--echo # Secondary-index SD is already unconditional; primary-CF SD is gated
+--echo # on the sysvar.  Together they cover all four CFs per delete on
+--echo # Mark's num_secondary_indexes=3 table shape.
+--echo #
+
+CREATE TABLE t_mark (
+  transactionid BIGINT PRIMARY KEY,
+  c0 INT,
+  c1 INT,
+  c2 INT,
+  KEY (c0),
+  KEY (c1),
+  KEY (c2)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_mark VALUES (1,10,100,1000),(2,20,200,2000),(3,30,300,3000),
+                          (4,40,400,4000),(5,50,500,5000);
+SELECT COUNT(*) FROM t_mark;
+SELECT transactionid FROM t_mark WHERE c1 = 300;
+
+DELETE FROM t_mark WHERE transactionid >= 2 ORDER BY transactionid ASC LIMIT 2;
+SELECT transactionid FROM t_mark ORDER BY transactionid;
+SELECT transactionid FROM t_mark WHERE c0 = 20;
+SELECT transactionid FROM t_mark WHERE c2 = 3000;
+
+DELETE FROM t_mark;
+SELECT COUNT(*) FROM t_mark;
+
+DROP TABLE t_mark;
+
+SET SESSION tidesdb_single_delete_primary = 0;
+
+--echo #
+--echo # === Sysvar OFF across UPDATE + REPLACE paths (safety baseline). ===
+--echo # Any workload that uses UPDATE non-PK / REPLACE INTO on no-secondary
+--echo # tables must stay correct with the sysvar OFF, because primary-CF SD
+--echo # is unsafe under those patterns.  Secondary-index SD is independent
+--echo # of the sysvar.
+--echo #
+
+CREATE TABLE t_upd (
+  pk BIGINT PRIMARY KEY,
+  c0 INT,
+  KEY (c0)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_upd VALUES (1,100),(2,200),(3,300);
+
+UPDATE t_upd SET c0 = 999 WHERE pk = 2;
+SELECT * FROM t_upd ORDER BY pk;
+SELECT pk FROM t_upd WHERE c0 = 200;
+SELECT pk FROM t_upd WHERE c0 = 999;
+
+DELETE FROM t_upd WHERE pk = 2;
+SELECT * FROM t_upd ORDER BY pk;
+SELECT pk FROM t_upd WHERE c0 = 999;
+
+DROP TABLE t_upd;
+
+--echo #
+--echo # REPLACE INTO on a no-secondary table follows the line-5143 "overwrite
+--echo # silently" fast path.  With sysvar OFF (default), subsequent DELETEs
+--echo # remain correct because the regular tombstone is used.
+--echo #
+
+CREATE TABLE t_rep (
+  pk BIGINT PRIMARY KEY,
+  v  VARCHAR(32)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_rep VALUES (1,'first');
+REPLACE INTO t_rep VALUES (1,'second');
+SELECT * FROM t_rep;
+
+DELETE FROM t_rep WHERE pk = 1;
+SELECT COUNT(*) FROM t_rep;
+SELECT * FROM t_rep;
+
+INSERT INTO t_rep VALUES (1,'third');
+SELECT * FROM t_rep;
+
+DROP TABLE t_rep;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

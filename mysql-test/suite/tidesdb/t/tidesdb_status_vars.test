@@ -1,0 +1,53 @@
+--source include/have_tidesdb.inc
+#
+# Test: SHOW GLOBAL STATUS LIKE 'tidesdb%' status variables
+#
+
+--echo #
+--echo # TEST 1: Status variables exist
+--echo #
+
+# All 19 variables should be present
+SELECT COUNT(*) >= 19 AS has_all_vars FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME LIKE 'TIDESDB%';
+
+--echo #
+--echo # TEST 2: Variables have reasonable values after table operations
+--echo #
+
+CREATE TABLE t_stat (id INT PRIMARY KEY, v VARCHAR(200)) ENGINE=TidesDB;
+INSERT INTO t_stat VALUES (1, REPEAT('A', 100)), (2, REPEAT('B', 100));
+SELECT * FROM t_stat ORDER BY id;
+
+# Force stats refresh (suppress output -- paths and counters vary per worker)
+--disable_result_log
+SHOW ENGINE TIDESDB STATUS;
+--enable_result_log
+
+# Column families should be > 0
+SELECT VARIABLE_VALUE > 0 AS cf_positive FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME = 'TIDESDB_COLUMN_FAMILIES';
+
+# Memory limit should be > 0
+SELECT VARIABLE_VALUE > 0 AS mem_positive FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME = 'TIDESDB_MEMORY_LIMIT';
+
+# Cache partitions should be > 0
+SELECT VARIABLE_VALUE > 0 AS parts_positive FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME = 'TIDESDB_CACHE_PARTITIONS';
+
+--echo #
+--echo # TEST 3: All variable names are correct
+--echo #
+
+SELECT VARIABLE_NAME FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME LIKE 'TIDESDB%' ORDER BY VARIABLE_NAME;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_stat;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

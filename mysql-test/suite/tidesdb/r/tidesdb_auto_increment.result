@@ -1,0 +1,112 @@
+#
+# TEST 1: Basic auto-increment
+#
+CREATE TABLE t_ai (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_ai (v) VALUES ('a'), ('b'), ('c');
+SELECT * FROM t_ai ORDER BY id;
+id	v
+1	a
+2	b
+3	c
+#
+# TEST 2: Explicit value larger than counter
+#
+INSERT INTO t_ai VALUES (100, 'explicit');
+INSERT INTO t_ai (v) VALUES ('after_explicit');
+SELECT * FROM t_ai ORDER BY id;
+id	v
+1	a
+2	b
+3	c
+100	explicit
+101	after_explicit
+#
+# TEST 3: Gap after rollback
+#
+BEGIN;
+INSERT INTO t_ai (v) VALUES ('will_rollback');
+SELECT MAX(id) FROM t_ai;
+MAX(id)
+102
+ROLLBACK;
+INSERT INTO t_ai (v) VALUES ('after_rollback');
+SELECT id, v FROM t_ai WHERE v IN ('after_rollback', 'after_explicit') ORDER BY id;
+id	v
+101	after_explicit
+103	after_rollback
+#
+# TEST 4: LAST_INSERT_ID
+#
+INSERT INTO t_ai (v) VALUES ('last_id_test');
+SELECT LAST_INSERT_ID() > 0 AS has_last_id;
+has_last_id
+1
+#
+# TEST 5: Auto-increment with REPLACE INTO
+#
+CREATE TABLE t_ai_replace (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(50) UNIQUE
+) ENGINE=TidesDB;
+INSERT INTO t_ai_replace (name) VALUES ('x'), ('y'), ('z');
+REPLACE INTO t_ai_replace (name) VALUES ('y');
+SELECT * FROM t_ai_replace ORDER BY name;
+id	name
+1	x
+4	y
+3	z
+#
+# TEST 5b: an auto-increment PK must not bypass the UNIQUE secondary check
+#
+INSERT INTO t_ai_replace (name) VALUES ('z');
+ERROR 23000: Duplicate entry 'z' for key 'name'
+INSERT INTO t_ai_replace (name) VALUES ('x')
+ON DUPLICATE KEY UPDATE name = 'x2';
+SELECT * FROM t_ai_replace ORDER BY name;
+id	name
+1	x2
+4	y
+3	z
+# no value may appear twice in the UNIQUE column
+SELECT name, COUNT(*) AS c FROM t_ai_replace GROUP BY name HAVING c > 1;
+name	c
+#
+# TEST 6: BIGINT auto-increment
+#
+CREATE TABLE t_ai_big (id BIGINT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_ai_big (v) VALUES (1), (2), (3);
+INSERT INTO t_ai_big VALUES (9999999999, 4);
+INSERT INTO t_ai_big (v) VALUES (5);
+SELECT * FROM t_ai_big ORDER BY id;
+id	v
+1	1
+2	2
+3	3
+9999999999	4
+10000000000	5
+#
+# TEST 7: Auto-increment after TRUNCATE resets counter
+#
+TRUNCATE TABLE t_ai;
+INSERT INTO t_ai (v) VALUES ('fresh_start');
+SELECT * FROM t_ai;
+id	v
+1	fresh_start
+#
+# TEST 8: ALTER TABLE ... AUTO_INCREMENT=N takes effect
+#
+CREATE TABLE t_ai_alter (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(10)) ENGINE=TidesDB;
+INSERT INTO t_ai_alter (v) VALUES ('a'), ('b');
+ALTER TABLE t_ai_alter AUTO_INCREMENT=1000;
+INSERT INTO t_ai_alter (v) VALUES ('jumped');
+SELECT * FROM t_ai_alter ORDER BY id;
+id	v
+1	a
+2	b
+3	jumped
+DROP TABLE t_ai_alter;
+#
+# Cleanup
+#
+DROP TABLE t_ai, t_ai_replace, t_ai_big;
+# Done.

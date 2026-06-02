@@ -1,0 +1,39 @@
+--source include/have_tidesdb.inc
+#
+# Pin the per-table-option defaults so any future drift from the TidesDB
+# library's tidesdb_default_column_family_config (or from the deliberate
+# SQL-side deviations called out in the README) is caught here.
+# Library-aligned defaults are listed first; deliberate deviations from
+# the library are at the bottom with the rationale recorded in the README.
+#
+
+--echo # library-aligned column-family defaults
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_min_levels';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_dividing_level_offset';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_level_size_ratio';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_klog_value_threshold';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_bloom_filter';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_bloom_fpr';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_block_indexes';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_index_sample_ratio';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_block_index_prefix_len';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_skip_list_max_level';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_skip_list_probability';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_min_disk_space';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_l1_file_count_trigger';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_l0_queue_stall_threshold';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_tombstone_density_trigger';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_tombstone_density_min_entries';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_compression';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_use_btree';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_object_lazy_compaction';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_object_prefetch_compaction';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_sync_interval_us';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_write_buffer_size';
+
+--echo # deliberate deviations from the library default, see README
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_sync_mode';
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_isolation_level';
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

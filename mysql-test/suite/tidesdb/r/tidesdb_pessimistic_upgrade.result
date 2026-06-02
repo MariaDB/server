@@ -1,0 +1,54 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+CREATE TABLE u (
+id  INT PRIMARY KEY,
+v   INT NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO u VALUES (1, 100);
+connect  a, localhost, root,,;
+connect  b, localhost, root,,;
+#
+# Scenario 1, sole holder upgrades cleanly.
+#
+connection a;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM u WHERE id = 1;
+v
+100
+UPDATE u SET v = v + 10 WHERE id = 1;
+COMMIT;
+connection default;
+SELECT * FROM u WHERE id = 1;
+id	v
+1	110
+#
+# Scenario 2, two S holders, one tries to upgrade, must be rejected.
+#
+connection a;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM u WHERE id = 1;
+v
+110
+connection b;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM u WHERE id = 1;
+v
+110
+connection a;
+UPDATE u SET v = v + 1 WHERE id = 1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection b;
+COMMIT;
+connection default;
+# Row 1 unchanged from scenario 2.
+SELECT * FROM u WHERE id = 1;
+id	v
+1	110
+disconnect a;
+disconnect b;
+connection default;
+DROP TABLE u;
+# Done.

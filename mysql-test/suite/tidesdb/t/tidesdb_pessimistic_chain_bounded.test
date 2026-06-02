@@ -1,0 +1,113 @@
+--source include/have_tidesdb.inc
+#
+# Test that the pessimistic-lock hash chain stays bounded under churn.
+# Insert and delete several thousand distinct primary keys across two
+# sessions; lock entries should travel onto the partition freelist on
+# release and be reused on the next acquire, so tidesdb_lock_chain_max
+# must not grow anywhere near the count of keys touched.
+#
+# Pre-fix this test would have driven chain_max into the hundreds.  The
+# bound below is generous so transient hash skew from a hot key does
+# not flake the test; the real signal is "tens, not thousands."
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE churn (
+  id   INT NOT NULL PRIMARY KEY,
+  val  INT
+) ENGINE=TidesDB;
+
+# Snapshot the gauge so prior tests in the suite cannot leak into us.
+--disable_query_log
+SET @chain_max_before = (SELECT VARIABLE_VALUE
+                           FROM information_schema.global_status
+                          WHERE VARIABLE_NAME = 'TIDESDB_LOCK_CHAIN_MAX');
+--enable_query_log
+
+connect (conA, localhost, root,,);
+connect (conB, localhost, root,,);
+
+--echo #
+--echo # Each session churns 2500 unique PKs in batches of 50.  Every
+--echo # batch commits, releasing all its row locks; the next batch
+--echo # acquires fresh locks that should land on freelisted slots.
+--echo #
+
+--disable_query_log
+let $batch = 0;
+while ($batch < 50)
+{
+  connection conA;
+  BEGIN;
+  let $i = 0;
+  while ($i < 50)
+  {
+    eval INSERT INTO churn VALUES ($batch * 100 + $i, $i);
+    inc $i;
+  }
+  COMMIT;
+
+  connection conB;
+  BEGIN;
+  let $i = 0;
+  while ($i < 50)
+  {
+    eval INSERT INTO churn VALUES ($batch * 100 + 50 + $i, $i);
+    inc $i;
+  }
+  COMMIT;
+
+  connection conA;
+  BEGIN;
+  eval DELETE FROM churn WHERE id >= $batch * 100 AND id < $batch * 100 + 50;
+  COMMIT;
+
+  connection conB;
+  BEGIN;
+  eval DELETE FROM churn WHERE id >= $batch * 100 + 50 AND id < $batch * 100 + 100;
+  COMMIT;
+
+  inc $batch;
+}
+--enable_query_log
+
+connection default;
+
+# 5000 distinct keys went through the lock table.  Assert chain_max
+# did not grow more than a small bound; that is only possible if
+# released slots were unlinked from the chain.
+--disable_query_log
+SET @chain_max_after = (SELECT VARIABLE_VALUE
+                          FROM information_schema.global_status
+                         WHERE VARIABLE_NAME = 'TIDESDB_LOCK_CHAIN_MAX');
+SET @chain_grew = CAST(@chain_max_after AS SIGNED) - CAST(@chain_max_before AS SIGNED);
+
+# Sanity: should be a small positive number, not thousands.
+SET @verdict = IF(@chain_grew <= 64, 'CHAIN_BOUNDED', CONCAT('CHAIN_GREW_TO_', @chain_grew));
+--enable_query_log
+
+SELECT @verdict;
+
+# Counts: 2500 + 2500 inserted, all deleted, table empty.
+SELECT COUNT(*) FROM churn;
+
+# Sanity that the freelist actually got exercised.  recycles > 0 means
+# the next acquire after a release reused a slot rather than mallocing
+# a fresh entry, which is the whole point.
+--disable_query_log
+SET @recycles = (SELECT VARIABLE_VALUE
+                   FROM information_schema.global_status
+                  WHERE VARIABLE_NAME = 'TIDESDB_LOCK_ENTRY_RECYCLES');
+SET @recycled_some = IF(CAST(@recycles AS UNSIGNED) > 0, 'RECYCLED', 'NO_RECYCLE');
+--enable_query_log
+
+SELECT @recycled_some;
+
+disconnect conA;
+disconnect conB;
+
+DROP TABLE churn;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

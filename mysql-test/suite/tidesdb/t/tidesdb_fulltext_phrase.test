@@ -1,0 +1,98 @@
+--source include/have_tidesdb.inc
+#
+# Test: FTS phrase queries and wildcard edge cases
+#
+
+--echo #
+--echo # Setup
+--echo #
+
+CREATE TABLE docs (
+  id INT NOT NULL PRIMARY KEY,
+  body TEXT,
+  FULLTEXT (body)
+) ENGINE=TidesDB;
+
+INSERT INTO docs VALUES (1, 'the quick brown fox jumps over the lazy dog');
+INSERT INTO docs VALUES (2, 'quick fox and lazy dog play together');
+INSERT INTO docs VALUES (3, 'the brown dog is not lazy at all');
+INSERT INTO docs VALUES (4, 'completely unrelated content here');
+INSERT INTO docs VALUES (5, 'the fox is quick and the dog is lazy');
+
+--echo #
+--echo # TEST 1: Exact phrase match
+--echo #
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('"quick brown fox"' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 2: Phrase appears in multiple rows
+--echo #
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('"lazy dog"' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 3: Phrase with wrong word order (no match)
+--echo #
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('"fox quick"' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 4: Phrase + required term
+--echo #
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('+"lazy dog" +fox' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 5: Phrase + excluded term
+--echo #
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('+"lazy dog" -quick' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 6: Wildcard with multiple matching lengths
+--echo #
+
+DROP TABLE docs;
+CREATE TABLE docs (id INT PRIMARY KEY, body TEXT, FULLTEXT(body)) ENGINE=TidesDB;
+INSERT INTO docs VALUES (1, 'optimization techniques are important');
+INSERT INTO docs VALUES (2, 'optimizing queries is essential');
+INSERT INTO docs VALUES (3, 'the optimal solution exists');
+INSERT INTO docs VALUES (4, 'nothing related here');
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('optim*' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 7: Wildcard with short prefix
+--echo #
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('opt*' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # TEST 8: Two-word phrase
+--echo #
+
+DROP TABLE docs;
+CREATE TABLE docs (id INT PRIMARY KEY, body TEXT, FULLTEXT(body)) ENGINE=TidesDB;
+INSERT INTO docs VALUES (1, 'database management system');
+INSERT INTO docs VALUES (2, 'management of databases');
+INSERT INTO docs VALUES (3, 'the database has good management');
+
+SELECT id FROM docs
+WHERE MATCH(body) AGAINST('"database management"' IN BOOLEAN MODE) ORDER BY id;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE docs;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

@@ -1,0 +1,68 @@
+--source include/have_tidesdb.inc
+#
+# S to X upgrade behaviour.  The lock manager allows a sole S holder to
+# upgrade in place.  When another trx also holds S the upgrade cannot
+# succeed without blocking on the trx's own S grant, so the manager
+# rejects the request with HA_ERR_LOCK_DEADLOCK rather than create a
+# self-deadlock.  Two scenarios verify both branches.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE u (
+  id  INT PRIMARY KEY,
+  v   INT NOT NULL
+) ENGINE=TidesDB;
+
+INSERT INTO u VALUES (1, 100);
+
+connect (a, localhost, root,,);
+connect (b, localhost, root,,);
+
+--echo #
+--echo # Scenario 1, sole holder upgrades cleanly.
+--echo #
+connection a;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM u WHERE id = 1;
+UPDATE u SET v = v + 10 WHERE id = 1;
+COMMIT;
+
+connection default;
+SELECT * FROM u WHERE id = 1;
+
+--echo #
+--echo # Scenario 2, two S holders, one tries to upgrade, must be rejected.
+--echo #
+connection a;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM u WHERE id = 1;
+
+connection b;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT v FROM u WHERE id = 1;
+
+# a holds S, b holds S.  a tries to upgrade to X.  Allowed-when-sole
+# rule fails, manager returns HA_ERR_LOCK_DEADLOCK.
+connection a;
+--error ER_LOCK_DEADLOCK
+UPDATE u SET v = v + 1 WHERE id = 1;
+ROLLBACK;
+
+connection b;
+COMMIT;
+
+connection default;
+--echo # Row 1 unchanged from scenario 2.
+SELECT * FROM u WHERE id = 1;
+
+disconnect a;
+disconnect b;
+connection default;
+DROP TABLE u;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

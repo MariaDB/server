@@ -1,0 +1,86 @@
+--source include/have_tidesdb.inc
+#
+# Bulk-statement commit durability contract.
+#
+# write_row / update_row / delete_row buffer row writes in the engine txn
+# and call maybe_bulk_commit() once the per-statement op counter crosses
+# TIDESDB_BULK_INSERT_BATCH_OPS.  If the inner tidesdb_txn_commit() fails
+# (e.g. a transient unified-memtable rotation race returning TDB_ERR_UNKNOWN)
+# the buffered ops are gone -- so the failure MUST propagate up so the SQL
+# layer rolls the statement back.  Returning success while ops vanish would
+# silently drop up to TIDESDB_BULK_INSERT_BATCH_OPS rows per failed commit.
+#
+# The contract this test asserts: either every row touched by a bulk
+# statement is durable on success, or the statement fails loudly with an
+# engine error.  No silent losses.
+#
+# Workload: 50 INSERT ... SELECT statements of 1000 rows each, each large
+# enough to cross the bulk-commit threshold multiple times.  Total row
+# count after the run must equal the sum of every batch.
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS bulk_src;
+DROP TABLE IF EXISTS bulk_dst;
+--enable_warnings
+
+CREATE TABLE bulk_src (
+  id      INT PRIMARY KEY,
+  payload VARCHAR(200)
+) ENGINE=TIDESDB;
+
+CREATE TABLE bulk_dst (
+  id      INT PRIMARY KEY,
+  payload VARCHAR(200)
+) ENGINE=TIDESDB;
+
+# Seed source with 1000 rows.  Each INSERT INTO bulk_dst SELECT ...
+# below moves all 1000 across in a single statement -- well above the
+# 500-op bulk-commit threshold, so maybe_bulk_commit() fires at least
+# once per statement.
+--disable_query_log
+let $i = 1;
+while ($i <= 1000)
+{
+  eval INSERT INTO bulk_src VALUES ($i, REPEAT('X', 180));
+  inc $i;
+}
+--enable_query_log
+
+SELECT COUNT(*) AS src_rows FROM bulk_src;
+
+--echo #
+--echo # Run 50 bulk INSERT ... SELECT statements (50,000 rows total).
+--echo # Each statement crosses the bulk-commit threshold, exercising
+--echo # the maybe_bulk_commit() path that previously swallowed errors.
+--echo #
+
+--disable_query_log
+let $batch = 1;
+while ($batch <= 50)
+{
+  eval INSERT INTO bulk_dst
+       SELECT id + ($batch - 1) * 1000, payload FROM bulk_src;
+  inc $batch;
+}
+--enable_query_log
+
+--echo #
+--echo # Assertion: every row from every batch must be present.  If
+--echo # maybe_bulk_commit() ever swallows an inner commit failure again,
+--echo # this verdict line will read "LOST <N> rows" instead of "OK".
+--echo #
+
+SELECT IF(COUNT(*) = 50000,
+          'OK',
+          CONCAT('LOST ', 50000 - COUNT(*), ' rows of 50000'))
+       AS verdict
+FROM bulk_dst;
+
+SELECT COUNT(*) AS dst_rows, MIN(id) AS min_id, MAX(id) AS max_id FROM bulk_dst;
+
+DROP TABLE bulk_src;
+DROP TABLE bulk_dst;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

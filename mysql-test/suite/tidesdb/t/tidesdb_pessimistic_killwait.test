@@ -1,0 +1,62 @@
+--source include/have_tidesdb.inc
+#
+# KILL QUERY during a pessimistic lock wait.  T1 holds X on row 1.  T2
+# fires an UPDATE on the same row, which blocks in row_lock_acquire's
+# cond_wait.  KILL QUERY <T2's connection id> wakes T2 via the
+# handlerton-level kill_query callback, the wait loop observes
+# thd_killed(), and the statement aborts.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE k (
+  id  INT PRIMARY KEY,
+  v   INT NOT NULL
+) ENGINE=TidesDB;
+
+INSERT INTO k VALUES (1, 100);
+
+connect (a, localhost, root,,);
+connect (b, localhost, root,,);
+connect (killer, localhost, root,,);
+
+connection a;
+BEGIN;
+UPDATE k SET v = v + 1 WHERE id = 1;
+
+connection b;
+let $b_id = `SELECT CONNECTION_ID()`;
+BEGIN;
+--send UPDATE k SET v = v + 1 WHERE id = 1
+
+connection killer;
+let $wait_condition =
+  SELECT COUNT(*) >= 1 FROM information_schema.processlist
+   WHERE ID = $b_id AND STATE LIKE '%lock%' OR STATE = 'Updating';
+--source include/wait_condition.inc
+
+--disable_query_log
+eval KILL QUERY $b_id;
+--enable_query_log
+--echo # KILL QUERY issued against the blocked UPDATE on connection b.
+
+connection b;
+--error ER_QUERY_INTERRUPTED,ER_LOCK_WAIT_TIMEOUT
+--reap
+ROLLBACK;
+
+connection a;
+COMMIT;
+
+connection default;
+--echo # Row 1 incremented by T1 only.
+SELECT * FROM k WHERE id = 1;
+
+disconnect a;
+disconnect b;
+disconnect killer;
+connection default;
+DROP TABLE k;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

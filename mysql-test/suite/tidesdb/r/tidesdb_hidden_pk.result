@@ -1,0 +1,64 @@
+#
+# TEST 1: Basic CRUD without PK
+#
+CREATE TABLE t_nopk (a INT, b VARCHAR(100)) ENGINE=TidesDB;
+INSERT INTO t_nopk VALUES (1, 'one'), (2, 'two'), (3, 'three');
+INSERT INTO t_nopk VALUES (1, 'duplicate_a');
+SELECT * FROM t_nopk ORDER BY a, b;
+a	b
+1	duplicate_a
+1	one
+2	two
+3	three
+#
+# TEST 2: UPDATE and DELETE without PK
+#
+UPDATE t_nopk SET b = 'UPDATED' WHERE a = 2;
+SELECT * FROM t_nopk WHERE a = 2;
+a	b
+2	UPDATED
+DELETE FROM t_nopk WHERE b = 'duplicate_a';
+SELECT * FROM t_nopk ORDER BY a;
+a	b
+1	one
+2	UPDATED
+3	three
+#
+# TEST 3: Hidden PK with secondary index
+#
+CREATE TABLE t_nopk_idx (x INT, y INT, KEY(x)) ENGINE=TidesDB;
+INSERT INTO t_nopk_idx VALUES (10, 100), (20, 200), (10, 300), (30, 400);
+SELECT y FROM t_nopk_idx WHERE x = 10 ORDER BY y;
+y
+100
+300
+SELECT COUNT(*) FROM t_nopk_idx;
+COUNT(*)
+4
+#
+# TEST 4: Hidden PK with BLOB
+#
+CREATE TABLE t_nopk_blob (data LONGBLOB, tag VARCHAR(20)) ENGINE=TidesDB;
+INSERT INTO t_nopk_blob VALUES (REPEAT('X', 50000), 'big');
+INSERT INTO t_nopk_blob VALUES (REPEAT('Y', 100), 'small');
+SELECT tag, LENGTH(data) FROM t_nopk_blob ORDER BY tag;
+tag	LENGTH(data)
+big	50000
+small	100
+UPDATE t_nopk_blob SET data = REPEAT('Z', 60000) WHERE tag = 'big';
+SELECT tag, LENGTH(data) FROM t_nopk_blob WHERE tag = 'big';
+tag	LENGTH(data)
+big	60000
+#
+# TEST 5: TRUNCATE hidden PK table
+#
+TRUNCATE TABLE t_nopk;
+INSERT INTO t_nopk VALUES (10, 'after_truncate');
+SELECT * FROM t_nopk;
+a	b
+10	after_truncate
+#
+# Cleanup
+#
+DROP TABLE t_nopk, t_nopk_idx, t_nopk_blob;
+# Done.

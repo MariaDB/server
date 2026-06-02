@@ -1,0 +1,107 @@
+--source include/have_tidesdb.inc
+--source include/have_innodb.inc
+#
+# Test: ALTER TABLE ENGINE conversion (InnoDB <-> TidesDB)
+# Including migration from InnoDB to TidesDB with data preservation
+#
+
+--echo #
+--echo # TEST 1: InnoDB -> TidesDB migration
+--echo #
+
+CREATE TABLE t_innodb (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  val DECIMAL(10,2),
+  created DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_name (name)
+) ENGINE=InnoDB;
+
+INSERT INTO t_innodb (name, val) VALUES ('alpha', 1.50), ('beta', 2.75), ('gamma', 3.00);
+INSERT INTO t_innodb (name, val) VALUES ('delta', 4.25), ('epsilon', 5.50);
+
+SELECT id, name, val FROM t_innodb ORDER BY id;
+
+ALTER TABLE t_innodb ENGINE=TidesDB;
+
+SHOW CREATE TABLE t_innodb;
+SELECT id, name, val FROM t_innodb ORDER BY id;
+SELECT name FROM t_innodb WHERE name = 'gamma';
+
+--echo #
+--echo # TEST 2: TidesDB -> InnoDB migration
+--echo #
+
+ALTER TABLE t_innodb ENGINE=InnoDB;
+
+SELECT id, name, val FROM t_innodb ORDER BY id;
+SELECT name FROM t_innodb WHERE name = 'delta';
+
+--echo #
+--echo # TEST 3: Round-trip InnoDB -> TidesDB -> InnoDB
+--echo #
+
+CREATE TABLE t_round (id INT PRIMARY KEY, data TEXT) ENGINE=InnoDB;
+INSERT INTO t_round VALUES (1, REPEAT('X', 5000)), (2, REPEAT('Y', 5000));
+
+ALTER TABLE t_round ENGINE=TidesDB;
+SELECT id, LENGTH(data) FROM t_round ORDER BY id;
+
+ALTER TABLE t_round ENGINE=InnoDB;
+SELECT id, LENGTH(data) FROM t_round ORDER BY id;
+
+--echo #
+--echo # TEST 4: Migration with BLOB columns
+--echo #
+
+CREATE TABLE t_blob_mig (
+  id INT PRIMARY KEY,
+  img LONGBLOB,
+  descr TEXT
+) ENGINE=InnoDB;
+
+INSERT INTO t_blob_mig VALUES (1, REPEAT('A', 100000), 'first image');
+INSERT INTO t_blob_mig VALUES (2, REPEAT('B', 100000), 'second image');
+
+ALTER TABLE t_blob_mig ENGINE=TidesDB;
+SELECT id, LENGTH(img), descr FROM t_blob_mig ORDER BY id;
+
+--echo #
+--echo # TEST 5: Migration preserves auto-increment
+--echo #
+
+CREATE TABLE t_ai (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t_ai (v) VALUES (10), (20), (30);
+
+ALTER TABLE t_ai ENGINE=TidesDB;
+INSERT INTO t_ai (v) VALUES (40);
+SELECT * FROM t_ai ORDER BY id;
+
+--echo #
+--echo # TEST 6: Migration with composite PK and multiple indexes
+--echo #
+
+CREATE TABLE t_complex (
+  a INT NOT NULL,
+  b INT NOT NULL,
+  c VARCHAR(50),
+  d INT,
+  PRIMARY KEY (a, b),
+  KEY idx_c (c),
+  KEY idx_d (d)
+) ENGINE=InnoDB;
+
+INSERT INTO t_complex VALUES (1,1,'foo',100), (1,2,'bar',200), (2,1,'baz',100);
+
+ALTER TABLE t_complex ENGINE=TidesDB;
+SELECT * FROM t_complex WHERE a = 1 ORDER BY b;
+SELECT c FROM t_complex WHERE d = 100 ORDER BY c;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_innodb, t_round, t_blob_mig, t_ai, t_complex;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

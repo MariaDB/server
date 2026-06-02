@@ -1,0 +1,50 @@
+--source include/have_tidesdb.inc
+#
+# Re-entry semantics.  The lock manager treats a second acquire of the
+# same lock by the same trx as a no-op when the requested mode is the
+# same or weaker than what the trx already holds (X subsumes S).  The
+# test exercises this by running multiple SELECT FOR UPDATE statements
+# on the same row inside one transaction and confirms no spurious
+# error or wait.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE r (
+  id  INT PRIMARY KEY,
+  v   INT NOT NULL
+) ENGINE=TidesDB;
+
+INSERT INTO r VALUES (1, 100);
+
+connect (a, localhost, root,,);
+
+connection a;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+
+# First X acquire on row 1.
+SELECT v FROM r WHERE id = 1 FOR UPDATE;
+
+# Second X acquire on the same row should be a no-op.
+SELECT v FROM r WHERE id = 1 FOR UPDATE;
+
+# An UPDATE that re-resolves to the same PK also re-uses the held X.
+UPDATE r SET v = v + 1 WHERE id = 1;
+
+# A plain SELECT on the same row under REPEATABLE-READ asks for S,
+# which is subsumed by the X already held; still a no-op.
+SELECT v FROM r WHERE id = 1;
+
+COMMIT;
+
+connection default;
+--echo # Row 1 incremented exactly once.
+SELECT * FROM r WHERE id = 1;
+
+disconnect a;
+connection default;
+DROP TABLE r;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

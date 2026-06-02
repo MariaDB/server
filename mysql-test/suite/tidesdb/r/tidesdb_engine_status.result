@@ -1,0 +1,48 @@
+#
+# SHOW ENGINE TIDESDB STATUS should return output
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT) ENGINE=TidesDB;
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+SHOW ENGINE TIDESDB STATUS;
+Type	Name	Status
+TIDESDB		================== TidesDB Engine Status ==================
+Data directory: TIDESDB_DATA_DIR
+Unified memtable: ON
+Column families: N
+Global sequence: N
+
+--- Memory ---
+Total system memory: N MB
+Resolved memory limit: N MB
+Memory pressure level: N
+Total memtable bytes: N
+Transaction memory bytes: N
+
+--- Storage ---
+Total SSTables: N
+Open SSTable handles: N
+Total data size: N bytes
+Immutable memtables: N
+
+--- Background ---
+Flush pending: N
+Flush queue size: N
+Compaction queue size: N
+
+--- Block Cache ---
+Enabled: YES
+Entries: N
+Size: N bytes
+Hits: N
+Misses: N
+Hit rate: N.N%
+Partitions: N
+
+--- Tombstones ---
+Total tombstones: N
+Tombstone ratio: N.N%
+Worst SSTable density: N.N% at level N
+
+DROP TABLE t1;
+#
+# Done.

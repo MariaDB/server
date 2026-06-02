@@ -1,0 +1,68 @@
+#
+# Issue #64: WITH CONSISTENT SNAPSHOT doesn't work
+#
+CREATE TABLE t_snap64 (
+a INT,
+b INT
+) ENGINE=TidesDB;
+# Seed some data so global_seq > 0
+INSERT INTO t_snap64 VALUES (100, 100);
+DELETE FROM t_snap64 WHERE a = 100;
+# ---- TEST 1: START TRANSACTION WITH CONSISTENT SNAPSHOT ----
+connect  con2, localhost, root,,;
+connection default;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+# Insert from connection 2 AFTER snapshot
+connection con2;
+INSERT INTO t_snap64 (a, b) VALUES (1, 10);
+SELECT * FROM t_snap64 ORDER BY a;
+a	b
+1	10
+# Connection 1 should NOT see the row (snapshot was before insert)
+connection default;
+SELECT * FROM t_snap64 ORDER BY a;
+a	b
+COMMIT;
+# After COMMIT, a new snapshot should see the row
+SELECT * FROM t_snap64 ORDER BY a;
+a	b
+1	10
+# ---- TEST 2: Multiple inserts after snapshot ----
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection con2;
+INSERT INTO t_snap64 (a, b) VALUES (2, 20);
+INSERT INTO t_snap64 (a, b) VALUES (3, 30);
+connection default;
+# Should still only see row (1,10) from before the snapshot
+SELECT * FROM t_snap64 ORDER BY a;
+a	b
+1	10
+COMMIT;
+# After COMMIT, should see all 3 rows
+SELECT * FROM t_snap64 ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+# ---- TEST 3: Without CONSISTENT SNAPSHOT, new data IS visible ----
+BEGIN;
+connection con2;
+INSERT INTO t_snap64 (a, b) VALUES (4, 40);
+connection default;
+# Without CONSISTENT SNAPSHOT, should see all 4 rows
+SELECT * FROM t_snap64 ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+4	40
+COMMIT;
+# Cleanup
+connection con2;
+disconnect con2;
+connection default;
+DROP TABLE t_snap64;
+#
+# Done.

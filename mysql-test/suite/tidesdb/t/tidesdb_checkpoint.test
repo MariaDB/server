@@ -1,0 +1,42 @@
+--source include/have_tidesdb.inc
+#
+# Test: Hard-link checkpoint via tidesdb_checkpoint_dir
+#
+
+--echo #
+--echo # TEST 1: Create checkpoint
+--echo #
+
+CREATE TABLE t_ckpt (id INT PRIMARY KEY, val VARCHAR(100)) ENGINE=TidesDB;
+INSERT INTO t_ckpt VALUES (1, 'before_checkpoint'), (2, 'data_two'), (3, 'data_three');
+
+--let $ckpt_dir=$MYSQLTEST_VARDIR/tmp/tidesdb_checkpoint_test
+--error 0
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/tidesdb_checkpoint_test
+
+--disable_query_log
+--eval SET GLOBAL tidesdb_checkpoint_dir = '$ckpt_dir'
+--enable_query_log
+
+--echo #
+--echo # TEST 3: Data survives after checkpoint
+--echo #
+
+INSERT INTO t_ckpt VALUES (4, 'after_checkpoint');
+SELECT * FROM t_ckpt ORDER BY id;
+
+--echo #
+--echo # TEST 4: Clear checkpoint dir variable
+--echo #
+
+SET GLOBAL tidesdb_checkpoint_dir = '';
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_ckpt;
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/tidesdb_checkpoint_test
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

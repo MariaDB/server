@@ -1,0 +1,51 @@
+--source include/have_tidesdb.inc
+#
+# A table-level ISOLATION_LEVEL option is honored when the session is at
+# the SQL default of REPEATABLE READ.  A table that leaves the option at
+# the default resolves to TidesDB SNAPSHOT (InnoDB parity) and holds one
+# stable snapshot for the whole transaction.  A table created with
+# ISOLATION_LEVEL=READ_COMMITTED sees rows committed by other sessions
+# mid-transaction.
+#
+
+CREATE TABLE t_snap (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_snap VALUES (1, 10);
+
+CREATE TABLE t_rc (id INT PRIMARY KEY, v INT)
+  ENGINE=TidesDB `ISOLATION_LEVEL`=READ_COMMITTED;
+INSERT INTO t_rc VALUES (1, 10);
+
+connect (con1, localhost, root,,test);
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+--echo #
+--echo # default table -- the transaction holds a stable snapshot
+--echo #
+BEGIN;
+SELECT id, v FROM t_snap ORDER BY id;
+connection default;
+INSERT INTO t_snap VALUES (2, 20);
+connection con1;
+--echo # the snapshot is stable, so the row committed afterwards is unseen
+SELECT id, v FROM t_snap ORDER BY id;
+COMMIT;
+
+--echo #
+--echo # ISOLATION_LEVEL=READ_COMMITTED -- the transaction sees fresh commits
+--echo #
+BEGIN;
+SELECT id, v FROM t_rc ORDER BY id;
+connection default;
+INSERT INTO t_rc VALUES (2, 20);
+connection con1;
+--echo # read committed sees the row committed after the transaction began
+SELECT id, v FROM t_rc ORDER BY id;
+COMMIT;
+
+connection default;
+disconnect con1;
+DROP TABLE t_snap, t_rc;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.

@@ -1,0 +1,79 @@
+--source include/have_tidesdb.inc
+#
+# Test: Bulk insert path (start_bulk_insert / end_bulk_insert)
+# and INSERT ... SELECT (which also uses the bulk insert hint)
+#
+
+--echo #
+--echo # TEST 1: Multi-row INSERT (triggers bulk insert path)
+--echo #
+
+CREATE TABLE t_bulk (id INT PRIMARY KEY, name VARCHAR(100), val INT) ENGINE=TidesDB;
+
+INSERT INTO t_bulk VALUES
+  (1, 'alpha', 100), (2, 'beta', 200), (3, 'gamma', 300),
+  (4, 'delta', 400), (5, 'epsilon', 500);
+
+SELECT * FROM t_bulk ORDER BY id;
+
+--echo #
+--echo # TEST 2: INSERT ... SELECT bulk load
+--echo #
+
+CREATE TABLE t_source (id INT PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_source VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'),
+  (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j');
+
+CREATE TABLE t_dest (id INT PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_dest SELECT * FROM t_source;
+SELECT COUNT(*) FROM t_dest;
+
+--echo #
+--echo # TEST 3: Large bulk insert (200+ rows, triggers batch commit)
+--echo #
+
+CREATE TABLE t_large (id INT PRIMARY KEY, payload VARCHAR(200)) ENGINE=TidesDB;
+
+--disable_query_log
+let $i = 1;
+while ($i <= 200)
+{
+  eval INSERT INTO t_large VALUES ($i, REPEAT('X', 100));
+  inc $i;
+}
+--enable_query_log
+
+SELECT COUNT(*) AS total FROM t_large;
+SELECT MIN(id), MAX(id) FROM t_large;
+
+--echo #
+--echo # TEST 4: Bulk insert with secondary index
+--echo #
+
+CREATE TABLE t_bulk_idx (id INT PRIMARY KEY, cat INT, KEY(cat)) ENGINE=TidesDB;
+INSERT INTO t_bulk_idx VALUES
+  (1, 10), (2, 20), (3, 10), (4, 30), (5, 10),
+  (6, 20), (7, 10), (8, 30), (9, 10), (10, 20);
+
+SELECT COUNT(*) FROM t_bulk_idx WHERE cat = 10;
+SELECT COUNT(*) FROM t_bulk_idx WHERE cat = 20;
+
+--echo #
+--echo # TEST 5: INSERT ... SELECT between TidesDB tables
+--echo #
+
+CREATE TABLE t_src2 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_src2 VALUES (1,10), (2,20), (3,30);
+
+CREATE TABLE t_dst2 (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_dst2 SELECT * FROM t_src2;
+SELECT * FROM t_dst2 ORDER BY id;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE t_bulk, t_source, t_dest, t_large, t_bulk_idx, t_src2, t_dst2;
+
+--source suite/tidesdb/include/cleanup_tidesdb.inc
+--echo # Done.
