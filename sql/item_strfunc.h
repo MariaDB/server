@@ -1954,6 +1954,7 @@ public:
     return name;
   }
   String *val_str(String *) override;
+  table_map not_null_tables() const override { return 0; }
   bool fix_length_and_dec(THD *thd) override
   {
     collation.set(args[0]->collation);

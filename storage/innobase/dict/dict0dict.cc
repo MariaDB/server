@@ -90,7 +90,7 @@ const span<const char> dict_sys_t::SYS_TABLE[]=
 const char dict_sys_t::fatal_msg[]=
   "innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.latch. "
   "Please refer to "
-  "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/";
+  "https://mariadb.com/docs/server/reference/product-development/mariadb-fault-finding/how-to-produce-a-full-stack-trace-for-mariadbd";
 
 /** Percentage of compression failures that are allowed in a single
 round */
@@ -567,13 +567,13 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     dict_sys.unfreeze();
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
-                                      MAX_DATABASE_NAME_LEN + 1, true);
+                                      NAME_LEN + 1, true);
 
   if (is_temp)
     return false;
 
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
-                                       MAX_TABLE_NAME_LEN + 1, true);
+                                       NAME_LEN + 1, true);
   return true;
 }
 

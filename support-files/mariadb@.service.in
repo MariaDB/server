@@ -17,7 +17,7 @@
 # after the file mariadb@.service itself is parsed.
 #
 # For more info about custom unit files, see systemd.unit(5) or
-# https://mariadb.com/kb/en/mariadb/systemd/
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 #
 # Copyright notice:
 #
@@ -128,7 +128,7 @@
 # As basic selinux rules are written around a single instance of MariaDB you may need
 # to define labels for the files and network ports of all instances.
 #
-# See: https://mariadb.com/kb/en/library/what-to-do-if-mariadb-doesnt-start/#selinux
+# See: https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/what-to-do-if-mariadb-doesnt-start
 #
 #
 # STARTING
@@ -138,7 +138,7 @@
 #
 # DOCUMENTATION:
 #
-# Read https://mariadb.com/kb/en/mariadb/systemd/ regarding customisation.
+# Read https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd regarding customisation.
 #
 # Also see systemd man pages: systemd.unit(5), systemd.exec(5) and
 # systemd.service(5)
@@ -146,7 +146,7 @@
 [Unit]
 Description=MariaDB @VERSION@ database server (multi-instance %I)
 Documentation=man:mariadbd(8)
-Documentation=https://mariadb.com/kb/en/library/systemd/
+Documentation=https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 After=network.target
 
 # Negated condition here is because 10.3 and before had @sysconf2dir@/my%I.cnf
@@ -245,7 +245,7 @@ PrivateTmp=false
 # Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
 # this is the same value as used in SysV init scripts in the past
 # if you need a longer timeout, check the KB:
-# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 TimeoutStartSec=900
 TimeoutStopSec=900
 

@@ -1773,6 +1773,27 @@ null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
 1
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+#
+# MDEV-39213: json range syntax crash
+#
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as ex;
+ex
+NULL
+#
+# MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+# (aka 'struct st_json_path_step_t[32]')
+#
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+JSON_EXTRACT('{a:true}','$.a')=TRUE
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 2
+SELECT JSON_EXTRACT('0E+0','$');
+JSON_EXTRACT('0E+0','$')
+0E+0
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as je;
+je
+NULL
 # End of 10.6 tests
 SELECT json_extract(t.j, '$')
 FROM (SELECT json_extract('["a",1]', '$') AS j) AS t;
@@ -2865,4 +2886,22 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' a
 SELECT JSON_VALID('{ "A": [0,] }');
 JSON_VALID('{ "A": [0,] }')
 0
+#
+# MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+# (aka 'struct st_json_path_step_t[32]')
+#
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+JSON_EXTRACT('{a:true}','$.a')=TRUE
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 2
+SELECT JSON_EXTRACT('0E+0','$');
+JSON_EXTRACT('0E+0','$')
+0E+0
+#
+# MDEV-26814: UBSAN: offset to nullptr in JSON_ARRAY_INSERT
+#
+SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
+j
+NULL
 # End of 10.11 Test

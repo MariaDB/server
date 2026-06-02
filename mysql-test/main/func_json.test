@@ -1233,6 +1233,22 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 
 select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
 
+--echo #
+--echo # MDEV-39213: json range syntax crash
+--echo #
+
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as ex;
+
+--echo #
+--echo # MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+--echo # (aka 'struct st_json_path_step_t[32]')
+--echo #
+
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+SELECT JSON_EXTRACT('0E+0','$');
+
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as je;
+
 --echo # End of 10.6 tests
 
 SELECT json_extract(t.j, '$')
@@ -2084,5 +2100,19 @@ SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
 SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
 SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
 SELECT JSON_VALID('{ "A": [0,] }');
+
+--echo #
+--echo # MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+--echo # (aka 'struct st_json_path_step_t[32]')
+--echo #
+
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+SELECT JSON_EXTRACT('0E+0','$');
+
+--echo #
+--echo # MDEV-26814: UBSAN: offset to nullptr in JSON_ARRAY_INSERT
+--echo #
+
+SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
 
 --echo # End of 10.11 Test

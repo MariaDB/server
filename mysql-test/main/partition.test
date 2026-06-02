@@ -3144,3 +3144,21 @@ DROP TABLE mdev20498;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-20195 Assertion `0' failed in ha_partition::handle_unordered_next upon HANDLER READ from partitioned table
+--echo #
+
+
+CREATE TABLE t1 (a INT, KEY(a)) PARTITION BY HASH(a);
+HANDLER t1 OPEN h;
+HANDLER h READ a NEXT;
+HANDLER h READ a NEXT;
+
+# Cleanup
+HANDLER h CLOSE;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

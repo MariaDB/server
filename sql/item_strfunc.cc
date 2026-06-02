@@ -3610,8 +3610,10 @@ String *Item_func_rpad::val_str(String *str)
   }
 
   if (count <= (res_char_length= res->numchars()))
-  {						// String to pad is big enough
-    res->length(res->charpos((int) count));	// Shorten result if longer
+  {                                             // String to pad is big enough
+    int len= res->charpos((int) count);
+    res= copy_if_not_alloced(str, res, len);
+    res->length(len);                           // Shorten result if longer
     return (res);
   }
 

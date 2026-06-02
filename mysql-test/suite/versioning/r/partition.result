@@ -3586,6 +3586,19 @@ x
 1
 drop table t1;
 #
+# MDEV-36362 MariaDB crashes when parsing fuzzer generated PARTITION
+#
+create table t
+partition by system_time
+interval setval(a, 1) second_microsecond;
+ERROR 42000: INTERVAL does not support subqueries or stored functions
+create table t (x int) with system versioning
+partition by system_time interval nextval(s) hour;
+ERROR 42000: INTERVAL does not support subqueries or stored functions
+create table t (x int) with system versioning
+partition by system_time interval lastval(s) hour;
+ERROR 42000: INTERVAL does not support subqueries or stored functions
+#
 # MDEV-33289 INTERVAL partitioning by system time does not work close to
 #            the end of timestamp range
 #

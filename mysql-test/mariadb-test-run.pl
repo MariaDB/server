@@ -25,7 +25,7 @@
 #  Tool used for executing a suite of .test files
 #
 #  See the "MySQL Test framework manual" for more information
-#  https://mariadb.com/kb/en/library/mysqltest/
+#  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 #
 #
 ##############################################################################

@@ -10,15 +10,19 @@ if (!$wsrep_recover_additional)
 
 --perl
         use strict;
-        my $wsrep_start_position_str = "grep -a 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'";
-        my $wsrep_start_position = `grep -a 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
+	my $file = "$ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.log";
+	if (! -e $file) {
+          die "$file does not exists.";
+        }
+        my $wsrep_start_position = `grep -a 'WSREP: Recovered position:' $file | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
         chomp($wsrep_start_position);
-
-        die if $wsrep_start_position eq '';
-
-        open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/galera_wsrep_start_position.inc") or die;
-        print FILE "--let \$galera_wsrep_start_position = $wsrep_start_position\n";
-        close FILE;
+	if ($wsrep_start_position eq '') {
+          die "No recovered position found $wsrep_start_position";
+        }
+        my $path = "$ENV{MYSQL_TMP_DIR}/galera_wsrep_start_position.inc";
+        open(FILE, ">", $path) or die "Can't open file: '$path' $!";
+        print FILE "--let \$galera_wsrep_start_position = $wsrep_start_position\n" or die "Write to '$path' failed $!";
+        close FILE or die "Closing $path failed $!";
 EOF
 
 --source $MYSQL_TMP_DIR/galera_wsrep_start_position.inc

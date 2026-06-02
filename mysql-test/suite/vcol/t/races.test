@@ -20,3 +20,59 @@ disconnect con1;
 connection default;
 drop table t1;
 set debug_sync='reset';
+
+--echo #
+--echo # MDEV-39261 MariaDB crash on startup in presence of
+--echo #        indexed virtual columns
+--echo #
+# To make purge thread to work on multiple tables on the same batch,
+# we need 33 tables because there are 32 pre-existing purge_node exists.
+
+--echo # Create 33 tables with virtual index
+--disable_query_log
+let $i = 33;
+while ($i)
+{
+  eval CREATE TABLE t$i(
+    a INT PRIMARY KEY,
+    b INT DEFAULT 1, INDEX(b),
+    c INT GENERATED ALWAYS AS (a + b) VIRTUAL,
+    INDEX(c)
+  ) ENGINE=InnoDB;
+  eval INSERT INTO t$i(a) VALUES(1);
+  dec $i;
+}
+--enable_query_log
+--source ../../innodb/include/wait_all_purged.inc
+--connect purge_control,localhost,root
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+--echo # Do update on all 33 tables
+--disable_query_log
+let $i = 33;
+while ($i)
+{
+  eval UPDATE t$i SET b = 11 WHERE a = 1;
+  dec $i;
+}
+--enable_query_log
+
+let $shutdown_timeout=0;
+let $restart_parameters=--innodb_purge_threads=1 --debug_dbug=d,ib_purge_virtual_index_callback;
+--source include/restart_mysqld.inc
+--source ../../innodb/include/wait_all_purged.inc
+
+--echo # Drop all 33 tables
+--disable_query_log
+let $i = 33;
+while ($i)
+{
+  eval DROP TABLE t$i;
+  dec $i;
+}
+--enable_query_log
+
+let $restart_parameters=;
+let $shutdown_timeout=;
+--source include/restart_mysqld.inc

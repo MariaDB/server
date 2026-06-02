@@ -222,6 +222,8 @@ static struct settings init_settings;
 static const char *db_process= 0;/* Pointer to process name; argv[0] */
 my_bool _dbug_on_= TRUE;	 /* FALSE if no debugging at all */
 static char * command_line= 0; /* copy of controls */
+#define FREE_COMMAND_LINE do{ free(command_line); command_line= 0; }while(0)
+
 
 typedef struct _db_code_state_ {
   const char *process;          /* Pointer to process name; usually argv[0] */
@@ -900,7 +902,7 @@ int _db_is_pushed_()
 void _db_set_init_(const char *control)
 {
   CODE_STATE tmp_cs;
-  /* see Writable() */
+  FREE_COMMAND_LINE;
   command_line= strdup(control);
   if (unlikely(!command_line))
   {
@@ -1697,11 +1699,7 @@ void _db_end_()
   init_done= 0;
   _dbug_on_= 0;
   /* see Writable() */
-  if (command_line)
-  {
-    free(command_line);
-    command_line= 0;
-  }
+  FREE_COMMAND_LINE;
 }
 
 

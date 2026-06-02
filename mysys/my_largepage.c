@@ -193,8 +193,9 @@ int my_init_large_pages(void)
   {
     my_printf_error(EE_PERM_LOCK_MEMORY,
                     "Lock Pages in memory access rights required for use with"
-                    " large-pages, see https://mariadb.com/kb/en/library/"
-                    "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
+                    " large-pages, see "
+		    "https://mariadb.com/docs/server/ha-and-performance/mariadb-memory-allocation#huge-pages"
+                    , MYF(MY_WME));
     my_use_large_pages= 0;
   }
   my_large_page_size= GetLargePageMinimum();

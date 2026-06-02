@@ -1966,6 +1966,7 @@ inline void log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 static void log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_no_log_write);
   ut_ad(log_sys.latch_have_wr());
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
@@ -2550,6 +2551,11 @@ static void buf_flush_page_cleaner() noexcept
       {
         if (recv_recovery_is_on())
           continue;
+#ifdef WITH_WSREP
+        extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
+        if (UNIV_UNLIKELY(wsrep_sst_disable_writes))
+          continue; /* See sst_disable_innodb_writes() */
+#endif
         IF_DBUG(if (log_sys.last_checkpoint_lsn &&
                     srv_shutdown_state < SRV_SHUTDOWN_CLEANUP &&
                     (_db_keyword_(nullptr, "ib_log_checkpoint_avoid", 1) ||

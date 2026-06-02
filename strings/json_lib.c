@@ -807,13 +807,13 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
 int json_scan_start(json_engine_t *je,
                     CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
 {
-  static const uchar no_time_to_die= 0;
+  static const uint32_t no_time_to_die= 0;
 
   json_string_setup(&je->s, i_cs, str, end);
   je->stack[0]= JST_DONE;
   je->stack_p= 0;
   je->state= JST_VALUE;
-  je->killed_ptr = (uchar*)&no_time_to_die;
+  je->killed_ptr=  (uint32_t *) &no_time_to_die;
   return 0;
 }
 
@@ -1469,14 +1469,26 @@ int json_find_path(json_engine_t *je,
         json_skip_array_item(je);
       break;
     case JST_OBJ_END:
-      do
-      {
-        (*p_cur_step)--;
-      } while (*p_cur_step > p->steps &&
-               array_counters[*p_cur_step - p->steps] == SKIPPED_STEP_MARK);
+        /*
+          MSAN-safe block
+        */
+        while (*p_cur_step > p->steps)
+        {
+          json_path_step_t *prev = *p_cur_step;
+          prev--;
+
+          if (prev < p->steps)
+            break;
+
+         *p_cur_step = prev;
+
+         if (array_counters[prev - p->steps] != SKIPPED_STEP_MARK)
+           break;
+        }
       break;
     case JST_ARRAY_END:
-      (*p_cur_step)--;
+      if (*p_cur_step > p->steps)
+        (*p_cur_step)--;
       break;
     default:
       DBUG_ASSERT(0);
@@ -1791,14 +1803,14 @@ int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
                         json_path_t *p)
 {
   json_scan_start(je, i_cs, str, end);
-  p->last_step= p->steps - 1; 
+  p->last_step= NULL;
   return 0;
 }
 
 
 int json_get_path_next(json_engine_t *je, json_path_t *p)
 {
-  if (p->last_step < p->steps)
+  if (p->last_step == NULL)
   {
     if (json_read_value(je))
       return 1;

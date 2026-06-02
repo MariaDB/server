@@ -4477,13 +4477,15 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
   /* As the file is flushed, we can't get an error here */
   (void) reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
 
+  DBUG_EXECUTE_IF("simulate_find_log_pos_error",
+    error= LOG_INFO_EOF;
+    goto end;
+  );
   for (;;)
   {
     size_t length;
     my_off_t offset= my_b_tell(&index_file);
 
-    DBUG_EXECUTE_IF("simulate_find_log_pos_error",
-                    error=  LOG_INFO_EOF; break;);
     /* If we get 0 or 1 characters, this is the end of the file */
     if ((length= my_b_gets(&index_file, fname, FN_REFLEN)) <= 1)
     {

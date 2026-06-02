@@ -1064,13 +1064,13 @@ void Query_log_event::pack_info(Protocol *protocol)
   {
     buf.append(STRING_WITH_LEN("set "));
     if (flags2 & OPTION_NO_FOREIGN_KEY_CHECKS)
-      buf.append(STRING_WITH_LEN("foreign_key_checks=1, "));
+      buf.append(STRING_WITH_LEN("foreign_key_checks=0, "));
     if (flags2 & OPTION_AUTO_IS_NULL)
-      buf.append(STRING_WITH_LEN("sql_auto_is_null, "));
+      buf.append(STRING_WITH_LEN("sql_auto_is_null=1, "));
     if (flags2 & OPTION_RELAXED_UNIQUE_CHECKS)
-      buf.append(STRING_WITH_LEN("unique_checks=1, "));
+      buf.append(STRING_WITH_LEN("unique_checks=0, "));
     if (flags2 & OPTION_NO_CHECK_CONSTRAINT_CHECKS)
-      buf.append(STRING_WITH_LEN("check_constraint_checks=1, "));
+      buf.append(STRING_WITH_LEN("check_constraint_checks=0, "));
     if (flags2 & OPTION_IF_EXISTS)
       buf.append(STRING_WITH_LEN("@@sql_if_exists=1, "));
     if (flags2 & OPTION_INSERT_HISTORY)

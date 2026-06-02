@@ -535,7 +535,7 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
       {
         json_engine_t je;
         json_path_step_t *cur_step;
-        int array_counters[JSON_DEPTH_LIMIT];
+        int array_counters[JSON_DEPTH_LIMIT]= {0};
         int not_found;
         const uchar* node_start;
         const uchar* node_end;

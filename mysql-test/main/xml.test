@@ -826,7 +826,11 @@ SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS
 --echo #
 
 --echo #
---echo # ExtractValue/UpdateXML crash
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-39210 ExtractValue/UpdateXML crash
 --echo #
 
 #view protocol generates additional warning
@@ -894,6 +898,3 @@ set @xml= '<?xml version="1.0"?>
 <?employee ABSDEV !@#$ ?>';
 
 SELECT ExtractValue(@xml, '/employee/dt3');
---echo #
---echo # Start of 10.6 tests
---echo #

@@ -4631,8 +4631,6 @@ static int fast_end_partition(THD *thd, ulonglong copied,
 
   thd->proc_info="end";
 
-  query_cache_invalidate3(thd, table_list, 0);
-
   my_snprintf(tmp_name, sizeof(tmp_name), ER_THD(thd, ER_INSERT_INFO),
               (ulong) (copied + deleted),
               (ulong) deleted,
@@ -7529,6 +7527,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->deleted= 0;
   lpt->pack_frm_data= NULL;
   lpt->pack_frm_len= 0;
+
+  query_cache_invalidate3(thd, table_list, 0);
 
   /* Add IF EXISTS to binlog if shared table */
   if (table->file->partition_ht()->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)

@@ -43,7 +43,6 @@ SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
 
 SET SESSION wsrep_sync_wait = 0;
 --let $expected_apply_waits = `SELECT VARIABLE_VALUE+1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_apply_waits'`
---echo $expected_apply_waits
 
 #
 # Issue a UPDATE to table that references t1
@@ -53,7 +52,6 @@ SET SESSION wsrep_sync_wait = 0;
 #
 --connection node_1
 UPDATE t1 SET f2 = 1 WHERE id=2;
-
 
 #
 # Expect the UPDATE to depend on the DROP,

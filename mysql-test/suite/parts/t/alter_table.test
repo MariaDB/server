@@ -66,6 +66,30 @@ drop table t1;
 --echo # End of 10.5 tests
 
 --echo #
+--echo # MDEV-34951: InnoDB index corruption when renaming key name with same letter to upper case.
+--echo #
+
+--echo # Tests on partitioned tables
+--echo # partitioned table with index 'idx' (lowercase)
+CREATE TABLE t_part (a INT, KEY idx(a)) ENGINE=InnoDB
+PARTITION BY HASH(a) PARTITIONS 1;
+
+--echo # non-partitioned table with index 'IDX' (uppercase)
+CREATE TABLE t_nonpart (a INT, KEY IDX(a)) ENGINE=InnoDB;
+
+INSERT INTO t_part VALUES (1);
+
+--echo # Exchange partition
+--echo # ALTER TABLE should fail. Without fix, ALTER TABLE succeeds, SELECT fails.
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t_part EXCHANGE PARTITION p0 WITH TABLE t_nonpart;
+
+SELECT * FROM t_nonpart;
+DROP TABLE t_part, t_nonpart;
+
+--echo # End of 10.6 tests
+
+--echo #
 --echo # MDEV-22165 CONVERT PARTITION: move in partition from existing table
 --echo #
 create or replace table tp1 (a int);

@@ -60,13 +60,13 @@ if ($can_convert) {
 if (!$can_convert) {
   connection slave;
   wait_for_slave_to_stop;
-  let $error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1);
+  let $error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
   eval INSERT INTO type_conversions SET
        Source = "$source_type",
        Target = "$target_type",
        Flags = @@slave_type_conversions,
        On_Master = $source_value,
-       Error = "$error";
+       Error = $error;
   SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;
   START SLAVE;
 }

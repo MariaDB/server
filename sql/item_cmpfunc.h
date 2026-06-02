@@ -1207,9 +1207,9 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     update_nullability_post_fix_fields();
-    if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
+    if (aggregate_for_result(func_name_cstring(), args, arg_count, true) ||
+        fix_attributes(args, arg_count))
       return TRUE;
-    fix_attributes(args, arg_count);
     return FALSE;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1236,9 +1236,9 @@ class Item_func_case_abbreviation2 :public Item_func_case_expression
 protected:
   bool fix_length_and_dec2(Item **items)
   {
-    if (aggregate_for_result(func_name_cstring(), items, 2, true))
+    if (aggregate_for_result(func_name_cstring(), items, 2, true) ||
+        fix_attributes(items, 2))
       return TRUE;
-    fix_attributes(items, 2);
     return FALSE;
   }
 

@@ -19,6 +19,9 @@ export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 # shellcheck source=/dev/null
 source ./VERSION
 
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+uname_machine=$(uname -m)
+
 # General CI optimizations to keep build output smaller
 if [[ $GITLAB_CI ]]
 then
@@ -81,9 +84,6 @@ remove_package_notes()
   # binutils >=2.39 + disto makefile /usr/share/debhelper/dh_package_notes/package-notes.mk
   sed -e '/package.notes/d' -i debian/rules debian/control
 }
-
-architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
-uname_machine=$(uname -m)
 
 # Parse release name and number from Linux standard base release
 # Example:
