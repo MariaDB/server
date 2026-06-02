@@ -25350,6 +25350,10 @@ static JOIN_TAB *find_left_most_join_tab(JOIN *join, JOIN_TAB *right_tab)
 }
 
 
+static void free_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
+                                             uint count);
+
+
 /*
   Allocate a full_join_duplicate_filter for each right side FULL JOIN
   table in the toplevel JOIN_TAB range [start_tab, start_tab+count).
@@ -25368,7 +25372,9 @@ static JOIN_TAB *find_left_most_join_tab(JOIN *join, JOIN_TAB *right_tab)
   rows can update the outer fj_dups filter through the normal forward
   chain before the outer rescan reads it.
 
-  Returns true on allocation failure (error already reported).
+  Returns true on allocation failure (error already reported).  Filters
+  created before the failure are freed, so a failed call leaves no
+  filters allocated.
 */
 
 static bool alloc_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
@@ -25400,7 +25406,10 @@ static bool alloc_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
       JOIN_TAB *bush_start= start_tab[i].bush_children->start;
       uint bush_count= (uint)(start_tab[i].bush_children->end - bush_start);
       if (alloc_full_join_duplicate_filters(join, bush_start, bush_count))
+      {
+        free_full_join_duplicate_filters(join, start_tab, count);
         return true;
+      }
     }
 
     /*
@@ -25418,7 +25427,10 @@ static bool alloc_full_join_duplicate_filters(JOIN *join, JOIN_TAB *start_tab,
     DBUG_ASSERT(count >= 2);
     full_join_duplicate_filter *fj_dups= new full_join_duplicate_filter;
     if (!fj_dups || fj_dups->init(join->thd, &start_tab[i]))
+    {
+      free_full_join_duplicate_filters(join, start_tab, count);
       return true;
+    }
     start_tab[i].fj_dups= fj_dups;
 
     /*
