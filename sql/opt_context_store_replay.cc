@@ -382,6 +382,7 @@ static const char *opt_related_sys_vars[]=
   "join_cache_level",
   "join_buffer_size",
   "timestamp",
+  "time_zone",
   "old_mode",
   "sql_mode",
   "in_predicate_conversion_threshold",
