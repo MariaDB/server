@@ -277,6 +277,18 @@ static const char *replay_server_socket= NULL;
 static my_bool replay_test_mode= FALSE;
 static FILE *replay_log_file= NULL;
 static const char *replay_log_path= NULL;
+static my_bool replay_server_trace= FALSE;
+static FILE *replay_opt_trace_original_file= NULL;
+static FILE *replay_opt_trace_replay_file= NULL;
+static const char *replay_opt_trace_original_path= NULL;
+static const char *replay_opt_trace_replay_path= NULL;
+/* Set just before invoking replay-side EXPLAIN; used as header in trace dumps. */
+static const char *replay_current_explain= NULL;
+static size_t replay_current_explain_len= 0;
+/* When non-NULL, the replay-side helpers append the replay server's
+   optimizer_trace into this buffer so the caller can decide whether to
+   actually flush it to disk. */
+static DYNAMIC_STRING *replay_trace_capture_buf= NULL;
 static my_bool disable_replay_next_query= FALSE;
 static char disable_replay_reason[512]= {0};
 static my_bool disable_replay_testfile= FALSE;
@@ -1906,6 +1918,27 @@ void free_used_memory()
   {
     my_free((void*)replay_log_path);
     replay_log_path= NULL;
+  }
+
+  if (replay_opt_trace_original_file)
+  {
+    fclose(replay_opt_trace_original_file);
+    replay_opt_trace_original_file= NULL;
+  }
+  if (replay_opt_trace_replay_file)
+  {
+    fclose(replay_opt_trace_replay_file);
+    replay_opt_trace_replay_file= NULL;
+  }
+  if (replay_opt_trace_original_path)
+  {
+    my_free((void*)replay_opt_trace_original_path);
+    replay_opt_trace_original_path= NULL;
+  }
+  if (replay_opt_trace_replay_path)
+  {
+    my_free((void*)replay_opt_trace_replay_path);
+    replay_opt_trace_replay_path= NULL;
   }
 
   if (connections)
@@ -11285,6 +11318,21 @@ static int ensure_replay_server_connection()
             mysql_errno(replay_server_mysql),
             mysql_error(replay_server_mysql));
   }
+
+  /*
+    REPLAY_SERVER_TRACE: enable optimizer_trace once, session-scoped, so all
+    subsequent replayed EXPLAINs leave a trace in I_S.optimizer_trace.
+  */
+  if (replay_server_trace &&
+      mysql_real_query(replay_server_mysql,
+                       STRING_WITH_LEN("SET optimizer_trace='enabled=on'")))
+  {
+    fprintf(stdout,
+            "ReplayTest: Warning - failed to enable optimizer_trace on "
+            "replay server: %d %s\n",
+            mysql_errno(replay_server_mysql),
+            mysql_error(replay_server_mysql));
+  }
   DBUG_RETURN(0);
 }
 
@@ -11346,6 +11394,79 @@ static void log_replay_query(const char *query, size_t query_len)
     fprintf(replay_log_file, "%.*s;\n", (int)query_len, query);
     fflush(replay_log_file);
   }
+}
+
+
+/*
+  REPLAY_SERVER_TRACE helper: fetch the current optimizer_trace from `conn`
+  and append the trace JSON (one row per result row, one newline each) into
+  `out`. On error appends a "-- ERROR: <msg>\n" line. Drains any extra result
+  sets so the connection is left clean.
+*/
+static void capture_optimizer_trace(MYSQL *conn, DYNAMIC_STRING *out)
+{
+  if (!conn || !out)
+    return;
+  if (mysql_real_query(conn,
+                       STRING_WITH_LEN(
+                         "SELECT trace FROM information_schema.optimizer_trace")))
+  {
+    const char *err= mysql_error(conn);
+    dynstr_append_mem(out, "-- ERROR: ", 10);
+    dynstr_append_mem(out, err, strlen(err));
+    dynstr_append_mem(out, "\n", 1);
+    return;
+  }
+  MYSQL_RES *res= mysql_store_result(conn);
+  if (res)
+  {
+    MYSQL_ROW row;
+    while ((row= mysql_fetch_row(res)))
+    {
+      ulong *lens= mysql_fetch_lengths(res);
+      if (row[0])
+        dynstr_append_mem(out, row[0], lens[0]);
+      dynstr_append_mem(out, "\n", 1);
+    }
+    mysql_free_result(res);
+  }
+  /* Drain any extra result sets (multi-statement safety). */
+  while (mysql_next_result(conn) == 0)
+  {
+    MYSQL_RES *r= mysql_store_result(conn);
+    if (r) mysql_free_result(r);
+  }
+}
+
+
+/*
+  REPLAY_SERVER_TRACE helper: append a trace block (header line followed by
+  the previously-captured trace contents) to the file `*fpp`, lazy-opening it
+  from `path` on first use.
+*/
+static void flush_trace_block(FILE **fpp, const char *path,
+                              const char *header_query, size_t header_query_len,
+                              const DYNAMIC_STRING *trace)
+{
+  if (!path || !trace)
+    return;
+  if (!*fpp)
+  {
+    *fpp= fopen(path, "a");
+    if (!*fpp)
+    {
+      fprintf(stderr,
+              "ReplayTest: Warning - could not open optimizer_trace dump "
+              "file %s: %s\n", path, strerror(errno));
+      return;
+    }
+  }
+  fprintf(*fpp, "-- EXPLAIN: %.*s\n",
+          (int)header_query_len, header_query ? header_query : "");
+  if (trace->length)
+    fwrite(trace->str, 1, trace->length, *fpp);
+  fputc('\n', *fpp);
+  fflush(*fpp);
 }
 
 /*
@@ -11593,6 +11714,12 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
         if (is_explain)
         {
           found_explain= TRUE;
+          /* REPLAY_SERVER_TRACE: capture replay server's optimizer_trace
+             before the cleanup reset below overwrites it. The caller decides
+             later whether to actually persist it. */
+          if (replay_server_trace && replay_trace_capture_buf)
+            capture_optimizer_trace(replay_server_mysql,
+                                    replay_trace_capture_buf);
           verbose_msg("ReplayTest: Found EXPLAIN, stopping script execution");
           break;
         }
@@ -11679,7 +11806,15 @@ static void execute_replay_queries(const char *sql_script, DYNAMIC_STRING *ds)
       }
 
       if (is_explain)
+      {
         found_explain= TRUE;
+        /* REPLAY_SERVER_TRACE: capture replay server's optimizer_trace
+           BEFORE the cleanup reset below overwrites it. The caller decides
+           later whether to actually persist it. */
+        if (replay_server_trace && replay_trace_capture_buf)
+          capture_optimizer_trace(replay_server_mysql,
+                                  replay_trace_capture_buf);
+      }
     }
   }
   
@@ -11789,6 +11924,12 @@ static void run_explain_directly_on_replay(const char *query, size_t query_len,
     dynstr_free(&ds_warn);
   }
 
+  /* REPLAY_SERVER_TRACE: capture the replay server's optimizer_trace for
+     this directly-run EXPLAIN. The caller decides later whether to flush. */
+  if (replay_server_trace && replay_trace_capture_buf)
+    capture_optimizer_trace(replay_server_mysql,
+                            replay_trace_capture_buf);
+
   DBUG_VOID_RETURN;
 }
 
@@ -11889,6 +12030,29 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
         if (tmp_res)
           mysql_free_result(tmp_res);
       }
+
+      /* REPLAY_SERVER_TRACE: enable optimizer_trace on the test server too.
+         Save its current value into @mtr_save_opt_trace so we can restore it
+         after the EXPLAIN. The replay-side trace is enabled once-per-connection
+         in ensure_replay_server_connection(). */
+      if (replay_server_trace && replay_mode_active)
+      {
+        if (mysql_real_query(mysql,
+              STRING_WITH_LEN("SET @mtr_save_opt_trace=@@optimizer_trace, "
+                              "optimizer_trace='enabled=on'")))
+        {
+          fprintf(stdout,
+                  "ReplayTest: Warning - failed to enable optimizer_trace "
+                  "on test server: %d %s\n",
+                  mysql_errno(mysql), mysql_error(mysql));
+        }
+        else
+        {
+          MYSQL_RES *tmp_res= mysql_store_result(mysql);
+          if (tmp_res)
+            mysql_free_result(tmp_res);
+        }
+      }
     }
   }
 
@@ -11954,10 +12118,37 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	/* ReplayTest mode: Replace EXPLAIN result with replay server output */
 	if (replay_mode_active && counter == 0)
 	{
-	  /* Free the EXPLAIN result - we won't use it */
+	  /* Buffer the primary EXPLAIN's rows + warnings so we can compare
+	     against the replay server's output for conditional trace dumping. */
+	  DYNAMIC_STRING ds_primary_explain;
+	  DYNAMIC_STRING ds_replay_explain;
+	  DYNAMIC_STRING ds_orig_trace;
+	  DYNAMIC_STRING ds_replay_trace;
+	  init_dynamic_string(&ds_primary_explain, "", 1024, 1024);
+	  init_dynamic_string(&ds_replay_explain, "", 1024, 1024);
+	  init_dynamic_string(&ds_orig_trace, "", 1024, 1024);
+	  init_dynamic_string(&ds_replay_trace, "", 1024, 1024);
+
+	  /* Match the replay-side formatting: headings then rows. */
+	  if (!display_result_vertically)
+	    append_table_headings(&ds_primary_explain, fields, num_fields);
+	  append_result(&ds_primary_explain, res);
 	  mysql_free_result(res);
 	  res= 0;
-	  
+
+	  /* Append primary-side warnings, mirroring the replay-side format. */
+	  if (!disable_warnings)
+	  {
+	    DYNAMIC_STRING ds_warn;
+	    init_dynamic_string(&ds_warn, "", 256, 256);
+	    if (append_warnings(&ds_warn, mysql) || ds_warn.length)
+	    {
+	      dynstr_append_mem(&ds_primary_explain, "Warnings:\n", 10);
+	      dynstr_append_mem(&ds_primary_explain, ds_warn.str, ds_warn.length);
+	    }
+	    dynstr_free(&ds_warn);
+	  }
+
 	  /* Step 2: Query optimizer_context */
 	  fprintf(stdout, "ReplayTest: Loading context \n");
 	  if (mysql_real_query(mysql, 
@@ -11978,10 +12169,22 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	        const char *sql_script= context_row[0];
 	        have_context= TRUE;
 
+	        /* Make the EXPLAIN query available to the replay-side helpers
+	           and arm the trace-capture buffer. */
+	        replay_current_explain= query;
+	        replay_current_explain_len= query_len;
+	        if (replay_server_trace)
+	        {
+	          /* Capture the primary server's optimizer_trace for this
+	             EXPLAIN before we run anything else on this connection. */
+	          capture_optimizer_trace(mysql, &ds_orig_trace);
+	          replay_trace_capture_buf= &ds_replay_trace;
+	        }
+
 	        /* Step 3: Connect to replay server and execute queries */
 	        if (ensure_replay_server_connection() == 0)
 	        {
-	          execute_replay_queries(sql_script, ds);
+	          execute_replay_queries(sql_script, &ds_replay_explain);
 	        }
 	        else
 	        {
@@ -11998,14 +12201,52 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	         replay server. */
 	      verbose_msg("ReplayTest: empty optimizer_context, running EXPLAIN "
 	                  "directly on replay server");
-	      run_explain_directly_on_replay(query, query_len, ds);
+	      replay_current_explain= query;
+	      replay_current_explain_len= query_len;
+	      if (replay_server_trace)
+	      {
+	        capture_optimizer_trace(mysql, &ds_orig_trace);
+	        replay_trace_capture_buf= &ds_replay_trace;
+	      }
+	      run_explain_directly_on_replay(query, query_len, &ds_replay_explain);
 	    }
 
 	    /* Clear the test server's recorded context so it doesn't leak into
 	       the next EXPLAIN. */
 	    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
+	    /* REPLAY_SERVER_TRACE: restore optimizer_trace to whatever it was
+	       before we enabled it for this EXPLAIN. */
+	    if (replay_server_trace)
+	      (void) mysql_real_query(mysql,
+	            STRING_WITH_LEN("SET optimizer_trace=@mtr_save_opt_trace"));
+	    replay_current_explain= NULL;
+	    replay_current_explain_len= 0;
+	    replay_trace_capture_buf= NULL;
 	  }
-	  
+
+	  /* The replay-side output is what the test sees. */
+	  dynstr_append_mem(ds, ds_replay_explain.str, ds_replay_explain.length);
+
+	  /* REPLAY_SERVER_TRACE: only persist the two traces if the primary and
+	     replay EXPLAINs (rows + warnings) differ. */
+	  if (replay_server_trace &&
+	      (ds_primary_explain.length != ds_replay_explain.length ||
+	       memcmp(ds_primary_explain.str, ds_replay_explain.str,
+	              ds_primary_explain.length) != 0))
+	  {
+	    flush_trace_block(&replay_opt_trace_original_file,
+	                      replay_opt_trace_original_path,
+	                      query, query_len, &ds_orig_trace);
+	    flush_trace_block(&replay_opt_trace_replay_file,
+	                      replay_opt_trace_replay_path,
+	                      query, query_len, &ds_replay_trace);
+	  }
+
+	  dynstr_free(&ds_primary_explain);
+	  dynstr_free(&ds_replay_explain);
+	  dynstr_free(&ds_orig_trace);
+	  dynstr_free(&ds_replay_trace);
+
 	  replay_mode_active= FALSE;
 	}
 	else
@@ -13929,6 +14170,36 @@ int main(int argc, char **argv)
         {
           verbose_msg("ReplayTest: Logging queries to %s", replay_log_path);
         }
+      }
+    }
+
+    /* REPLAY_SERVER_TRACE: also dump optimizer_trace from both servers. */
+    const char *trace_env= getenv("REPLAY_SERVER_TRACE");
+    if (trace_env && trace_env[0])
+    {
+      replay_server_trace= TRUE;
+      fprintf(stderr, "mysqltest: REPLAY_SERVER_TRACE is ON\n");
+      if (result_file_name)
+      {
+        char buf[FN_REFLEN];
+        fn_format(buf, result_file_name, "", ".opt_trace.original",
+                  MY_REPLACE_EXT);
+        replay_opt_trace_original_path=
+            my_strdup(PSI_NOT_INSTRUMENTED, buf, MYF(MY_WME));
+        fn_format(buf, result_file_name, "", ".opt_trace.replay",
+                  MY_REPLACE_EXT);
+        replay_opt_trace_replay_path=
+            my_strdup(PSI_NOT_INSTRUMENTED, buf, MYF(MY_WME));
+        verbose_msg("ReplayTest: optimizer_trace dumps -> %s , %s",
+                    replay_opt_trace_original_path,
+                    replay_opt_trace_replay_path);
+        fprintf(stderr, "mysqltest: REPLAY_SERVER_TRACE: %s\n",replay_opt_trace_original_path);
+      }
+      else
+      {
+        fprintf(stderr,
+                "Warning: REPLAY_SERVER_TRACE is set but no --result-file "
+                "was given; optimizer_trace dumps will be skipped.\n");
       }
     }
   }
