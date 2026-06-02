@@ -153,6 +153,7 @@ our @global_suppressions;
 # Forward declarations for variables referenced in END block
 our $opt_replay_server;
 our $opt_replay_server_manual;
+our $opt_replay_server_trace;
 our $replay_server_parent_pid;  # PID of process that started the replay server
 
 END {
@@ -516,6 +517,13 @@ sub main {
               "The replay server is a single shared instance and cannot " .
               "serve multiple concurrent workers. " .
               "Re-run with --parallel=1.");
+  }
+
+  # Propagate --replay-server-trace to mysqltest via environment variable.
+  # Handling on the mysqltest side will be added in a follow-up step.
+  if ($opt_replay_server_trace) {
+    $ENV{REPLAY_SERVER_TRACE} = 1;
+    #mtr_warning("SETTING REPLAY_SERVER_TRACE=1");
   }
 
   # Create server socket on any free port
@@ -1337,6 +1345,7 @@ sub command_line_setup {
              'open-files-limit=i',      => \$opt_open_files_limit,
              'replay-server'            => \$opt_replay_server,
              'replay-server-manual'     => \$opt_replay_server_manual,
+             'replay-server-trace'      => \$opt_replay_server_trace,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -6590,6 +6599,8 @@ Misc options
   replay-server-manual  Print replay server command line and wait for user to
                         start it manually. Useful for running under debugger.
                         MTR will wait for socket and manage server lifecycle.
+  replay-server-trace   Enable replay-server tracing in mysqltest by exporting
+                        REPLAY_SERVER_TRACE=1 to its environment.
   start                 Only initialize and start the servers, using the
                         startup settings for the first specified test case
                         Example:
