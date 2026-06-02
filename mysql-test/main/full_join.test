@@ -2951,6 +2951,107 @@ union
 select * from t1 right join t2 on t2.b = 50;
 drop table t1, t2;
 
+--echo # The rewrite of a FULL JOIN to a RIGHT JOIN lost rows when the left
+--echo # operand was a nested join.  The recursion into the left nest moves
+--echo # the ON conditions of its inner join children to the WHERE clause,
+--echo # which keeps filtering the nest's rows only while the nest stays on
+--echo # the outer side.  The rewrite to a RIGHT JOIN made the nest the
+--echo # inner side of the resulting LEFT JOIN, where the moved conditions
+--echo # rejected the null complemented rows.  The rewrite is now skipped
+--echo # when the recursion moved conditions, and the FULL JOIN survives.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (a int, b int);
+create table t4 (a int, b int);
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(3,3);
+insert into t3 values (3,3),(4,4);
+insert into t4 values (1,1),(5,5);
+--echo # Inner join nest on the left, the WHERE clause rejects the right
+--echo # side.
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a where t3.a is not null;
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  right join t3 on t1.a = t3.a where t3.a is not null;
+--echo # Two level nest on the left.
+--sorted_result
+select t1.a, t2.a, t4.a, t3.a
+  from ((t1 join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+  full join t3 on t1.a = t3.a where t3.a is not null;
+--sorted_result
+select t1.a, t2.a, t4.a, t3.a
+  from ((t1 join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+  right join t3 on t1.a = t3.a where t3.a is not null;
+--echo # A LEFT JOIN child keeps its ON condition, nothing moves to the
+--echo # WHERE clause, and the rewrite to a RIGHT JOIN still runs.
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 left join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a where t3.a is not null;
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 left join t2 on t1.a = t2.a)
+  right join t3 on t1.a = t3.a where t3.a is not null;
+--echo # The WHERE clause rejects both sides and the join collapses to an
+--echo # inner join through the rewrite to a LEFT JOIN.
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a where t3.a is not null and t1.a is not null;
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  inner join t3 on t1.a = t3.a;
+--echo # The WHERE clause rejects the left side, the nest stays on the
+--echo # outer side, and the moved condition keeps filtering it from the
+--echo # WHERE clause.
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a where t1.a is not null;
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  left join t3 on t1.a = t3.a;
+--echo # No NULL rejecting WHERE clause, the FULL JOIN survives.
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a;
+--sorted_result
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  left join t3 on t1.a = t3.a
+union
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  right join t3 on t1.a = t3.a;
+--echo # The surviving form keeps prepared statement executions stable.
+prepare ps from 'select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a where t3.a is not null';
+--sorted_result
+execute ps;
+--sorted_result
+execute ps;
+deallocate prepare ps;
+--echo # An inner FULL JOIN inside the left nest is rewritten away during
+--echo # the recursion and a sibling ON condition moves to the WHERE
+--echo # clause, so the rewrite to a RIGHT JOIN is skipped and the outer
+--echo # FULL JOIN survives.  The permutation UNION form is not a valid
+--echo # oracle for nested FULL JOINs, so the recorded result is the
+--echo # oracle, checked by hand.  The left relation is the single row
+--echo # (1,1,1), no t3 value matches it, and the WHERE clause keeps only
+--echo # the right side rows.
+--sorted_result
+select t1.a, t2.a, t4.a, t3.a
+  from ((t1 full join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+  full join t3 on t1.a = t3.a where t3.a is not null;
+--echo # The same shape with the WHERE clause also rejecting the left side
+--echo # collapses to inner joins.
+insert into t3 values (1,10);
+--sorted_result
+select t1.a, t2.a, t4.a, t3.a
+  from ((t1 full join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+  full join t3 on t1.a = t3.a where t3.a is not null and t1.a is not null;
+--sorted_result
+select t1.a, t2.a, t4.a, t3.a
+  from ((t1 left join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+  join t3 on t1.a = t3.a;
+drop table t1, t2, t3, t4;
+
 --echo # ====================================================================
 --echo # Section 19: Right side of FULL JOIN must be a base table
 --echo # ====================================================================

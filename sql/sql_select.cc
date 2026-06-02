@@ -20488,6 +20488,18 @@ static COND *rewrite_full_outer_joins(JOIN *join,
   table_map left_not_null_tables= 0;
   DBUG_ASSERT(test_all_bits(left_table->outer_join,
                             JOIN_TYPE_FULL | JOIN_TYPE_LEFT));
+
+  /*
+    The recursion below can move conditions out of the nest into
+    conds, e.g., the ON condition of an inner join between base
+    tables.  In conds such a condition keeps filtering the nest's
+    rows only while the nest stays on the outer side, so the rewrite
+    to a RIGHT JOIN further down, which makes the nest the inner side
+    of the resulting LEFT JOIN, must not run when a condition moved.
+    Every move reassigns conds (see and_conds), so comparing the
+    pointer afterward detects it.
+  */
+  COND *conds_before= conds;
   if (left_table->nested_join)
   {
     conds= simplify_nested_join(join, left_table, conds, in_sj,
@@ -20500,6 +20512,7 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     left_used_tables= left_table->get_map();
     left_not_null_tables= *not_null_tables;
   }
+  bool left_conds_hoisted= (conds != conds_before);
 
   /*
     When left_table is a nested join with an unrewritten FULL JOIN
@@ -20518,8 +20531,10 @@ static COND *rewrite_full_outer_joins(JOIN *join,
     If the right hand table is not NULL under the WHERE clause then we can
     rewrite it as a RIGHT JOIN, mutating the data structures to make it
     appear as though the user wrote the query as a RIGHT JOIN originally.
+    The rewrite is skipped when the recursion into the left nest moved
+    conditions into conds; see the surviving branch below.
   */
-  if (*used_tables & *not_null_tables)
+  if ((*used_tables & *not_null_tables) && !left_conds_hoisted)
   {
     /*
       RIGHT JOINs don't actually exist in MariaDB!  This will do what
@@ -20564,6 +20579,22 @@ static COND *rewrite_full_outer_joins(JOIN *join,
       swap_full_join_sides(left_table, *right_table);
       *used_tables= left_used_tables;
       *right_table= li->swap_next();
+    }
+    else if (*used_tables & *not_null_tables)
+    {
+      /*
+        The WHERE clause rejects NULLs on the right side, but the
+        recursion into the left nest moved conditions into conds.
+        After the rewrite to a RIGHT JOIN those conditions would apply
+        to the null complemented rows of the nest, now the inner side,
+        and reject them, losing rows.  Let the FULL JOIN survive
+        instead.  Zero not_null_tables, as the contains_full_join
+        return above does, so the caller does not convert this FULL
+        JOIN table to an inner join.
+      */
+      DBUG_ASSERT(left_conds_hoisted);
+      *not_null_tables= 0;
+      DBUG_RETURN(conds);
     }
     *not_null_tables= left_not_null_tables;
     // else the FULL JOIN cannot be rewritten, pass it along.

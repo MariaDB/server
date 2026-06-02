@@ -4963,6 +4963,134 @@ a	pk	b
 NULL	6	60
 NULL	7	70
 drop table t1, t2;
+# The rewrite of a FULL JOIN to a RIGHT JOIN lost rows when the left
+# operand was a nested join.  The recursion into the left nest moves
+# the ON conditions of its inner join children to the WHERE clause,
+# which keeps filtering the nest's rows only while the nest stays on
+# the outer side.  The rewrite to a RIGHT JOIN made the nest the
+# inner side of the resulting LEFT JOIN, where the moved conditions
+# rejected the null complemented rows.  The rewrite is now skipped
+# when the recursion moved conditions, and the FULL JOIN survives.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (a int, b int);
+create table t4 (a int, b int);
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(3,3);
+insert into t3 values (3,3),(4,4);
+insert into t4 values (1,1),(5,5);
+# Inner join nest on the left, the WHERE clause rejects the right
+# side.
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+full join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a
+NULL	NULL	3
+NULL	NULL	4
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+right join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a
+NULL	NULL	3
+NULL	NULL	4
+# Two level nest on the left.
+select t1.a, t2.a, t4.a, t3.a
+from ((t1 join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+full join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a	a
+NULL	NULL	NULL	3
+NULL	NULL	NULL	4
+select t1.a, t2.a, t4.a, t3.a
+from ((t1 join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+right join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a	a
+NULL	NULL	NULL	3
+NULL	NULL	NULL	4
+# A LEFT JOIN child keeps its ON condition, nothing moves to the
+# WHERE clause, and the rewrite to a RIGHT JOIN still runs.
+select t1.a, t2.a, t3.a from (t1 left join t2 on t1.a = t2.a)
+full join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a
+NULL	NULL	3
+NULL	NULL	4
+select t1.a, t2.a, t3.a from (t1 left join t2 on t1.a = t2.a)
+right join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a
+NULL	NULL	3
+NULL	NULL	4
+# The WHERE clause rejects both sides and the join collapses to an
+# inner join through the rewrite to a LEFT JOIN.
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+full join t3 on t1.a = t3.a where t3.a is not null and t1.a is not null;
+a	a	a
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+inner join t3 on t1.a = t3.a;
+a	a	a
+# The WHERE clause rejects the left side, the nest stays on the
+# outer side, and the moved condition keeps filtering it from the
+# WHERE clause.
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+full join t3 on t1.a = t3.a where t1.a is not null;
+a	a	a
+1	1	NULL
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+left join t3 on t1.a = t3.a;
+a	a	a
+1	1	NULL
+# No NULL rejecting WHERE clause, the FULL JOIN survives.
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+full join t3 on t1.a = t3.a;
+a	a	a
+1	1	NULL
+NULL	NULL	3
+NULL	NULL	4
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+left join t3 on t1.a = t3.a
+union
+select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+right join t3 on t1.a = t3.a;
+a	a	a
+1	1	NULL
+NULL	NULL	3
+NULL	NULL	4
+# The surviving form keeps prepared statement executions stable.
+prepare ps from 'select t1.a, t2.a, t3.a from (t1 join t2 on t1.a = t2.a)
+  full join t3 on t1.a = t3.a where t3.a is not null';
+execute ps;
+a	a	a
+NULL	NULL	3
+NULL	NULL	4
+execute ps;
+a	a	a
+NULL	NULL	3
+NULL	NULL	4
+deallocate prepare ps;
+# An inner FULL JOIN inside the left nest is rewritten away during
+# the recursion and a sibling ON condition moves to the WHERE
+# clause, so the rewrite to a RIGHT JOIN is skipped and the outer
+# FULL JOIN survives.  The permutation UNION form is not a valid
+# oracle for nested FULL JOINs, so the recorded result is the
+# oracle, checked by hand.  The left relation is the single row
+# (1,1,1), no t3 value matches it, and the WHERE clause keeps only
+# the right side rows.
+select t1.a, t2.a, t4.a, t3.a
+from ((t1 full join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+full join t3 on t1.a = t3.a where t3.a is not null;
+a	a	a	a
+NULL	NULL	NULL	3
+NULL	NULL	NULL	4
+# The same shape with the WHERE clause also rejecting the left side
+# collapses to inner joins.
+insert into t3 values (1,10);
+select t1.a, t2.a, t4.a, t3.a
+from ((t1 full join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+full join t3 on t1.a = t3.a where t3.a is not null and t1.a is not null;
+a	a	a	a
+1	1	1	1
+select t1.a, t2.a, t4.a, t3.a
+from ((t1 left join t2 on t1.a = t2.a) join t4 on t1.a = t4.a)
+join t3 on t1.a = t3.a;
+a	a	a	a
+1	1	1	1
+drop table t1, t2, t3, t4;
 # ====================================================================
 # Section 19: Right side of FULL JOIN must be a base table
 # ====================================================================
