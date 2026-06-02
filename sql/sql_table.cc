@@ -9194,7 +9194,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           key_type= Key::UNIQUE;
         if (dropped_key_part)
         {
-          my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), dropped_key_part);
+          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), dropped_key_part, "it is part of index");
           if (long_hash_key)
           {
             key_info->algorithm= HA_KEY_ALG_LONG_HASH;
