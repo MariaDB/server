@@ -384,6 +384,7 @@ static const char *opt_related_sys_vars[]=
   "timestamp",
   "old_mode",
   "sql_mode",
+  "in_predicate_conversion_threshold",
   NULL
 };
 
@@ -1015,9 +1016,9 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 static void append_full_table_name(const TABLE_LIST *tbl, String *buf)
 {
   // TODO : eventually we'll need quoting.
-  buf->append(tbl->get_db_name().str, tbl->get_db_name().length);
+  buf->append(tbl->db.str, tbl->db.length);
   buf->append(STRING_WITH_LEN("."));
-  buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
+  buf->append(tbl->table_name.str, tbl->table_name.length);
 }
 
 
