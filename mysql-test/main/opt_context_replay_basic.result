@@ -16,8 +16,6 @@ index t1_idx_b (b),
 index t1_idx_ab (a, b)
 );
 insert into t1 select seq%2, seq%3 from seq_1_to_20;
-# Make the testcase reproducible:
-set timestamp= unix_timestamp('2026-05-31 10:20:30');
 select count(*) from t1;
 count(*)
 20
@@ -64,6 +62,8 @@ SET GLOBAL temp_table.OPTIMIZER_ROW_LOOKUP_COST=0.130839;
 SET GLOBAL temp_table.OPTIMIZER_ROW_NEXT_FIND_COST=0.045916;
 SET GLOBAL temp_table.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
 SET GLOBAL temp_table.OPTIMIZER_ROWID_COPY_COST=0.002653;
+SET in_predicate_conversion_threshold=1000;
+
 SET join_buffer_size=262144;
 
 SET join_cache_level=2;
@@ -124,7 +124,9 @@ SET optimizer_where_cost=0.032000;
 
 SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 
-SET timestamp=1780212030.000000;
+SET time_zone='REPLACED';
+
+SET timestamp=REPLACED;
 
 
 select count(*) from t1;
@@ -136,123 +138,19 @@ select context into
 dumpfile "dump1.sql" from information_schema.optimizer_context;
 ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
 drop table t1;
-SET NAMES utf8mb4;
-SET GLOBAL MyISAM.OPTIMIZER_DISK_READ_COST=10.24;
-SET GLOBAL MyISAM.OPTIMIZER_INDEX_BLOCK_COPY_COST=0.0356;
-SET GLOBAL MyISAM.OPTIMIZER_KEY_COMPARE_COST=0.011361;
-SET GLOBAL MyISAM.OPTIMIZER_KEY_COPY_COST=0.015685;
-SET GLOBAL MyISAM.OPTIMIZER_KEY_LOOKUP_COST=0.550142;
-SET GLOBAL MyISAM.OPTIMIZER_KEY_NEXT_FIND_COST=0.090585;
-SET GLOBAL MyISAM.OPTIMIZER_DISK_READ_RATIO=0.02;
-SET GLOBAL MyISAM.OPTIMIZER_ROW_COPY_COST=0.060866;
-SET GLOBAL MyISAM.OPTIMIZER_ROW_LOOKUP_COST=1.014818;
-SET GLOBAL MyISAM.OPTIMIZER_ROW_NEXT_FIND_COST=0.063539;
-SET GLOBAL MyISAM.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
-SET GLOBAL MyISAM.OPTIMIZER_ROWID_COPY_COST=0.002653;
-SET GLOBAL heap.OPTIMIZER_DISK_READ_COST=0;
-SET GLOBAL heap.OPTIMIZER_INDEX_BLOCK_COPY_COST=0;
-SET GLOBAL heap.OPTIMIZER_KEY_COMPARE_COST=0.011361;
-SET GLOBAL heap.OPTIMIZER_KEY_COPY_COST=0;
-SET GLOBAL heap.OPTIMIZER_KEY_LOOKUP_COST=0;
-SET GLOBAL heap.OPTIMIZER_KEY_NEXT_FIND_COST=0;
-SET GLOBAL heap.OPTIMIZER_DISK_READ_RATIO=0;
-SET GLOBAL heap.OPTIMIZER_ROW_COPY_COST=0.002334;
-SET GLOBAL heap.OPTIMIZER_ROW_LOOKUP_COST=0;
-SET GLOBAL heap.OPTIMIZER_ROW_NEXT_FIND_COST=0.0080166;
-SET GLOBAL heap.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
-SET GLOBAL heap.OPTIMIZER_ROWID_COPY_COST=0.002653;
-SET GLOBAL temp_table.OPTIMIZER_DISK_READ_COST=10.24;
-SET GLOBAL temp_table.OPTIMIZER_INDEX_BLOCK_COPY_COST=0.0356;
-SET GLOBAL temp_table.OPTIMIZER_KEY_COMPARE_COST=0.011361;
-SET GLOBAL temp_table.OPTIMIZER_KEY_COPY_COST=0.015685;
-SET GLOBAL temp_table.OPTIMIZER_KEY_LOOKUP_COST=0.435777;
-SET GLOBAL temp_table.OPTIMIZER_KEY_NEXT_FIND_COST=0.082347;
-SET GLOBAL temp_table.OPTIMIZER_DISK_READ_RATIO=0.02;
-SET GLOBAL temp_table.OPTIMIZER_ROW_COPY_COST=0.060866;
-SET GLOBAL temp_table.OPTIMIZER_ROW_LOOKUP_COST=0.130839;
-SET GLOBAL temp_table.OPTIMIZER_ROW_NEXT_FIND_COST=0.045916;
-SET GLOBAL temp_table.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
-SET GLOBAL temp_table.OPTIMIZER_ROWID_COPY_COST=0.002653;
-SET join_buffer_size=262144;
-SET join_cache_level=2;
-SET old_mode='UTF8_IS_UTF8MB3';
-SET optimizer_adjust_secondary_key_costs=0;
 Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
-SET GLOBAL optimizer_disk_read_cost=10.240000;
-SET GLOBAL optimizer_disk_read_ratio=0.020000;
-SET optimizer_extra_pruning_depth=8;
-SET GLOBAL optimizer_index_block_copy_cost=0.035600;
-SET optimizer_join_limit_pref_ratio=0;
-SET GLOBAL optimizer_key_compare_cost=0.011361;
-SET GLOBAL optimizer_key_copy_cost=0.015685;
-SET GLOBAL optimizer_key_lookup_cost=0.435777;
-SET GLOBAL optimizer_key_next_find_cost=0.082347;
-SET optimizer_max_sel_arg_weight=32000;
-SET optimizer_max_sel_args=16000;
-SET optimizer_prune_level=2;
-SET GLOBAL optimizer_row_copy_cost=0.060866;
-SET GLOBAL optimizer_row_lookup_cost=0.130839;
-SET GLOBAL optimizer_row_next_find_cost=0.045916;
-SET GLOBAL optimizer_rowid_compare_cost=0.002653;
-SET GLOBAL optimizer_rowid_copy_cost=0.002653;
-SET optimizer_scan_setup_cost=10.000000;
-SET optimizer_search_depth=62;
-SET optimizer_selectivity_sampling_limit=100;
-SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,duplicateweedout=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on,not_null_range_scan=off,hash_join_cardinality=on,cset_narrowing=on,sargable_casefold=on';
-SET optimizer_trace='enabled=off';
-SET optimizer_trace_max_mem_size=1048576;
-SET optimizer_use_condition_selectivity=4;
-SET optimizer_where_cost=0.032000;
-SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
-SET timestamp=1780212030.000000;
-CREATE DATABASE IF NOT EXISTS db1;
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
-USE db1;
-DROP TABLE IF EXISTS db1.t1;
 Warnings:
 Note	1051	Unknown table 'db1.t1'
-CREATE TABLE `t1` (
-`a` int(11) DEFAULT NULL,
-`b` int(11) DEFAULT NULL,
-KEY `t1_idx_a` (`a`),
-KEY `t1_idx_b` (`b`),
-KEY `t1_idx_ab` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-set @opt_context='
-{
-  "list_contexts": [
-    {
-      "name": "db1.t1",
-      "file_stat_records": 20,
-      "read_cost_io": 0,
-      "read_cost_cpu": 0.0100356,
-      "indexes": [
-        {
-          "index_name": "t1_idx_a",
-          "rec_per_key": ["10"]
-        },
-        {
-          "index_name": "t1_idx_b",
-          "rec_per_key": ["7"]
-        },
-        {
-          "index_name": "t1_idx_ab",
-          "rec_per_key": ["10", "3"]
-        }
-      ]
-    }
-  ]
-}
-';
+count(*)
+0
 set optimizer_replay_context='opt_context';
-SET character_set_client=latin1;
-SET collation_connection=latin1_swedish_ci;
 select count(*) from t1;
 count(*)
 0
-set optimizer_replay_context='';
+set optimizer_replay_context=NULL;
 create table t2( a int);
 #
 # MDEV-39222: Errors shown when inserting data into a new table
