@@ -20,8 +20,6 @@ create table t1
 );
 
 insert into t1 select seq%2, seq%3 from seq_1_to_20;
---echo # Make the testcase reproducible:
-set timestamp= unix_timestamp('2026-05-31 10:20:30');
 select count(*) from t1;
 
 --source include/get_sys_vars_from_opt_ctx.inc
@@ -37,7 +35,12 @@ select context into
 
 drop table t1;
 
+--disable_query_log
 --source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+set optimizer_replay_context='opt_context';
+select count(*) from t1;
+set optimizer_replay_context=NULL;
 
 create table t2( a int);
 --echo #
