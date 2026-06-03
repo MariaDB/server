@@ -123,3 +123,17 @@ Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
 #
 # End of 10.2 tests
 #
+#
+# MDEV-39813 ST_GeomFromGeoJSON does not control recursion depth
+#
+SELECT ST_GeomFromGeoJSON(
+concat(
+repeat('{"type":"GeometryCollection","geometries":[', 2000),
+'{"type":"Point","coordinates":[0,0]}',
+repeat(']}', 2000)
+)) as exp;
+exp
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'st_geomfromgeojson' at position 473
+# End of 10.6 tests
