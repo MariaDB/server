@@ -54,11 +54,7 @@ enum partition_state {
   The data in this fixed in two steps. The parser will only fill in whether
   it is a max_value or provide an expression. Filling in
   column_value, part_info, partition_id, null_value is done by the
-  function fix_column_value_function. However the item tree needs
-  fixed also before writing it into the frm file (in add_column_list_values).
-  To distinguish between those two variants, fixed= 1 after the
-  fixing in add_column_list_values and fixed= 2 otherwise. This is
-  since the fixing in add_column_list_values isn't a complete fixing.
+  function fix_column_value_function.
 */
 
 typedef struct p_column_list_val
@@ -69,7 +65,7 @@ typedef struct p_column_list_val
   uint partition_id;
   bool max_value; // MAXVALUE for RANGE type or DEFAULT value for LIST type
   bool null_value;
-  char fixed;
+  bool fixed;
 } part_column_list_val;
 
 
