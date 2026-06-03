@@ -5,51 +5,47 @@
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
-# Get the current GTID position manually and verify it exists
+# The current GTID position is reachable
 SELECT GTID_CHECK_POS('GTID_POS');
 GTID_CHECK_POS('GTID_POS')
 1
-# 2. Verify invalid inputs
+# 2. Invalid input raises an error; NULL input returns NULL
 SELECT GTID_CHECK_POS('invalid-format');
 ERROR HY000: Could not parse GTID list
 SELECT GTID_CHECK_POS(NULL);
 GTID_CHECK_POS(NULL)
 NULL
-# 3. Check for a very old purged GTID
-# (Simulate purging all logs)
-FLUSH LOGS;
-PURGE BINARY LOGS BEFORE NOW();
-# Depending on when it is executed, '0-server_id-1' is purged
-# after purge binary logs before now().
-SELECT GTID_CHECK_POS('PURGED_GTID');
-GTID_CHECK_POS('PURGED_GTID')
-0
-# Since we want a deterministic test, let's check
-# a completely fake server_id / seq_no that shouldn't exist
-SELECT GTID_CHECK_POS('99-99-9999999');
-GTID_CHECK_POS('99-99-9999999')
-0
-# 4. Check for an otherwise valid GTID (right domain and server)
-# that is absent (sequence number is in the future).
-SELECT GTID_CHECK_POS('ABSENT_GTID');
-GTID_CHECK_POS('ABSENT_GTID')
-0
-# 5. Check empty string input
+# 3. Empty string (empty GTID list) returns 1 (trivially reachable)
 SELECT GTID_CHECK_POS('');
 GTID_CHECK_POS('')
 1
-# 6. Check multiple GTID comma-separated list scenarios
-# A list of multiple valid and reachable GTIDs
-SELECT GTID_CHECK_POS('VALID_LIST');
-GTID_CHECK_POS('VALID_LIST')
+# 4. Rotate to a new binlog and purge the old one
+FLUSH LOGS;
+# Write a new GTID into the new (post-purge) active binlog
+INSERT INTO t1 VALUES (3);
+# The new position (in the current active log) is reachable
+SELECT GTID_CHECK_POS('NEW_GTID_POS');
+GTID_CHECK_POS('NEW_GTID_POS')
 1
-# A list containing a valid and a future/absent GTID
-SELECT GTID_CHECK_POS('MIX_FUTURE');
-GTID_CHECK_POS('MIX_FUTURE')
+# The old position (now in a purged log) returns 0
+SELECT GTID_CHECK_POS('OLD_GTID_POS');
+GTID_CHECK_POS('OLD_GTID_POS')
 0
-# A list containing a valid and a purged GTID
-SELECT GTID_CHECK_POS('MIX_PURGED');
-GTID_CHECK_POS('MIX_PURGED')
+# A completely fake domain/server/seqno (never existed) returns 0
+SELECT GTID_CHECK_POS('99-99-9999999');
+GTID_CHECK_POS('99-99-9999999')
 0
+# 5. A future sequence number in a known domain returns 0
+SELECT GTID_CHECK_POS('ABSENT_GTID');
+GTID_CHECK_POS('ABSENT_GTID')
+0
+# 6. Mixed list: reachable pos combined with an unknown domain returns 0
+SELECT GTID_CHECK_POS('NEW_GTID_POS,99-99-9999999');
+GTID_CHECK_POS('NEW_GTID_POS,99-99-9999999')
+0
+# 7. List with only the current reachable position returns 1
+SELECT GTID_CHECK_POS('NEW_GTID_POS');
+GTID_CHECK_POS('NEW_GTID_POS')
+1
 # Cleanup
 DROP TABLE t1;

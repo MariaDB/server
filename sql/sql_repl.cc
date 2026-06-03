@@ -32,7 +32,6 @@
 #include "semisync_slave.h"
 #include "mysys_err.h"
 #include "gtid_index.h"
-#include "item_cmpfunc.h"
 
 
 enum enum_gtid_until_state {
@@ -2121,8 +2120,6 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
     return 1;
   return 0;
 }
-
-
 
 
 

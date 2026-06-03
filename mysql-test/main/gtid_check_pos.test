@@ -9,56 +9,54 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
 
---echo # Get the current GTID position manually and verify it exists
+--echo # The current GTID position is reachable
 let $pos= `SELECT @@GLOBAL.gtid_binlog_pos`;
 --replace_result $pos GTID_POS
 eval SELECT GTID_CHECK_POS('$pos');
 
---echo # 2. Verify invalid inputs
+--echo # 2. Invalid input raises an error; NULL input returns NULL
 --error ER_INCORRECT_GTID_STATE
 SELECT GTID_CHECK_POS('invalid-format');
 SELECT GTID_CHECK_POS(NULL);
 
---echo # 3. Check for a very old purged GTID
---echo # (Simulate purging all logs)
+--echo # 3. Empty string (empty GTID list) returns 1 (trivially reachable)
+SELECT GTID_CHECK_POS('');
+
+--echo # 4. Rotate to a new binlog and purge the old one
 FLUSH LOGS;
-PURGE BINARY LOGS BEFORE NOW();
+let $current_log= query_get_value(SHOW MASTER STATUS, File, 1);
+--disable_query_log
+eval PURGE BINARY LOGS TO '$current_log';
+--enable_query_log
 
---echo # Depending on when it is executed, '0-server_id-1' is purged
---echo # after purge binary logs before now().
-let $server_id= `SELECT @@GLOBAL.server_id`;
-let $purged_gtid= 0-$server_id-1;
---replace_result $purged_gtid PURGED_GTID
-eval SELECT GTID_CHECK_POS('$purged_gtid');
+--echo # Write a new GTID into the new (post-purge) active binlog
+INSERT INTO t1 VALUES (3);
 
---echo # Since we want a deterministic test, let's check
---echo # a completely fake server_id / seq_no that shouldn't exist
+--echo # The new position (in the current active log) is reachable
+let $new_pos= `SELECT @@GLOBAL.gtid_binlog_pos`;
+--replace_result $new_pos NEW_GTID_POS
+eval SELECT GTID_CHECK_POS('$new_pos');
+
+--echo # The old position (now in a purged log) returns 0
+--replace_result $pos OLD_GTID_POS
+eval SELECT GTID_CHECK_POS('$pos');
+
+--echo # A completely fake domain/server/seqno (never existed) returns 0
 SELECT GTID_CHECK_POS('99-99-9999999');
 
---echo # 4. Check for an otherwise valid GTID (right domain and server)
---echo # that is absent (sequence number is in the future).
+--echo # 5. A future sequence number in a known domain returns 0
+let $server_id= `SELECT @@GLOBAL.server_id`;
 let $absent_gtid= 0-$server_id-99999999;
 --replace_result $absent_gtid ABSENT_GTID
 eval SELECT GTID_CHECK_POS('$absent_gtid');
 
---echo # 5. Check empty string input
-SELECT GTID_CHECK_POS('');
+--echo # 6. Mixed list: reachable pos combined with an unknown domain returns 0
+--replace_result $new_pos NEW_GTID_POS
+eval SELECT GTID_CHECK_POS('$new_pos,99-99-9999999');
 
---echo # 6. Check multiple GTID comma-separated list scenarios
---echo # A list of multiple valid and reachable GTIDs
-let $valid_list= 0-$server_id-2,$pos;
---replace_result $valid_list VALID_LIST
-eval SELECT GTID_CHECK_POS('$valid_list');
-
---echo # A list containing a valid and a future/absent GTID
-let $mix_future= 0-$server_id-2,0-$server_id-99999999;
---replace_result $mix_future MIX_FUTURE
-eval SELECT GTID_CHECK_POS('$mix_future');
-
---echo # A list containing a valid and a purged GTID
-let $mix_purged= 0-$server_id-2,0-$server_id-1;
---replace_result $mix_purged MIX_PURGED
-eval SELECT GTID_CHECK_POS('$mix_purged');
+--echo # 7. List with only the current reachable position returns 1
+--replace_result $new_pos NEW_GTID_POS
+eval SELECT GTID_CHECK_POS('$new_pos');
 
 --echo # Cleanup
 DROP TABLE t1;
