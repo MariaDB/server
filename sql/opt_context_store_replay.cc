@@ -1581,12 +1581,14 @@ bool Optimizer_context_replay::infuse_range_stats(
   String act_ranges;
   seq_it= seq_if->init((void *) seq, 0, 0);
   act_ranges.append(STRING_WITH_LEN("["));
+  List<char> text_ranges;
 
   while (!seq_if->next(seq_it, &multi_range))
   {
     StringBuffer<128> range_info(system_charset_info);
     print_range(&range_info, key_part, &multi_range, n_key_parts);
     char *r1= range_info.c_ptr_safe();
+    text_ranges.push_back(strdup_root(thd->mem_root, &range_info));
     act_ranges.append(r1, strlen(r1));
     act_ranges.append(STRING_WITH_LEN(", "));
   }
@@ -1599,20 +1601,24 @@ bool Optimizer_context_replay::infuse_range_stats(
     while (Multi_range_read_const_call_record *range_ctx= range_ctx_itr++)
     {
       List_iterator<char> range_itr(range_ctx->range_list);
-      seq_it= seq_if->init((void *) seq, 0, 0);
+      List_iterator<char> text_range_it(text_ranges);
       bool matched= true;
 
-      while (!seq_if->next(seq_it, &multi_range))
+      while (1)
       {
-        StringBuffer<128> range_info(system_charset_info);
-        print_range(&range_info, key_part, &multi_range, n_key_parts);
-        char *r1= range_info.c_ptr_safe();
+        char *r1= text_range_it++;
         char *r2= range_itr++;
-        if (r2 == NULL || strcmp(r1, r2) != 0)
+        if ((r1!=NULL && r2!=NULL && !strcmp(r1, r2)))
         {
-          matched= false;
-          break;
+          // The intervals match. Proceed to next
+          matched= true;
+          continue;
         }
+        if (!r1 && !r2)
+          matched= true; // Both sequences ended, ok.
+        else
+          matched= false; // Mismatch
+        break;
       }
       if (matched)
       {
