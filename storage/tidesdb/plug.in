@@ -1,7 +1,0 @@
-MYSQL_STORAGE_ENGINE(tidesdb,, [TidesDB Storage Engine],
-        [LSMB+ storage engine with ACID transactions], [max,max-no-ndb])
-MYSQL_PLUGIN_DIRECTORY(tidesdb, [storage/tidesdb])
-MYSQL_PLUGIN_STATIC(tidesdb,    [libtidesdb.a])
-MYSQL_PLUGIN_DYNAMIC(tidesdb,   [ha_tidesdb.la])
-MYSQL_PLUGIN_MANDATORY(tidesdb)
-MYSQL_PLUGIN_DEPENDS_ON_MYSQL_INTERNALS(tidesdb, [ha_tidesdb.cc])
