@@ -2,6 +2,12 @@ create table t1 (a text, fulltext (a) using engine);
 show create table t1;
 drop table t1;
 
+create table t1 (a text, fulltext (a) using table);
+show create table t1;
+drop table t1;
+
+set old_mode='';
+
 --error ER_NOT_SUPPORTED_YET
 create table t1 (a text not null, b vector(10) not null, fulltext (a), vector(b));
 --error ER_NOT_SUPPORTED_YET
@@ -11,4 +17,20 @@ create table t1 (a text not null, b varchar(10) not null, fulltext(b), fulltext 
 
 create table t1 (a text not null, fulltext (a));
 show create table t1;
+drop table t1;
+
+CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
+INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
+                       ('Full-text indexes', 'are called collections'),
+                          ('Only MyISAM tables','support collections'),
+             ('Function MATCH ... AGAINST()','is used to do a search'),
+        ('Full-text search in MySQL', 'implements vector space model');
+SHOW INDEX FROM t1;
+
+select * from t1 where MATCH(a,b) AGAINST ("collections");
+explain extended select * from t1 where MATCH(a,b) AGAINST ("collections");
+select * from t1 where MATCH(a,b) AGAINST ("indexes");
+select * from t1 where MATCH(a,b) AGAINST ("indexes collections");
+select * from t1 where MATCH(a,b) AGAINST ("only");
+
 drop table t1;

@@ -2550,8 +2550,15 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       if (key_info->algorithm == HA_KEY_ALG_BTREE)
         packet->append(STRING_WITH_LEN(" USING BTREE"));
 
-      if (key_info->flags & HA_FULLTEXT_legacy)
-        packet->append(STRING_WITH_LEN(" USING ENGINE"));
+      if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
+      {
+        if ((key_info->flags & HA_FULLTEXT_legacy) &&
+            !(thd->variables.old_behavior & OLD_MODE_FULLTEXT_USING_ENGINE))
+          packet->append(STRING_WITH_LEN(" USING ENGINE"));
+        if (!(key_info->flags & HA_FULLTEXT_legacy) &&
+            (thd->variables.old_behavior & OLD_MODE_FULLTEXT_USING_ENGINE))
+          packet->append(STRING_WITH_LEN(" USING TABLE"));
+      }
 
       if (key_info->algorithm == HA_KEY_ALG_HASH ||
           key_info->algorithm == HA_KEY_ALG_LONG_HASH)

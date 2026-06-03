@@ -2783,6 +2783,8 @@ create:
               MYSQL_YYABORT;
             if (Lex->add_create_index($2, &$6, HA_KEY_ALG_UNDEF, $1 | $5))
               MYSQL_YYABORT;
+            if (thd->variables.old_behavior & OLD_MODE_FULLTEXT_USING_ENGINE)
+              Lex->last_key->key_create_info.flags= HA_FULLTEXT_legacy;
           }
           '(' key_list ')' opt_lock_wait_timeout fulltext_key_options
           opt_index_lock_algorithm
@@ -6366,6 +6368,8 @@ key_def:
             Lex->option_list= NULL;
             if (unlikely(Lex->add_key($1, &$4, HA_KEY_ALG_UNDEF, $3)))
               MYSQL_YYABORT;
+            if (thd->variables.old_behavior & OLD_MODE_FULLTEXT_USING_ENGINE)
+              Lex->last_key->key_create_info.flags= HA_FULLTEXT_legacy;
           }
           '(' key_list ')' fulltext_key_options { }
         | spatial_or_vector opt_key_or_index opt_if_not_exists opt_ident
@@ -7598,6 +7602,10 @@ fulltext_key_opt:
               Lex->last_key->key_create_info.parser_name= $3;
             else
               my_yyabort_error((ER_FUNCTION_NOT_DEFINED, MYF(0), $3.str));
+          }
+        | USING TABLE_SYM
+          {
+            Lex->last_key->key_create_info.flags= 0;
           }
         | USING ENGINE_SYM
           {

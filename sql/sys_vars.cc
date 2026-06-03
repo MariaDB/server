@@ -4159,6 +4159,7 @@ static const char *old_mode_names[]=
   "SESSION_USER_IS_USER",               // 8: deprecated since 11.7
   "2_DIGIT_YEAR",                       // 9: deprecated since 13.0
   "UTF8_IS_UTF8MB3",                    // 10: deprecated since 13.1
+  "FULLTEXT_USING_ENGINE",              // 11: on by default
   0
 };
 

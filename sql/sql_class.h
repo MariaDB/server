@@ -222,8 +222,9 @@ enum enum_binlog_row_image {
 #define OLD_MODE_SESSION_USER_IS_USER                   (1 <<  8)
 #define OLD_MODE_2_DIGIT_YEAR                           (1 <<  9)
 #define OLD_MODE_UTF8_IS_UTF8MB3                        (1 << 10)
+#define OLD_MODE_FULLTEXT_USING_ENGINE                  (1 << 11)
 
-#define OLD_MODE_DEFAULT_VALUE 0
+#define OLD_MODE_DEFAULT_VALUE          OLD_MODE_FULLTEXT_USING_ENGINE
 
 void old_mode_deprecated_warnings(ulonglong v);
 
