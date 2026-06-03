@@ -70,4 +70,81 @@ SELECT ST_GeomFromGeoJSON(
     repeat(']}', 2000)
   )) as exp;
 
+--echo # Boundary condition: foreign-member nesting at depth 32
+SET @geom := '{"type":"Point","coordinates":[1,2]}';
+
+SET @doc := CONCAT(
+  REPEAT('{"x":', 29),
+  @geom,
+  REPEAT('}', 29)
+);
+
+SELECT ST_ASTEXT( ST_GeomFromGeoJSON(@doc) ) AS expr;
+
+
+--echo # Foreign-member nesting exceeds depth 32
+SET @geom := '{"type":"Point","coordinates":[1,2]}';
+
+SET @doc := CONCAT(
+  REPEAT('{"x":', 30),
+  @geom,
+  REPEAT('}', 30)
+);
+
+SELECT ST_GeomFromGeoJSON(@doc) AS expr;
+
+
+--echo # Deep foreign member attached to otherwise valid GeoJSON
+SET @foreign := CONCAT(
+  REPEAT('{"x":', 28),
+  '{"leaf":1}',
+  REPEAT('}', 28)
+);
+
+SET @doc := CONCAT(
+  '{"type":"Point","coordinates":[10,20],"foreign":',
+  @foreign,
+  '}'
+);
+
+SELECT ST_ASTEXT(ST_GeomFromGeoJSON(@doc)) AS expr;
+
+
+--echo # Foreign member exceeds depth limit
+SET @foreign := CONCAT(
+  REPEAT('{"x":', 29),
+  '{"leaf":1}',
+  REPEAT('}', 29)
+);
+
+SET @doc := CONCAT(
+  '{"type":"Point","coordinates":[10,20],"foreign":',
+  @foreign,
+  '}'
+);
+
+SELECT ST_ASTEXT(ST_GeomFromGeoJSON(@doc)) AS expr;
+
+--echo # GeometryCollection containing 33 valid GeoJSON Point objects
+SET @point := '{"type":"Point","coordinates":[1,2]}';
+
+SET @geoms := CONCAT(
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point, ',', @point, ',', @point, ',',
+  @point, ',', @point, ',', @point
+);
+
+SET @doc := CONCAT(
+  '{"type":"GeometryCollection","geometries":[',
+  @geoms,
+  ']}'
+);
+
+SELECT ST_AsText(ST_GeomFromGeoJSON(@doc)) AS expr;
+
 --echo # End of 10.6 tests
