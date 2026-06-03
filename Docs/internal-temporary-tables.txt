@@ -1,0 +1,60 @@
+MariaDB is automatically creating internal temporary tables to store
+temporary results for a query.
+
+Examples:
+- Distinct handling (writing into a temporary table with a unique key) 
+- Store the whole result for a final order by.
+- Store the result for a group by. Two ways to do this:
+  a) Update a row value for each row combination based on the group-by key
+  b) Sort the result in group-by order, write a row to temporary table when group-by
+     order changes. Sort the resulting temporary tables.
+     This solution is used when all group-by fields is from the first used non const
+     table and we there is an ORDER BY to sort the final result
+- Materialized tables for things like (select DISTINCT ...)
+- Derived tables "SELECT ... FROM (SELECT...)"
+- Results for UNION, EXCEPT etc
+- Store values and results for "t1.a in (select ... )"
+- Temporary storage for result from the SHOW command or when accessing
+  information_schema.
+
+The internal temporary tables can be of type memory/heap or Aria.
+One can recompile MariaDB to use MyISAM instead of Aria for temporary
+tables, but this is mainly kept as a legacy option and not recommended.
+
+The internal temporary tables are normally first created as memory
+tables. If the table overflows, in case of MY_MIN(max_heap_table_size,
+tmp_memory_table_size), the table is converted to an Aria/MyISAM
+table.
+
+The code for creating internal temporary tables are in sql/sql_select.cc.
+- create_tmp_table() is used for create all internal temporary tables.
+- instantiate_tmp_table() which will create the aria or memory table
+   - If Aria was chosen as a base for the temporary table
+      create_internal_tmp_table() is called
+   - Heap tables are created by calling open_tmp_table() which calls
+     table->file->ha_open()
+- create_internal_tmp_table_from_heap() or convert_heap_to_aria_update()
+  is used to change a heap table to an Aria table in case of overflow.
+
+The following are the usage restrictions for internal temporary tables that
+an engine can rely on to provide optimized performance.
+
+- There will only be one user for the table
+ - No need for any locking to protect internal structures. No external_lock() calls.
+- Table is created and dropped during the same statement.
+  - Table has either 0 keys, one unique key or an unique constraint (a set of fields
+    has to be unique)
+- The only read/write patterns are:
+  - Table scan, possible followed by a read rows based on position (for order by
+    on temporary table).
+  - Table scan with duplicate row removal or delete of rows that are failing the
+    HAVING clause.
+    - In case of duplicate row removal, the table will be rescanned for each
+      row starting from one row after where the previous inner scan started
+  - Read by unique key 
+  - Inserts
+      In case of duplicate key, one of the following options are done:
+       - Read conflicting row and update it. Unique key is not updated.
+         This happens in case of group by to update summary fields.
+       - Ignore to-be-inserted row (for distinct)
+  - Truncate followed by new inserts
