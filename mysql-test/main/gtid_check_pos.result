@@ -19,19 +19,37 @@ NULL
 # (Simulate purging all logs)
 FLUSH LOGS;
 PURGE BINARY LOGS BEFORE NOW();
-# Depending on when it is executed, '0-1-1' might still be
-# reachable if we haven't actually purged the very first file
-# but purge binary logs before now() should remove everything 
-# except the active one.
+# Depending on when it is executed, '0-server_id-1' is purged
+# after purge binary logs before now().
+SELECT GTID_CHECK_POS('PURGED_GTID');
+GTID_CHECK_POS('PURGED_GTID')
+0
 # Since we want a deterministic test, let's check
 # a completely fake server_id / seq_no that shouldn't exist
 SELECT GTID_CHECK_POS('99-99-9999999');
 GTID_CHECK_POS('99-99-9999999')
-1
+0
 # 4. Check for an otherwise valid GTID (right domain and server)
 # that is absent (sequence number is in the future).
 SELECT GTID_CHECK_POS('ABSENT_GTID');
 GTID_CHECK_POS('ABSENT_GTID')
+0
+# 5. Check empty string input
+SELECT GTID_CHECK_POS('');
+GTID_CHECK_POS('')
 1
+# 6. Check multiple GTID comma-separated list scenarios
+# A list of multiple valid and reachable GTIDs
+SELECT GTID_CHECK_POS('VALID_LIST');
+GTID_CHECK_POS('VALID_LIST')
+1
+# A list containing a valid and a future/absent GTID
+SELECT GTID_CHECK_POS('MIX_FUTURE');
+GTID_CHECK_POS('MIX_FUTURE')
+0
+# A list containing a valid and a purged GTID
+SELECT GTID_CHECK_POS('MIX_PURGED');
+GTID_CHECK_POS('MIX_PURGED')
+0
 # Cleanup
 DROP TABLE t1;

@@ -52,9 +52,9 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
+#include "sql_repl.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
-#include "sql_repl.h"
 #endif /* WITH_WSREP */
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
@@ -826,6 +826,20 @@ String *Item_int_func::val_str(String *str)
 }
 
 
+/**
+  @brief Expose replication start position validation as SQL function GTID_CHECK_POS().
+
+  This function accepts a string representation of one or more GTID lists
+  and verifies if they exist and are reachable (viable) within the current
+  set of binary logs.
+
+  @param gtid_str A string representation of GTIDs (e.g. '0-1-1,0-1-2').
+
+  @return
+    - 1 if all requested GTIDs are reachable/viable.
+    - 0 if any requested GTID has been purged or is absent (in the future).
+    - NULL if the input argument is NULL or if check fails.
+*/
 bool Item_func_gtid_check_pos::val_bool()
 {
   DBUG_ASSERT(fixed());
@@ -833,11 +847,7 @@ bool Item_func_gtid_check_pos::val_bool()
   if ((null_value= args[0]->null_value))
     return 0;
 
-#ifndef HAVE_REPLICATION
-  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GTID_CHECK_POS");
-  null_value= 1;
-  return 0;
-#else
+#ifdef HAVE_REPLICATION
   bool is_reachable= false;
   if (rpl_gtid_pos_check_reachable(gtid_str, &is_reachable))
   {
@@ -846,6 +856,10 @@ bool Item_func_gtid_check_pos::val_bool()
   }
   null_value= 0;
   return is_reachable;
+#else
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GTID_CHECK_POS");
+  null_value= 1;
+  return 0;
 #endif
 }
 

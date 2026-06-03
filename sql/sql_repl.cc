@@ -5842,6 +5842,21 @@ int compare_log_name(const char *log_1, const char *log_2) {
   return res;
 }
 
+/**
+  @brief Helper function to validate if all GTIDs in a given string are reachable/viable.
+
+  This checks the requested GTID state against the current binlog state. It evaluates:
+  1. If binary logging is enabled.
+  2. If the GTID string can be parsed correctly.
+  3. If each GTID is present in the master's binlog state and has not been written in the future.
+  4. If all requested GTIDs have not been purged from the binary log files.
+
+  @param gtid_str      The input string containing GTIDs.
+  @param is_reachable  [OUT] Set to true if all requested GTIDs exist and are not purged.
+
+  @retval true   An error occurred (binary logging disabled or malformed string).
+  @retval false  Success. The reachability state is stored in `is_reachable`.
+*/
 bool rpl_gtid_pos_check_reachable(String *gtid_str, bool *is_reachable)
 {
 
@@ -5863,6 +5878,44 @@ bool rpl_gtid_pos_check_reachable(String *gtid_str, bool *is_reachable)
       will correctly abort the statement and notify the user.
     */
     return true;
+  }
+
+  /*
+    Verify that each requested GTID actually exists in the binlog state
+    and is not in the future.
+  */
+  for (uint32 i= 0; i < state.hash.records; ++i)
+  {
+    slave_connection_state::entry *entry=
+      (slave_connection_state::entry *)my_hash_element(&state.hash, i);
+    rpl_gtid *slave_gtid= &entry->gtid;
+    rpl_gtid master_gtid;
+    rpl_gtid master_replication_gtid;
+
+    bool in_binlog= mysql_bin_log.find_in_binlog_state(slave_gtid->domain_id,
+                                                       slave_gtid->server_id,
+                                                       &master_gtid);
+    if (in_binlog)
+    {
+      if (slave_gtid->seq_no > master_gtid.seq_no)
+      {
+        *is_reachable= false;
+        return false;
+      }
+    }
+    else
+    {
+      bool start_at_own_slave_pos=
+        rpl_global_gtid_slave_state->domain_to_gtid(slave_gtid->domain_id,
+                                                    &master_replication_gtid) &&
+        slave_gtid->server_id == master_replication_gtid.server_id &&
+        slave_gtid->seq_no == master_replication_gtid.seq_no;
+      if (!start_at_own_slave_pos)
+      {
+        *is_reachable= false;
+        return false;
+      }
+    }
   }
 
   /*
