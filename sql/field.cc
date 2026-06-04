@@ -3799,6 +3799,13 @@ Field_new_decimal::unpack(uchar* to, const uchar *from, const uchar *from_end,
   uint from_pack_len= my_decimal_get_binary_size(from_precision, from_decimal);
   uint len= (param_data && (from_pack_len < length)) ?
             from_pack_len : length;
+  /*
+    The conversion branch below reads from_pack_len bytes through bin2decimal
+    and the copy branch reads len bytes; from_pack_len >= len in every case,
+    so one check up front covers both.
+  */
+  if (from + from_pack_len > from_end)
+    return 0;                                   // Wrong data
   if ((from_pack_len && (from_pack_len < length)) ||
       (from_precision < precision) ||
       (from_decimal < decimals()))
@@ -3822,8 +3829,6 @@ Field_new_decimal::unpack(uchar* to, const uchar *from, const uchar *from_end,
   }
   else
   {
-    if (from + len > from_end)
-      return 0;                                 // Wrong data
     memcpy(to, from, len); // Sizes are the same, just copy the data.
   }
   return from+len;
