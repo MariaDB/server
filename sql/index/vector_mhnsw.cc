@@ -19,6 +19,7 @@
 #include "key.h"                                // key_copy()
 #include "create_options.h"
 #include "table_cache.h"
+#include "hlindex.h"
 #include "vector_mhnsw.h"
 #include <scope.h>
 #include <my_atomic_wrapper.h>
@@ -710,16 +711,16 @@ public:
   // it's okay in a transaction-local cache, there's no concurrent access
   Hash_set<FVectorNode> &get_cache() { return node_cache; }
 
-  static transaction_participant tp;
+  static hlindexton tp;
   static int do_commit(THD *thd, bool);
   static int do_savepoint_rollback(THD *thd, void *);
   static int do_rollback(THD *thd, bool);
   static int do_prepare(THD *thd, bool);
 };
 
-struct transaction_participant MHNSW_Trx::tp=
+struct hlindexton MHNSW_Trx::tp=
 {
-  0, 0, 0,
+  {0, 0, 0,
   nullptr,                        /* close_connection */
   [](THD *, void *){ return 0; }, /* savepoint_set */
   MHNSW_Trx::do_savepoint_rollback,
@@ -731,7 +732,10 @@ struct transaction_participant MHNSW_Trx::tp=
   nullptr, nullptr,               /* commit/rollback_by_xid */
   nullptr, nullptr,               /* recover_rollback_by_xid/recovery_done */
   nullptr, nullptr, nullptr,      /* snapshot, commit/prepare_ordered */
-  nullptr, nullptr                /* checkpoint, versioned */
+  nullptr, nullptr},              /* checkpoint, versioned */
+  mhnsw_index_options,            /* options */
+  mhnsw_hlindex_table_def,        /* tabledef */
+  nullptr                         /* XXX create */
 };
 
 int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)

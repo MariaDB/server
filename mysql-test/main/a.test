@@ -1,0 +1,14 @@
+create table t1 (a text, fulltext (a) using engine);
+show create table t1;
+drop table t1;
+
+--error ER_NOT_SUPPORTED_YET
+create table t1 (a text not null, b vector(10) not null, fulltext (a), vector(b));
+--error ER_NOT_SUPPORTED_YET
+create table t1 (a text not null, b vector(10) not null, vector(b), fulltext (a));
+--error ER_NOT_SUPPORTED_YET
+create table t1 (a text not null, b varchar(10) not null, fulltext(b), fulltext (a));
+
+create table t1 (a text not null, fulltext (a));
+show create table t1;
+drop table t1;

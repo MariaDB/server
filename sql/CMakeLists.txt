@@ -116,7 +116,7 @@ SET (SQL_SOURCE
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc index/vector_mhnsw.cc
+               opt_range.cc index/vector_mhnsw.cc index/fts.cc
                opt_group_by_cardinality.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc

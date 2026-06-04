@@ -7599,6 +7599,10 @@ fulltext_key_opt:
             else
               my_yyabort_error((ER_FUNCTION_NOT_DEFINED, MYF(0), $3.str));
           }
+        | USING ENGINE_SYM
+          {
+            Lex->last_key->key_create_info.flags= HA_FULLTEXT_legacy;
+          }
         ;
 
 btree_or_rtree:

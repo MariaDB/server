@@ -51,7 +51,9 @@
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
 #include "index/vector_mhnsw.h"
+#include "index/fts.h"
 #include "opt_group_by_cardinality.h"
+#include "index/hlindex.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -927,6 +929,11 @@ static bool create_key_infos(THD *thd, const uchar *strpos,
       rec_per_key++;   // Only one rec_per_key needed for the hash
       share->ext_key_parts++;
     }
+    else if (keyinfo->algorithm == HA_KEY_ALG_VECTOR)
+      keyinfo->hliton= (hlindexton*)(mhnsw_plugin->data);
+    else if (keyinfo->algorithm == HA_KEY_ALG_FULLTEXT &&
+             !(keyinfo->flags & HA_FULLTEXT_legacy))
+      keyinfo->hliton= (hlindexton*)(fts_plugin->data);
 
     if (!keyinfo->is_hlindex())
       share->keys++;
@@ -11242,4 +11249,9 @@ const LEX_CSTRING KEY::type(enum ha_key_alg alg) const
     { STRING_WITH_LEN("VECTOR") }
   };
   return alg2name[alg];
+}
+
+const ha_create_table_option *KEY::options(const TABLE *t) const
+{
+  return hliton ? hliton->options : t->file->partition_ht()->index_options;
 }

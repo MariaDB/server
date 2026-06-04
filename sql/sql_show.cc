@@ -72,6 +72,7 @@
 #include "key.h"
 #include "scope.h"
 #include "index/vector_mhnsw.h"
+#include "index/fts.h"
 #include "lex_symbol.h"
 #include "mysql/plugin_function.h"
 
@@ -2549,6 +2550,9 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       if (key_info->algorithm == HA_KEY_ALG_BTREE)
         packet->append(STRING_WITH_LEN(" USING BTREE"));
 
+      if (key_info->flags & HA_FULLTEXT_legacy)
+        packet->append(STRING_WITH_LEN(" USING ENGINE"));
+
       if (key_info->algorithm == HA_KEY_ALG_HASH ||
           key_info->algorithm == HA_KEY_ALG_LONG_HASH)
         packet->append(STRING_WITH_LEN(" USING HASH"));
@@ -2578,8 +2582,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
         append_identifier(thd, packet, parser_name);
       }
       append_create_options(thd, packet, key_info->option_list, check_options,
-                            (key_info->algorithm == HA_KEY_ALG_VECTOR
-                             ? mhnsw_index_options : hton->index_options));
+                            key_info->options(table));
     }
   }
 
