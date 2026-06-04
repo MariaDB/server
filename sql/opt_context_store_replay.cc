@@ -341,6 +341,9 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
   IO_AND_CPU_COST cost= table->file->ha_scan_time(records);
   ctx_wrapper.add("name", (char *) tbl_name, tbl_name_len);
   ctx_wrapper.add("file_stat_records", table->file->stats.records);
+  ctx_wrapper.add("data_file_length", table->file->stats.data_file_length);
+  ctx_wrapper.add("index_file_length", table->file->stats.index_file_length);
+  ctx_wrapper.add("mean_rec_length", table->file->stats.mean_rec_length);
   ctx_wrapper.add("read_cost_io", cost.io);
   ctx_wrapper.add("read_cost_cpu", cost.cpu);
   if (!table->key_info)
@@ -1046,6 +1049,11 @@ public:
   char *name;
   ha_rows total_rows;
   ha_rows file_stat_records;
+
+  ha_rows data_file_length;
+  ha_rows index_file_length;
+  ha_rows mean_rec_length;
+
   double read_cost_io;
   double read_cost_cpu;
   List<index_context_for_replay> index_list;
@@ -1081,8 +1089,9 @@ class Saved_table_stats : public Sql_alloc
 public:
   TABLE *table;
   /*
-    We do not restore table->file->stats.records, they are read from the
-    storage engine for every query anyway.
+    We do not restore table->file->stats members:
+    records, data_file_length, index_file_length, mean_rec_length
+    they are read from the storage engine for every query anyway.
   */
   List<Saved_index_stats> saved_index_stats;
 };
@@ -1253,6 +1262,15 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
       {"name", Read_string(mem_root, &table_ctx->name), false},
       {"file_stat_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
+       false},
+      {"data_file_length",
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->data_file_length),
+       false},
+      {"index_file_length",
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->index_file_length),
+       false},
+      {"mean_rec_length",
+       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->mean_rec_length),
        false},
       {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
       {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
@@ -1936,6 +1954,12 @@ void Optimizer_context_replay::dbug_print_read_stats()
     DBUG_PRINT("info", ("name: %s", tbl_ctx->name));
     DBUG_PRINT("info",
                ("file_stat_records: %llx", tbl_ctx->file_stat_records));
+    DBUG_PRINT("info",
+               ("data_file_length: %llx", tbl_ctx->data_file_length));
+    DBUG_PRINT("info",
+               ("index_file_length: %llx", tbl_ctx->index_file_length));
+    DBUG_PRINT("info",
+               ("mean_rec_length: %llx", tbl_ctx->mean_rec_length));
 
     List_iterator<index_context_for_replay> index_itr(tbl_ctx->index_list);
 
@@ -2039,6 +2063,9 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
   {
     // Only infuse this one. table->used_stat_records are set by te SQL layer.
     tbl->file->stats.records= tbl_ctx->file_stat_records;
+    tbl->file->stats.data_file_length= tbl_ctx->data_file_length;
+    tbl->file->stats.index_file_length= tbl_ctx->index_file_length;
+    tbl->file->stats.mean_rec_length= tbl_ctx->mean_rec_length;
     return false;
   }
 
