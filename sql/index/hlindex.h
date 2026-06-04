@@ -17,7 +17,35 @@
 
 #include "handler.h"
 
-class hlindex { };
+/*
+  singleton with index options and tabledef
+  `- hlindexton
+  in TABLE_SHARE - TABLE_SHARE and shared context
+  `- hlindex_share
+  in TABLE - TABLE or read context
+  `- hlindex
+
+*/
+
+class hlindex
+{
+  virtual int insert_row(TABLE *table, KEY *keyinfo) = 0;
+  virtual int read_key(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit) = 0;
+  virtual int read_next(TABLE *table) = 0;
+  virtual int read_end(TABLE *table) = 0;
+  virtual int delete_row(TABLE *table, const uchar *rec, KEY *keyinfo) = 0;
+  virtual int delete_all(TABLE *table, KEY *keyinfo, bool truncate) = 0;
+  virtual ~hlindex() = default;
+
+  TABLE *table;
+};
+
+class hlindex_share
+{
+  TABLE_SHARE *s;
+  virtual int destroy(TABLE_SHARE *share) = 0;
+  virtual ~hlindex_share() = default;
+};
 
 struct hlindexton : public transaction_participant
 {
@@ -25,21 +53,3 @@ struct hlindexton : public transaction_participant
   const LEX_CSTRING (*table_def)(THD *thd, uint ref_length);
   hlindex *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
 };
-
-#if 0
-class hlindex
-{
-  int (*insert)(TABLE *table, KEY *keyinfo);
-  int (*read_first)(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
-  int (*invalidate)(TABLE *table, const uchar *rec, KEY *keyinfo);
-  int (*delete_all)(TABLE *table, KEY *keyinfo, bool truncate);
-  void (*free)(TABLE_SHARE *share);
-  Item_func_vec_distance::distance_kind (*uses_vec_distance)(const TABLE *table, KEY *keyinfo);
-};
-
-class hlindex
-{
-  virtual int read_next(TABLE *table);
-  virtual int read_end(TABLE *table);
-};
-#endif

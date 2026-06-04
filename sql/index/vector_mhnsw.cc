@@ -718,6 +718,13 @@ public:
   static int do_prepare(THD *thd, bool);
 };
 
+static ha_create_table_option mhnsw_index_options[]=
+{
+  HA_IOPTION_SYSVAR("m", M, default_m),
+  HA_IOPTION_SYSVAR("distance", metric, default_distance),
+  HA_IOPTION_END
+};
+
 struct hlindexton MHNSW_Trx::tp=
 {
   {0, 0, 0,
@@ -1756,17 +1763,6 @@ Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KE
     return Item_func_vec_distance::EUCLIDEAN;
   return Item_func_vec_distance::COSINE;
 }
-
-/*
-  Declare the plugin and index options
-*/
-
-ha_create_table_option mhnsw_index_options[]=
-{
-  HA_IOPTION_SYSVAR("m", M, default_m),
-  HA_IOPTION_SYSVAR("distance", metric, default_distance),
-  HA_IOPTION_END
-};
 
 st_plugin_int *mhnsw_plugin;
 

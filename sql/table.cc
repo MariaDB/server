@@ -3496,7 +3496,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_ASSERT(share->hlindexes() == 1);
     keyinfo= share->key_info + share->keys;
     if (parse_option_list(thd, &keyinfo->option_struct, &keyinfo->option_list,
-                          mhnsw_index_options, TRUE, thd->mem_root))
+                          keyinfo->options(0), TRUE, thd->mem_root))
       goto err;
   }
 
