@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335
    USA */
 
+#include "handler.h"
 #include "sql_plugin.h"
 #include "opt_context_store_replay.h"
 #include "sql_show.h"
@@ -110,6 +111,8 @@ public:
   ha_rows rows;
   List<char> range_list;
   Cost_estimate cost;
+  uint mrr_mode;
+
   ha_rows max_index_blocks;
   ha_rows max_row_blocks;
   ulong call_number;
@@ -264,6 +267,7 @@ void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
       obj.add("row_cost_io", irc->cost.row_cost.io);
       obj.add("row_cost_cpu", irc->cost.row_cost.cpu);
     }
+    irc_wrapper.add("mrr_mode", irc->mrr_mode);
 
     irc_wrapper.add("max_index_blocks", irc->max_index_blocks);
     irc_wrapper.add("max_row_blocks", irc->max_row_blocks);
@@ -863,7 +867,8 @@ Optimizer_context_recorder::search(uchar *tbl_name, size_t tbl_name_len)
 
 void Optimizer_context_recorder::record_multi_range_read_info_const(
     const TABLE_LIST *tbl, uint keynr, Range_print_enumerator *ranges,
-    ha_rows rows, const Cost_estimate *cost, const ha_rows *max_index_blocks,
+    ha_rows rows, const Cost_estimate *cost, uint mrr_flags,
+    const ha_rows *max_index_blocks,
     const ha_rows *max_row_blocks)
 {
   /*
@@ -886,6 +891,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
 
   range_ctx->rows= rows;
   range_ctx->cost= *cost;
+  range_ctx->mrr_mode= mrr_flags;
   if (rows != HA_POS_ERROR)
   {
     range_ctx->max_index_blocks= *max_index_blocks;
@@ -1353,6 +1359,8 @@ static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *er
       {"num_rows", Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
        false},
       {"cost", Read_range_cost_estimate(mem_root, &out->cost), false},
+      {"mrr_mode", Read_non_neg_integer<uint, UINT_MAX>(&out->mrr_mode),
+       false},
       {"max_index_blocks",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_index_blocks),
        false},
@@ -1583,7 +1591,7 @@ bool Optimizer_context_replay::infuse_read_cost(const TABLE *tbl,
 */
 bool Optimizer_context_replay::infuse_range_stats(
     TABLE *table, uint keynr, RANGE_SEQ_IF *seq_if, SEL_ARG_RANGE_SEQ *seq,
-    Cost_estimate *cost, ha_rows *rows, ha_rows *max_index_blocks,
+    Cost_estimate *cost, ha_rows *rows, uint *mrr_flags, ha_rows *max_index_blocks,
     ha_rows *max_row_blocks)
 {
   if (!has_records() || !is_base_table(table->pos_in_table_list))
@@ -1647,6 +1655,7 @@ bool Optimizer_context_replay::infuse_range_stats(
       {
         *cost= range_ctx->cost;
         *rows= range_ctx->rows;
+        *mrr_flags= range_ctx->mrr_mode;
         *max_index_blocks= range_ctx->max_index_blocks;
         *max_row_blocks= range_ctx->max_row_blocks;
         return false;

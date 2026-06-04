@@ -12544,7 +12544,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       param->thd->opt_ctx_replay
           ? param->thd->opt_ctx_replay->infuse_range_stats(
                 param->table, keynr, &seq_if, &seq, cost, &rows,
-                &replay_ctx_max_index_blocks, &replay_ctx_max_row_blocks)
+                mrr_flags, &replay_ctx_max_index_blocks,
+                &replay_ctx_max_row_blocks)
           : true;
 
   param->quick_rows[keynr]= rows;
@@ -12613,7 +12614,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     */
     rec->record_multi_range_read_info_const(
         param->table->pos_in_table_list, keynr, &range_iter, rows, cost,
-        &range->max_index_blocks, &range->max_row_blocks);
+        *mrr_flags, &range->max_index_blocks, &range->max_row_blocks);
   }
 
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
