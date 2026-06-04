@@ -89,8 +89,11 @@ private:
   table_context_for_store *get_table_context(const TABLE_LIST *tbl);
   static const uchar *get_tbl_ctx_key(const void *entry_, size_t *length,
                                       my_bool flags);
+  /*
+    counter that tracks record_multi_range_read_info_const() calls
+  */
+  ulong mrr_counter= 0;
 };
-
 
 /* Save the collected context into optimizer_context IS table */
 bool store_optimizer_context(THD *thd);
@@ -149,6 +152,10 @@ public:
 
 private:
   THD *thd;
+  /*
+    counter that tracks infuse_range_stats() calls
+  */
+  ulong mrr_counter= 0;
   /*
     Statistics that tables had before we've replaced them with values from
     the saved context. To be used to restore the original values.

@@ -1170,6 +1170,7 @@ INSERT INTO t2 VALUES
 create table t3 like t2;
 insert into t3 select * from t2;
 
+--disable_replay next_query subquery computed at optimization time
 explain 
 SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
