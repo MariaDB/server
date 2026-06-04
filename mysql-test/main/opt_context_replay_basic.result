@@ -68,6 +68,8 @@ SET join_buffer_size=262144;
 
 SET join_cache_level=2;
 
+SET note_verbosity='basic,explain';
+
 SET old_mode='UTF8_IS_UTF8MB3';
 
 SET optimizer_adjust_secondary_key_costs=0;
@@ -121,6 +123,8 @@ SET optimizer_trace_max_mem_size=1048576;
 SET optimizer_use_condition_selectivity=4;
 
 SET optimizer_where_cost=0.032000;
+
+SET sort_buffer_size=262144;
 
 SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 

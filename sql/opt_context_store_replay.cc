@@ -391,6 +391,8 @@ static const char *opt_related_sys_vars[]=
   "old_mode",
   "sql_mode",
   "in_predicate_conversion_threshold",
+  "sort_buffer_size",
+  "note_verbosity",
   NULL
 };
 
