@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -109,7 +109,8 @@
 /* Used to ensure that costs are calculate the same way */
 inline bool compare_cost(double a, double b)
 {
-  DBUG_ASSERT(a >= 0.0 && b >= 0.0);
+  DBUG_ASSERT(a >= 0.0);
+  DBUG_ASSERT(b >= 0.0);
   return (a >= b - b/10000000.0 && a <= b+b/10000000.0);
 }
 

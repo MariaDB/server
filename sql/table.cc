@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1519,10 +1519,8 @@ void TABLE_SHARE::set_ignored_indexes()
 {
   KEY *keyinfo= key_info;
   for (uint i= 0; i < keys; i++, keyinfo++)
-  {
     if (keyinfo->is_ignored)
       ignored_indexes.set_bit(i);
-  }
 }
 
 

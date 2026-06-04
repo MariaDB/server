@@ -4948,8 +4948,7 @@ void handler::ha_release_auto_increment()
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 {
   /* Write the duplicated key in the error message */
-  char key_buff[MAX_KEY_LENGTH];
-  String str(key_buff,sizeof(key_buff),system_charset_info);
+  StringBuffer<MAX_KEY_LENGTH> str(system_charset_info);
 
   if (key == NULL)
   {

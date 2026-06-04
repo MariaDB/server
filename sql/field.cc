@@ -11573,8 +11573,7 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                       type_arg, value, db_name, table_name, field_name.str,
-                      static_cast<ulong>(thd->get_stmt_da()->
-                      current_row_for_warning()));
+                      thd->get_stmt_da()->current_row_for_warning());
 }
 
 

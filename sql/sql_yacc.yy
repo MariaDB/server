@@ -7514,11 +7514,8 @@ fulltext:
         ;
 
 spatial_or_vector:
-          SPATIAL_SYM
-          {
-            $$= Key::SPATIAL;
-          }
-        | VECTOR_SYM { $$= Key::VECTOR;}
+          SPATIAL_SYM { $$= Key::SPATIAL; }
+        | VECTOR_SYM  { $$= Key::VECTOR;  }
         ;
 
 normal_key_options:

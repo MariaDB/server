@@ -17848,9 +17848,8 @@ void print_key_value(String *out, const KEY_PART_INFO *key_part,
                      const uchar *key, uint used_length)
 {
   out->append(STRING_WITH_LEN("("));
-  Field *field= key_part->field;
   StringBuffer<128> tmp(system_charset_info);
-  TABLE *table= field->table;
+  TABLE *table= key_part->field->table;
   uint store_length;
   MY_BITMAP *old_sets[2];
   dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
@@ -17858,10 +17857,8 @@ void print_key_value(String *out, const KEY_PART_INFO *key_part,
 
   for (; key < key_end; key+=store_length, key_part++)
   {
-    field= key_part->field;
     store_length= key_part->store_length;
-
-    field->print_key_part_value(out, key, key_part->length);
+    key_part->field->print_key_part_value(out, key, key_part->length);
 
     if (key + store_length < key_end)
       out->append(STRING_WITH_LEN(","));

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2024, 2025, MariaDB plc
+   Copyright (c) 2024, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1591,7 +1591,8 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
 int mhnsw_read_next(TABLE *table)
 {
-  auto result= static_cast<Search_context*>(table->hlindex->context);
+  TABLE *graph= table->hlindex;
+  auto result= static_cast<Search_context*>(graph->context);
   if (result->pos < result->found.num)
   {
     uchar *ref= result->found.links[result->pos++]->tref();
@@ -1600,7 +1601,6 @@ int mhnsw_read_next(TABLE *table)
   if (!result->found.num)
     return my_errno= HA_ERR_END_OF_FILE;
 
-  TABLE *graph= table->hlindex;
   MHNSW_Share *ctx= result->ctx->dup(table->file->has_transactions());
   SCOPE_EXIT([&ctx, table](){ ctx->release(table); });
 

@@ -1971,7 +1971,7 @@ static bool get_param_default_value(Item *item, String *default_value)
 */
 
 void append_create_options(THD *thd, String *packet, engine_option_value *opt,
-                           bool check_options, ha_create_table_option *rules)
+                      bool check_options, const ha_create_table_option *rules)
 {
   bool in_comment= false;
   for(; opt; opt= opt->next)
@@ -6288,8 +6288,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
                               uint offset)
 {
   const char *tmp_buff;
-  char column_type_buff[MAX_FIELD_WIDTH];
-  String column_type(column_type_buff, sizeof(column_type_buff), cs);
+  StringBuffer<MAX_FIELD_WIDTH> column_type(cs);
 
   field->sql_type(column_type);
   /* DTD_IDENTIFIER column */
