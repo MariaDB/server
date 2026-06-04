@@ -1031,7 +1031,7 @@ class index_context_for_replay : public Sql_alloc
 {
 public:
   char *idx_name;
-  List<ha_rows> list_rec_per_key;
+  List<double> rec_per_key;
 };
 
 /*
@@ -1105,13 +1105,13 @@ public:
 };
 
 // psergey: reads an array of integers..
-class Read_list_of_ha_rows : public Read_array
+class Read_rec_per_key : public Read_array
 {
   MEM_ROOT *mem_root;
-  List<ha_rows> *list_values;
+  List<double> *list_values;
 
 public:
-  Read_list_of_ha_rows(MEM_ROOT *mem_root_arg, List<ha_rows> *list_values_arg)
+  Read_rec_per_key(MEM_ROOT *mem_root_arg, List<double> *list_values_arg)
       : mem_root(mem_root_arg), list_values(list_values_arg)
   {
   }
@@ -1120,24 +1120,17 @@ public:
   {
     while (je->state != JST_ARRAY_END)
     {
-      using json_reader::read_ha_rows_and_check_limit;
-      ha_rows temp_value;
-      if (read_ha_rows_and_check_limit(je, name, err_buf, temp_value,
-                                       ULONGLONG_MAX, "unsigned longlong",
-                                       true))
-      {
+      double val;
+      if (read_double(je , name, err_buf, val))
         return 1;
-      }
-
-      ha_rows *records_ptr= (ha_rows *) alloc_root(mem_root, sizeof(ha_rows));
+      double *records_ptr= (double *) alloc_root(mem_root, sizeof(double));
 
       if (unlikely(!records_ptr))
         return 1; // OOM
 
-      *records_ptr= temp_value;
-
+      *records_ptr= val;
       if (list_values->push_back(records_ptr, mem_root) || json_scan_next(je))
-        return 1;
+         return 1;
     }
     return 0;
   }
@@ -1305,7 +1298,7 @@ static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
 
   Read_named_member array[]= {
       {"index_name", Read_string(mem_root, &index_ctx->idx_name), false},
-      {"rec_per_key", Read_list_of_ha_rows(mem_root, &index_ctx->list_rec_per_key),
+      {"rec_per_key", Read_rec_per_key(mem_root, &index_ctx->rec_per_key),
        false},
       {NULL, Read_double(NULL), true}};
 
@@ -1728,7 +1721,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   for (key_info= table->key_info, key_info_end= key_info + table->s->keys;
        key_info < key_info_end; key_info++)
   {
-    List<ha_rows> *index_freq_list=
+    List<double> *index_freq_list=
         get_index_rec_per_key_list(table, key_info->name.str);
 
     if (!index_freq_list || index_freq_list->is_empty())
@@ -1757,14 +1750,14 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
 
     new_read_stats->init_avg_frequency(frequencies);
     List_iterator li(*index_freq_list);
-    ha_rows *freq= li++;
+    double *freq= li++;
     key_info->read_stats= new_read_stats;
 
     while (freq && i < num_key_parts)
     {
       // Apparently this can be=0 for prefix indexes.
       //DBUG_ASSERT(*freq > 0);
-      key_info->read_stats->set_avg_frequency(i, (double) *freq);
+      key_info->read_stats->set_avg_frequency(i, *freq);
       freq= li++;
       i++;
     }
@@ -1951,13 +1944,13 @@ void Optimizer_context_replay::dbug_print_read_stats()
       DBUG_PRINT("info", ("...........New Index Context........."));
       DBUG_PRINT("info", ("index_name: %s", idx_ctx->idx_name));
       DBUG_PRINT("info", ("list_rec_per_key: [ "));
-      List_iterator<ha_rows> rec_itr(idx_ctx->list_rec_per_key);
+      List_iterator<double> rec_itr(idx_ctx->rec_per_key);
       while (true)
       {
-        ha_rows *num_rec= rec_itr++;
+        double *num_rec= rec_itr++;
         if (!num_rec)
           break;
-        DBUG_PRINT("info", ("%llx, ", *num_rec));
+        DBUG_PRINT("info", ("%g, ", *num_rec));
       }
       DBUG_PRINT("info", ("]"));
     }
@@ -2062,7 +2055,7 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
   parsed replay json context, and return the List of number of records per key
   for the given table and index name
 */
-List<ha_rows> *
+List<double> *
 Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
                                                      const char *idx_name)
 {
@@ -2080,7 +2073,7 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
     {
       if (strcmp(idx_name, idx_ctx->idx_name) == 0)
       {
-        return &idx_ctx->list_rec_per_key;
+        return &idx_ctx->rec_per_key;
       }
     }
   }

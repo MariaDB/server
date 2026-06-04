@@ -160,8 +160,8 @@ private:
   List<table_context_for_replay> ctx_list;
   bool parse();
   bool has_records();
-  List<ha_rows> *get_index_rec_per_key_list(const TABLE *tbl,
-                                            const char *idx_name);
+  List<double> *get_index_rec_per_key_list(const TABLE *tbl,
+                                           const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
                             List<Multi_range_read_const_call_record> *list);
   table_context_for_replay *find_table_context(const char *name);
