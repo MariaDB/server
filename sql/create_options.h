@@ -113,7 +113,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table);
 #endif
 bool parse_option_list(THD* thd, void *option_struct,
                        engine_option_value **option_list,
-                       ha_create_table_option *rules,
+                       const ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root);
 bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
                         engine_option_value **option_list,
@@ -142,9 +142,9 @@ uchar *engine_table_options_frm_image(uchar *buff,
                                       uint keys, KEY *key_info);
 
 bool engine_options_differ(void *old_struct, void *new_struct,
-                           ha_create_table_option *rules);
+                           const ha_create_table_option *rules);
 bool is_engine_option_known(engine_option_value *opt,
-                            ha_create_table_option *rules);
+                           const ha_create_table_option *rules);
 bool add_as_engine_option(THD *thd, handlerton *ht, MEM_ROOT *root,
                    const Lex_ident_ci &nam, const LEX_CSTRING &val, bool quoted,
                    void *option_struct, engine_option_value **option_list);
