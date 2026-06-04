@@ -17,7 +17,13 @@ let $opt_context_schema=
           "file_stat_records": {
             "type": "number"
           },
-          "file_stat_records": {
+          "data_file_length": {
+            "type": "number"
+          },
+          "index_file_length": {
+            "type": "number"
+          },
+          "mean_rec_length": {
             "type": "number"
           },
           "read_cost_io": {
