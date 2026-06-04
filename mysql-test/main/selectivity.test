@@ -73,6 +73,7 @@ customer, lineitem, nation, orders, part, partsupp, region, supplier;
 #     region (5 rows * 20% selectivity) = 1 and
 #     part (200 rows * 0.5% selectivity) = 1
 set optimizer_use_condition_selectivity=5;
+--disable_replay next_query Dont support optimizer_use_condition_selectivity=5
 explain extended
 select
 	s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment
@@ -1466,10 +1467,12 @@ analyze table t1;
 
 set optimizer_use_condition_selectivity=5;
 --echo # Must produce filtered=1% or so:
+--disable_replay next_query Dont support optimizer_use_condition_selectivity=5
 explain extended
 select * from t1 where a like '%99%';
 
 --echo # Must have same filtered as above
+--disable_replay next_query Dont support optimizer_use_condition_selectivity=5
 explain extended
 select * from t1 where a like '%99%' and (b is null or b is not null);
 drop table t1;
