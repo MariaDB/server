@@ -125,7 +125,7 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
 
 #define value_ptr(STRUCT,OPT)    ((char*)(STRUCT) + (OPT)->offset)
 
-static bool set_one_value(ha_create_table_option *opt, THD *thd,
+static bool set_one_value(const ha_create_table_option *opt, THD *thd,
                           const engine_option_value::Value *value, void *base,
                           bool suppress_warning, MEM_ROOT *root)
 {
@@ -317,12 +317,12 @@ bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
 
 static bool set_many_values(THD *thd, void *option_struct,
                             engine_option_value *option_list,
-                            ha_create_table_option *rules,
+                            const ha_create_table_option *rules,
                             bool suppress_warning, MEM_ROOT *root)
 {
   DBUG_ENTER("set_many_values");
 
-  for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
+  for (auto opt= rules; rules && opt->name; opt++)
   {
     engine_option_value::Value default_value;
     engine_option_value *last;
@@ -376,7 +376,7 @@ static bool set_many_values(THD *thd, void *option_struct,
 
 bool parse_option_list(THD* thd, void *option_struct_arg,
                        engine_option_value **option_list,
-                       ha_create_table_option *rules,
+                       const ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root)
 {
   size_t option_struct_size= 0;
@@ -389,7 +389,7 @@ bool parse_option_list(THD* thd, void *option_struct_arg,
 
   if (rules)
   {
-    for (ha_create_table_option *opt= rules; opt->name; opt++)
+    for (auto opt= rules; opt->name; opt++)
       set_if_bigger(option_struct_size, opt->offset +
                     ha_option_type_sizeof[opt->type]);
 
@@ -574,9 +574,9 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
 #endif
 
 bool engine_options_differ(void *old_struct, void *new_struct,
-                           ha_create_table_option *rules)
+                           const ha_create_table_option *rules)
 {
-  ha_create_table_option *opt;
+  const ha_create_table_option *opt;
   for (opt= rules; rules && opt->name; opt++)
   {
     char **old_val= (char**)value_ptr(old_struct, opt);
@@ -881,7 +881,7 @@ bool merge_engine_options(engine_option_value *source,
 }
 
 bool is_engine_option_known(engine_option_value *opt,
-                            ha_create_table_option *rules)
+                            const ha_create_table_option *rules)
 {
   if (!rules)
     return false;
