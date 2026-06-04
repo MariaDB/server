@@ -28,6 +28,7 @@
 #include "sql_handler.h"                        /* mysql_ha_rm_temporary_tables */
 #include "sql_table.h"                          // generated_by_server
 #include "rpl_rli.h"                            /* rpl_group_info */
+#include "index/hlindex.h"
 
 #define IS_USER_TABLE(A) ((A->tmp_table == TRANSACTIONAL_TMP_TABLE) || \
                           (A->tmp_table == NON_TRANSACTIONAL_TMP_TABLE))
@@ -1625,11 +1626,12 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
   {
     error= rm_temporary_table(share->db_type(), share->path.str);
 
-    if (share->hlindexes())
+    if (share->hlindexes()) // possible if failed ALTER TABLE
     {
       /* as of now: only one vector index can be here */
       DBUG_ASSERT(share->hlindexes() == 1);
-      rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
+      TABLE_SHARE *s= share->hlindex->s;
+      rm_temporary_table(s->db_type(), s->path.str);
     }
   }
   free_table_share(share);

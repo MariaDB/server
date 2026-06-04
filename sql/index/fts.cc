@@ -50,7 +50,8 @@ struct hlindexton fts_hton=
   nullptr, nullptr},              /* checkpoint, versioned */
   fts_index_options,              /* options */
   nullptr,                        /* tabledef */
-  nullptr                         /* XXX create */
+  nullptr,                        /* XXX create */
+  nullptr                         /* uses_distance */
 };
 
 static int fts_init(void *p)

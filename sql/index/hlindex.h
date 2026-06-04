@@ -17,29 +17,47 @@
 
 #include "handler.h"
 
-class hlindex { };
+/*
+  singleton with index options and tabledef
+  `- hlindexton
+  in TABLE_SHARE - TABLE_SHARE and shared context
+  `- hlindex_share
+  in TABLE - TABLE or read context
+  `- hlindex
+
+*/
+
+class hlindex : public Sql_alloc
+{
+public:
+  hlindex(TABLE *t) : table(t) { }
+
+  virtual int insert_row(TABLE *tbl, KEY *keyinfo) = 0;
+  virtual int read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit) = 0;
+  virtual int read_next(TABLE *tbl) = 0;
+  virtual int read_end(TABLE *tbl) = 0;
+  virtual int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) = 0;
+  virtual int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) = 0;
+  virtual bool reading() = 0;
+  virtual ~hlindex();
+
+  TABLE *table;
+};
+
+class hlindex_share : public Sql_alloc
+{
+public:
+  hlindex_share(TABLE_SHARE *s) : s(s) {}
+  virtual hlindex *create(TABLE *tbl, MEM_ROOT *mem_root) = 0;
+  virtual ~hlindex_share();
+
+  TABLE_SHARE *s;
+};
 
 struct hlindexton : public transaction_participant
 {
   ha_create_table_option *options;
   const LEX_CSTRING (*table_def)(THD *thd, uint ref_length);
-  hlindex *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
+  hlindex_share *(*create)(TABLE_SHARE *share, MEM_ROOT *mem_root);
+  uint (*uses_distance)(KEY *keyinfo);
 };
-
-#if 0
-class hlindex
-{
-  int (*insert)(TABLE *table, KEY *keyinfo);
-  int (*read_first)(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
-  int (*invalidate)(TABLE *table, const uchar *rec, KEY *keyinfo);
-  int (*delete_all)(TABLE *table, KEY *keyinfo, bool truncate);
-  void (*free)(TABLE_SHARE *share);
-  Item_func_vec_distance::distance_kind (*uses_vec_distance)(const TABLE *table, KEY *keyinfo);
-};
-
-class hlindex
-{
-  virtual int read_next(TABLE *table);
-  virtual int read_end(TABLE *table);
-};
-#endif

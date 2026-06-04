@@ -50,10 +50,10 @@
 #include "sql_delete.h"          // class Sql_cmd_delete
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
-#include "index/vector_mhnsw.h"
-#include "index/fts.h"
-#include "opt_group_by_cardinality.h"
 #include "index/hlindex.h"
+#include "index/fts.h"
+#include "index/vector_mhnsw.h"
+#include "opt_group_by_cardinality.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -507,10 +507,7 @@ void TABLE_SHARE::destroy()
   delete sequence;
 
   if (hlindex)
-  {
-    mhnsw_free(this);
-    hlindex->destroy();
-  }
+    delete hlindex;
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -3496,7 +3493,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_ASSERT(share->hlindexes() == 1);
     keyinfo= share->key_info + share->keys;
     if (parse_option_list(thd, &keyinfo->option_struct, &keyinfo->option_list,
-                          mhnsw_index_options, TRUE, thd->mem_root))
+                          keyinfo->options(0), TRUE, thd->mem_root))
       goto err;
   }
 
@@ -4905,8 +4902,8 @@ int closefrm(TABLE *table)
   DBUG_ENTER("closefrm");
   DBUG_PRINT("enter", ("table: %p", table));
 
-  if (table->hlindex)
-    closefrm(table->hlindex);
+  if (table->hli)
+    delete table->hli;
 
   if (table->db_stat)
     error=table->file->ha_close();
@@ -11254,4 +11251,14 @@ const LEX_CSTRING KEY::type(enum ha_key_alg alg) const
 const ha_create_table_option *KEY::options(const TABLE *t) const
 {
   return hliton ? hliton->options : t->file->partition_ht()->index_options;
+}
+
+hlindex::~hlindex()
+{
+  closefrm(table);
+}
+
+hlindex_share::~hlindex_share()
+{
+  free_table_share(s);
 }

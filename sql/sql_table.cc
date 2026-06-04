@@ -3663,14 +3663,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     case Key::MULTIPLE:
         key_info->flags= 0;
         break;
-    case Key::SPATIAL:
-        key_info->flags= HA_SPATIAL_legacy;
-        if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
-          key->key_create_info.algorithm= HA_KEY_ALG_RTREE;
-        break;
-    case Key::FOREIGN_KEY:
-      key_number--;                             // Skip this key
-      continue;
     case Key::FULLTEXT:
         key_info->flags= key->key_create_info.flags;
         if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
@@ -3682,6 +3674,14 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         if (!(key_info->flags & HA_FULLTEXT_legacy))
           index_plugin= fts_plugin;
         break;
+    case Key::SPATIAL:
+        key_info->flags= HA_SPATIAL_legacy;
+        if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
+          key->key_create_info.algorithm= HA_KEY_ALG_RTREE;
+        break;
+    case Key::FOREIGN_KEY:
+      key_number--;                             // Skip this key
+      continue;
     case Key::VECTOR:
         if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
           key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
@@ -6138,8 +6138,7 @@ err:
 
 
 /* table_list should contain just one table */
-int mysql_discard_or_import_tablespace(THD *thd,
-                                       TABLE_LIST *table_list,
+int mysql_discard_or_import_tablespace(THD *thd, TABLE_LIST *table_list,
                                        bool discard)
 {
   Alter_table_prelocking_strategy alter_prelocking_strategy;
@@ -6203,8 +6202,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
   }
   for (uint i= table->s->keys; i < table->s->total_keys; i++)
   {
-    error= table->hlindex->file->
-      ha_discard_or_import_tablespace(discard);
+    error= table->hli->table->file->ha_discard_or_import_tablespace(discard);
     if (unlikely(error))
       goto err;
   }

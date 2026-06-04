@@ -1,9 +1,9 @@
 create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
-ERROR HY000: Cannot create VECTOR index on temporary MyISAM table
+ERROR HY000: Cannot create mhnsw index on temporary MyISAM table
 create table t1 (id int auto_increment primary key,
 u vector(5) not null, vector index (u),
 v vector(5) not null, vector index (v));
-ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR indexes'
+ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR/FULLTEXT indexes'
 create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 show create table t1;
 Table	Create Table
