@@ -52,10 +52,16 @@ bool read_double(json_engine_t *je, const char *read_elem_key, String *err_buf,
   if (check_reading_of_elem_key(je, read_elem_key, err_buf))
     return true;
 
-  const char *size= (const char *) je->value_begin;
-  char *size_end= (char *) je->value_end;
+  const char *str= (const char *) je->value_begin;
+  char *str_end= (char *) je->value_end;
+  // If JSON quotes are present at start and end, ignore them.
+  if (str[0] == '"' && str_end != str && str_end[-1]=='"')
+  {
+    str++;
+    str_end--;
+  }
   int conv_err;
-  value= my_strtod(size, &size_end, &conv_err);
+  value= my_strtod(str, &str_end, &conv_err);
   if (conv_err)
   {
     err_buf->append(read_elem_key, strlen(read_elem_key));
