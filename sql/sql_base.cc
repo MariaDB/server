@@ -10215,10 +10215,17 @@ int TABLE::hlindex_read_end()
 
 int TABLE::hlindexes_bulk_insert_begin(ha_rows rows)
 {
-    if (hlindex && hlindex->in_use)
+    if (s->hlindexes())
     {
-        hlindex->bulk_insert_active= true;
-        return mhnsw_bulk_insert_begin(this, key_info + s->keys, rows);
+        if (!hlindex || !hlindex->in_use)
+            if (int err= open_hlindexes_for_write())
+                return err;
+                
+        if (hlindex && hlindex->in_use)
+        {
+            hlindex->bulk_insert_active= true;
+            return mhnsw_bulk_insert_begin(this, key_info + s->keys, rows);
+        }
     }
     return 0;
 }

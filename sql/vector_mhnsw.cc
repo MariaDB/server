@@ -510,7 +510,7 @@ public:
   const uint M;
   metric_type metric;
   bool use_subdist;
-
+  bool bulk_active;
   MHNSW_Share(TABLE *t)
     : tref_len(t->file->ref_length), gref_len(t->hlindex->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
@@ -1012,6 +1012,8 @@ int FVectorNode::load_from_record(TABLE *graph)
   FVector *vec_ptr= FVector::align_ptr(tref() + tref_len());
   memcpy(vec_ptr->data(), v->ptr(), v->length());
   vec_ptr->postprocess(ctx->use_subdist, ctx->vec_len);
+  if (ctx->metric == COSINE)
+    vec_ptr->abs2= 0.5f;
 
   longlong layer= graph->field[FIELD_LAYER]->val_int();
   if (layer > 100) // 10e30 nodes at M=2, more at larger M's
@@ -1266,8 +1268,9 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
       if (int err= select_neighbors(p, neigh, neighneighbors, node,
                                     max_neighbors))
         return err;
-    if (int err= neigh->save(p->graph))
-      return err;
+    if (!p->ctx->bulk_active)
+        if (int err= neigh->save(p->graph))
+            return err;
   }
   return 0;
 }
@@ -1503,6 +1506,193 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   return 0;
 }
 
+
+struct MHNSW_Bulk_context : public Sql_alloc {
+    MHNSW_Share *ctx;       
+    DYNAMIC_ARRAY nodes;    
+    ha_rows estimated_rows; 
+    uint8_t current_max_layer;
+};
+
+int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
+{
+  TABLE *graph= table->hlindex;
+  DBUG_ASSERT(graph);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
+  DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+
+  MHNSW_Bulk_context *bulk= new (table->in_use->mem_root) MHNSW_Bulk_context();
+  if (!bulk)
+    return HA_ERR_OUT_OF_MEM;
+
+  bulk->estimated_rows= rows;
+  if (my_init_dynamic_array(PSI_INSTRUMENT_MEM, &bulk->nodes, sizeof(FVectorNode*),
+                            rows + rows * 0.1, rows, MYF(0)))
+  {
+    delete bulk;
+    return HA_ERR_OUT_OF_MEM;
+  }
+
+  int err= MHNSW_Share::acquire(&bulk->ctx, table, true);
+  if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
+  {
+    delete_dynamic(&bulk->nodes);
+    delete bulk;
+    return err;
+  }
+
+  bulk->ctx->bulk_active= 1;
+  bulk->current_max_layer= 0;
+  table->hlindex->context= bulk;
+  return 0;
+}
+
+int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
+{
+  TABLE *graph= table->hlindex;
+  MHNSW_Bulk_context *bulk= (MHNSW_Bulk_context*)graph->context;
+  MHNSW_Share *ctx= bulk->ctx;
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+
+  DBUG_ASSERT(graph);
+  DBUG_ASSERT(bulk);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
+  DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+
+  Field *vec_field= keyinfo->key_part->field;
+  String buf, *res= vec_field->val_str(&buf);
+
+  DBUG_ASSERT(vec_field->binary());
+  DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
+  DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
+  DBUG_ASSERT(res->length() > 0 && res->length() % 4 == 0);
+  DBUG_ASSERT(table->file->ref_length <= graph->field[FIELD_TREF]->field_length);
+
+  table->file->position(table->record[0]);
+
+  if (ctx->byte_len == 0)
+    ctx->set_lengths(res->length());
+
+  if (ctx->byte_len != res->length())
+    return my_errno= HA_ERR_CRASHED;
+
+  const double NORMALIZATION_FACTOR= 1 / std::log(ctx->M);
+  double log= -std::log(my_rnd(&table->in_use->rand)) * NORMALIZATION_FACTOR;
+  uint8_t max_layer= bulk->current_max_layer;
+  uint8_t target_layer= std::min<uint8_t>(static_cast<uint8_t>(std::floor(log)), max_layer + 1);
+
+  if (bulk->nodes.elements == 0)
+    target_layer= 0;
+
+  if (target_layer > bulk->current_max_layer)
+    bulk->current_max_layer= target_layer;
+
+  FVectorNode *node= new (ctx->alloc_node())
+    FVectorNode(ctx, table->file->ref, target_layer, res->ptr());
+
+  if (insert_dynamic(&bulk->nodes, (uchar*)&node))
+    return HA_ERR_OUT_OF_MEM;
+
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
+  return 0;
+}
+
+int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
+{
+  THD *thd= table->in_use;
+  TABLE *graph= table->hlindex;
+  MHNSW_Bulk_context *bulk= (MHNSW_Bulk_context*)graph->context;
+
+  DBUG_ASSERT(graph);
+  DBUG_ASSERT(bulk);
+
+  MHNSW_Share *ctx= bulk->ctx;
+  SCOPE_EXIT([ctx, bulk, table](){
+    delete_dynamic(&bulk->nodes);
+    ctx->bulk_active= 0;
+    ctx->release(table);
+    table->hlindex->context= nullptr;
+  });
+
+  for (uint i= 0; i < bulk->nodes.elements; i++)
+  {
+    FVectorNode *target= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
+
+    if (!ctx->start)
+    {
+      ctx->start= target;
+      continue;
+    }
+
+    MEM_ROOT_SAVEPOINT memroot_sv;
+    root_make_savepoint(thd->mem_root, &memroot_sv);
+    SCOPE_EXIT([memroot_sv](){ root_free_to_savepoint(&memroot_sv); });
+
+    const uint8_t max_layer= ctx->start->max_layer;
+    uint8_t target_layer= target->max_layer;
+
+    MHNSW_param p(ctx, graph, max_layer);
+    p.acc.graph_size= 1;
+
+    const size_t max_found= ctx->max_neighbors(0);
+    Neighborhood candidates;
+    candidates.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
+    candidates.links[candidates.num++]= ctx->start;
+
+    for (; p.layer > target_layer; p.layer--)
+    {
+      if (int err= search_layer(&p, target->vec, NEAREST, 1, &candidates, false))
+        return err;
+    }
+
+    for (; p.layer >= 0; p.layer--)
+    {
+      uint max_neighbors= ctx->max_neighbors(p.layer);
+      if (int err= search_layer(&p, target->vec, NEAREST, max_neighbors,
+                                &candidates, true))
+        return err;
+      if (int err= select_neighbors(&p, target, candidates, 0, max_neighbors))
+        return err;
+    }
+
+    ctx->add_to_stats(p.acc);
+
+    if (target_layer > max_layer)
+      ctx->start= target;
+
+    for (p.layer= target_layer; p.layer >= 0; p.layer--)
+    {
+      if (int err= update_second_degree_neighbors(&p, target))
+        return err;
+    }
+  }
+
+  graph->file->ha_start_bulk_insert(bulk->nodes.elements, 0);
+
+  for (uint i= 0; i < bulk->nodes.elements; i++)
+  {
+    FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
+    if (int err= node->save(graph))
+      return err;
+  }
+
+  if (int err= graph->file->ha_end_bulk_insert())
+    return err;
+
+  if (int err= graph->file->ha_rnd_init(0))
+    return err;
+  SCOPE_EXIT([graph](){ graph->file->ha_rnd_end(); });
+
+  // fix neighbors grefs
+  for (uint i= 0; i < bulk->nodes.elements; i++)
+  {
+    FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
+    if (int err= node->save(graph))
+      return err;
+  }
+
+  return 0;
+}
 
 struct Search_context: public Sql_alloc
 {

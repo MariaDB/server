@@ -1876,6 +1876,8 @@ public:
   int hlindexes_on_update();
   int hlindexes_on_delete(const uchar *buf);
   int hlindexes_on_delete_all(bool truncate);
+  int hlindexes_bulk_insert_begin(ha_rows rows);
+  int hlindexes_bulk_insert_end();
   int unlock_hlindexes();
 
   void prepare_triggers_for_insert_stmt_or_event();
