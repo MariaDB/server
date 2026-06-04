@@ -1512,7 +1512,8 @@ void init_optimizer_context_recorder_if_needed(THD *thd,
   {
     thd->opt_ctx_recorder= new Optimizer_context_recorder(thd->mem_root);
   }
-  else if (lex->sql_command != SQLCOM_SET_OPTION)
+  else if (lex->sql_command != SQLCOM_SET_OPTION &&
+           lex->sql_command != SQLCOM_SHOW_WARNS)
   {
     clean_captured_ctx(thd);
   }
