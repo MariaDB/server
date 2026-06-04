@@ -559,8 +559,8 @@ public:
 class Item_bool_func2_with_rev :public Item_bool_func2
 {
 protected:
-  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value) override
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param, Field *field,
+                             Item *value) override
   {
     DBUG_ENTER("Item_bool_func2_with_rev::get_func_mm_tree");
     Item_func::Functype func_type=
