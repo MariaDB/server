@@ -735,13 +735,48 @@ static void test_mdev_9773()
   mariadb_dyncol_free(&dynstr);
 }
 
+/*
+  A crafted record can give an integer column a data interval longer than the
+  8 bytes an integer occupies. The decoder used to shift by i*8 over that
+  interval, reaching a shift width of 64 (undefined, aborts under
+  -fsanitize=shift). Such a record must be rejected as ER_DYNCOL_FORMAT.
+*/
+static void test_overlong_int(DYNAMIC_COLUMN_TYPE type, const char *msg)
+{
+  DYNAMIC_COLUMN str;
+  DYNAMIC_COLUMN bad;
+  DYNAMIC_COLUMN_VALUE val, res;
+  uint column_nr= 1;
+  int rc;
+
+  val.type= type;
+  val.x.ulong_value= 1;
+
+  rc= mariadb_dyncol_create_many_num(&str, 1, &column_nr, &val, 1);
+  ok(rc == ER_DYNCOL_OK, "create %s", msg);
+
+  /* widen the single column's data interval past 8 bytes */
+  bad.length= str.length + 12;
+  bad.max_length= bad.length;
+  bad.alloc_increment= 0;
+  bad.str= (char *) malloc(bad.length);
+  memcpy(bad.str, str.str, str.length);
+  memset(bad.str + str.length, 0, 12);
+
+  rc= mariadb_dyncol_get_num(&bad, column_nr, &res);
+  ok(rc == ER_DYNCOL_FORMAT, "over-long %s rejected", msg);
+
+  free(bad.str);
+  mariadb_dyncol_free(&str);
+}
+
 int main(int argc __attribute__((unused)), char **argv)
 {
   uint i;
   char *big_string= (char *)malloc(1024*1024);
 
   MY_INIT(argv[0]);
-  plan(68);
+  plan(72);
 
   if (!big_string)
     exit(1);
@@ -875,6 +910,8 @@ int main(int argc __attribute__((unused)), char **argv)
   test_mdev_4994();
   test_mdev_4995();
   test_mdev_9773();
+  test_overlong_int(DYN_COL_UINT, "uint");
+  test_overlong_int(DYN_COL_INT, "sint");
 
   my_end(0);
   return exit_status();
