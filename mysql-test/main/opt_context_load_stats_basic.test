@@ -226,9 +226,6 @@ select * from t1 where a > 10;
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat_records');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].file_stat_records');
-select * from t1 where a > 10;
-
 set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].indexes[0].index_name');
 select * from t1 where a > 10;
 

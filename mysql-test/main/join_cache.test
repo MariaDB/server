@@ -4060,6 +4060,7 @@ insert into t3 values (2);
 set @counter=0;
 
 --disable_ps2_protocol
+--disable_replay next_query Dont support user vars
 explain
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@counter+1);
@@ -4069,6 +4070,7 @@ where c1 = c2-0 and c2 <= (select max(c3) from t3 where c3 = 2 and @counter:=@co
 
 select @counter;
 
+--disable_replay next_query Dont support user vars
 explain
 select count(*) from t1 straight_join t2
 where c1 = c2-0 and

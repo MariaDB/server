@@ -148,8 +148,6 @@ public:
                                const key_range *max_range, ha_rows *records);
 
 private:
-  bool infuse_table_rows(const TABLE *tbl, ha_rows *rows);
-
   THD *thd;
   /*
     Statistics that tables had before we've replaced them with values from
