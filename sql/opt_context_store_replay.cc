@@ -350,7 +350,7 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
   for (uint idx= 0; idx < table->s->keys; idx++)
   {
     KEY *key= &table->key_info[idx];
-    uint num_key_parts= key->user_defined_key_parts;
+    uint num_key_parts= key->ext_key_parts;
     Json_writer_object index_wrapper(ctx_writer);
     index_wrapper.add("index_name", key->name);
     Json_writer_array rpk_wrapper(ctx_writer, "rec_per_key");
@@ -1740,7 +1740,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
       return; // OOM
 
     uint i= 0;
-    uint num_key_parts= key_info->user_defined_key_parts;
+    uint num_key_parts= key_info->ext_key_parts;
     Index_statistics *original_read_stats= key_info->read_stats;
     bool original_is_statistics_from_stat_tables=
         key_info->is_statistics_from_stat_tables;
