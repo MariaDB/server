@@ -6294,7 +6294,7 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
 
-  if (!table->file->is_open())
+  if (!table->file->is_open()) /* tables inside derived are opened late */
     DBUG_RETURN(0);
 
   /* Check if init_search() has been called before */
@@ -6308,9 +6308,8 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   if (key == NO_SUCH_KEY)
   {
     List<Item> fields;
-    fields.push_back(new (thd->mem_root)
-                     Item_string(thd, " ", 1, cmp_collation.collation),
-                     thd->mem_root);
+    fields.push_back(new (thd->mem_root) Item_string(thd, STRING_WITH_LEN(" "),
+                            cmp_collation.collation), thd->mem_root);
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
     concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
@@ -6386,8 +6385,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     modifications to find_best and auto_close as complement to auto_init code
     above.
    */
-  if (Item_func::fix_fields(thd, ref) ||
-      !args[0]->const_during_execution())
+  if (Item_func::fix_fields(thd, ref) || !args[0]->const_during_execution())
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"AGAINST");
     return TRUE;
@@ -6457,10 +6455,6 @@ bool Item_func_match::fix_index()
   uint ft_to_key[MAX_KEY], ft_cnt[MAX_KEY], fts=0, keynr;
   uint max_cnt=0, mkeys=0, i;
 
-  /*
-    We will skip execution if the item is not fixed
-    with fix_field
-  */
   if (!fixed())
     return false;
 
@@ -6541,8 +6535,7 @@ err:
     key=NO_SUCH_KEY;
     return 0;
   }
-  my_message(ER_FT_MATCHING_KEY_NOT_FOUND,
-             ER(ER_FT_MATCHING_KEY_NOT_FOUND), MYF(0));
+  my_error(ER_FT_MATCHING_KEY_NOT_FOUND, MYF(0));
   return 1;
 }
 

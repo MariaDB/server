@@ -110,7 +110,8 @@
 /* Used to ensure that costs are calculate the same way */
 inline bool compare_cost(double a, double b)
 {
-  DBUG_ASSERT(a >= 0.0 && b >= 0.0);
+  DBUG_ASSERT(a >= 0.0);
+  DBUG_ASSERT(b >= 0.0);
   return (a >= b - b/10000000.0 && a <= b+b/10000000.0);
 }
 
