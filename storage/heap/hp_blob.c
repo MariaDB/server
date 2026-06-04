@@ -799,7 +799,7 @@ int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos)
   for (desc= share->blob_descs; desc < desc_end; desc++)
   {
     uint32 data_len;
-    const uchar *chain;
+    const uchar *chain, *blob_data= buff_ptr;
 
     data_len= hp_blob_length(desc, record);
     if (data_len == 0)
@@ -813,36 +813,28 @@ int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos)
       if (!force_copy)
         continue;
       memcpy(buff_ptr, chain, data_len);
-      memcpy(record + desc->offset + desc->packlength, &buff_ptr,
-             sizeof(buff_ptr));
       buff_ptr+= data_len;
-      continue;
     }
-    if (hp_is_zerocopy(chain, visible))
+    else if (hp_is_zerocopy(chain, visible))
     {
       /* Case B: data in rec 1..N-1, contiguous -- adjust pointer past header */
       if (!force_copy)
+        blob_data= chain + recbuffer;           /* Zero copy */
+      else
       {
-        const uchar *blob_data= chain + recbuffer;
-        memcpy(record + desc->offset + desc->packlength, &blob_data,
-               sizeof(blob_data));
-        continue;
+        memcpy(buff_ptr, chain + recbuffer, data_len);
+        buff_ptr+= data_len;
       }
-      memcpy(buff_ptr, chain + recbuffer, data_len);
-      memcpy(record + desc->offset + desc->packlength, &buff_ptr,
-             sizeof(buff_ptr));
-      buff_ptr+= data_len;
-      continue;
     }
+    else
     {
       /* Case C: reassemble into blob_buff */
-      uchar *blob_data= buff_ptr;
       hp_reassemble_chain(chain, data_len, buff_ptr, visible, recbuffer);
       buff_ptr+= data_len;
-
-      memcpy(record + desc->offset + desc->packlength, &blob_data,
-             sizeof(blob_data));
     }
+    /* Copy pointer to data to record */
+    memcpy(record + desc->offset + desc->packlength, &blob_data,
+           sizeof(blob_data));
   }
 
   DBUG_RETURN(0);
