@@ -52,6 +52,7 @@ public:
                                           Range_print_enumerator *ranges,
                                           ha_rows rows,
                                           const Cost_estimate *cost,
+                                          uint mrr_flags,
                                           const ha_rows *max_index_blocks,
                                           const ha_rows *max_row_blocks);
 
@@ -142,7 +143,8 @@ public:
   bool infuse_read_cost(const TABLE *tbl, IO_AND_CPU_COST *cost);
   bool infuse_range_stats(TABLE *tbl, uint keynr, RANGE_SEQ_IF *seq_if,
                           SEL_ARG_RANGE_SEQ *seq, Cost_estimate *cost,
-                          ha_rows *rows, ha_rows *max_index_blocks,
+                          ha_rows *rows, uint *mrr_flags,
+                          ha_rows *max_index_blocks,
                           ha_rows *max_row_blocks);
   bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
                               bool eq_ref, ALL_READ_COST *cost);
