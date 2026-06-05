@@ -3724,6 +3724,20 @@ Type_ref_null Item_func_coalesce::ref_op(THD *thd)
 }
 
 
+bool Item_func_any_value::fix_fields(THD *thd, Item **ref)
+{
+  in_any_value= thd->lex->in_any_value;
+  thd->lex->in_any_value= this;
+  nest_level= thd->lex->current_select->nest_level;
+
+  if (Item_func::fix_fields(thd, ref))
+    return 1;
+
+  thd->lex->in_any_value= in_any_value;
+
+  return 0;
+}
+
 
 /****************************************************************************
  Classes and function for the IN operator
