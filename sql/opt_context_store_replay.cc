@@ -29,6 +29,7 @@
 #include "sql_statistics.h"
 #include "sql_json_lib.h"
 #include "opt_histogram_json.h"
+#include "thr_lock.h"
 
 using namespace json_reader;
 
@@ -1521,14 +1522,14 @@ Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) : thd(thd_arg)
   parse(); // TODO: error handling?
 }
 
+/*
+  @brief
+    Return true if the command uses optimizer capture or recording
+*/
+
 static bool sql_command_uses_opt_context(enum_sql_command sql_command)
 {
-  return (sql_command == SQLCOM_SELECT ||
-          sql_command == SQLCOM_INSERT_SELECT ||
-          sql_command == SQLCOM_DELETE ||
-          sql_command == SQLCOM_UPDATE ||
-          sql_command == SQLCOM_DELETE_MULTI ||
-          sql_command == SQLCOM_UPDATE_MULTI);
+  return (sql_command_flags[sql_command] & CF_CAN_BE_EXPLAINED);
 }
 
 void init_optimizer_context_replay_if_needed(THD *thd)
@@ -1554,6 +1555,24 @@ void init_optimizer_context_recorder_if_needed(THD *thd,
   /* Do not record queries that query I_S.OPTIMIZER_{TRACE,CONTEXT} tables */
   if (list_has_optimizer_trace_table(query_tables))
     return;
+
+  /*
+    Disable Context Recording for INSERT DELAYED.
+
+    Reason:
+      mysql_insert() has this piece that destroys the table's default value
+      expressions for INSERT DELAYED:
+
+        if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
+          table->expr_arena->free_items();
+
+      After this, it is not possible to dump table definitions anymore.
+  */
+  for (const TABLE_LIST *tbl= query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (tbl->lock_type == TL_WRITE_DELAYED)
+      return;
+  }
 
   if (!thd->variables.optimizer_record_context)
   {

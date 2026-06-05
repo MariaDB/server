@@ -97,8 +97,7 @@ select * from view1 where view1.a = 3 union select * from view1 where view1.a = 
 --source include/get_names_ddls_from_opt_ctx.inc
 
 --echo #
---echo # test for insert
---echo # there should be no context for insert with values
+--echo # Test for INSERT. The context will show both tables.
 --echo #
 insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 
