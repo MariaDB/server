@@ -197,6 +197,13 @@ let $opt_context_schema=
               ]
             }
           }
+          "subquery_runs": {
+            "type": "array",
+            "uniqueItems": true,
+            "minItems": 1,
+            "items": {
+              "type": "number"
+          }
         },
         "required": [
           "name",
