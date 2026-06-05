@@ -522,7 +522,6 @@ explain extended select conv(130,16,10);
 explain extended select hex(130);
 explain extended select binary 'HE';
 explain extended select export_set(255,_latin2'y', _latin2'n', _latin2' ');
---disable_replay next_query Dont support table-less queries that require settings
 explain extended select FIELD('b' COLLATE latin1_bin,'A','B');
 explain extended select FIND_IN_SET(_latin1'B', _latin1'a,b,c,d');
 explain extended select collation(conv(130,16,10));

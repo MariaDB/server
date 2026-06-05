@@ -608,7 +608,7 @@ bool store_optimizer_context(THD *thd)
     return false;
   }
 
-  if (!thd->opt_ctx_recorder || lex->query_tables == *(lex->query_tables_last))
+  if (!thd->opt_ctx_recorder)
   {
     return false;
   }
@@ -637,9 +637,6 @@ bool store_optimizer_context(THD *thd)
     if (tables_list.push_front(tbl))
       return true;
   }
-
-  if (tables_list.is_empty())
-    return false;
 
   List_iterator li(tables_list);
   clean_captured_ctx(thd);
@@ -803,6 +800,10 @@ bool store_optimizer_context(THD *thd)
 
     sql_script.append(STRING_WITH_LEN("SET character_set_client="));
     sql_script.append(thd->variables.character_set_client->cs_name);
+    sql_script.append(STRING_WITH_LEN(";\n"));
+
+    sql_script.append(STRING_WITH_LEN("SET character_set_results="));
+    sql_script.append(thd->variables.character_set_results->cs_name);
     sql_script.append(STRING_WITH_LEN(";\n"));
 
     sql_script.append(STRING_WITH_LEN("SET collation_connection="));
