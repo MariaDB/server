@@ -1603,7 +1603,6 @@ DROP TABLE t1;
 --echo # Emulate utf8mb3 client erroneously started with --default-character-set=latin1,
 --echo # # as in the bug report. EXPLAIN output should still be pretty readable
 SET NAMES latin1;
---disable_replay next_query Dont support table-less queries that require settings
 EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8mb3'abcdÁÂÃÄÅ' AS u;
 --echo # Test normal utf8mb3
 SET NAMES utf8mb3;
