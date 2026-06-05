@@ -807,7 +807,12 @@ bool Item_subselect::exec()
   if (unlikely(thd->is_error() || thd->killed))
     DBUG_RETURN(true);
 
+  // Record subquery execution (only optimization-time runs are recorded)
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
+    recorder->record_subquery_exec(this);
+
   DBUG_ASSERT(!thd->lex->context_analysis_only);
+
   /*
     Simulate a failure in sub-query execution. Used to test e.g.
     out of memory or query being killed conditions.

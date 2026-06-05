@@ -75,6 +75,10 @@ using namespace json_reader;
               ...
             }, ...,
           ]
+          "subquery_runs" : [ // optional 
+            { "select_id": NNNN }
+            ...
+          ]
         }, ...
       ]
     }
@@ -757,7 +761,17 @@ bool store_optimizer_context(THD *thd)
       }
     }
   }
+
   context_list.end();
+
+  if (thd->opt_ctx_recorder->subquery_runs.elements)
+  {
+    Json_writer_array subq_runs_arr(&ctx_writer, "subquery_runs");
+    longlong num;
+    List_iterator<int> it(thd->opt_ctx_recorder->subquery_runs);
+    while ((num= (longlong)(ptrdiff_t)(it++)) != 0)
+      subq_runs_arr.add(num);
+  }
   context.end();
 
   if (!res)
@@ -1025,6 +1039,20 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 
   table_ctx->const_tbl_ins_stmt_list.push_back(ins_stmt, mem_root);
 }
+
+
+void Optimizer_context_recorder::record_subquery_exec(Item_subselect *subq)
+{
+  /* Do not record subquery executions done after the optimization phase */
+  if (current_thd->lex->explain->is_query_plan_ready())
+    return;
+  
+  /* Subqueries are identified by the select_number of their first SELECT */
+  uint num= subq->unit->first_select()->select_number;
+
+  subquery_runs.push_back((int*)(ptrdiff_t)num);
+}
+
 
 /*
   Given a table *tbl, store its "db_name.table_name" into buf.
