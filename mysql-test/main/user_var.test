@@ -1,7 +1,7 @@
 # Initialise
 source include/have_sequence.inc;
 
-
+--disable_replay testfile Dont support user variables
 --error 1054
 set @a := foo;
 set @a := connection_id() + 3;
