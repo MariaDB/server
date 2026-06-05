@@ -76,11 +76,10 @@ static PSI_mutex_info all_pwt_mutexes[]=
   { &key_mutex_pwt_LOCK_data,        "pwt_management::LOCK_data",         0},
 };
 
-static PSI_cond_key key_COND_pwt_worker,
-                    key_COND_pwt_data_avail, key_COND_pwt_data_space;
+static PSI_cond_key key_COND_pwt_data_avail, key_COND_pwt_data_space;
+
 static PSI_cond_info all_pwt_conds[]=
 {
-  { &key_COND_pwt_worker,      "pwt_worker::COND_worker",              0},
   { &key_COND_pwt_data_avail,  "pwt_management::COND_data_avail",      0},
   { &key_COND_pwt_data_space,  "pwt_management::COND_data_space",      0},
 };
@@ -178,7 +177,7 @@ bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
     false     error or warning is queued
 */
 
-bool error_to_queue(THD *thd, pwt_queued_event **event, uint error,
+bool error_to_queue(pwt_queued_event **event, uint error,
                      Sql_condition::enum_warning_level level, const char *msg)
 {
   DBUG_EXECUTE_IF("pwt_error_to_queue_oom",
@@ -198,10 +197,6 @@ bool error_to_queue(THD *thd, pwt_queued_event **event, uint error,
     return true;
   }
   (*event)->error->level= level;
-  if (level == Sql_condition::enum_warning_level::WARN_LEVEL_ERROR)
-    (*event)->error->worker_errno= thd->killed_errno();
-  else
-    (*event)->error->worker_errno= 0;
   (*event)->error->code= error;
   (*event)->error->message= (char *) my_malloc(key_memory_pwt_error_message,
                                                strlen(msg)+1,
@@ -218,6 +213,12 @@ bool error_to_queue(THD *thd, pwt_queued_event **event, uint error,
 }
 
 
+/**
+   @brief
+   An instance of this class is used by our worker threads to capture and
+   relay to the manager
+*/
+
 class PWT_error_handler : public Internal_error_handler
 {
 public:
@@ -231,7 +232,7 @@ public:
     if (pwt_worker *worker= thd->pwt_worker_info)
     {
       pwt_queued_event *event;
-      if (error_to_queue(thd, &event, sql_errno, *level, msg))
+      if (error_to_queue(&event, sql_errno, *level, msg))
       {
         /*
           Couldn't allocate the queued event. The worker THD's diagnostics
@@ -315,7 +316,8 @@ void inline close_worker_scan_table(pwt_worker *worker)
   conditions or run the rest of the join. The manager consumes these rows and
   drives the join itself as they arrive (see parallel_scan_read_next).
 
-  Returns the handler error code (0 on success); HA_ERR_END_OF_FILE is mapped
+  @return
+  0 on success, or the handler error code; HA_ERR_END_OF_FILE is mapped
   to success. A clean stop requested by the manager (handoff_batch -> stop)
   also returns success: the manager is done, not in error.
 */
@@ -390,6 +392,13 @@ static int worker_produce_chunks(pwt_worker *worker)
   return err;
 }
 
+
+/**
+   @brief  Write rows to our manager, when done, tidy up.  Entry point for
+           worker_produce_chunks.
+
+   @return  true on error, false on success
+*/
 
 bool worker_scan_table_to_manager(pwt_worker *worker)
 {
@@ -496,19 +505,13 @@ static void *parallel_worker_thread_func(void *arg)
 
   worker_scan_table_to_manager(worker);
 
-  // manager needs to see this as atomic
-  mysql_mutex_lock(&worker->LOCK_worker);
   /*
-    LOCK_thd_kill is the canonical guard for thd->killed; a user-issued
-    KILL on this worker's thread_id goes through THD::awake() which holds
-    LOCK_thd_kill but not LOCK_worker, so we must nest both to get a
-    race-free snapshot for the manager.
+    Null worker->thd under LOCK_worker so abort_worker() -- which takes
+    LOCK_worker before deciding whether to awake() -- sees either a live THD or
+    nullptr, never a THD mid-teardown.
   */
-  mysql_mutex_lock(&worker->thd->LOCK_thd_kill);
-  worker->killed= worker->thd->killed;       // save this flag, THD is destroyed
-  mysql_mutex_unlock(&worker->thd->LOCK_thd_kill);
+  mysql_mutex_lock(&worker->LOCK_worker);
   worker->thd->pop_internal_handler();       // maybe not needed
-  worker->finished= true;
   THD *thd= worker->thd;
   worker->thd= nullptr;
   mysql_mutex_unlock(&worker->LOCK_worker);
@@ -553,7 +556,6 @@ void abort_worker(pwt_worker *worker)
   mysql_mutex_unlock(&worker->LOCK_worker);
   pthread_join(worker->pthread, nullptr);
   mysql_mutex_destroy(&worker->LOCK_worker);
-  mysql_cond_destroy(&worker->COND_worker);
 }
 
 
@@ -582,9 +584,6 @@ void pwt_management::free_queue()
   mysql_mutex_unlock(&LOCK_pwt_thread);
 }
 
-// consumer read function, installed on the first join_tab by init below
-static int parallel_scan_read_first(JOIN_TAB *tab);
-
 
 /**
   @brief
@@ -593,6 +592,10 @@ static int parallel_scan_read_first(JOIN_TAB *tab);
     Register our new threads in server_threads.
 
     Called from the management thread for applicable queries at the top level.
+
+  @return
+    false on success
+    true on error
 */
 
 int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
@@ -671,7 +674,6 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
     workers[i].manager= this;
     mysql_mutex_init(key_mutex_pwt_LOCK_worker, &workers[i].LOCK_worker,
                       MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_COND_pwt_worker, &workers[i].COND_worker, nullptr);
     workers[i].thd->system_thread= SYSTEM_THREAD_GENERIC;
     size_t len= my_snprintf(workers[i].conn_name, MAX_THREAD_NAME,
                             WORKER_NAME);
@@ -710,8 +712,6 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
                                               strlen(workers[i].info),
                                               workers[i].thd->query_charset());
     workers[i].thd->pwt_worker_info= workers+i;
-    workers[i].finished= workers[i].joined= false;
-    workers[i].killed= NOT_KILLED;
     workers[i].batch_full= false;
     workers[i].batch_count= 0;
     workers[i].batch_rows= (uchar*) my_malloc(key_memory_pwt_batch_rows,
@@ -812,7 +812,6 @@ cleanup_db_string:
     set_current_thd(save_thd);
   }
   mysql_mutex_destroy(&workers[i].LOCK_worker);
-  mysql_cond_destroy(&workers[i].COND_worker);
 
 cleanup_old_workers:
   /*
@@ -858,6 +857,11 @@ void pwt_init_psi_keys(void)
 #endif
 
 /*
+  @brief
+    function installed into the manager join execution to extract rows from
+    the worker threads.
+
+  @description
   Consumer side of the streaming channel. This pluggable read function feeds
   the first join_tab from the worker row buffers instead of scanning the real
   first table: each raw record image a worker placed in its batch_rows buffer
@@ -873,8 +877,10 @@ void pwt_init_psi_keys(void)
   releases the worker to refill (clears batch_full, signals COND_data_space)
   and picks the next ready worker.
 
-  Return convention matches the engine read functions: 0 = row produced,
-  -1 = end of data, 1 = error (matching report_error()).
+  @returns
+    0 = row produced,
+   -1 = end of data
+    1 = error (matching report_error()).
 */
 int parallel_scan_read_next(READ_RECORD *info)
 {
@@ -968,10 +974,12 @@ int parallel_scan_read_next(READ_RECORD *info)
   }
 }
 
+
 /**
   @brief
     Stop the producers and pthread_join them.
 
+  @description
     The workers read this join's source table (their private handler), so they
     must be reaped before JOIN::join_free()->cleanup() frees that table --
     otherwise a worker that has not yet observed the stop request dereferences a
@@ -1002,7 +1010,6 @@ void pwt_management::quiesce_workers()
   {
     pthread_join(workers[i].pthread, nullptr);
     mysql_mutex_destroy(&workers[i].LOCK_worker);
-    mysql_cond_destroy(&workers[i].COND_worker);
   }
   reaped= true;
 }
@@ -1012,6 +1019,7 @@ void pwt_management::quiesce_workers()
   @brief
     Reap the workers (if not already) and tear the channel down.
 
+  @description
     Called from JOIN::exec() once exec_inner() has finished. Worker errors and
     warnings collected by PWT_error_handler are surfaced here, after the join's
     own result has been produced.

@@ -16769,9 +16769,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     first && first->type == JT_ALL &&
     first->read_first_record == join_init_read_record &&
     !(first->select && first->select->quick) && // no range quick select
-    first->table->s->tmp_table == NO_TMP_TABLE &&
-    (first->table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN) &&
-    !first->table->part_info)
+    table_can_be_parallel_scanned(first->table))
   {
     first->use_parallel_scan= true;
     first->read_first_record       = parallel_init_read_record;

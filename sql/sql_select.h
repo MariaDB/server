@@ -2029,7 +2029,6 @@ public:
   int optimize_inner();
   int optimize_stage2();
   int optimize_stage2_and_finish();
-  void choose_parallel_scan();
   bool build_explain();
   int reinit();
   int init_execution();
