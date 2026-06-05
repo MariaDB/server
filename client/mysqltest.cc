@@ -289,6 +289,12 @@ static size_t replay_current_explain_len= 0;
    optimizer_trace into this buffer so the caller can decide whether to
    actually flush it to disk. */
 static DYNAMIC_STRING *replay_trace_capture_buf= NULL;
+/* Substrings whose presence in the optimizer_context script disables replay
+   for the current EXPLAIN; the primary server's result is used as-is. */
+static const char *replay_context_stop_words[]= {
+  "subquery_runs",
+  NULL
+};
 static my_bool disable_replay_next_query= FALSE;
 static char disable_replay_reason[512]= {0};
 static my_bool disable_replay_testfile= FALSE;
@@ -12169,26 +12175,51 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 	        const char *sql_script= context_row[0];
 	        have_context= TRUE;
 
-	        /* Make the EXPLAIN query available to the replay-side helpers
-	           and arm the trace-capture buffer. */
-	        replay_current_explain= query;
-	        replay_current_explain_len= query_len;
-	        if (replay_server_trace)
+	        /* Stop words: if the captured context contains a known marker
+	           that we cannot replay correctly, skip the replay server and
+	           fall back to the primary's EXPLAIN result. */
+	        const char *stop_hit= NULL;
+	        for (const char **sw= replay_context_stop_words; *sw; sw++)
 	        {
-	          /* Capture the primary server's optimizer_trace for this
-	             EXPLAIN before we run anything else on this connection. */
-	          capture_optimizer_trace(mysql, &ds_orig_trace);
-	          replay_trace_capture_buf= &ds_replay_trace;
+	          if (strstr(sql_script, *sw))
+	          {
+	            stop_hit= *sw;
+	            break;
+	          }
 	        }
 
-	        /* Step 3: Connect to replay server and execute queries */
-	        if (ensure_replay_server_connection() == 0)
+	        if (stop_hit)
 	        {
-	          execute_replay_queries(sql_script, &ds_replay_explain);
+	          verbose_msg("ReplayTest: stop word '%s' found in "
+	                      "optimizer_context, using primary EXPLAIN result",
+	                      stop_hit);
+	          dynstr_append_mem(&ds_replay_explain,
+	                            ds_primary_explain.str,
+	                            ds_primary_explain.length);
 	        }
 	        else
 	        {
-	          fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
+	          /* Make the EXPLAIN query available to the replay-side helpers
+	             and arm the trace-capture buffer. */
+	          replay_current_explain= query;
+	          replay_current_explain_len= query_len;
+	          if (replay_server_trace)
+	          {
+	            /* Capture the primary server's optimizer_trace for this
+	               EXPLAIN before we run anything else on this connection. */
+	            capture_optimizer_trace(mysql, &ds_orig_trace);
+	            replay_trace_capture_buf= &ds_replay_trace;
+	          }
+
+	          /* Step 3: Connect to replay server and execute queries */
+	          if (ensure_replay_server_connection() == 0)
+	          {
+	            execute_replay_queries(sql_script, &ds_replay_explain);
+	          }
+	          else
+	          {
+	            fprintf(stdout, "ReplayTest: Failed to connect to replay server\n");
+	          }
 	        }
 	      }
 	    }
