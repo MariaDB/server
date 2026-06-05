@@ -725,6 +725,28 @@ static ha_create_table_option mhnsw_index_options[]=
   HA_IOPTION_END
 };
 
+static const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
+{
+  constexpr int max_ref_length= 256; // arbitrary limit < max key length
+  if (ref_length > max_ref_length)
+  {
+    my_printf_error(ER_TOO_LONG_KEY, "Primary key was too long for vector "
+                    "indexes, max length is %d bytes", MYF(0), max_ref_length);
+    return { nullptr, 0 };
+  }
+  const char templ[]="CREATE TABLE i (                   "
+                     "  layer tinyint not null,          "
+                     "  tref varbinary(%u),              "
+                     "  vec blob not null,               "
+                     "  neighbors blob not null,         "
+                     "  unique (tref),                   "
+                     "  key (layer))                     ";
+  size_t len= sizeof(templ) + 32;
+  char *s= thd->alloc(len);
+  len= my_snprintf(s, len, templ, ref_length);
+  return {s, len};
+}
+
 struct hlindexton MHNSW_Trx::tp=
 {
   {0, 0, 0,
@@ -1733,28 +1755,6 @@ int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
 
   ctx->release(table);
   return 0;
-}
-
-const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
-{
-  constexpr int max_ref_length= 256; // arbitrary limit < max key length
-  if (ref_length > max_ref_length)
-  {
-    my_printf_error(ER_TOO_LONG_KEY, "Primary key was too long for vector "
-                    "indexes, max length is %d bytes", MYF(0), max_ref_length);
-    return { nullptr, 0 };
-  }
-  const char templ[]="CREATE TABLE i (                   "
-                     "  layer tinyint not null,          "
-                     "  tref varbinary(%u),              "
-                     "  vec blob not null,               "
-                     "  neighbors blob not null,         "
-                     "  unique (tref),                   "
-                     "  key (layer))                     ";
-  size_t len= sizeof(templ) + 32;
-  char *s= thd->alloc(len);
-  len= my_snprintf(s, len, templ, ref_length);
-  return {s, len};
 }
 
 Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo)

@@ -25,7 +25,6 @@
   This will become a vector index plugin API, or, perhaps,
   a hlindex plugin API. When we'll have more than one implementation.
 */
-const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length);
 int mhnsw_insert(TABLE *table, KEY *keyinfo);
 int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
 int mhnsw_read_next(TABLE *table);

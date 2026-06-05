@@ -48,7 +48,7 @@
 #include "rowid_filter.h"
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
-#include "index/vector_mhnsw.h"
+#include "index/hlindex.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -6809,7 +6809,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
         my_snprintf(index_file_name_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
-      LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
+      LEX_CSTRING sql= share.key_info[i].hliton->table_def(thd, ref_length);
       error= !sql.length ||
         index_share.init_from_sql_statement_string(thd, 0, sql.str, sql.length);
       if (error)
