@@ -1294,6 +1294,8 @@ protected:
 class Item_func_any_value final :public Item_func_coalesce
 {
 public:
+  int8 nest_level;
+  Item_func_any_value *in_any_value;
   Item_func_any_value(THD *thd, Item *a):
     Item_func_coalesce(thd, a) {}
   LEX_CSTRING func_name_cstring() const override
@@ -1301,6 +1303,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("any_value") };
     return name;
   }
+  bool fix_fields(THD *thd, Item **ref) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
