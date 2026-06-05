@@ -103,7 +103,8 @@ struct FVector
       vec->scale= std::nextafter(vec->scale, FLT_MAX);
     for (size_t i= 0; i < vec_len; i++)
       vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
-    vec->postprocess(vec_len);
+    vec->fix_tail(vec_len);
+    vec->abs2= vec->scale * vec->scale * dot_product(vec->dims, vec->dims, vec_len) / 2;
     if (metric == COSINE)
     {
       if (vec->abs2 > 0.0f)
@@ -111,12 +112,6 @@ struct FVector
       vec->abs2= 0.5f;
     }
     return vec;
-  }
-
-  void postprocess(size_t vec_len)
-  {
-    fix_tail(vec_len);
-    abs2= scale * scale * dot_product(dims, dims, vec_len) / 2;
   }
 
 #ifdef AVX2_IMPLEMENTATION
@@ -882,7 +877,12 @@ int FVectorNode::load_from_record(TABLE *graph)
     return my_errno= HA_ERR_CRASHED;
   FVector *vec_ptr= FVector::align_ptr(tref() + tref_len());
   memcpy(vec_ptr->data(), v->ptr(), v->length());
-  vec_ptr->postprocess(ctx->vec_len);
+  vec_ptr->fix_tail(ctx->vec_len);
+  if (ctx->metric == COSINE)
+    vec_ptr->abs2= 0.5f;
+  else
+    vec_ptr->abs2= vec_ptr->scale * vec_ptr->scale *
+                   vec_ptr->dot_product(vec_ptr->dims, vec_ptr->dims, ctx->vec_len) / 2;
 
   longlong layer= graph->field[FIELD_LAYER]->val_int();
   if (layer > 100) // 10e30 nodes at M=2, more at larger M's
