@@ -255,8 +255,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 
 
 #
-# test for insert
-# there should be no context for insert with values
+# Test for INSERT. The context will show both tables.
 #
 insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 set @opt_context=
@@ -272,9 +271,21 @@ from information_schema.optimizer_context);
 set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
 select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
 name
+db1.t2
+db1.t1
 select @ddls;
 @ddls
-NULL
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+DROP TABLE IF EXISTS db1.t1;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
 #
 # test for delete
 # context result should have 1 ddl statement for table t1
