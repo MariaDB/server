@@ -401,6 +401,7 @@ static const char *opt_related_sys_vars[]=
   "in_predicate_conversion_threshold",
   "sort_buffer_size",
   "note_verbosity",
+  "sql_buffer_result",
   NULL
 };
 
