@@ -1072,7 +1072,19 @@ sub run_worker ($) {
   # --------------------------------------------------------------------------
   # Set different ports per thread
   # --------------------------------------------------------------------------
-  set_build_thread_ports($thread_num);
+  # When --replay-server / --replay-server-manual is active, the parent has
+  # already allocated the build-thread / baseport (so it could start the
+  # replay server inside that port group), and the replay server is already
+  # listening inside the group. Re-running set_build_thread_ports() here
+  # would call check_ports_free() and fail because of that listener. Since
+  # parallel must be 1 in this mode, the parent's allocation is exactly what
+  # this single worker needs - just inherit it.
+  if (($opt_replay_server || $opt_replay_server_manual) && defined $baseport) {
+    mtr_verbose("Worker inheriting baseport=$baseport from parent " .
+                "(--replay-server active)");
+  } else {
+    set_build_thread_ports($thread_num);
+  }
 
   # --------------------------------------------------------------------------
   # Turn off verbosity in workers, unless explicitly specified
@@ -3288,6 +3300,18 @@ sub start_replay_server {
   $replay_server_parent_pid = $$;
   _install_replay_server_signal_handlers();
 
+  # Allocate baseport from MTR_BUILD_THREAD (same as primary mysqld), so the
+  # replay server uses a port inside the reserved group instead of the fixed
+  # 10000 fallback. Replay server requires --parallel=1, so reusing thread 1
+  # is safe; lock the resolved build-thread so the forked worker reuses the
+  # same number (otherwise an "auto" worker would acquire a different unique
+  # id and primary mysqld would land in a different port group than the
+  # replay server).
+  if (!defined $baseport) {
+    set_build_thread_ports(1);
+    $opt_build_thread = $build_thread;
+  }
+
   my $replay_server_num = 1;
   my $script = "$glob_mysql_test_dir/lib/start_extra_server.pl";
   
@@ -3343,6 +3367,13 @@ sub start_replay_server_manual {
   mtr_report("Starting replay server in manual mode...");
   $replay_server_parent_pid = $$;
   _install_replay_server_signal_handlers();
+
+  # See comment in start_replay_server(): allocate baseport from
+  # MTR_BUILD_THREAD and lock the resolved value for the (single) worker.
+  if (!defined $baseport) {
+    set_build_thread_ports(1);
+    $opt_build_thread = $build_thread;
+  }
 
   my $replay_server_num = 1;
   
