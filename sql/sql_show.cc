@@ -1917,7 +1917,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
           def_value->set(STRING_WITH_LEN("''"), system_charset_info);
       }
     }
-    else if (field->maybe_null() && quoted)
+    else if (field->real_maybe_null() && quoted)
       def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
     else
       return 0;
