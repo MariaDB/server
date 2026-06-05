@@ -3289,7 +3289,16 @@ public:
       void reset(THD *thd)
       {
         tv_sec= thd->query_start();
-        tv_usec= (long) thd->query_start_sec_part();
+
+        /*
+          The type of tv_usec depends on the system and on macOS
+          it is __darwin_suseconds_t.  Using decltype is system
+          agnostic because its result is whatever the underlying
+          type of tv_usec is.  This should be more portable than
+          assuming that the left hand side is (long) (the previous
+          cast value).
+         */
+        tv_usec= static_cast<decltype(tv_usec)>(thd->query_start_sec_part());
       }
     } start_time;
 
