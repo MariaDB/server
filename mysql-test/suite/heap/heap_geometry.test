@@ -65,4 +65,37 @@ set @g1 = ST_GeomFromText('Polygon((0 0,0 200,200 200,200 0,0 0))');
 select count(*) as 'expect 14336' from t1 where MBRWithin(t1.c2, @g1);
 
 drop table t1;
+
+--echo #
+--echo # GROUP BY on GEOMETRY column in MEMORY table
+--echo # Crashed in my_hash_sort_bin because Field_geom::new_key_field()
+--echo # produced Field_varstring (2B length + inline data) but HEAP
+--echo # promoted the key segment to HA_KEYTYPE_VARTEXT4 (4B length +
+--echo # pointer), causing hp_hashnr() to misread WKB data as a pointer.
+--echo #
+
+CREATE TABLE t2 (f GEOMETRY) ENGINE=MEMORY;
+INSERT INTO t2 VALUES (POINT(1,1)),(POINT(2,2));
+
+--echo # GROUP BY with user variable assignment (original reproducer)
+SELECT @x := f val, COUNT(*) FROM t2 GROUP BY val;
+
+--echo # Direct GROUP BY on geometry column
+SELECT f, COUNT(*) FROM t2 GROUP BY f;
+
+--echo # GROUP BY with geometry expression
+SELECT ST_AsText(f) AS wkt, COUNT(*) FROM t2 GROUP BY wkt ORDER BY wkt;
+
+--echo # DISTINCT on geometry column
+SELECT DISTINCT f FROM t2;
+
+--echo # COUNT(DISTINCT) on geometry
+SELECT COUNT(DISTINCT f) FROM t2;
+
+--echo # Multiple rows with same geometry value
+INSERT INTO t2 VALUES (POINT(1,1)),(POINT(1,1)),(POINT(2,2));
+SELECT ST_AsText(f) AS wkt, COUNT(*) FROM t2 GROUP BY wkt ORDER BY wkt;
+
+DROP TABLE t2;
+
 set max_heap_table_size= @save_max_heap_table_size;

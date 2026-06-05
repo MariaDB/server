@@ -21467,12 +21467,35 @@ bool Create_tmp_table::finalize(THD *thd,
 	  goto err; /* purecov: inspected */
 
         /*
+          Field_geom and other Field_blob subclasses that don't override
+          new_key_field() produce Field_varstring (2B length + inline
+          data).  HEAP promotes blob key segments to HA_KEYTYPE_VARTEXT4
+          (4B length + pointer).  Replace with Field_blob_key so the
+          group buffer format matches what HEAP expects.
+        */
+        if ((field->flags & BLOB_FLAG) &&
+            !(cur_group->field->flags & BLOB_FLAG))
+        {
+          Field_blob_key *blob_key= new (thd->mem_root) Field_blob_key(
+              m_group_buff + MY_TEST(maybe_null),
+              field->null_ptr, field->null_bit,
+              Field::NONE, &field->field_name,
+              table->s, 4, field->charset());
+          if (!blob_key)
+            goto err;
+          blob_key->init(table);
+          table->s->blob_fields--;
+          cur_group->field= blob_key;
+          m_key_part_info->length= (uint16) blob_key->key_length();
+          m_key_part_info->type= (uint8) blob_key->key_type();
+        }
+
+        /*
           Mark that a key segment is a blob. Needed for
           create_internal_tmp_table_from_heap to convert keys with blobs
           to unique.
         */
         if (cur_group->field->flags & BLOB_FLAG)
-
         {
           /* We only come here for Field_blob_key's */
           DBUG_ASSERT(cur_group->field[0].key_length() ==
@@ -21480,6 +21503,24 @@ bool Create_tmp_table::finalize(THD *thd,
           /* Tell engine to that this key includes a blob */
           keyinfo->flags|= HA_BLOB_PART_KEY;
         }
+
+        /*
+          Verify key_part_info consistency with the GROUP BY key field.
+          A blob key field must have VARTEXT4/VARBINARY4 type and the
+          matching key_length so heap_prepare_hp_create_info() takes the
+          direct blob path (with its own DBUG_ASSERTs) rather than the
+          VARTEXT2 promotion path that silently patches stale values.
+        */
+        DBUG_ASSERT(!(cur_group->field->flags & BLOB_FLAG) ||
+                    (m_key_part_info->length ==
+                     4 + portable_sizeof_char_ptr));
+        DBUG_ASSERT(!(cur_group->field->flags & BLOB_FLAG) ||
+                    ((ha_base_keytype) m_key_part_info->type ==
+                     HA_KEYTYPE_VARBINARY4 ||
+                     (ha_base_keytype) m_key_part_info->type ==
+                     HA_KEYTYPE_VARTEXT4));
+        DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                    (cur_group->field->flags & BLOB_FLAG));
         /*
           Set store_length for all GROUP BY key parts so
           rebuild_key_from_group_buff() can advance through the key buffer.
@@ -21675,6 +21716,14 @@ bool Create_tmp_table::finalize(THD *thd,
                                 HA_KEYTYPE_VARBINARY4 :
                                 HA_KEYTYPE_VARTEXT4);
       }
+
+      DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  m_key_part_info->length == 4 + portable_sizeof_char_ptr);
+      DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  ((ha_base_keytype) m_key_part_info->type ==
+                   HA_KEYTYPE_VARBINARY4 ||
+                   (ha_base_keytype) m_key_part_info->type ==
+                   HA_KEYTYPE_VARTEXT4));
 
       m_key_part_info++;
     }
