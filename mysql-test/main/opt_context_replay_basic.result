@@ -126,6 +126,8 @@ SET optimizer_where_cost=0.032000;
 
 SET sort_buffer_size=262144;
 
+SET sql_buffer_result='OFF';
+
 SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 
 SET time_zone='REPLACED';
