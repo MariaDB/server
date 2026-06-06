@@ -1133,6 +1133,9 @@ static int tidesdb_bm_open(tidesdb_t *db, block_manager_t **bm, const char *path
 static int tidesdb_sstable_open_budget(const tidesdb_t *db)
 {
     const int max_open = (int)db->config.max_open_sstables;
+    /* 0 = unlimited -- no soft cap, so the reaper never evicts for budget and readers never back
+     * off; resident sstables are bounded only by the OS open-file limit */
+    if (max_open == 0) return INT_MAX;
     int reserve = max_open / TDB_FD_READER_RESERVE_DIVISOR;
     if (reserve < TDB_FD_READER_RESERVE_MIN) reserve = TDB_FD_READER_RESERVE_MIN;
     /* cap the reserve so it never starves reads when max_open_sstables is below the floor */
@@ -1171,6 +1174,7 @@ static int tidesdb_reader_fd_budget_ok(tidesdb_t *db, tidesdb_sstable_t *sst)
      * too -- a smaller per-read reserve would make any scan over more than (budget) sstables
      * impossible. */
     const int max_open = (int)db->config.max_open_sstables;
+    if (max_open == 0) return 1; /* unlimited -- never gate a reader open */
 
     if (atomic_load_explicit(&db->num_open_sstables, memory_order_relaxed) < max_open) return 1;
 
@@ -15341,6 +15345,20 @@ static int tidesdb_dividing_merge(tidesdb_column_family_t *cf, int target_level)
      * we use boundaries from target_level+1 (the level we're merging into) */
     tidesdb_level_t *next_level = cf->levels[target_level + 1];
 
+    /* the boundaries come from next_level's per-sstable min_keys and the merge assumes they ascend
+     * so the partition ranges tile the key space. parallel sub-compaction commits can leave the
+     * level out of ascending order, which makes the boundaries non-monotonic, opens gaps between
+     * partitions, and silently drops every key in a gap. sort first; if the sort cannot run, fall
+     * back to the full merge, which does not partition by these boundaries. */
+    {
+        skip_list_comparator_fn dm_cmp = NULL;
+        void *dm_cmp_ctx = NULL;
+        tidesdb_resolve_comparator(cf->db, &cf->config, &dm_cmp, &dm_cmp_ctx);
+        if (!dm_cmp ||
+            tidesdb_level_sort_by_min_key(cf->db, next_level, dm_cmp, dm_cmp_ctx) != TDB_SUCCESS)
+            return tidesdb_full_preemptive_merge(cf, 0, target_level, target_level);
+    }
+
     tidesdb_level_update_boundaries(target, next_level);
 
     int next_level_num_ssts = atomic_load_explicit(&next_level->num_sstables, memory_order_acquire);
@@ -16421,7 +16439,28 @@ static int tidesdb_partitioned_merge(tidesdb_column_family_t *cf, const int star
 
     tidesdb_level_t *largest = cf->levels[num_levels - 1];
 
-    /* we get file boundaries from largest level */
+    /* the partition boundaries below are the largest level's per-sstable min_keys, and the merge
+     * assumes they ascend so the ranges [b[p], b[p+1]) tile the whole key space with no gaps. but
+     * the largest level can be left out of ascending min_key order -- parallel sub-compactions
+     * append their outputs in completion order, and the skew optimization keeps skipped files in
+     * their old slots. an out-of-order level yields non-monotonic boundaries, which leave gaps
+     * between partitions, and every key that falls in a gap is dropped from the merge while its
+     * input sstable is deleted -- a silent durable loss. sort the level first so the boundaries
+     * tile the key space; if the sort cannot run, fall back to the full merge, which does not
+     * partition by these boundaries and so cannot open a gap. */
+    {
+        skip_list_comparator_fn sort_cmp = NULL;
+        void *sort_cmp_ctx = NULL;
+        tidesdb_resolve_comparator(cf->db, &cf->config, &sort_cmp, &sort_cmp_ctx);
+        if (!sort_cmp ||
+            tidesdb_level_sort_by_min_key(cf->db, largest, sort_cmp, sort_cmp_ctx) != TDB_SUCCESS)
+        {
+            /* nothing has been allocated yet, so the full merge takes over cleanly */
+            return tidesdb_full_preemptive_merge(cf, start_idx, end_idx, end_idx);
+        }
+    }
+
+    /* we get file boundaries from largest level (now in ascending min_key order) */
     tidesdb_sstable_t **largest_sstables =
         atomic_load_explicit(&largest->sstables, memory_order_acquire);
     int num_partitions = atomic_load_explicit(&largest->num_sstables, memory_order_acquire);
@@ -20119,6 +20158,11 @@ int tidesdb_open(const tidesdb_config_t *config, tidesdb_t **db)
 
     if (!config || !db) return TDB_ERR_INVALID_ARGS;
 
+    /* apply the configured log level before any open-time logging, otherwise every TDB_DEBUG_LOG
+     * during open (the fd-budget line, thread-pool notes, recovery) is gated on the default DEBUG
+     * level and prints even when the caller asked for a quieter level or TDB_LOG_NONE */
+    _tidesdb_log_level = config->log_level;
+
     *db = calloc(1, sizeof(tidesdb_t));
     if (!*db)
     {
@@ -20164,22 +20208,35 @@ int tidesdb_open(const tidesdb_config_t *config, tidesdb_t **db)
      * the reserve leaves headroom for WALs, the manifest, object-store handles, and stdio. */
     {
         const long fd_limit = tdb_max_open_files();
-        long fd_budget_ssts = (fd_limit - TDB_FD_RESERVE_NON_SSTABLE) / TDB_FDS_PER_SSTABLE;
-        if (fd_budget_ssts < TDB_MIN_OPEN_SSTABLES) fd_budget_ssts = TDB_MIN_OPEN_SSTABLES;
-        if ((long)(*db)->config.max_open_sstables > fd_budget_ssts)
+        if ((*db)->config.max_open_sstables == 0)
         {
-            TDB_DEBUG_LOG(TDB_LOG_WARN,
-                          "max_open_sstables (%zu) exceeds what the open-file limit can honor "
-                          "(%ld sstables for fd limit %ld) -- clamping. raise the process fd "
-                          "limit (ulimit -n) to keep more sstables open",
-                          (*db)->config.max_open_sstables, fd_budget_ssts, fd_limit);
-            (*db)->config.max_open_sstables = (size_t)fd_budget_ssts;
+            /* 0 = unlimited -- do not impose or clamp a soft cap; resident sstables are bounded
+             * only by the OS open-file limit. the operator owns keeping ulimit -n high enough. */
+            TDB_DEBUG_LOG(
+                TDB_LOG_INFO,
+                "max_open_sstables=0 (unlimited) -- resident sstables bounded only by the "
+                "process open-file limit (%ld)",
+                fd_limit);
         }
-        TDB_DEBUG_LOG(TDB_LOG_INFO,
-                      "sstable fd budget set to max_open_sstables=%zu (up to %ld fds), process fd "
-                      "limit=%ld",
-                      (*db)->config.max_open_sstables,
-                      (long)(*db)->config.max_open_sstables * TDB_FDS_PER_SSTABLE, fd_limit);
+        else
+        {
+            long fd_budget_ssts = (fd_limit - TDB_FD_RESERVE_NON_SSTABLE) / TDB_FDS_PER_SSTABLE;
+            if (fd_budget_ssts < TDB_MIN_OPEN_SSTABLES) fd_budget_ssts = TDB_MIN_OPEN_SSTABLES;
+            if ((long)(*db)->config.max_open_sstables > fd_budget_ssts)
+            {
+                TDB_DEBUG_LOG(TDB_LOG_WARN,
+                              "max_open_sstables (%zu) exceeds what the open-file limit can honor "
+                              "(%ld sstables for fd limit %ld) -- clamping. raise the process fd "
+                              "limit (ulimit -n) to keep more sstables open",
+                              (*db)->config.max_open_sstables, fd_budget_ssts, fd_limit);
+                (*db)->config.max_open_sstables = (size_t)fd_budget_ssts;
+            }
+            TDB_DEBUG_LOG(TDB_LOG_INFO,
+                          "sstable fd budget set to max_open_sstables=%zu (up to %ld fds), process "
+                          "fd limit=%ld",
+                          (*db)->config.max_open_sstables,
+                          (long)(*db)->config.max_open_sstables * TDB_FDS_PER_SSTABLE, fd_limit);
+        }
     }
 
     /* subsequent reads in tidesdb_open should see the normalized values, so
@@ -20230,8 +20287,6 @@ int tidesdb_open(const tidesdb_config_t *config, tidesdb_t **db)
         ((*db)->config.object_store_config && (*db)->config.object_store_config->replica_mode) ? 1
                                                                                                : 0);
     atomic_init(&(*db)->replica_sync_thread_active, 0);
-
-    _tidesdb_log_level = config->log_level;
 
     /* we initialize log file to NULL (stderr) by default. the log file globals
      * are read by tidesdb_log_write under tidesdb_log_mutex, so writes here take

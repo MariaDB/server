@@ -452,7 +452,8 @@ typedef struct tidesdb_comparator_entry_t
  * @param log_level minimum log level to display (TDB_LOG_DEBUG, TDB_LOG_INFO, TDB_LOG_WARN,
  * TDB_LOG_ERROR, TDB_LOG_FATAL, TDB_LOG_NONE)
  * @param block_cache_size size of clock cache for hot sstable blocks
- * @param max_open_sstables maximum number of open sstables
+ * @param max_open_sstables maximum number of resident open sstables (default 256); 0 = unlimited,
+ * bounded only by the process open-file limit
  * @param log_to_file flag to determine if debug logging should be written to a file
  * @param log_truncation_at size in bytes at which to truncate the log file, 0 = no truncation
  * @param max_memory_usage maximum memory usage for the database
