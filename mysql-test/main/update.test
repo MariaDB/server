@@ -697,7 +697,6 @@ insert into t1 values
   ('aa','zzz'), ('b','xxaa'), ('ccc','yyy'), ('ddd','xxb');
 analyze table t1 persistent for all;
 
---disable_replay next_query subquery computed at optimization time
 explain extended
 update t1 set a1 = 'u'
   where a2 like 'xx%' and exists(select 1 from t1 where t1.a1 < 'c');
