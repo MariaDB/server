@@ -181,7 +181,9 @@ ST_FIELD_INFO optimizer_context_capture_info[]= {
 
 } // namespace Show
 
-static void append_full_table_name(const TABLE_LIST *tbl, String *buf);
+static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf);
+static void append_base_table_name(const TABLE *table, String *buf);
+
 static int parse_check_obj_start_in_array(json_engine_t *je, String *err_buf,
                                           const char *err_msg);
 static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
@@ -663,7 +665,7 @@ bool store_optimizer_context(THD *thd)
     String ddl;
     String full_tbl_name;
     LEX_CSTRING *tbl_name_key;
-    append_full_table_name(tbl, &full_tbl_name);
+    append_table_or_view_name(tbl, &full_tbl_name);
 
     /*
       A query can use the same table multiple times. Do not dump the
@@ -833,10 +835,10 @@ bool store_optimizer_context(THD *thd)
   optimizer_context IS table.
 */
 table_context_for_store *
-Optimizer_context_recorder::get_table_context(const TABLE_LIST *tbl)
+Optimizer_context_recorder::get_table_context(const TABLE *table)
 {
   String tbl_name;
-  append_full_table_name(tbl, &tbl_name);
+  append_base_table_name(table, &tbl_name);
   table_context_for_store *table_ctx=
       search((uchar *) tbl_name.c_ptr_safe(), tbl_name.length());
 
@@ -883,7 +885,7 @@ Optimizer_context_recorder::search(uchar *tbl_name, size_t tbl_name_len)
 }
 
 void Optimizer_context_recorder::record_multi_range_read_info_const(
-    const TABLE_LIST *tbl, uint keynr, Range_print_enumerator *ranges,
+    const TABLE *table, uint keynr, Range_print_enumerator *ranges,
     ha_rows rows, const Cost_estimate *cost, uint mrr_flags,
     const ha_rows *max_index_blocks,
     const ha_rows *max_row_blocks)
@@ -902,7 +904,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
     return; // OOM
 
   range_ctx->call_number= mrr_counter;
-  const char *index_name= tbl->table->key_info[keynr].name.str;
+  const char *index_name= table->key_info[keynr].name.str;
   if (!(range_ctx->idx_name= strdup_root(mem_root, index_name)))
     return; // OOM
 
@@ -931,7 +933,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
     range_ctx->range_list.push_back(range_str, mem_root);
   }
 
-  table_context_for_store *table_ctx= get_table_context(tbl);
+  table_context_for_store *table_ctx= get_table_context(table);
   if (unlikely(!table_ctx))
     return; // OOM
 
@@ -943,7 +945,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
   of the table context.
 */
 void Optimizer_context_recorder::record_cost_index_read(
-    const TABLE_LIST *tbl, uint key, ha_rows records,
+    const TABLE *table, uint key, ha_rows records,
     bool eq_ref, const ALL_READ_COST *cost)
 {
   cost_index_read_call_record *idx_read_rec=
@@ -957,7 +959,7 @@ void Optimizer_context_recorder::record_cost_index_read(
   idx_read_rec->eq_ref= eq_ref;
   idx_read_rec->cost= *cost;
 
-  table_context_for_store *table_ctx= get_table_context(tbl);
+  table_context_for_store *table_ctx= get_table_context(table);
 
   if (unlikely(!table_ctx))
     return; // OOM
@@ -1003,8 +1005,7 @@ void Optimizer_context_recorder::record_records_in_range(
 
   rec_in_range_ctx->records= records;
 
-  table_context_for_store *table_ctx=
-      get_table_context(tbl->pos_in_table_list);
+  table_context_for_store *table_ctx= get_table_context(tbl);
 
   if (unlikely(!table_ctx))
     return; // OOM
@@ -1027,10 +1028,9 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
                     "REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),"
                     "'STRICT_TRANS_TABLES','') FOR\n"));
   output.append(STRING_WITH_LEN("REPLACE INTO "));
-  append_full_table_name(tbl->pos_in_table_list, &output);
+  append_base_table_name(tbl, &output);
   format_and_store_row(tbl, tbl->record[row_index], true, " VALUES ", false, output);
-  table_context_for_store *table_ctx=
-      get_table_context(tbl->pos_in_table_list);
+  table_context_for_store *table_ctx= get_table_context(tbl);
 
   if (unlikely(!table_ctx))
     return; // OOM
@@ -1056,11 +1056,24 @@ void Optimizer_context_recorder::record_subquery_exec(Item_subselect *subq)
   subquery_runs.push_back((int*)(ptrdiff_t)num);
 }
 
+// Append the name of base table (in case of single-table VIEWs 
+// that "become" tables, take the base table's table, NOT the view)
+static void append_base_table_name(const TABLE *table, String *buf)
+{
+  // TODO : eventually we'll need quoting.
+  buf->append(table->s->db.str, table->s->db.length);
+  buf->append(STRING_WITH_LEN("."));
+  buf->append(table->s->table_name.str, table->s->table_name.length);
+}
 
 /*
   Given a table *tbl, store its "db_name.table_name" into buf.
+
+  Note that for single-table UPDATEs turned multi-table UPDATEs
+  we can have TABLE_LIST object representing a VIEW which thas
+  tbl->table representing the table inside the VIEW.
 */
-static void append_full_table_name(const TABLE_LIST *tbl, String *buf)
+static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf)
 {
   // TODO : eventually we'll need quoting.
   buf->append(tbl->db.str, tbl->db.length);
@@ -1609,7 +1622,7 @@ bool Optimizer_context_replay::infuse_read_cost(const TABLE *tbl,
     return true;
 
   String tbl_name;
-  append_full_table_name(tbl->pos_in_table_list, &tbl_name);
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -1714,7 +1727,7 @@ bool Optimizer_context_replay::infuse_range_stats(
     String arg1;
     String arg2;
     String tbl_name;
-    append_full_table_name(table->pos_in_table_list, &tbl_name);
+    append_base_table_name(table, &tbl_name);
     arg1.append(STRING_WITH_LEN("the given list of ranges i.e. "));
     arg1.append(act_ranges);
     arg2.append(STRING_WITH_LEN("the list of ranges for table_name "));
@@ -1749,7 +1762,7 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
     return true;
 
   String tbl_name;
-  append_full_table_name(tbl->pos_in_table_list, &tbl_name);
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -1870,7 +1883,7 @@ bool Optimizer_context_replay::infuse_records_in_range(
   String tbl_name;
   print_key_value(&min_key, key_part, min_range->key, min_range->length);
   print_key_value(&max_key, key_part, min_range->key, min_range->length);
-  append_full_table_name(tbl->pos_in_table_list, &tbl_name);
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -2131,7 +2144,7 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
     return true;
 
   String tbl_name;
-  append_full_table_name(tbl->pos_in_table_list, &tbl_name);
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -2165,7 +2178,7 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
     return NULL;
 
   String tbl_name;
-  append_full_table_name(tbl->pos_in_table_list, &tbl_name);
+    append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -2206,7 +2219,7 @@ void Optimizer_context_replay::store_range_contexts(
     return;
 
   String tbl_name;
-  append_full_table_name(tbl->pos_in_table_list, &tbl_name);
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))

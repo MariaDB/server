@@ -12613,7 +12613,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       This way, ASAN and valgrind also wouldn't complain.
     */
     rec->record_multi_range_read_info_const(
-        param->table->pos_in_table_list, keynr, &range_iter, rows, cost,
+        param->table, keynr, &range_iter, rows, cost,
         *mrr_flags, &range->max_index_blocks, &range->max_row_blocks);
   }
 
