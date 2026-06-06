@@ -2069,6 +2069,7 @@ INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
 let $query=
 SELECT sum(a), t2.a, t2.b FROM t2 HAVING t2.a IN (SELECT t2.b FROM t1);
 
+--disable_replay next_query MTR Replay harness is fooled by sql_select_limit=0
 eval EXPLAIN EXTENDED $query;
 eval $query;
 

@@ -392,6 +392,7 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
 /*
   System variables that are related to the optimizer but
   do not have "optimizer" in their name.
+    TODO: include @@SQL_SELECT_LIMIT here.
 */
 static const char *opt_related_sys_vars[]=
 {
