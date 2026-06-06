@@ -5216,11 +5216,13 @@ FROM t1 AS sq4_alias1
 WHERE (sq4_alias1.col_varchar_key + NULL) IS NULL OR
       sq4_alias1.col_varchar_key = @var3;
 
+--disable_replay next_query Dont support user variables
 eval EXPLAIN $subq;
 eval $subq;
 SELECT @var3;
 
 # Now as derived table:
+--disable_replay next_query Dont support user variables
 eval EXPLAIN SELECT * FROM ( $subq ) AS alias3;
 eval SELECT * FROM ( $subq ) AS alias3;
 SELECT @var3;
@@ -5239,9 +5241,11 @@ WHERE (sq4_alias1.col_varchar_key , sq4_alias1.col_varchar_nokey)
        WHERE (c_sq1_alias1.col_int_nokey != @var2
               OR c_sq1_alias1.pk != @var3));
 
+--disable_replay next_query Dont support user variables
 eval EXPLAIN $subq;
 eval $subq;
 # Now as derived table:
+--disable_replay next_query Dont support user variables
 eval EXPLAIN SELECT * FROM ( $subq ) AS alias3;
 eval SELECT * FROM ( $subq ) AS alias3;
 
