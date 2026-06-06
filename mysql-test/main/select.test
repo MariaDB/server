@@ -3504,6 +3504,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (c1)
 );
 
+--disable_replay next_query Need to preserve warnings
 EXPLAIN EXTENDED 
 SELECT  join_2.c1  
 FROM 
