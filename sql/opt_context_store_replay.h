@@ -49,7 +49,7 @@ public:
 
   ~Optimizer_context_recorder();
 
-  void record_multi_range_read_info_const(const TABLE_LIST *tbl, uint keynr,
+  void record_multi_range_read_info_const(const TABLE *table, uint keynr,
                                           Range_print_enumerator *ranges,
                                           ha_rows rows,
                                           const Cost_estimate *cost,
@@ -57,7 +57,7 @@ public:
                                           const ha_rows *max_index_blocks,
                                           const ha_rows *max_row_blocks);
 
-  void record_cost_index_read(const TABLE_LIST *tbl,
+  void record_cost_index_read(const TABLE *table,
                               uint key, ha_rows records, bool eq_ref,
                               const ALL_READ_COST *cost);
   void record_records_in_range(const TABLE *tbl,
@@ -91,7 +91,7 @@ private:
   */
   HASH tbl_ctx_hash;
 
-  table_context_for_store *get_table_context(const TABLE_LIST *tbl);
+  table_context_for_store *get_table_context(const TABLE *tbl);
   static const uchar *get_tbl_ctx_key(const void *entry_, size_t *length,
                                       my_bool flags);
   /*
