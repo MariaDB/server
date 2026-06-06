@@ -203,7 +203,12 @@ typedef enum
  * X = num_active_levels - 1 - offset that means offset = 1 */
 #define TDB_DEFAULT_DIVIDING_LEVEL_OFFSET       1
 #define TDB_DEFAULT_COMPACTION_THREAD_POOL_SIZE 2
-#define TDB_DEFAULT_FLUSH_THREAD_POOL_SIZE      2
+/* fallback flush pool size when cpu detection fails at open */
+#define TDB_DEFAULT_FLUSH_THREAD_POOL_SIZE 2
+/* default config leaves num_flush_threads at 0 (auto); open resolves it to
+ * min(cpu_count, TDB_FLUSH_THREADS_AUTO_CAP). a single shared flush pool feeds every CF, so a few
+ * threads keeps multi-CF flushes from serializing without oversubscribing on large core counts */
+#define TDB_FLUSH_THREADS_AUTO_CAP 4
 /* pinned to the flush pool size tidesdb_open clamps max_concurrent_flushes to
  * num_flush_threads and warns when they differ, so the canonical default open
  * (default_config + open) must already agree or it warns on every startup */
@@ -240,7 +245,7 @@ typedef enum
  * @param key2 second key to compare
  * @param key2_size size of second key in bytes
  * @param ctx user-provided context pointer
- * @return <0 if key1 < key2, 0 if equal, >0 if key1 > key2
+ * @return < 0 if key1 < key2, 0 if equal, >0 if key1 > key2
  */
 typedef int (*tidesdb_comparator_fn)(const uint8_t *key1, size_t key1_size, const uint8_t *key2,
                                      size_t key2_size, void *ctx);
@@ -522,6 +527,8 @@ struct tidesdb_memtable_t
  * @param config column family configuration
  * @param active_memtable active memtable (paired skip list and WAL)
  * @param immutable_memtables queue of immutable memtables being flushed
+ * @param immutable_bytes sum of actual immutable skip-list sizes, refreshed on each snapshot
+ * publish, read by the reaper for memory-pressure accounting
  * @param pending_commits count of in-flight commits
  * @param levels fixed array of disk levels
  * @param num_active_levels number of currently active disk levels
@@ -550,6 +557,7 @@ struct tidesdb_column_family_t
     tidesdb_column_family_config_t config;
     _Atomic(tidesdb_memtable_t *) active_memtable;
     queue_t *immutable_memtables;
+    _Atomic(int64_t) immutable_bytes;
     _Atomic(uint64_t) pending_commits;
     tidesdb_level_t *levels[TDB_MAX_LEVELS];
     _Atomic(int) num_active_levels;
@@ -594,6 +602,21 @@ struct tidesdb_column_family_t
 
     /* unified memtable mode -- 4-byte big-endian CF prefix for keys in the shared skip list */
     uint32_t unified_cf_index;
+
+    /* write-amplification instrumentation -- lifetime, relaxed, observe-only. byte counters
+     * are on-disk (framed) totals-- wal counts framed WAL appends (stays zero in unified mode,
+     * where the shared uwal counter on tidesdb_t carries it), flush and compaction count
+     * finished sstable file sizes (klog_size + vlog_size), user counts logical key+value bytes
+     * committed (incremented on commit apply and on WAL replay so the denominator matches the
+     * data actually flushed). the *_count fields count output sstables, not logical runs -- a
+     * single triggered compaction can produce several. zero-initialized by the cf calloc */
+    _Atomic(uint64_t) wal_bytes_written;
+    _Atomic(uint64_t) flush_bytes_written;
+    _Atomic(uint64_t) compaction_bytes_written;
+    _Atomic(uint64_t) compaction_bytes_read;
+    _Atomic(uint64_t) user_bytes_written;
+    _Atomic(uint64_t) flush_count;
+    _Atomic(uint64_t) compaction_count;
 
     /* last-emit timestamps (seconds) for throttled backpressure warnings -- see tdb_log_throttle.
      * zero-initialized by calloc, so the first event in each category logs immediately. */
@@ -816,7 +839,7 @@ struct tidesdb_t
     _Atomic(int) is_recovering;
     /* set by tidesdb_cancel_background_work -- when non-zero, in-flight compactions
      * bail at their next checkpoint and queued compaction work items are skipped.
-     * compaction-only: flushes are unaffected so durability is preserved. sticky for
+     * compaction-only, flushes are unaffected so durability is preserved. sticky for
      * the db session, reset to 0 on open. */
     _Atomic(int) cancel_compaction;
     _Atomic(tidesdb_comparator_entry_t *) comparators;
@@ -868,6 +891,11 @@ struct tidesdb_t
     _Atomic(int) flush_pending_count;
     _Atomic(int) active_flushes;
     _Atomic(uint64_t) flush_heartbeat;
+    /* write-amplification instrumentation -- lifetime, relaxed, observe-only. uwal is
+     * db-scoped because the unified WAL is shared across CFs; the per-cf flush, compaction
+     * and wal byte counters live on tidesdb_column_family_t and their db-level sums are
+     * folded across CFs in tidesdb_get_db_stats */
+    _Atomic(uint64_t) uwal_bytes_written;
     int os_check_counter;
     pthread_rwlock_t cf_list_lock;
     _Atomic(tidesdb_deferred_free_node_t *) deferred_free_list;
@@ -880,21 +908,21 @@ struct tidesdb_t
     /* unified memtable mode -- single skip_list + single WAL for all CFs */
     struct
     {
-        int enabled;
-        _Atomic(tidesdb_memtable_t *) active;
+        int enabled;                          /* 1 when unified memtable mode is active */
+        _Atomic(tidesdb_memtable_t *) active; /* current active unified memtable */
         /* read-side epoch for the unified active slot. see the analogous
          * cf->active_mt_readers field for the protocol */
         _Atomic(int) active_mt_readers;
-        queue_t *immutables;
-        _Atomic(int) is_flushing;
-        _Atomic(int) immutable_cleanup_counter;
-        size_t write_buffer_size;
-        _Atomic(uint32_t) next_cf_index;
-        _Atomic(uint64_t) wal_generation;
+        queue_t *immutables;                    /* rotated unified memtables awaiting flush */
+        _Atomic(int) is_flushing;               /* 1 while a rotation/flush is in progress */
+        _Atomic(int) immutable_cleanup_counter; /* batched immutable cleanup counter */
+        size_t write_buffer_size;               /* rotation threshold for the unified memtable */
+        _Atomic(uint32_t) next_cf_index;        /* next CF prefix index to assign */
+        _Atomic(uint64_t) wal_generation;       /* current unified WAL generation */
         tidesdb_unified_cf_index_entry_t *cf_index_map; /* name -> index, mirrors UNIMAP file */
-        int cf_index_map_count;
-        int cf_index_map_capacity;
-        pthread_mutex_t cf_index_map_lock;
+        int cf_index_map_count;                         /* live entries in cf_index_map */
+        int cf_index_map_capacity;                      /* allocated capacity of cf_index_map */
+        pthread_mutex_t cf_index_map_lock;              /* guards cf_index_map mutation */
         pthread_mutex_t wal_group_sync_lock; /* coordinates group-commit fsync on the unified WAL */
         pthread_cond_t wal_group_sync_cond;
         /* last-emit timestamp (seconds) for the throttled unified ceiling-stall warning */
@@ -968,7 +996,10 @@ struct tidesdb_t
  * @param cf_capacity capacity of column families array
  * @param last_cf cached last-used column family for O(1) single-CF lookup
  * @param last_cf_index cached index of last-used column family
- * @param savepoints array of savepoint transaction states
+ * @param savepoint_op_counts per-savepoint snapshot of num_ops -- the op-array length to truncate
+ * back to on rollback to that savepoint
+ * @param savepoint_cf_counts per-savepoint snapshot of num_cfs -- the cf-array length to truncate
+ * back to on rollback to that savepoint
  * @param savepoint_names array of savepoint names
  * @param num_savepoints number of savepoints
  * @param savepoints_capacity capacity of savepoints array
@@ -1085,6 +1116,13 @@ struct tidesdb_iter_t
  * @param level_tombstone_counts tombstone count per level (parallels level_key_counts)
  * @param max_sst_density worst per-sstable tombstone density observed in the cf
  * @param max_sst_density_level 1-based level where max_sst_density was observed (0 if none)
+ * @param wal_bytes_written framed bytes appended to this cf's WAL (0 in unified mode)
+ * @param flush_bytes_written on-disk bytes this cf's flushes wrote to L0 sstables
+ * @param compaction_bytes_written on-disk bytes this cf's compactions wrote
+ * @param compaction_bytes_read on-disk bytes this cf's compactions read as input
+ * @param user_bytes_written logical key+value bytes committed to this cf (WA denominator)
+ * @param flush_count flushed sstables produced by this cf
+ * @param compaction_count compaction output sstables produced by this cf
  */
 struct tidesdb_stats_t
 {
@@ -1111,6 +1149,17 @@ struct tidesdb_stats_t
     uint64_t *level_tombstone_counts;
     double max_sst_density;
     int max_sst_density_level;
+    /* write-amplification counters (lifetime since open, on-disk framed bytes). divide the
+     * write totals by user_bytes_written for this cf's write amplification. wal_bytes_written
+     * is zero in unified mode -- the shared WAL volume is reported db-wide in
+     * tidesdb_db_stats_t.uwal_bytes_written. the *_count fields count output sstables. */
+    uint64_t wal_bytes_written;
+    uint64_t flush_bytes_written;
+    uint64_t compaction_bytes_written;
+    uint64_t compaction_bytes_read;
+    uint64_t user_bytes_written;
+    uint64_t flush_count;
+    uint64_t compaction_count;
 };
 
 /**
@@ -1170,6 +1219,14 @@ typedef struct tidesdb_cache_stats_t
  * @param total_uploads lifetime count of objects uploaded to object store
  * @param total_upload_failures lifetime count of permanently failed uploads (after all retries)
  * @param replica_mode whether running in read-only replica mode
+ * @param uwal_bytes_written framed bytes appended to the shared unified WAL (0 if unified off)
+ * @param wal_bytes_written per-cf WAL bytes summed across all column families
+ * @param flush_bytes_written flush output bytes summed across all column families
+ * @param compaction_bytes_written compaction output bytes summed across all column families
+ * @param compaction_bytes_read compaction input bytes summed across all column families
+ * @param user_bytes_written logical committed bytes summed across all column families
+ * @param flush_count flushed sstables summed across all column families
+ * @param compaction_count compaction output sstables summed across all column families
  */
 typedef struct tidesdb_db_stats_t
 {
@@ -1204,6 +1261,18 @@ typedef struct tidesdb_db_stats_t
     uint64_t total_uploads;
     uint64_t total_upload_failures;
     int replica_mode;
+    /* write-amplification counters (lifetime since open, on-disk framed bytes). uwal is the
+     * shared unified WAL volume (zero when unified mode is off); the remaining fields are
+     * summed across all column families. db-wide WA = (uwal + wal + flush + compaction) /
+     * user bytes. the *_count fields count output sstables, not logical runs. */
+    uint64_t uwal_bytes_written;
+    uint64_t wal_bytes_written;
+    uint64_t flush_bytes_written;
+    uint64_t compaction_bytes_written;
+    uint64_t compaction_bytes_read;
+    uint64_t user_bytes_written;
+    uint64_t flush_count;
+    uint64_t compaction_count;
 } tidesdb_db_stats_t;
 
 /**
@@ -1231,7 +1300,7 @@ int tidesdb_open(const tidesdb_config_t *config, tidesdb_t **db);
  * tidesdb_raise_open_file_limit
  * raise this process's open-file ceiling toward `desired` descriptors so a database can keep more
  * sstables open -- the engine sizes max_open_sstables to fit this at open time, so call it BEFORE
- * tidesdb_open. an explicit, opt-in operator action: tidesdb never raises the limit itself. POSIX
+ * tidesdb_open. an explicit, opt-in operator action, tidesdb never raises the limit itself. POSIX
  * raises the RLIMIT_NOFILE soft limit toward the hard limit; Windows raises the CRT stdio cap
  * (max 8192). a failed or partial raise is non-fatal -- the prior ceiling stands.
  * @param desired target descriptor count; <= 0 just reports the current ceiling
@@ -1925,7 +1994,7 @@ int tidesdb_purge(tidesdb_t *db);
 
 /**
  * tidesdb_cancel_background_work
- * cancels background compaction db-wide: in-flight merges bail at their next
+ * cancels background compaction db-wide this means in-flight merges bail at their next
  * checkpoint (uncommitted output is discarded, inputs left intact -- recovery-safe)
  * and queued compaction work is skipped. flushes are unaffected so durability is
  * preserved. blocks (bounded) until compaction is idle. the cancel is sticky for

@@ -29,6 +29,22 @@ Flush pending: N
 Flush queue size: N
 Compaction queue size: N
 
+--- Unified Memtable ---
+Active bytes: N
+Immutable count: N
+Currently flushing: NO
+WAL generation: N
+Next CF index: N
+
+--- Write Amplification ---
+User bytes written: N
+Unified WAL bytes: N
+Per-CF WAL bytes: N
+Flush bytes written: N (N sstables)
+Compaction bytes written: N (N sstables)
+Compaction bytes read: N
+Total WA ratio: N.Nx
+
 --- Block Cache ---
 Enabled: YES
 Entries: N

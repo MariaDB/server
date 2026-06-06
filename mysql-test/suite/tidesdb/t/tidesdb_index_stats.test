@@ -84,7 +84,7 @@ SELECT COUNT(*) AS total_rows FROM t_stats;
 --echo # Before ANALYZE, optimizer may not estimate well
 EXPLAIN SELECT * FROM t_stats WHERE k = 0;
 
---replace_regex /total_keys=[0-9]+/total_keys=N/ /data_size=[0-9]+/data_size=N/ /memtable=[0-9]+/memtable=N/ /read_amp=[0-9.]+/read_amp=N/ /cache_hit=[0-9.]+/cache_hit=N/ /avg_key=[0-9.]+/avg_key=N/ /avg_value=[0-9.]+/avg_value=N/ /sstables=[0-9]+/sstables=N/ /size=[0-9]+/size=N/ /keys=[0-9]+/keys=N/ /sampled=[0-9]+/sampled=N/ /distinct=[0-9]+/distinct=N/ /rec_per_key=[0-9]+/rec_per_key=N/
+--replace_regex /total_keys=[0-9]+/total_keys=N/ /data_size=[0-9]+/data_size=N/ /memtable=[0-9]+/memtable=N/ /read_amp=[0-9.]+/read_amp=N/ /cache_hit=[0-9.]+/cache_hit=N/ /avg_key=[0-9.]+/avg_key=N/ /avg_value=[0-9.]+/avg_value=N/ /sstables=[0-9]+/sstables=N/ /size=[0-9]+/size=N/ /keys=[0-9]+/keys=N/ /sampled=[0-9]+/sampled=N/ /distinct=[0-9]+/distinct=N/ /rec_per_key=[0-9]+/rec_per_key=N/ /user=[0-9]+/user=N/ /wal=[0-9]+/wal=N/ /flush=[0-9]+ \([0-9]+ ssts\)/flush=N (N ssts)/ /compact_write=[0-9]+ \([0-9]+ ssts\)/compact_write=N (N ssts)/ /compact_read=[0-9]+/compact_read=N/ /ratio=[0-9.]+x/ratio=Nx/
 ANALYZE TABLE t_stats;
 
 --echo # After ANALYZE, the optimizer should estimate ~100 rows for k=0
@@ -114,7 +114,7 @@ while ($i <= 100)
 }
 --enable_query_log
 
---replace_regex /total_keys=[0-9]+/total_keys=N/ /data_size=[0-9]+/data_size=N/ /memtable=[0-9]+/memtable=N/ /read_amp=[0-9.]+/read_amp=N/ /cache_hit=[0-9.]+/cache_hit=N/ /avg_key=[0-9.]+/avg_key=N/ /avg_value=[0-9.]+/avg_value=N/ /sstables=[0-9]+/sstables=N/ /size=[0-9]+/size=N/ /keys=[0-9]+/keys=N/ /sampled=[0-9]+/sampled=N/ /distinct=[0-9]+/distinct=N/ /rec_per_key=[0-9]+/rec_per_key=N/
+--replace_regex /total_keys=[0-9]+/total_keys=N/ /data_size=[0-9]+/data_size=N/ /memtable=[0-9]+/memtable=N/ /read_amp=[0-9.]+/read_amp=N/ /cache_hit=[0-9.]+/cache_hit=N/ /avg_key=[0-9.]+/avg_key=N/ /avg_value=[0-9.]+/avg_value=N/ /sstables=[0-9]+/sstables=N/ /size=[0-9]+/size=N/ /keys=[0-9]+/keys=N/ /sampled=[0-9]+/sampled=N/ /distinct=[0-9]+/distinct=N/ /rec_per_key=[0-9]+/rec_per_key=N/ /user=[0-9]+/user=N/ /wal=[0-9]+/wal=N/ /flush=[0-9]+ \([0-9]+ ssts\)/flush=N (N ssts)/ /compact_write=[0-9]+ \([0-9]+ ssts\)/compact_write=N (N ssts)/ /compact_read=[0-9]+/compact_read=N/ /ratio=[0-9.]+x/ratio=Nx/
 ANALYZE TABLE t_stats2;
 
 --echo # With 100 distinct values in 100 rows, rec_per_key should be ~1

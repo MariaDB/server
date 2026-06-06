@@ -35,29 +35,46 @@ GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
 LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
 SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
 
-# 
-# Mandatory compression libraries.
 #
-# libtidesdb's compress.h unconditionally includes <zstd.h>, <lz4.h> and
-# <snappy-c.h>, so all three are required to build the engine at all. Resolve
-# full paths with FIND_LIBRARY rather than pkg-config: pkg-config returns bare
-# names like "zstd" which collide with MariaDB's own "zstd" MODULE target
+# Compression backends (zstd / lz4 / snappy) -- each OPTIONAL.
+#
+# As of libtidesdb 9.3.5 every backend is independent: compress.c pulls in the
+# third-party header and compiles its code path only when the matching
+# TIDESDB_HAVE_<backend> macro is defined, and a build with none still works
+# (TDB_COMPRESS_NONE only).  Auto-detect each dev library and enable the ones
+# present.  Use FIND_LIBRARY full paths, not pkg-config: pkg-config returns
+# bare names like "zstd" which collide with MariaDB's own "zstd" MODULE target
 # (the provider_zstd plugin).
-# 
-FIND_LIBRARY(TIDESDB_ZSTD_LIB   NAMES zstd)
-FIND_LIBRARY(TIDESDB_LZ4_LIB    NAMES lz4)
-FIND_LIBRARY(TIDESDB_SNAPPY_LIB NAMES snappy)
-FIND_PATH(TIDESDB_ZSTD_INC   NAMES zstd.h)
-FIND_PATH(TIDESDB_LZ4_INC    NAMES lz4.h)
-FIND_PATH(TIDESDB_SNAPPY_INC NAMES snappy-c.h)
+#
+SET(TIDESDB_COMPRESS_DEFS "")
+SET(TIDESDB_COMPRESS_LIBS "")
+SET(TIDESDB_COMPRESS_INCS "")
 
-IF(NOT TIDESDB_ZSTD_LIB OR NOT TIDESDB_LZ4_LIB OR NOT TIDESDB_SNAPPY_LIB OR
-   NOT TIDESDB_ZSTD_INC OR NOT TIDESDB_LZ4_INC OR NOT TIDESDB_SNAPPY_INC)
-  MESSAGE(STATUS "TidesDB: zstd/lz4/snappy development libraries not all found "
-                 "- skipping the TidesDB storage engine. Install libzstd-dev, "
-                 "liblz4-dev and libsnappy-dev to enable it.")
-  RETURN()
+FIND_LIBRARY(TIDESDB_ZSTD_LIB NAMES zstd)
+FIND_PATH(TIDESDB_ZSTD_INC    NAMES zstd.h)
+IF(TIDESDB_ZSTD_LIB AND TIDESDB_ZSTD_INC)
+  LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_ZSTD)
+  LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_ZSTD_LIB})
+  LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_ZSTD_INC})
 ENDIF()
+
+FIND_LIBRARY(TIDESDB_LZ4_LIB NAMES lz4)
+FIND_PATH(TIDESDB_LZ4_INC    NAMES lz4.h)
+IF(TIDESDB_LZ4_LIB AND TIDESDB_LZ4_INC)
+  LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_LZ4)
+  LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_LZ4_LIB})
+  LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_LZ4_INC})
+ENDIF()
+
+FIND_LIBRARY(TIDESDB_SNAPPY_LIB NAMES snappy)
+FIND_PATH(TIDESDB_SNAPPY_INC    NAMES snappy-c.h)
+IF(TIDESDB_SNAPPY_LIB AND TIDESDB_SNAPPY_INC)
+  LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_SNAPPY)
+  LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_SNAPPY_LIB})
+  LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_SNAPPY_INC})
+ENDIF()
+
+MESSAGE(STATUS "TidesDB: compression backends enabled: ${TIDESDB_COMPRESS_DEFS}")
 
 # 
 # Optional S3-compatible object store connector (libcurl + OpenSSL).
@@ -120,7 +137,10 @@ ENDIF()
 ADD_LIBRARY(tidesdb_embedded STATIC ${TIDESDB_CORE_SOURCES})
 
 # Vendored third-party C: build position-independent (it links into a module),
-# as C11, and silence its warnings so they never fail a -Werror/maintainer build.
+# as C11, and silence its warnings.  Against MariaDB's stricter C flag set
+# libtidesdb emits declaration-after-statement (C90-style) warnings; -w keeps
+# them out of the build and, unlike a bare -Wno-error, also shields the lib
+# from maintainer mode's specific -Werror=uninitialized.
 SET_TARGET_PROPERTIES(tidesdb_embedded PROPERTIES
                       C_STANDARD 11
                       POSITION_INDEPENDENT_CODE ON)
@@ -128,12 +148,11 @@ SET_TARGET_PROPERTIES(tidesdb_embedded PROPERTIES
 TARGET_INCLUDE_DIRECTORIES(tidesdb_embedded PRIVATE
                            ${TIDESDB_LIB_DIR}/src        # internal "tidesdb.h" includes
                            ${TIDESDB_LIB_DIR}/external
-                           ${TIDESDB_ZSTD_INC}
-                           ${TIDESDB_LZ4_INC}
-                           ${TIDESDB_SNAPPY_INC})
+                           ${TIDESDB_COMPRESS_INCS})
 
 TARGET_COMPILE_DEFINITIONS(tidesdb_embedded PRIVATE
                            _GNU_SOURCE
+                           ${TIDESDB_COMPRESS_DEFS}
                            $<$<BOOL:${TIDESDB_WITH_S3}>:TIDESDB_WITH_S3>)
 
 IF(NOT MSVC)
@@ -146,9 +165,7 @@ IF(HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
 ENDIF()
 
 TARGET_LINK_LIBRARIES(tidesdb_embedded PUBLIC
-                      ${TIDESDB_ZSTD_LIB}
-                      ${TIDESDB_LZ4_LIB}
-                      ${TIDESDB_SNAPPY_LIB}
+                      ${TIDESDB_COMPRESS_LIBS}
                       ${TIDESDB_S3_LIBS}
                       ${TIDESDB_ATOMIC_LIBS}
                       ${CMAKE_THREAD_LIBS_INIT}

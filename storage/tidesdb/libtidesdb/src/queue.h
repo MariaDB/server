@@ -52,7 +52,9 @@ typedef struct queue_node_t
  * @param waiter_count number of threads currently waiting in queue_dequeue_wait
  * @param head_lock mutex for dequeue/write operations on head
  * @param tail_lock mutex for enqueue operations
- * @param read_lock rwlock for read-only operations (peek, foreach)
+ * @param read_lock rwlock coordinating read-only iterators against destructive ops --
+ *        peek, peek_at, foreach and snapshot take it shared; dequeue, dequeue_wait, clear
+ *        and remove_if take it exclusive so iteration never races a removal
  * @param not_empty condition variable signaled when queue becomes non-empty
  * @param node_pool free list of reusable nodes for performance
  * @param pool_size current size of node pool

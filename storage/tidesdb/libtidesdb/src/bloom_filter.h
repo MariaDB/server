@@ -96,6 +96,10 @@ unsigned int bloom_filter_hash(const uint8_t *entry, size_t size, int seed);
 /**
  * bloom_filter_serialize
  * serializes a bloom filter to compact binary format using:
+ * -- optional version prefix -- a v2+ filter leads with a 0x00 sentinel byte followed by the
+ *    hash_version byte (0x00 is impossible for a v1 filter, whose first byte is varint32(m)
+ *    with m >= 1, so the format stays backward compatible); legacy v1 filters omit it and
+ *    deserialize defaults to the legacy hash
  * -- varint encoding for header fields (m, h, non_zero_count)
  * -- sparse encoding     -- only stores non-zero words with their indices
  * typical space savings  -- 70-90% for low fill rates (< 50%)

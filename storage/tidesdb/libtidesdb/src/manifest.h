@@ -54,7 +54,9 @@ typedef struct
  * @param capacity capacity of entries array
  * @param sequence current global sequence number
  * @param path path to manifest file
- * @param fp file pointer (kept open for efficient commits)
+ * @param fp read-mode handle to the manifest file; opened when the manifest is parsed and
+ *           reopened after each commit. commits write a temp file and atomically rename it into
+ *           place, so they never write through this handle
  * @param lock reader-writer lock for thread safety
  * @param active_ops count of active operations (for safe shutdown)
  */
@@ -121,9 +123,11 @@ void tidesdb_manifest_update_sequence(tidesdb_manifest_t *manifest, uint64_t seq
 
 /**
  * tidesdb_manifest_commit
- * updates manifest on disk
+ * atomically writes the manifest to disk -- writes a temp file, fsyncs it, renames it into
+ * place, then syncs the parent directory so the commit survives a crash. if path differs from
+ * the manifest's currently stored path, the manifest is re-pointed to path.
  * @param manifest manifest to write
- * @param path path to manifest file
+ * @param path destination path; also becomes the manifest's stored path if it differs
  * @return 0 on success, -1 on error
  */
 int tidesdb_manifest_commit(tidesdb_manifest_t *manifest, const char *path);

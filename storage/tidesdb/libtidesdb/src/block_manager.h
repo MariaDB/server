@@ -65,8 +65,8 @@
 
 typedef enum
 {
-    BLOCK_MANAGER_SYNC_NONE,
-    BLOCK_MANAGER_SYNC_FULL,
+    BLOCK_MANAGER_SYNC_NONE, /* no per-write fsync; durability left to the caller/group-commit */
+    BLOCK_MANAGER_SYNC_FULL, /* fdatasync each write, unless O_DSYNC already made it durable */
 } block_manager_sync_mode_t;
 
 typedef enum
@@ -109,7 +109,7 @@ typedef struct
 } block_manager_t;
 
 /**
- * block_t
+ * block_manager_block_t
  * block struct
  * used for blocks in TidesDB
  * @param size the size of the data in the block
@@ -126,7 +126,7 @@ typedef struct
 } block_manager_block_t;
 
 /**
- * block_cursor_t
+ * block_manager_cursor_t
  * block cursor struct
  * used for block cursors in TidesDB
  * @param bm the block manager
@@ -426,6 +426,16 @@ int block_manager_cursor_goto_first(block_manager_cursor_t *cursor);
  * @return 0 if successful, -1 if not
  */
 int block_manager_get_size(block_manager_t *bm, uint64_t *size);
+
+/**
+ * block_manager_framed_size
+ * on-disk footprint of a payload once framed (header + payload + footer), i.e. the bytes a
+ * block_manager_write_raw/block_write of this payload appends to the file. lets callers count
+ * framed write volume without depending on the framing layout.
+ * @param payload_size size of the payload in bytes
+ * @return framed size in bytes
+ */
+uint64_t block_manager_framed_size(uint32_t payload_size);
 
 /**
  * block_manager_escalate_fsync

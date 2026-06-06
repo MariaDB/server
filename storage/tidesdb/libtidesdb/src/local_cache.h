@@ -92,7 +92,9 @@ void tdb_local_cache_destroy(tdb_local_cache_t *cache);
 /**
  * tdb_local_cache_track
  * register a file in the cache. stats the file for size, adds to LRU head,
- * and triggers eviction if the cache is over its size limit.
+ * and triggers eviction if the cache is over its size limit. if the file is
+ * already tracked it is simply moved to the LRU head (no duplicate entry and
+ * no eviction) and 0 is returned, so re-tracking is safe and acts as a touch.
  * @param cache      cache manager
  * @param local_path path to the cached file
  * @return 0 on success, -1 on error

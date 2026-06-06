@@ -19,20 +19,57 @@
 
 #include "compress.h"
 
+/* third-party backend headers, included only when the backend is compiled in. the TIDESDB_HAVE_*
+ * macros are PRIVATE compile definitions set by CMake from the -DTIDESDB_WITH_* options, so a build
+ * can drop any subset (or all) of them and still produce a working library that supports the
+ * remaining algorithms plus TDB_COMPRESS_NONE. */
+#ifdef TIDESDB_HAVE_LZ4
+#include <lz4.h>
+#endif
+#ifdef TIDESDB_HAVE_SNAPPY
+#include <snappy-c.h>
+#endif
+#ifdef TIDESDB_HAVE_ZSTD
+#include <zstd.h>
+#endif
+
 /* the compression_algorithm enum values are an on-disk + ABI contract, they are written into
  * sstable/vlog metadata, so they must never change, and the duplicate enum in db.h (the
  * standalone FFI header, which cannot include this header) MUST hold identical values. pin them
  * at compile time so any drift in compress.h fails the build; db.h carries the matching contract
- * comment. guarded on C11 so older/non-conforming C front-ends still compile. */
+ * comment. the asserts are unconditional -- the enumerators exist regardless of which backends are
+ * compiled in. guarded on C11 so older/non-conforming C front-ends still compile. */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(TDB_COMPRESS_NONE == 0, "compression_algorithm wire drift: NONE must be 0");
-#ifndef __sun
 _Static_assert(TDB_COMPRESS_SNAPPY == 1, "compression_algorithm wire drift: SNAPPY must be 1");
-#endif
 _Static_assert(TDB_COMPRESS_LZ4 == 2, "compression_algorithm wire drift: LZ4 must be 2");
 _Static_assert(TDB_COMPRESS_ZSTD == 3, "compression_algorithm wire drift: ZSTD must be 3");
 _Static_assert(TDB_COMPRESS_LZ4_FAST == 4, "compression_algorithm wire drift: LZ4_FAST must be 4");
 #endif
+
+int tidesdb_compression_available(const compression_algorithm type)
+{
+    switch (type)
+    {
+        case TDB_COMPRESS_NONE:
+            return 1;
+#ifdef TIDESDB_HAVE_SNAPPY
+        case TDB_COMPRESS_SNAPPY:
+            return 1;
+#endif
+#ifdef TIDESDB_HAVE_LZ4
+        case TDB_COMPRESS_LZ4:
+        case TDB_COMPRESS_LZ4_FAST:
+            return 1;
+#endif
+#ifdef TIDESDB_HAVE_ZSTD
+        case TDB_COMPRESS_ZSTD:
+            return 1;
+#endif
+        default:
+            return 0;
+    }
+}
 
 uint8_t *compress_data(const uint8_t *data, const size_t data_size, size_t *compressed_size,
                        const compression_algorithm type)
@@ -46,7 +83,7 @@ uint8_t *compress_data(const uint8_t *data, const size_t data_size, size_t *comp
 
     switch (type)
     {
-#ifndef __sun
+#ifdef TIDESDB_HAVE_SNAPPY
         case TDB_COMPRESS_SNAPPY:
         {
             *compressed_size = snappy_max_compressed_length(data_size);
@@ -70,6 +107,7 @@ uint8_t *compress_data(const uint8_t *data, const size_t data_size, size_t *comp
         }
 #endif
 
+#ifdef TIDESDB_HAVE_LZ4
         case TDB_COMPRESS_LZ4:
         case TDB_COMPRESS_LZ4_FAST:
         {
@@ -94,7 +132,9 @@ uint8_t *compress_data(const uint8_t *data, const size_t data_size, size_t *comp
             *compressed_size = (size_t)lz4_result + sizeof(uint64_t);
             break;
         }
+#endif
 
+#ifdef TIDESDB_HAVE_ZSTD
         case TDB_COMPRESS_ZSTD:
         {
             *compressed_size = ZSTD_compressBound(data_size);
@@ -115,6 +155,7 @@ uint8_t *compress_data(const uint8_t *data, const size_t data_size, size_t *comp
             *compressed_size = actual_size + sizeof(uint64_t);
             break;
         }
+#endif
 
         default:
             return NULL;
@@ -143,7 +184,7 @@ uint8_t *decompress_data(const uint8_t *data, const size_t data_size, size_t *de
 
     switch (type)
     {
-#ifndef __sun
+#ifdef TIDESDB_HAVE_SNAPPY
         case TDB_COMPRESS_SNAPPY:
         {
             if (TDB_UNLIKELY(data_size < sizeof(uint64_t)))
@@ -183,6 +224,7 @@ uint8_t *decompress_data(const uint8_t *data, const size_t data_size, size_t *de
         }
 #endif
 
+#ifdef TIDESDB_HAVE_LZ4
         case TDB_COMPRESS_LZ4:
         case TDB_COMPRESS_LZ4_FAST:
         {
@@ -213,7 +255,9 @@ uint8_t *decompress_data(const uint8_t *data, const size_t data_size, size_t *de
             }
             break;
         }
+#endif
 
+#ifdef TIDESDB_HAVE_ZSTD
         case TDB_COMPRESS_ZSTD:
         {
             if (TDB_UNLIKELY(data_size < sizeof(uint64_t)))
@@ -243,6 +287,7 @@ uint8_t *decompress_data(const uint8_t *data, const size_t data_size, size_t *de
             }
             break;
         }
+#endif
 
         default:
             return NULL;

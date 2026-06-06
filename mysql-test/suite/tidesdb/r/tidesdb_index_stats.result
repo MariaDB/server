@@ -70,6 +70,7 @@ test.t_stats	analyze	status	Engine-independent statistics collected
 test.t_stats	analyze	Note	[TIDESDB] CF 'test__t_stats'  total_keys=N  data_size=N bytes  memtable=N bytes  levels=1  read_amp=N  cache_hit=N%
 test.t_stats	analyze	Note	[TIDESDB] avg_key=N bytes  avg_value=N bytes
 test.t_stats	analyze	Note	[TIDESDB] level 1  sstables=N  size=N bytes  keys=N
+test.t_stats	analyze	Note	[TIDESDB] WA  user=N  wal=N  flush=N (N ssts)  compact_write=N (N ssts)  compact_read=N  ratio=Nx
 test.t_stats	analyze	Note	[TIDESDB] idx CF 'test__t_stats__idx_k_idx'  keys=N  data_size=N bytes  levels=1
 test.t_stats	analyze	Note	[TIDESDB] idx 'k_idx' sampled=N distinct=N rec_per_key=N
 test.t_stats	analyze	status	OK
@@ -94,6 +95,7 @@ test.t_stats2	analyze	status	Engine-independent statistics collected
 test.t_stats2	analyze	Note	[TIDESDB] CF 'test__t_stats2'  total_keys=N  data_size=N bytes  memtable=N bytes  levels=1  read_amp=N  cache_hit=N%
 test.t_stats2	analyze	Note	[TIDESDB] avg_key=N bytes  avg_value=N bytes
 test.t_stats2	analyze	Note	[TIDESDB] level 1  sstables=N  size=N bytes  keys=N
+test.t_stats2	analyze	Note	[TIDESDB] WA  user=N  wal=N  flush=N (N ssts)  compact_write=N (N ssts)  compact_read=N  ratio=Nx
 test.t_stats2	analyze	Note	[TIDESDB] idx CF 'test__t_stats2__idx_code_idx'  keys=N  data_size=N bytes  levels=1
 test.t_stats2	analyze	Note	[TIDESDB] idx 'code_idx' sampled=N distinct=N rec_per_key=N
 test.t_stats2	analyze	status	OK

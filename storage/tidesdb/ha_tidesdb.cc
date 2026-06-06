@@ -3846,6 +3846,53 @@ static bool tidesdb_show_status(handlerton *hton, THD *thd, stat_print_fn *print
                     (unsigned long)db_st.flush_queue_size);
     pos += snprintf(buf + pos, sizeof(buf) - pos, "Compaction queue size: %lu\n",
                     (unsigned long)db_st.compaction_queue_size);
+
+    /* Unified memtable detail.  Only meaningful when the unified mode is
+       active; in per-CF mode the total_memtable_bytes line above already
+       carries the full memtable picture. */
+    if (db_st.unified_memtable_enabled)
+    {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "\n--- Unified Memtable ---\n");
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Active bytes: %ld\n",
+                        (long)db_st.unified_memtable_bytes);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Immutable count: %d\n",
+                        db_st.unified_immutable_count);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Currently flushing: %s\n",
+                        db_st.unified_is_flushing ? "YES" : "NO");
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "WAL generation: %lu\n",
+                        (unsigned long)db_st.unified_wal_generation);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Next CF index: %u\n",
+                        db_st.unified_next_cf_index);
+    }
+
+    /* Write amplification counters from the lib's stats patch.  All
+       lifetime since open and reported in on-disk framed bytes.  The
+       Total row sums every output-side counter (uwal, per-cf wal, flush,
+       compaction) and divides by user_bytes_written for the database-wide
+       WA ratio.  flush_count and compaction_count are output-sstable
+       totals, not logical run counts. */
+    {
+        const uint64_t total_out_bytes = db_st.uwal_bytes_written + db_st.wal_bytes_written +
+                                         db_st.flush_bytes_written + db_st.compaction_bytes_written;
+        double wa_total = 0.0;
+        if (db_st.user_bytes_written > 0)
+            wa_total = (double)total_out_bytes / (double)db_st.user_bytes_written;
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "\n--- Write Amplification ---\n");
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "User bytes written: %lu\n",
+                        (unsigned long)db_st.user_bytes_written);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Unified WAL bytes: %lu\n",
+                        (unsigned long)db_st.uwal_bytes_written);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Per-CF WAL bytes: %lu\n",
+                        (unsigned long)db_st.wal_bytes_written);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Flush bytes written: %lu (%lu sstables)\n",
+                        (unsigned long)db_st.flush_bytes_written, (unsigned long)db_st.flush_count);
+        pos += snprintf(
+            buf + pos, sizeof(buf) - pos, "Compaction bytes written: %lu (%lu sstables)\n",
+            (unsigned long)db_st.compaction_bytes_written, (unsigned long)db_st.compaction_count);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Compaction bytes read: %lu\n",
+                        (unsigned long)db_st.compaction_bytes_read);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Total WA ratio: %.2fx\n", wa_total);
+    }
     pos += snprintf(buf + pos, sizeof(buf) - pos, "\n--- Block Cache ---\n");
     pos += snprintf(buf + pos, sizeof(buf) - pos, "Enabled: %s\n", cache_st.enabled ? "YES" : "NO");
     pos += snprintf(buf + pos, sizeof(buf) - pos, "Entries: %lu\n",
@@ -3882,6 +3929,8 @@ static bool tidesdb_show_status(handlerton *hton, THD *thd, stat_print_fn *print
                         (unsigned long)db_st.total_upload_failures);
         pos += snprintf(buf + pos, sizeof(buf) - pos, "Upload queue depth: %lu\n",
                         (unsigned long)db_st.upload_queue_depth);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "Last uploaded generation: %lu\n",
+                        (unsigned long)db_st.last_uploaded_generation);
         pos += snprintf(buf + pos, sizeof(buf) - pos, "Local cache: %lu / %lu bytes (%d files)\n",
                         (unsigned long)db_st.local_cache_bytes_used,
                         (unsigned long)db_st.local_cache_bytes_max, db_st.local_cache_num_files);
@@ -8977,6 +9026,28 @@ int ha_tidesdb::analyze(THD *thd, HA_CHECK_OPT *check_opt)
                             st->btree_avg_height);
     }
 
+    /* Per-CF write-amplification counters from the lib's stats patch.
+       Reported when any logical bytes have been committed against this
+       CF -- a freshly created CF that has never accepted a write would
+       produce zeros across the board and adding a row of zeros would
+       only add noise. */
+    if (st->user_bytes_written > 0)
+    {
+        const uint64_t out_bytes =
+            st->wal_bytes_written + st->flush_bytes_written + st->compaction_bytes_written;
+        const double wa = (double)out_bytes / (double)st->user_bytes_written;
+        push_warning_printf(
+            thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+            "[TIDESDB] WA  user=%llu  wal=%llu  flush=%llu (%llu ssts)"
+            "  compact_write=%llu (%llu ssts)  compact_read=%llu"
+            "  ratio=%.2fx",
+            (unsigned long long)st->user_bytes_written, (unsigned long long)st->wal_bytes_written,
+            (unsigned long long)st->flush_bytes_written, (unsigned long long)st->flush_count,
+            (unsigned long long)st->compaction_bytes_written,
+            (unsigned long long)st->compaction_count, (unsigned long long)st->compaction_bytes_read,
+            wa);
+    }
+
     tidesdb_free_stats(st);
 
     /* Secondary index CF stats + cardinality sampling.
@@ -11114,12 +11185,49 @@ static long long srv_stat_cache_hits;
 static long long srv_stat_cache_misses;
 static double srv_stat_cache_hit_rate;
 static long long srv_stat_cache_partitions;
+
+/* Unified memtable detail (db_st.unified_*).  total_memtable_bytes already
+   sums every CF active memtable; these expose the unified-mode sub-state
+   so monitoring can tell the difference between many CFs each holding a
+   small active memtable and one shared memtable approaching its buffer. */
+static long long srv_stat_unified_memtable_enabled;
+static long long srv_stat_unified_memtable_bytes;
+static long long srv_stat_unified_immutable_count;
+static long long srv_stat_unified_is_flushing;
+static long long srv_stat_unified_wal_generation;
+
+/* Object-store / replication progress.  Some of these already show up in
+   SHOW ENGINE TIDESDB STATUS, but exposing them as global status
+   variables lets Prometheus / PMM / Datadog scrape them without parsing
+   the engine status text. */
+static long long srv_stat_object_store_enabled;
+static long long srv_stat_replica_mode_active;
+static long long srv_stat_local_cache_bytes;
+static long long srv_stat_local_cache_files;
+static long long srv_stat_upload_queue_depth;
+static long long srv_stat_total_uploads;
+static long long srv_stat_upload_failures;
+static long long srv_stat_last_uploaded_generation;
+
+/* Write-amplification counters surfaced by the lib's recent stats patch.
+   Lifetime since open, on-disk framed bytes for every byte the engine
+   wrote, plus the logical denominator and the number of sstables produced
+   by flush and compaction.  Monitoring tools divide the byte counters
+   by user_bytes_written for the database-wide WA ratio. */
+static long long srv_stat_uwal_bytes_written;
+static long long srv_stat_wal_bytes_written;
+static long long srv_stat_flush_bytes_written;
+static long long srv_stat_compaction_bytes_written;
+static long long srv_stat_compaction_bytes_read;
+static long long srv_stat_user_bytes_written;
+static long long srv_stat_flush_count;
+static long long srv_stat_compaction_count;
 /* Tombstone aggregates are forward-declared near the top of this file so
    tidesdb_show_status can read them directly.  Their definitions live up
    there. */
 
-#define TIDESQL_VERSION_STR "4.5.4"
-#define TIDESQL_VERSION_HEX 0x40504
+#define TIDESQL_VERSION_STR "4.5.5"
+#define TIDESQL_VERSION_HEX 0x40505
 
 static const char *srv_stat_version = TIDESQL_VERSION_STR;
 static long long srv_stat_version_hex = TIDESQL_VERSION_HEX;
@@ -11161,6 +11269,33 @@ static struct st_mysql_show_var tidesdb_status_variables[] = {
     {"tidesdb_lock_entries", (char *)&srv_stat_lock_entries, SHOW_LONGLONG},
     {"tidesdb_lock_entry_recycles", (char *)&srv_stat_lock_entry_recycles, SHOW_LONGLONG},
     {"tidesdb_lock_chain_max", (char *)&srv_stat_lock_chain_max, SHOW_LONGLONG},
+    /* Unified memtable detail (only meaningful when unified_memtable=ON). */
+    {"tidesdb_unified_memtable_enabled", (char *)&srv_stat_unified_memtable_enabled, SHOW_LONGLONG},
+    {"tidesdb_unified_memtable_bytes", (char *)&srv_stat_unified_memtable_bytes, SHOW_LONGLONG},
+    {"tidesdb_unified_immutable_count", (char *)&srv_stat_unified_immutable_count, SHOW_LONGLONG},
+    {"tidesdb_unified_is_flushing", (char *)&srv_stat_unified_is_flushing, SHOW_LONGLONG},
+    {"tidesdb_unified_wal_generation", (char *)&srv_stat_unified_wal_generation, SHOW_LONGLONG},
+    /* Object-store / replication progress. */
+    {"tidesdb_object_store_enabled", (char *)&srv_stat_object_store_enabled, SHOW_LONGLONG},
+    {"tidesdb_replica_mode_active", (char *)&srv_stat_replica_mode_active, SHOW_LONGLONG},
+    {"tidesdb_local_cache_bytes", (char *)&srv_stat_local_cache_bytes, SHOW_LONGLONG},
+    {"tidesdb_local_cache_files", (char *)&srv_stat_local_cache_files, SHOW_LONGLONG},
+    {"tidesdb_upload_queue_depth", (char *)&srv_stat_upload_queue_depth, SHOW_LONGLONG},
+    {"tidesdb_total_uploads", (char *)&srv_stat_total_uploads, SHOW_LONGLONG},
+    {"tidesdb_upload_failures", (char *)&srv_stat_upload_failures, SHOW_LONGLONG},
+    {"tidesdb_last_uploaded_generation", (char *)&srv_stat_last_uploaded_generation, SHOW_LONGLONG},
+    /* Write-amplification counters from the lib's new stats patch.  All
+       lifetime since open; divide each byte counter by
+       tidesdb_user_bytes_written for the per-domain WA ratio.  flush_count
+       and compaction_count count output sstables, not logical runs. */
+    {"tidesdb_uwal_bytes_written", (char *)&srv_stat_uwal_bytes_written, SHOW_LONGLONG},
+    {"tidesdb_wal_bytes_written", (char *)&srv_stat_wal_bytes_written, SHOW_LONGLONG},
+    {"tidesdb_flush_bytes_written", (char *)&srv_stat_flush_bytes_written, SHOW_LONGLONG},
+    {"tidesdb_compaction_bytes_written", (char *)&srv_stat_compaction_bytes_written, SHOW_LONGLONG},
+    {"tidesdb_compaction_bytes_read", (char *)&srv_stat_compaction_bytes_read, SHOW_LONGLONG},
+    {"tidesdb_user_bytes_written", (char *)&srv_stat_user_bytes_written, SHOW_LONGLONG},
+    {"tidesdb_flush_count", (char *)&srv_stat_flush_count, SHOW_LONGLONG},
+    {"tidesdb_compaction_count", (char *)&srv_stat_compaction_count, SHOW_LONGLONG},
     {NullS, NullS, SHOW_ULONG}};
 
 /* Refresh the static status variables from live tidesdb stats.  Cost is
@@ -11197,6 +11332,33 @@ static void tidesdb_refresh_status_vars()
     srv_stat_cache_misses = (long long)cache_st.misses;
     srv_stat_cache_hit_rate = cache_st.hit_rate * PERCENT_SCALE;
     srv_stat_cache_partitions = (long long)cache_st.num_partitions;
+
+    /* Unified memtable detail. */
+    srv_stat_unified_memtable_enabled = db_st.unified_memtable_enabled ? 1 : 0;
+    srv_stat_unified_memtable_bytes = (long long)db_st.unified_memtable_bytes;
+    srv_stat_unified_immutable_count = db_st.unified_immutable_count;
+    srv_stat_unified_is_flushing = db_st.unified_is_flushing ? 1 : 0;
+    srv_stat_unified_wal_generation = (long long)db_st.unified_wal_generation;
+
+    /* Object-store / replica progress. */
+    srv_stat_object_store_enabled = db_st.object_store_enabled ? 1 : 0;
+    srv_stat_replica_mode_active = db_st.replica_mode ? 1 : 0;
+    srv_stat_local_cache_bytes = (long long)db_st.local_cache_bytes_used;
+    srv_stat_local_cache_files = (long long)db_st.local_cache_num_files;
+    srv_stat_upload_queue_depth = (long long)db_st.upload_queue_depth;
+    srv_stat_total_uploads = (long long)db_st.total_uploads;
+    srv_stat_upload_failures = (long long)db_st.total_upload_failures;
+    srv_stat_last_uploaded_generation = (long long)db_st.last_uploaded_generation;
+
+    /* Write-amplification counters. */
+    srv_stat_uwal_bytes_written = (long long)db_st.uwal_bytes_written;
+    srv_stat_wal_bytes_written = (long long)db_st.wal_bytes_written;
+    srv_stat_flush_bytes_written = (long long)db_st.flush_bytes_written;
+    srv_stat_compaction_bytes_written = (long long)db_st.compaction_bytes_written;
+    srv_stat_compaction_bytes_read = (long long)db_st.compaction_bytes_read;
+    srv_stat_user_bytes_written = (long long)db_st.user_bytes_written;
+    srv_stat_flush_count = (long long)db_st.flush_count;
+    srv_stat_compaction_count = (long long)db_st.compaction_count;
 
     /* Tombstone aggregates -- we walk every CF once, summing total_tombstones
        and tracking the worst single-SSTable density.

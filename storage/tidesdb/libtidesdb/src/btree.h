@@ -73,14 +73,17 @@ typedef struct btree_node_t btree_node_t;
 typedef struct btree_entry_t btree_entry_t;
 typedef struct btree_arena_t btree_arena_t;
 
-/**
- * btree_arena_t
- * simple arena allocator for btree nodes to reduce malloc/free overhead
- * allocations are bump-pointer style, freed all at once when arena is destroyed
- */
 #define BTREE_ARENA_BLOCK_SIZE     (64 * 1024) /* 64KB blocks */
 #define BTREE_ARENA_MIN_BLOCK_SIZE 256         /* minimum arena block size */
 
+/**
+ * btree_arena_block_t
+ * one bump-allocated block in a btree_arena_t's block chain
+ * @param data the block's memory buffer
+ * @param size total capacity of the block in bytes
+ * @param used bytes consumed so far (bump pointer offset into data)
+ * @param next next block in the arena's linked list
+ */
 typedef struct btree_arena_block_t
 {
     uint8_t *data;
@@ -464,6 +467,8 @@ int btree_get(btree_t *tree, const uint8_t *key, size_t key_size, uint8_t **valu
 /**
  * btree_get_entry_count
  * returns total number of entries
+ * @param tree the B+tree
+ * @return total number of entries in the tree
  */
 uint64_t btree_get_entry_count(const btree_t *tree);
 
@@ -490,6 +495,8 @@ int btree_get_max_key(btree_t *tree, uint8_t **key, size_t *key_size);
 /**
  * btree_get_max_seq
  * returns maximum sequence number in tree
+ * @param tree the B+tree
+ * @return maximum sequence number across all entries in the tree
  */
 uint64_t btree_get_max_seq(const btree_t *tree);
 

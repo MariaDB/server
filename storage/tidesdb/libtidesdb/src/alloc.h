@@ -73,7 +73,11 @@ typedef struct tidesdb_allocator_t
     tidesdb_free_fn free_fn;
 } tidesdb_allocator_t;
 
+/* the active allocator backing the tdb_* macros; set by tidesdb_init / tidesdb_ensure_initialized
+ */
 extern tidesdb_allocator_t tidesdb_allocator;
+/* 0 until tidesdb_init (or the lazy tidesdb_ensure_initialized) runs, reset to 0 by
+ * tidesdb_finalize */
 extern _Atomic(int) tidesdb_initialized;
 
 /**
@@ -113,8 +117,11 @@ void tidesdb_ensure_initialized(void);
 #define tdb_free(ptr)           (tidesdb_allocator.free_fn(ptr))
 
 /**
- * override standard allocation functions.
- * this allows existing code using malloc/calloc/realloc/free to automatically
+ * override the standard allocation functions.
+ * past this point malloc/calloc/realloc/free expand to the tdb_* macros above, so existing
+ * code that calls them automatically routes through the configured allocator with no source
+ * changes. this affects every translation unit that includes this header (directly or via
+ * tidesdb.h), which is what keeps all tidesdb allocations and frees on a single allocator.
  */
 #undef malloc
 #undef calloc

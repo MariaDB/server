@@ -136,7 +136,9 @@ struct skip_list_version_t
 
 /**
  * skip_list_comparator_fn
- * comparator function type for custom key comparison
+ * comparator function type for custom key comparison.
+ * ABI contract -- must stay structurally identical to tidesdb_comparator_fn in db.h, which
+ * the FFI header uses for tidesdb_register_comparator / tidesdb_get_comparator.
  * @param key1 first key
  * @param key1_size size of first key
  * @param key2 second key
@@ -407,6 +409,13 @@ int skip_list_delete(skip_list_t *list, const uint8_t *key, size_t key_size, uin
 /**
  * skip_list_batch_entry_t
  * entry for batch put operations
+ * @param key key data
+ * @param key_size size of key
+ * @param value value data (NULL for tombstones)
+ * @param value_size size of value (0 for tombstones)
+ * @param seq sequence number for this entry (MVCC version)
+ * @param ttl time-to-live (0 = no expiry)
+ * @param flags bitmask of SKIP_LIST_FLAG_* (see below)
  *
  * flags is a bitmask of SKIP_LIST_FLAG_*. a live put leaves flags = 0; a regular
  * tombstone sets SKIP_LIST_FLAG_DELETED; a single-delete tombstone also sets

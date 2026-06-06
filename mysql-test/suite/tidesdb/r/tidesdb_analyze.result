@@ -16,6 +16,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	Note	[TIDESDB] CF 'test__t1'  total_keys=N  data_size=N bytes  memtable=N bytes  levels=1  read_amp=N  cache_hit=N%
 test.t1	analyze	Note	[TIDESDB] avg_key=N bytes  avg_value=N bytes
 test.t1	analyze	Note	[TIDESDB] level 1  sstables=N  size=N bytes  keys=N
+test.t1	analyze	Note	[TIDESDB] WA  user=N  wal=N  flush=N (N ssts)  compact_write=N (N ssts)  compact_read=N  ratio=Nx
 test.t1	analyze	Note	[TIDESDB] idx CF 'test__t1__idx_idx_val'  keys=N  data_size=N bytes  levels=1
 test.t1	analyze	Note	[TIDESDB] idx 'idx_val' sampled=6 distinct=6 rec_per_key=1
 test.t1	analyze	status	OK
@@ -31,6 +32,7 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	Note	[TIDESDB] CF 'test__t2'  total_keys=N  data_size=N bytes  memtable=N bytes  levels=1  read_amp=N  cache_hit=N%
 test.t2	analyze	Note	[TIDESDB] avg_key=N bytes  avg_value=N bytes
 test.t2	analyze	Note	[TIDESDB] level 1  sstables=N  size=N bytes  keys=N
+test.t2	analyze	Note	[TIDESDB] WA  user=N  wal=N  flush=N (N ssts)  compact_write=N (N ssts)  compact_read=N  ratio=Nx
 test.t2	analyze	status	OK
 # ANALYZE an empty table
 CREATE TABLE t3 (
