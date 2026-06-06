@@ -313,5 +313,13 @@ explain format=json select * from t1
 
 set optimizer_replay_context='';
 --remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+
+--echo #
+--echo # Error for non-existent variable must show offset 0. 
+--echo #
+set optimizer_replay_context='NO_SUCH_VARIABLE';
+explain select * from t1 where c < 3;
+
+
 drop table t1;
 drop database db1;
