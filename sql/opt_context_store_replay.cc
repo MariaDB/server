@@ -1998,11 +1998,17 @@ bool Optimizer_context_replay::parse()
 #endif
   DBUG_RETURN(false); // Ok
 err:
+  ptrdiff_t err_offset;
+  if (context)
+    err_offset= (je.s.c_str - (const uchar *) context);
+  else
+    err_offset= 0; // User var with context data not set.
+                   //
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED),
-      err_buf.c_ptr_safe(), (je.s.c_str - (const uchar *) context));
+      err_buf.c_ptr_safe(), err_offset);
   DBUG_RETURN(true);
 }
 
