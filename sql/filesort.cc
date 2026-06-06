@@ -3053,10 +3053,12 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
     move_back_guard.engage();
   }
 
-  SCOPE_VALUE(table->read_set,
-              (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE)
-                  ? table->write_set
-                  : table->read_set);
+  bool check_also_write_set= false;
+  if (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE && table->write_set)
+  {
+    /* Print the column if it is present in either read_set or write_set */
+    check_also_write_set= true;
+  }
 
   if (reqd_table_alias)
   {
@@ -3069,8 +3071,14 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
     output.append('(');
     for (pfield= table->field; *pfield; pfield++)
     {
-      if (table->read_set &&
-          !bitmap_is_set(table->read_set, (*pfield)->field_index))
+      Field *field= *pfield;
+      bool print_col= false;
+      if ((check_also_write_set &&
+           bitmap_is_set(table->write_set, field->field_index)) ||
+          (table->read_set &&
+          bitmap_is_set(table->read_set, field->field_index)))
+        print_col= true;
+      if (!print_col)
         continue;
 
       if (first)
@@ -3078,7 +3086,7 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
       else
         output.append(STRING_WITH_LEN(", "));
 
-      output.append((*pfield)->field_name.str ? (*pfield)->field_name
+      output.append((*pfield)->field_name.str ? field->field_name
                                               : NULL_clex_str);
     }
 
@@ -3094,8 +3102,13 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
     Field *field= *pfield;
     bool require_quote= false;
 
-    if (table->read_set &&
-        !bitmap_is_set(table->read_set, (*pfield)->field_index))
+    bool print_col= false;
+    if ((check_also_write_set &&
+         bitmap_is_set(table->write_set, field->field_index)) ||
+        (table->read_set &&
+         bitmap_is_set(table->read_set, field->field_index)))
+      print_col= true;
+    if (!print_col)
       continue;
 
     if (first)
