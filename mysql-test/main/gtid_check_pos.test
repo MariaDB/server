@@ -24,9 +24,11 @@ SELECT GTID_CHECK_POS('');
 
 --echo # 4. Rotate to a new binlog and purge the old one
 FLUSH LOGS;
-let $current_log= query_get_value(SHOW MASTER STATUS, File, 1);
+let $purge_binlogs_to= query_get_value(SHOW MASTER STATUS, File, 1);
 --disable_query_log
-eval PURGE BINARY LOGS TO '$current_log';
+--disable_result_log
+--source include/wait_for_purge.inc
+--enable_result_log
 --enable_query_log
 
 --echo # Write a new GTID into the new (post-purge) active binlog

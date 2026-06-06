@@ -2920,6 +2920,13 @@ public:
 };
 
 
+/**
+  @brief SQL function GTID_CHECK_POS()
+
+  This class implements the GTID_CHECK_POS() SQL function, which accepts
+  a string representation of one or more GTID lists and verifies if they
+  exist and are reachable (viable) within the current set of binary logs.
+*/
 class Item_func_gtid_check_pos :public Item_bool_func
 {
   String tmp_value;

@@ -5851,6 +5851,9 @@ int compare_log_name(const char *log_1, const char *log_2) {
   @param gtid_str      The input string containing GTIDs.
   @param is_reachable  [OUT] Set to true if all requested GTIDs exist and are not purged.
 
+  @sa gtid_find_binlog_pos()
+  @sa Item_func_gtid_check_pos::val_bool()
+
   @retval true   An error occurred (binary logging disabled or malformed string).
   @retval false  Success. The reachability state is stored in `is_reachable`.
 */

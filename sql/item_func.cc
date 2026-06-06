@@ -37,7 +37,6 @@
 #include "sql_acl.h"                            // EXECUTE_ACL
 #include "mysqld.h"                             // LOCK_short_uuid_generator
 #include "rpl_mi.h"
-
 #include "sql_time.h"
 #include <m_ctype.h>
 #include <hash.h>
@@ -827,18 +826,12 @@ String *Item_int_func::val_str(String *str)
 
 
 /**
-  @brief Expose replication start position validation as SQL function GTID_CHECK_POS().
+  Evaluates the GTID_CHECK_POS() function.
 
-  This function accepts a string representation of one or more GTID lists
-  and verifies if they exist and are reachable (viable) within the current
-  set of binary logs.
-
-  @param gtid_str A string representation of GTIDs (e.g. '0-1-1,0-1-2').
-
-  @return
-    - 1 if all requested GTIDs are reachable/viable.
-    - 0 if any requested GTID has been purged or is absent (in the future).
-    - NULL if the input argument is NULL or if check fails.
+  @retval true   All requested GTIDs are reachable/viable.
+  @retval false  Any requested GTID has been purged or is absent.
+                 Also returns false if the input argument is NULL or if
+                 the check fails (with null_value set to true).
 */
 bool Item_func_gtid_check_pos::val_bool()
 {
