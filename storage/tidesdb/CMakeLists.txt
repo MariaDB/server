@@ -137,7 +137,9 @@ ENDIF()
 ADD_LIBRARY(tidesdb_embedded STATIC ${TIDESDB_CORE_SOURCES})
 
 # Vendored third-party C: build position-independent (it links into a module)
-# and as C11.  Rather than blanket-suppressing warnings, silence only the
+# and as C11.  Platform-specific flags mirror libtidesdb's own build:
+#
+# GCC/Clang -- rather than blanket-suppressing warnings, silence only the
 # specific categories libtidesdb trips under MariaDB's stricter C flags:
 #   -Wdeclaration-after-statement : the library uses C99/C11 declare-at-use
 #                                   style, while MariaDB compiles C as C90;
@@ -145,6 +147,11 @@ ADD_LIBRARY(tidesdb_embedded STATIC ${TIDESDB_CORE_SOURCES})
 #   -Wdiscarded-qualifiers        : one const-qualifier drop in the library.
 # Any other (new) warning still surfaces and, in maintainer mode, fails the
 # build -- so this does not mask regressions the way a blanket -w would.
+#
+# MSVC -- libtidesdb uses C11 <stdatomic.h>, which MSVC only enables under
+# /experimental:c11atomics (without it the build fails with C1189 "C atomic
+# support is not enabled").  The Windows build compiles with /WX, so also
+# apply the same targeted /wd disables the library uses upstream.
 SET_TARGET_PROPERTIES(tidesdb_embedded PROPERTIES
                       C_STANDARD 11
                       POSITION_INDEPENDENT_CODE ON)
@@ -159,7 +166,12 @@ TARGET_COMPILE_DEFINITIONS(tidesdb_embedded PRIVATE
                            ${TIDESDB_COMPRESS_DEFS}
                            $<$<BOOL:${TIDESDB_WITH_S3}>:TIDESDB_WITH_S3>)
 
-IF(NOT MSVC)
+IF(MSVC)
+  TARGET_COMPILE_OPTIONS(tidesdb_embedded PRIVATE
+                         /std:c17 /experimental:c11atomics
+                         /wd4311 /wd4244 /wd4047 /wd4189 /wd4101
+                         /wd4459 /wd4127 /wd4305 /wd4702 /wd4700 /wd4013)
+ELSE()
   TARGET_COMPILE_OPTIONS(tidesdb_embedded PRIVATE
                          -Wno-declaration-after-statement
                          -Wno-frame-larger-than
