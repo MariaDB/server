@@ -2916,6 +2916,13 @@ protected:
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
 };
 
+class Func_handler_bit_and_bin_to_bin;
+class Func_handler_bit_or_bin_to_bin;
+class Func_handler_bit_xor_bin_to_bin;
+class Func_handler_bit_neg_bin_to_bin;
+class Func_handler_shift_left_bin_to_bin;
+class Func_handler_shift_right_bin_to_bin;
+
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
 
 class Item_func_bit_operator: public Item_handled_func

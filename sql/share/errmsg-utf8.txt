@@ -12406,6 +12406,10 @@ ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
         eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."
+ER_INVALID_BITWISE_OPERANDS_SIZE
+        eng "Mismatched length of operands for bitwise operator: %d and %d"
+ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE
+        eng "Operand size %d exceeds maximum limit of 512 bytes for bitwise aggregate function"
 ER_PARTITION_INTERVAL_NOT_LIST
         eng "LIST partition type does not support INTERVAL"
 ER_PARTITION_INTERVAL_FINER_THAN_DATE
