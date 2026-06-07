@@ -338,6 +338,9 @@ int opt_sum_query(THD *thd,
     else
     {
       error= tl->table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+
+      if (thd->opt_ctx_replay)
+        thd->opt_ctx_replay->infuse_table_rows(tl->table);
       if (unlikely(error))
       {
         tl->table->file->print_error(error, MYF(ME_FATAL));
