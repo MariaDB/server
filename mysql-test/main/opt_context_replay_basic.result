@@ -62,11 +62,15 @@ SET GLOBAL temp_table.OPTIMIZER_ROW_LOOKUP_COST=0.130839;
 SET GLOBAL temp_table.OPTIMIZER_ROW_NEXT_FIND_COST=0.045916;
 SET GLOBAL temp_table.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
 SET GLOBAL temp_table.OPTIMIZER_ROWID_COPY_COST=0.002653;
+SET group_concat_max_len=1048576;
+
 SET in_predicate_conversion_threshold=1000;
 
 SET join_buffer_size=262144;
 
 SET join_cache_level=2;
+
+SET max_heap_table_size=1048576;
 
 SET note_verbosity='basic,explain';
 
@@ -539,6 +543,6 @@ explain select * from t1 where c < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Warning	4253	Failed to parse saved optimizer context:  at offset 0.
+Warning	4269	Failed to parse saved optimizer context:  at offset 0.
 drop table t1;
 drop database db1;
