@@ -1,4 +1,6 @@
 --source include/have_debug.inc
+
+--disable_replay testfile Test requires debug settings which do not propagate to replay server
 ##TEST for invisible coloumn level 2
 set @old_debug= @@debug_dbug;
 create table t_tmp(a int, b int);
