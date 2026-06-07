@@ -206,6 +206,7 @@ EXPLAIN SELECT * FROM t1;
 
 FLUSH TABLES;
 SET use_stat_tables='preferably';
+--disable_replay next_query corrupted table stats
 --disable_warnings
 EXPLAIN SELECT * FROM t1;
 --enable_warnings
