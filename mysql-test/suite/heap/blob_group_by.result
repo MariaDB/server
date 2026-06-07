@@ -40,4 +40,23 @@ NULL	2	3
 bar	1	5
 foo	2	7
 DROP TABLE t1;
+#
+# GROUP BY on blob values that produce identical hash
+#
+# Binary blobs 0x0069 and 0x0107 collide under my_hash_sort_bin()
+# (both hash to 66889 with initial state nr=1, nr2=4).
+# When GROUP BY creates an internal HEAP temp table with a hash key
+# on the blob column, both groups land in the same hash bucket.
+# hp_key_cmp() must correctly distinguish them via strnncollsp
+# comparison; otherwise the groups merge.
+#
+CREATE TABLE t1 (val BLOB NOT NULL);
+INSERT INTO t1 VALUES
+(UNHEX('0069')), (UNHEX('0069')), (UNHEX('0069')),
+(UNHEX('0107')), (UNHEX('0107'));
+SELECT HEX(val), COUNT(*) AS cnt FROM t1 GROUP BY val ORDER BY val;
+HEX(val)	cnt
+0069	3
+0107	2
+DROP TABLE t1;
 # End of MDEV-38975 GROUP BY blob tests

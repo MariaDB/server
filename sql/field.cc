@@ -8495,17 +8495,11 @@ Field *Field_blob_compressed::make_new_field(MEM_ROOT *root, TABLE *new_table,
   {
     /*
       Compressed field cannot be part of a key. For optimizer temporary
-      table we create uncompressed substitute.
-      Compressed fields can also not be part of GROUP_CONCAT().
+      table we create uncompressed Field_blob_key substitute.
     */
-    if (param && param->part_of_unique_key())
-      res= new (root) Field_blob_key(ptr, null_ptr, null_bit, Field::NONE,
-                                     &field_name,
-                                     new_table->s, packlength, charset());
-    else
-      res= new (root) Field_blob(ptr, null_ptr, null_bit, Field::NONE,
-                                 &field_name,
-                                 new_table->s, packlength, charset());
+    res= new (root) Field_blob_key(ptr, null_ptr, null_bit, Field::NONE,
+                                   &field_name,
+                                   new_table->s, packlength, charset());
     if (res)
     {
       res->init_for_make_new_field(new_table, orig_table);
@@ -9498,25 +9492,28 @@ Binlog_type_info Field_blob_compressed::binlog_type_info() const
 ** Used for blob keys in internal temporary tables
 ****************************************************************************/
 
-void Field_blob_key::set_key_image(const uchar *data,uint length)
+void Field_blob_key::set_key_image(const uchar *data __attribute__((unused)),
+                                   uint length __attribute__((unused)))
 {
-  store_length(length);
-  memcpy(ptr+packlength, &data, sizeof(char*));
+  /* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+  abort();
 }
 
 
-int Field_blob_key::key_cmp(const uchar *key_ptr, uint max_key_length) const
+int Field_blob_key::key_cmp(const uchar *key_ptr __attribute__((unused)),
+                             uint max_key_length __attribute__((unused))) const
 {
-  uchar *blob1;
-  uint32 blob_length= get_length(ptr);
-  memcpy(&blob1, ptr + packlength, sizeof(char*));
-  return Field_blob_key::cmp(blob1, (uint32) blob_length,
-                             key_ptr + 4, uint4korr(key_ptr));
+  /* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+  abort();
+  return 0;
 }
 
-int Field_blob_key::key_cmp(const uchar *a,const uchar *b) const
+int Field_blob_key::key_cmp(const uchar *a __attribute__((unused)),
+                             const uchar *b __attribute__((unused))) const
 {
-  return Field_blob_key::cmp(a + 4, uint4korr(a), b+ 4, uint4korr(b));
+  /* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+  abort();
+  return 0;
 }
 
 

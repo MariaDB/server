@@ -7562,23 +7562,9 @@ Type_handler_null::type_handler_for_tmp_table(const Item *item,
 }
 
 
-const Type_handler *
-Type_handler_null::type_handler_for_union(const Item *item) const
-{
-  return &type_handler_string;
-}
-
-
 const Type_handler *Type_handler_olddecimal::
 type_handler_for_tmp_table(const Item *item,
                            const Tmp_field_param *param) const
-{
-  return &type_handler_newdecimal;
-}
-
-
-const Type_handler *
-Type_handler_olddecimal::type_handler_for_union(const Item *item) const
 {
   return &type_handler_newdecimal;
 }

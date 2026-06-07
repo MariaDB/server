@@ -38,4 +38,24 @@ SELECT a, COUNT(*), SUM(b) FROM t1 GROUP BY a ORDER BY a;
 
 DROP TABLE t1;
 
+--echo #
+--echo # GROUP BY on blob values that produce identical hash
+--echo #
+--echo # Binary blobs 0x0069 and 0x0107 collide under my_hash_sort_bin()
+--echo # (both hash to 66889 with initial state nr=1, nr2=4).
+--echo # When GROUP BY creates an internal HEAP temp table with a hash key
+--echo # on the blob column, both groups land in the same hash bucket.
+--echo # hp_key_cmp() must correctly distinguish them via strnncollsp
+--echo # comparison; otherwise the groups merge.
+--echo #
+
+CREATE TABLE t1 (val BLOB NOT NULL);
+INSERT INTO t1 VALUES
+  (UNHEX('0069')), (UNHEX('0069')), (UNHEX('0069')),
+  (UNHEX('0107')), (UNHEX('0107'));
+
+SELECT HEX(val), COUNT(*) AS cnt FROM t1 GROUP BY val ORDER BY val;
+
+DROP TABLE t1;
+
 --echo # End of MDEV-38975 GROUP BY blob tests

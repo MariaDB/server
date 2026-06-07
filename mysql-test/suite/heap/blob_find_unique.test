@@ -174,4 +174,29 @@ SELECT LENGTH(a), LEFT(a, 3) FROM (
   ) t2
 ) dt;
 
+--echo #
+--echo # EXCEPT with hash-colliding blob values
+--echo #
+--echo # Binary blobs 0x0069 and 0x0107 collide under my_hash_sort_bin()
+--echo # (both hash to 66889).  In find_unique_row(), the hash chain walk
+--echo # encounters a non-matching entry with the same hash, triggering the
+--echo # record restore (memcpy from input_copy) before continuing to the
+--echo # next chain entry.
+--echo #
+
+CREATE TABLE t1 (val BLOB NOT NULL);
+INSERT INTO t1 VALUES (UNHEX('0069')), (UNHEX('0107')), (UNHEX('FF'));
+
+CREATE TABLE t2 (val BLOB NOT NULL);
+INSERT INTO t2 VALUES (UNHEX('0069'));
+
+--echo # Should return 0107 and FF (everything in t1 except 0069)
+--sorted_result
+SELECT HEX(val) FROM (SELECT val FROM t1 EXCEPT SELECT val FROM t2) dt;
+
+--echo # INTERSECT: should return only 0069
+SELECT HEX(val) FROM (SELECT val FROM t1 INTERSECT SELECT val FROM t2) dt;
+
+DROP TABLE t1, t2;
+
 SET @@max_heap_table_size= @save_max_heap_table_size;

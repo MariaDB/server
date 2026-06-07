@@ -109,6 +109,9 @@ static void test_freelist_contiguity_multirecord(void)
     ok(memcmp(read_ptr, blob_data, 100) == 0, "blob data matches after free-list reuse");
   }
 
+  ok(heap_check_heap(info, 0) == 0,
+     "heap_check_heap validates after free-list reuse");
+
   heap_drop_table(info);
   heap_close(info);
 }
@@ -274,6 +277,9 @@ static void test_freelist_scavenge_fallback(void)
     ok(read_len == 50, "blob length == 50 (got %u)", read_len);
     ok(memcmp(read_ptr, blob_data, 50) == 0, "blob data matches");
   }
+
+  ok(heap_check_heap(info, 0) == 0,
+     "heap_check_heap validates after Step 3 scavenge insert");
 
   heap_drop_table(info);
   heap_close(info);
@@ -798,7 +804,7 @@ int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_freelist");
-  plan(79);
+  plan(81);
 
   diag("Test 1: free-list contiguity detects groups > 2 records");
   test_freelist_contiguity_multirecord();

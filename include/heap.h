@@ -19,6 +19,11 @@
 
 #ifndef _heap_h
 #define _heap_h
+
+#ifndef DBUG_OFF
+#define EXTRA_HEAP_DEBUG
+#endif
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -251,7 +256,6 @@ extern int heap_extra(HP_INFO *info,enum ha_extra_function function);
 extern int heap_reset(HP_INFO *info);
 extern int heap_rename(const char *old_name,const char *new_name);
 extern int heap_panic(enum ha_panic_function flag);
-extern int heap_rsame(HP_INFO *info,uchar *record,int inx);
 extern int heap_rnext(HP_INFO *info,uchar *record);
 extern int heap_rprev(HP_INFO *info,uchar *record);
 extern int heap_rfirst(HP_INFO *info,uchar *record,int inx);

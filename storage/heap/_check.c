@@ -18,8 +18,125 @@
 
 #include "heapdef.h"
 
-static int check_one_key(HP_KEYDEF *, uint, ulong, ulong, my_bool);
+static int check_one_key(HP_KEYDEF *, uint, ulong, ulong, HP_INFO *,
+                         my_bool);
 static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
+
+
+static my_bool keydef_has_blob_seg(HP_KEYDEF *keydef)
+{
+  HA_KEYSEG *seg, *endseg;
+  for (seg= keydef->seg, endseg= seg + keydef->keysegs; seg < endseg; seg++)
+  {
+    if (seg->type == HA_KEYTYPE_VARTEXT4 || seg->type == HA_KEYTYPE_VARBINARY4)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
+/*
+  Compute hash of a stored record, materializing blob data from chains.
+
+  The stored record's blob pointers point to chain head records, not to
+  raw data.  For Case B/C the chain head starts with a header (next_cont
+  + run_rec_count), so hashing directly from ptr_to_rec produces wrong
+  results.
+
+  Computes the hash inline per-segment (same accumulator as
+  hp_rec_hashnr) so each blob is materialized and hashed immediately.
+  This avoids keeping multiple materialized blob pointers alive
+  simultaneously -- key_blob_buff holds only one blob at a time.
+
+  @param keydef   Key definition
+  @param rec      Stored record (ptr_to_rec from hash entry)
+  @param info     Table handle (for materialization buffer)
+  @return hash value, or 0 on OOM (forces hash mismatch)
+*/
+
+static ulong hp_rec_hashnr_stored(HP_KEYDEF *keydef, const uchar *rec,
+                                  HP_INFO *info)
+{
+  ulong nr= 1, nr2= 4;
+  HA_KEYSEG *seg, *endseg;
+
+  for (seg= keydef->seg, endseg= seg + keydef->keysegs; seg < endseg; seg++)
+  {
+    const uchar *pos= rec + seg->start;
+    const uchar *end= pos + seg->length;
+    if (seg->null_bit)
+    {
+      if (rec[seg->null_pos] & seg->null_bit)
+      {
+        nr^= (nr << 1) | 1;
+        continue;
+      }
+    }
+    if (seg->type == HA_KEYTYPE_VARTEXT4 || seg->type == HA_KEYTYPE_VARBINARY4)
+    {
+      uint packlength= seg->bit_start;
+      uint32 blob_len= (uint32) read_lowendian(pos, packlength);
+      if (blob_len > 0)
+      {
+        const uchar *chain;
+        const uchar *data;
+        memcpy(&chain, pos + packlength, sizeof(chain));
+        data= hp_materialize_one_blob(info, chain, blob_len);
+        if (!data)
+          return 0;
+        my_ci_hash_sort(seg->charset, data, blob_len, &nr, &nr2);
+      }
+    }
+    else if (seg->type == HA_KEYTYPE_TEXT)
+    {
+      CHARSET_INFO *cs= seg->charset;
+      size_t char_length= seg->length;
+      if (cs->mbmaxlen > 1)
+      {
+        char_length= my_ci_charpos(cs, (const char*) pos,
+                                    (const char*) pos + char_length,
+                                    char_length / cs->mbmaxlen);
+        set_if_smaller(char_length, seg->length);
+      }
+      my_ci_hash_sort(cs, pos, char_length, &nr, &nr2);
+    }
+    else if (seg->type == HA_KEYTYPE_VARTEXT1)
+    {
+      CHARSET_INFO *cs= seg->charset;
+      size_t pack_length= seg->bit_start;
+      size_t length= (pack_length == 1 ?
+                      (size_t) *(uchar*) pos : uint2korr(pos));
+      if (cs->mbmaxlen > 1)
+      {
+        size_t char_length;
+        char_length= my_ci_charpos(cs, (const char*) pos + pack_length,
+                                    (const char*) pos + pack_length + length,
+                                    seg->length / cs->mbmaxlen);
+        set_if_smaller(length, char_length);
+      }
+      else
+        set_if_smaller(length, seg->length);
+      my_ci_hash_sort(cs, pos + pack_length, length, &nr, &nr2);
+    }
+    else
+    {
+      if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
+      {
+        uchar bits= get_rec_bits(rec + seg->bit_pos,
+                                 seg->bit_start, seg->bit_length);
+        nr^= (ulong) ((((uint) nr & 63) + nr2) * ((uint) bits)) + (nr << 8);
+        nr2+= 3;
+        end--;
+      }
+      for (; pos < end; pos++)
+      {
+        nr^= (ulong) ((((uint) nr & 63) + nr2) * ((uint) *pos)) + (nr << 8);
+        nr2+= 3;
+      }
+    }
+  }
+  return nr;
+}
 
 
 /*
@@ -31,7 +148,8 @@ static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
     print_status	Prints some extra status
 
   NOTES
-    Doesn't change the state of the table handler
+    May allocate/reallocate the key_blob_buff scratch buffer in info
+    for blob key materialization; the logical table state is unchanged.
 
   RETURN VALUES
     0	ok
@@ -43,6 +161,8 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
   int error;
   uint key;
   ulong records=0, deleted=0, cont_count=0, pos, next_block;
+  ulong del_link_count;
+  uchar *del_ptr;
   HP_SHARE *share=info->s;
   uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
@@ -53,8 +173,31 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
       error|= check_one_rb_key(info, key, share->records, print_status);
     else
       error|= check_one_key(share->keydef + key, key, share->records,
-			    share->blength, print_status);
+                             share->blength, (HP_INFO*) info, print_status);
   }
+
+  /* Verify scan-boundary invariant */
+  if (share->total_records + share->deleted != share->block.last_allocated)
+  {
+    DBUG_PRINT("error",("last_allocated mismatch: total %lu + deleted %lu "
+                        "!= last_allocated %lu",
+                        (ulong) share->total_records,
+                        (ulong) share->deleted,
+                        (ulong) share->block.last_allocated));
+    error= 1;
+  }
+
+  /* Verify free list length matches share->deleted */
+  del_link_count= 0;
+  for (del_ptr= share->del_link; del_ptr; del_ptr= *((uchar**) del_ptr))
+    del_link_count++;
+  if (del_link_count != share->deleted)
+  {
+    DBUG_PRINT("error",("free list length %lu != share->deleted %lu",
+                        del_link_count, (ulong) share->deleted));
+    error= 1;
+  }
+
   /*
     This is basicly the same code as in hp_scan, but we repeat it here to
     get shorter DBUG log file.
@@ -97,7 +240,39 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
       }
     }
     else
+    {
       records++;
+
+      /* Verify HP_ROW_HAS_CONT consistency for blob tables */
+      if (share->blob_count && hp_has_cont(current_ptr, share->visible))
+      {
+        HP_BLOB_DESC *desc, *desc_end;
+        my_bool has_any_chain= FALSE;
+        for (desc= share->blob_descs,
+             desc_end= desc + share->blob_count;
+             desc < desc_end; desc++)
+        {
+          if (hp_blob_length(desc, current_ptr) > 0)
+          {
+            uchar *chain;
+            memcpy(&chain, current_ptr + desc->offset + desc->packlength,
+                   sizeof(chain));
+            if (chain)
+            {
+              has_any_chain= TRUE;
+              break;
+            }
+          }
+        }
+        if (!has_any_chain)
+        {
+          DBUG_PRINT("error",
+                     ("Primary record at pos %lu has HP_ROW_HAS_CONT "
+                      "but no blob chain", pos));
+          error= 1;
+        }
+      }
+    }
   }
 
   if (records != share->records || deleted != share->deleted)
@@ -119,20 +294,28 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
 
 
 static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
-			 ulong blength, my_bool print_status)
+			 ulong blength, HP_INFO *info, my_bool print_status)
 {
   int error;
   ulong i,found,max_links,seek,links;
   ulong rec_link;				/* Only used with debugging */
   ulong hash_buckets_found;
   HASH_INFO *hash_info;
+  my_bool has_blobs= keydef_has_blob_seg(keydef);
 
   error=0;
   hash_buckets_found= 0;
   for (i=found=max_links=seek=0 ; i < records ; i++)
   {
+    ulong recomputed;
     hash_info=hp_find_hash(&keydef->block,i);
-    if (hash_info->hash_of_key != hp_rec_hashnr(keydef, hash_info->ptr_to_rec))
+
+    if (has_blobs)
+      recomputed= hp_rec_hashnr_stored(keydef, hash_info->ptr_to_rec, info);
+    else
+      recomputed= hp_rec_hashnr(keydef, hash_info->ptr_to_rec);
+
+    if (hash_info->hash_of_key != recomputed)
     {
       DBUG_PRINT("error",
                  ("Found row with wrong hash_of_key at position %lu", i));
@@ -175,13 +358,13 @@ static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
 	     ("key: %u  records: %ld  seeks: %lu  max links: %lu  "
               "hitrate: %.2f  buckets: %lu",
 	      keynr, records,seek,max_links,
-	      (float) seek / (float) (records ? records : 1), 
+	      (float) seek / (float) (records ? records : 1),
               hash_buckets_found));
   if (print_status)
     printf("Key: %u  records: %ld  seeks: %lu  max links: %lu  "
            "hitrate: %.2f  buckets: %lu\n",
 	   keynr, records, seek, max_links,
-	   (float) seek / (float) (records ? records : 1), 
+	   (float) seek / (float) (records ? records : 1),
            hash_buckets_found);
   return error;
 }
@@ -197,7 +380,7 @@ static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
   uint not_used[2];
   TREE_ELEMENT **last_pos;
   TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
-  
+
   if ((key= tree_search_edge(&keydef->rb_tree, parents,
 			     &last_pos, offsetof(TREE_ELEMENT, left))))
   {
@@ -209,13 +392,13 @@ static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
 		     key_length, SEARCH_FIND | SEARCH_SAME, not_used))
       {
 	error= 1;
-	DBUG_PRINT("error",("Record in wrong link:  key: %u  Record: %p\n", 
+	DBUG_PRINT("error",("Record in wrong link:  key: %u  Record: %p\n",
 			    keynr, recpos));
       }
       else
 	found++;
       key= tree_search_next(&keydef->rb_tree, &last_pos,
-			    offsetof(TREE_ELEMENT, left), 
+			    offsetof(TREE_ELEMENT, left),
 			    offsetof(TREE_ELEMENT, right));
     } while (key);
   }

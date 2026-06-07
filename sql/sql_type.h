@@ -3892,10 +3892,6 @@ public:
   {
     return this;
   }
-  virtual const Type_handler *type_handler_for_union(const Item *) const
-  {
-    return this;
-  }
   virtual const Type_handler *cast_to_int_type_handler() const
   {
     return this;
@@ -6902,7 +6898,6 @@ public:
   const Type_handler
   *type_handler_for_tmp_table(const Item *item,
                               const Tmp_field_param *param) const override;
-  const Type_handler *type_handler_for_union(const Item *item) const override;
   void show_binlog_type(const Conv_source &src, const Field &, String *str)
     const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
@@ -6985,7 +6980,6 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item,
                                                  const Tmp_field_param *param)
     const override;
-  const Type_handler *type_handler_for_union(const Item *) const override;
   uint32 max_display_length(const Item *item) const override { return 0; }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   {
@@ -7126,10 +7120,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_STRING); }
-  const Type_handler *type_handler_for_union(const Item *item) const override
-  {
-    return varstring_type_handler(item, 0);
-  }
 };
 
 
@@ -7158,10 +7148,6 @@ public:
     const override
   {
     return varstring_type_handler(item, param);
-  }
-  const Type_handler *type_handler_for_union(const Item *item) const override
-  {
-    return varstring_type_handler(item, 0);
   }
   bool is_param_long_data_type() const override { return true; }
   bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
@@ -7265,10 +7251,6 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item,
                                                  const Tmp_field_param *param)
     const override;
-  const Type_handler *type_handler_for_union(const Item *item) const override
-  {
-    return blob_type_handler(item, 0);
-  }
   bool subquery_type_allows_materialization(const Item *, const Item *, bool)
     const override
   {

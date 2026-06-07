@@ -21432,20 +21432,18 @@ bool Create_tmp_table::finalize(THD *thd,
           key_field_length= MY_MIN((*cur_group->item)->max_length,
                                    (MAX_BLOB_WIDTH - 4 - 1));
           /*
-            Check that the group buffer has room for this blob key
-            field.  calc_group_buffer() may have calculated the size
-            of the buffer before the field was promoted to blob in the
-            tmp table.  If the promoted blob doesn't fit, fall back to
-            m_using_unique_constraint.
+            Verify that the group buffer has room for this blob key
+            field.  For native blob columns calc_group_buffer() sees
+            the blob type from the start and always allocates enough
+            space.  This can only overflow when a varchar is promoted
+            to blob after calc_group_buffer() has already sized the
+            buffer (varchar-to-blob promotion path).
           */
           uint32 need= key_field_length + 4 /* length_bytes */ +
                         MY_TEST(maybe_null);
           if (m_group_buff + need >
               param->group_buff + param->group_length)
-          {
-            m_using_unique_constraint= true;
-            break;
-          }
+            abort();
         }
         /*
           Set key_part_flag from the actual field type AFTER the overflow
