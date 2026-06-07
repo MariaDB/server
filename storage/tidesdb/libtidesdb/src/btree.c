@@ -109,17 +109,21 @@ static inline size_t btree_varint_decode(const uint8_t *buf, uint64_t *val)
 {
     uint64_t result = 0;
     size_t shift = 0;
-    size_t i = 0;
-    while (buf[i] & 0x80)
+    /* a 64-bit varint is at most 10 bytes -- stop after the terminating byte or 10 bytes, never
+     * reading an 11th (the old form broke at i==10 then still read buf[10]) */
+    for (size_t i = 0; i < 10; i++)
     {
-        result |= (uint64_t)(buf[i] & 0x7F) << shift;
+        const uint8_t b = buf[i];
+        result |= (uint64_t)(b & 0x7F) << shift;
+        if (!(b & 0x80))
+        {
+            *val = result;
+            return i + 1;
+        }
         shift += 7;
-        i++;
-        if (i >= 10) break;
     }
-    result |= (uint64_t)buf[i] << shift;
     *val = result;
-    return i + 1;
+    return 10;
 }
 
 /**
@@ -440,7 +444,11 @@ static inline int btree_compare_keys_inline(const btree_config_t *config, const 
     switch (config->cmp_type)
     {
         case BTREE_CMP_NUMERIC:
-            return btree_compare_keys_numeric_inline(key1, key2);
+            /* numeric keys are expected to be exactly 8 bytes; for any other size fall back to
+             * memcmp rather than over-reading 8 bytes from a shorter key */
+            if (BTREE_LIKELY(key1_size == 8 && key2_size == 8))
+                return btree_compare_keys_numeric_inline(key1, key2);
+            return btree_comparator_memcmp(key1, key1_size, key2, key2_size, NULL);
         case BTREE_CMP_STRING:
             return btree_comparator_string(key1, key1_size, key2, key2_size, NULL);
         case BTREE_CMP_CUSTOM:
@@ -1247,16 +1255,23 @@ int btree_node_read_with_compression(block_manager_t *bm, const int64_t offset, 
                                        (compression_algorithm)compression_algo);
         if (decompressed && decompressed_size == original_size)
         {
-            /* we only patch prev_offset and next_offset for leaf nodes, not internal nodes */
-            if (decompressed[0] == BTREE_NODE_LEAF)
+            /* we only patch prev_offset and next_offset for leaf nodes, not internal nodes.
+             * bound the varint and the 16-byte patch against the decompressed buffer -- its size
+             * comes from the on-disk header, so a corrupt node could otherwise drive an
+             * out-of-range write. a node that does not fit is left unpatched; the bounded
+             * deserializer rejects it. */
+            if (decompressed_size >= 1 && decompressed[0] == BTREE_NODE_LEAF)
             {
-                /* we calculate position -- type(1) + num_entries(varint) */
                 size_t pos = 1;
                 uint64_t num_entries;
-                pos += btree_varint_decode(decompressed + pos, &num_entries);
-                /* now pos points to prev_offset -- we write in little-endian format */
-                encode_int64_le_compat(decompressed + pos, header_prev_offset);
-                encode_int64_le_compat(decompressed + pos + 8, header_next_offset);
+                const size_t adv = btree_varint_decode_bounded(
+                    decompressed + pos, decompressed + decompressed_size, &num_entries);
+                if (adv > 0 && pos + adv + 16 <= decompressed_size)
+                {
+                    pos += adv;
+                    encode_int64_le_compat(decompressed + pos, header_prev_offset);
+                    encode_int64_le_compat(decompressed + pos + 8, header_next_offset);
+                }
             }
             data = decompressed;
             data_size = decompressed_size;
@@ -1407,16 +1422,22 @@ static int btree_node_read_cached(btree_t *tree, const int64_t offset, btree_nod
                                        (compression_algorithm)tree->config.compression_algo);
         if (decompressed && decompressed_size == original_size)
         {
-            /* we only patch prev_offset and next_offset for leaf nodes, not internal nodes */
-            if (decompressed[0] == BTREE_NODE_LEAF)
+            /* we only patch prev_offset and next_offset for leaf nodes, not internal nodes. bound
+             * the varint and the 16-byte patch against the decompressed buffer (its size comes from
+             * the on-disk header), leaving a node that does not fit unpatched for the bounded
+             * deserializer to reject, rather than writing out of range. */
+            if (decompressed_size >= 1 && decompressed[0] == BTREE_NODE_LEAF)
             {
-                /* we calculate position, type(1) + num_entries(varint) */
                 size_t pos = 1;
                 uint64_t num_entries;
-                pos += btree_varint_decode(decompressed + pos, &num_entries);
-                /* now pos points to prev_offset - write in little-endian format */
-                encode_int64_le_compat(decompressed + pos, header_prev_offset);
-                encode_int64_le_compat(decompressed + pos + 8, header_next_offset);
+                const size_t adv = btree_varint_decode_bounded(
+                    decompressed + pos, decompressed + decompressed_size, &num_entries);
+                if (adv > 0 && pos + adv + 16 <= decompressed_size)
+                {
+                    pos += adv;
+                    encode_int64_le_compat(decompressed + pos, header_prev_offset);
+                    encode_int64_le_compat(decompressed + pos + 8, header_next_offset);
+                }
             }
             data = decompressed;
             data_size = decompressed_size;
@@ -1458,8 +1479,14 @@ static int btree_node_read_cached(btree_t *tree, const int64_t offset, btree_nod
      * without this the cache treats every node as 0 bytes and never evicts,
      * causing unbounded memory growth under btree workloads. */
     const size_t node_cost = sizeof(btree_node_t) + node_arena->total_allocated;
-    clock_cache_put(tree->node_cache, cache_key, (size_t)key_len, &new_node, sizeof(btree_node_t *),
-                    node_cost);
+    if (clock_cache_put(tree->node_cache, cache_key, (size_t)key_len, &new_node,
+                        sizeof(btree_node_t *), node_cost) != 0)
+    {
+        /* the cache did not take ownership (slot exhaustion / oom / shutdown) -- drop the ref we
+         * reserved for it, leaving only the caller's ref so the node is freed via btree_node_done
+         * rather than leaking */
+        atomic_fetch_sub_explicit(&new_node->rc_count, 1, memory_order_relaxed);
+    }
 
     *node = new_node;
     return 0;
@@ -1587,23 +1614,38 @@ static int btree_pending_leaf_add(btree_pending_leaf_t *leaf, const uint8_t *key
     leaf->entries[idx].ttl = ttl;
     leaf->entries[idx].flags = flags;
 
+    /* first_key/last_key must succeed in that an empty first_key corrupts the internal-node
+     * separator and a stale last_key breaks the same-key-run flush guard in btree_builder_add. on
+     * failure undo this entry (num_entries is not yet incremented, so free its key/value here) and
+     * fail the add. */
     if (leaf->num_entries == 0)
     {
         leaf->first_key = malloc(key_size);
-        if (leaf->first_key)
+        if (!leaf->first_key)
         {
-            memcpy(leaf->first_key, key, key_size);
-            leaf->first_key_size = key_size;
+            free(leaf->keys[idx]);
+            leaf->keys[idx] = NULL;
+            free(leaf->values[idx]);
+            leaf->values[idx] = NULL;
+            return -1;
         }
+        memcpy(leaf->first_key, key, key_size);
+        leaf->first_key_size = key_size;
     }
 
     free(leaf->last_key);
     leaf->last_key = malloc(key_size);
-    if (leaf->last_key)
+    if (!leaf->last_key)
     {
-        memcpy(leaf->last_key, key, key_size);
-        leaf->last_key_size = key_size;
+        leaf->last_key_size = 0;
+        free(leaf->keys[idx]);
+        leaf->keys[idx] = NULL;
+        free(leaf->values[idx]);
+        leaf->values[idx] = NULL;
+        return -1;
     }
+    memcpy(leaf->last_key, key, key_size);
+    leaf->last_key_size = key_size;
 
     leaf->current_size += key_size + (vlog_offset == 0 ? value_size : 0) + sizeof(btree_entry_t);
     leaf->num_entries++;
@@ -2250,7 +2292,7 @@ void btree_builder_free(btree_builder_t *builder)
 {
     if (!builder) return;
 
-    /* drop the temp leaf-staging file (only created when compression is on) */
+    /* we drop the temp leaf-staging file (only created when compression is on) */
     if (builder->leaf_bm && builder->leaf_bm != builder->bm)
     {
         char tmp_path[MAX_FILE_PATH_LENGTH];
@@ -2375,7 +2417,7 @@ int btree_get_at_seq(btree_t *tree, const uint8_t *key, const size_t key_size,
         }
     }
 
-    /* scan the run of entries that share the search key, keeping the highest
+    /* we scan the run of entries that share the search key, keeping the highest
      * seq that does not exceed seq_ceiling. a key may have several versions --
      * a flush or compaction retains a version chain -- and they all live in
      * this one leaf, so the resolved version is the one visible at the
@@ -2848,34 +2890,27 @@ int btree_cursor_seek(btree_cursor_t *cursor, const uint8_t *key, const size_t k
         }
     }
 
-    int32_t left = 0;
-    int32_t right = (int32_t)node->num_entries - 1;
-    int32_t found_idx = -1;
-
-    while (left <= right)
+    /* lower_bound -- leftmost index whose key is >= the search key. same-key versions are stored
+     * newest-first (key asc, seq desc), so landing on the first equal entry positions the cursor on
+     * the newest version (e.g. a tombstone). an exact-match break could land mid-run on an older
+     * version and let a deleted key surface its older put through a seeking iterator. */
+    int32_t lo = 0;
+    int32_t hi = (int32_t)node->num_entries;
+    while (lo < hi)
     {
-        const int32_t mid = left + (right - left) / 2;
+        const int32_t mid = lo + (hi - lo) / 2;
         const int cmp = btree_compare_keys_inline(&cursor->tree->config, key, key_size,
                                                   node->keys[mid], node->key_sizes[mid]);
-        if (cmp == 0)
+        if (cmp <= 0)
         {
-            found_idx = mid;
-            break;
-        }
-        if (cmp < 0)
-        {
-            right = mid - 1;
+            hi = mid;
         }
         else
         {
-            left = mid + 1;
+            lo = mid + 1;
         }
     }
-
-    if (found_idx < 0)
-    {
-        found_idx = left;
-    }
+    int32_t found_idx = lo;
 
     if ((uint32_t)found_idx >= node->num_entries)
     {
