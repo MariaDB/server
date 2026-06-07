@@ -132,6 +132,7 @@ public:
   uint key;
   ha_rows records;
   bool eq_ref;
+  bool is_covering;
   ALL_READ_COST cost;
 };
 
@@ -294,6 +295,8 @@ static void dump_index_read_calls(List<cost_index_read_call_record> *irc_list,
     obj.add("key_number", irc->key);
     obj.add("num_records", irc->records);
     obj.add("eq_ref", irc->eq_ref ? 1 : 0);
+    obj.add("covering", irc->is_covering? 1:0);
+
     obj.add("index_cost_io", irc->cost.index_cost.io);
     obj.add("index_cost_cpu", irc->cost.index_cost.cpu);
     obj.add("row_cost_io", irc->cost.row_cost.io);
@@ -954,6 +957,7 @@ void Optimizer_context_recorder::record_cost_index_read(
   cost_index_read_call_record *idx_read_rec=
       new (mem_root) cost_index_read_call_record;
 
+  bool is_covering= table->covering_keys.is_set(key) && !table->no_keyread;
   if (unlikely(!idx_read_rec))
     return; // OOM
 
@@ -961,6 +965,7 @@ void Optimizer_context_recorder::record_cost_index_read(
   idx_read_rec->records= records;
   idx_read_rec->eq_ref= eq_ref;
   idx_read_rec->cost= *cost;
+  idx_read_rec->is_covering= is_covering;
 
   table_context_for_store *table_ctx= get_table_context(table);
 
@@ -1483,6 +1488,7 @@ static int parse_index_read_cost_context(MEM_ROOT* , json_engine_t *je,
       {"num_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
       {"eq_ref", Read_non_neg_integer<bool, 1>(&out->eq_ref), false},
+      {"covering", Read_non_neg_integer<bool, 1>(&out->is_covering), false},
       {"index_cost_io", Read_double(&out->cost.index_cost.io), false},
       {"index_cost_cpu", Read_double(&out->cost.index_cost.cpu), false},
       {"row_cost_io", Read_double(&out->cost.row_cost.io), false},
@@ -1767,6 +1773,8 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
   String tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
+  bool is_covering= tbl->covering_keys.is_set(keynr) && !tbl->no_keyread;
+
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
   {
@@ -1774,7 +1782,7 @@ bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
     while (cost_index_read_call_record *rec= irc_itr++)
     {
       if (rec->key == keynr && rec->records == records &&
-          rec->eq_ref == eq_ref)
+          rec->eq_ref == eq_ref && rec->is_covering== is_covering)
       {
         *cost= rec->cost;
         return false;
@@ -2117,6 +2125,7 @@ void Optimizer_context_replay::dbug_print_read_stats()
       DBUG_PRINT("info", ("key_number: %u", rec->key));
       DBUG_PRINT("info", ("num_records: %llx", rec->records));
       DBUG_PRINT("info", ("eq_ref: %d", rec->eq_ref));
+      DBUG_PRINT("info", ("is_covering: %d", rec->is_covering));
       {
         DBUG_PRINT("info", ("index_cost_io: %f", rec->cost.index_cost.io));
         DBUG_PRINT("info", ("index_cost_cpu: %f", rec->cost.index_cost.cpu));
