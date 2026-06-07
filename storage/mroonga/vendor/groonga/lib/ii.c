@@ -3568,7 +3568,6 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
     if (sc && bt->size_in_chunk) {
       uint8_t *scp = sc + bt->pos_in_chunk;
       uint8_t *sce = scp + bt->size_in_chunk;
-      size_t size = S_SEGMENT * ii->n_elements;
       if ((bt->tid & CHUNK_SPLIT)) {
         int i;
         GRN_B_DEC(nchunks, scp);
@@ -3585,7 +3584,7 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
         }
       }
       if (sce > scp) {
-        size += grn_p_decv(ctx, scp, sce - scp, rdv, ii->n_elements);
+        grn_p_decv(ctx, scp, sce - scp, rdv, ii->n_elements);
         {
           int j = 0;
           sdf = rdv[j].data_size;
