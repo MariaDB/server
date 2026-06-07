@@ -705,6 +705,7 @@ insert into t3 values (30);
 insert into t3 values (10);
 insert into t3 values (20);
 
+--disable_replay next_query Need to preserve warnings
 explain extended
 select a from t1
 where a in (select c from t2 where d >= some(select e from t3 where b=e));
