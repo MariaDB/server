@@ -14221,6 +14221,11 @@ int main(int argc, char **argv)
                   MY_REPLACE_EXT);
         replay_opt_trace_replay_path=
             my_strdup(PSI_NOT_INSTRUMENTED, buf, MYF(MY_WME));
+        /* Start each test run with a fresh trace dump; the files are
+           re-created lazily by flush_trace_block() if and when an EXPLAIN
+           diverges. */
+        (void) my_delete(replay_opt_trace_original_path, MYF(0));
+        (void) my_delete(replay_opt_trace_replay_path, MYF(0));
         verbose_msg("ReplayTest: optimizer_trace dumps -> %s , %s",
                     replay_opt_trace_original_path,
                     replay_opt_trace_replay_path);
