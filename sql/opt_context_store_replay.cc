@@ -16,6 +16,8 @@
    USA */
 
 #include "handler.h"
+#include "set_var.h"
+#include "sql_class.h"
 #include "sql_plugin.h"
 #include "opt_context_store_replay.h"
 #include "sql_show.h"
@@ -706,10 +708,39 @@ bool store_optimizer_context(THD *thd)
       drop.append(STRING_WITH_LEN(";\n"));
       qry_ctx_script.append(drop);
 
+      sql_mode_t bad_modes= MODE_ORACLE|
+                            MODE_NO_TABLE_OPTIONS;
+      bool restore_mode= false;
+      sql_mode_t saved_mode= thd->variables.sql_mode;
+
+      if (thd->variables.sql_mode & bad_modes)
+      {
+        sql_mode_t compatible_modes= thd->variables.sql_mode & ~bad_modes;
+        thd->variables.sql_mode= compatible_modes;
+        restore_mode= true;
+        LEX_CSTRING str;
+        sql_mode_string_representation(thd, compatible_modes, &str);
+        qry_ctx_script.append(STRING_WITH_LEN("SET sql_mode='"));
+        qry_ctx_script.append(str);
+        qry_ctx_script.append(STRING_WITH_LEN("';\n"));
+      }
+
       if (show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME))
       {
         res= true;
         break;
+      }
+
+      if (restore_mode)
+      {
+        thd->variables.sql_mode= saved_mode;
+        LEX_CSTRING str;
+        sql_mode_string_representation(thd, saved_mode, &str);
+
+        ddl.append(STRING_WITH_LEN(";\n"));
+        ddl.append(STRING_WITH_LEN("SET sql_mode='"));
+        ddl.append(str);
+        ddl.append(STRING_WITH_LEN("';\n"));
       }
     }
 
