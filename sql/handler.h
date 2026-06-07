@@ -3763,7 +3763,7 @@ public:
   }
 
   /* Call from the master thread to finish the parallel scanning */
-  virtual int pscan_end() { return 0; }   // default no-op
+  virtual int pscan_end_coordinator() { return 0; }
 
   /* Call from the master thread to get context data for each worker */
   virtual Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx)
@@ -3797,6 +3797,9 @@ public:
   {
     return HA_ERR_UNSUPPORTED;
   }
+
+  /* Call from worker thread to finish the parallel scanning */
+  virtual int pscan_end_worker() { return 0; }
 
   int ha_reset();
   /* this is necessary in many places, e.g. in HANDLER command */

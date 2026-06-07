@@ -513,13 +513,15 @@ protected:
 	/** Implementation of handler API for parallel scans */
 	int pscan_init_coordinator(size_t n_threads) override;
 
+	int pscan_end_coordinator() override;
+
 	Parallel_scan::Worker_ctx *pscan_get_worker_context(size_t worker_idx) override;
 
 	int pscan_init_worker(::Parallel_scan::Worker_ctx *wctx) override;
   
 	int pscan_get_next_row(Parallel_scan::Worker_ctx *wctx) override;
 
-	int pscan_end() override;
+	int pscan_end_worker() override;
 
 	/** The multi range read session object */
 	DsMrr_impl		m_ds_mrr;

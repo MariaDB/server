@@ -1865,13 +1865,7 @@ public:
 
   bool need_tmp; 
   bool hidden_group_fields;
-  /*
-    First non-const join_tab whose table is read by a full scan (JT_ALL) and
-    is therefore eligible for parallel scanning. When set (and
-    parallel_worker_threads > 0) JOIN::exec spins up workers that stream that
-    table's rows to the manager through the pwt_management channel.
-  */
-  JOIN_TAB *parallel_scan_join_tab;
+
   /* TRUE if there was full cleanup of the JOIN */
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
@@ -2240,9 +2234,6 @@ private:
     In this case we can stop scanning t2 when we have found one t1.a
   */
   void optimize_distinct();
-
-  bool create_parallel_workers_tmp_tables(JOIN_TAB *join_tab);
-  void free_parallel_tmp_tables(JOIN_TAB *join_tab);
 
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);

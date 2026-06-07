@@ -14636,7 +14636,7 @@ int ha_innobase::pscan_init_coordinator(size_t n_threads)
 {
 	/* Reset any state left by a prior execution (correlateds subquery
 	re-execution, stored procedure loop, etc.) before initializing fresh.*/
-	(void) pscan_end();
+	(void) pscan_end_coordinator();
 
 	/* Parallel scan performs consistent (non-locking) reads only. If this
 	statement requires row locks, decline so the caller falls back to a
@@ -14715,7 +14715,8 @@ int ha_innobase::pscan_init_coordinator(size_t n_threads)
 int ha_innobase::pscan_init_worker(::Parallel_scan::Worker_ctx *wctx)
 {
 	auto worker_ctx= static_cast<Parallel_reader::Worker_ctx*>(wctx);
-	auto ctx= m_parallel_reader.get_job_for_worker(worker_ctx);
+	DBUG_ASSERT(worker_ctx && worker_ctx->preader);
+	auto ctx= worker_ctx->preader->get_job_for_worker(worker_ctx);
 	if (ctx == nullptr)
 		return HA_ERR_END_OF_FILE; // No more data
 	if (int err= ha_rnd_init(/*scan*/ true))
@@ -14813,8 +14814,9 @@ int ha_innobase::pscan_get_next_row(Parallel_scan::Worker_ctx *wctx)
 	return 0;
 }
 
-int ha_innobase::pscan_end()
+int ha_innobase::pscan_end_worker()
 {
+	ha_rnd_end();
 	if (m_pscan_saved_search_tuple)
 	{
 		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
@@ -14823,6 +14825,11 @@ int ha_innobase::pscan_end()
 	m_pscan_first_call  = false;
 	m_pscan_start_tuple = nullptr;
 	m_pscan_end_tuple   = nullptr;
+	return 0;
+}
+
+int ha_innobase::pscan_end_coordinator()
+{
 	m_parallel_reader.cleanup();
 	return 0;
 }

@@ -45,9 +45,10 @@ public:
   it to the manager and blocks until the manager has drained it, then truncates
   and refills it for the next batch.
 */
-#define PWT_CHUNK_ROWS 64
+#define PWT_CHUNK_ROWS 2048
 
 class pwt_management;
+typedef struct st_join_table JOIN_TAB;
 
 
 #define WORKER_NAME                    "Parallel Worker"
@@ -107,6 +108,8 @@ public:
     refill. See pwt_management::handoff_batch / the consumer read functions.
   */
   bool            batch_full;
+
+  Parallel_scan::Worker_ctx *engine_ctx;
 };
 
 
@@ -122,6 +125,7 @@ public:
   mysql_mutex_t     LOCK_pwt_thread;
   THD               *thd;
   JOIN              *join;
+  JOIN_TAB          *scan_tab;
   /*
     Set under LOCK_pwt_thread when a worker fails to allocate a queued event.
     The manager surfaces a single ER_OUTOFMEMORY warning so the user sees
@@ -183,11 +187,15 @@ public:
   {
     finalize_parallel_workers(current_thd, join);
   }
-  bool init_parallel_workers(THD *thd, JOIN *join);
+  int init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab);
   void quiesce_workers();
   void finalize_parallel_workers(THD *thd, JOIN *join);
   bool handoff_batch(pwt_worker *worker);
   void free_queue();
+
+private:
+  bool create_parallel_workers_tmp_tables(JOIN *join, JOIN_TAB *tab);
+  void free_parallel_tmp_tables(JOIN_TAB *tab);
 };
 
 #endif

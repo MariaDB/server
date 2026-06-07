@@ -84,9 +84,8 @@ struct READ_RECORD
   Copy_field *copy_field;
   Copy_field *copy_field_end;
 
-  Parallel_scan::Worker_ctx *pscan_worker_ctx;
 public:
-  READ_RECORD() : table(NULL), cache(NULL), pscan_worker_ctx(NULL) {}
+  READ_RECORD() : table(NULL), cache(NULL) {}
   ~READ_RECORD() { end_read_record(this); }
 };
 
