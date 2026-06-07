@@ -3536,7 +3536,6 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
     uint16_t nextb;
     uint32_t nchunks = 0;
     chunk_info *cinfo = NULL;
-    grn_id crid = GRN_ID_NIL;
     docinfo bid = {0, 0, 0, 0, 0};
     uint32_t sdf = 0;
     uint32_t *srp __attribute__((unused)) = NULL;
@@ -3580,7 +3579,6 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
           GRN_B_DEC(cinfo[i].segno, scp);
           GRN_B_DEC(cinfo[i].size, scp);
           GRN_B_DEC(cinfo[i].dgap, scp);
-          crid += cinfo[i].dgap;
         }
       }
       if (sce > scp) {
