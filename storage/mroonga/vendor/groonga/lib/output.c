@@ -1785,7 +1785,6 @@ grn_output_result_set_open_v1(grn_ctx *ctx,
     }
     grn_output_table_records(ctx, outbuf, output_type, table, format);
   } else {
-    int i;
     grn_obj *column = grn_obj_column(ctx, table,
                                      GRN_COLUMN_NAME_KEY,
                                      GRN_COLUMN_NAME_KEY_LEN);
@@ -1794,7 +1793,7 @@ grn_output_result_set_open_v1(grn_ctx *ctx,
     grn_output_array_open(ctx, outbuf, output_type, "HIT", -1);
     if (tc) {
       grn_id id;
-      for (i = 0; (id = grn_table_cursor_next(ctx, tc)) != GRN_ID_NIL; i++) {
+      while ((id = grn_table_cursor_next(ctx, tc)) != GRN_ID_NIL) {
         GRN_BULK_REWIND(&buf);
         grn_obj_get_value(ctx, column, id, &buf);
         grn_text_esc(ctx, outbuf, GRN_BULK_HEAD(&buf), GRN_BULK_VSIZE(&buf));
