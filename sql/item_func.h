@@ -255,7 +255,10 @@ public:
   void signal_divide_by_null();
   friend class udf_handler;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
-  { return tmp_table_field_from_field_type(root, table); }
+  {
+    const Tmp_field_param param(false, false, false, false, false, false);
+    return tmp_table_field_from_field_type(root, table, &param);
+  }
   Item *get_tmp_table_item(THD *thd) override;
 
   void fix_char_length_ulonglong(ulonglong max_char_length_arg)

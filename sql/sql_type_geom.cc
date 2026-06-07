@@ -515,6 +515,12 @@ Field *Type_handler_geometry::make_table_field_ex(MEM_ROOT *root,
                                              const Tmp_field_param *param,
                                              TABLE_SHARE *share) const
 {
+  if (param->part_of_unique_key())
+  {
+    /* Unique keys parts must be of type blob_key for memory tables */
+    return type_handler_blob_key.
+      make_table_field(root, name, addr, attr, share);
+  }
   if (param->group_concat())
   {
     /*

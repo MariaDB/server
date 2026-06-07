@@ -1529,6 +1529,10 @@ public:
   virtual void free() {}
   virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
                                 bool keep_type, const Tmp_field_param *param);
+  /*
+    new_key_field is used to create a new key field for an internal temporay
+    table or for copying data between a key field and a table field
+  */
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
                                uchar *new_null_ptr, uint new_null_bit);

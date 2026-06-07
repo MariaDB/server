@@ -20218,7 +20218,7 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
   DBUG_ASSERT(!param->make_copy_field() || type() == CONST_ITEM);
   DBUG_ASSERT(!is_result_field());
   Field *result;
-  if ((result= tmp_table_field_from_field_type(root, table)))
+  if ((result= tmp_table_field_from_field_type(root, table, param)))
   {
     if (result && is_explicit_null)
       result->is_created_from_null_item= true;
@@ -20227,7 +20227,8 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
 }
 
 
-Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                  const Tmp_field_param *param)
 {
   Field *UNINIT_VAR(new_field);
 
@@ -20242,7 +20243,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
-    new_field= tmp_table_field_from_field_type(root, table);
+    new_field= tmp_table_field_from_field_type(root, table, param);
     break;
   case ROW_RESULT:
     // This case should never be chosen
@@ -20349,7 +20350,7 @@ Field *Item_default_value::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
       as the we have to calculate the default value before we can use it.
     */
      get_tmp_field_src(src, param);
-     Field *result= tmp_table_field_from_field_type(root, table);
+     Field *result= tmp_table_field_from_field_type(root, table, param);
      if (result && param->modify_item())
        result_field= result;
      return result;
@@ -21463,30 +21464,6 @@ bool Create_tmp_table::finalize(THD *thd,
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
-
-        /*
-          Field_geom and other Field_blob subclasses that don't override
-          new_key_field() produce Field_varstring (2B length + inline
-          data).  HEAP promotes blob key segments to HA_KEYTYPE_VARTEXT4
-          (4B length + pointer).  Replace with Field_blob_key so the
-          group buffer format matches what HEAP expects.
-        */
-        if ((field->flags & BLOB_FLAG) &&
-            !(cur_group->field->flags & BLOB_FLAG))
-        {
-          Field_blob_key *blob_key= new (thd->mem_root) Field_blob_key(
-              m_group_buff + MY_TEST(maybe_null),
-              field->null_ptr, field->null_bit,
-              Field::NONE, &field->field_name,
-              table->s, 4, field->charset());
-          if (!blob_key)
-            goto err;
-          blob_key->init(table);
-          table->s->blob_fields--;
-          cur_group->field= blob_key;
-          m_key_part_info->length= (uint16) blob_key->key_length();
-          m_key_part_info->type= (uint8) blob_key->key_type();
-        }
 
         /*
           Mark that a key segment is a blob. Needed for

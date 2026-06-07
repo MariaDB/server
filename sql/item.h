@@ -929,14 +929,13 @@ protected:
     @retval  NULL  error
     @retval  !NULL on success
   */
-  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table)
+  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table,
+                                         const Tmp_field_param *param)
   {
     DBUG_ASSERT(fixed());
 
-    const Tmp_field_param param(false, false, false, false, false,
-                                table->group_concat);
     const Type_handler *h= type_handler()->type_handler_for_tmp_table(this,
-                                                                      &param);
+                                                                      param);
     return h->make_and_init_table_field(root, &name,
                                         Record_addr(maybe_null()),
                                         *this, table);
@@ -958,7 +957,7 @@ protected:
     DBUG_ASSERT(!param->make_copy_field());
     DBUG_ASSERT(!is_result_field());
     DBUG_ASSERT(type() != NULL_ITEM);
-    return tmp_table_field_from_field_type(root, table);
+    return tmp_table_field_from_field_type(root, table, param);
   }
   Field *create_tmp_field_int(MEM_ROOT *root, TABLE *table,
                               uint convert_int_length);
@@ -4607,7 +4606,10 @@ public:
   const Type_handler *type_handler() const override
   { return type_handler_long_or_longlong(); }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
-  { return tmp_table_field_from_field_type(root, table); }
+  {
+    const Tmp_field_param param(false, false, false, false, false, false);
+    return tmp_table_field_from_field_type(root, table, &param);
+  }
   const longlong *const_ptr_longlong() const override { return &value; }
   bool val_bool() override { return value != 0; }
   longlong val_int() override

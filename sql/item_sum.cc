@@ -1320,7 +1320,8 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 
 
 Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
-                                          bool group, TABLE *table)
+                                          bool group, TABLE *table,
+                                          const Tmp_field_param *param)
 {
   DBUG_ENTER("Item_sum_min_max::create_tmp_field");
 
@@ -1334,7 +1335,7 @@ Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
     }
     DBUG_RETURN(field);
   }
-  DBUG_RETURN(tmp_table_field_from_field_type(root, table));
+  DBUG_RETURN(tmp_table_field_from_field_type(root, table, param));
 }
 
 /***********************************************************************
@@ -2037,7 +2038,8 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 }
 
 
-Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                      const Tmp_field_param *param)
 {
 
   if (group)
@@ -2055,7 +2057,7 @@ Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
       field->init(table);
     return field;
   }
-  return tmp_table_field_from_field_type(root, table);
+  return tmp_table_field_from_field_type(root, table, param);
 }
 
 
@@ -2281,7 +2283,8 @@ Item *Item_sum_variance::copy_or_same(THD* thd)
   pass around.
 */
 Field *Item_sum_variance::create_tmp_field(MEM_ROOT *root,
-                                           bool group, TABLE *table)
+                                           bool group, TABLE *table,
+                                           const Tmp_field_param *param)
 {
   Field *field;
   if (group)
