@@ -894,7 +894,6 @@ grn_geo_select_in_circle(grn_ctx *ctx, grn_obj *index,
                          grn_obj *res, grn_operator op)
 {
   grn_id domain;
-  double center_longitude, center_latitude;
   double d;
   grn_obj *pat, *point_on_circle = NULL, center_point_, point_on_circle_;
   grn_geo_point *center, on_circle;
@@ -947,8 +946,6 @@ grn_geo_select_in_circle(grn_ctx *ctx, grn_obj *index,
     center_point = &center_point_;
   }
   center = GRN_GEO_POINT_VALUE_RAW(center_point);
-  center_longitude = GRN_GEO_INT2RAD(center->longitude);
-  center_latitude = GRN_GEO_INT2RAD(center->latitude);
 
   distance_raw_func = grn_geo_resolve_distance_raw_func(ctx,
                                                         approximate_type,
