@@ -406,6 +406,7 @@ static const char *opt_related_sys_vars[]=
   "sort_buffer_size",
   "note_verbosity",
   "sql_buffer_result",
+  "group_concat_max_len",
   NULL
 };
 
