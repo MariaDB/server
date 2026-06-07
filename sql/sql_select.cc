@@ -21444,7 +21444,11 @@ bool Create_tmp_table::finalize(THD *thd,
                         MY_TEST(maybe_null);
           if (m_group_buff + need >
               param->group_buff + param->group_length)
-            abort();
+          {
+            m_using_unique_constraint= true;
+            DBUG_ASSERT(0);                    // Should be impossible
+            break;
+          }
         }
         /*
           Set key_part_flag from the actual field type AFTER the overflow

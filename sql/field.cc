@@ -9492,28 +9492,39 @@ Binlog_type_info Field_blob_compressed::binlog_type_info() const
 ** Used for blob keys in internal temporary tables
 ****************************************************************************/
 
-void Field_blob_key::set_key_image(const uchar *data __attribute__((unused)),
-                                   uint length __attribute__((unused)))
+void Field_blob_key::set_key_image(const uchar *data, uint length)
 {
-  /* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+#ifdef NOT_YET_USED
+  store_length(length);
+  memcpy(ptr+packlength, &data, sizeof(char*));
+#else
   abort();
+#endif /* NOT_YET_USED */
 }
 
 
-int Field_blob_key::key_cmp(const uchar *key_ptr __attribute__((unused)),
-                             uint max_key_length __attribute__((unused))) const
+int Field_blob_key::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
-  /* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+#ifdef NOT_YET_USED
+  uint32 blob_length= get_length(ptr);
+  memcpy(&blob1, ptr + packlength, sizeof(char*));
+  return Field_blob_key::cmp(blob1, (uint32) blob_length,
+                             key_ptr + 4, uint4korr(key_ptr));
+#else
   abort();
-  return 0;
+#endif /* NOT_YET_USED */
 }
 
-int Field_blob_key::key_cmp(const uchar *a __attribute__((unused)),
-                             const uchar *b __attribute__((unused))) const
+int Field_blob_key::key_cmp(const uchar *a, const uchar *b) const
 {
-  /* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
+#ifdef NOT_YET_USED
+  return Field_blob_key::cmp(a + 4, uint4korr(a), b+ 4, uint4korr(b));
+#else
   abort();
-  return 0;
+#endif /* NOT_YET_USED */
 }
 
 
