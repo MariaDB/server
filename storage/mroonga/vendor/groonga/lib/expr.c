@@ -441,7 +441,7 @@ grn_expr_unpack(grn_ctx *ctx, const uint8_t *p, const uint8_t *pe, grn_obj *expr
       break;
     case GRN_EXPR_PACK_TYPE_VARIABLE :
       {
-        uint32_t offset;
+        uint32_t offset __attribute__((unused));
         GRN_B_DEC(offset, p);
         code->value = &e->vars[i].value;
       }
@@ -2663,7 +2663,7 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         break;
       case GRN_OP_POP :
         {
-          grn_obj *obj;
+          grn_obj *obj __attribute__((unused));
           POP1(obj);
           code++;
         }
@@ -3535,15 +3535,13 @@ grn_expr_exec(grn_ctx *ctx, grn_obj *expr, int nargs)
         {
           int r;
           grn_obj *value;
-          int64_t ln0, la0, ln1, la1, ln2, la2, ln3, la3;
+          int64_t ln0, la0, ln2, la2, ln3, la3;
           POP1(value);
           ln0 = GRN_INT32_VALUE(value);
           POP1(value);
           la0 = GRN_INT32_VALUE(value);
           POP1(value);
-          ln1 = GRN_INT32_VALUE(value);
           POP1(value);
-          la1 = GRN_INT32_VALUE(value);
           POP1(value);
           ln2 = GRN_INT32_VALUE(value);
           POP1(value);
@@ -6025,14 +6023,12 @@ grn_table_select_index_not_equal(grn_ctx *ctx,
         processed = GRN_TRUE;
       } else {
         uint32_t sid;
-        int32_t weight;
         grn_ii *ii = (grn_ii *)index;
         grn_ii_cursor *ii_cursor;
 
         grn_table_select_index_report(ctx, "[not-equal]", index);
 
         sid = GRN_UINT32_VALUE_AT(&(si->wv), 0);
-        weight = GRN_INT32_VALUE_AT(&(si->wv), 1);
         ii_cursor = grn_ii_cursor_open(ctx, ii, tid,
                                        GRN_ID_NIL, GRN_ID_MAX,
                                        ii->n_elements, 0);
