@@ -472,8 +472,10 @@ grn_geo_get_meshes_for_circle(grn_ctx *ctx, grn_geo_point *base_point,
                                               i
   */
   {
-    int i, j, n_sub_meshes, lat, lat_min, lat_max, lng, lng_min, lng_max;
-    n_sub_meshes = 0;
+    int i, j, lat, lat_min, lat_max, lng, lng_min, lng_max;
+#ifdef GEO_DEBUG
+    int n_sub_meshes = 0;
+#endif
     for (i = -5; i < 5; i++) {
       lat_min = ((lat_diff + 1) / 2) * i;
       lat_max = ((lat_diff + 1) / 2) * (i + 1) - 1;
@@ -514,7 +516,9 @@ grn_geo_get_meshes_for_circle(grn_ctx *ctx, grn_geo_point *base_point,
           meshes[n_meshes].key_size = diff_bit + 2;
           n_meshes++;
         }
+#ifdef GEO_DEBUG
         n_sub_meshes++;
+#endif
       }
     }
   }
