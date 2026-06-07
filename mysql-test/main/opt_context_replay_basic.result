@@ -62,11 +62,15 @@ SET GLOBAL temp_table.OPTIMIZER_ROW_LOOKUP_COST=0.130839;
 SET GLOBAL temp_table.OPTIMIZER_ROW_NEXT_FIND_COST=0.045916;
 SET GLOBAL temp_table.OPTIMIZER_ROWID_COMPARE_COST=0.002653;
 SET GLOBAL temp_table.OPTIMIZER_ROWID_COPY_COST=0.002653;
+SET group_concat_max_len=1048576;
+
 SET in_predicate_conversion_threshold=1000;
 
 SET join_buffer_size=262144;
 
 SET join_cache_level=2;
+
+SET max_heap_table_size=1048576;
 
 SET note_verbosity='basic,explain';
 
