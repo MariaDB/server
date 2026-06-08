@@ -39,30 +39,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-20
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-20
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["10"]
-t1_idx_b	["7"]
-t1_idx_ab	[
-                "10",
-                "3"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	20	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -71,7 +57,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 #
 # simple query using join of two tables
@@ -84,33 +71,17 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-30
-20
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-30
-20
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t2_idx_a	["5"]
-t1_idx_a	["10"]
-t1_idx_b	["7"]
-t1_idx_ab	[
-                "10",
-                "3"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t2	30	t2_idx_a	["5"]
+db1.t1	20	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -119,7 +90,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 #
 # negative test
@@ -135,22 +107,15 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -159,7 +124,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 set optimizer_record_context=ON;
 #
@@ -172,33 +138,17 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-30
-20
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-30
-20
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t2_idx_a	["5"]
-t1_idx_a	["10"]
-t1_idx_b	["7"]
-t1_idx_ab	[
-                "10",
-                "3"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t2	30	t2_idx_a	["5"]
+db1.t1	20	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -207,7 +157,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 t2_idx_a	["(5) <= (a) <= (5)"]	5	1	1
 t2_idx_a	["(5) <= (a) <= (5)"]	5	1	1
@@ -224,30 +175,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-20
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-20
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["10"]
-t1_idx_b	["7"]
-t1_idx_ab	[
-                "10",
-                "3"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	20	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -256,7 +193,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 #
 # test for insert as select
@@ -267,33 +205,17 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-30
-20
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-30
-20
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t2_idx_a	["5"]
-t1_idx_a	["10"]
-t1_idx_b	["7"]
-t1_idx_ab	[
-                "10",
-                "3"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t2	30	t2_idx_a	["5"]
+db1.t1	20	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -302,7 +224,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
@@ -322,30 +245,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-50
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-50
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["8"]
-t1_idx_b	["8"]
-t1_idx_ab	[
-                "8",
-                "8"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	50	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -354,7 +263,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 t1_idx_a	["(1) <= (a) <= (5)"]	35	1	1
 t1_idx_ab	["(1) <= (a) <= (5)"]	35	1	1
@@ -370,30 +280,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-50
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-50
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["8"]
-t1_idx_b	["8"]
-t1_idx_ab	[
-                "8",
-                "8"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	50	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -402,7 +298,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 t1_idx_a	[
                 "(1) <= (a) <= (5)",
@@ -424,22 +321,15 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -448,7 +338,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 set optimizer_record_context=ON;
 #
@@ -463,30 +354,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-50
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-50
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["8"]
-t1_idx_b	["8"]
-t1_idx_ab	[
-                "8",
-                "8"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	50	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -495,7 +372,8 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 t1_idx_a	["(1) <= (a) <= (5)"]	35	1	1
 t1_idx_ab	["(1) <= (a) <= (5)"]	35	1	1
@@ -871,25 +749,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-3
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-3
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-a	["1"]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	3	a	["1"]
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -898,8 +767,43 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 drop function add1;
 DROP TABLE t1;
 set session use_stat_tables=@saved_use_stat_tables;
+#
+# MDEV-39433: Crash when selecting from a sequence with optimizer_record_context enabled
+#
+set optimizer_record_context=ON;
+create sequence s1;
+EXPLAIN select * from s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s1	system	NULL	NULL	NULL	NULL	1	
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
+select *from json_table(
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+set @list_ranges=
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+select *from json_table(
+@list_ranges,
+'$[*][*]' columns(index_name text path '$.index_name',
+ranges json path '$.ranges',
+num_rows int path '$.num_rows',
+max_index_blocks int path '$.max_index_blocks',
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+drop table s1;
