@@ -6231,6 +6231,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (*from_field)
       {
         if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+            !thd->lex->in_sum_func && !thd->lex->in_any_value &&
             select->cur_pos_in_select_list != UNDEF_POS)
         {
           /*
@@ -6773,7 +6774,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (check_ora_join(reference, outer_fixed))
     goto error;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !outer_fixed && !thd->lex->in_sum_func &&
+      !outer_fixed && !thd->lex->in_sum_func && !thd->lex->in_any_value &&
       select &&
       select->cur_pos_in_select_list != UNDEF_POS &&
       select->join)
