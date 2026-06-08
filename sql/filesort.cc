@@ -3140,6 +3140,7 @@ void format_and_store_row(TABLE *table, const uchar *rec, bool print_names,
         case MYSQL_TYPE_YEAR:
         case MYSQL_TYPE_ENUM:
         case MYSQL_TYPE_SET:
+        case MYSQL_TYPE_GEOMETRY:
           require_quote= true;
           break;
         default:
