@@ -169,7 +169,7 @@ TARGET_COMPILE_DEFINITIONS(tidesdb_embedded PRIVATE
 IF(MSVC)
   TARGET_COMPILE_OPTIONS(tidesdb_embedded PRIVATE
                          /std:c17 /experimental:c11atomics
-                         /wd4311 /wd4244 /wd4047 /wd4189 /wd4101
+                         /wd4311 /wd4244 /wd4267 /wd4047 /wd4189 /wd4101
                          /wd4459 /wd4127 /wd4305 /wd4702 /wd4700 /wd4013)
 ELSE()
   TARGET_COMPILE_OPTIONS(tidesdb_embedded PRIVATE
