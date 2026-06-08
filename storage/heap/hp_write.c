@@ -438,7 +438,7 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
   }
   /* Check if we are at the empty position */
 
-  hash_of_key= hp_rec_hashnr(keyinfo, record);
+  hash_of_key= hp_rec_hashnr(0, keyinfo, record);
   pos=hp_find_hash(&keyinfo->block,
                    hp_mask(hash_of_key, share->blength, share->records + 1));
   if (pos == empty)

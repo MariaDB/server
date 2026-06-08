@@ -20,15 +20,17 @@
 #include "heapdef.h"
 #include <m_ctype.h>
 
+ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
+
+/* Size of a pointer, for use in memcpy to avoid -Wsizeof-pointer-memaccess */
+#define HP_PTR_SIZE sizeof(void*)
+
 
 static inline size_t
 hp_charpos(CHARSET_INFO *cs, const uchar *b, const uchar *e, size_t num)
 {
   return my_ci_charpos(cs, (const char*) b, (const char *) e, num);
 }
-
-
-ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
 
 
 /*
@@ -283,8 +285,9 @@ ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
        CHARSET_INFO *cs= seg->charset;
-       size_t pack_length= 2;                     /* Key packing is constant */
+       size_t pack_length= 2;                   /* Key packing is constant */
        size_t length= uint2korr(pos);
+
        if (cs->mbmaxlen > 1)
        {
          size_t char_length;
@@ -321,16 +324,33 @@ ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
   return((ulong) nr);
 }
 
-	/* Calc hashvalue for a key in a record */
+/*
+  Calc hashvalue for a key in a record
 
-ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
+  This function should be kept in sync with ha_rec_hashnr_stored()
+
+  @param info     Table handler, in case of compute of hash for stored
+                  record. 0 otherwise.
+  @param keydef   Key definition
+  @param rec      Stored record (ptr_to_rec from hash entry)
+  @return hash value, or 0 on OOM (forces hash mismatch)
+
+  If info <> 0 we compute hash of a stored record, materializing blob
+  data from chains. The stored record's blob pointers point to chain
+  head records, not to raw data.
+  This avoids keeping multiple materialized blob pointers alive
+  simultaneously -- key_blob_buff holds only one blob at a time.
+*/
+
+ulong hp_rec_hashnr(HP_INFO *info, HP_KEYDEF *keydef, const uchar *rec)
 {
   ulong nr=1, nr2=4;
   HA_KEYSEG *seg,*endseg;
 
   for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
   {
-    const uchar *pos=(uchar*) rec+seg->start, *end=pos+seg->length;
+    const uchar *pos= rec+seg->start;
+    const uchar *end= pos+seg->length;
     if (seg->null_bit)
     {
       if (rec[seg->null_pos] & seg->null_bit)
@@ -347,7 +367,7 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
       {
         char_length= hp_charpos(cs, pos, pos + char_length,
                                 char_length / cs->mbmaxlen);
-        set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
+        set_if_smaller(char_length, seg->length);
       }
       my_ci_hash_sort(cs, pos, char_length, &nr, &nr2);
     }
@@ -372,16 +392,34 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
         set_if_smaller(length, seg->length);
       my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
     }
-    else if (seg->type == HA_KEYTYPE_VARTEXT4) /* All blob segments */
+    else if (seg->type == HA_KEYTYPE_VARTEXT4 ||
+             seg->type == HA_KEYTYPE_VARBINARY4)
     {
       /* Blob segment in input record: dereference data pointer */
-      CHARSET_INFO *cs= seg->charset;
-      const uint packlength= seg->bit_start;
-      size_t blob_len= hp_blob_key_length(packlength, pos);
-      const uchar *blob_data;
-      memcpy(&blob_data, pos + packlength, HP_PTR_SIZE);
+      uint packlength= seg->bit_start;
+      uint32 blob_len= hp_blob_key_length(packlength, pos);
       if (blob_len > 0)
-        my_ci_hash_sort(cs, blob_data, blob_len, &nr, &nr2);
+      {
+        const uchar *data;
+        if (info)
+        {
+          /* Compute blob for unpacked record */
+          const uchar *chain;
+          memcpy(&chain, pos + packlength, sizeof(chain));
+          data= hp_materialize_one_blob(info, chain, blob_len);
+          DBUG_ASSERT(data);
+          if (!data)
+            return 0;
+          my_ci_hash_sort(seg->charset, data, blob_len, &nr, &nr2);
+        }
+        else
+        {
+          /* Compute blob for record given by upper level */
+          const uchar *data;
+          memcpy(&data, pos + packlength, HP_PTR_SIZE);
+          my_ci_hash_sort(seg->charset, data, blob_len, &nr, &nr2);
+        }
+      }
     }
     else
     {

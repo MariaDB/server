@@ -157,7 +157,7 @@ int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
   last_ptr=0;
 
   /* Search after record with key */
-  rec_hash= hp_rec_hashnr(keyinfo, record);
+  rec_hash= hp_rec_hashnr(0, keyinfo, record);
   key_pos= hp_mask(rec_hash, blength, share->records + 1);
   pos= hp_find_hash(&keyinfo->block, key_pos);
 

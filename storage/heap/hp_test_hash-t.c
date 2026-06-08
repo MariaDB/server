@@ -156,7 +156,7 @@ static void test_hash_consistency(void)
   /* --- Case A: small blob --- */
   build_record(rec, 1, data_a.str, data_a.length, FALSE);
 
-  rec_hash_a= hp_rec_hashnr(&keydef, rec);
+  rec_hash_a= hp_rec_hashnr(0, &keydef, rec);
   hp_make_key(&keydef, key_buf, rec);
   /* Now hash the pre-built key */
   {
@@ -176,7 +176,7 @@ static void test_hash_consistency(void)
   /* --- Case B: medium blob --- */
   build_record(rec, 2, data_b.str, data_b.length, FALSE);
 
-  rec_hash_b= hp_rec_hashnr(&keydef, rec);
+  rec_hash_b= hp_rec_hashnr(0, &keydef, rec);
   hp_make_key(&keydef, key_buf, rec);
   {
     uint32 key_blob_len= uint4korr(key_buf);
@@ -194,7 +194,7 @@ static void test_hash_consistency(void)
   /* --- Case C: large blob --- */
   build_record(rec, 3, data_c, len_c, FALSE);
 
-  rec_hash_c= hp_rec_hashnr(&keydef, rec);
+  rec_hash_c= hp_rec_hashnr(0, &keydef, rec);
   hp_make_key(&keydef, key_buf, rec);
   {
     uint32 key_blob_len= uint4korr(key_buf);
@@ -297,8 +297,8 @@ static void test_null_blob(void)
      "null_blob: NULL vs non-NULL compares unequal");
 
   /* NULL hash consistency */
-  hash1= hp_rec_hashnr(&keydef, rec1);
-  hash2= hp_rec_hashnr(&keydef, rec1);
+  hash1= hp_rec_hashnr(0, &keydef, rec1);
+  hash2= hp_rec_hashnr(0, &keydef, rec1);
   ok(hash1 == hash2,
      "null_blob: NULL blob hashes consistently (%lu == %lu)", hash1, hash2);
 
@@ -307,7 +307,7 @@ static void test_null_blob(void)
     LEX_CUSTRING empty= { USTRING_WITH_LEN("") };
     ulong hash_empty;
     build_record(rec2, 2, empty.str, empty.length, FALSE);
-    hash_empty= hp_rec_hashnr(&keydef, rec2);
+    hash_empty= hp_rec_hashnr(0, &keydef, rec2);
     ok(hash1 != hash_empty,
        "null_blob: NULL hash (%lu) != empty non-NULL hash (%lu)",
        hash1, hash_empty);
@@ -349,8 +349,8 @@ static void test_empty_blob(void)
      "empty_blob: empty vs non-empty compares unequal");
 
   /* Hash consistency for empty */
-  h1= hp_rec_hashnr(&keydef, rec1);
-  h2= hp_rec_hashnr(&keydef, rec1);
+  h1= hp_rec_hashnr(0, &keydef, rec1);
+  h2= hp_rec_hashnr(0, &keydef, rec1);
   ok(h1 == h2, "empty_blob: empty blob hashes consistently");
 }
 
@@ -400,7 +400,7 @@ static void test_multi_segment_key(void)
 
   /* Hash consistency: record hash matches after make_key round-trip */
   build_record(rec1, 42, blob_data.str, blob_data.length, FALSE);
-  (void) hp_rec_hashnr(&keydef, rec1);
+  (void) hp_rec_hashnr(0, &keydef, rec1);
 
   hp_make_key(&keydef, key_buf, rec1);
   /* Verify the key contains int4 (4 bytes) + blob (4B len + 8B ptr) */
@@ -446,8 +446,8 @@ static void test_pad_space(void)
      "pad_space: 'abc' == 'abc   ' with PAD SPACE collation");
 
   /* Hashes should also match for PAD SPACE */
-  h1= hp_rec_hashnr(&keydef, rec1);
-  h2= hp_rec_hashnr(&keydef, rec2);
+  h1= hp_rec_hashnr(0, &keydef, rec1);
+  h2= hp_rec_hashnr(0, &keydef, rec2);
   ok(h1 == h2,
      "pad_space: hash('abc') == hash('abc   ') (%lu == %lu)", h1, h2);
 
@@ -469,11 +469,11 @@ static void test_pad_space(void)
 
   This test simulates the full round-trip:
     1. Build a record with blob data (as at INSERT time)
-    2. Compute hp_rec_hashnr() (stored in HASH_INFO at write time)
+    2. Compute hp_rec_hashnr(0, ) (stored in HASH_INFO at write time)
     3. Build a varstring-format key (as the SQL layer would for lookup)
     4. Parse the varstring key into a record's blob field
        (rebuild_key_from_group_buff)
-    5. hp_make_key() from that record, then hp_rec_hashnr() on the record
+    5. hp_make_key() from that record, then hp_rec_hashnr(0, ) on the record
     6. Verify the hashes match
 */
 static void test_distinct_key_format(void)
@@ -497,7 +497,7 @@ static void test_distinct_key_format(void)
 
   /* Step 1-2: INSERT-time record and hash */
   build_record(rec_insert, 1, blob_data.str, blob_data.length, FALSE);
-  insert_hash= hp_rec_hashnr(&keydef, rec_insert);
+  insert_hash= hp_rec_hashnr(0, &keydef, rec_insert);
 
   varstring_key[0]= 0;  /* not null */
   int2store(varstring_key + 1, blob_data.length);
@@ -527,7 +527,7 @@ static void test_distinct_key_format(void)
   }
 
   /* Step 5: hp_make_key from rec_lookup, then hash the record */
-  lookup_hash= hp_rec_hashnr(&keydef, rec_lookup);
+  lookup_hash= hp_rec_hashnr(0, &keydef, rec_lookup);
 
   /* Step 6: hashes must match */
   ok(insert_hash == lookup_hash,
@@ -566,11 +566,11 @@ static void test_distinct_key_truncation(void)
 
   /* Full record (as stored at INSERT time) */
   build_record(rec_full, 1, full_data.str, full_data.length, FALSE);
-  full_hash= hp_rec_hashnr(&keydef, rec_full);
+  full_hash= hp_rec_hashnr(0, &keydef, rec_full);
 
   /* Truncated record (as rebuilt from truncated varstring key) */
   build_record(rec_trunc, 1, full_data.str, trunc_len, FALSE);
-  trunc_hash= hp_rec_hashnr(&keydef, rec_trunc);
+  trunc_hash= hp_rec_hashnr(0, &keydef, rec_trunc);
 
   /* Hashes MUST differ -- this is the bug: truncation causes lookup miss */
   ok(full_hash != trunc_hash,
@@ -609,7 +609,7 @@ static void test_group_by_key_format(void)
 
   /* INSERT-time hash */
   build_record(rec_insert, 1, data.str, data.length, FALSE);
-  insert_hash= hp_rec_hashnr(&keydef, rec_insert);
+  insert_hash= hp_rec_hashnr(0, &keydef, rec_insert);
 
   /*
     Simulate rebuild_key_from_group_buff: parse varstring
@@ -636,7 +636,7 @@ static void test_group_by_key_format(void)
            &varchar_data, sizeof(varchar_data));
   }
 
-  lookup_hash= hp_rec_hashnr(&keydef, rec_lookup);
+  lookup_hash= hp_rec_hashnr(0, &keydef, rec_lookup);
 
   ok(insert_hash == lookup_hash,
      "group_by_key: INSERT hash (%lu) == lookup hash (%lu)",
@@ -678,8 +678,8 @@ static void test_multi_seg_distinct(void)
   build_record(rec1, 100, blob1.str, blob1.length, FALSE);
   build_record(rec2, 100, blob1.str, blob1.length, FALSE);
 
-  h1= hp_rec_hashnr(&keydef, rec1);
-  h2= hp_rec_hashnr(&keydef, rec2);
+  h1= hp_rec_hashnr(0, &keydef, rec1);
+  h2= hp_rec_hashnr(0, &keydef, rec2);
   ok(h1 == h2,
      "multi_distinct: same data hashes equal (%lu == %lu)", h1, h2);
   ok(hp_rec_key_cmp(&keydef, rec1, rec2, NULL) == 0,
@@ -687,7 +687,7 @@ static void test_multi_seg_distinct(void)
 
   /* Same blob, different int */
   build_record(rec2, 200, blob1.str, blob1.length, FALSE);
-  h3= hp_rec_hashnr(&keydef, rec2);
+  h3= hp_rec_hashnr(0, &keydef, rec2);
   ok(h1 != h3,
      "multi_distinct: different int hashes differ (%lu != %lu)", h1, h3);
   ok(hp_rec_key_cmp(&keydef, rec1, rec2, NULL) != 0,
@@ -695,7 +695,7 @@ static void test_multi_seg_distinct(void)
 
   /* Same int, different blob */
   build_record(rec2, 100, blob2.str, blob2.length, FALSE);
-  h3= hp_rec_hashnr(&keydef, rec2);
+  h3= hp_rec_hashnr(0, &keydef, rec2);
   ok(h1 != h3,
      "multi_distinct: different blob hashes differ (%lu != %lu)", h1, h3);
   ok(hp_rec_key_cmp(&keydef, rec1, rec2, NULL) != 0,
@@ -712,7 +712,7 @@ static void test_multi_seg_distinct(void)
   Test 11: hp_hashnr (key-based) must equal hp_rec_hashnr (record-based).
 
   This directly tests that building a key via hp_make_key() and then
-  hashing it with hp_hashnr() produces the same hash as hp_rec_hashnr()
+  hashing it with hp_hashnr() produces the same hash as hp_rec_hashnr(0, )
   on the original record.  This catches divergence bugs where the two
   functions process segments differently (e.g. VARCHAR pack_length
   hardcoded to 2 in hp_hashnr but read from seg->bit_start in
@@ -812,7 +812,7 @@ static void test_key_vs_rec_hash_consistency(void)
   /* Build record and compute record-based hash (used at INSERT time) */
   build_mixed_record(rec, city.str, city.length, libname.str, libname.length,
                      FALSE, FALSE);
-  rec_hash= hp_rec_hashnr(&keydef, rec);
+  rec_hash= hp_rec_hashnr(0, &keydef, rec);
 
   /* Build key via hp_make_key and compute key-based hash (used at LOOKUP) */
   hp_make_key(&keydef, key_buf, rec);
@@ -830,7 +830,7 @@ static void test_key_vs_rec_hash_consistency(void)
 
     build_mixed_record(rec, city2.str, city2.length,
                        libname2.str, libname2.length, FALSE, FALSE);
-    rec_hash= hp_rec_hashnr(&keydef, rec);
+    rec_hash= hp_rec_hashnr(0, &keydef, rec);
     hp_make_key(&keydef, key_buf, rec);
     key_hash= hp_hashnr(&keydef, key_buf);
 
@@ -865,7 +865,7 @@ static void test_key_vs_rec_hash_consistency(void)
     int2store(rec2b + MIX_VARCHAR_OFFSET, libname.length);
     memcpy(rec2b + MIX_VARCHAR_OFFSET + 2, libname.str, libname.length);
 
-    rec_hash= hp_rec_hashnr(&keydef2b, rec2b);
+    rec_hash= hp_rec_hashnr(0, &keydef2b, rec2b);
     hp_make_key(&keydef2b, key2b, rec2b);
     key_hash= hp_hashnr(&keydef2b, key2b);
 
@@ -886,7 +886,7 @@ static void test_key_vs_rec_hash_consistency(void)
     setup_keydef(&kd_blob, &seg_blob, 1);
 
     build_record(rec_b, 1, city.str, city.length, FALSE);
-    rec_hash= hp_rec_hashnr(&kd_blob, rec_b);
+    rec_hash= hp_rec_hashnr(0, &kd_blob, rec_b);
     hp_make_key(&kd_blob, key_b, rec_b);
     key_hash= hp_hashnr(&kd_blob, key_b);
 
@@ -936,7 +936,7 @@ static void build_record_packN(uchar *rec, size_t rec_len, uint packlength,
   Test 12: Packlength variants (1, 3, 4).
 
   The existing tests only exercise packlength=2.  The HEAP engine supports
-  packlengths 1-4 via seg->bit_start.  Verify that hp_rec_hashnr(),
+  packlengths 1-4 via seg->bit_start.  Verify that hp_rec_hashnr(0, ),
   hp_rec_key_cmp(), and hp_make_key() work correctly for each.
 */
 static void test_packlength_variants(void)
@@ -975,7 +975,7 @@ static void test_packlength_variants(void)
 
     /* Build record and compute hash */
     build_record_packN(rec1, sizeof(rec1), pl, 1, data_same, data_len);
-    hash1= hp_rec_hashnr(&keydef, rec1);
+    hash1= hp_rec_hashnr(0, &keydef, rec1);
 
     ok(hash1 != 0,
        "packlen=%u: hp_rec_hashnr produces non-zero hash (%lu)", pl, hash1);
@@ -1078,8 +1078,8 @@ static void test_blob_blob_multi_segment(void)
                         data_a2.str, data_a2.length);
   build_two_blob_record(rec2, 2, data_a1.str, data_a1.length,
                         data_a2.str, data_a2.length);
-  h1= hp_rec_hashnr(&keydef, rec1);
-  h2= hp_rec_hashnr(&keydef, rec2);
+  h1= hp_rec_hashnr(0, &keydef, rec1);
+  h2= hp_rec_hashnr(0, &keydef, rec2);
   ok(h1 == h2,
      "blob+blob: same data in both blobs hashes equal (%lu == %lu)", h1, h2);
 

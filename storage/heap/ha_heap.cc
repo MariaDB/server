@@ -913,7 +913,7 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
   DBUG_ASSERT(keyinfo->flag & HA_NOSAME);
   if (!share->records)
     DBUG_RETURN(1); // not found
-  ulong rec_hash= hp_rec_hashnr(keyinfo, record);
+  ulong rec_hash= hp_rec_hashnr(0, keyinfo, record);
   HASH_INFO *pos= hp_find_hash(&keyinfo->block,
                                hp_mask(rec_hash,
                                        share->blength, share->records));
