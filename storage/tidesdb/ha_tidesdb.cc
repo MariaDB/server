@@ -5585,7 +5585,7 @@ void ha_tidesdb::recover_counters()
                            so use the explicit subtraction the deserialize
                            path already relies on. */
                         ulonglong max_val = table->found_next_number_field->val_int_offset(
-                            (my_ptrdiff_t)(table->record[1] - table->record[0]));
+                            (uint)(table->record[1] - table->record[0]));
                         share->auto_inc_val.store(max_val, std::memory_order_relaxed);
                     }
                 }
