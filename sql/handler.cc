@@ -9761,7 +9761,7 @@ IO_AND_CPU_COST handler::ha_scan_time(ha_rows rows)
 {
   IO_AND_CPU_COST cost;
   bool rc= (table && table->in_use && table->in_use->opt_ctx_replay)
-               ? table->in_use->opt_ctx_replay->infuse_read_cost(table, &cost)
+               ? table->in_use->opt_ctx_replay->infuse_ha_scan_time(table, &cost)
                : true;
   if (rc)
   {

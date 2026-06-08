@@ -57,9 +57,9 @@ public:
                                           const ha_rows *max_index_blocks,
                                           const ha_rows *max_row_blocks);
 
-  void record_cost_index_read(const TABLE *table,
-                              uint key, ha_rows records, bool eq_ref,
-                              const ALL_READ_COST *cost);
+  void record_cost_for_index_read(const TABLE *table,
+                                  uint key, ha_rows records, bool eq_ref,
+                                  const ALL_READ_COST *cost);
   void record_records_in_range(const TABLE *tbl,
                                const KEY_PART_INFO *key_part, uint keynr,
                                const key_range *min_range,
@@ -144,7 +144,7 @@ public:
     When the optimizer needs some data, for example to call index_read_cost(),
     it will call infuse_index_read_cost() and get the value from the context.
   */
-  bool infuse_read_cost(const TABLE *tbl, IO_AND_CPU_COST *cost);
+  bool infuse_ha_scan_time(const TABLE *tbl, IO_AND_CPU_COST *cost);
 
   /*
     TODO: why doesn't this use Range_print_enumerator like record function does?
@@ -156,8 +156,8 @@ public:
                                           ha_rows *rows, uint *mrr_flags,
                                           ha_rows *max_index_blocks,
                                           ha_rows *max_row_blocks);
-  bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
-                              bool eq_ref, ALL_READ_COST *cost);
+  bool infuse_cost_for_index_read(const TABLE *tbl, uint keynr, ha_rows records,
+                                  bool eq_ref, ALL_READ_COST *cost);
   bool infuse_records_in_range(const TABLE *tbl, const KEY_PART_INFO *key_part,
                                uint keynr, const key_range *min_range,
                                const key_range *max_range, ha_rows *records);

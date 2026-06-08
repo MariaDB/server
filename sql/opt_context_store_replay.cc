@@ -981,7 +981,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
   record cost of reading an index, and add it to the index read cost list
   of the table context.
 */
-void Optimizer_context_recorder::record_cost_index_read(
+void Optimizer_context_recorder::record_cost_for_index_read(
     const TABLE *table, uint key, ha_rows records,
     bool eq_ref, const ALL_READ_COST *cost)
 {
@@ -1655,8 +1655,8 @@ void init_optimizer_context_recorder_if_needed(THD *thd,
     false  OK
     true  Error
 */
-bool Optimizer_context_replay::infuse_read_cost(const TABLE *tbl,
-                                                IO_AND_CPU_COST *cost)
+bool Optimizer_context_replay::infuse_ha_scan_time(const TABLE *tbl,
+                                                   IO_AND_CPU_COST *cost)
 {
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
@@ -1792,11 +1792,11 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
     false  OK
     true  Error
 */
-bool Optimizer_context_replay::infuse_index_read_cost(const TABLE *tbl,
-                                                      uint keynr,
-                                                      ha_rows records,
-                                                      bool eq_ref,
-                                                      ALL_READ_COST *cost)
+bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
+                                                          uint keynr,
+                                                          ha_rows records,
+                                                          bool eq_ref,
+                                                          ALL_READ_COST *cost)
 {
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
