@@ -145,11 +145,17 @@ public:
     it will call infuse_index_read_cost() and get the value from the context.
   */
   bool infuse_read_cost(const TABLE *tbl, IO_AND_CPU_COST *cost);
-  bool infuse_range_stats(TABLE *tbl, uint keynr, RANGE_SEQ_IF *seq_if,
-                          SEL_ARG_RANGE_SEQ *seq, Cost_estimate *cost,
-                          ha_rows *rows, uint *mrr_flags,
-                          ha_rows *max_index_blocks,
-                          ha_rows *max_row_blocks);
+
+  /*
+    TODO: why doesn't this use Range_print_enumerator like record function does?
+  */
+  bool infuse_multi_range_read_info_const(TABLE *tbl, uint keynr,
+                                          RANGE_SEQ_IF *seq_if,
+                                          SEL_ARG_RANGE_SEQ *seq,
+                                          Cost_estimate *cost,
+                                          ha_rows *rows, uint *mrr_flags,
+                                          ha_rows *max_index_blocks,
+                                          ha_rows *max_row_blocks);
   bool infuse_index_read_cost(const TABLE *tbl, uint keynr, ha_rows records,
                               bool eq_ref, ALL_READ_COST *cost);
   bool infuse_records_in_range(const TABLE *tbl, const KEY_PART_INFO *key_part,

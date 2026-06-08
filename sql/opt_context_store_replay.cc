@@ -1691,7 +1691,7 @@ bool Optimizer_context_replay::infuse_read_cost(const TABLE *tbl,
     false  OK
     true  Error
 */
-bool Optimizer_context_replay::infuse_range_stats(
+bool Optimizer_context_replay::infuse_multi_range_read_info_const(
     TABLE *table, uint keynr, RANGE_SEQ_IF *seq_if, SEL_ARG_RANGE_SEQ *seq,
     Cost_estimate *cost, ha_rows *rows, uint *mrr_flags, ha_rows *max_index_blocks,
     ha_rows *max_row_blocks)
