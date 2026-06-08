@@ -762,6 +762,10 @@ bool store_optimizer_context(THD *thd)
     qry_ctx_script.append(ddl);
     qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
 
+    // sequence table doesn't contain any stats
+    if (tbl->table && tbl->table->s && tbl->table->s->sequence)
+      continue;
+
     if (!tbl->is_view())
     {
       Json_writer_object ctx_wrapper(&ctx_writer);

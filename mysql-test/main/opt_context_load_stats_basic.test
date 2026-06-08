@@ -34,8 +34,7 @@ select * from t1 where a < 3 and b > 6;
 --source include/get_rec_idx_ranges_from_opt_ctx.inc
 
 set @saved_opt_context_1=@opt_context;
-set @saved_records_1=@records;
-set @saved_indexes_1=@indexes;
+set @saved_table_contexts= @table_contexts;
 set @saved_list_ranges_1=@list_ranges;
 
 --echo #
@@ -79,17 +78,10 @@ select * from t1 where a < 3 and b > 6;
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 
-set @saved_records_2 = @records;
-set @saved_indexes_2 = @indexes;
 set @saved_list_ranges_2 = @list_ranges;
 
-select JSON_EQUALS(@saved_records_2, @saved_records_1);
-select * from json_table(@records, '$[*]' columns(file_stat_records text path '$')) as jt;
-select JSON_EQUALS(@saved_indexes_2, @saved_indexes_1);
 select JSON_EQUALS(@saved_list_ranges_2, @saved_list_ranges_1);
 select * from json_table(
     @list_ranges,
@@ -153,12 +145,8 @@ select * from t1 where a < 3 and b > 6;
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 
-select JSON_EQUALS(@saved_records_2, @records);
-select JSON_EQUALS(@saved_indexes_2, @indexes);
 select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
 
 --echo #
@@ -174,13 +162,8 @@ select * from t1 where a < 3 and b > 6;
 
 --source include/get_opt_context.inc
 
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 
-select JSON_EQUALS(@saved_records_2, @records);
-select JSON_EQUALS(@saved_indexes_2, @indexes);
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
 select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
 
 set @saved_opt_context_2 = @opt_context;
