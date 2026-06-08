@@ -6138,8 +6138,7 @@ err:
 
 
 /* table_list should contain just one table */
-int mysql_discard_or_import_tablespace(THD *thd,
-                                       TABLE_LIST *table_list,
+int mysql_discard_or_import_tablespace(THD *thd, TABLE_LIST *table_list,
                                        bool discard)
 {
   Alter_table_prelocking_strategy alter_prelocking_strategy;
@@ -6203,8 +6202,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
   }
   for (uint i= table->s->keys; i < table->s->total_keys; i++)
   {
-    error= table->hlindex->file->
-      ha_discard_or_import_tablespace(discard);
+    error= table->hli->table->file->ha_discard_or_import_tablespace(discard);
     if (unlikely(error))
       goto err;
   }

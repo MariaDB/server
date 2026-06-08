@@ -461,6 +461,41 @@ public:
 };
 #pragma pack(pop)
 
+struct Search_context;
+
+class mhnsw_index : public hlindex
+{
+public:
+  Search_context *context;
+
+  mhnsw_index(TABLE *t) : hlindex(t), context(nullptr) { }
+
+  int insert_row(TABLE *table, KEY *keyinfo) override
+  { return 1; }
+  int read_key(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit) override
+  { return 1; }
+  int read_next(TABLE *table) override
+  { return 1; }
+  int read_end(TABLE *table) override
+  { return 1; }
+  int delete_row(TABLE *table, const uchar *rec, KEY *keyinfo) override
+  { return 1; }
+  int delete_all(TABLE *table, KEY *keyinfo, bool truncate) override
+  { return 1; }
+
+  bool reading() override { return context; }
+};
+
+class mhnsw_share : public hlindex_share
+{
+public:
+  MHNSW_Share *ctx;
+  ~mhnsw_share() {}
+
+  hlindex *create(TABLE *table, MEM_ROOT *mem_root) override
+  { return new (mem_root) mhnsw_index(table); }
+};
+
 /*
   Shared algorithm context. The graph.
 
@@ -513,7 +548,7 @@ public:
   bool use_subdist;
 
   MHNSW_Share(TABLE *t)
-    : tref_len(t->file->ref_length), gref_len(t->hlindex->file->ref_length),
+    : tref_len(t->file->ref_length), gref_len(t->hli->table->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
       metric(t->s->key_info[t->s->keys].option_struct->metric)
   {
@@ -565,9 +600,10 @@ public:
   virtual void reset(TABLE_SHARE *share)
   {
     share->lock_share();
-    if (static_cast<MHNSW_Share*>(share->hlindex->hlindex_data) == this)
+    auto hlis= static_cast<mhnsw_share*>(share->hlindex);
+    if (hlis->ctx == this)
     {
-      share->hlindex->hlindex_data= nullptr;
+      hlis->ctx= nullptr;
       --refcnt;
     }
     share->unlock_share();
@@ -711,7 +747,6 @@ public:
   // it's okay in a transaction-local cache, there's no concurrent access
   Hash_set<FVectorNode> &get_cache() { return node_cache; }
 
-  static hlindexton tp;
   static int do_commit(THD *thd, bool);
   static int do_savepoint_rollback(THD *thd, void *);
   static int do_rollback(THD *thd, bool);
@@ -747,7 +782,7 @@ static const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
   return {s, len};
 }
 
-struct hlindexton MHNSW_Trx::tp=
+static struct hlindexton mhnsw_hliton=
 {
   {0, 0, 0,
   nullptr,                        /* close_connection */
@@ -769,7 +804,7 @@ struct hlindexton MHNSW_Trx::tp=
 
 int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)
 {
-  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
+  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &mhnsw_hliton));
        trx; trx= trx->next)
     trx->reset(nullptr);
   return 0;
@@ -781,13 +816,13 @@ int MHNSW_Trx::do_rollback(THD *thd, bool all)
     return do_savepoint_rollback(thd, nullptr);
 
   MHNSW_Trx *trx_next;
-  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
+  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &mhnsw_hliton));
        trx; trx= trx_next)
   {
     trx_next= trx->next;
     trx->~MHNSW_Trx();
   }
-  thd_set_ha_data(current_thd, &tp, nullptr);
+  thd_set_ha_data(current_thd, &mhnsw_hliton, nullptr);
   return 0;
 }
 
@@ -797,7 +832,7 @@ int MHNSW_Trx::do_commit(THD *thd, bool all)
     return 0;
 
   MHNSW_Trx *trx_next;
-  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
+  for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &mhnsw_hliton));
        trx; trx= trx_next)
   {
     trx_next= trx->next;
@@ -836,7 +871,7 @@ int MHNSW_Trx::do_commit(THD *thd, bool all)
     }
     trx->~MHNSW_Trx();
   }
-  thd_set_ha_data(current_thd, &tp, nullptr);
+  thd_set_ha_data(current_thd, &mhnsw_hliton, nullptr);
   return 0;
 }
 
@@ -853,7 +888,7 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
       return NULL;
 
   THD *thd= table->in_use;
-  auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
+  auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &mhnsw_hliton));
   if (!for_update && !trx)
     return NULL;
 
@@ -861,13 +896,13 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
   if (!trx)
   {
     trx= new (&thd->transaction->mem_root) MHNSW_Trx(table);
-    trx->next= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
-    thd_set_ha_data(thd, &tp, trx);
+    trx->next= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &mhnsw_hliton));
+    thd_set_ha_data(thd, &mhnsw_hliton, trx);
     if (!trx->next)
     {
       if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-        trans_register_ha(thd, true, &tp, 0);
-      trans_register_ha(thd, false, &tp, 0);
+        trans_register_ha(thd, true, &mhnsw_hliton, 0);
+      trans_register_ha(thd, false, &mhnsw_hliton, 0);
     }
   }
   trx->refcnt++;
@@ -877,12 +912,13 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
 MHNSW_Share *MHNSW_Share::get_from_share(TABLE_SHARE *share, TABLE *table)
 {
   share->lock_share();
-  auto ctx= static_cast<MHNSW_Share*>(share->hlindex->hlindex_data);
+  auto hlis= static_cast<mhnsw_share*>(share->hlindex);
+  auto ctx= hlis->ctx;
   if (!ctx && table)
   {
-    ctx= new (&share->hlindex->mem_root) MHNSW_Share(table);
+    ctx= new (&hlis->s->mem_root) MHNSW_Share(table);
     if (!ctx) return nullptr;
-    share->hlindex->hlindex_data= ctx;
+    hlis->ctx= ctx;
     ctx->refcnt++;
   }
   if (ctx)
@@ -893,7 +929,7 @@ MHNSW_Share *MHNSW_Share::get_from_share(TABLE_SHARE *share, TABLE *table)
 
 int MHNSW_Share::acquire(MHNSW_Share **ctx, TABLE *table, bool for_update)
 {
-  TABLE *graph= table->hlindex;
+  TABLE *graph= table->hli->table;
 
   if (!(*ctx= MHNSW_Trx::get_from_thd(table, for_update)))
   {
@@ -1440,7 +1476,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
 int mhnsw_insert(TABLE *table, KEY *keyinfo)
 {
   THD *thd= table->in_use;
-  TABLE *graph= table->hlindex;
+  TABLE *graph= table->hli->table;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   Field *vec_field= keyinfo->key_part->field;
   String buf, *res= vec_field->val_str(&buf);
@@ -1553,7 +1589,8 @@ struct Search_context: public Sql_alloc
 int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
-  TABLE *graph= table->hlindex;
+  auto *self= static_cast<mhnsw_index*>(table->hli);
+  TABLE *graph= self->table;
   auto *fun= static_cast<Item_func_vec_distance*>(dist->real_item());
   DBUG_ASSERT(fun);
 
@@ -1617,15 +1654,17 @@ int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   ctx->add_to_stats(p.acc);
 
   auto result= new (thd->mem_root) Search_context(&candidates, ctx, target);
-  graph->context= result;
+  self->context= result;
 
   return 0;
 }
 
 int mhnsw_read_next(TABLE *table)
 {
-  TABLE *graph= table->hlindex;
-  auto result= static_cast<Search_context*>(graph->context);
+  auto *self= static_cast<mhnsw_index*>(table->hli);
+  auto result= self->context;
+  TABLE *graph= self->table;
+
   if (result->pos < result->found.num)
   {
     uchar *ref= result->found.links[result->pos++]->tref();
@@ -1675,26 +1714,26 @@ int mhnsw_read_next(TABLE *table)
 
 int mhnsw_read_end(TABLE *table)
 {
-  auto result= static_cast<Search_context*>(table->hlindex->context);
-  result->ctx->release(false, table->s);
-  table->hlindex->context= 0;
-  table->hlindex->file->ha_rnd_end();
+  auto *self= static_cast<mhnsw_index*>(table->hli);
+  self->context->ctx->release(false, table->s);
+  self->context= 0;
+  self->table->file->ha_rnd_end();
   return 0;
 }
 
 void mhnsw_free(TABLE_SHARE *share)
 {
-  TABLE_SHARE *graph_share= share->hlindex;
-  if (!graph_share->hlindex_data)
+  auto hlis= static_cast<mhnsw_share*>(share->hlindex);
+  if (!hlis->ctx)
     return;
 
-  static_cast<MHNSW_Share*>(graph_share->hlindex_data)->~MHNSW_Share();
-  graph_share->hlindex_data= 0;
+  hlis->ctx->~MHNSW_Share();
+  hlis->ctx= nullptr;
 }
 
 int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
 {
-  TABLE *graph= table->hlindex;
+  TABLE *graph= table->hli->table;
   handler *h= table->file;
   MHNSW_Share *ctx;
 
@@ -1736,7 +1775,7 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
 
 int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
 {
-  TABLE *graph= table->hlindex;
+  TABLE *graph= table->hli->table;
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
@@ -1769,7 +1808,7 @@ st_plugin_int *mhnsw_plugin;
 static int mhnsw_init(void *p)
 {
   mhnsw_plugin= (st_plugin_int *)p;
-  mhnsw_plugin->data= &MHNSW_Trx::tp;
+  mhnsw_plugin->data= &mhnsw_hliton;
   if (setup_transaction_participant(mhnsw_plugin))
     return 1;
 

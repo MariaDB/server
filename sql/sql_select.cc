@@ -71,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "index/hlindex.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -16825,7 +16826,7 @@ void JOIN_TAB::cleanup()
     table->file->ha_end_keyread();
     if (type == JT_FT)
       table->file->ha_ft_end();
-    else if (table->hlindex && table->hlindex->context)
+    else if (table->hli && table->hli->reading())
       table->hlindex_read_end();
     else
       table->file->ha_index_or_rnd_end();

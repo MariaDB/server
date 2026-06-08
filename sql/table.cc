@@ -509,7 +509,7 @@ void TABLE_SHARE::destroy()
   if (hlindex)
   {
     mhnsw_free(this);
-    hlindex->destroy();
+    delete hlindex;
   }
 
   /* The mutexes are initialized only for shares that are part of the TDC */
@@ -4905,8 +4905,8 @@ int closefrm(TABLE *table)
   DBUG_ENTER("closefrm");
   DBUG_PRINT("enter", ("table: %p", table));
 
-  if (table->hlindex)
-    closefrm(table->hlindex);
+  if (table->hli)
+    delete table->hli;
 
   if (table->db_stat)
     error=table->file->ha_close();
@@ -11254,4 +11254,9 @@ const LEX_CSTRING KEY::type(enum ha_key_alg alg) const
 const ha_create_table_option *KEY::options(const TABLE *t) const
 {
   return hliton ? hliton->options : t->file->partition_ht()->index_options;
+}
+
+hlindex::~hlindex()
+{
+  closefrm(table);
 }

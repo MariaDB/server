@@ -27,29 +27,36 @@
 
 */
 
-class hlindex
+class hlindex : public Sql_alloc
 {
+public:
+  hlindex(TABLE *t) : table(t) { }
+
   virtual int insert_row(TABLE *table, KEY *keyinfo) = 0;
   virtual int read_key(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit) = 0;
   virtual int read_next(TABLE *table) = 0;
   virtual int read_end(TABLE *table) = 0;
   virtual int delete_row(TABLE *table, const uchar *rec, KEY *keyinfo) = 0;
   virtual int delete_all(TABLE *table, KEY *keyinfo, bool truncate) = 0;
-  virtual ~hlindex() = default;
+  virtual bool reading() = 0;
+  virtual ~hlindex();
 
   TABLE *table;
 };
 
-class hlindex_share
+class hlindex_share : public Sql_alloc
 {
-  TABLE_SHARE *s;
-  virtual int destroy(TABLE_SHARE *share) = 0;
+public:
+  virtual hlindex *create(TABLE *table, MEM_ROOT *mem_root) = 0;
   virtual ~hlindex_share() = default;
+
+  TABLE_SHARE *s;
 };
 
 struct hlindexton : public transaction_participant
 {
   ha_create_table_option *options;
   const LEX_CSTRING (*table_def)(THD *thd, uint ref_length);
-  hlindex *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
+  //hlindex *(*create)(TABLE_SHARE *table, MEM_ROOT *mem_root);
+  hlindex_share *(*create)(TABLE_SHARE *share, MEM_ROOT *mem_root);
 };

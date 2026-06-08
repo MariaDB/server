@@ -86,6 +86,8 @@ class MYSQL_LOG;
 struct rpl_group_info;
 class Opt_hints_qb;
 class Opt_hints_table;
+class hlindex;
+class hlindex_share;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -777,10 +779,7 @@ struct TABLE_SHARE
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
 
-  union {
-    void *hlindex_data;                 /* for hlindex tables */
-    TABLE_SHARE *hlindex;               /* for normal tables  */
-  };
+  hlindex_share *hlindex;               /* for normal tables  */
 
   /*
     EITS statistics data from the last time the table was opened or ANALYZE
@@ -1423,16 +1422,13 @@ public:
   /* Tables used in DEFAULT and CHECK CONSTRAINT (normally sequence tables) */
   TABLE_LIST *internal_tables;
 
-  TABLE *hlindex;
+  hlindex       *hli;
   /*
     Not-null for temporary tables only. Non-null values means this table is
     used to compute GROUP BY, it has a unique of GROUP BY columns.
     (set by create_tmp_table)
   */
-  union {
-    ORDER       *group;                   /* only for temporary tables */
-    void        *context;                 /* only for hlindexes */
-  };
+  ORDER         *group;                   /* only for temporary tables */
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
   MY_BITMAP     def_read_set, def_write_set, tmp_set;

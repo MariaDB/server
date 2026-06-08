@@ -5710,7 +5710,7 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
     DBUG_ASSERT(table->s->hlindexes() == 1);
     if (table->hlindex_open(i) || table->hlindex_lock(i))
       return HA_ADMIN_FAILED;
-    if ((error= table->hlindex->file->check(thd, check_opt)))
+    if ((error= table->hli->table->file->check(thd, check_opt)))
       return error;
   }
   /* Skip updating frm version if not main handler. */
