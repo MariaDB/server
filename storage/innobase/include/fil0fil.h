@@ -1037,6 +1037,20 @@ public:
     ut_ad(!latch_owner);
     latch_owner= pthread_self();
   }
+
+  /** Try to acquire the allocation latch in exclusive mode
+  @return whether the latch was acquired */
+  bool x_lock_try() noexcept
+  {
+    if (latch.wr_lock_try())
+    {
+      ut_ad(!latch_owner);
+      latch_owner= pthread_self();
+      return true;
+    }
+    return false;
+  }
+
   /** Release the allocation latch from exclusive mode */
   void x_unlock()
   {
