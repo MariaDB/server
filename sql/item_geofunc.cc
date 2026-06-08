@@ -2321,6 +2321,14 @@ String *Item_func_simplify::val_str(String *str)
     }
   }
 
+  /*
+    ST_SIMPLIFY returns a binary geometry.  The simplify methods append the
+    result with String::append, which consults the charset of the output
+    buffer.  When that buffer is an element of the comparison array that IN
+    builds it arrives cleared, with no charset, so mark it binary before
+    writing.
+  */
+  str->set_charset(&my_charset_bin);
   if (geometry->simplify(str, max_distance))
   {
     null_value= 1;

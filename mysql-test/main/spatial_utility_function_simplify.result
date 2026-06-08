@@ -559,3 +559,38 @@ SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0
 ERROR 42S22: Unknown column 'a' in 'SELECT'
 # Clean up
 DROP TABLE gis_geometrycollection;
+#
+# MDEV-39914 MariaDB crash triggered by INFORMATION_SCHEMA query with
+#            ROW_NUMBER and GIS simplify
+#
+# ST_SIMPLIFY used as a constant element of an IN list is stored into
+# the array that IN builds for its comparisons.  That array element
+# arrives with no charset, so the binary geometry written into it must
+# mark the buffer as binary before appending.  Otherwise the append
+# reads a null charset and the server crashes.
+#
+SELECT 'x' IN ('accounts','cond_instances','setup_consumers','setup_objects',
+ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((10 2,5 2,5 10,-5 10,-5 2,-10 2,-10 -2,-5 -2,-5 -10,5 -10,5 -2,10 -2,10 2))'), 3),
+'global_status') AS r;
+r
+0
+SELECT 'x' IN ('a',
+ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTIPOLYGON(((10 2,5 2,5 10,-5 10,-5 2,-10 2,-10 -2,-5 -2,-5 -10,5 -10,5 -2,10 -2,10 2)))'), 3),
+'b') AS r;
+r
+0
+SELECT 'x' IN ('a',
+ST_SIMPLIFY(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POLYGON((10 2,5 2,5 10,-5 10,-5 2,-10 2,-10 -2,-5 -2,-5 -10,5 -10,5 -2,10 -2,10 2)))'), 3),
+'b') AS r;
+r
+0
+SELECT TABLE_SCHEMA, CONCAT(ROW_NUMBER() OVER (), 1) x, ORDINAL_POSITION
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'performance_schema' AND
+'MULTIPOINT(1 189.7654,41,-1032.34324 9,6.4 1,4 9)' IN
+('accounts', 'cond_instances', 'setup_consumers', 'setup_objects',
+ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((10 2,5 2,5 10,-5 10,-5 2,-10 2,-10 -2,-5 -2,-5 -10,5 -10,5 -2,10 -2,10 2))'), 3),
+'global_status')
+ORDER BY TABLE_SCHEMA + 2 DESC, TABLE_NAME, ORDINAL_POSITION,
+(SELECT COLUMN_NAME ORDER BY 1);
+TABLE_SCHEMA	x	ORDINAL_POSITION
