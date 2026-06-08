@@ -497,6 +497,20 @@ SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0
 --error ER_BAD_FIELD_ERROR
 SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0 0,0 0,0 0))'), a));
 
+--echo #
+--echo # MDEV-39911 Crash in ST_SIMPLIFY of a collection geometry
+--echo #
+
+--echo # ST_SIMPLIFY of a collection reserved less space than the WKB header it
+--echo # writes, so the element count overran a small buffer.  CONCAT_WS
+--echo # builds its separator in a ten byte stack buffer and COLUMN_GET builds its
+--echo # column name in an eleven byte stack buffer.  Each query below crashed
+--echo # before the fix.
+SELECT CONCAT_WS(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,5 5,0 10),(0 0,-5 5,0 10))'), 5), 7, 5) IS NOT NULL AS ok;
+SELECT CONCAT_WS(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,10 0,15 5,10 10,0 10,-5 5,0 0))'), 0.0001), 7, 5) IS NOT NULL AS ok;
+SELECT CONCAT_WS(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0,10 0,15 5,10 10,0 10,-5 5,0 0)))'), 0.0001), 7, 5) IS NOT NULL AS ok;
+SELECT COLUMN_GET(COLUMN_CREATE('a', 1), ST_SIMPLIFY(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(MULTILINESTRING((0 0,5 5,0 10),(0 0,-5 5,0 10)))'), 5) AS CHAR) IS NULL AS ok;
+
 --echo # Clean up
 DROP TABLE gis_geometrycollection;
 

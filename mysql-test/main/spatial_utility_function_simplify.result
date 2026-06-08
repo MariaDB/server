@@ -557,6 +557,26 @@ SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0
 ERROR HY000: Incorrect arguments to st_simplify
 SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,0 10,10 10,10 0,0 0,0 0,0 0,0 0))'), a));
 ERROR 42S22: Unknown column 'a' in 'SELECT'
+#
+# MDEV-39911 Crash in ST_SIMPLIFY of a collection geometry
+#
+# ST_SIMPLIFY of a collection reserved less space than the WKB header it
+# writes, so the element count overran a small buffer.  CONCAT_WS
+# builds its separator in a ten byte stack buffer and COLUMN_GET builds its
+# column name in an eleven byte stack buffer.  Each query below crashed
+# before the fix.
+SELECT CONCAT_WS(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,5 5,0 10),(0 0,-5 5,0 10))'), 5), 7, 5) IS NOT NULL AS ok;
+ok
+1
+SELECT CONCAT_WS(ST_SIMPLIFY(ST_GEOMFROMTEXT('POLYGON((0 0,10 0,15 5,10 10,0 10,-5 5,0 0))'), 0.0001), 7, 5) IS NOT NULL AS ok;
+ok
+1
+SELECT CONCAT_WS(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0,10 0,15 5,10 10,0 10,-5 5,0 0)))'), 0.0001), 7, 5) IS NOT NULL AS ok;
+ok
+1
+SELECT COLUMN_GET(COLUMN_CREATE('a', 1), ST_SIMPLIFY(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(MULTILINESTRING((0 0,5 5,0 10),(0 0,-5 5,0 10)))'), 5) AS CHAR) IS NULL AS ok;
+ok
+1
 # Clean up
 DROP TABLE gis_geometrycollection;
 #
