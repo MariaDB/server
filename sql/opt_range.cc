@@ -12540,13 +12540,16 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, limit, cost);
 
-  replay_ctx_rc=
-      param->thd->opt_ctx_replay
-          ? param->thd->opt_ctx_replay->infuse_range_stats(
-                param->table, keynr, &seq_if, &seq, cost, &rows,
-                mrr_flags, &replay_ctx_max_index_blocks,
-                &replay_ctx_max_row_blocks)
-          : true;
+  if (Optimizer_context_replay *rep= param->thd->opt_ctx_replay)
+  {
+    replay_ctx_rc=
+      rep->infuse_multi_range_read_info_const(param->table, keynr, &seq_if,
+                                              &seq, cost, &rows, mrr_flags,
+                                              &replay_ctx_max_index_blocks,
+                                              &replay_ctx_max_row_blocks);
+  }
+  else
+    replay_ctx_rc= true;
 
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
