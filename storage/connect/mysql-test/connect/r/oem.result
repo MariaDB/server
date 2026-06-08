@@ -1,0 +1,12 @@
+#
+# MDEV-39281 CONNECT OEM tables don't check subtype length
+#
+create table xtab engine=connect
+table_type=oem module='$HA_CONNECT_SO' subtype='testing123456789012345678901234567890';
+ERROR HY000: Subtype string too long
+create table xtab (a int) engine=connect
+table_type=oem module='$HA_CONNECT_SO' subtype='testing123456789012345678901234567890';
+select * from xtab;
+ERROR HY000: Subtype string too long
+drop table xtab;
+# End of 10.6 tests

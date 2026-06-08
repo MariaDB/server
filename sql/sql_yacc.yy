@@ -2265,9 +2265,9 @@ master_def:
             Lex->mi.ssl_crlpath= $3.str;
           }
 
-        | MASTER_HEARTBEAT_PERIOD_SYM '=' NUM_literal
+        | MASTER_HEARTBEAT_PERIOD_SYM '=' opt_plus NUM_literal
           {
-            Lex->mi.heartbeat_period= (float) $3->val_real();
+            Lex->mi.heartbeat_period= (float) $4->val_real();
             if (unlikely(Lex->mi.heartbeat_period >
                          SLAVE_MAX_HEARTBEAT_PERIOD) ||
                 unlikely(Lex->mi.heartbeat_period < 0.0))
@@ -10884,7 +10884,7 @@ window_func_expr:
             $$= new (thd->mem_root) Item_window_func(thd, (Item_sum *) $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
-            if (unlikely(Select->add_window_func((Item_window_func *) $$)))
+            if (unlikely(Select->add_window_func(thd, (Item_window_func *) $$)))
               MYSQL_YYABORT;
           }
         |
@@ -10900,7 +10900,7 @@ window_func_expr:
                                                       thd->lex->win_spec); 
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
-            if (unlikely(Select->add_window_func((Item_window_func *) $$)))
+            if (unlikely(Select->add_window_func(thd, (Item_window_func *) $$)))
               MYSQL_YYABORT;
           }
         ;
@@ -11041,7 +11041,7 @@ inverse_distribution_function:
                                                      thd->lex->win_spec);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
-            if (unlikely(Select->add_window_func((Item_window_func *) $$)))
+            if (unlikely(Select->add_window_func(thd, (Item_window_func *) $$)))
               MYSQL_YYABORT;
           }
         ;
@@ -12156,7 +12156,7 @@ opt_window_partition_clause:
 
 opt_window_order_clause:
           /* empty */ { }
-        | ORDER_SYM BY order_list { Select->order_list= *($3); } 
+        | ORDER_SYM BY order_list { Select->order_list= *($3); }
         ;
 
 opt_window_frame_clause:
@@ -12291,6 +12291,7 @@ order_clause:
           ORDER_SYM BY
           {
             thd->where= THD_WHERE::ORDER_CLAUSE;
+            thd->lex->clause_winfuncs.empty();
           }
           order_list
           {

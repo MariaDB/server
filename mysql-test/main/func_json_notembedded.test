@@ -18,7 +18,7 @@ select length(@obj), length(@arr);
 set max_statement_time=0.0001;
 disable_abort_on_error;
 SET @old_debug= @@debug_dbug;
-SET debug_dbug='+d,debug_max_statement_time exceeded';
+SET debug_dbug='+d,json_pause_execution';
 select json_array_append(@arr, '$[0]', 1);
 select json_array_insert(@arr, '$[0]', 1);
 select json_insert(@obj, '$.meta', 1);

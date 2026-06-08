@@ -19,13 +19,16 @@ export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 # shellcheck source=/dev/null
 source ./VERSION
 
+architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
+uname_machine=$(uname -m)
+
 # General CI optimizations to keep build output smaller
 if [[ $GITLAB_CI ]]
 then
   # On Gitlab the output log must stay under 4MB so make the
   # build less verbose
   sed '/Add support for verbose builds/,/^$/d' -i debian/rules
-elif [ -d storage/columnstore/columnstore/debian ]
+elif grep -q "$architecture" storage/columnstore/columnstore/debian/control
 then
   # ColumnStore is explicitly disabled in the native Debian build. Enable it
   # now when build is triggered by autobake-deb.sh (MariaDB.org) and when the
@@ -81,9 +84,6 @@ remove_package_notes()
   # binutils >=2.39 + disto makefile /usr/share/debhelper/dh_package_notes/package-notes.mk
   sed -e '/package.notes/d' -i debian/rules debian/control
 }
-
-architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
-uname_machine=$(uname -m)
 
 # Parse release name and number from Linux standard base release
 # Example:

@@ -1208,9 +1208,31 @@ public:
   /** This function used only during ALTER IGNORE TABLE command.
   Reset the undo no and remove the undo log from transaction.
   By doing this, InnoDB doesn't add any undo logs to purge queue
-  during transaction commit
-  @param table target table for ALTER IGNORE TABLE */
-  void reset_and_truncate_undo(const dict_table_t *table) noexcept;
+  during transaction commit */
+  inline void reset_and_truncate_undo() noexcept;
+
+  /** Clear TRX_DML_BULK, retaining TRX_DDL_BULK if it was set. */
+  void clear_dml_bulk() noexcept
+  {
+    static_assert(TRX_NO_BULK == 0, "");
+    static_assert(TRX_DML_BULK == 2, "");
+    static_assert(TRX_DDL_BULK == 3, "");
+    static_assert((TRX_DML_BULK & 1) == 0, "");
+    ut_ad(bulk_insert != 1);
+    bulk_insert= unsigned(
+      (bulk_insert & (((bulk_insert ^ bulk_insert << 1) & 2 >> 1) * 3)) & 3);
+  }
+
+  /** Clear TRX_DDL_BULK, retaining TRX_DML_BULK if it was set. */
+  void clear_ddl_bulk() noexcept
+  {
+    static_assert(TRX_NO_BULK == 0, "");
+    static_assert(TRX_DML_BULK == 2, "");
+    static_assert(TRX_DDL_BULK == 3, "");
+    static_assert((TRX_DML_BULK & 1) == 0, "");
+    ut_ad(bulk_insert != 1);
+    bulk_insert= unsigned((bulk_insert ^ ((bulk_insert & 1) * 3)) & 3);
+  }
 
 private:
   /** Apply the buffered bulk inserts. */

@@ -3,6 +3,7 @@
 --echo #
 
 --source include/have_sequence.inc
+--source include/have_innodb.inc
 
 # We need optimizer trace
 --source include/not_embedded.inc
@@ -251,3 +252,81 @@ SELECT * FROM t1 NATURAL JOIN t1 AS t2 WHERE t1.b=NULL ORDER BY t1.a LIMIT 1;
 DROP TABLE t1;
 
 set optimizer_join_limit_pref_ratio=default;
+
+--echo #
+--echo # MDEV-38072 Optimizer choosing the wrong plan
+--echo #
+
+CREATE TABLE t0 (
+  actor_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  actor_name varbinary(255) NOT NULL,
+  PRIMARY KEY (actor_id),
+  UNIQUE KEY actor_name (actor_name)
+) ENGINE=InnoDB DEFAULT CHARSET=binary;
+
+CREATE TABLE t1 (
+  log_id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  log_type varbinary(32) NOT NULL DEFAULT '',
+  log_timestamp binary(14) NOT NULL DEFAULT '19700101000000',
+  log_params blob NOT NULL,
+  log_actor bigint(20) unsigned NOT NULL,
+
+  index log_actor_type_time (log_actor,log_type,log_timestamp),
+  index log_type_time (log_type,log_timestamp),
+  index log_actor_time (log_actor,log_timestamp),
+  index log_times (log_timestamp),
+  PRIMARY KEY (log_id)
+) ENGINE=InnoDB  DEFAULT CHARSET=binary;
+
+
+insert into t0 select seq, seq from seq_1_to_10;
+update t0 set actor_name = 'DGG' where actor_id = 4;
+
+insert into t1
+  (log_timestamp, log_actor, log_params, log_type)
+select
+  19700101+seq,
+  floor(seq / 400), /* log_actor, 50x */
+  'log-params-value=log-params-value',
+  concat('val-', 100 + mod(seq, 100))  /* log_type */
+from
+  seq_1_to_20000;
+
+analyze table t0, t1;
+
+set optimizer_trace=1;
+
+let $q=
+explain format=json
+SELECT log_id, log_type, log_params, log_timestamp
+FROM t0, t1
+WHERE
+  t0.actor_name = 'DGG' and
+  t0.actor_id = t1.log_actor and
+  t1.log_type NOT IN ('val-110', 'val-120', 'val-130', 'val-133', 'val-144',
+                      'val-155', 'val-160', 'val-170', 'val-180')
+ORDER BY
+  log_timestamp DESC, log_id DESC
+LIMIT 2;
+
+--echo #
+--echo # Bad query plan:  t1 has access_type:index, key=log_times
+--echo #
+--replace_regex /("rows": )[0-9]+/\1"REPLACED"/
+eval $q;
+
+set @tmp=@@optimizer_adjust_secondary_key_costs,
+    optimizer_adjust_secondary_key_costs="fix_order_by_index_choice";
+--echo #
+--echo # Better query plan: t1 has access_type:range, key=log_actor_time, used_key_parts: log_actor
+--echo #
+--replace_regex /("rows": )[0-9]+/\1"REPLACED"/
+eval $q;
+
+
+set optimizer_adjust_secondary_key_costs=@tmp;
+drop table t0, t1;
+
+
+SET GLOBAL innodb_stats_persistent=default;
+--echo # End of 10.11 tests

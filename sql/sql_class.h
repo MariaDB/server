@@ -613,7 +613,7 @@ extern const LEX_CSTRING Diag_condition_item_names[];
   These states are bit coded with HARD. For each state there must be a pair
   <state_even_num>, and <state_odd_num>_HARD.
 */
-enum killed_state
+enum killed_state : uint32_t
 {
   NOT_KILLED= 0,
   KILL_HARD_BIT= 1,                             /* Bit for HARD KILL */

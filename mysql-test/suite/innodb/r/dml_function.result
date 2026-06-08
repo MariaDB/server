@@ -1,0 +1,26 @@
+#
+# MDEV-39542 Assertion failed in trx_flush_log_if_needed()
+#
+CREATE TABLE t (id INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+CREATE FUNCTION f(i INT) RETURNS INT
+BEGIN
+SET TRANSACTION READ ONLY;
+RETURN i;
+END //
+CREATE FUNCTION g(i INT) RETURNS INT
+BEGIN
+START TRANSACTION READ ONLY;
+RETURN i;
+END //
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+DELETE FROM t WHERE id=f(1);
+DELETE FROM t WHERE id=2;
+SET TRANSACTION READ ONLY;
+DELETE FROM t WHERE id=3;
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+SELECT * FROM t;
+id
+3
+DROP FUNCTION f;
+DROP TABLE t;

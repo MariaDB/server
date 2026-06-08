@@ -49,3 +49,11 @@ DROP TABLE mysql.mariadb_backup_history;
 rmdir $targetdir;
 remove_file $streamfile;
 remove_file $stream_incr_file;
+
+--echo #
+--echo # MDEV-39408 mbstream insufficient path validation
+--echo #
+--replace_regex /\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d .*:/mbstream:/
+exec $XBSTREAM -x -C $MYSQL_TMP_DIR < $MYSQL_TEST_DIR/std_data/mdev-39408.mb 2>&1;
+
+--echo # End of 10.6 tests

@@ -1,0 +1,9 @@
+--source include/not_windows.inc
+--echo #
+--echo # MDEV-39118: test_if_hard_path() crashes on recursively resolving \$HOME
+--echo #
+
+--error ER_WRONG_TABLE_NAME
+create table t (c int) engine=MyISAM data directory="~/foo/bar";
+
+--echo # End of 10.11 tests

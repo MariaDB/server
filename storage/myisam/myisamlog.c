@@ -414,18 +414,20 @@ static int examine_log(char * file_name, char **table_names)
 		     left_root_right);
       file_info.id=open_param.max_id+1;
       /*
-       * In the line below +10 is added to accommodate '<' and '>' chars
-       * plus '\0' at the end, so that there is place for 7 digits.
-       * It is  improbable that same table can have that many entries in 
-       * the table cache.
-       * The additional space is needed for the sprintf commands two lines
-       * below.
-       */ 
+       * In the line below SHOW_NAME_SUFFIX_LENGTH is added to accommodate
+       * '<' and '>' chars plus '\0' at the end, so that there is place
+       * for 7 digits. It is improbable that same table can have that
+       * many entries in the table cache.
+       * The additional space is needed for the snprintf command below.
+       */
+#define SHOW_NAME_SUFFIX_LENGTH 10
       file_info.show_name=my_memdup(PSI_NOT_INSTRUMENTED, isam_file_name,
-				    (uint) strlen(isam_file_name)+10,
+				    (uint) strlen(isam_file_name)+
+				    SHOW_NAME_SUFFIX_LENGTH,
 				    MYF(MY_WME));
       if (file_info.id > 1)
-	sprintf(strend(file_info.show_name),"<%d>",file_info.id);
+	snprintf(strend(file_info.show_name), SHOW_NAME_SUFFIX_LENGTH,
+		 "<%d>",file_info.id);
       file_info.closed=1;
       file_info.accessed=access_time;
       file_info.used=1;

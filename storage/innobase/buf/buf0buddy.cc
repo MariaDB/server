@@ -651,7 +651,6 @@ buf_block_t *buf_buddy_shrink(buf_page_t *bpage, buf_block_t *block) noexcept
   ulint size= page_zip_get_size(&bpage->zip);
   ulint i= buf_buddy_get_slot(size);
 
-  ut_ad(buf_pool.will_be_withdrawn(bpage->zip.data, size));
   ut_ad(bpage->can_relocate());
   ut_ad(i <= BUF_BUDDY_SIZES);
   ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));

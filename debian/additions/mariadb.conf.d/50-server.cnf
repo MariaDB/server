@@ -82,7 +82,7 @@ expire_logs_days        = 10
 #
 
 # For documentation, please read
-# https://mariadb.com/kb/en/securing-connections-for-client-and-server/
+# https://mariadb.com/docs/server/security/encryption/data-in-transit-encryption/securing-connections-for-client-and-server
 #ssl-ca = /etc/mysql/cacert.pem
 #ssl-cert = /etc/mysql/server-cert.pem
 #ssl-key = /etc/mysql/server-key.pem
@@ -104,7 +104,7 @@ collation-server      = utf8mb4_general_ci
 # InnoDB is enabled by default with a 10MB datafile in /var/lib/mysql/.
 # Read the manual for more InnoDB related options. There are many!
 # Most important is to give InnoDB 80 % of the system RAM for buffer use:
-# https://mariadb.com/kb/en/innodb-system-variables/#innodb_buffer_pool_size
+# https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-system-variables#innodb_buffer_pool_size
 #innodb_buffer_pool_size = 8G
 
 # this is only for embedded server

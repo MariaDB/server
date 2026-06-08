@@ -14,7 +14,7 @@
 # This is intended to be used by a maintainer; i.e. the resulting .test files are still committed to git.
 
 # Note on known storage engines:
-# See https://mariadb.com/kb/en/information-schema-engines-table/ for a full list
+# See https://mariadb.com/docs/server/reference/system-tables/information-schema/information-schema-tables/information-schema-engines-table for a full list
 # CSV - doesn't work with OQGraph, attempting to create backing table gives 'failed: 1069: Too many keys specified; max 0 keys allowed'
 # BLACKHOLE - makes no sense... but we should make sure it doesnt crash
 # FEDERATED, ARCHIVE - consider later 

@@ -291,7 +291,6 @@ COMMIT;
 SELECT * FROM t1;
 --enable_ps2_protocol
 COMMIT;
---disconnect consistent
 --connection default
 DROP TABLE t1,t2;
 
@@ -304,6 +303,37 @@ CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 SELECT * FROM t1 FOR UPDATE;
 DROP TABLE t1;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+--echo #
+--echo # MDEV-39263 Lost update despite innodb_snapshot_isolation
+--echo #
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY, val TEXT) ENGINE=InnoDB;
+
+--connection consistent
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SELECT * FROM t1 WHERE f1 = 1;
+
+# Stop autocommit INSERT execution in commit_in_memory() between commit_state()
+# and trx_sys.deregister_rw(), before locks are released
+--connection default
+SET DEBUG_SYNC="trx_after_commit_state SIGNAL committed WAIT_FOR cleanup";
+send SET STATEMENT innodb_lock_wait_timeout=3 FOR INSERT INTO t1 VALUES(1,'6');
+
+--connection consistent
+SET DEBUG_SYNC="now WAIT_FOR committed";
+--error ER_CHECKREAD
+SET STATEMENT innodb_lock_wait_timeout=3 FOR
+UPDATE t1 SET val = CONCAT(val, ',', '3') WHERE f1 = 1;
+
+SET DEBUG_SYNC="now SIGNAL cleanup";
+--disconnect consistent
+
+--connection default
+
+--reap
+SET DEBUG_SYNC="RESET";
+DROP TABLE t1;
 
 --source include/wait_until_count_sessions.inc
 --echo # End of 10.6 tests

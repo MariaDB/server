@@ -287,33 +287,33 @@ USE `test`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v2` AS SELECT
- 1 AS `a+b`,
-  1 AS `c`,
-  1 AS `current_role()` */;
+ NULL AS `a+b`,
+ NULL AS `c`,
+ NULL AS `current_role()` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v4` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v5` AS SELECT
- 1 AS `a+b`,
-  1 AS `c` */;
+ NULL AS `a+b`,
+ NULL AS `c` */;
 SET character_set_client = @saved_cs_client;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
@@ -350,7 +350,8 @@ INSERT INTO `t2` VALUES
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`role1`*/ /*!50003 trigger tr1 before insert on t2 for each row
-insert t1 values (111, 222, 333) */;;
+insert t1 values (111, 222, 333) 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -366,7 +367,8 @@ DELIMITER ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`role3`@`%`*/ /*!50003 trigger tr3 before update on t2 for each row
-insert t1 values (111, 222, 333) */;;
+insert t1 values (111, 222, 333) 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -382,7 +384,8 @@ DELIMITER ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`role2`@``*/ /*!50003 trigger tr2 before delete on t2 for each row
-insert t1 values (111, 222, 333) */;;
+insert t1 values (111, 222, 333) 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -400,7 +403,8 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`role1`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0) */ ;;
+/*!50106 CREATE*/ /*!50117 DEFINER=`role1`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0) 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -417,7 +421,8 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`role2`*/ /*!50106 EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0) */ ;;
+/*!50106 CREATE*/ /*!50117 DEFINER=`role2`*/ /*!50106 EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0) 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -434,7 +439,8 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`role3`@`%`*/ /*!50106 EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0) */ ;;
+/*!50106 CREATE*/ /*!50117 DEFINER=`role3`@`%`*/ /*!50106 EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0) 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -452,7 +458,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`role1` FUNCTION `fn1`() RETURNS int(11)
-return (select sum(a+b) from t1) ;;
+return (select sum(a+b) from t1)
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -468,7 +475,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`role2` FUNCTION `fn2`() RETURNS int(11)
-return (select sum(a+b) from t1) ;;
+return (select sum(a+b) from t1)
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -484,7 +492,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`role3`@`%` FUNCTION `fn3`() RETURNS int(11)
-return (select sum(a+b) from t1) ;;
+return (select sum(a+b) from t1)
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -500,7 +509,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`role1` PROCEDURE `pr1`()
-insert t1 values (111, 222, 333) ;;
+insert t1 values (111, 222, 333)
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -516,7 +526,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`role2`@`%` PROCEDURE `pr2`()
-insert t1 values (111, 222, 333) ;;
+insert t1 values (111, 222, 333)
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -532,7 +543,8 @@ DELIMITER ;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;
 DELIMITER ;;
 CREATE DEFINER=`role3`@`%` PROCEDURE `pr3`()
-insert t1 values (111, 222, 333) ;;
+insert t1 values (111, 222, 333)
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;

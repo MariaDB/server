@@ -257,3 +257,105 @@ DROP TABLE t;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-28374 UBSAN signed integer overflow PROCEDURE ANALYSE
+#
+SET sql_mode='';
+CREATE TABLE t (a BIGINT);
+INSERT INTO t VALUES ('10000000000000'),('10000000000000');
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.a	10000000000000	10000000000000	14	14	0	0	10000000000000.0000	0.0000	ENUM('10000000000000') NOT NULL
+DROP TABLE t;
+CREATE TABLE t (a BIGINT UNSIGNED);
+INSERT INTO t VALUES ('18446744073709551615'),('18446744073709551615');
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.a	18446744073709551615	18446744073709551615	20	20	0	0	18446744073709552000.0000	0.0000	ENUM('18446744073709551615') NOT NULL
+DROP TABLE t;
+CREATE TABLE t (a BIGINT,KEY a USING BTREE (a));
+INSERT INTO t VALUES (0),('1'),('1'),('1'),('1'),('00010101'),('99991231'),('00101000000'),('691231000000'),('700101000000'),('991231235959'),('10000101000000'),('99991231235959'),('20030100000000'),('20030000000000');
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.a	0	99991231235959	1	14	1	0	10162279764883.6000	24971351159406.2300	ENUM('0','1','10101','99991231','101000000','691231000000','700101000000','991231235959','10000101000000','20030000000000','20030100000000','99991231235959') NOT NULL
+DROP TABLE t;
+CREATE TABLE t (c BIGINT,c2 DATE,c3 BLOB,KEY(c)) ENGINE=InnoDB;
+INSERT INTO t VALUES (-1.e+308,1,1);
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+Warning	1265	Data truncated for column 'c2' at row 1
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.c	-9223372036854775808	-9223372036854775808	20	20	0	0	-9223372036854776000.0000	0.0000	ENUM('-9223372036854775808') NOT NULL
+test.t.c2	0000-00-00	0000-00-00	10	10	0	0	10.0000	NULL	ENUM('0000-00-00') NOT NULL
+test.t.c3	1	1	1	1	0	0	1.0000	NULL	ENUM('1') NOT NULL
+DROP TABLE t;
+CREATE TABLE t (c INT) ENGINE=InnoDB UNION=(t,t2) INSERT_METHOD=LAST;
+CREATE TABLE t3 LIKE t;
+INSERT INTO t VALUES (1),(2),(-685113344),(0);
+INSERT INTO t3 SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t3 SELECT * FROM t;
+SELECT * FROM t3 PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t3.c	-685113344	2	1	10	5	0	-171278335.2500	296662780.6209	ENUM('-685113344','0','1','2') NOT NULL
+DROP TABLE t, t3;
+CREATE TABLE t (c INT) ENGINE=InnoDB UNION=(t,t2) INSERT_METHOD=LAST;
+INSERT INTO t VALUES (1);
+INSERT INTO t VALUES (0xA9BD);
+INSERT INTO t (c) VALUES (ADDTIME(NOW(),1));
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+CREATE TABLE c AS SELECT 1 A;
+SELECT * FROM t a,c,t b PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.a.c	1	2147483647	1	10	0	0	715842367.0000	1012323257.4700	ENUM('1','43453','2147483647') NOT NULL
+test.c.A	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.b.c	1	2147483647	1	10	0	0	715842367.0000	1012323257.4700	ENUM('1','43453','2147483647') NOT NULL
+DROP TABLE t, c;
+CREATE TABLE t (c BIGINT);
+INSERT INTO t VALUES (1000000000000000);
+SELECT * FROM t PROCEDURE ANALYSE(0,0);
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.c	1000000000000000	1000000000000000	16	16	0	0	1000000000000000.0000	0.0000	BIGINT(16) UNSIGNED NOT NULL
+DROP TABLE t;
+CREATE SEQUENCE t CACHE=1 MAXVALUE=0 INCREMENT=-1;
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.next_not_cached_value	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+test.t.minimum_value	-9223372036854775807	-9223372036854775807	20	20	0	0	-9223372036854776000.0000	0.0000	ENUM('-9223372036854775807') NOT NULL
+test.t.maximum_value	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+test.t.start_value	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+test.t.increment	-1	-1	2	2	0	0	-1.0000	0.0000	ENUM('-1') NOT NULL
+test.t.cache_size	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.t.cycle_option	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+test.t.cycle_count	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+DROP SEQUENCE t;
+CREATE SEQUENCE t CACHE+1;
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.next_not_cached_value	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.t.minimum_value	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.t.maximum_value	9223372036854775806	9223372036854775806	19	19	0	0	9223372036854776000.0000	0.0000	ENUM('9223372036854775806') NOT NULL
+test.t.start_value	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.t.increment	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.t.cache_size	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+test.t.cycle_option	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+test.t.cycle_count	0	0	1	1	1	0	0.0000	0.0000	ENUM('0') NOT NULL
+DROP SEQUENCE t;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0x31313131),(0x32323232);
+INSERT INTO t VALUES (0x31313131),(0x32323232);
+SELECT * FROM t LIMIT 1 PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.c	825307441	842150450	9	9	0	0	833728945.5000	8421504.5000	ENUM('825307441','842150450') NOT NULL
+DROP TABLE t;
+CREATE TABLE t (f BIGINT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(+1),(1),(1),(+1),(1),(1),(1),(1),(+1),(1),(1),(1),(20030000000000);
+SELECT * FROM t PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.f	1	20030000000000	1	14	0	0	1430714285715.2144	5158513717681.4360	ENUM('1','20030000000000') NOT NULL
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+# End of 10.11 tests

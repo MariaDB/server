@@ -3,7 +3,7 @@
 
 Description=MariaDB @VERSION@ database server (socket activation extra port)
 Documentation=man:mariadbd(8)
-Documentation=https://mariadb.com/kb/en/library/systemd/
+Documentation=https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 
 [Install]
 WantedBy=sockets.target
@@ -14,7 +14,7 @@ Service=mariadb.service
 
 # An "extra" as a descriptor name that means treat these ListenStreams as
 # the same as an extra_port.
-# Ref: https://mariadb.com/kb/en/thread-pool-system-status-variables/#extra_port
+# Ref: https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/buffers-caches-and-threads/thread-pool/thread-pool-system-status-variables
 
 FileDescriptorName=extra
 

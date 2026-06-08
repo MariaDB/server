@@ -20,7 +20,7 @@
   Tool used for executing a .test file
 
   See the "MySQL Test framework manual" for more information
-  https://mariadb.com/kb/en/library/mysqltest/
+  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 
   Please keep the test framework tools identical in all versions!
 
@@ -1534,12 +1534,12 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
       }
       else
       {
-	if (!(v= var_get(p, &p, 0, 0)))
+        if (!(v= var_get(p, &p, 0, 0)) || !v->str_val)
         {
           report_or_die( "Bad variable in eval");
           DBUG_VOID_RETURN;
         }
-	dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
+        dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
       }
       break;
     case '\\':
@@ -2908,7 +2908,7 @@ VAR* var_get(const char *var_name, const char **var_name_end, my_bool raw,
 
   if (!raw && v->int_dirty)
   {
-    sprintf(v->str_val, "%d", v->int_val);
+    snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
     v->int_dirty= false;
     v->str_val_len = strlen(v->str_val);
   }
@@ -2970,7 +2970,7 @@ void var_set(const char *var_name, const char *var_name_end,
   {
     if (v->int_dirty)
     {
-      sprintf(v->str_val, "%d", v->int_val);
+      snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
       v->int_dirty=false;
       v->str_val_len= strlen(v->str_val);
     }
@@ -5234,7 +5234,8 @@ void do_sync_with_master2(struct st_command *command, long offset,
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+  snprintf(query_buf, sizeof(query_buf),
+          "select master_pos_wait('%s', %ld, %d, '%s')",
           master_pos.file, master_pos.pos + offset, timeout,
           connection_name);
 
@@ -6115,9 +6116,9 @@ static int cmp_decimal(const My_string &a, const My_string &b)
   size_t b_len= b.length();
 
   // Skip leading whitespace
-  while (a_len > 0 && isspace(*a_ptr))
+  while (a_len > 0 && my_isspace(charset_info, *a_ptr))
     a_ptr++, a_len--;
-  while (b_len > 0 && isspace(*b_ptr))
+  while (b_len > 0 && my_isspace(charset_info, *b_ptr))
     b_ptr++, b_len--;
 
   // Handle empty strings (treat as 0)
@@ -6139,8 +6140,8 @@ static int cmp_decimal(const My_string &a, const My_string &b)
 
   // Find actual numeric length (digits only)
   size_t a_digits= 0, b_digits= 0;
-  for (size_t i= 0; i < a_len && isdigit(a_ptr[i]); i++) a_digits++;
-  for (size_t i= 0; i < b_len && isdigit(b_ptr[i]); i++) b_digits++;
+  for (size_t i= 0; i < a_len && my_isdigit(charset_info, a_ptr[i]); i++) a_digits++;
+  for (size_t i= 0; i < b_len && my_isdigit(charset_info, b_ptr[i]); i++) b_digits++;
 
   // Handle zero cases after removing leading zeros
   bool a_is_zero= (a_digits == 0);
@@ -6203,7 +6204,7 @@ void func_abs(Expression_value args[], int count, Expression_value *result)
   if (!args[0].is_numeric)
     die("abs() requires numeric argument");
 
-  result->set_int(abs(args[0].to_int()));
+  result->set_int(llabs(args[0].to_int()));
 }
 
 
@@ -9227,8 +9228,9 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
   /* Parse and evaluate test expression */
   expr_start= strchr(p, '(');
-  if (!expr_start++)
+  if (!expr_start)
     die("missing '(' in %s", cmd_name);
+  expr_start++;
 
   while (my_isspace(charset_info, *expr_start))
     expr_start++;
@@ -10821,7 +10823,7 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
   char buf[40], buff2[21];
-  size_t len= sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
+  size_t len= snprintf(buf, sizeof(buf), "affected rows: %s\n", llstr(affected_rows, buff2));
   dynstr_append_mem(ds, buf, len);
   if (info)
   {

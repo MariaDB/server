@@ -78,14 +78,11 @@ class DllExport BINCOL : public DOSCOL {
   void ReadColumn(PGLOBAL g) override;
   void WriteColumn(PGLOBAL g) override;
 
-  // Static
-  static  void SetEndian(void); 
-
  protected:
   BINCOL(void) = default;    // Default constructor not to be used
 
   // Members
-  static char Endian;         // The host endian setting (L or B)
+  static const char Endian;   // The host endian setting (L or B)
   char *Buff;                 // Utility buffer
   char  Eds;                  // The file endian setting
   char  Fmt;                  // The converted value format

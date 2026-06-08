@@ -1164,6 +1164,13 @@ public:
   }
 
 
+  bool is_registered_nonzero(trx_id_t id, trx_t *caller_trx= nullptr)
+  {
+    ut_ad(id);
+    return find(caller_trx, id, false);
+  }
+
+
   bool is_registered(trx_t *caller_trx, trx_id_t id)
   {
     return id && find(caller_trx, id, false);

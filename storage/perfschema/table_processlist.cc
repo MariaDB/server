@@ -267,7 +267,7 @@ void table_processlist::make_row(PFS_thread *pfs) {
   if (m_row.m_hostname_length > 0 && m_row.m_port != 0) {
     /* Create HOST:PORT. */
     char str_port[10];
-    sprintf(str_port, ":%d", m_row.m_port);
+    snprintf(str_port, sizeof(str_port), ":%d", m_row.m_port);
     std::string host(m_row.m_hostname, m_row.m_hostname_length);
     std::string host_ip = host + str_port;
     m_row.m_hostname_length =

@@ -1,0 +1,51 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET global wsrep_slave_threads = 2;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_2;
+START SLAVE;
+connection node_3;
+CREATE SEQUENCE my_seq INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+insert into t1 values (0);
+BEGIN;
+select nextval(my_seq);
+nextval(my_seq)
+1
+select nextval(my_seq);
+nextval(my_seq)
+2
+select nextval(my_seq);
+nextval(my_seq)
+3
+insert into t1 values (1);
+COMMIT;
+insert into t1 values (2);
+delete from t1;
+DROP TABLE t1;
+CREATE TABLE t1(a int not null primary key default nextval(my_seq), b int) engine=innodb;
+BEGIN;
+INSERT INTO t1(b) VALUES(3);
+INSERT INTO t1(a,b) VALUES(10,4);
+COMMIT;
+delete from t1;
+connection node_1;
+SET global wsrep_slave_threads = DEFAULT;
+connection node_3;
+DROP SEQUENCE my_seq;
+DROP TABLE t1;
+connection node_1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+connection node_1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_3;
+reset master;

@@ -455,7 +455,7 @@ EXPLAIN
             "attached_condition": "tbl2.b < 5"
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "1KiB",
           "join_type": "BNL",
           "attached_condition": "tbl2.a = tbl1.a"
         }
@@ -768,7 +768,7 @@ EXPLAIN
             "filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "1KiB",
           "join_type": "BNL"
         }
       }
@@ -1048,7 +1048,7 @@ EXPLAIN
                   "filtered": 100
                 },
                 "buffer_type": "flat",
-                "buffer_size": "1Kb",
+                "buffer_size": "1KiB",
                 "join_type": "BNL",
                 "attached_condition": "tbl2.b = tbl1.b"
               }

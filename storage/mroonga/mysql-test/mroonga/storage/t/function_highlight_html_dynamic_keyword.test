@@ -18,13 +18,6 @@
 --source ../../include/mroonga/have_mroonga.inc
 --source ../../include/mroonga/load_mroonga_functions.inc
 
-
---disable_warnings
---disable_query_log
-DROP TABLE IF EXISTS keywords;
---enable_query_log
---enable_warnings
-
 CREATE TABLE keywords (
   keyword text
 );
@@ -32,17 +25,9 @@ CREATE TABLE keywords (
 INSERT INTO keywords VALUES ('Mroonga');
 INSERT INTO keywords VALUES ('Groonga');
 
-#Check after fix MDEV-31554
---disable_cursor_protocol
 SELECT mroonga_highlight_html('Mroonga is the Groonga based storage engine.',
                               keyword) AS highlighted
   FROM keywords;
---enable_cursor_protocol
-
---disable_query_log
-DROP TABLE keywords;
---enable_query_log
-
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

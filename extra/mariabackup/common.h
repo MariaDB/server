@@ -54,7 +54,7 @@ static inline int vasprintf(char **strp, const char *fmt, va_list args)
   {
     return -1;
   }
-  vsprintf(*strp, fmt, args);
+  vsnprintf(*strp, len + 1, fmt, args);
   return len;
 }
 

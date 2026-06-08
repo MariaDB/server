@@ -115,6 +115,7 @@ tmpfile_open(ds_ctxt_t *ctxt, const char *path,
 	tmp_file->orig_path = (char *) tmp_file + sizeof(ds_tmp_file_t);
 
 	tmp_file->fd = fd;
+	posix_fadvise(tmp_file->fd, 0, 0, POSIX_FADV_DONTNEED);
 	memcpy(tmp_file->orig_path, path, path_len);
 
 	/* Store the real temporary file name in file->path */
@@ -138,12 +139,11 @@ tmpfile_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	File fd = ((ds_tmp_file_t *) file->ptr)->fd;
 
-	if (!my_write(fd, buf, len, MYF(MY_WME | MY_NABP))) {
-		posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
-		return 0;
+	if (my_write(fd, buf, len, MYF(MY_WME | MY_NABP))) {
+		return 1;
 	}
 
-	return 1;
+	return 0;
 }
 
 static int

@@ -34,7 +34,7 @@ USE `mysqltest2`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v2` AS SELECT
- 1 AS `a` */;
+ NULL AS `a` */;
 SET character_set_client = @saved_cs_client;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
@@ -43,27 +43,27 @@ USE `mysqltest3`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3` AS SELECT
- 1 AS `a` */;
+ NULL AS `a` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3i` AS SELECT
- 1 AS `a` */;
+ NULL AS `a` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3is` AS SELECT
- 1 AS `schema_name` */;
+ NULL AS `schema_name` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3nt` AS SELECT
- 1 AS `1` */;
+ NULL AS `1` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3ps` AS SELECT
- 1 AS `user` */;
+ NULL AS `user` */;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqltest1`;
@@ -239,7 +239,7 @@ connection default;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1` AS SELECT
- 1 AS `id` */;
+ NULL AS `id` */;
 SET character_set_client = @saved_cs_client;
 /*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;

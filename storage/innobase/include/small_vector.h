@@ -58,7 +58,6 @@ class small_vector : public small_vector_base
 public:
   small_vector() : small_vector_base(small, N)
   {
-    TRASH_ALLOC(small, sizeof small);
   }
   ~small_vector() noexcept
   {

@@ -1139,7 +1139,7 @@ static void queue_put(thread_group_t *thread_group, TP_connection_generic *conne
 
 static bool too_many_threads(thread_group_t *thread_group)
 {
-  return (thread_group->active_thread_count >= 1+(int)threadpool_oversubscribe
+  return (thread_group->active_thread_count > 1+(int)threadpool_oversubscribe
    && !thread_group->stalled);
 }
 

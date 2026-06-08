@@ -28,7 +28,6 @@ usr/sbin/rcmysql
 usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mysql/mroonga/COPYING")
 usr/share/doc/mariadb-server/CREDITS
 usr/share/doc/mariadb-server/INSTALL-BINARY
-usr/share/doc/mariadb-server/README-wsrep
 usr/share/doc/mariadb-server/README.md
 usr/share/doc/mariadb-server/THIRDPARTY
 usr/share/groonga-normalizer-mysql/README.md

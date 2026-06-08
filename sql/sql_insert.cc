@@ -1430,14 +1430,14 @@ values_loop_end:
                      info.touched : info.updated);
 
     if (ignore)
-      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-              (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
-              (ulong) (info.records - info.copied),
-              (long) thd->get_stmt_da()->current_statement_warn_count());
+      snprintf(buff, sizeof(buff), ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
+               (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
+               (ulong) (info.records - info.copied),
+               (long) thd->get_stmt_da()->current_statement_warn_count());
     else
-      sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
-              (ulong) (info.deleted + updated),
-              (long) thd->get_stmt_da()->current_statement_warn_count());
+      snprintf(buff, sizeof(buff), ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
+               (ulong) (info.deleted + updated),
+               (long) thd->get_stmt_da()->current_statement_warn_count());
     if (returning)
       result->send_eof();
     else if (!(thd->in_sub_stmt & SUB_STMT_TRIGGER))
@@ -2273,12 +2273,11 @@ int Write_record::insert_on_duplicate_update(ha_rows *inserted,
     insert_id_for_cur_row= table->file->insert_id_for_cur_row= 0;
 
     ++*inserted; // Conforms the older behavior;
-
-    if (use_triggers
-        && table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                             TRG_ACTION_AFTER, TRUE))
-      return restore_on_error();
   }
+
+  if (use_triggers && table->triggers->process_triggers(
+                          thd, TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE))
+    return restore_on_error();
 
   /*
     Only update next_insert_id if the AUTO_INCREMENT value was explicitly

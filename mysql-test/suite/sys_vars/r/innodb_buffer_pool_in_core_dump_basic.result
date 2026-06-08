@@ -1,0 +1,24 @@
+set @old_innodb_buffer_pool_in_core_dump = @@innodb_buffer_pool_in_core_dump;
+SET GLOBAL innodb_buffer_pool_in_core_dump=OFF;
+SELECT @@global.innodb_buffer_pool_in_core_dump;
+@@global.innodb_buffer_pool_in_core_dump
+0
+SELECT @@session.innodb_buffer_pool_in_core_dump;
+ERROR HY000: Variable 'innodb_buffer_pool_in_core_dump' is a GLOBAL variable
+SHOW GLOBAL VARIABLES LIKE 'innodb_buffer_pool_in_core_dump';
+Variable_name	Value
+innodb_buffer_pool_in_core_dump	OFF
+SHOW SESSION VARIABLES LIKE 'innodb_buffer_pool_in_core_dump';
+Variable_name	Value
+innodb_buffer_pool_in_core_dump	OFF
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE variable_name='innodb_buffer_pool_in_core_dump';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_BUFFER_POOL_IN_CORE_DUMP	OFF
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE variable_name='innodb_buffer_pool_in_core_dump';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_BUFFER_POOL_IN_CORE_DUMP	OFF
+SET SESSION innodb_buffer_pool_in_core_dump=ON;
+ERROR HY000: Variable 'innodb_buffer_pool_in_core_dump' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL innodb_buffer_pool_in_core_dump=ON;
+SET GLOBAL innodb_buffer_pool_in_core_dump=OFF;
+SET GLOBAL innodb_buffer_pool_in_core_dump = @old_innodb_buffer_pool_in_core_dump;

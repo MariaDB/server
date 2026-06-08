@@ -136,6 +136,7 @@ local_open(ds_ctxt_t *ctxt, const char *path,
 	local_file = (ds_local_file_t *) (file + 1);
 
 	local_file->fd = fd;
+	posix_fadvise(local_file->fd, 0, 0, POSIX_FADV_DONTNEED);
 	local_file->init_ibd_done = 0;
 	local_file->is_ibd = (path_len > 5) && !strcmp(fullpath + path_len - 5, ".ibd");
 	local_file->compressed = 0;
@@ -166,9 +167,7 @@ static int write_compressed(File fd,  uchar *data, size_t len, size_t pagesize)
 		size_t n_bytes =  MY_MIN(pagesize, len - written);
 		size_t datasize= trim_binary_zeros(ptr,n_bytes);
 		if (datasize > 0) {
-			if (!my_write(fd, ptr, datasize, MYF(MY_WME | MY_NABP)))
-				posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
-			else
+			if (my_write(fd, ptr, datasize, MYF(MY_WME | MY_NABP)))
 				return 1;
 		}
 		if (datasize < n_bytes) {
@@ -242,11 +241,10 @@ local_write(ds_file_t *file, const uchar *buf, size_t len)
 		return write_compressed(fd, b, len, local_file->pagesize);
 	}
 
-	if (!my_write(fd, b , len, MYF(MY_WME | MY_NABP))) {
-		posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED);
-		return 0;
+	if (my_write(fd, b , len, MYF(MY_WME | MY_NABP))) {
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 static
@@ -283,7 +281,9 @@ local_close(ds_file_t *file)
 		ret = set_eof(fd);
 	}
 
-	my_close(fd, MYF(MY_WME));
+	if (my_close(fd, MYF(MY_WME)) != 0)
+	  ret= 1;
+
 	my_free(file);
 	return ret;
 }

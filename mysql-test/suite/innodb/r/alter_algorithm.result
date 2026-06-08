@@ -5,6 +5,12 @@ f4 INT as (f2) STORED,
 f5 INT as (f3) STORED,
 PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+CREATE TABLE t2(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+INSERT INTO t2(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
 SELECT @@alter_algorithm;
 @@alter_algorithm
 COPY
@@ -44,18 +50,23 @@ info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 page_compressed=1;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
+affected rows: 0
+DROP TABLE t2;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
 f3 INT AS (f2 * f2) VIRTUAL,
 f4 INT NOT NULL UNIQUE,
 f5 INT NOT NULL,
-INDEX idx(f2))ENGINE=INNODB;
+INDEX idx(f2)) PAGE_COMPRESSED=1, ENGINE=INNODB;
 CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INDEX(f1),
 FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
-ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1;
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compression_level=7;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 DROP INDEX idx, page_compression_level=5;

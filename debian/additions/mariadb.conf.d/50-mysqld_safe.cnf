@@ -16,7 +16,7 @@
 # SyslogLevel = err
 # SyslogIdentifier = mysqld
 #
-# For more information, please read https://mariadb.com/kb/en/mariadb/systemd/
+# For more information, please read https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 
 [mysqld_safe]
 # This will be passed to all mysql clients

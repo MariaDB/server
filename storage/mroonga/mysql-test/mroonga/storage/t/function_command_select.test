@@ -33,7 +33,7 @@ INSERT INTO diaries VALUES("Start groonga");
 INSERT INTO diaries VALUES("Start mroonga");
 INSERT INTO diaries VALUES("Start groonga and Ruby");
 
-SELECT mroonga_command('select diaries --match_columns "title" --query "groonga"');
+SELECT mroonga_command('select diaries --match_columns "title" --query "groonga"') c;
 
 DROP TABLE diaries;
 

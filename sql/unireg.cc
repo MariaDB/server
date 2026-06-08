@@ -782,7 +782,7 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
     my_error(ER_EXPRESSION_IS_TOO_BIG, MYF(0), vcol_type_name(type));
     return 1;
   }
-  int2store(buf->ptr() + len_off, expr_len);
+  int2store(const_cast<char *>(buf->ptr() + len_off), expr_len);
   return 0;
 }
 

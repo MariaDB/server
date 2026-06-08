@@ -49,7 +49,6 @@ MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,
   uint dlen;
   uchar *dptr;
   double mbr[SPDIMS * 2];
-  uint i;
   DBUG_ENTER("_ma_sp_make_key");
 
   keyseg = &keyinfo->seg[-1];
@@ -66,7 +65,7 @@ MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,
 
   sp_mbr_from_wkb(dptr + 4, dlen - 4, SPDIMS, mbr);	/* SRID */
 
-  for (i = 0, keyseg = keyinfo->seg; keyseg->type; keyseg++, i++)
+  for (keyseg = keyinfo->seg; keyseg->type; keyseg++)
   {
     uint length = keyseg->length, start= keyseg->start;
     double val;

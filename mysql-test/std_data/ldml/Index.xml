@@ -355,7 +355,10 @@
         <import source="ascii2_non_existing_ci"/>
       </rules>
     </collation>
-    <collation name="ascii2_nopad_bin" id="325" flag="binary" flag="nopad"/>
+    <collation name="ascii2_nopad_bin" id="325">
+      <flag>binary</flag>
+      <flag>nopad</flag>
+    </collation>
   </charset>
 
   <charset name="latin1">

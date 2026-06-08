@@ -42,9 +42,9 @@ master-bin.000001	#	Query	#	#	use `test`; alter table t2 add constraint c1 forei
 master-bin.000001	#	Gtid	#	#	GTID #-#-# ROLLBACK ALTER id=#
 master-bin.000001	#	Query	#	#	use `test`; alter table t2 add constraint c1 foreign key (f1) references t1(f1)
 master-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
-master-bin.000001	#	Query	#	#	use `test`; set foreign_key_checks=1; alter table t2 add constraint c1 foreign key (f1) references t1(f1)
+master-bin.000001	#	Query	#	#	use `test`; set foreign_key_checks=0; alter table t2 add constraint c1 foreign key (f1) references t1(f1)
 master-bin.000001	#	Gtid	#	#	GTID #-#-# ROLLBACK ALTER id=#
-master-bin.000001	#	Query	#	#	use `test`; set foreign_key_checks=1; alter table t2 add constraint c1 foreign key (f1) references t1(f1)
+master-bin.000001	#	Query	#	#	use `test`; set foreign_key_checks=0; alter table t2 add constraint c1 foreign key (f1) references t1(f1)
 connection slave;
 connection master;
 drop table t2, t1;

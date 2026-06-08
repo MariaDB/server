@@ -471,7 +471,6 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
 {
   DBUG_ENTER("PROFILING::fill_statistics_info");
   TABLE *table= tables->table;
-  ulonglong row_number= 0;
 
   QUERY_PROFILE *query;
   /* Go through each query in this thread's stored history... */
@@ -495,7 +494,7 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
     for (entry_iterator= query->entries.new_iterator();
          entry_iterator != NULL;
          entry_iterator= query->entries.iterator_next(entry_iterator),
-         previous=entry, row_number++)
+         previous=entry)
     {
       entry= query->entries.iterator_value(entry_iterator);
       seq= entry->m_seq;

@@ -1,4 +1,5 @@
 /* Copyright 2018-2025 Codership Oy <info@codership.com>
+   Copyright 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +22,7 @@
 #include "sql_class.h"
 #include "debug_sync.h"
 #include "log.h"
+#include "wsrep_schema.h" // WSREP_SCHEMA, WSREP_STREAMING_TABLE
 
 extern "C" my_bool wsrep_on(const THD *thd)
 {
@@ -117,7 +119,7 @@ extern "C" void wsrep_thd_self_abort(THD *thd)
 
 extern "C" const char* wsrep_get_sr_table_name()
 {
-  return wsrep_sr_table_name_full;
+  return WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 }
 
 extern "C" my_bool wsrep_get_debug()

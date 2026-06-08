@@ -90,7 +90,7 @@ const span<const char> dict_sys_t::SYS_TABLE[]=
 const char dict_sys_t::fatal_msg[]=
   "innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.latch. "
   "Please refer to "
-  "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/";
+  "https://mariadb.com/docs/server/reference/product-development/mariadb-fault-finding/how-to-produce-a-full-stack-trace-for-mariadbd";
 
 /** Percentage of compression failures that are allowed in a single
 round */
@@ -567,13 +567,13 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     dict_sys.unfreeze();
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
-                                      MAX_DATABASE_NAME_LEN + 1, true);
+                                      NAME_LEN + 1, true);
 
   if (is_temp)
     return false;
 
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
-                                       MAX_TABLE_NAME_LEN + 1, true);
+                                       NAME_LEN + 1, true);
   return true;
 }
 
@@ -1734,13 +1734,15 @@ dict_table_rename_in_cache(
 				char	table_name[MAX_TABLE_NAME_LEN + 1];
 				uint	errors = 0;
 
+				size_t	id_alloc_len=
+					strlen(table->name.m_name)
+					+ strlen(old_id) + 1;
 				if (strlen(table->name.m_name)
 				    > strlen(old_name)) {
 					foreign->id = static_cast<char*>(
 						mem_heap_alloc(
 						foreign->heap,
-						strlen(table->name.m_name)
-						+ strlen(old_id) + 1));
+						id_alloc_len));
 				}
 
 				/* Convert the table name to UTF-8 */
@@ -1769,10 +1771,15 @@ dict_table_rename_in_cache(
 					strcat(foreign->id,
 					       old_id + strlen(old_name));
 				} else {
-					sprintf(strchr(foreign->id, '/') + 1,
-						"%s%s",
-						strchr(table_name, '/') +1,
-						strstr(old_id, "_ibfk_") );
+					char *slash= strchr(foreign->id, '/');
+					size_t remaining=
+						id_alloc_len
+						- (size_t) (slash + 1
+							     - foreign->id);
+					snprintf(slash + 1, remaining,
+						 "%s%s",
+						 strchr(table_name, '/') + 1,
+						 strstr(old_id, "_ibfk_"));
 				}
 
 			} else {

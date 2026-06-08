@@ -69,9 +69,9 @@ enum trx_state_t {
 enum trx_bulk_insert {
     TRX_NO_BULK,
     /** bulk insert is being executed during DML */
-    TRX_DML_BULK,
+    TRX_DML_BULK = 2,
     /** bulk insert is being executed in copy_data_between_tables() */
-    TRX_DDL_BULK
+    TRX_DDL_BULK = 3
 };
 
 /** Memory objects */

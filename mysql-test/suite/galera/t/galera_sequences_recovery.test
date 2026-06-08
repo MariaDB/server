@@ -5,6 +5,7 @@
 --source include/galera_cluster.inc
 --source include/have_sequence.inc
 --source include/big_test.inc
+--source include/no_protocol.inc
 
 --disable_ps2_protocol
 
@@ -22,7 +23,10 @@ INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
+
+--connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1_ctrl
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 --connection node_2
 BEGIN;
@@ -30,14 +34,28 @@ INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 
-# Crash and restart the node, losing the transaciton
+--echo # Crash and restart the node, losing the transaction (1)
 --source include/kill_galera.inc
+--let $galera_wsrep_recover_server_id=2
+--source include/galera_wsrep_recover.inc
 --let $start_mysqld_params =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
 
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition_with_debug.inc
+
+--connection node_2
+--echo # Wait for the next_not_cached_value = 11 FROM s (1)
+--let $wait_condition = SELECT next_not_cached_value = 11 FROM s;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
+
 # Check and update the last written sequence value
 SELECT NEXTVAL(s);
+SELECT LASTVAL(s);
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 --connection node_1
 # Update the sequence value further
@@ -46,21 +64,32 @@ INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
-
+INSERT INTO t1(f2) values (1);
 COMMIT;
+SET GLOBAL innodb_log_checkpoint_now=1;
 SELECT LASTVAL(s);
+SELECT COUNT(*) FROM t1;
 SELECT * FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 10 FROM t1
+--source include/wait_condition.inc
+--echo # Wait for the next_not_cached_value = 42 FROM s
+--let $wait_condition = SELECT next_not_cached_value = 42 FROM s
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
+
 # The next value should be in sync now, but the last
 # value is still the same
 SELECT LASTVAL(s);
 SELECT NEXTVAL(s);
 SELECT * FROM t1;
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 --connection node_1
 DROP TABLE t1;
 DROP SEQUENCE s;
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 #
 # Case 2: Crash a node during a transaction, bring the
@@ -78,6 +107,9 @@ INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 
+--connection node_1_ctrl
+SET GLOBAL innodb_log_checkpoint_now=1;
+
 --connection node_2
 # Exhaust the cached values once, but no replication happens even
 # though the sequnce table is updated
@@ -88,36 +120,107 @@ INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
 
-# Crash and restart the node, losing the transaciton
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+SET GLOBAL innodb_log_checkpoint_now=1;
+SET SESSION wsrep_sync_wait=0;
+--echo # Wait for the next_not_cached_value = 31 FROM s (2a)
+--let $wait_condition = SELECT next_not_cached_value = 31 FROM s
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
+ SELECT next_not_cached_value = 31 FROM s;
+ 
+--connection node_2
+--echo # Crash and restart the node, losing the transaction (2)
 --source include/kill_galera.inc
+--let $galera_wsrep_recover_server_id=2
+--source include/galera_wsrep_recover.inc
 --let $start_mysqld_params =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--echo # Wait for the next_not_cached_value = 31 FROM s (2)
+--let $wait_condition = SELECT next_not_cached_value = 31 FROM s
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
+
+SELECT LASTVAL(s);
+
+--connection node_1
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+SELECT COUNT(*) FROM t1;
 
 COMMIT;
 SELECT LASTVAL(s);
 SELECT * FROM t1;
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 15 FROM t1
+--source include/wait_condition.inc
+--echo # Wait for the next_not_cached_value = 31 FROM s
+--let $wait_condition = SELECT next_not_cached_value = 31 FROM s
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
+
 # Check and update the last written sequence value, it's still
 # higher than the one from the other node
+SELECT LASTVAL(s);
 SELECT NEXTVAL(s);
 SELECT * FROM t1;
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 15 FROM t1
+--source include/wait_condition.inc
+--let $wait_condition = SELECT LASTVAL(s) = 29
+--let $wait_condition_on_error_output = SELECT LASTVAL(s)
+--source include/wait_condition_with_debug.inc
+--echo # Wait for the next_not_cached_value = 41 FROM s
+--let $wait_condition = SELECT next_not_cached_value = 41 FROM s
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
 # The next value should be in sync now, but the last
 # value is still the same
 SELECT LASTVAL(s);
 SELECT NEXTVAL(s);
+SET GLOBAL innodb_log_checkpoint_now=1;
+
+--connection node_2
+--let $wait_condition = SELECT LASTVAL(s) = 32
+--let $wait_condition_on_error_output = SELECT LASTVAL(s)
+--source include/wait_condition_with_debug.inc
+--echo # Wait for the next_not_cached_value = 52 FROM s
+--let $wait_condition = SELECT next_not_cached_value = 52 FROM s
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM s
+--source include/wait_condition_with_debug.inc
+SELECT LASTVAL(s);
+SELECT * from t1;
 
 --connection node_1
+SELECT * FROM t1;
 DROP TABLE t1;
 DROP SEQUENCE s;

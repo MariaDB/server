@@ -24,9 +24,9 @@ select count(*) from t1;
 count(*)
 100
 set @@global.s3_debug=0;
-FOUND 6 /s3_test_/ in mysqld.1.err
+FOUND 8 /s3_test_/ in mysqld.1.err
 select count(*) from t1;
 count(*)
 100
 drop table t1;
-FOUND 6 /s3_test_/ in mysqld.1.err
+FOUND 8 /s3_test_/ in mysqld.1.err

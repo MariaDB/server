@@ -1356,6 +1356,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
           share->state.dupp_key != MAX_KEY)
       {
         my_errno= HA_ERR_FOUND_DUPP_KEY;
+        mi_rrnd(file, table->record[0], file->lastpos);
         print_keydup_error(table, &table->key_info[share->state.dupp_key],
                            MYF(0));
       }
