@@ -31,30 +31,16 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-20
-set @file_stat_records=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-select *from json_table(@file_stat_records,
-'$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-20
-set @indexes=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
 select *from json_table(
-@indexes, '$[*][*]' columns(index_name text path '$.index_name',
-rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["4"]
-t1_idx_b	["3"]
-t1_idx_ab	[
-                "4",
-                "1"
-            ]
+@table_contexts,
+'$[*]' columns(table_name text path '$.name',
+file_stat_records text path '$.file_stat_records',
+index_name text path '$**.indexes[*].index_name',
+rec_per_key json path '$**.indexes[*].rec_per_key'
+    )) as jt;
+table_name	file_stat_records	index_name	rec_per_key
+db1.t1	20	NULL	NULL
 set @list_ranges=
 (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
 select *from json_table(
@@ -63,14 +49,14 @@ select *from json_table(
 ranges json path '$.ranges',
 num_rows int path '$.num_rows',
 max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks')) as jt;
+max_row_blocks int path '$.max_row_blocks'
+    )) as jt;
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 t1_idx_a	["(NULL) < (a) < (3)"]	12	1	1
 t1_idx_b	["(6) < (b)"]	2	1	1
 t1_idx_ab	["(NULL) < (a) < (3)"]	12	1	1
 set @saved_opt_context_1=@opt_context;
-set @saved_records_1=@records;
-set @saved_indexes_1=@indexes;
+set @saved_table_contexts= @table_contexts;
 set @saved_list_ranges_1=@list_ranges;
 #
 # load stats in JSON format into variable optimizer_replay_context
@@ -129,21 +115,8 @@ from information_schema.optimizer_context);
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 0
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
-set @saved_records_2 = @records;
-set @saved_indexes_2 = @indexes;
 set @saved_list_ranges_2 = @list_ranges;
-select JSON_EQUALS(@saved_records_2, @saved_records_1);
-JSON_EQUALS(@saved_records_2, @saved_records_1)
-0
-select * from json_table(@records, '$[*]' columns(file_stat_records text path '$')) as jt;
-file_stat_records
-40
-select JSON_EQUALS(@saved_indexes_2, @saved_indexes_1);
-JSON_EQUALS(@saved_indexes_2, @saved_indexes_1)
-1
 select JSON_EQUALS(@saved_list_ranges_2, @saved_list_ranges_1);
 JSON_EQUALS(@saved_list_ranges_2, @saved_list_ranges_1)
 0
@@ -240,15 +213,7 @@ from information_schema.optimizer_context);
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 0
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
-select JSON_EQUALS(@saved_records_2, @records);
-JSON_EQUALS(@saved_records_2, @records)
-1
-select JSON_EQUALS(@saved_indexes_2, @indexes);
-JSON_EQUALS(@saved_indexes_2, @indexes)
-1
 select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
 JSON_EQUALS(@saved_list_ranges_2, @list_ranges)
 1
@@ -273,23 +238,7 @@ set @opt_context=
 context,
 '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
 from information_schema.optimizer_context);
-set @records= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.file_stat_records')));
-set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.indexes')));
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
-select JSON_EQUALS(@saved_records_2, @records);
-JSON_EQUALS(@saved_records_2, @records)
-1
-select JSON_EQUALS(@saved_indexes_2, @indexes);
-JSON_EQUALS(@saved_indexes_2, @indexes)
-0
-select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
-index_name	rec_per_key
-t1_idx_a	["8"]
-t1_idx_b	["5"]
-t1_idx_ab	[
-                "8",
-                "2"
-            ]
 select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
 JSON_EQUALS(@saved_list_ranges_2, @list_ranges)
 1

@@ -421,3 +421,14 @@ explain select * from t1 where b < add1(3);
 drop function add1;
 DROP TABLE t1;
 set session use_stat_tables=@saved_use_stat_tables;
+
+--echo #
+--echo # MDEV-39433: Crash when selecting from a sequence with optimizer_record_context enabled
+--echo #
+set optimizer_record_context=ON;
+
+create sequence s1;
+EXPLAIN select * from s1;
+
+--source include/get_rec_idx_ranges_from_opt_ctx.inc
+drop table s1;
