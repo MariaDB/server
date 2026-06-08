@@ -33,37 +33,44 @@ Tables created with `ENGINE=DuckDB` store data in DuckDB's native format. Querie
 
 The engine is built as part of the MariaDB server tree. It lives under `storage/duckdb/` and uses `ExternalProject_Add` to build DuckDB v1.5.2 from source.
 
-Until the patch is accepted into MariaDB upstream, clone one of the prepared branches from the server fork and then clone the plugin:
+Clone the branch matching your target MariaDB version. The engine is already part of the tree under `storage/duckdb/`:
 
 ```bash
 # Pick the branch matching your target MariaDB version
-git clone -b bb-11.4-duckdb https://github.com/drrtuy/mdb-server.git mariadb-server
-# or: -b 11.8-duckdb
-# or: -b 12.3-duckdb
+git clone --recurse-submodules -b 11.4 https://github.com/MariaDB/server.git mariadb-server
+# or: -b 11.8
+# or: -b 12.3
 cd mariadb-server
 
-# Clone the DuckDB engine plugin
-git clone --recurse-submodules https://github.com/MariaDB/duckdb-engine storage/duckdb/duckdb
-
 # Install build dependencies (requires root)
-./storage/duckdb/duckdb/build.sh -D
+./storage/duckdb/build.sh -D
 
 # Build and install
-./storage/duckdb/duckdb/build.sh
+./storage/duckdb/build.sh
+```
+
+### Build dependencies
+
+Before building packages, install the build dependencies. This is a one-time setup that installs the system packages and toolchain required to compile the server and the DuckDB engine (requires root):
+
+```bash
+./storage/duckdb/build.sh -D
 ```
 
 ### Build packages
 
+With the dependencies installed, build a distributable package for your platform.
+
 **RPM** (Rocky/Fedora/Amazon Linux):
 
 ```bash
-./storage/duckdb/duckdb/build.sh -p
+./storage/duckdb/build.sh -p
 ```
 
 **DEB** (Debian/Ubuntu):
 
 ```bash
-./storage/duckdb/duckdb/build.sh -p
+./storage/duckdb/build.sh -p
 ```
 
 ## Cross-Engine Queries
