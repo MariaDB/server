@@ -1047,7 +1047,10 @@ m
 3
 SELECT (SELECT SUM(t1_outer.a) FROM t1 AS t1_inner LIMIT 1) 
 FROM t1 AS t1_outer GROUP BY t1_outer.b;
-ERROR 42000: 'test.t1_outer.a' isn't in GROUP BY
+(SELECT SUM(t1_outer.a) FROM t1 AS t1_inner LIMIT 1)
+3
+7
+11
 SELECT 1 FROM t1 as t1_outer 
 WHERE (SELECT t1_outer.b FROM t1 AS t1_inner GROUP BY t1_inner.b LIMIT 1);
 1

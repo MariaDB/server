@@ -793,7 +793,6 @@ SELECT (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner GROUP BY t1_inner.b LIMIT 1)
 AS m
   FROM t1 AS t1_outer;
 
---error ER_WRONG_FIELD_WITH_GROUP 
 SELECT (SELECT SUM(t1_outer.a) FROM t1 AS t1_inner LIMIT 1) 
   FROM t1 AS t1_outer GROUP BY t1_outer.b;
 
