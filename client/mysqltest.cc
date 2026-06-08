@@ -12335,6 +12335,12 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 end:
 
   cn->pending= FALSE;
+  if (replay_mode_active)
+  {
+    /* Clear the test server's recorded context so it doesn't leak into
+     the next EXPLAIN. */
+    (void) mysql_real_query(mysql, "SET optimizer_record_context=0", 30);
+  }
   /*
     We save the return code (mysql_errno(mysql)) from the last call sent
     to the server into the mysqltest builtin variable $mysql_errno. This
