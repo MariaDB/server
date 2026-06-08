@@ -8397,8 +8397,8 @@ static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
   set_if_bigger(records, 1);
 
   if (thd->opt_ctx_replay && 
-      !thd->opt_ctx_replay->infuse_index_read_cost(table, key, records,
-                                                   eq_ref, &cost))
+      !thd->opt_ctx_replay->infuse_cost_for_index_read(table, key, records,
+                                                       eq_ref, &cost))
   {
     /* Ok, Optimizer_context_replay has provided the cost numbers */
   }
@@ -8433,7 +8433,7 @@ static ALL_READ_COST cost_for_index_read(THD *thd, const TABLE *table,
 
   if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
   {
-    recorder->record_cost_index_read(table, key, records, eq_ref, &cost);
+    recorder->record_cost_for_index_read(table, key, records, eq_ref, &cost);
   }
   DBUG_PRINT("statistics", ("index_cost: %.3f  row_cost: %.3f",
                             file->cost(cost.index_cost),
