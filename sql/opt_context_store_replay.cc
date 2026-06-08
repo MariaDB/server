@@ -1147,7 +1147,7 @@ public:
 
   ha_rows data_file_length;
   ha_rows index_file_length;
-  ha_rows mean_rec_length;
+  ulong mean_rec_length;
 
   double read_cost_io;
   double read_cost_cpu;
@@ -1365,7 +1365,7 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->index_file_length),
        false},
       {"mean_rec_length",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->mean_rec_length),
+       Read_non_neg_integer<ulong, ULONG_MAX>(&table_ctx->mean_rec_length),
        false},
       {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
       {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
@@ -2089,7 +2089,7 @@ void Optimizer_context_replay::dbug_print_read_stats()
     DBUG_PRINT("info",
                ("index_file_length: %llx", tbl_ctx->index_file_length));
     DBUG_PRINT("info",
-               ("mean_rec_length: %llx", tbl_ctx->mean_rec_length));
+               ("mean_rec_length: %lx", tbl_ctx->mean_rec_length));
 
     List_iterator<index_context_for_replay> index_itr(tbl_ctx->index_list);
 
