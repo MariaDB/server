@@ -28,7 +28,7 @@ create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) w
 set optimizer_record_context=OFF;
 
 select * from t1 where t1.a = 3;
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # enable optimizer_record_context
@@ -39,7 +39,7 @@ set optimizer_record_context=ON;
 
 select * from t1 where t1.a = 3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # disable again optimizer_record_context
@@ -49,7 +49,7 @@ set optimizer_record_context=OFF;
 
 select * from t1 where t1.a = 3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # enable optimizer_record_context
@@ -59,7 +59,7 @@ set optimizer_record_context=ON;
 
 select * from t1 where t1.a = 3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # test for view
@@ -69,7 +69,7 @@ set optimizer_record_context=ON;
 
 select * from view1 where view1.a = 3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # test for temp table
@@ -78,7 +78,7 @@ select * from view1 where view1.a = 3;
 create temporary table temp1(col1 int);
 insert into temp1 select * from t2;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # there should be no duplicate ddls
@@ -86,7 +86,7 @@ insert into temp1 select * from t2;
 --echo #
 select * from t2 union select * from t2 union select * from t2;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # there should be no duplicate ddls
@@ -94,14 +94,14 @@ select * from t2 union select * from t2 union select * from t2;
 --echo #
 select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # Test for INSERT. The context will show both tables.
 --echo #
 insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # test for delete
@@ -109,7 +109,7 @@ insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
 --echo #
 delete from t1 where t1.a=3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # test for update
@@ -117,7 +117,7 @@ delete from t1 where t1.a=3;
 --echo #
 update t1 set t1.b = t1.a;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # test for insert as select
@@ -125,7 +125,7 @@ update t1 set t1.b = t1.a;
 --echo #
 insert into t1 (select t2.a as a, t2.a as b from t2);
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 create database db2;
 use db2;
@@ -143,7 +143,7 @@ FROM t1 AS db1_t1, db2.t1 AS db2_t1
 WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # use database db2
@@ -157,7 +157,7 @@ FROM db1.t1 AS db1_t1, db2.t1 AS db2_t1
 WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo #
 --echo # use database db2
@@ -169,7 +169,7 @@ select t1.b
 FROM db1.t1 AS t1, mysql.db AS t2
 WHERE t1.a >= 3;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 use db1;
 drop table db2.t1;
@@ -187,7 +187,7 @@ insert into t2 select seq, seq from seq_1_to_10;
 
 explain select * from t1, t2 where t2.a=1 and t1.b=t2.b;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 drop table t1;
 drop table t2;
@@ -207,7 +207,7 @@ insert into t11 values (1, 'one'),(2, 'two');
 --error ER_BAD_FIELD_ERROR
 select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 drop table t10;
 drop table t11;
@@ -234,7 +234,7 @@ flush tables;
 explain
 select * from t1 partition (p1) where a=10;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 drop table t1;
 
@@ -257,7 +257,7 @@ insert into t1 (a,b,c) values (100,200,400);
 truncate table t1;
 insert delayed into t1 values ();
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 drop table t1;
 
@@ -283,7 +283,7 @@ insert into t2 values (1, 'address1'), (2, 'address2');
 select t1.name, t2.address
 from t1,t2 where t1.id = t2.id;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 drop table t1;
 drop table t2;
@@ -301,14 +301,14 @@ insert into t2 values (1),(1),(2),(2);
 
 delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
 
 --echo # rerun the same delete query
 --echo # Now, context result should have the ddls for all 2 tables,
 --echo # even though no data is deleted
 delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
 
---source include/get_names_ddls_from_opt_ctx.inc
+--source include/opt_context_list_tables_ddls.inc
  
 drop table t1, t2;
 
