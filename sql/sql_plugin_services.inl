@@ -330,6 +330,7 @@ static struct provider_service_lz4_st provider_handler_lz4=
   DEFINE_LZ4_compressBound([])    DEFINE_warning_function("LZ4 compression", 0),
   DEFINE_LZ4_compress_default([]) DEFINE_warning_function("LZ4 compression", 0),
   DEFINE_LZ4_decompress_safe([])  DEFINE_warning_function("LZ4 compression", -1),
+  DEFINE_LZ4_compress_fast([])    DEFINE_warning_function("LZ4 compression", 0),
 
   false // .is_loaded
 };
