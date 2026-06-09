@@ -413,6 +413,7 @@ static const char *opt_related_sys_vars[]=
   "sql_buffer_result",
   "group_concat_max_len",
   "max_heap_table_size",
+  "standard_compliant_cte",
   NULL
 };
 
