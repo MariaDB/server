@@ -314,7 +314,7 @@ static
 void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
                                  Json_writer *ctx_writer)
 {
-  Json_writer_array list_irc_wrapper(ctx_writer, "list_records_in_range");
+  Json_writer_array list_irc_wrapper(ctx_writer, "records_in_range_calls");
   List_iterator rir_li(*rir_list);
 
   while (records_in_range_call_record *rir= rir_li++)
@@ -1387,7 +1387,7 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
        Read_array_into_list<cost_index_read_call_record>(
            mem_root, &table_ctx->irc_list, parse_index_read_cost_context),
        true},
-      {"list_records_in_range",
+      {"records_in_range_calls",
        Read_array_into_list<records_in_range_call_record>(
            mem_root, &table_ctx->rir_list, parse_records_in_range_context),
        true},
@@ -1547,7 +1547,7 @@ static int parse_index_read_cost_context(MEM_ROOT* , json_engine_t *je,
 /*
   Parses the cost information for reading records_in_range
   JSON structure of the optimizer context.
-  To be specific, single array element of list_records_in_range
+  To be specific, single array element of records_in_range_calls
   is parsed in this method.
   Refer to the file opt_context_schema.inc, and
   the description at the start of this file.
@@ -1961,7 +1961,7 @@ bool Optimizer_context_replay::infuse_records_in_range(
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "list_records_in_range");
+      warn_msg.c_ptr_safe(), "records_in_range_calls");
   return true;
 }
 
