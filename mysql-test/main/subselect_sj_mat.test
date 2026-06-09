@@ -6,6 +6,8 @@
 --source include/default_optimizer_switch.inc
 --source include/have_sequence.inc
 
+--disable_replay testfile Uses rec_per_key instead of actual_rec_per_key
+
 set optimizer_switch=ifnull(@subselect_mat_test_optimizer_switch_value, 'semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on');
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set @optimizer_switch_local_default= @@optimizer_switch;
