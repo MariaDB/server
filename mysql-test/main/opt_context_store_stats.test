@@ -40,14 +40,14 @@ analyze table t2 persistent for all;
 --echo #
 select count(*) from t1;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 --echo #
 --echo # simple query using join of two tables
 --echo #
 select count(*) from t1, t2 where t1.a = t2.a;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 --echo #
 --echo # negative test
@@ -57,7 +57,7 @@ select count(*) from t1, t2 where t1.a = t2.a;
 set optimizer_record_context=OFF;
 select count(*) from t1, t2 where t1.a = t2.a;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 set optimizer_record_context=ON;
 
@@ -66,21 +66,21 @@ set optimizer_record_context=ON;
 --echo #
 select * from view1 union select * from view1;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 --echo #
 --echo # test for update
 --echo #
 update t1 set t1.b = t1.a;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 --echo #
 --echo # test for insert as select
 --echo #
 insert into t1 (select t2.a as a, t2.a as b from t2);
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 analyze table t1 persistent for all;
 
@@ -93,14 +93,14 @@ analyze table t1 persistent for all;
 --echo #
 analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 --echo #
 --echo # simple query with or condition on the same column
 --echo #
 analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 --echo #
 --echo # negative test on the simple query with or condition on 2 columns
@@ -108,7 +108,7 @@ analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
 set optimizer_record_context=OFF;
 analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 set optimizer_record_context=ON;
 
@@ -118,7 +118,7 @@ set optimizer_record_context=ON;
 --echo #
 analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 drop view view1;
 drop table t1;
@@ -416,7 +416,7 @@ create function add1(i int) returns int deterministic
 
 set optimizer_record_context=1;
 explain select * from t1 where b < add1(3);
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 drop function add1;
 DROP TABLE t1;
@@ -430,5 +430,5 @@ set optimizer_record_context=ON;
 create sequence s1;
 EXPLAIN select * from s1;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 drop table s1;

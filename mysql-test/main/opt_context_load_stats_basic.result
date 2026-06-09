@@ -26,35 +26,17 @@ select * from t1 where a < 3 and b > 6;
 a	b
 0	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.tables[*]')));
-select *from json_table(
-@table_contexts,
-'$[*]' columns(table_name text path '$.name',
-file_stat_records text path '$.file_stat_records',
-index_name text path '$**.indexes[*].index_name',
-rec_per_key json path '$**.indexes[*].rec_per_key'
-    )) as jt;
+# == Optimizer Context
+# === Tables
+# Tables in the context
 table_name	file_stat_records	index_name	rec_per_key
 db1.t1	20	NULL	NULL
-set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
-select *from json_table(
-@list_ranges,
-'$[*][*]' columns(index_name text path '$.index_name',
-ranges json path '$.ranges',
-num_rows int path '$.num_rows',
-max_index_blocks int path '$.max_index_blocks',
-max_row_blocks int path '$.max_row_blocks'
-    )) as jt;
+# === Range accesses
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 t1_idx_a	["(NULL) < (a) < (3)"]	12	1	1
 t1_idx_b	["(6) < (b)"]	2	1	1
 t1_idx_ab	["(NULL) < (a) < (3)"]	12	1	1
+# == End of optimizer context
 set @saved_opt_context_1=@opt_context;
 set @saved_table_contexts= @table_contexts;
 set @saved_list_ranges_1=@list_ranges;

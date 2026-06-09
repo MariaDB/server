@@ -1,3 +1,12 @@
+##
+## Print a summary of context information_schema.optimizer_context:
+##   - Tables for which we have statistics
+##   - Range accesses considered
+##
+
+--echo # == Optimizer Context
+--echo # === Tables
+--disable_query_log
 set @opt_context=
     (select REGEXP_SUBSTR(
          context,
@@ -5,7 +14,7 @@ set @opt_context=
          from information_schema.optimizer_context);
 
 set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.tables[*]')));
-#select @table_contexts;
+--echo # Tables in the context
 select *from json_table(
     @table_contexts,
     '$[*]' columns(table_name text path '$.name',
@@ -14,6 +23,7 @@ select *from json_table(
                    rec_per_key json path '$**.indexes[*].rec_per_key'
     )) as jt;
 
+--echo # === Range accesses
 set @list_ranges=
     (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
@@ -24,3 +34,5 @@ select *from json_table(
                       max_index_blocks int path '$.max_index_blocks',
                       max_row_blocks int path '$.max_row_blocks'
     )) as jt;
+--enable_query_log
+--echo # == End of optimizer context

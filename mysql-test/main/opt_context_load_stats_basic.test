@@ -31,7 +31,7 @@ analyze table t1 persistent for all;
 --echo #
 select * from t1 where a < 3 and b > 6;
 
---source include/get_rec_idx_ranges_from_opt_ctx.inc
+--source include/opt_context_list_tables_and_ranges.inc
 
 set @saved_opt_context_1=@opt_context;
 set @saved_table_contexts= @table_contexts;
