@@ -73,7 +73,7 @@ using namespace json_reader;
               ...
             }, ...
           ],
-          "list_index_read_costs": [ //optional
+          "inde_read_cost_calls": [ //optional
             {
               ...
             }, ...,
@@ -289,7 +289,7 @@ void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
 static void dump_index_read_calls(List<cost_index_read_call_record> *irc_list,
                                   Json_writer *ctx_writer)
 {
-  Json_writer_array list_irc_wrapper(ctx_writer, "list_index_read_costs");
+  Json_writer_array list_irc_wrapper(ctx_writer, "cost_for_index_read_calls");
   List_iterator irc_li(*irc_list);
 
   while (cost_index_read_call_record *irc= irc_li++)
@@ -1383,7 +1383,7 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
        Read_array_into_list<Multi_range_read_const_call_record>(
            mem_root, &table_ctx->ranges_list, parse_range_context),
        true},
-      {"list_index_read_costs",
+      {"cost_for_index_read_calls",
        Read_array_into_list<cost_index_read_call_record>(
            mem_root, &table_ctx->irc_list, parse_index_read_cost_context),
        true},
@@ -1503,7 +1503,7 @@ static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
 /*
   Parses the cost information for reading an index using
   ref access of the JSON structure of the optimizer context.
-  To be specific, single array element of list_index_read_costs
+  To be specific, single array element of cost_for_index_read_calls
   is parsed in this method.
   Refer to the file opt_context_schema.inc, and
   the description at the start of this file.
@@ -1839,7 +1839,7 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "list_index_read_costs");
+      warn_msg.c_ptr_safe(), "cost_for_index_read_calls");
   return true;
 }
 

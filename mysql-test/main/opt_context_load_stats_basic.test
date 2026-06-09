@@ -257,34 +257,34 @@ explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 set @saved_opt_context_1= @opt_context;
 
 set optimizer_replay_context=@opt_context_var_name;
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].key_number');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].key_number');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].num_records');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].num_records');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].eq_ref');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].eq_ref');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].index_cost_io');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].index_cost_io');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].index_cost_cpu');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].index_cost_cpu');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].row_cost_io');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].row_cost_io');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].row_cost_cpu');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].row_cost_cpu');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].max_index_blocks');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].max_index_blocks');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].max_row_blocks');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].max_row_blocks');
 select * from t1 where a > 10;
 
-set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].list_index_read_costs[0].copy_cost');
+set @opt_context=json_remove(@saved_opt_context_1, '$.list_contexts[0].cost_for_index_read_calls[0].copy_cost');
 select * from t1 where a > 10;
 
 drop table t1;

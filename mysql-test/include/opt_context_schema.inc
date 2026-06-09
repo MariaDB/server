@@ -143,7 +143,7 @@ let $opt_context_schema=
               ]
             }
           },
-          "list_index_read_costs": {
+          "cost_for_index_read_calls": {
             "type": "array",
             "uniqueItems": false,
             "minItems": 1,
