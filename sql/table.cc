@@ -11260,3 +11260,8 @@ hlindex::~hlindex()
 {
   closefrm(table);
 }
+
+hlindex_share::~hlindex_share()
+{
+  s->destroy();
+}

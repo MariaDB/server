@@ -49,7 +49,7 @@ class hlindex_share : public Sql_alloc
 public:
   hlindex_share(TABLE_SHARE *s) : s(s) {}
   virtual hlindex *create(TABLE *tbl, MEM_ROOT *mem_root) = 0;
-  virtual ~hlindex_share() = default;
+  virtual ~hlindex_share();
 
   TABLE_SHARE *s;
 };
