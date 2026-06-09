@@ -638,8 +638,7 @@ public:
   */
   T* swap_next()
   {
-    if (!ref() || !*ref() || !peek())
-      return nullptr;
+    DBUG_ASSERT(ref() || *ref() || peek());
     T* next= peek();
     T* cur= replace(next);
     *peek_ref()= cur;

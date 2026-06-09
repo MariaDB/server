@@ -3328,6 +3328,15 @@ struct TABLE_LIST
       SELECT ... FROM *this FULL OUTER JOIN foj_partner ...
   */
   TABLE_LIST *foj_partner{nullptr};
+
+  /*
+    For the right side of a surviving FULL JOIN, the WHERE conjuncts that
+    reference the left side, lifted out of the WHERE before access
+    selection so they neither prune nor drive access on the left side.
+    make_join_select reattaches them here under the found-match guard.
+    Reset and recomputed each optimization.  NULL otherwise.
+  */
+  COND *fj_left_cond{nullptr};
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

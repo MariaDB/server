@@ -210,6 +210,7 @@ static void restore_prev_nj_state(JOIN_TAB *last);
 static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list);
 static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
                                           uint first_unused);
+static COND *lift_full_join_left_where(JOIN *join, COND *conds);
 
 static COND *optimize_cond(JOIN *join, COND *conds,
                            List<TABLE_LIST> *join_list,
@@ -2906,6 +2907,14 @@ JOIN::optimize_inner()
     }
   }
   
+  /*
+    Move FULL JOIN left side WHERE predicates onto the right side partner
+    before access selection, so they neither prune the left side nor
+    drive ref/range access on it.  make_join_select reattaches them under
+    the found-match guard.
+  */
+  conds= lift_full_join_left_where(this, conds);
+
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
   result->prepare_to_read_rows();
@@ -5810,6 +5819,151 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
     retval= &join->conds;
   }
   return retval;
+}
+
+
+/*
+  Move a surviving FULL JOIN's left side WHERE predicates out of the WHERE.
+
+  A FULL JOIN runs as a LEFT JOIN of its left side over its right side,
+  then a pass rescans the right side and emits the rows that never
+  matched a left row.  This is correct only if the join pass records
+  every left-right match, so the pass must enumerate every left row and
+  reach the right side for each match.
+
+  In that LEFT JOIN pass the right side is the inner table, so its WHERE
+  predicates are already deferred behind the match by the found-match
+  guard: a right row that matches and is then WHERE-rejected still
+  records its match.  The left side is the outer table, so its WHERE
+  predicates are applied directly, both to prune rows in the nested loop
+  and to drive ref and range access.  Either one drops a left row before
+  its match is recorded, and the matched right row then wrongly
+  reappears as a right-only row.  In a FULL JOIN the left side is
+  null-complemented in the right-only rows just as the right side is in
+  the left-only rows, so its predicates are inner-side predicates too
+  and must be deferred the same way.
+
+  Lift the WHERE conjuncts that reference a FULL JOIN's left side but not
+  its right side out of the WHERE and hold them on the right side
+  partner.  Removed from the WHERE, they build no ref or range on the
+  left side, so it is read in full; make_join_select reattaches them to
+  the right partner under the found-match guard, so they apply to every
+  output row only after the match is recorded.  A conjunct that also
+  references the right side stays in place, because the right side
+  already defers it.  A multiple equality stays in place to keep
+  cond_equal consistent; it could not reach a surviving FULL JOIN
+  anyway, because a null-rejecting predicate on the left side rewrites
+  the FULL JOIN to a LEFT JOIN.
+
+  Called once per execution on the statement's working copy of the
+  WHERE, so the held conjuncts are reset first.  Returns the WHERE with
+  the lifted conjuncts removed.
+*/
+
+static COND *lift_full_join_left_where(JOIN *join, COND *conds)
+{
+  THD *thd= join->thd;
+  if (!thd->lex->full_join_count || !conds)
+    return conds;
+
+  bool have_full_right= false;
+  List_iterator<TABLE_LIST> li(join->select_lex->leaf_tables);
+  TABLE_LIST *tl;
+  while ((tl= li++))
+  {
+    if ((tl->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT)) ==
+        (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT) && tl->foj_partner)
+    {
+      tl->fj_left_cond= NULL;
+      have_full_right= true;
+    }
+  }
+  if (!have_full_right)
+    return conds;
+
+  /*
+    conds is either a single predicate or a top level AND of predicates.
+    Wrap a single predicate in a throwaway list so both shapes iterate
+    the same way.
+  */
+  bool is_and= conds->type() == Item::COND_ITEM &&
+               ((Item_cond *) conds)->functype() == Item_func::COND_AND_FUNC;
+  List<Item> single;
+  List<Item> *conjuncts;
+  if (is_and)
+    conjuncts= ((Item_cond *) conds)->argument_list();
+  else
+  {
+    if (single.push_back(conds, thd->mem_root))
+      return conds;
+    conjuncts= &single;
+  }
+
+  List_iterator<Item> it(*conjuncts);
+  Item *c;
+  while ((c= it++))
+  {
+    if (c->type() == Item::FUNC_ITEM &&
+        ((Item_func *) c)->functype() == Item_func::MULT_EQUAL_FUNC)
+      continue;
+
+    table_map used= c->used_tables();
+    TABLE_LIST *best= NULL;
+    table_map best_left= 0;
+    List_iterator<TABLE_LIST> lj(join->select_lex->leaf_tables);
+    TABLE_LIST *r;
+    while ((r= lj++))
+    {
+      if ((r->outer_join & (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT)) !=
+          (JOIN_TYPE_FULL | JOIN_TYPE_RIGHT) || !r->foj_partner)
+        continue;
+      /*
+        The right side of a surviving FULL JOIN is always a base table, so
+        its map is r->table->map.  The left side may be a nested join.
+      */
+      TABLE_LIST *l= r->foj_partner;
+      table_map left= l->nested_join ? l->nested_join->used_tables
+                                     : l->table->map;
+      if ((used & left) && !(used & r->table->map))
+      {
+        /*
+          A conjunct may sit on the left side of several FULL JOINs at
+          once (nested FULL JOINs).  Defer it to the outermost one, the
+          one with the larger left side, so the match is recorded by
+          every FULL JOIN before the predicate can reject the row.
+        */
+        if (!best || my_count_bits(left) > my_count_bits(best_left))
+        {
+          best= r;
+          best_left= left;
+        }
+      }
+    }
+    if (!best)
+      continue;
+
+    if (best->fj_left_cond)
+    {
+      Item *both= new (thd->mem_root)
+        Item_cond_and(thd, best->fj_left_cond, c);
+      if (!both)
+        return conds;
+      both->fix_fields(thd, 0);
+      both->update_used_tables();
+      best->fj_left_cond= both;
+    }
+    else
+      best->fj_left_cond= c;
+    it.remove();
+  }
+
+  if (!is_and)
+    return single.elements ? conds : NULL;
+
+  if (((Item_cond *) conds)->argument_list()->elements == 0)
+    return NULL;
+  conds->update_used_tables();
+  return conds;
 }
 
 
@@ -14776,6 +14930,33 @@ push_on_expr_to_later_outer_tables(THD *thd, JOIN *join, JOIN_TAB *last_tab,
 }
 
 
+/*
+  Attach each surviving FULL JOIN's lifted left side predicates to its
+  right partner under the found-match guard, so they are checked only
+  after the match is recorded.  lift_full_join_left_where moved these
+  conjuncts onto the right partner's TABLE_LIST; here they join its
+  pushed-down conditions.  Returns true on error.
+*/
+
+static bool attach_full_join_left_conds(THD *thd, JOIN *join)
+{
+  for (JOIN_TAB *tab= first_depth_first_tab(join); tab;
+       tab= next_depth_first_tab(join, tab))
+  {
+    if (!tab->table || !tab->tab_list || !tab->tab_list->fj_left_cond)
+      continue;
+    COND *guarded= add_found_match_trig_cond(thd, tab->first_inner,
+                                             tab->tab_list->fj_left_cond, 0);
+    if (!guarded)
+      return true;
+    add_cond_and_fix(thd, &tab->select_cond, guarded);
+    if (tab->select)
+      tab->select->cond= tab->select_cond;
+  }
+  return false;
+}
+
+
 static bool
 make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 {
@@ -15556,6 +15737,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       if (!tab->bush_children)
         i++;
     }
+
+    if (attach_full_join_left_conds(thd, join))
+      DBUG_RETURN(1);
 
     if (unlikely(thd->trace_started()))
     {
