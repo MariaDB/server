@@ -19,7 +19,13 @@
 
 #ifdef TIDESDB_WITH_S3
 
-#include "objstore_s3.h"
+/* winsock2.h must be included before windows.h (pulled in transitively by the tidesdb headers) and
+ * is the canonical source of struct timeval. including it first sets _WINSOCK2API_, so compat.h
+ * skips its own timeval definition and curl's later winsock2.h pull does not collide with it
+ * (C2011 'timeval' redefinition). MinGW resolves timeval through its POSIX sys/time.h instead. */
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
+#include <winsock2.h>
+#endif
 
 #include <ctype.h>
 #include <curl/curl.h>
@@ -29,6 +35,7 @@
 #include <time.h>
 
 #include "hmac_sha256.h"
+#include "objstore_s3.h"
 #include "sha256.h"
 
 /* path and buffer size constants */
