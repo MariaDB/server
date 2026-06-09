@@ -577,3 +577,31 @@ INSERT INTO t1 (d1) VALUES ('2009-07-02');
 DROP TABLE t1;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-34992 Assertion 'marked_for_read()' failed in virtual my_time_t Field_timestamp0::get_timestamp(const uchar*, ulong*) const
+--echo #
+
+SET @old_mysql56_temporal_format = @@GLOBAL.mysql56_temporal_format;
+SET @old_explicit_defaults_for_timestamp = @@SESSION.explicit_defaults_for_timestamp;
+
+SET GLOBAL mysql56_temporal_format = 0;
+SET explicit_defaults_for_timestamp = 0;
+
+CREATE TABLE t (b TIMESTAMP, a INT AS (1 IN (DAYOFMONTH(b BETWEEN '' AND current_user) = b)));
+
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t, t2;
+SELECT * FROM t;
+
+# Cleanup
+DROP TABLE t;
+
+SET GLOBAL mysql56_temporal_format = @old_mysql56_temporal_format;
+SET explicit_defaults_for_timestamp = @old_explicit_defaults_for_timestamp;
+
+--echo # End of 11.4 tests
