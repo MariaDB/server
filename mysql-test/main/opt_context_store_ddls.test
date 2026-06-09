@@ -197,6 +197,8 @@ drop table t2;
 --echo # context should not contain the failed query result
 --echo # no table definitions for t10, and t11 should be present
 --echo #
+--disable_ps_protocol
+
 create table t10 (a int, b int);
 insert into t10 select seq, seq from seq_1_to_10;
 create table t11 (a int primary key, b varchar(10));
@@ -209,6 +211,8 @@ select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
 
 drop table t10;
 drop table t11;
+
+--enable_ps_protocol
 
 --echo #
 --echo # partitioned table test
