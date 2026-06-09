@@ -33,6 +33,18 @@ st_plugin_int *fts_plugin;
 #define fts_deinit 0
 #define fts_sys_vars 0
 
+static const LEX_CSTRING fts_hlindex_table_def(THD *thd, uint ref_length)
+{
+  const char templ[]="CREATE TABLE i (              "
+                     "  word varchar(84) NOT NULL,  "
+                     "  tref varbinary(%u) NOT NULL,"
+                     "  KEY (word))                 ";
+  size_t len= sizeof(templ) + 32;
+  char *s= thd->alloc(len);
+  len= my_snprintf(s, len, templ, ref_length);
+  return {s, len};
+}
+
 struct hlindexton fts_hton=
 {
   {0, 0, 0,
@@ -49,7 +61,7 @@ struct hlindexton fts_hton=
   nullptr, nullptr, nullptr,      /* snapshot, commit/prepare_ordered */
   nullptr, nullptr},              /* checkpoint, versioned */
   fts_index_options,              /* options */
-  nullptr,                        /* tabledef */
+  fts_hlindex_table_def,          /* tabledef */
   nullptr,                        /* XXX create */
   nullptr                         /* uses_distance */
 };
