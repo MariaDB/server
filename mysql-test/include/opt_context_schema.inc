@@ -3,7 +3,7 @@ let $opt_context_schema=
   "description": "schema corresponding to the optimizer context section of the trace",
   "type": "object",
   "properties": {
-    "list_contexts": {
+    "tables": {
       "type": "array",
       "uniqueItems": true,
       "minItems": 1,
@@ -217,7 +217,7 @@ let $opt_context_schema=
     }
   },
   "required": [
-    "list_contexts"
+    "tables"
   ]
 };
 
