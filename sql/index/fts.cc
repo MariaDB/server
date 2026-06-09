@@ -33,6 +33,27 @@ st_plugin_int *fts_plugin;
 #define fts_deinit 0
 #define fts_sys_vars 0
 
+class fts_index : public hlindex
+{
+public:
+  fts_index(TABLE *t) : hlindex(t) {}
+  int insert_row(TABLE *tbl, KEY *keyinfo) override { return HA_ERR_WRONG_COMMAND; }
+  int read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit) override { return HA_ERR_WRONG_COMMAND; }
+  int read_next(TABLE *tbl) override { return HA_ERR_WRONG_COMMAND; }
+  int read_end(TABLE *tbl) override { return 0; }
+  int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) override { return HA_ERR_WRONG_COMMAND; }
+  int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) override { return HA_ERR_WRONG_COMMAND; }
+  bool reading() override { return false; }
+};
+
+class fts_share : public hlindex_share
+{
+public:
+  fts_share(TABLE_SHARE *s) : hlindex_share(s) {}
+  hlindex *create(TABLE *tbl, MEM_ROOT *mem_root) override
+  { return new (mem_root) fts_index(tbl); }
+};
+
 static const LEX_CSTRING fts_hlindex_table_def(THD *thd, uint ref_length)
 {
   const char templ[]="CREATE TABLE i (              "
@@ -62,7 +83,9 @@ struct hlindexton fts_hton=
   nullptr, nullptr},              /* checkpoint, versioned */
   fts_index_options,              /* options */
   fts_hlindex_table_def,          /* tabledef */
-  nullptr,                        /* XXX create */
+  [](TABLE_SHARE *s, MEM_ROOT *mem_root) -> hlindex_share* {
+    return new (mem_root) fts_share(s);
+  },
   nullptr                         /* uses_distance */
 };
 
