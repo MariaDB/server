@@ -20,20 +20,9 @@ create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) w
 set optimizer_record_context=OFF;
 select * from t1 where t1.a = 3;
 a	b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 NULL
 #
@@ -43,21 +32,10 @@ NULL
 set optimizer_record_context=ON;
 select * from t1 where t1.a = 3;
 a	b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
@@ -72,20 +50,9 @@ CREATE TABLE `t1` (
 set optimizer_record_context=OFF;
 select * from t1 where t1.a = 3;
 a	b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 NULL
 #
@@ -95,21 +62,10 @@ NULL
 set optimizer_record_context=ON;
 select * from t1 where t1.a = 3;
 a	b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
@@ -124,22 +80,11 @@ CREATE TABLE `t1` (
 set optimizer_record_context=ON;
 select * from view1 where view1.a = 3;
 a	b	c
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
@@ -161,22 +106,11 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 #
 create temporary table temp1(col1 int);
 insert into temp1 select * from t2;
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.temp1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
@@ -196,21 +130,10 @@ select * from t2 union select * from t2 union select * from t2;
 a
 1
 2
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
@@ -223,22 +146,11 @@ CREATE TABLE `t2` (
 #
 select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
 a	b	c
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
@@ -258,22 +170,11 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 # Test for INSERT. The context will show both tables.
 #
 insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
@@ -291,21 +192,10 @@ CREATE TABLE `t1` (
 # context result should have 1 ddl statement for table t1
 #
 delete from t1 where t1.a=3;
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
@@ -318,21 +208,10 @@ CREATE TABLE `t1` (
 # context result should have 1 ddl statement for table t1
 #
 update t1 set t1.b = t1.a;
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
@@ -345,22 +224,11 @@ CREATE TABLE `t1` (
 # context result should have 2 ddl statements for tables t1, t2
 #
 insert into t1 (select t2.a as a, t2.a as b from t2);
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
@@ -387,22 +255,11 @@ select db1_t1.b
 FROM t1 AS db1_t1, db2.t1 AS db2_t1
 WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db2.t1
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `db2`.`t1` (
   `a` int(11) DEFAULT NULL
@@ -425,22 +282,11 @@ select db1_t1.b
 FROM db1.t1 AS db1_t1, db2.t1 AS db2_t1
 WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db2.t1
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
@@ -465,21 +311,10 @@ select t1.b
 FROM db1.t1 AS t1, mysql.db AS t2
 WHERE t1.a >= 3;
 b
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `db1`.`t1` (
   `a` int(11) DEFAULT NULL,
@@ -503,22 +338,11 @@ explain select * from t1, t2 where t2.a=1 and t1.b=t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `a` int(11) NOT NULL,
@@ -549,20 +373,9 @@ create table t11 (a int primary key, b varchar(10));
 insert into t11 values (1, 'one'),(2, 'two');
 select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
 ERROR 42S22: Unknown column 't11.c' in 'WHERE'
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 NULL
 drop table t10;
@@ -587,21 +400,10 @@ explain
 select * from t1 partition (p1) where a=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a	a	5	const	49	
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
@@ -631,20 +433,9 @@ insert into t1 (a,b) values (10,20);
 insert into t1 (a,b,c) values (100,200,400);
 truncate table t1;
 insert delayed into t1 values ();
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 NULL
 drop table t1;
@@ -668,22 +459,11 @@ from t1,t2 where t1.id = t2.id;
 name	address
 abc	address1
 xyz	address2
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
@@ -710,22 +490,11 @@ create table t2(id2 int not null);
 insert into t1 values (1),(2);
 insert into t2 values (1),(1),(2),(2);
 delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `id2` int(11) NOT NULL
@@ -742,22 +511,11 @@ CREATE TABLE `t1` (
 # Now, context result should have the ddls for all 2 tables,
 # even though no data is deleted
 delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
-set @ddls=
-(select REGEXP_SUBSTR(
-context,
-'(CREATE TABLE.*)([\n\r].*)*(?=(REPLACE INTO|set @opt_context))')
-from information_schema.optimizer_context);
-set @fn= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.name')));
-select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+# == Optimizer Context Tables
 name
 db1.t2
 db1.t1
-select @ddls;
+# === Optimizer Context DDLs
 @ddls
 CREATE TABLE `t2` (
   `id2` int(11) NOT NULL

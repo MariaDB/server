@@ -46,7 +46,7 @@ set optimizer_replay_context=@saved_opt_context_var_name_1;
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -59,7 +59,7 @@ set optimizer_replay_context="";
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -74,7 +74,7 @@ insert into t1 select seq%5, seq%8 from seq_1_to_20;
 --echo #
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -105,7 +105,7 @@ set optimizer_replay_context=@saved_opt_context_var_name_1;
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -117,7 +117,7 @@ set optimizer_record_context=OFF;
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select @opt_context;
 
@@ -130,7 +130,7 @@ set optimizer_record_context=ON;
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -143,7 +143,7 @@ set optimizer_replay_context="";
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -164,7 +164,7 @@ analyze table t1 persistent for all;
 --echo #
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 
@@ -181,7 +181,7 @@ set optimizer_replay_context=@saved_opt_context_var_name_1;
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 
@@ -194,7 +194,7 @@ set optimizer_replay_context="";
 
 select * from t1 where a < 3 and b > 6;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 
 select JSON_EQUALS(@saved_opt_context_2, @opt_context);
 
@@ -253,7 +253,7 @@ set optimizer_replay_context="";
 
 explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 
---source include/get_opt_context.inc
+--source include/opt_context_save_in_var.inc
 set @saved_opt_context_1= @opt_context;
 
 set optimizer_replay_context=@opt_context_var_name;
