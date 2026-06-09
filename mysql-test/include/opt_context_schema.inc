@@ -56,7 +56,7 @@ let $opt_context_schema=
               ]
             }
           },
-          "list_ranges": {
+          "multi_range_read_info_const_calls": {
             "type": "array",
             "uniqueItems": true,
             "minItems": 1,

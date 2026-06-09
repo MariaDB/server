@@ -50,7 +50,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
 table_name	file_stat_records	index_name	rec_per_key
 db1.t1	20	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -83,7 +83,7 @@ table_name	file_stat_records	index_name	rec_per_key
 db1.t2	30	t2_idx_a	["5"]
 db1.t1	20	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -117,7 +117,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
     )) as jt;
 table_name	file_stat_records	index_name	rec_per_key
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -150,7 +150,7 @@ table_name	file_stat_records	index_name	rec_per_key
 db1.t2	30	t2_idx_a	["5"]
 db1.t1	20	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -186,7 +186,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
 table_name	file_stat_records	index_name	rec_per_key
 db1.t1	20	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -217,7 +217,7 @@ table_name	file_stat_records	index_name	rec_per_key
 db1.t2	30	t2_idx_a	["5"]
 db1.t1	20	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -256,7 +256,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
 table_name	file_stat_records	index_name	rec_per_key
 db1.t1	50	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -291,7 +291,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
 table_name	file_stat_records	index_name	rec_per_key
 db1.t1	50	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -331,7 +331,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
     )) as jt;
 table_name	file_stat_records	index_name	rec_per_key
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -365,7 +365,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
 table_name	file_stat_records	index_name	rec_per_key
 db1.t1	50	NULL	NULL
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -760,7 +760,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
 table_name	file_stat_records	index_name	rec_per_key
 test.t1	3	a	["1"]
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',
@@ -796,7 +796,7 @@ rec_per_key json path '$**.indexes[*].rec_per_key'
     )) as jt;
 table_name	file_stat_records	index_name	rec_per_key
 set @list_ranges=
-(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+(select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
 @list_ranges,
 '$[*][*]' columns(index_name text path '$.index_name',

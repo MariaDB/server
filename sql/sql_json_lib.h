@@ -274,8 +274,8 @@ class Read_array_of_strings : public Read_array
   List<char> *strings;
 
 public:
-  Read_array_of_strings(MEM_ROOT *mem_root_arg, List<char> *list_ranges_arg)
-    : mem_root(mem_root_arg), strings(list_ranges_arg)
+  Read_array_of_strings(MEM_ROOT *mem_root_arg, List<char> *ranges_arg)
+    : mem_root(mem_root_arg), strings(ranges_arg)
   {}
   int read_container(json_engine_t *je, const char *name, String *err_buf)
       override
