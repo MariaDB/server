@@ -227,8 +227,9 @@ void old_mode_deprecated_warnings(ulonglong v);
 #define NEW_MODE_FIX_DISK_TMPTABLE_COSTS                            (1ULL << 0)
 #define NEW_MODE_FIX_INDEX_STATS_FOR_ALL_NULLS                      (1ULL << 1)
 #define NEW_MODE_FIX_INDEX_LOOKUP_COST                              (1ULL << 2)
-#define NEW_MODE_MAX                                                3
+#define NEW_MODE_FIX_SEMIJOIN_DUPS_WEEDOUT_CHECK                    (1ULL << 3)
 
+#define NEW_MODE_MAX                                                4
 /* Definitions above that have transitioned from new behaviour to default */
 
 #define NOW_DEFAULT                                             -1
