@@ -198,6 +198,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 {
 // Master_info_file, enum_master_use_gtid, std::optional
 #include "rpl_master_info_file.h"
+#include "sql_tablesample.h"
 }
 
 %union {
@@ -255,6 +256,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   SQL_I_List<ORDER> *select_order;
   Lex_select_lock select_lock;
   Lex_select_limit select_limit;
+  Lex_tablesample *tablesample;
   Lex_order_limit_lock *order_limit_lock;
   struct {
     bool with_unique_keys;
@@ -365,6 +367,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
   enum Alter_info::enum_alter_table_algorithm alter_table_algo_val;
+  enum tablesample_method_enum tblsmpl_method;
   enum_master_use_gtid master_use_gtid;
   privilege_t privilege;
   struct
@@ -812,6 +815,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  BACKUP_SYM
 %token  <kwd>  BEGIN_MARIADB_SYM             /* SQL-2003-R, PLSQL-R */
 %token  <kwd>  BEGIN_ORACLE_SYM              /* SQL-2003-R, PLSQL-R */
+%token  <kwd>  BERNOULLI
 %token  <kwd>  BINLOG_SYM
 %token  <kwd>  BIT_SYM                       /* MYSQL-FUNC */
 %token  <kwd>  BLOCK_SYM
@@ -1165,6 +1169,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SYSTEM                        /* SQL-2011-R */
 %token  <kwd>  SYSTEM_TIME_SYM               /* SQL-2011-R */
 %token  <kwd>  TABLES
+%token  <kwd>  TABLESAMPLE_SYM               /* SQL-2016-R */
 %token  <kwd>  TABLESPACE
 %token  <kwd>  TABLE_CHECKSUM_SYM
 %token  <kwd>  TABLE_NAME_SYM                /* SQL-2003-N */
@@ -1629,6 +1634,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
         json_default_literal
         set_expr_misc
+        tablesample_percentage
 
 %type <sql_statement_name>
         sql_statement_name
@@ -1637,6 +1643,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         open_for
 
 %type <num> opt_vers_auto_part
+
+%type <tablesample> opt_tablesample_clause
 
 %type <item_param> param_marker
 
@@ -1998,6 +2006,7 @@ rule:
 %type <cond_info_item> condition_information_item;
 %type <cond_info_item_name> condition_information_item_name;
 %type <cond_info_list> condition_information;
+%type <tblsmpl_method> tablesample_method;
 
 %type <spvar_definition> row_field_name row_field_definition
 %type <spvar_definition_list> row_field_definition_list row_type_body
@@ -12861,7 +12870,7 @@ join_table_parens:
 
 table_primary_ident:
           table_ident opt_use_partition opt_for_system_time_clause
-          opt_table_alias_clause opt_key_definition
+          opt_table_alias_clause opt_key_definition opt_tablesample_clause
           {
             if (!($$= Select->add_table_to_list(thd, $1, $4,
                                                 0,
@@ -12872,6 +12881,8 @@ table_primary_ident:
               MYSQL_YYABORT;
             if ($3)
               $$->vers_conditions= Lex->vers_conditions;
+            if ($6)
+              $$->tablesample_clause= $6;
           }
         ;
 
@@ -13077,6 +13088,47 @@ opt_having_clause:
             sel->parsing_place= NO_MATTER;
             if ($3)
               $3->top_level_item();
+          }
+        ;
+
+tablesample_method:
+          SYSTEM { $$= tablesample_method_enum::TABLESAMPLE_SYSTEM; }
+        | BERNOULLI { $$= tablesample_method_enum::TABLESAMPLE_BERNOULLI; }
+        ;
+
+tablesample_percentage:
+          ident_cli
+          {
+            if (unlikely(!($$= Lex->create_item_tablesample(thd, &$1))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' ident_cli
+          {
+            if (unlikely(!($$= Lex->create_item_tablesample(thd, &$1, &$3))))
+              MYSQL_YYABORT;
+          }
+        | param_marker
+          {
+            $1->tablesample_clause_param= TRUE;
+          }
+        | NUM_literal { $$= $1; }
+        ;
+
+opt_tablesample_clause:
+          /* empty */
+          { $$= NULL; }
+        | TABLESAMPLE_SYM tablesample_method '(' tablesample_percentage ')'
+          {
+            $$ = new (thd->mem_root) Lex_tablesample($2, $4);
+            if (unlikely(!$$))
+              YYABORT;
+            if ($4->basic_const_item()) {
+              double num = $4->val_real();
+              if (num != 0.0 && num != 100.0)
+                Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_TABLESAMPLE);
+            } else {
+              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_TABLESAMPLE);
+            }
           }
         ;
 

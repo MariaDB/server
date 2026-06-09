@@ -12418,3 +12418,9 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
         eng "Failed to parse saved optimizer context: %s at offset %d."
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
+ER_WRONG_SPVAR_TYPE_IN_TABLESAMPLE
+        eng "A variable of a non-numeric based type in TABLESAMPLE clause"
+ER_TABLESAMPLE_SYSTEM_NO_PK
+        eng "TABLESAMPLE SYSTEM requires a primary key on table '%-.192s'; using BERNOULLI sampling instead"
+ER_TABLESAMPLE_SYSTEM_HIGH_PCT
+        eng "TABLESAMPLE SYSTEM on table '%-.192s' requested more than %g%% of rows; using BERNOULLI sampling instead"
