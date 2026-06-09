@@ -504,6 +504,7 @@ extern PSI_memory_key key_memory_pwt_queued_event;
 extern PSI_memory_key key_memory_pwt_error_message;
 extern PSI_memory_key key_memory_pwt_workers;
 extern PSI_memory_key key_memory_pwt_db;
+extern PSI_memory_key key_memory_pwt_batch_rows;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.

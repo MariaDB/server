@@ -11,11 +11,14 @@ set session parallel_worker_threads=1;
 # DBUG injection forces both into the OOM branch, so neither the original
 # warning nor the original error reaches the user. We expect just the
 # manager-surfaced ER_OUTOFMEMORY warning.
-create table t1 select seq from seq_1_to_2;
+create table t1 (a int) engine=innodb;
+insert into t1 select seq from seq_1_to_2;
 select SQL_BUFFER_RESULT * from t1;
-seq
+a
 1
 2
+Warnings:
+Warning	1037	Parallel worker diagnostics were dropped due to memory allocation failure
 show warnings;
 Level	Code	Message
 Warning	1037	Parallel worker diagnostics were dropped due to memory allocation failure

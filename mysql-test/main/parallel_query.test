@@ -4,7 +4,7 @@
 
 -- source include/count_sessions.inc
 -- source include/not_embedded.inc
-# this will be used in the future  -- source include/have_innodb.inc
+-- source include/have_innodb.inc
 -- source include/have_sequence.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
@@ -16,14 +16,15 @@ SET DEBUG_SYNC='RESET';
 --echo # MDEV-39492 Parallel Query: Study how to create worker threads
 --echo #
 
-create table t1 select seq from seq_1_to_2;
+create table t1 (a int) engine=innodb;
+insert into t1 select seq from seq_1_to_2;
 
 set session parallel_worker_threads=3;
 --echo # we should currently see 3 warnings;
-select SQL_BUFFER_RESULT seq from t1;
+select SQL_BUFFER_RESULT a from t1;
 
 set session parallel_worker_threads=10;
-select SQL_BUFFER_RESULT seq from t1;
+select SQL_BUFFER_RESULT a from t1;
 
 set session parallel_worker_threads=0;
 connect (killee, localhost, root, , );
@@ -40,7 +41,7 @@ set session parallel_worker_threads=3;
 SET @save_dbug= @@global.debug_dbug;
 SET GLOBAL debug_dbug = "+d,pwt_worker_pause_before_signal";
 
---send select SQL_BUFFER_RESULT seq from t1;
+--send select SQL_BUFFER_RESULT a from t1;
 --echo # now use the default connection to view/kill the thread group executing
 --echo # the parallel work
 --connection default
@@ -54,6 +55,7 @@ let $wait_condition=
   where state like 'debug sync%' and info like '%Thread ID $id';
 --source include/wait_condition.inc
 --echo # then have a look at what is in our process list without thread ID
+#select * from information_schema.processlist;
 select USER, DB, STATE, SUBSTRING(INFO, 1, 32)
   from information_schema.processlist
   where (INFO regexp '.*parallel worker.*' or
@@ -79,7 +81,7 @@ SET DEBUG_SYNC = "RESET";
 --echo # save as above, but kill a worker with a simple kill and see the
 --echo # connection drop
 
---send select SQL_BUFFER_RESULT seq from t1;
+--send select SQL_BUFFER_RESULT a from t1;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
 let $name= "Parallel Worker 1 For Thread ID $id";

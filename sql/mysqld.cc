@@ -10068,6 +10068,7 @@ PSI_memory_key key_memory_pwt_queued_event;
 PSI_memory_key key_memory_pwt_error_message;
 PSI_memory_key key_memory_pwt_workers;
 PSI_memory_key key_memory_pwt_db;
+PSI_memory_key key_memory_pwt_batch_rows;
 
 #ifdef HAVE_PSI_INTERFACE
 

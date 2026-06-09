@@ -16775,6 +16775,12 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
   {
     first->use_parallel_scan= true;
     first->read_first_record       = parallel_init_read_record;
+    if (unlikely(join->thd->trace_started()))
+    {
+      Json_writer_object trace_pscan(join->thd);
+      trace_pscan.add("chosen_for_parallel_scan",
+                      first->table->alias.c_ptr());
+    }
   }
 
   DBUG_RETURN(FALSE);

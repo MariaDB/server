@@ -2,38 +2,17 @@ SET DEBUG_SYNC='RESET';
 #
 # MDEV-39492 Parallel Query: Study how to create worker threads
 #
-create table t1 select seq from seq_1_to_2;
+create table t1 (a int) engine=innodb;
+insert into t1 select seq from seq_1_to_2;
 set session parallel_worker_threads=3;
 # we should currently see 3 warnings;
-select SQL_BUFFER_RESULT seq from t1;
-seq
-1
-2
-1
-2
+select SQL_BUFFER_RESULT a from t1;
+a
 1
 2
 set session parallel_worker_threads=10;
-select SQL_BUFFER_RESULT seq from t1;
-seq
-1
-2
-1
-2
-1
-2
-1
-2
-1
-2
-1
-2
-1
-2
-1
-2
-1
-2
+select SQL_BUFFER_RESULT a from t1;
+a
 1
 2
 set session parallel_worker_threads=0;
@@ -43,7 +22,7 @@ connection killee;
 set session parallel_worker_threads=3;
 SET @save_dbug= @@global.debug_dbug;
 SET GLOBAL debug_dbug = "+d,pwt_worker_pause_before_signal";
-select SQL_BUFFER_RESULT seq from t1;;
+select SQL_BUFFER_RESULT a from t1;;
 # now use the default connection to view/kill the thread group executing
 # the parallel work
 connection default;
@@ -59,7 +38,7 @@ USER	DB	STATE	SUBSTRING(INFO, 1, 32)
 root	test	debug sync point: now	Parallel Worker 3 For Thread ID 
 root	test	debug sync point: now	Parallel Worker 2 For Thread ID 
 root	test	debug sync point: now	Parallel Worker 1 For Thread ID 
-root	test	Reading data from parallel workers	select SQL_BUFFER_RESULT seq fro
+root	test	Reading data from parallel workers	select SQL_BUFFER_RESULT a from 
 kill query ID;
 # signal our workers to continue execution
 SET DEBUG_SYNC = "now SIGNAL pwt_worker_continue";
@@ -70,7 +49,7 @@ ERROR 70100: Query execution was interrupted
 SET DEBUG_SYNC = "RESET";
 # save as above, but kill a worker with a simple kill and see the
 # connection drop
-select SQL_BUFFER_RESULT seq from t1;;
+select SQL_BUFFER_RESULT a from t1;;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
 kill ID;

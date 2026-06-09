@@ -492,14 +492,6 @@ class SplM_opt_info;
 
 typedef struct st_join_table {
   TABLE		*table;
-  /*
-    One batch temporary table per parallel worker, built in this (first
-    non-const) table's column format and created up front by
-    JOIN::create_parallel_workers_tmp_tables. Each worker reuses its table to
-    ship scanned source rows to the manager a batch at a time. Empty unless
-    this is the parallel-scan source table.
-  */
-  Dynamic_array<TABLE*>  parallel_tmp_tables;
   TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key

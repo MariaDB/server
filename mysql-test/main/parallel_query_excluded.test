@@ -9,16 +9,17 @@
 # (a MATCH ... AGAINST refers to it). We assert presence/absence of that trace
 # key (1/0) rather than the temporary row-multiplication behaviour.
 #
+-- source include/have_innodb.inc
 --source include/not_embedded.inc
 
 SET @save_optimizer_trace= @@optimizer_trace;
 SET optimizer_trace='enabled=on';
 
-CREATE TABLE t_plain (a INT);
+CREATE TABLE t_plain (a INT) engine=innodb;
 INSERT INTO t_plain VALUES (1),(2),(3);
-CREATE TABLE t_blob (a INT, b BLOB);
+CREATE TABLE t_blob (a INT, b BLOB) engine=innodb;
 INSERT INTO t_blob VALUES (1,'x'),(2,'y'),(3,'z');
-CREATE TABLE t_text (a INT, b TEXT);
+CREATE TABLE t_text (a INT, b TEXT) engine=innodb;
 INSERT INTO t_text VALUES (1,'x'),(2,'y'),(3,'z');
 
 # MERGE table over two MyISAM children
@@ -30,7 +31,7 @@ CREATE TABLE t_merge (a INT) ENGINE=MERGE UNION=(t_m1,t_m2) INSERT_METHOD=LAST;
 
 # fulltext: MATCH in the select list keeps a full table scan and marks the
 # table fulltext-searched
-CREATE TABLE t_ft (a INT, b VARCHAR(64), FULLTEXT(b)) ENGINE=MyISAM;
+CREATE TABLE t_ft (a INT, b VARCHAR(64), FULLTEXT(b)) ENGINE=innodb;
 INSERT INTO t_ft VALUES (1,'alpha beta'),(2,'gamma delta'),(3,'epsilon zeta');
 
 set session parallel_worker_threads=2;

@@ -43,12 +43,12 @@
                 initialize PSI keys
         worker_produce_chunks / worker_scan_table_to_manager
                 producer: scan the source table and stream rows to the manager
-                a batch at a time through the worker's reused batch table
+                a batch at a time through the worker's reused raw row buffer
         pwt_management::handoff_batch
-                producer: hand the filled batch table to the manager and block
+                producer: hand the filled row buffer to the manager and block
                 until it is drained
         parallel_scan_read_next
-                consumer: retrieve data from worker batch tables
+                consumer: copy raw records from the worker row buffers
         pwt_management::finalize_parallel_workers
                 stop the workers, reap them, surface diagnostics, tear down
 */
@@ -58,7 +58,6 @@
 #include "sql_select.h"
 #include "debug_sync.h"
 #include "transaction.h"
-#include "my_json_writer.h"
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_thread_key key_thread_pwt;
@@ -92,6 +91,7 @@ static PSI_memory_info all_pwt_memory[]=
   { &key_memory_pwt_error_message, "pwt_error_message",         0},
   { &key_memory_pwt_workers,       "pwt_management::workers",   0},
   { &key_memory_pwt_db,            "pwt_worker::db",            0},
+  { &key_memory_pwt_batch_rows,    "pwt_worker::batch_rows",    0},
 };
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -254,37 +254,17 @@ public:
 };
 
 
-/*
-  Copy one field's value from one row buffer to another, propagating the null
-  state. field_conv() copies only the value bytes, so the null bit has to be
-  transferred separately -- otherwise a NULL source would leave the
-  destination non-null (showing stale data) and a non-null source would not
-  clear a null bit left over from a previous row. set_null/set_notnull are
-  safe no-ops when the field is declared NOT NULL.
-*/
-static inline void copy_field_with_null(Field *to, Field *from)
-{
-  if (from->is_null())
-    to->set_null();
-  else
-  {
-    to->set_notnull();
-    field_conv(to, from);
-  }
-}
-
-
 /**
   @brief
-    Hand this worker's filled batch table to the manager (producer side).
+    Hand this worker's filled batch buffer to the manager (producer side).
 
-  Marks batch_table ready and blocks until the manager has drained it
-  (clears batch_full) or asks the producers to stop. On return the table is
-  the worker's again: either empty and ready to refill, or to be abandoned.
+  Marks batch_rows ready and blocks until the manager has drained it
+  (clears batch_full) or asks the producers to stop. On return the buffer is
+  the worker's again: either ready to refill, or to be abandoned.
 
   @return
     true   the consumer asked us to stop (stop scanning)
-    false  the table was drained; refill it
+    false  the buffer was drained; refill it
 */
 
 bool pwt_management::handoff_batch(pwt_worker *worker)
@@ -318,17 +298,18 @@ void inline close_worker_scan_table(pwt_worker *worker)
 
 /**
   @brief
-    Scan the worker's private source table and stream the rows to the manager,
-    a batch at a time, through the worker's reused batch table.
+    Scan the worker's private source-table partition and stream the rows to the
+    manager, a batch at a time, through the worker's reused row buffer.
 
-  Each worker scans its own private copy of the first non-const join table
+  Each worker scans its own private copy of the source table
   (worker->our_scan_table, opened with in_use == this worker's thd) so the
   workers scan truly concurrently -- no shared-scan lock is needed. It copies
-  up to PWT_CHUNK_ROWS rows field-by-field into batch_table (built in
-  the source-table column format, so field_conv is needed rather than a raw
-  record copy), hands that table to the manager, and blocks until the manager
-  has drained it (handoff_batch). It then truncates the table and refills it
-  for the next batch, until the source scan is exhausted.
+  up to PWT_CHUNK_ROWS raw record[0] images into batch_rows (the worker and
+  the manager share the source TABLE_SHARE, so a byte-for-byte record copy
+  reconstructs the row on the manager side -- no field_conv, no temp table),
+  hands the buffer to the manager, and blocks until the manager has drained it
+  (handoff_batch). It then refills the buffer from the top, until the
+  partition is exhausted.
 
   The worker only reproduces the source scan; it does not apply WHERE/JOIN
   conditions or run the rest of the join. The manager consumes these rows and
@@ -342,12 +323,10 @@ void inline close_worker_scan_table(pwt_worker *worker)
 static int worker_produce_chunks(pwt_worker *worker)
 {
   TABLE *src= worker->our_scan_table;
-  TABLE *dst= worker->batch_table;
-  const uint nfields= src->s->fields;
+  const uint reclength= worker->manager->reclength;
   int err;
 
   src->use_all_columns();    // read every column into record[0]
-  dst->use_all_columns();    // we write every column of the batch row
 
   /*
     Our handle bypassed lock_tables(), so take the engine-level read lock
@@ -367,14 +346,6 @@ static int worker_produce_chunks(pwt_worker *worker)
   bool eof= false, killed= false;
   while (!eof && !killed)
   {
-    /*
-      The batch table is ours again (freshly created on the first pass, or
-      drained by the manager on later passes). Take ownership and empty it.
-    */
-    dst->in_use= worker->thd;
-    if ((err= dst->file->ha_delete_all_rows()))
-      break;
-
     uint rows= 0;
     while (rows < PWT_CHUNK_ROWS)
     {
@@ -397,10 +368,8 @@ static int worker_produce_chunks(pwt_worker *worker)
         }
         break;
       }
-      for (uint k= 0; k < nfields; k++)
-        copy_field_with_null(dst->field[k], src->field[k]);
-      if ((err= dst->file->ha_write_tmp_row(dst->record[0])))
-        break;
+      memcpy(worker->batch_rows + (size_t) rows * reclength,
+             src->record[0], reclength);
       rows++;
     }
 
@@ -410,6 +379,7 @@ static int worker_produce_chunks(pwt_worker *worker)
 
     if (rows && !killed)                // hand the filled batch to the manager
     {
+      worker->batch_count= rows;
       if (worker->manager->handoff_batch(worker))  // manager asked us to stop
         break;
     }
@@ -482,6 +452,19 @@ static void *parallel_worker_thread_func(void *arg)
     to ensure they have their own local objects/errors/warnings etc
   */
   void *save= thd_attach_thd(worker->thd);
+  /*
+    create_background_thd()'s THD(0) never ran the connection-setup path that
+    allocates debug_sync_control, so DEBUG_SYNC actions on this worker (e.g. the
+    pwt_worker_pause_before_signal sync point used by the tests) would assert on
+    a NULL control block. Initialise it here, on the worker thread, so the
+    MY_THREAD_SPECIFIC allocation is charged to this THD and freed symmetrically
+    by ~THD (debug_sync_end_thread) when destroy_background_thd() runs below.
+    No-op in non-DEBUG_SYNC builds and when debug_sync is inactive.
+  */
+#ifdef ENABLED_DEBUG_SYNC
+  if (!worker->thd->debug_sync_control)
+    debug_sync_init_thread(worker->thd);
+#endif
   my_thread_set_name(worker->thd->connection_name.str);
   THD_STAGE_INFO(worker->thd, stage_sending_data);
   worker->thd->push_internal_handler(&error_handler);
@@ -627,20 +610,6 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
   this->thd= thd;
   this->scan_tab= scan_tab;
 
-  if (create_parallel_workers_tmp_tables(join, scan_tab))
-  {
-    my_error(ER_INTERNAL_ERROR, MYF(0),
-             "init_parallel_workers: failed to create worker temp tables");
-    return ER_INTERNAL_ERROR;
-  }
-
-  /*
-    One batch table per worker was created up front by
-    create_parallel_workers_tmp_tables; bail if that count is out of step
-    with the worker count we are about to spawn.
-  */
-  DBUG_ASSERT(n == scan_tab->parallel_tmp_tables.elements());
-
   // Initialize engine's parallel scan coordinator
   int err= file->pscan_init_coordinator(n);
   if (err == HA_ERR_UNSUPPORTED)
@@ -677,6 +646,8 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
   mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
   mysql_cond_init(key_COND_pwt_data_space, &COND_data_space, nullptr);
   active_workers= nworkers= n;
+  reclength= table->s->reclength;     // shared record image size
+  cur_cursor= 0;
   fatal_error= false;
   stop= false;
   reaped= false;
@@ -742,7 +713,16 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
     workers[i].finished= workers[i].joined= false;
     workers[i].killed= NOT_KILLED;
     workers[i].batch_full= false;
-    workers[i].batch_table= scan_tab->parallel_tmp_tables.at(i);
+    workers[i].batch_count= 0;
+    workers[i].batch_rows= (uchar*) my_malloc(key_memory_pwt_batch_rows,
+                                              (size_t) PWT_CHUNK_ROWS * reclength,
+                                              MYF(MY_WME));
+    if (!workers[i].batch_rows)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "init_parallel_workers: failed to allocate worker row buffer");
+      goto cleanup_db_string;
+    }
     workers[i].thd->userstat_running= thd->userstat_running;
 
     /*
@@ -847,6 +827,9 @@ cleanup_old_workers:
   for (uint j= 0; j < i; j++)
     abort_worker(workers+j);
   free_queue();
+  // free each worker's row buffer (NULL for those not yet allocated)
+  for (uint j= 0; j < n; j++)
+    my_free(workers[j].batch_rows);
   my_free(workers);
   workers= nullptr;
   nworkers= 0;
@@ -874,111 +857,21 @@ void pwt_init_psi_keys(void)
 }
 #endif
 
-/**
-  @brief
-    Create one temporary scan table per parallel worker.
-
-  Each worker reuses its table to ship that table's rows to the
-  manager a batch at a time; the manager reads those rows back into
-  the original scanned table and drives the rest of the join itself.
-
-  These tmp tables are therefore built in the *source table's* format -- one
-  column per field of the first table.
-*/
-
-bool pwt_management::create_parallel_workers_tmp_tables(JOIN *join, JOIN_TAB *tab)
-{
-  const uint n= thd->variables.parallel_worker_threads;
-  TABLE *src= tab->table;
-
-  List<Item> scan_fields;
-  for (Field **f= src->field; *f; f++)
-  {
-    Item *item= new (thd->mem_root) Item_field(thd, *f);
-    if (!item || scan_fields.push_back(item, thd->mem_root))
-      return true;
-  }
-
-  TMP_TABLE_PARAM *sparam= new (thd->mem_root) TMP_TABLE_PARAM;
-  if (!sparam)
-    return true;
-  sparam->init();
-  count_field_types(join->select_lex, sparam, scan_fields, false);
-  sparam->skip_create_table= true;
-
-  /*
-    Force the batch tables into the in-memory HEAP engine. With
-    tmp_memory_table_size == 0 Create_tmp_table::choose_engine would otherwise
-    pick the on-disk Aria engine; but a batch table is created and freed by the
-    manager thread while its rows are written by a worker thread, and the
-    temp-file size callback charges Aria file growth to whichever thread is
-    current (the worker), releasing it only when the file is deleted (on the
-    manager). That cross-thread split leaves the worker's
-    status_var.tmp_space_used non-zero at thread exit, tripping
-    THD::free_connection()'s assertion. A HEAP table creates no temp file, so
-    the callback never fires and the accounting stays balanced. BLOB/TEXT
-    tables are excluded from parallel scan, so batch rows are fixed-width and a
-    PWT_CHUNK_ROWS-sized batch stays comfortably in memory.
-  */
-  ulonglong saved_tmp_memory_table_size= thd->variables.tmp_memory_table_size;
-  if (!saved_tmp_memory_table_size)
-    thd->variables.tmp_memory_table_size= thd->variables.max_heap_table_size;
-
-  bool error= false;
-  tab->parallel_tmp_tables.init(PSI_INSTRUMENT_MEM);
-  for (uint i= 0; i < n; i++)
-  {
-    TABLE* tmp_table= create_tmp_table(thd, sparam, scan_fields,
-                                       nullptr, false, false,
-                                       join->select_options, HA_POS_ERROR,
-                                       &empty_clex_str, true, false);
-    if (!tmp_table)
-    {
-      error= true;
-      break;
-    }
-    tmp_table->reginfo.join_tab= tab;
-    tab->parallel_tmp_tables.append(tmp_table);
-    // instantiate this now so the parallel workers can write to it
-    if (instantiate_tmp_table(tmp_table, sparam->keyinfo,
-                              sparam->start_recinfo,
-                              &sparam->recinfo,
-                              join->select_options,
-                              true /*cross_thread*/))
-    {
-      error= true;
-      break;
-    }
-  }
-
-  thd->variables.tmp_memory_table_size= saved_tmp_memory_table_size;
-  if (error)
-  {
-    /*
-      Our caller just returns on failure without reaching create_postjoin_
-      aggr_table's err: cleanup, so free the batch tables we already created
-      here rather than leak them.
-    */
-    free_parallel_tmp_tables(tab);
-    return true;
-  }
-
-  return false;
-}
-
 /*
-  Consumer side of the streaming channel. These pluggable read functions feed
-  the first join_tab from the worker batch tables instead of scanning the real
-  first table: each row a worker wrote into its batch table is copied
-  field-by-field into the first table's record[0], so the manager's
-  nested-loop join evaluates exactly as if it had scanned the table itself, but
-  driven by the worker rows as they arrive. parallel_init_read_record installs
-  the read function and returns the first row; parallel_scan_read_next returns
-  each subsequent row, blocking when no worker batch is momentarily ready.
+  Consumer side of the streaming channel. This pluggable read function feeds
+  the first join_tab from the worker row buffers instead of scanning the real
+  first table: each raw record image a worker placed in its batch_rows buffer
+  is memcpy'd straight into the first table's record[0] (worker and manager
+  share the source TABLE_SHARE), so the manager's nested-loop join evaluates
+  exactly as if it had scanned the table itself, but driven by the worker rows
+  as they arrive. parallel_init_read_record installs the read function and
+  returns the first row; parallel_scan_read_next returns each subsequent row,
+  blocking when no worker batch is momentarily ready.
 
-  The manager drains one worker's batch table at a time (mgr->cur_worker): it
-  rnd-scans that table, and on EOF releases the worker to refill (clears
-  batch_full, signals COND_data_space) and picks the next ready worker.
+  The manager drains one worker's buffer at a time (mgr->cur_worker), advancing
+  mgr->cur_cursor through its batch_count rows; when the buffer is exhausted it
+  releases the worker to refill (clears batch_full, signals COND_data_space)
+  and picks the next ready worker.
 
   Return convention matches the engine read functions: 0 = row produced,
   -1 = end of data, 1 = error (matching report_error()).
@@ -987,45 +880,34 @@ int parallel_scan_read_next(READ_RECORD *info)
 {
   TABLE *dst= info->table;                       // real first table
   pwt_management *mgr= dst->reginfo.join_tab->join->parallel_work_manager;
-  const uint nfields= dst->s->fields;
+  const uint reclength= mgr->reclength;
   struct timespec wait;
   wait.tv_nsec= 0;
 
   for (;;)
   {
-    if (mgr->cur_worker)                          // draining a worker's batch
+    if (mgr->cur_worker)                          // draining a worker's buffer
     {
-      TABLE *bt= mgr->cur_worker->batch_table;
-      int err= bt->file->ha_rnd_next(bt->record[0]);
-      if (!err)
+      pwt_worker *w= mgr->cur_worker;
+      if (mgr->cur_cursor < w->batch_count)
       {
-        /*
-          We are injecting a scanned row into the real first table's record[0].
-          Some Field::store() paths (e.g. Field_bit_as_char) assert the field
-          is marked in write_set, but a plain scanned table has an empty
-          write_set. Mark all columns writable for the duration of the copy
-          (debug-only; a no-op in release).
-        */
-        MY_BITMAP *old_map= dbug_tmp_use_all_columns(dst, &dst->write_set);
-        for (uint k= 0; k < nfields; k++)
-          copy_field_with_null(dst->field[k], bt->field[k]);
-        dbug_tmp_restore_column_map(&dst->write_set, old_map);
+        // raw record image -> first table's record[0]; no Field::store()
+        memcpy(dst->record[0],
+               w->batch_rows + (size_t) mgr->cur_cursor * reclength,
+               reclength);
+        mgr->cur_cursor++;
         return 0;
       }
-      // batch drained (EOF) or a read error; end the scan and release worker
-      bt->file->ha_rnd_end();
-      pwt_worker *w= mgr->cur_worker;
+      // buffer drained; release the worker so it can refill
       mysql_mutex_lock(&mgr->LOCK_data);
       mgr->cur_worker= nullptr;
-      w->batch_full= false;                       // table is the worker's again
+      w->batch_full= false;                       // buffer is the worker's again
       mysql_cond_broadcast(&mgr->COND_data_space); // wake it to refill
       mysql_mutex_unlock(&mgr->LOCK_data);
-      if (err != HA_ERR_END_OF_FILE)
-        return 1;
       // fall through and look for the next ready worker
     }
 
-    // find the next worker whose batch table is filled and ready
+    // find the next worker whose buffer is filled and ready
     pwt_worker *next= nullptr;
     PSI_stage_info old_stage;
     mysql_mutex_lock(&mgr->LOCK_data);
@@ -1080,14 +962,9 @@ int parallel_scan_read_next(READ_RECORD *info)
       mysql_mutex_lock(&mgr->LOCK_data);         // re-lock for the next pass
     }
     mgr->cur_worker= next;
+    mgr->cur_cursor= 0;                            // start of next's buffer
     mysql_mutex_unlock(&mgr->LOCK_data);
-
-    // open a scan on the chosen worker's batch table, then loop to read it
-    TABLE *bt= next->batch_table;
-    bt->in_use= mgr->thd;
-    bt->file->ha_index_or_rnd_end();              // in case a scan was open
-    if (bt->file->ha_rnd_init_with_error(1))
-      return 1;
+    // loop back to drain next->batch_rows
   }
 }
 
@@ -1095,11 +972,11 @@ int parallel_scan_read_next(READ_RECORD *info)
   @brief
     Stop the producers and pthread_join them.
 
-    The workers read this join's source and batch tables, so they must be
-    reaped before JOIN::join_free()->cleanup() frees those tables -- otherwise a
-    worker that has not yet observed the stop request dereferences a freed
-    table->file. That is why this is called from join_free(), ahead of the table
-    teardown, and again (idempotently, guarded by 'reaped') from finalize.
+    The workers read this join's source table (their private handler), so they
+    must be reaped before JOIN::join_free()->cleanup() frees that table --
+    otherwise a worker that has not yet observed the stop request dereferences a
+    freed table->file. That is why this is called from join_free(), ahead of the
+    table teardown, and again (idempotently, guarded by 'reaped') from finalize.
 
     On a normal completion the workers have already finished; on an early-out
     (LIMIT) or an abort (KILL/error) we ask them to stop here. A worker
@@ -1113,15 +990,8 @@ void pwt_management::quiesce_workers()
   if (!workers || reaped)
     return;
 
-  /*
-    On an early-out/error the manager may have stopped mid-batch with a scan
-    still open on cur_worker's table; end it before that table is freed.
-  */
-  if (cur_worker)
-  {
-    cur_worker->batch_table->file->ha_rnd_end();
-    cur_worker= nullptr;
-  }
+  // the consumer may have stopped mid-batch; drop its position (no open scan)
+  cur_worker= nullptr;
 
   mysql_mutex_lock(&LOCK_data);
   stop= true;
@@ -1154,7 +1024,6 @@ void pwt_management::finalize_parallel_workers(THD *thd, JOIN *join)
 
   quiesce_workers();                  // stop + join (no-op if already reaped)
   scan_tab->table->file->pscan_end_coordinator();
-  free_parallel_tmp_tables(scan_tab);
   /*
     Surface errors/warnings the workers queued via PWT_error_handler. A worker
     error that mattered to the result has already aborted the join during
@@ -1195,19 +1064,9 @@ void pwt_management::finalize_parallel_workers(THD *thd, JOIN *join)
   mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
   mysql_mutex_destroy(&LOCK_pwt_thread);
+  for (uint i= 0; i < nworkers; i++)    // workers are joined, buffers idle
+    my_free(workers[i].batch_rows);
   my_free(workers);
   workers= nullptr;
   nworkers= 0;
-}
-
-/*
-  Free the per-worker batch tables created by create_parallel_workers_tmp_tables
-  and reset the array. Safe to call when none were created (no-op) and safe to
-  call more than once.
-*/
-void pwt_management::free_parallel_tmp_tables(JOIN_TAB *tab)
-{
-  while (tab->parallel_tmp_tables.elements())
-    free_tmp_table(thd, tab->parallel_tmp_tables.pop());
-  tab->parallel_tmp_tables.free_memory();
 }
