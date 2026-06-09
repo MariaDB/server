@@ -21,7 +21,7 @@
 #include "my_global.h"
 #include "sql_list.h"
 #include "table.h"
-#include "json_lib.h"
+//#include "json_lib.h"
 
 class Item_subselect;
 /***************************************************************************
