@@ -22,7 +22,7 @@ create table t1
 insert into t1 select seq%2, seq%3 from seq_1_to_20;
 select count(*) from t1;
 
---source include/get_sys_vars_from_opt_ctx.inc
+--source include/opt_context_list_sys_vars.inc
 
 select count(*) from t1;
 
