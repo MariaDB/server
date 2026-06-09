@@ -23,12 +23,13 @@
 
 #include <ctype.h>
 #include <curl/curl.h>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+
+#include "hmac_sha256.h"
+#include "sha256.h"
 
 /* path and buffer size constants */
 #define TDB_S3_MAX_PATH      8192
@@ -215,40 +216,8 @@ static CURL *s3_curl_new(const s3_ctx_t *s3)
     return curl;
 }
 
-/**
- * sha256_hex
- * compute SHA256 hash and output as lowercase hex string
- * @param data input data
- * @param len length of input data
- * @param hex_out output buffer (must be at least TDB_S3_HASH_HEX_LEN bytes)
- */
-static void sha256_hex(const void *data, size_t len, char *hex_out)
-{
-    unsigned char hash[TDB_S3_SHA256_DIGEST];
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
-    EVP_DigestUpdate(ctx, data, len);
-    EVP_DigestFinal_ex(ctx, hash, NULL);
-    EVP_MD_CTX_free(ctx);
-    for (int i = 0; i < 32; i++) sprintf(hex_out + i * 2, "%02x", hash[i]);
-    hex_out[64] = '\0';
-}
-
-/**
- * hmac_sha256
- * compute HMAC-SHA256
- * @param key HMAC key
- * @param key_len length of key
- * @param data input data
- * @param data_len length of data
- * @param out output buffer (TDB_S3_SHA256_DIGEST bytes)
- * @param out_len receives the output length
- */
-static void hmac_sha256(const void *key, size_t key_len, const void *data, size_t data_len,
-                        unsigned char *out, unsigned int *out_len)
-{
-    HMAC(EVP_sha256(), key, (int)key_len, (const unsigned char *)data, data_len, out, out_len);
-}
+/* SHA-256 (sha256_hex) and HMAC-SHA-256 (hmac_sha256) are provided by the bundled crypto modules
+ * (src/sha256.c, src/hmac_sha256.c) -- only curl for HTTP. */
 
 /**
  * s3_get_timestamp
@@ -272,20 +241,20 @@ static void s3_get_timestamp(char *date8, char *timestamp16)
  * @param date8 date string YYYYMMDD
  * @param region AWS region
  * @param out output signing key (TDB_S3_SHA256_DIGEST bytes)
- * @param out_len receives the output length
  */
 static void s3_signing_key(const char *secret_key, const char *date8, const char *region,
-                           unsigned char *out, unsigned int *out_len)
+                           unsigned char *out)
 {
     char key_date[TDB_S3_KEY_DATE_BUF];
     snprintf(key_date, sizeof(key_date), "AWS4%s", secret_key);
 
+    /* each HMAC-SHA-256 step emits exactly TDB_S3_SHA256_DIGEST bytes, which is the key for the
+     * next step: date -> region -> service -> aws4_request */
     unsigned char k1[TDB_S3_SHA256_DIGEST], k2[TDB_S3_SHA256_DIGEST], k3[TDB_S3_SHA256_DIGEST];
-    unsigned int l;
-    hmac_sha256(key_date, strlen(key_date), date8, strlen(date8), k1, &l);
-    hmac_sha256(k1, l, region, strlen(region), k2, &l);
-    hmac_sha256(k2, l, "s3", 2, k3, &l);
-    hmac_sha256(k3, l, "aws4_request", 12, out, out_len);
+    hmac_sha256(key_date, strlen(key_date), date8, strlen(date8), k1);
+    hmac_sha256(k1, TDB_S3_SHA256_DIGEST, region, strlen(region), k2);
+    hmac_sha256(k2, TDB_S3_SHA256_DIGEST, "s3", 2, k3);
+    hmac_sha256(k3, TDB_S3_SHA256_DIGEST, "aws4_request", 12, out);
 }
 
 /**
@@ -388,16 +357,15 @@ static struct curl_slist *s3_sign_raw(const s3_ctx_t *ctx, const char *method,
 
     /* signature */
     unsigned char signing_key[TDB_S3_SHA256_DIGEST];
-    unsigned int sk_len;
-    s3_signing_key(ctx->secret_key, date8, ctx->region, signing_key, &sk_len);
+    s3_signing_key(ctx->secret_key, date8, ctx->region, signing_key);
 
     unsigned char sig_raw[TDB_S3_SHA256_DIGEST];
-    unsigned int sig_len;
-    hmac_sha256(signing_key, sk_len, string_to_sign, strlen(string_to_sign), sig_raw, &sig_len);
+    hmac_sha256(signing_key, TDB_S3_SHA256_DIGEST, string_to_sign, strlen(string_to_sign), sig_raw);
 
     char sig_hex[TDB_S3_HASH_HEX_LEN];
-    for (unsigned int i = 0; i < sig_len; i++) sprintf(sig_hex + i * 2, "%02x", sig_raw[i]);
-    sig_hex[sig_len * 2] = '\0';
+    for (unsigned int i = 0; i < TDB_S3_SHA256_DIGEST; i++)
+        sprintf(sig_hex + i * 2, "%02x", sig_raw[i]);
+    sig_hex[TDB_S3_SHA256_DIGEST * 2] = '\0';
 
     char auth_header[TDB_S3_MAX_HEADER];
     snprintf(auth_header, sizeof(auth_header),

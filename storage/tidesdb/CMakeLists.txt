@@ -17,7 +17,7 @@
 #
 # The libtidesdb C library is vendored under libtidesdb/ and compiled into a
 # static archive (tidesdb_embedded) that is statically linked into the plugin
-# module. This mirrors how storage/rocksdb builds rocksdblib: a self-contained
+# module. This mirrors how storage/rocksdb builds rocksdblib, in that a self-contained
 # build with no dependency on a system-installed libtidesdb, so a normal
 # MariaDB build produces a working engine and stale /usr/local copies cannot
 # shadow it.
@@ -38,14 +38,11 @@ SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
 #
 # Compression backends (zstd / lz4 / snappy) -- each OPTIONAL.
 #
-# As of libtidesdb 9.3.5 every backend is independent: compress.c pulls in the
+# In libtidesdb every backend is independent in that compress.c pulls in the
 # third-party header and compiles its code path only when the matching
 # TIDESDB_HAVE_<backend> macro is defined, and a build with none still works
 # (TDB_COMPRESS_NONE only).  Auto-detect each dev library and enable the ones
-# present.  Use FIND_LIBRARY full paths, not pkg-config: pkg-config returns
-# bare names like "zstd" which collide with MariaDB's own "zstd" MODULE target
-# (the provider_zstd plugin).
-#
+# present.  Use FIND_LIBRARY full paths, not pkg-config.
 SET(TIDESDB_COMPRESS_DEFS "")
 SET(TIDESDB_COMPRESS_LIBS "")
 SET(TIDESDB_COMPRESS_INCS "")
@@ -56,6 +53,7 @@ IF(TIDESDB_ZSTD_LIB AND TIDESDB_ZSTD_INC)
   LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_ZSTD)
   LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_ZSTD_LIB})
   LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_ZSTD_INC})
+  SET(TIDESDB_HAVE_ZSTD ON)   # feeds tidesdb_version.h #cmakedefine
 ENDIF()
 
 FIND_LIBRARY(TIDESDB_LZ4_LIB NAMES lz4)
@@ -64,6 +62,7 @@ IF(TIDESDB_LZ4_LIB AND TIDESDB_LZ4_INC)
   LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_LZ4)
   LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_LZ4_LIB})
   LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_LZ4_INC})
+  SET(TIDESDB_HAVE_LZ4 ON)    # feeds tidesdb_version.h #cmakedefine
 ENDIF()
 
 FIND_LIBRARY(TIDESDB_SNAPPY_LIB NAMES snappy)
@@ -72,27 +71,33 @@ IF(TIDESDB_SNAPPY_LIB AND TIDESDB_SNAPPY_INC)
   LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_SNAPPY)
   LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_SNAPPY_LIB})
   LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_SNAPPY_INC})
+  SET(TIDESDB_HAVE_SNAPPY ON)  # feeds tidesdb_version.h #cmakedefine
 ENDIF()
 
 MESSAGE(STATUS "TidesDB: compression backends enabled: ${TIDESDB_COMPRESS_DEFS}")
 
-# 
-# Optional S3-compatible object store connector (libcurl + OpenSSL).
-# On by default; degrades gracefully to a non-S3 build if the deps are absent.
-# 
+#
+# Optional S3-compatible object store connector.
+#
+# Requires libcurl only.  AWS SigV4 request signing uses libtidesdb's own
+# bundled SHA256/HMAC (src/sha256.c, src/hmac_sha256.c) rather than OpenSSL, so
+# the engine carries no TLS/crypto dependency -- this is what lets the S3
+# connector build on Windows.  On by default; degrades gracefully to a non-S3
+# build if libcurl is absent.
+#
 OPTION(TIDESDB_WITH_S3 "Build the TidesDB S3-compatible object store connector" ON)
 SET(TIDESDB_S3_LIBS)
 IF(TIDESDB_WITH_S3)
   FIND_PACKAGE(CURL)
-  FIND_PACKAGE(OpenSSL)
-  IF(CURL_FOUND AND OPENSSL_FOUND)
-    SET(TIDESDB_S3_LIBS CURL::libcurl OpenSSL::SSL OpenSSL::Crypto)
+  IF(CURL_FOUND)
+    SET(TIDESDB_S3_LIBS CURL::libcurl)
     MESSAGE(STATUS "TidesDB: S3 object store connector enabled")
   ELSE()
-    MESSAGE(STATUS "TidesDB: libcurl/OpenSSL not found - building without S3 connector")
+    MESSAGE(STATUS "TidesDB: libcurl not found - building without S3 connector")
     SET(TIDESDB_WITH_S3 OFF)
   ENDIF()
 ENDIF()
+SET(TIDESDB_HAS_S3 ${TIDESDB_WITH_S3})  # feeds tidesdb_version.h #cmakedefine
 
 # 
 # The plugin module. Created first so that, if the engine is not requested
@@ -127,6 +132,8 @@ SET(TIDESDB_CORE_SOURCES
   ${TIDESDB_LIB_DIR}/src/alloc.c
   ${TIDESDB_LIB_DIR}/src/objstore_fs.c
   ${TIDESDB_LIB_DIR}/src/local_cache.c
+  ${TIDESDB_LIB_DIR}/src/sha256.c
+  ${TIDESDB_LIB_DIR}/src/hmac_sha256.c
   ${TIDESDB_LIB_DIR}/external/xxhash.c
   ${TIDESDB_LIB_DIR}/external/ini.c
 )
@@ -136,15 +143,15 @@ ENDIF()
 
 ADD_LIBRARY(tidesdb_embedded STATIC ${TIDESDB_CORE_SOURCES})
 
-# Vendored third-party C: build position-independent (it links into a module)
+# Vendored third-party C -- build position-independent (it links into a module)
 # and as C11.  Platform-specific flags mirror libtidesdb's own build:
 #
 # GCC/Clang -- rather than blanket-suppressing warnings, silence only the
 # specific categories libtidesdb trips under MariaDB's stricter C flags:
-#   -Wdeclaration-after-statement : the library uses C99/C11 declare-at-use
+#   -Wdeclaration-after-statement   the library uses C99/C11 declare-at-use
 #                                   style, while MariaDB compiles C as C90;
-#   -Wframe-larger-than           : a few functions use large on-stack buffers;
-#   -Wdiscarded-qualifiers        : one const-qualifier drop in the library.
+#   -Wframe-larger-than             a few functions use large on-stack buffers;
+#   -Wdiscarded-qualifiers          one const-qualifier drop in the library.
 # Any other (new) warning still surfaces and, in maintainer mode, fails the
 # build -- so this does not mask regressions the way a blanket -w would.
 #
@@ -204,6 +211,17 @@ FILE(COPY ${TIDESDB_LIB_DIR}/src/      DESTINATION ${TIDESDB_PUBLIC_INC}/tidesdb
      FILES_MATCHING PATTERN "*.h")
 FILE(COPY ${TIDESDB_LIB_DIR}/external/ DESTINATION ${TIDESDB_PUBLIC_INC}/tidesdb
      FILES_MATCHING PATTERN "*.h")
+
+# Generate libtidesdb's public version/feature header from its template (as the
+# upstream build does) so the plugin can report which libtidesdb version is
+# vendored (TIDESDB_VERSION) and which optional features were compiled in
+# (TIDESDB_HAS_S3, TIDESDB_HAVE_{ZSTD,LZ4,SNAPPY}).  The template substitutes
+# @PROJECT_VERSION@; set it to the vendored libtidesdb version here and keep it
+# in sync with libtidesdb upstream (project(... VERSION x.y.z)) when re-vendoring.
+SET(PROJECT_VERSION "9.3.6")
+CONFIGURE_FILE(${TIDESDB_LIB_DIR}/src/tidesdb_version.h.in
+               ${TIDESDB_PUBLIC_INC}/tidesdb/tidesdb_version.h
+               @ONLY)
 
 TARGET_INCLUDE_DIRECTORIES(tidesdb PRIVATE ${TIDESDB_PUBLIC_INC})
 TARGET_LINK_LIBRARIES(tidesdb tidesdb_embedded)

@@ -1,0 +1,156 @@
+--source include/have_tidesdb.inc
+#
+# TidesDB Online DDL tests
+# Tests INSTANT, INPLACE (add/drop index), and COPY fallback
+#
+
+--echo # ---- Setup ----
+CREATE TABLE t_ddl (
+  id INT PRIMARY KEY,
+  a INT,
+  b VARCHAR(100),
+  c INT DEFAULT 0
+) ENGINE=TidesDB;
+
+INSERT INTO t_ddl VALUES (1, 10, 'alpha', 100);
+INSERT INTO t_ddl VALUES (2, 20, 'beta', 200);
+INSERT INTO t_ddl VALUES (3, 30, 'gamma', 300);
+INSERT INTO t_ddl VALUES (4, 10, 'delta', 400);
+INSERT INTO t_ddl VALUES (5, 50, 'epsilon', 500);
+
+--echo # ---- INSTANT: change column default ----
+ALTER TABLE t_ddl ALTER COLUMN c SET DEFAULT 999, ALGORITHM=INSTANT;
+INSERT INTO t_ddl (id, a, b) VALUES (6, 60, 'zeta');
+SELECT id, c FROM t_ddl WHERE id = 6;
+
+--echo # ---- INSTANT: rename column ----
+ALTER TABLE t_ddl CHANGE b b_name VARCHAR(100), ALGORITHM=INSTANT;
+SELECT id, b_name FROM t_ddl WHERE id = 1;
+
+--echo # ---- INSTANT: change table option (SYNC_MODE) ----
+ALTER TABLE t_ddl SYNC_MODE='NONE', ALGORITHM=INSTANT;
+SHOW CREATE TABLE t_ddl;
+
+--echo # ---- INPLACE: add secondary index ----
+ALTER TABLE t_ddl ADD INDEX idx_a (a), ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+
+--echo # Verify index is usable
+SELECT id, a FROM t_ddl WHERE a = 10 ORDER BY id;
+SELECT id, a FROM t_ddl WHERE a >= 30 ORDER BY a;
+
+--echo # ---- INPLACE: add another index ----
+ALTER TABLE t_ddl ADD INDEX idx_c (c), ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+EXPLAIN SELECT id, c FROM t_ddl WHERE c = 200;
+SELECT id, c FROM t_ddl WHERE c = 200;
+
+--echo # ---- INPLACE: drop index ----
+ALTER TABLE t_ddl DROP INDEX idx_a, ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+
+--echo # Verify remaining index still works
+SELECT id, c FROM t_ddl WHERE c = 300;
+
+--echo # ---- INPLACE: add + drop in one statement ----
+ALTER TABLE t_ddl ADD INDEX idx_a2 (a), DROP INDEX idx_c, ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+EXPLAIN SELECT id, a FROM t_ddl WHERE a = 20;
+SELECT id, a FROM t_ddl WHERE a = 20;
+
+--echo # ---- INSTANT: add column (NOT NULL DEFAULT) ----
+ALTER TABLE t_ddl ADD COLUMN d INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
+SELECT id, d FROM t_ddl WHERE id = 1;
+
+--echo # ---- Verify old rows readable after ADD COLUMN ----
+SELECT id, a, b_name, c, d FROM t_ddl ORDER BY id;
+
+--echo # ---- Insert with new schema and verify ----
+INSERT INTO t_ddl VALUES (7, 70, 'eta', 700, 42);
+SELECT id, d FROM t_ddl WHERE id IN (1, 7) ORDER BY id;
+
+--echo # ---- INSTANT: drop column ----
+ALTER TABLE t_ddl DROP COLUMN d, ALGORITHM=INSTANT;
+SELECT * FROM t_ddl WHERE id = 1;
+
+--echo # ---- Verify all rows readable after DROP COLUMN ----
+SELECT id, a, b_name, c FROM t_ddl ORDER BY id;
+
+--echo # ---- Cleanup ----
+DROP TABLE t_ddl;
+
+--echo # ---- Test with data and hidden PK (no explicit PK) ----
+CREATE TABLE t_nopk (
+  a INT,
+  b VARCHAR(50)
+) ENGINE=TidesDB;
+
+INSERT INTO t_nopk VALUES (1, 'one');
+INSERT INTO t_nopk VALUES (2, 'two');
+INSERT INTO t_nopk VALUES (3, 'three');
+
+--echo # Add index on hidden-PK table
+ALTER TABLE t_nopk ADD INDEX idx_a (a), ALGORITHM=INPLACE;
+SELECT a, b FROM t_nopk WHERE a = 2;
+
+--echo # Drop it
+ALTER TABLE t_nopk DROP INDEX idx_a, ALGORITHM=INPLACE;
+
+DROP TABLE t_nopk;
+
+--echo # ---- ADD UNIQUE must reject duplicates ----
+CREATE TABLE t_dup (
+  i INT NOT NULL,
+  j INT NOT NULL DEFAULT 0
+) ENGINE=TidesDB;
+
+INSERT INTO t_dup VALUES (1, 0);
+INSERT INTO t_dup VALUES (2, 0);
+SELECT * FROM t_dup ORDER BY i;
+
+--error ER_DUP_ENTRY
+ALTER TABLE t_dup ADD UNIQUE unq_j (j);
+
+# Both rows must still be present after the failed ALTER
+SELECT * FROM t_dup ORDER BY i;
+SELECT COUNT(*) FROM t_dup;
+
+DROP TABLE t_dup;
+
+--echo # ---- ADD FULLTEXT must back-fill pre-existing rows ----
+# Regression: inplace_alter_table used to skip FTS/SPATIAL keys, leaving the
+# new CF empty until the next write_row. check_if_supported_inplace_alter
+# now refuses ALGORITHM=INPLACE for these so MariaDB falls back to COPY,
+# which routes every row through write_row.
+CREATE TABLE t_ft (
+  id INT PRIMARY KEY,
+  body VARCHAR(200)
+) ENGINE=TidesDB;
+INSERT INTO t_ft VALUES (1, 'tides db rocks'), (2, 'sql plugin lives'), (3, 'tides again');
+
+# ALGORITHM=INPLACE must be rejected with a clear reason.
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t_ft ADD FULLTEXT (body), ALGORITHM=INPLACE;
+
+# Default (= unspecified algorithm) must succeed via COPY and back-fill rows.
+ALTER TABLE t_ft ADD FULLTEXT (body);
+SELECT id FROM t_ft WHERE MATCH(body) AGAINST('tides') ORDER BY id;
+DROP TABLE t_ft;
+
+--echo # ---- ADD SPATIAL must back-fill pre-existing rows ----
+CREATE TABLE t_sp (
+  id INT PRIMARY KEY,
+  g GEOMETRY NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO t_sp VALUES (1, ST_GeomFromText('POINT(0 0)'));
+INSERT INTO t_sp VALUES (2, ST_GeomFromText('POINT(10 10)'));
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t_sp ADD SPATIAL INDEX (g), ALGORITHM=INPLACE;
+
+ALTER TABLE t_sp ADD SPATIAL INDEX (g);
+SELECT id FROM t_sp WHERE MBRWithin(g, ST_GeomFromText('POLYGON((-1 -1, -1 5, 5 5, 5 -1, -1 -1))'))
+ORDER BY id;
+DROP TABLE t_sp;
+
+--source include/cleanup_tidesdb.inc

@@ -210,6 +210,10 @@ typedef struct skip_list_t
     void *comparator_ctx;
     _Atomic(time_t) *cached_time;
     skip_list_arena_t *arena;
+    /* smallest sequence number ever inserted (UINT64_MAX when empty). lets a compaction learn the
+     * oldest unflushed write held in a memtable so it never reaps a tombstone newer than data that
+     * has not yet reached disk. */
+    _Atomic(uint64_t) min_seq;
 } skip_list_t;
 
 /**
@@ -549,6 +553,14 @@ int skip_list_get_with_seq_ref(skip_list_t *list, const uint8_t *key, size_t key
  */
 int skip_list_get_max_seq(skip_list_t *list, const uint8_t *key, size_t key_size,
                           uint64_t *out_seq);
+
+/**
+ * skip_list_get_min_seq
+ * returns the smallest sequence number ever inserted into the list, or UINT64_MAX if empty.
+ * @param list skip list
+ * @return smallest inserted seq, or UINT64_MAX when no entry was ever inserted
+ */
+uint64_t skip_list_get_min_seq(skip_list_t *list);
 
 /**
  * skip_list_cursor_init

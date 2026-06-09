@@ -902,6 +902,7 @@ int skip_list_new_with_comparator_and_cached_time(skip_list_t **list, const int 
 
     atomic_init(&new_list->total_size, 0);
     atomic_init(&new_list->entry_count, 0);
+    atomic_init(&new_list->min_seq, UINT64_MAX);
 
     /* we create sentinel nodes with no keys -- they are identified by the sentinel flag */
     skip_list_node_t *header = skip_list_create_sentinel(max_level);
@@ -1926,6 +1927,17 @@ int skip_list_put_with_seq(skip_list_t *list, const uint8_t *key, size_t key_siz
     const int is_tombstone = (flags & SKIP_LIST_FLAG_DELETED) != 0;
     if (list == NULL || key == NULL || key_size == 0 || (!is_tombstone && value == NULL)) return -1;
 
+    /* track the smallest seq ever inserted -- a compaction reads this to learn the oldest unflushed
+     * write still held in this memtable, so it never reaps a tombstone newer than it. */
+    {
+        uint64_t cur = atomic_load_explicit(&list->min_seq, memory_order_relaxed);
+        while (seq < cur &&
+               !atomic_compare_exchange_weak_explicit(&list->min_seq, &cur, seq,
+                                                      memory_order_relaxed, memory_order_relaxed))
+        {
+        }
+    }
+
     skip_list_node_t *header = atomic_load_explicit(&list->header, memory_order_acquire);
     const int max_level = atomic_load_explicit(&list->level, memory_order_acquire);
     const skip_list_cmp_type_t cmp_type = list->cmp_type;
@@ -2250,6 +2262,21 @@ int skip_list_put_batch(skip_list_t *list, const skip_list_batch_entry_t *entrie
 {
     if (list == NULL || entries == NULL || count == 0) return -1;
 
+    /* track the smallest seq in this batch -- same min_seq bookkeeping as skip_list_put_with_seq,
+     * which the batched commit path bypasses (a gap that lets a compaction reap a tombstone newer
+     * than batched-but-unflushed data and resurrect the key). */
+    {
+        uint64_t batch_min = UINT64_MAX;
+        for (size_t i = 0; i < count; i++)
+            if (entries[i].seq < batch_min) batch_min = entries[i].seq;
+        uint64_t cur = atomic_load_explicit(&list->min_seq, memory_order_relaxed);
+        while (batch_min < cur &&
+               !atomic_compare_exchange_weak_explicit(&list->min_seq, &cur, batch_min,
+                                                      memory_order_relaxed, memory_order_relaxed))
+        {
+        }
+    }
+
     int success_count = 0;
 
     /* we use a shared update array across batch entries for efficiency
@@ -2557,6 +2584,12 @@ int skip_list_put_batch(skip_list_t *list, const skip_list_batch_entry_t *entrie
 
     if (!use_stack) free(update);
     return success_count;
+}
+
+uint64_t skip_list_get_min_seq(skip_list_t *list)
+{
+    if (list == NULL) return UINT64_MAX;
+    return atomic_load_explicit(&list->min_seq, memory_order_acquire);
 }
 
 int skip_list_get_max_seq(skip_list_t *list, const uint8_t *key, const size_t key_size,

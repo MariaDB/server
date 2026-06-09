@@ -1,0 +1,76 @@
+--source include/have_tidesdb.inc
+#
+# Exercises the pessimistic lock manager's wait-for graph traversal by
+# forcing a real two-row cycle.  T1 holds X on row 1 and waits for X on
+# row 2; T2 holds X on row 2 and asks for X on row 1.  The walker on T2's
+# acquire must follow T1's wait edge back to T2's grant and return
+# HA_ERR_LOCK_DEADLOCK, which MariaDB surfaces as ER_LOCK_DEADLOCK.
+#
+# The test is timing sensitive: T2's walker only sees the cycle if T1's
+# --send UPDATE has actually reached the wait loop and published its
+# waiting_on_lock pointer.  We poll the Tidesdb_lock_waits counter to
+# observe T1 entering the wait state before firing T2's query, which
+# makes the cycle deterministic.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE c (
+  id  INT PRIMARY KEY,
+  v   INT NOT NULL
+) ENGINE=TidesDB;
+
+INSERT INTO c VALUES (1, 10), (2, 20);
+
+connect (a, localhost, root,,);
+connect (b, localhost, root,,);
+
+connection a;
+BEGIN;
+UPDATE c SET v = v + 1 WHERE id = 1;
+
+connection b;
+BEGIN;
+UPDATE c SET v = v + 1 WHERE id = 2;
+
+# Snapshot the lock-wait counter so we can detect T1 entering cond_wait.
+connection default;
+--disable_query_log
+let $waits_before = `SELECT VARIABLE_VALUE+0 FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='TIDESDB_LOCK_WAITS'`;
+--enable_query_log
+
+connection a;
+--send UPDATE c SET v = v + 1 WHERE id = 2
+
+# Wait until a's UPDATE has actually blocked in row_lock_acquire.  Until
+# Tidesdb_lock_waits has incremented, a's waiting_on_lock is still null
+# and b's walker would not see a cycle.
+connection default;
+let $wait_condition =
+  SELECT (VARIABLE_VALUE+0) > $waits_before
+    FROM information_schema.GLOBAL_STATUS
+   WHERE VARIABLE_NAME = 'TIDESDB_LOCK_WAITS';
+--source include/wait_condition.inc
+
+# T1 is now parked on row 2; T2's request for row 1 closes the cycle.
+connection b;
+--error ER_LOCK_DEADLOCK
+UPDATE c SET v = v + 1 WHERE id = 1;
+ROLLBACK;
+
+# T2's rollback released its X on row 2, so T1's --send completes.
+connection a;
+--reap
+COMMIT;
+
+connection default;
+--echo # Row 1 incremented by T1 only (T2 aborted); row 2 incremented by T1 only.
+SELECT * FROM c ORDER BY id;
+
+disconnect a;
+disconnect b;
+connection default;
+DROP TABLE c;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

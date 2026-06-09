@@ -310,6 +310,9 @@ typedef struct
  * @param at_end flag indicating cursor is past end
  * @param at_begin flag indicating cursor is before begin
  * @param using_cache flag indicating current node was loaded from cache
+ * @param read_error set when a node load failed (vs a genuine end of tree) so callers can tell a
+ *                   truncated traversal apart from a complete one and not treat lost entries as
+ * gone
  */
 struct btree_cursor_t
 {
@@ -320,6 +323,7 @@ struct btree_cursor_t
     int at_end;
     int at_begin;
     int using_cache;
+    int read_error;
 };
 
 /**
@@ -609,6 +613,16 @@ int btree_cursor_goto_last(btree_cursor_t *cursor);
  * @return 1 if valid, 0 if not, -1 on error
  */
 int btree_cursor_valid(btree_cursor_t *cursor);
+
+/**
+ * btree_cursor_read_failed
+ * reports whether the cursor stopped because a node load failed rather than because it reached a
+ * genuine end of the tree. lets a caller (e.g. a compaction merge source) tell a transiently
+ * truncated scan apart from a complete one and abort instead of dropping the unread entries.
+ * @param cursor the cursor
+ * @return 1 if the last advance stopped on a node-load failure, 0 otherwise
+ */
+int btree_cursor_read_failed(const btree_cursor_t *cursor);
 
 /**
  * btree_cursor_get

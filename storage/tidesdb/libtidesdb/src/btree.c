@@ -2690,6 +2690,8 @@ int btree_cursor_goto_first(btree_cursor_t *cursor)
 {
     if (!cursor || !cursor->tree) return -1;
 
+    cursor->read_error = 0;
+
     if (cursor->current_node)
     {
         btree_node_done(cursor->current_node, cursor->using_cache);
@@ -2706,6 +2708,8 @@ int btree_cursor_goto_first(btree_cursor_t *cursor)
     if (btree_node_read_cached(cursor->tree, cursor->current_leaf_offset, &cursor->current_node) !=
         0)
     {
+        /* the tree has a first leaf but we could not load it -- a transient failure, not empty */
+        cursor->read_error = 1;
         return -1;
     }
 
@@ -2718,6 +2722,8 @@ int btree_cursor_goto_first(btree_cursor_t *cursor)
 int btree_cursor_goto_last(btree_cursor_t *cursor)
 {
     if (!cursor || !cursor->tree) return -1;
+
+    cursor->read_error = 0;
 
     if (cursor->current_node)
     {
@@ -2735,6 +2741,8 @@ int btree_cursor_goto_last(btree_cursor_t *cursor)
     if (btree_node_read_cached(cursor->tree, cursor->current_leaf_offset, &cursor->current_node) !=
         0)
     {
+        /* the tree has a last leaf but we could not load it -- a transient failure, not empty */
+        cursor->read_error = 1;
         return -1;
     }
 
@@ -2747,6 +2755,8 @@ int btree_cursor_goto_last(btree_cursor_t *cursor)
 int btree_cursor_next(btree_cursor_t *cursor)
 {
     if (!cursor || cursor->at_end) return -1;
+
+    cursor->read_error = 0;
 
     if (!cursor->current_node)
     {
@@ -2772,6 +2782,10 @@ int btree_cursor_next(btree_cursor_t *cursor)
         if (btree_node_read_cached(cursor->tree, cursor->current_leaf_offset,
                                    &cursor->current_node) != 0)
         {
+            /* the next leaf exists (next_offset >= 0) but we could not load it -- a transient cache
+             * miss + reload failure under memory/fd pressure, not a real end. flag it so a merge
+             * source aborts instead of silently dropping every remaining entry. */
+            cursor->read_error = 1;
             cursor->at_end = 1;
             return -1;
         }
@@ -2791,6 +2805,8 @@ int btree_cursor_next(btree_cursor_t *cursor)
 int btree_cursor_prev(btree_cursor_t *cursor)
 {
     if (!cursor) return -1;
+
+    cursor->read_error = 0;
 
     if (!cursor->current_node)
     {
@@ -2818,6 +2834,8 @@ int btree_cursor_prev(btree_cursor_t *cursor)
         if (btree_node_read_cached(cursor->tree, cursor->current_leaf_offset,
                                    &cursor->current_node) != 0)
         {
+            /* prev leaf exists but could not be loaded -- a transient failure, not the begin */
+            cursor->read_error = 1;
             cursor->at_begin = 1;
             return -1;
         }
@@ -2838,6 +2856,8 @@ int btree_cursor_seek(btree_cursor_t *cursor, const uint8_t *key, const size_t k
 {
     if (!cursor || !cursor->tree || !key || key_size == 0) return -1;
 
+    cursor->read_error = 0;
+
     if (cursor->current_node)
     {
         btree_node_done(cursor->current_node, cursor->using_cache);
@@ -2853,6 +2873,8 @@ int btree_cursor_seek(btree_cursor_t *cursor, const uint8_t *key, const size_t k
     btree_node_t *node = NULL;
     if (btree_node_read_cached(cursor->tree, cursor->tree->root_offset, &node) != 0)
     {
+        /* the tree has a root but we could not load it -- a transient failure, not an absent key */
+        cursor->read_error = 1;
         return -1;
     }
 
@@ -2886,6 +2908,8 @@ int btree_cursor_seek(btree_cursor_t *cursor, const uint8_t *key, const size_t k
 
         if (btree_node_read_cached(cursor->tree, child_offset, &node) != 0)
         {
+            /* an internal child exists but could not be loaded -- a transient failure */
+            cursor->read_error = 1;
             return -1;
         }
     }
@@ -2920,6 +2944,8 @@ int btree_cursor_seek(btree_cursor_t *cursor, const uint8_t *key, const size_t k
             btree_node_done(node, cursor->using_cache);
             if (btree_node_read_cached(cursor->tree, next_off, &node) != 0)
             {
+                /* the following leaf exists but could not be loaded -- a transient failure */
+                cursor->read_error = 1;
                 cursor->at_end = 1;
                 return -1;
             }
@@ -2970,6 +2996,11 @@ int btree_cursor_valid(btree_cursor_t *cursor)
     if (cursor->current_index < 0) return 0;
     if ((uint32_t)cursor->current_index >= cursor->current_node->num_entries) return 0;
     return 1;
+}
+
+int btree_cursor_read_failed(const btree_cursor_t *cursor)
+{
+    return cursor ? cursor->read_error : 0;
 }
 
 int btree_cursor_get(btree_cursor_t *cursor, uint8_t **key, size_t *key_size, uint8_t **value,

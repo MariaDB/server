@@ -1,0 +1,126 @@
+--source include/have_tidesdb.inc
+#
+# Tests for session-level isolation level mapping.
+# Verifies that SET TRANSACTION ISOLATION LEVEL is properly
+# respected by the TidesDB engine (resolve_effective_isolation).
+#
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: READ COMMITTED - sees committed data
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_iso (
+  id  INT NOT NULL PRIMARY KEY,
+  val INT
+) ENGINE=TIDESDB;
+
+INSERT INTO t_iso VALUES (1, 10);
+
+connect (con1, localhost, root,,);
+connection con1;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+BEGIN;
+SELECT * FROM t_iso ORDER BY id;
+
+connection default;
+INSERT INTO t_iso VALUES (2, 20);
+
+--echo # con1 at READ COMMITTED should see newly committed row
+connection con1;
+SELECT * FROM t_iso ORDER BY id;
+COMMIT;
+
+disconnect con1;
+connection default;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: REPEATABLE READ - snapshot isolation
+--echo # ============================================
+--echo #
+
+connect (con2, localhost, root,,);
+connection con2;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t_iso ORDER BY id;
+
+connection default;
+INSERT INTO t_iso VALUES (3, 30);
+
+--echo # con2 at REPEATABLE READ should NOT see row 3
+connection con2;
+SELECT * FROM t_iso ORDER BY id;
+COMMIT;
+
+--echo # After COMMIT, new transaction should see row 3
+SELECT * FROM t_iso ORDER BY id;
+
+disconnect con2;
+connection default;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: Basic DML at each isolation level
+--echo #   (verifies the mapping doesn't crash)
+--echo # ============================================
+--echo #
+
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+INSERT INTO t_iso VALUES (4, 40);
+SELECT * FROM t_iso WHERE id = 4;
+
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+UPDATE t_iso SET val = 41 WHERE id = 4;
+SELECT * FROM t_iso WHERE id = 4;
+
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+UPDATE t_iso SET val = 42 WHERE id = 4;
+SELECT * FROM t_iso WHERE id = 4;
+
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+DELETE FROM t_iso WHERE id = 4;
+SELECT * FROM t_iso ORDER BY id;
+
+--echo # Reset to default
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+DROP TABLE t_iso;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: SNAPSHOT isolation via table option
+--echo #   (table uses ISOLATION_LEVEL=SNAPSHOT, session
+--echo #   at REPEATABLE READ should activate SNAPSHOT)
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_snap (
+  id  INT NOT NULL PRIMARY KEY,
+  val INT
+) ENGINE=TIDESDB ISOLATION_LEVEL='SNAPSHOT';
+
+INSERT INTO t_snap VALUES (1, 100);
+
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t_snap ORDER BY id;
+
+# Insert from same connection (different statement in same txn)
+# The BEGIN already took a snapshot, so this tests
+# that writes within the txn are visible to reads
+INSERT INTO t_snap VALUES (2, 200);
+SELECT * FROM t_snap ORDER BY id;
+COMMIT;
+
+DROP TABLE t_snap;
+
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

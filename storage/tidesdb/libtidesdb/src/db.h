@@ -320,6 +320,11 @@ typedef struct tidesdb_column_family_config_t
  *                               across all column families. bounds total transient memory and
  *                               work-queue depth when many column families flush at once.
  *                               0 falls back to TDB_DEFAULT_MAX_CONCURRENT_FLUSHES.
+ * @param finish_compactions_on_close close behavior. 0 (default) cancels in-flight compactions at
+ *                               their next checkpoint for a fast shutdown -- the merge discards its
+ *                               uncommitted output and leaves inputs intact, so no data is lost
+ *                               (recovery handles a mid-merge state the same way). 1 lets in-flight
+ *                               compactions run to completion before close returns.
  */
 typedef struct tidesdb_config_t
 {
@@ -341,6 +346,7 @@ typedef struct tidesdb_config_t
     tidesdb_objstore_t *object_store;
     tidesdb_objstore_config_t *object_store_config;
     int max_concurrent_flushes;
+    int finish_compactions_on_close;
 } tidesdb_config_t;
 
 /**
