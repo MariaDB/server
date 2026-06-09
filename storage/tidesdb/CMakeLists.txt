@@ -22,59 +22,29 @@
 # MariaDB build produces a working engine and stale /usr/local copies cannot
 # shadow it.
 
-# 
-# Do not route compression through MariaDB's loadable provider services.
 #
-# MariaDB injects include/providers/ globally (CMakeLists.txt), whose lz4.h /
-# snappy-c.h shims rewrite the C compression calls to go through provider
-# plugins that must be separately installed. libtidesdb expects to call the
-# real zstd/lz4/snappy directly, so drop that include dir for this engine and
-# link the system libraries instead (mirrors storage/rocksdb).
-# 
-GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
-LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
-SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
-
+# Compression backends (zstd / lz4 / snappy) via MariaDB's compression
+# provider services.
 #
-# Compression backends (zstd / lz4 / snappy) -- each OPTIONAL.
+# Instead of linking libzstd/liblz4/libsnappy into the engine, libtidesdb's
+# compress.c is compiled against MariaDB's provider shims in include/providers/
+# (kept on the include path -- unlike storage/rocksdb, which drops them).  Each
+# codec call resolves at run time through the matching provider plugin
+# (provider_zstd / provider_lz4 / provider_snappy).  When a provider is not
+# loaded its service stub returns an error, so compress_data() fails cleanly
+# for that algorithm and the engine still runs (TDB_COMPRESS_NONE always
+# works) -- no hard dependency on any codec library.
 #
-# In libtidesdb every backend is independent in that compress.c pulls in the
-# third-party header and compiles its code path only when the matching
-# TIDESDB_HAVE_<backend> macro is defined, and a build with none still works
-# (TDB_COMPRESS_NONE only).  Auto-detect each dev library and enable the ones
-# present.  Use FIND_LIBRARY full paths, not pkg-config.
-SET(TIDESDB_COMPRESS_DEFS "")
-SET(TIDESDB_COMPRESS_LIBS "")
-SET(TIDESDB_COMPRESS_INCS "")
+# All three code paths are always compiled in; runtime availability is a
+# property of which provider plugins are loaded.  LZ4_FAST uses the
+# LZ4_compress_fast entry added to the lz4 provider.
+#
+SET(TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_ZSTD TIDESDB_HAVE_LZ4 TIDESDB_HAVE_SNAPPY)
+SET(TIDESDB_HAVE_ZSTD   ON)   # feeds tidesdb_version.h #cmakedefine
+SET(TIDESDB_HAVE_LZ4    ON)
+SET(TIDESDB_HAVE_SNAPPY ON)
 
-FIND_LIBRARY(TIDESDB_ZSTD_LIB NAMES zstd)
-FIND_PATH(TIDESDB_ZSTD_INC    NAMES zstd.h)
-IF(TIDESDB_ZSTD_LIB AND TIDESDB_ZSTD_INC)
-  LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_ZSTD)
-  LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_ZSTD_LIB})
-  LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_ZSTD_INC})
-  SET(TIDESDB_HAVE_ZSTD ON)   # feeds tidesdb_version.h #cmakedefine
-ENDIF()
-
-FIND_LIBRARY(TIDESDB_LZ4_LIB NAMES lz4)
-FIND_PATH(TIDESDB_LZ4_INC    NAMES lz4.h)
-IF(TIDESDB_LZ4_LIB AND TIDESDB_LZ4_INC)
-  LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_LZ4)
-  LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_LZ4_LIB})
-  LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_LZ4_INC})
-  SET(TIDESDB_HAVE_LZ4 ON)    # feeds tidesdb_version.h #cmakedefine
-ENDIF()
-
-FIND_LIBRARY(TIDESDB_SNAPPY_LIB NAMES snappy)
-FIND_PATH(TIDESDB_SNAPPY_INC    NAMES snappy-c.h)
-IF(TIDESDB_SNAPPY_LIB AND TIDESDB_SNAPPY_INC)
-  LIST(APPEND TIDESDB_COMPRESS_DEFS TIDESDB_HAVE_SNAPPY)
-  LIST(APPEND TIDESDB_COMPRESS_LIBS ${TIDESDB_SNAPPY_LIB})
-  LIST(APPEND TIDESDB_COMPRESS_INCS ${TIDESDB_SNAPPY_INC})
-  SET(TIDESDB_HAVE_SNAPPY ON)  # feeds tidesdb_version.h #cmakedefine
-ENDIF()
-
-MESSAGE(STATUS "TidesDB: compression backends enabled: ${TIDESDB_COMPRESS_DEFS}")
+MESSAGE(STATUS "TidesDB: compression routed through provider services (zstd, lz4, snappy)")
 
 #
 # Optional S3-compatible object store connector.
@@ -165,11 +135,16 @@ SET_TARGET_PROPERTIES(tidesdb_embedded PROPERTIES
 
 TARGET_INCLUDE_DIRECTORIES(tidesdb_embedded PRIVATE
                            ${TIDESDB_LIB_DIR}/src        # internal "tidesdb.h" includes
-                           ${TIDESDB_LIB_DIR}/external
-                           ${TIDESDB_COMPRESS_INCS})
+                           ${TIDESDB_LIB_DIR}/external)
 
+# MYSQL_DYNAMIC_PLUGIN makes the include/providers/ shims resolve the codec
+# service pointers the dynamic-plugin way (through the loaded provider), the
+# same way MYSQL_ADD_PLUGIN compiles the plugin module.  Without it compress.c
+# would reference the server-internal provider_service_*_static symbols, which
+# a dynamically loaded engine cannot resolve.
 TARGET_COMPILE_DEFINITIONS(tidesdb_embedded PRIVATE
                            _GNU_SOURCE
+                           MYSQL_DYNAMIC_PLUGIN
                            ${TIDESDB_COMPRESS_DEFS}
                            $<$<BOOL:${TIDESDB_WITH_S3}>:TIDESDB_WITH_S3>)
 
@@ -190,8 +165,12 @@ IF(HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
   SET(TIDESDB_ATOMIC_LIBS -latomic)
 ENDIF()
 
+# mysqlservices provides the provider_service_{zstd,lz4,snappy} symbols the
+# compression shims reference; the server rebinds them to the loaded provider
+# plugins at engine load time.  Listed here so they resolve when the archive
+# is linked into the plugin module.
 TARGET_LINK_LIBRARIES(tidesdb_embedded PUBLIC
-                      ${TIDESDB_COMPRESS_LIBS}
+                      mysqlservices
                       ${TIDESDB_S3_LIBS}
                       ${TIDESDB_ATOMIC_LIBS}
                       ${CMAKE_THREAD_LIBS_INIT}
