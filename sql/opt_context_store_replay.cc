@@ -53,10 +53,10 @@ using namespace json_reader;
     2. Stores the tables, and views context (i.e. ddls, and basic stats)
     that are used in either SELECT, INSERT, DELETE, and UPDATE queries,
     into the optimizer_context IS table. All these table contexts are stored in
-    one place as a JSON array object with name "list_contexts".
+    one place as a JSON array object with name "tables".
     The high level json structure looks like: -
     {
-      "list_contexts": [
+      "tables": [
         {
           "name": "table_name",
           "file_stat_records" : n
@@ -632,7 +632,7 @@ bool store_optimizer_context(THD *thd)
   sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
-  Json_writer_array context_list(&ctx_writer, "list_contexts");
+  Json_writer_array context_list(&ctx_writer, "tables");
   sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
   HASH table_name_hash;
   HASH used_storage_engines;
@@ -1343,7 +1343,7 @@ static int parse_context_obj_from_json_array(json_engine_t *je,
 /*
   Parses the table context of the JSON structure
   of the optimizer context.
-  A single array element of list_contexts is parsed
+  A single array element of "tables" is parsed
   in this method.
   Refer to the file opt_context_schema.inc, and
   the description at the start of this file.
@@ -1357,7 +1357,7 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
                                String *err_buf,
                                table_context_for_replay *table_ctx)
 {
-  const char *err_msg= "Expected an object in the list_contexts array";
+  const char *err_msg= "Expected an object in the \"tables\" array";
 
   Read_named_member array[]= {
       {"name", Read_string(mem_root, &table_ctx->name), false},
@@ -2011,7 +2011,7 @@ bool Optimizer_context_replay::parse()
   char *var_name= thd->variables.optimizer_replay_context;
   LEX_CSTRING varname= {var_name, strlen(var_name)};
 
-  Read_named_member array[]= {{"list_contexts",
+  Read_named_member array[]= {{"tables",
                                Read_array_into_list<table_context_for_replay>(
                                    thd->mem_root, &ctx_list, parse_table_context),
                                false},

@@ -4,7 +4,8 @@ set @opt_context=
          '(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
          from information_schema.optimizer_context);
 
-set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_contexts[*]')));
+set @table_contexts= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.tables[*]')));
+#select @table_contexts;
 select *from json_table(
     @table_contexts,
     '$[*]' columns(table_name text path '$.name',
