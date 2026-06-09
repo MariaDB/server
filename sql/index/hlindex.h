@@ -32,12 +32,12 @@ class hlindex : public Sql_alloc
 public:
   hlindex(TABLE *t) : table(t) { }
 
-  virtual int insert_row(TABLE *table, KEY *keyinfo) = 0;
-  virtual int read_key(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit) = 0;
-  virtual int read_next(TABLE *table) = 0;
-  virtual int read_end(TABLE *table) = 0;
-  virtual int delete_row(TABLE *table, const uchar *rec, KEY *keyinfo) = 0;
-  virtual int delete_all(TABLE *table, KEY *keyinfo, bool truncate) = 0;
+  virtual int insert_row(TABLE *tbl, KEY *keyinfo) = 0;
+  virtual int read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit) = 0;
+  virtual int read_next(TABLE *tbl) = 0;
+  virtual int read_end(TABLE *tbl) = 0;
+  virtual int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) = 0;
+  virtual int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) = 0;
   virtual bool reading() = 0;
   virtual ~hlindex();
 

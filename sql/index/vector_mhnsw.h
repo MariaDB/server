@@ -21,16 +21,6 @@
 #include "structs.h"
 #include "table.h"
 
-/*
-  This will become a vector index plugin API, or, perhaps,
-  a hlindex plugin API. When we'll have more than one implementation.
-*/
-int mhnsw_insert(TABLE *table, KEY *keyinfo);
-int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
-int mhnsw_read_next(TABLE *table);
-int mhnsw_read_end(TABLE *table);
-int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo);
-int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate);
 void mhnsw_free(TABLE_SHARE *share);
 Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo);
 

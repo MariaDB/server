@@ -470,18 +470,12 @@ public:
 
   mhnsw_index(TABLE *t) : hlindex(t), context(nullptr) { }
 
-  int insert_row(TABLE *table, KEY *keyinfo) override
-  { return 1; }
-  int read_key(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit) override
-  { return 1; }
-  int read_next(TABLE *table) override
-  { return 1; }
-  int read_end(TABLE *table) override
-  { return 1; }
-  int delete_row(TABLE *table, const uchar *rec, KEY *keyinfo) override
-  { return 1; }
-  int delete_all(TABLE *table, KEY *keyinfo, bool truncate) override
-  { return 1; }
+  int insert_row(TABLE *tbl, KEY *keyinfo) override;
+  int read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit) override;
+  int read_next(TABLE *tbl) override;
+  int read_end(TABLE *tbl) override;
+  int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) override;
+  int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) override;
 
   bool reading() override { return context; }
 };
@@ -1473,29 +1467,27 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
 }
 
 
-int mhnsw_insert(TABLE *table, KEY *keyinfo)
+int mhnsw_index::insert_row(TABLE *tbl, KEY *keyinfo)
 {
-  THD *thd= table->in_use;
-  TABLE *graph= table->hli->table;
-  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+  THD *thd= tbl->in_use;
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(tbl, &tbl->read_set);
   Field *vec_field= keyinfo->key_part->field;
   String buf, *res= vec_field->val_str(&buf);
   MHNSW_Share *ctx;
 
   /* metadata are checked on open */
-  DBUG_ASSERT(graph);
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
   DBUG_ASSERT(vec_field->binary());
   DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
   DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
-  DBUG_ASSERT(table->file->ref_length <= graph->field[FIELD_TREF]->field_length);
+  DBUG_ASSERT(tbl->file->ref_length <= table->field[FIELD_TREF]->field_length);
   DBUG_ASSERT(res->length() > 0 && res->length() % 4 == 0);
 
-  table->file->position(table->record[0]);
+  tbl->file->position(tbl->record[0]);
 
-  int err= MHNSW_Share::acquire(&ctx, table, true);
-  SCOPE_EXIT([ctx, table](){ ctx->release(table); });
+  int err= MHNSW_Share::acquire(&ctx, tbl, true);
+  SCOPE_EXIT([ctx, tbl](){ ctx->release(tbl); });
   if (err)
   {
     if (err != HA_ERR_END_OF_FILE)
@@ -1504,8 +1496,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     // First insert!
     ctx->set_lengths(res->length());
     FVectorNode *target= new (ctx->alloc_node())
-                   FVectorNode(ctx, table->file->ref, 0, res->ptr());
-    if (!((err= target->save(graph))))
+                   FVectorNode(ctx, tbl->file->ref, 0, res->ptr());
+    if (!((err= target->save(table))))
       ctx->start= target;
     return err;
   }
@@ -1528,13 +1520,13 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   uint8_t target_layer= std::min<uint8_t>(static_cast<uint8_t>(std::floor(log)), max_layer + 1);
 
   FVectorNode *target= new (ctx->alloc_node())
-                 FVectorNode(ctx, table->file->ref, target_layer, res->ptr());
+                 FVectorNode(ctx, tbl->file->ref, target_layer, res->ptr());
 
-  if (int err= graph->file->ha_rnd_init(0))
+  if (int err= table->file->ha_rnd_init(0))
     return err;
-  SCOPE_EXIT([graph](){ graph->file->ha_rnd_end(); });
+  SCOPE_EXIT([this](){ table->file->ha_rnd_end(); });
 
-  MHNSW_param p(ctx, graph, max_layer);
+  MHNSW_param p(ctx, table, max_layer);
   p.acc.graph_size= 1; // we're adding one node to the graph
 
   for (; p.layer > target_layer; p.layer--)
@@ -1554,7 +1546,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
       return err;
   }
 
-  if (int err= target->save(graph))
+  if (int err= target->save(table))
     return err;
   ctx->add_to_stats(p.acc);
 
@@ -1567,7 +1559,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
       return err;
   }
 
-  dbug_tmp_restore_column_map(&table->read_set, old_map);
+  dbug_tmp_restore_column_map(&tbl->read_set, old_map);
 
   return 0;
 }
@@ -1586,11 +1578,9 @@ struct Search_context: public Sql_alloc
 };
 
 
-int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
+int mhnsw_index::read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit)
 {
-  THD *thd= table->in_use;
-  auto *self= static_cast<mhnsw_index*>(table->hli);
-  TABLE *graph= self->table;
+  THD *thd= tbl->in_use;
   auto *fun= static_cast<Item_func_vec_distance*>(dist->real_item());
   DBUG_ASSERT(fun);
 
@@ -1599,11 +1589,11 @@ int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   String buf, *res= fun->get_const_arg()->val_str(&buf);
   MHNSW_Share *ctx;
 
-  if (int err= table->file->ha_rnd_init(0))
+  if (int err= tbl->file->ha_rnd_init(0))
     return err;
 
-  int err= MHNSW_Share::acquire(&ctx, table, false);
-  SCOPE_EXIT([ctx, table](){ ctx->release(table); });
+  int err= MHNSW_Share::acquire(&ctx, tbl, false);
+  SCOPE_EXIT([ctx, tbl](){ ctx->release(tbl); });
   if (err)
     return err;
 
@@ -1631,16 +1621,16 @@ int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   auto target= FVector::create(ctx, thd->alloc(FVector::alloc_size(ctx->vec_len)),
                                res->ptr());
 
-  if (int err= graph->file->ha_rnd_init(0))
+  if (int err= table->file->ha_rnd_init(0))
     return err;
 
-  MHNSW_param p(ctx, graph, candidates.links[0]->max_layer);
+  MHNSW_param p(ctx, table, candidates.links[0]->max_layer);
 
   for (; p.layer > 0; p.layer--)
   {
     if (int err= search_layer(&p, target, NEAREST, 1, &candidates, false))
     {
-      graph->file->ha_rnd_end();
+      table->file->ha_rnd_end();
       return err;
     }
   }
@@ -1648,42 +1638,40 @@ int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   if (int err= search_layer(&p, target, NEAREST, static_cast<uint>(limit),
                             &candidates, false))
   {
-    graph->file->ha_rnd_end();
+    table->file->ha_rnd_end();
     return err;
   }
   ctx->add_to_stats(p.acc);
 
   auto result= new (thd->mem_root) Search_context(&candidates, ctx, target);
-  self->context= result;
+  context= result;
 
   return 0;
 }
 
-int mhnsw_read_next(TABLE *table)
+int mhnsw_index::read_next(TABLE *tbl)
 {
-  auto *self= static_cast<mhnsw_index*>(table->hli);
-  auto result= self->context;
-  TABLE *graph= self->table;
+  auto result= context;
 
   if (result->pos < result->found.num)
   {
     uchar *ref= result->found.links[result->pos++]->tref();
-    return table->file->ha_rnd_pos(table->record[0], ref);
+    return tbl->file->ha_rnd_pos(tbl->record[0], ref);
   }
   if (!result->found.num)
     return my_errno= HA_ERR_END_OF_FILE;
 
-  MHNSW_Share *ctx= result->ctx->dup(table->file->has_transactions());
-  SCOPE_EXIT([&ctx, table](){ ctx->release(table); });
+  MHNSW_Share *ctx= result->ctx->dup(tbl->file->has_transactions());
+  SCOPE_EXIT([&ctx, tbl](){ ctx->release(tbl); });
 
   if (ctx->version != result->ctx_version)
   {
     // oops, shared ctx was modified, need to switch to MHNSW_Trx
     MHNSW_Share *trx;
-    graph->file->ha_rnd_end();
-    int err= MHNSW_Share::acquire(&trx, table, true);
-    SCOPE_EXIT([&trx, table](){ trx->release(table); });
-    if (int err2= graph->file->ha_rnd_init(0))
+    table->file->ha_rnd_end();
+    int err= MHNSW_Share::acquire(&trx, tbl, true);
+    SCOPE_EXIT([&trx, tbl](){ trx->release(tbl); });
+    if (int err2= table->file->ha_rnd_init(0))
       err= err ? err : err2;
     if (err)
       return err;
@@ -1692,32 +1680,31 @@ int mhnsw_read_next(TABLE *table)
       FVectorNode *node= trx->get_node(result->found.links[i]->gref());
       if (!node)
         return my_errno= HA_ERR_OUT_OF_MEM;
-      if ((err= node->load(graph)))
+      if ((err= node->load(table)))
         return err;
       result->found.links[i]= node;
     }
-    ctx->release(false, table->s);      // release shared ctx
+    ctx->release(false, tbl->s);      // release shared ctx
     result->ctx= trx->dup(false);       // replace it with trx
     result->ctx_version= trx->version;
     std::swap(trx, ctx);        // free shared ctx in this scope, keep trx
   }
 
   float new_threshold= result->found.links[result->found.num-1]->distance_to(result->target);
-  MHNSW_param p(ctx, graph, 0);
+  MHNSW_param p(ctx, table, 0);
   if (int err= search_layer(&p, result->target, result->threshold,
                             static_cast<uint>(result->pos), &result->found, false))
     return err;
   result->pos= 0;
   result->threshold= new_threshold + FLT_EPSILON;
-  return mhnsw_read_next(table);
+  return read_next(tbl);
 }
 
-int mhnsw_read_end(TABLE *table)
+int mhnsw_index::read_end(TABLE *tbl)
 {
-  auto *self= static_cast<mhnsw_index*>(table->hli);
-  self->context->ctx->release(false, table->s);
-  self->context= 0;
-  self->table->file->ha_rnd_end();
+  context->ctx->release(false, tbl->s);
+  context= 0;
+  table->file->ha_rnd_end();
   return 0;
 }
 
@@ -1731,68 +1718,63 @@ void mhnsw_free(TABLE_SHARE *share)
   hlis->ctx= nullptr;
 }
 
-int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
+int mhnsw_index::delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo)
 {
-  TABLE *graph= table->hli->table;
-  handler *h= table->file;
+  handler *h= tbl->file;
   MHNSW_Share *ctx;
 
-  int err= MHNSW_Share::acquire(&ctx, table, true);
-  SCOPE_EXIT([ctx, table](){ ctx->release(table); });
+  int err= MHNSW_Share::acquire(&ctx, tbl, true);
+  SCOPE_EXIT([ctx, tbl](){ ctx->release(tbl); });
   if (err)
     return err;
 
   /* metadata are checked on open */
-  DBUG_ASSERT(graph);
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
-  DBUG_ASSERT(h->ref_length <= graph->field[FIELD_TREF]->field_length);
+  DBUG_ASSERT(h->ref_length <= table->field[FIELD_TREF]->field_length);
 
   // target record:
   h->position(rec);
-  graph->field[FIELD_TREF]->set_notnull();
-  graph->field[FIELD_TREF]->store_binary(h->ref, h->ref_length);
+  table->field[FIELD_TREF]->set_notnull();
+  table->field[FIELD_TREF]->store_binary(h->ref, h->ref_length);
 
-  uchar *key= (uchar*)alloca(graph->key_info[IDX_TREF].key_length);
-  key_copy(key, graph->record[0], &graph->key_info[IDX_TREF],
-           graph->key_info[IDX_TREF].key_length);
+  uchar *key= (uchar*)alloca(table->key_info[IDX_TREF].key_length);
+  key_copy(key, table->record[0], &table->key_info[IDX_TREF],
+           table->key_info[IDX_TREF].key_length);
 
-  if (int err= graph->file->ha_index_read_idx_map(graph->record[1], IDX_TREF,
+  if (int err= table->file->ha_index_read_idx_map(table->record[1], IDX_TREF,
                                         key, HA_WHOLE_KEY, HA_READ_KEY_EXACT))
    return err;
 
-  restore_record(graph, record[1]);
-  graph->field[FIELD_TREF]->set_null();
-  if (int err= graph->file->ha_update_row(graph->record[1], graph->record[0]))
+  restore_record(table, record[1]);
+  table->field[FIELD_TREF]->set_null();
+  if (int err= table->file->ha_update_row(table->record[1], table->record[0]))
     return err;
 
-  graph->file->position(graph->record[0]);
-  FVectorNode *node= ctx->get_node(graph->file->ref);
+  table->file->position(table->record[0]);
+  FVectorNode *node= ctx->get_node(table->file->ref);
   node->deleted= true;
 
   return 0;
 }
 
-int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
+int mhnsw_index::delete_all(TABLE *tbl, KEY *keyinfo, bool truncate)
 {
-  TABLE *graph= table->hli->table;
-
   /* metadata are checked on open */
-  DBUG_ASSERT(graph);
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
 
-  if (int err= truncate ? graph->file->truncate()
-                        : graph->file->delete_all_rows())
+  if (int err= truncate ? table->file->truncate()
+                        : table->file->delete_all_rows())
    return err;
 
   MHNSW_Share *ctx;
-  if (!MHNSW_Share::acquire(&ctx, table, true))
+  if (!MHNSW_Share::acquire(&ctx, tbl, true))
   {
-    ctx->reset(table->s);
+    ctx->reset(tbl->s);
   }
 
-  ctx->release(table);
+  ctx->release(tbl);
   return 0;
 }
 
