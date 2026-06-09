@@ -10,14 +10,38 @@ Create a table with `ENGINE=DuckDB` and analytical queries against it are execut
 - **Ad-hoc analytical queries** — complex joins, aggregations, subqueries, and window functions over large datasets without exporting data to a separate system.
 - **Eliminating ETL complexity** — no need for a dedicated analytical cluster or data movement pipelines; the analytical engine runs in-process.
 
+## Roadmap
+
+- **Analytical GIS** — deliver geospatial analytics via DuckDB's Spatial extension.
+- **Faster HTAP over InnoDB-only data** — run queries against InnoDB-only data through DuckDB's vectorized execution.
+- **Partial query pushdown** — implement a derived handler to push parts of complex queries down into DuckDB.
+- **Data lake access** — reach data lake protocols and formats via DuckDB extensions.
+
 ## Performance
 
-TPC-H Scale Factor 10 (~10 GB raw data, ~60M rows in `lineitem`):
+TPC-H Scale Factor 10 (~11 GB raw data, 86.6M rows total, ~60M in `lineitem`).
+
+**Hardware / environment:** Intel Core i7-13700H (14 cores / 20 threads), 64 GB RAM, NVMe SSD (ext4). MariaDB 11.4.13 with embedded DuckDB v1.5.2, `duckdb_memory_limit=8 GiB`, `threads=20`. Warm runs; numbers stable to ~±15%.
 
 | Metric | Result |
 |---|---|
-| Data loading | 250 seconds |
-| All 22 TPC-H queries | **3.7 seconds** total |
+| Data loading (in-engine `COPY`) | 33 seconds |
+| All 22 TPC-H queries | **4.30 seconds** total |
+
+### Per-query latency (seconds, warm)
+
+| Query | Time | Query | Time | Query | Time |
+|---|---:|---|---:|---|---:|
+| q01 | 0.253 | q09 | 0.337 | q17 | 0.116 |
+| q02 | 0.076 | q10 | 0.253 | q18 | 0.318 |
+| q03 | 0.134 | q11 | 0.049 | q19 | 0.207 |
+| q04 | 0.135 | q12 | 0.152 | q20 | 0.166 |
+| q05 | 0.142 | q13 | 0.606 | q21 | 0.486 |
+| q06 | 0.070 | q14 | 0.128 | q22 | 0.113 |
+| q07 | 0.133 | q15 | 0.101 | **Total** | **4.30** |
+| q08 | 0.145 | q16 | 0.178 | | |
+
+Each query also pays a small fixed cost (~40 ms) for client connect and pushdown setup — noticeable on the cheapest queries, negligible on the heavy analytical ones. See [`docs/tpch_sf10_query_benchmark.md`](docs/tpch_sf10_query_benchmark.md) and [`docs/tpch_sf10_ingestion_benchmark.md`](docs/tpch_sf10_ingestion_benchmark.md) for full methodology.
 
 ## How It Works
 

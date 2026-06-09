@@ -5,7 +5,7 @@ set -o pipefail
 
 SCRIPT_LOCATION=$(dirname "$0")
 source "$SCRIPT_LOCATION/utils.sh"
-MDB_SOURCE_PATH=$(realpath "$SCRIPT_LOCATION"/../../../)
+MDB_SOURCE_PATH=$(realpath "$SCRIPT_LOCATION"/../../)
 DUCKDB_SOURCE_PATH=$(realpath "$SCRIPT_LOCATION")
 BUILD_PATH=$(realpath "$MDB_SOURCE_PATH"/../DuckdbBuildOf_$(basename "$MDB_SOURCE_PATH"))
 CPUS=$(getconf _NPROCESSORS_ONLN)

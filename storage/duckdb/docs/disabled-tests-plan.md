@@ -88,7 +88,7 @@ Error code fixes done: `ER_DUCKDB_TABLE_STRUCT_INVALID` for ALTER structural err
 
 | Test | Problem |
 |------|---------|
-| `duckdb_add_backticks` | UDF `duckdb_query_udf` returns `[Rows: 0]` for digit-name schemas (`09898141`) — DuckDB information_schema can't find them because schema names starting with digits need quoting |
+| `duckdb_add_backticks` | UDF `run_in_duckdb` returns `[Rows: 0]` for digit-name schemas (`09898141`) — DuckDB information_schema can't find them because schema names starting with digits need quoting |
 | `duckdb_appender_allocator_flush_threshold` | `appender_allocator_flush_threshold` setting doesn't exist in upstream DuckDB v1.3.2 (AliSQL fork only). May exist as `allocator_flush_threshold` in DuckDB v1.5.2 |
 | `duckdb_bit_string` | `WHERE col = x'41'` returns empty result — hex/binary literal comparison via pushdown is broken, likely `SELECT_LEX::print()` outputs `x'41'` which DuckDB doesn't understand |
 
