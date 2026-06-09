@@ -1,0 +1,3 @@
+[server]
+plugin_load_add=provider_zstd
+provider_zstd=force_plus_permanent

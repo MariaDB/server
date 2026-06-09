@@ -336,6 +336,18 @@ static struct provider_service_lz4_st provider_handler_lz4=
 };
 struct provider_service_lz4_st *provider_service_lz4= &provider_handler_lz4;
 
+#include <providers/zstd.h>
+static struct provider_service_zstd_st provider_handler_zstd=
+{
+  DEFINE_ZSTD_compressBound([]) -> size_t   DEFINE_warning_function("Zstandard compression", 0),
+  DEFINE_ZSTD_compress([])      -> size_t   DEFINE_warning_function("Zstandard compression", 0),
+  DEFINE_ZSTD_decompress([])    -> size_t   DEFINE_warning_function("Zstandard compression", 0),
+  DEFINE_ZSTD_isError([])       -> unsigned DEFINE_warning_function("Zstandard compression", 1),
+
+  false // .is_loaded
+};
+struct provider_service_zstd_st *provider_service_zstd= &provider_handler_zstd;
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -367,5 +379,6 @@ static struct st_service_ref list_of_services[]=
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
   { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },
   { "provider_service_lzo",        VERSION_provider_lzo,        &provider_handler_lzo },
-  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy }
+  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy },
+  { "provider_service_zstd",       VERSION_provider_zstd,       &provider_handler_zstd }
 };

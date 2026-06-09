@@ -52,3 +52,4 @@
 #define VERSION_provider_lzma           0x0100
 #define VERSION_provider_lzo            0x0100
 #define VERSION_provider_snappy         0x0100
+#define VERSION_provider_zstd           0x0100
