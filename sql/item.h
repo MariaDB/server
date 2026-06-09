@@ -526,10 +526,11 @@ class Rewritable_query_parameter
   uint len_in_query;
 
   bool limit_clause_param;
+  bool tablesample_clause_param;
 
   Rewritable_query_parameter(uint pos_in_q= 0, uint len_in_q= 0)
     : pos_in_query(pos_in_q), len_in_query(len_in_q),
-      limit_clause_param(false)
+      limit_clause_param(false), tablesample_clause_param(false)
   { }
 
   virtual ~Rewritable_query_parameter() = default;
@@ -3405,7 +3406,7 @@ public:
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   { return create_table_field_from_handler(root, table); }
 
-  bool is_valid_limit_clause_variable_with_error() const
+  bool is_valid_numeric_clause_variable_with_error() const
   {
     /*
       In case if the variable has an anchored data type, e.g.:
@@ -3413,9 +3414,17 @@ public:
       type_handler() is set to &type_handler_null and this
       function detects such variable as not valid in LIMIT.
     */
-    if (type_handler()->is_limit_clause_valid_type())
+    if (type_handler()->is_numeric_clause_valid_type())
       return true;
     my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
+    return false;
+  }
+
+  bool is_valid_tablesample_clause_variable_with_error() const
+  {
+    if (type_handler()->is_tablesample_clause_valid_type())
+      return true;
+    my_error(ER_WRONG_SPVAR_TYPE_IN_TABLESAMPLE, MYF(0));
     return false;
   }
 
@@ -4746,6 +4755,12 @@ public:
     set_int(nr, MY_INT64_NUM_DECIMAL_DIGITS);
     return !unsigned_flag && value.integer < 0;
   }
+  bool set_tablesample_clause_param(double d)
+  {
+    value.set_handler(&type_handler_double);
+    set_double(d);
+    return !unsigned_flag && value.real < 0;
+  }
   const String *query_val_str(THD *thd, String *str) const;
 
   bool convert_str_value(THD *thd);
@@ -4779,6 +4794,11 @@ public:
   {
     return state == SHORT_DATA_VALUE &&
            value.type_handler()->cmp_type() == INT_RESULT;
+  }
+  bool has_double_value() const
+  {
+    return state == SHORT_DATA_VALUE &&
+           value.type_handler()->cmp_type() == REAL_RESULT;
   }
   bool is_stored_routine_parameter() const override { return true; }
   /*

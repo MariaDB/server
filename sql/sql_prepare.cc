@@ -294,6 +294,11 @@ public:
         if (param->set_limit_clause_param(param->val_int()))
           DBUG_RETURN(true);
       }
+      if (param->tablesample_clause_param && !param->has_double_value())
+      {
+        if (param->set_tablesample_clause_param(param->val_real()))
+          DBUG_RETURN(true);
+      }
     }
     DBUG_RETURN(false);
   }
@@ -935,6 +940,11 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
         {
           if (param->set_limit_clause_param(param->val_int()))
             DBUG_RETURN(1);
+        }
+        if (param->tablesample_clause_param && !param->has_double_value())
+        {
+          if (param->set_tablesample_clause_param(param->val_real()))
+            DBUG_RETURN(true);
         }
       }
     }

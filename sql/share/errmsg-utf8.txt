@@ -12418,3 +12418,5 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
         eng "Failed to parse saved optimizer context: %s at offset %d."
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
+ER_WRONG_SPVAR_TYPE_IN_TABLESAMPLE
+        eng "A variable of a non-numeric based type in TABLESAMPLE clause"

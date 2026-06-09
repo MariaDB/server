@@ -121,6 +121,8 @@ bool Item_splocal::append_for_log(THD *thd, String *str)
 
   if (limit_clause_param)
     return str->append_ulonglong(val_uint());
+  if (tablesample_clause_param)
+    return str->append_double(val_real());
 
   /*
     ROW variables are currently not allowed in select_list, e.g.:
@@ -159,6 +161,8 @@ bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 
   if (limit_clause_param)
     return str->append_ulonglong(val_uint());
+  if (tablesample_clause_param)
+    return str->append_double(val_real());
 
   if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
       str->append(&m_name) ||

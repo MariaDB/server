@@ -2092,6 +2092,12 @@ public:
     */
     BINLOG_STMT_UNSAFE_SKIP_LOCKED,
 
+    /**
+      SELECT..TABLESAMPLE is unsafe because the set of rows returned cannot
+      be predicted.
+    */
+    BINLOG_STMT_UNSAFE_TABLESAMPLE,
+
     /* The last element of this enumeration type. */
     BINLOG_STMT_UNSAFE_COUNT
   };
@@ -4495,6 +4501,34 @@ public:
                                 Longlong_hybrid value, ulonglong round,
                                 bool is_used);
 
+private:
+    /*
+    Create an item for a name in numeric(LIMIT or TABLESAMPLE) clauses:
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, wrong data type).
+  */
+  Item_splocal *create_item(THD *thd, const Lex_ident_cli_st *var_name);
+
+  /*
+    Create an item for a qualified name in numeric(LIMIT or TABLESAMPLE) clause:
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @param field_name  - the variable field name
+      @param start       - start in the query (for binary log)
+      @param end         - end in the query (for binary log)
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, unknown ROW field,
+                            wrong data type).
+  */
+  Item_splocal *create_item(THD *thd,
+                          const Lex_ident_cli_st *var_name,
+                          const Lex_ident_cli_st *field_name);
+
+public:
   /*
     Create an item for a name in LIMIT clause: LIMIT var
       @param THD         - THD, for mem_root
@@ -4518,6 +4552,32 @@ public:
                             wrong data type).
   */
   Item *create_item_limit(THD *thd,
+                          const Lex_ident_cli_st *var_name,
+                          const Lex_ident_cli_st *field_name);
+
+  /*
+    Create an item for a name in TABLESAMPLE clause: SYSTEM(var) or BERNOULLI(var)
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, wrong data type).
+  */
+  Item *create_item_tablesample(THD *thd, const Lex_ident_cli_st *var_name);
+
+  /*
+    Create an item for a qualified name in TABLESAMPLE clause: SYSTEM(var.field) or BERNOULLI(var.field)
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @param field_name  - the variable field name
+      @param start       - start in the query (for binary log)
+      @param end         - end in the query (for binary log)
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, unknown ROW field,
+                            wrong data type).
+  */
+  Item *create_item_tablesample(THD *thd,
                           const Lex_ident_cli_st *var_name,
                           const Lex_ident_cli_st *field_name);
 

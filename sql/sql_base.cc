@@ -69,6 +69,7 @@
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 #include "opt_hints.h"
+#include "sql_tablesample.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -8650,6 +8651,16 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
       DBUG_ASSERT(item == table_list->jtbm_subselect->optimizer);
+    }
+
+    if (table_list->tablesample_clause) {
+      if (table_list->is_view_or_derived() ||
+        get_table_category(table_list->db, table_list->table_name) != TABLE_CATEGORY_USER ||
+        table_list->tablesample_clause->fix_tablesample_fields(thd))
+      {
+        my_error(ER_SYNTAX_ERROR, MYF(0));
+        DBUG_RETURN(1);
+      }
     }
   }
 

@@ -604,6 +604,18 @@ bool Binary_string::append_ulonglong(ulonglong val)
   return FALSE;
 }
 
+
+bool String::append_double(double d)
+{
+  if (realloc(str_length+FLOATING_POINT_BUFFER+2))
+    return TRUE;
+
+  qs_append(d);
+
+  return FALSE;
+}
+
+
 /*
   Append a string in the given charset to the string
   with character set recoding
