@@ -2,8 +2,8 @@
 +++ b/mysql-test/main/vector.result
 @@ -1,5 +1,5 @@
  create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
--ERROR HY000: Cannot create VECTOR index on temporary MyISAM table
-+ERROR HY000: Cannot create VECTOR index on temporary Aria table
+-ERROR HY000: Cannot create mhnsw index on temporary MyISAM table
++ERROR HY000: Cannot create mhnsw index on temporary Aria table
  create table t1 (id int auto_increment primary key,
  u vector(5) not null, vector index (u),
  v vector(5) not null, vector index (v));
