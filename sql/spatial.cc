@@ -1064,7 +1064,7 @@ const char* Geometry::get_points_common(const char* data,
     double x, y;
     float8get(x, data);
     float8get(y, data + SIZEOF_STORED_DOUBLE);
-    points.push_back(std::make_pair(x, y));
+    points.emplace_back(x, y);
     data+= POINT_DATA_SIZE;
   }
   return data;
