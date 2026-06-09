@@ -53,10 +53,10 @@ using namespace json_reader;
     2. Stores the tables, and views context (i.e. ddls, and basic stats)
     that are used in either SELECT, INSERT, DELETE, and UPDATE queries,
     into the optimizer_context IS table. All these table contexts are stored in
-    one place as a JSON array object with name "list_contexts".
+    one place as a JSON array object with name "tables".
     The high level json structure looks like: -
     {
-      "list_contexts": [
+      "tables": [
         {
           "name": "table_name",
           "file_stat_records" : n
@@ -68,12 +68,12 @@ using namespace json_reader;
               ...
             }, ...,
           ],
-          "list_ranges": [ //optional
+          "multi_range_read_info_const_calls": [ //optional
             {
               ...
             }, ...
           ],
-          "list_index_read_costs": [ //optional
+          "inde_read_cost_calls": [ //optional
             {
               ...
             }, ...,
@@ -249,7 +249,8 @@ static
 void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
                          Json_writer *ctx_writer)
 {
-  Json_writer_array list_ranges_wrapper(ctx_writer, "list_ranges");
+  Json_writer_array mrr_calls(ctx_writer,
+                              "multi_range_read_info_const_calls");
   List_iterator irc_li(*mrr_list);
   while (Multi_range_read_const_call_record *irc= irc_li++)
   {
@@ -288,7 +289,7 @@ void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
 static void dump_index_read_calls(List<cost_index_read_call_record> *irc_list,
                                   Json_writer *ctx_writer)
 {
-  Json_writer_array list_irc_wrapper(ctx_writer, "list_index_read_costs");
+  Json_writer_array list_irc_wrapper(ctx_writer, "cost_for_index_read_calls");
   List_iterator irc_li(*irc_list);
 
   while (cost_index_read_call_record *irc= irc_li++)
@@ -313,7 +314,7 @@ static
 void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
                                  Json_writer *ctx_writer)
 {
-  Json_writer_array list_irc_wrapper(ctx_writer, "list_records_in_range");
+  Json_writer_array list_irc_wrapper(ctx_writer, "records_in_range_calls");
   List_iterator rir_li(*rir_list);
 
   while (records_in_range_call_record *rir= rir_li++)
@@ -631,7 +632,7 @@ bool store_optimizer_context(THD *thd)
   sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
-  Json_writer_array context_list(&ctx_writer, "list_contexts");
+  Json_writer_array context_list(&ctx_writer, "tables");
   sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
   HASH table_name_hash;
   HASH used_storage_engines;
@@ -1342,7 +1343,7 @@ static int parse_context_obj_from_json_array(json_engine_t *je,
 /*
   Parses the table context of the JSON structure
   of the optimizer context.
-  A single array element of list_contexts is parsed
+  A single array element of "tables" is parsed
   in this method.
   Refer to the file opt_context_schema.inc, and
   the description at the start of this file.
@@ -1356,7 +1357,7 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
                                String *err_buf,
                                table_context_for_replay *table_ctx)
 {
-  const char *err_msg= "Expected an object in the list_contexts array";
+  const char *err_msg= "Expected an object in the \"tables\" array";
 
   Read_named_member array[]= {
       {"name", Read_string(mem_root, &table_ctx->name), false},
@@ -1378,15 +1379,15 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
        Read_array_into_list<index_context_for_replay>(
            mem_root, &table_ctx->index_list, parse_index_context),
        true},
-      {"list_ranges",
+      {"multi_range_read_info_const_calls",
        Read_array_into_list<Multi_range_read_const_call_record>(
            mem_root, &table_ctx->ranges_list, parse_range_context),
        true},
-      {"list_index_read_costs",
+      {"cost_for_index_read_calls",
        Read_array_into_list<cost_index_read_call_record>(
            mem_root, &table_ctx->irc_list, parse_index_read_cost_context),
        true},
-      {"list_records_in_range",
+      {"records_in_range_calls",
        Read_array_into_list<records_in_range_call_record>(
            mem_root, &table_ctx->rir_list, parse_records_in_range_context),
        true},
@@ -1426,10 +1427,10 @@ static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
 /*
   Parses the range context of the JSON structure
   of the optimizer context.
-  To be specific, a single array element of list_ranges
+  To be specific, a single array element of multi_range_read_info_const_calls
   is parsed in this method.
-  Refer to the file opt_context_schema.inc, and
-  the description at the start of this file.
+  Refer to the file opt_context_schema.inc, and the description at the start
+  of this file.
 
   @return
     0  OK
@@ -1439,7 +1440,7 @@ static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
 static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *err_buf,
                                Multi_range_read_const_call_record *out)
 {
-  const char *err_msg= "Expected an object in the list_ranges array";
+  const char *err_msg= "Expected an object in the multi_range_read_info_const_calls array";
 
   Read_named_member array[]= {
       {"index_name", Read_string(mem_root, &out->idx_name), false},
@@ -1502,7 +1503,7 @@ static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
 /*
   Parses the cost information for reading an index using
   ref access of the JSON structure of the optimizer context.
-  To be specific, single array element of list_index_read_costs
+  To be specific, single array element of cost_for_index_read_calls
   is parsed in this method.
   Refer to the file opt_context_schema.inc, and
   the description at the start of this file.
@@ -1546,7 +1547,7 @@ static int parse_index_read_cost_context(MEM_ROOT* , json_engine_t *je,
 /*
   Parses the cost information for reading records_in_range
   JSON structure of the optimizer context.
-  To be specific, single array element of list_records_in_range
+  To be specific, single array element of records_in_range_calls
   is parsed in this method.
   Refer to the file opt_context_schema.inc, and
   the description at the start of this file.
@@ -1838,7 +1839,7 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "list_index_read_costs");
+      warn_msg.c_ptr_safe(), "cost_for_index_read_calls");
   return true;
 }
 
@@ -1960,7 +1961,7 @@ bool Optimizer_context_replay::infuse_records_in_range(
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "list_records_in_range");
+      warn_msg.c_ptr_safe(), "records_in_range_calls");
   return true;
 }
 
@@ -2010,7 +2011,7 @@ bool Optimizer_context_replay::parse()
   char *var_name= thd->variables.optimizer_replay_context;
   LEX_CSTRING varname= {var_name, strlen(var_name)};
 
-  Read_named_member array[]= {{"list_contexts",
+  Read_named_member array[]= {{"tables",
                                Read_array_into_list<table_context_for_replay>(
                                    thd->mem_root, &ctx_list, parse_table_context),
                                false},

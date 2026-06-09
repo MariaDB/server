@@ -3,7 +3,7 @@ let $opt_context_schema=
   "description": "schema corresponding to the optimizer context section of the trace",
   "type": "object",
   "properties": {
-    "list_contexts": {
+    "tables": {
       "type": "array",
       "uniqueItems": true,
       "minItems": 1,
@@ -56,7 +56,7 @@ let $opt_context_schema=
               ]
             }
           },
-          "list_ranges": {
+          "multi_range_read_info_const_calls": {
             "type": "array",
             "uniqueItems": true,
             "minItems": 1,
@@ -143,7 +143,7 @@ let $opt_context_schema=
               ]
             }
           },
-          "list_index_read_costs": {
+          "cost_for_index_read_calls": {
             "type": "array",
             "uniqueItems": false,
             "minItems": 1,
@@ -217,7 +217,7 @@ let $opt_context_schema=
     }
   },
   "required": [
-    "list_contexts"
+    "tables"
   ]
 };
 
