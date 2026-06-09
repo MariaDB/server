@@ -485,7 +485,7 @@ class mhnsw_share : public hlindex_share
 public:
   MHNSW_Share *ctx;
   mhnsw_share(TABLE_SHARE *s) : hlindex_share(s), ctx(nullptr) {}
-  ~mhnsw_share() {}
+  ~mhnsw_share();
 
   hlindex *create(TABLE *table, MEM_ROOT *mem_root) override
   { return new (mem_root) mhnsw_index(table); }
@@ -699,6 +699,15 @@ public:
     mysql_mutex_unlock(&cache_lock);
   }
 };
+
+mhnsw_share::~mhnsw_share()
+{
+  if (ctx)
+  {
+    ctx->~MHNSW_Share();
+    ctx= nullptr;
+  }
+}
 
 /*
   This is a non-shared context that exists within one transaction.
@@ -1711,15 +1720,6 @@ int mhnsw_index::read_end(TABLE *tbl)
   return 0;
 }
 
-void mhnsw_free(TABLE_SHARE *share)
-{
-  auto hlis= static_cast<mhnsw_share*>(share->hlindex);
-  if (!hlis->ctx)
-    return;
-
-  hlis->ctx->~MHNSW_Share();
-  hlis->ctx= nullptr;
-}
 
 int mhnsw_index::delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo)
 {

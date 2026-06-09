@@ -21,7 +21,7 @@
 #include "structs.h"
 #include "table.h"
 
-void mhnsw_free(TABLE_SHARE *share);
+
 Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo);
 
 extern st_plugin_int *mhnsw_plugin;

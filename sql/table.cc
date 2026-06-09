@@ -50,10 +50,10 @@
 #include "sql_delete.h"          // class Sql_cmd_delete
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
-#include "index/vector_mhnsw.h"
-#include "index/fts.h"
-#include "opt_group_by_cardinality.h"
 #include "index/hlindex.h"
+#include "index/fts.h"
+#include "index/vector_mhnsw.h"
+#include "opt_group_by_cardinality.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -507,10 +507,7 @@ void TABLE_SHARE::destroy()
   delete sequence;
 
   if (hlindex)
-  {
-    mhnsw_free(this);
     delete hlindex;
-  }
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -11263,5 +11260,5 @@ hlindex::~hlindex()
 
 hlindex_share::~hlindex_share()
 {
-  s->destroy();
+  free_table_share(s);
 }
