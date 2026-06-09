@@ -7991,7 +7991,9 @@ Type_handler_datetime_common::convert_item_for_comparison(
 {
   if (!dynamic_cast<const Type_handler_timestamp_common*>(
                                                  counterpart->type_handler()) ||
-      !subject->type_handler()->can_return_date())
+      !subject->type_handler()->can_return_date() ||
+      !subject->const_item() ||
+      subject->with_field())
     return subject;
 
   struct Count_handler : public Internal_error_handler
