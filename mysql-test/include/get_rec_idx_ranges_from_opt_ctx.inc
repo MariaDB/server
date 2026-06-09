@@ -14,7 +14,7 @@ select *from json_table(
     )) as jt;
 
 set @list_ranges=
-    (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.list_ranges')));
+    (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select *from json_table(
     @list_ranges,
     '$[*][*]' columns(index_name text path '$.index_name',

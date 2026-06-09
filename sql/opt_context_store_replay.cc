@@ -68,7 +68,7 @@ using namespace json_reader;
               ...
             }, ...,
           ],
-          "list_ranges": [ //optional
+          "multi_range_read_info_const_calls": [ //optional
             {
               ...
             }, ...
@@ -249,7 +249,8 @@ static
 void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
                          Json_writer *ctx_writer)
 {
-  Json_writer_array list_ranges_wrapper(ctx_writer, "list_ranges");
+  Json_writer_array mrr_calls(ctx_writer,
+                              "multi_range_read_info_const_calls");
   List_iterator irc_li(*mrr_list);
   while (Multi_range_read_const_call_record *irc= irc_li++)
   {
@@ -1378,7 +1379,7 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
        Read_array_into_list<index_context_for_replay>(
            mem_root, &table_ctx->index_list, parse_index_context),
        true},
-      {"list_ranges",
+      {"multi_range_read_info_const_calls",
        Read_array_into_list<Multi_range_read_const_call_record>(
            mem_root, &table_ctx->ranges_list, parse_range_context),
        true},
@@ -1426,10 +1427,10 @@ static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
 /*
   Parses the range context of the JSON structure
   of the optimizer context.
-  To be specific, a single array element of list_ranges
+  To be specific, a single array element of multi_range_read_info_const_calls
   is parsed in this method.
-  Refer to the file opt_context_schema.inc, and
-  the description at the start of this file.
+  Refer to the file opt_context_schema.inc, and the description at the start
+  of this file.
 
   @return
     0  OK
@@ -1439,7 +1440,7 @@ static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
 static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *err_buf,
                                Multi_range_read_const_call_record *out)
 {
-  const char *err_msg= "Expected an object in the list_ranges array";
+  const char *err_msg= "Expected an object in the multi_range_read_info_const_calls array";
 
   Read_named_member array[]= {
       {"index_name", Read_string(mem_root, &out->idx_name), false},
