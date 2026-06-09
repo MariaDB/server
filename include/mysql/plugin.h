@@ -119,11 +119,65 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define PLUGIN_LICENSE_BSD_STRING "BSD"
 
 /* definitions of code maturity for plugins */
+
+/**
+  The maturity of the plugin is unknown.
+  This is the default value for plugins that do not specify maturity.
+  It is also used for plugins that are not yet mature enough to
+  be given a more specific maturity level.
+*/
 #define MariaDB_PLUGIN_MATURITY_UNKNOWN 0
+
+/**
+  Pre-alpha maturity.
+  Very early stage. Core features are still being built.
+  Highly unstable, incomplete, and possibly buggy.
+  Use experimental plugins with extreme caution.
+*/
 #define MariaDB_PLUGIN_MATURITY_EXPERIMENTAL 1
+
+/**
+  The plugin is in an early development stage.
+  First major functional version. Core features are implemented
+  but not complete. Many bugs, missing features, and performance
+  issues. Limited internal or selected external testing.
+  Not for general use.
+ */
 #define MariaDB_PLUGIN_MATURITY_ALPHA 2
+
+/**
+  Feature-complete but needs polishing.
+
+  The plugin is in a late development stage.
+  Core features are implemented and complete. Some bugs and missing
+  features may remain. Performance may not be optimal. Internal and
+  selected external testing.
+  Not for general use, but may be suitable for testing and feedback
+  from early adopters.
+ */
 #define MariaDB_PLUGIN_MATURITY_BETA 3
+
+/**
+  Very stable, near-final version. All major issues resolved.
+
+  Sometimes called Release Candidate (RC).
+
+  Focus is on final validation, bug fixes, and certification.
+  The plugin is considered stable and ready for general use.
+  Core features are implemented, complete, and well-tested. Few if any
+  known bugs or missing features. Performance is acceptable for production use.
+  Suitable for general use in production environments.
+ */
 #define MariaDB_PLUGIN_MATURITY_GAMMA 4
+
+/**
+  Officially released to the public. Full support, documentation, and marketing.
+
+  The plugin is considered stable and ready for general use.
+  Core features are implemented, complete, and well-tested. Few if any
+  known bugs or missing features. Performance is acceptable for production use.
+  Suitable for general use in production environments.
+ */
 #define MariaDB_PLUGIN_MATURITY_STABLE 5
 
 /*
@@ -584,7 +638,19 @@ struct st_maria_plugin
   struct st_mysql_show_var *status_vars;
   struct st_mysql_sys_var **system_vars;
   const char *version_info;  /**< plugin version string */
-  unsigned int maturity;     /**< MariaDB_PLUGIN_MATURITY_XXX */
+
+  /**
+    Declared plugin maturity level.
+
+    One of:
+     - @ref MariaDB_PLUGIN_MATURITY_UNKNOWN
+     - @ref MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+     - @ref MariaDB_PLUGIN_MATURITY_ALPHA
+     - @ref MariaDB_PLUGIN_MATURITY_BETA
+     - @ref MariaDB_PLUGIN_MATURITY_GAMMA
+     - @ref MariaDB_PLUGIN_MATURITY_STABLE
+   */
+  unsigned int maturity;
 };
 
 /*************************************************************************
