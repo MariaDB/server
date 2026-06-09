@@ -14,14 +14,12 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 FLUSH HOSTS;
+# This will cause inconsistency
 CREATE TABLE t1 (f1 INT) ENGINE=InnoDB;
 ERROR 42S01: Table 't1' already exists
+# Wait until inconsistent node_2 leaves from cluster
 FLUSH HOSTS;
-ERROR HY000: Galera replication not supported
-SHOW WARNINGS;
-Level	Code	Message
-Error	4165	Galera replication not supported
-Warning	4165	Galera cluster is not ready to execute replication
+Got one of the listed errors
 connection node_1;
 # Wait until inconsistent node_2 leaves from cluster
 connection node_2;
