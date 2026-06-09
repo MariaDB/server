@@ -484,6 +484,7 @@ class mhnsw_share : public hlindex_share
 {
 public:
   MHNSW_Share *ctx;
+  mhnsw_share(TABLE_SHARE *s) : hlindex_share(s), ctx(nullptr) {}
   ~mhnsw_share() {}
 
   hlindex *create(TABLE *table, MEM_ROOT *mem_root) override
@@ -793,7 +794,9 @@ static struct hlindexton mhnsw_hliton=
   nullptr, nullptr},              /* checkpoint, versioned */
   mhnsw_index_options,            /* options */
   mhnsw_hlindex_table_def,        /* tabledef */
-  nullptr                         /* XXX create */
+  [](TABLE_SHARE *s, MEM_ROOT *mem_root) -> hlindex_share* {
+    return new (mem_root) mhnsw_share(s);
+  }
 };
 
 int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)
