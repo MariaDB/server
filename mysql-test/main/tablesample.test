@@ -1,0 +1,221 @@
+#
+#   MDEV-38992 SQL Standard TABLESAMPLE clause
+#
+#   For now, there are tests just for checking syntax
+#
+
+# TABLESAMPLE is not allowed on views, and the view-protocol's
+# CREATE VIEW/SELECT/DROP VIEW rewriting of plain SELECTs clears the
+# session's warning list between statements, breaking the SHOW WARNINGS
+# checks below.
+--source include/no_view_protocol.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (b));
+CREATE TABLE t2 (a INT, c INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+#
+# Basic Syntax Validation
+#
+SELECT * FROM t1 TABLESAMPLE SYSTEM (10);
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (50);
+
+SELECT * FROM t1 TABLESAMPLE SYSTEM (12.5);
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (0.5);
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 TABLESAMPLE BERNOULLI (NULL);
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 TABLESAMPLE NONEXISTENTMETHOD (12.5);
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 TABLESAMPLE SYSTEM (-12.5);
+
+SELECT * FROM t1 TABLESAMPLE SYSTEM (10) JOIN t2 ON t1.a = t2.a;
+
+--error ER_SYNTAX_ERROR
+SELECT * FROM v1 TABLESAMPLE SYSTEM (20);
+
+#
+# Testing Prepared statements
+#
+PREPARE stmt2 FROM 'SELECT * FROM t1 TABLESAMPLE BERNOULLI (?)';
+
+SET @pct = 30;
+EXECUTE stmt2 USING @pct;
+
+SET @pct = 300;
+--error ER_SYNTAX_ERROR
+EXECUTE stmt2 USING @pct;
+
+SET @pct = NULL;
+--error ER_SYNTAX_ERROR
+EXECUTE stmt2 USING @pct;
+
+DEALLOCATE PREPARE stmt2;
+
+#
+# Testing stored procedures
+#
+DROP PROCEDURE IF EXISTS p1;
+
+DELIMITER //;
+CREATE PROCEDURE p1(IN sample_pct INT)
+BEGIN
+  SELECT * FROM t1 TABLESAMPLE BERNOULLI (sample_pct);
+END//
+DELIMITER ;//
+
+CALL p1(40);
+
+--error ER_SYNTAX_ERROR
+CALL p1(101);
+
+DROP PROCEDURE p1;
+
+DELIMITER //;
+CREATE PROCEDURE p1(IN sample_pct DECIMAL)
+BEGIN
+  SELECT * FROM t1 TABLESAMPLE SYSTEM (sample_pct);
+END//
+DELIMITER ;//
+
+CALL p1(20.11);
+
+DROP PROCEDURE p1;
+
+DROP PROCEDURE IF EXISTS p_char;
+
+DELIMITER //;
+--error ER_WRONG_SPVAR_TYPE_IN_TABLESAMPLE
+CREATE PROCEDURE p_char(IN sample_pct CHAR(10))
+BEGIN
+  SELECT * FROM t1 TABLESAMPLE SYSTEM (sample_pct);
+END//
+DELIMITER ;//
+
+DROP PROCEDURE IF EXISTS p_date;
+
+DELIMITER //;
+--error ER_WRONG_SPVAR_TYPE_IN_TABLESAMPLE
+CREATE PROCEDURE p_date(IN sample_pct DATE)
+BEGIN
+  SELECT * FROM t1 TABLESAMPLE BERNOULLI (sample_pct);
+END//
+DELIMITER ;//
+
+DROP PROCEDURE IF EXISTS p1;
+
+DELIMITER //;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c SYS_REFCURSOR;
+  OPEN c FOR 'SELECT * FROM t1 TABLESAMPLE BERNOULLI (?)' USING NULL;
+END//
+DELIMITER ;//
+
+--error ER_SYNTAX_ERROR
+CALL p1();
+
+DROP PROCEDURE p1;
+
+#
+# TABLESAMPLE should not work on system tables
+#
+--error ER_SYNTAX_ERROR
+SELECT * FROM information_schema.tables TABLESAMPLE BERNOULLI (5);
+
+--error ER_SYNTAX_ERROR
+SELECT * FROM mysql.user TABLESAMPLE SYSTEM (10);
+
+#
+# TABLESAMPLE should not work on derived tables
+#
+--error ER_PARSE_ERROR
+SELECT * FROM (SELECT * FROM t1) AS derived_tbl TABLESAMPLE SYSTEM (30);
+
+--error ER_SYNTAX_ERROR
+WITH cte_tbl AS (SELECT * FROM t1)
+SELECT * FROM cte_tbl TABLESAMPLE BERNOULLI (10);
+
+# INSERT INTO t1 VALUES (1, 1), (1, 2), (1, 3), (1, 4), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10);
+# INSERT INTO t2 VALUES (1, 1), (1, 2), (1, 3), (1, 4), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10);
+
+# SELECT * FROM t1 TABLESAMPLE BERNOULLI (50);
+
+# SELECT * FROM t1 TABLESAMPLE BERNOULLI (50) JOIN t2 TABLESAMPLE BERNOULLI (50) ON t1.a = t2.a;
+
+#
+# TABLESAMPLE SYSTEM without a primary key falls back to BERNOULLI
+#
+CREATE TABLE t_no_pk (a INT, b INT);
+CREATE TABLE t_pk (a INT PRIMARY KEY, b INT);
+
+SELECT * FROM t_no_pk TABLESAMPLE SYSTEM (10);
+SHOW WARNINGS;
+
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (10);
+SHOW WARNINGS;
+
+#
+# TABLESAMPLE SYSTEM with a sampling percentage above the
+# SYSTEM_TO_BERNOULLI_MAX_FRACTION threshold falls back to
+# BERNOULLI
+#
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (30);
+SHOW WARNINGS;
+
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (30.01);
+SHOW WARNINGS;
+
+SELECT * FROM t_pk TABLESAMPLE SYSTEM (50);
+SHOW WARNINGS;
+
+# Same parsed statement re-executed after the table's primary key changes:
+# the fallback (and its warning) must reflect the CURRENT execution's table,
+# not stick around from an earlier execution.
+PREPARE stmt3 FROM 'SELECT * FROM t_no_pk TABLESAMPLE SYSTEM (10)';
+
+EXECUTE stmt3;
+SHOW WARNINGS;
+
+ALTER TABLE t_no_pk ADD PRIMARY KEY (a);
+
+EXECUTE stmt3;
+SHOW WARNINGS;
+
+DEALLOCATE PREPARE stmt3;
+DROP TABLE t_no_pk, t_pk;
+
+--source include/have_sequence.inc
+
+CREATE TABLE t_data (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t_data SELECT seq, seq * 2 FROM seq_1_to_20;
+
+# SELECT * FROM t_data TABLESAMPLE SYSTEM (20);
+
+# SELECT * FROM t_data as t1 TABLESAMPLE BERNOULLI (20) JOIN t_data as t2 TABLESAMPLE BERNOULLI (30) ON t1.a = t2.a;
+
+#
+# A TABLESAMPLE'd table joined via hash join (BNLH) shows "hash_sample"
+# in EXPLAIN, not the misleading "hash_ALL"
+#
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 3;
+
+EXPLAIN SELECT * FROM t_data AS t1 TABLESAMPLE BERNOULLI (20)
+  JOIN t_data AS t2 TABLESAMPLE BERNOULLI (30) ON t1.a = t2.a;
+
+SET join_cache_level= @save_join_cache_level;
+
+#
+# Cleanup
+#
+DROP TABLE t1, t2, t_data;
+DROP VIEW v1;

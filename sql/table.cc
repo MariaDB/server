@@ -9084,6 +9084,18 @@ Item_subselect *TABLE_LIST::containing_subselect()
 */
 bool TABLE_LIST::process_index_hints(TABLE *tbl)
 {
+  if (tbl->pos_in_table_list && tbl->pos_in_table_list->tablesample_clause)
+  {
+    tbl->keys_in_use_for_query.clear_all();
+    tbl->keys_in_use_for_group_by.clear_all();
+    tbl->keys_in_use_for_order_by.clear_all();
+    tbl->keys_in_use_for_rowid_filter.clear_all();
+    tbl->covering_keys.clear_all();
+    tbl->force_index= tbl->force_index_join= tbl->force_index_group=
+        tbl->force_index_order= false;
+    return false;
+  }
+
   /* initialize the result variables */
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by= 
     tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=
