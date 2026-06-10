@@ -736,7 +736,7 @@ select * from v2;
 
 drop view v1,v2;
 
-
+--disable_replay next_query NOTE (Code 1003) difference; todo MDEV-39978
 explain extended
 with recursive 
 ancestors
@@ -2678,6 +2678,7 @@ cte3 AS (SELECT YEAR, COUNT(*)
 SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
 
 eval $q;
+--disable_replay next_query NOTE (Code 1003) difference; todo MDEV-39978
 eval EXPLAIN EXTENDED $q;
 eval PREPARE stmt FROM "$q";
 EXECUTE stmt;
