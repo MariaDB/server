@@ -40,9 +40,9 @@ hp_charpos(CHARSET_INFO *cs, const uchar *b, const uchar *e, size_t num)
 /* Size of a pointer, for use in memcpy to avoid -Wsizeof-pointer-memaccess */
 #define HP_PTR_SIZE sizeof(void*)
 
-static inline size_t hp_blob_key_length(uint packlength, const uchar *pos)
+static inline uint32 hp_blob_key_length(uint packlength, const uchar *pos)
 {
-  return (size_t) read_lowendian(pos, packlength);
+  return (uint32) read_lowendian(pos, packlength);
 }
 
 
@@ -511,8 +511,8 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2,
       uint packlength= seg->bit_start;
       uchar *pos1= (uchar*) rec1 + seg->start;
       uchar *pos2= (uchar*) rec2 + seg->start;
-      size_t len1= hp_blob_key_length(packlength, pos1);
-      size_t len2= hp_blob_key_length(packlength, pos2);
+      uint32 len1= hp_blob_key_length(packlength, pos1);
+      uint32 len2= hp_blob_key_length(packlength, pos2);
       const uchar *data1;
       const uchar *data2;
 
@@ -663,7 +663,7 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
       */
       uint packlength= seg->bit_start;
       uchar *pos= (uchar*) rec + seg->start;
-      size_t rec_blob_len= hp_blob_key_length(packlength, pos);
+      uint32 rec_blob_len= hp_blob_key_length(packlength, pos);
       uint32 key_blob_len= uint4korr(key);
       const uchar *key_data;
       const uchar *rec_data;
@@ -759,7 +759,7 @@ void hp_make_key(HP_KEYDEF *keydef, uchar *key, const uchar *rec)
         hp_hashnr/hp_key_cmp.
       */
       uint packlength= seg->bit_start;
-      uint32 blob_len= (uint32) hp_blob_key_length(packlength, pos);
+      uint32 blob_len= hp_blob_key_length(packlength, pos);
       const uchar *blob_data;
       memcpy(&blob_data, pos + packlength, HP_PTR_SIZE);
       int4store(key, blob_len);
