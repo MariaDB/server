@@ -6025,7 +6025,16 @@ bool st_select_lex::save_leaf_tables(THD *thd)
     if (join && (join->select_options & SELECT_DESCRIBE))
       table->maybe_null_exec= 0;
     else
-      table->maybe_null_exec= table->table?  table->table->maybe_null: 0;
+      /*
+        An operand of a surviving FULL JOIN is null-complemented in
+        the by unmatched rows, so it is nullable.  Its
+        table->maybe_null is set only after this snapshot is taken, so
+        recognize the FULL JOIN here; otherwise, subsequent execution
+        restores the wrong nullability and IS NULL on a NOT NULL
+        column of the operand folds to a constant false.
+      */
+      table->maybe_null_exec= (table->table && table->table->maybe_null) ||
+                              (table->outer_join & JOIN_TYPE_FULL);
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);

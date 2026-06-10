@@ -6760,6 +6760,28 @@ class Item_direct_view_ref :public Item_direct_ref
 {
   Item_equal *item_equal;
   TABLE_LIST *view;
+  /*
+    The TABLE whose null-complement state (TABLE::null_row) decides
+    whether this view / derived-table column reference evaluates to
+    SQL NULL.  set_null_ref_table() fills it in when the item is
+    fixed.  It holds one of three kinds of value:
+
+    - NULL: not computed yet (item not fixed).
+
+    - NO_NULL_TABLE: there is no resolvable table whose null_row needs
+      checking — either the column is not on the null-producing side
+      of an outer join, or its real join table could not be
+      determined.  (For a FULL JOIN derived table the block in
+      set_null_ref_table() recovers that real table from the field, so
+      the column stays correctly nullable.)
+
+    - a real TABLE *: the column originates in this table (for a
+      merged derived table that contains a FULL JOIN, the field's own
+      underlying table), which can be null-complemented.  When that
+      table's null_row is set the reference yields NULL
+      (check_null_ref()); used_tables() and not_null_tables() report
+      this table's map.
+  */
   TABLE *null_ref_table;
 
 #define NO_NULL_TABLE (reinterpret_cast<TABLE *>(0x1))
@@ -6770,8 +6792,18 @@ class Item_direct_view_ref :public Item_direct_ref
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
 
+    /*
+      The first if above has already set null_ref_table -- to a real
+      table, or to NO_NULL_TABLE when the table is not on the
+      null-producing side of an outer join or its real join table
+      could not be resolved.  The block below may still change that
+      value, including replacing NO_NULL_TABLE with a real table: a
+      column read through a derived table that contains a FULL JOIN
+      can be null-complemented, so null_ref_table must point at the
+      field's own table for the null_row check to fire.
+    */
     if (view->is_inner_table_of_outer_join() &&
-        view->contains_full_join())
+        view->contains_full_join() && ref)
     {
       /*
         For a derived table containing a FULL JOIN, every column
@@ -6781,16 +6813,14 @@ class Item_direct_view_ref :public Item_direct_ref
         table for null_ref_table instead of the derived table's
         leftmost real table.
       */
-      Item *real= ref ? (*ref)->real_item() : nullptr;
-      if (real && real->type() == FIELD_ITEM &&
+      Item *real= (*ref)->real_item();
+      if (real->type() == FIELD_ITEM &&
           ((Item_field*) real)->field &&
           ((Item_field*) real)->field->table)
         null_ref_table= ((Item_field*) real)->field->table;
-      else if (TABLE *t= view->get_real_join_table())
-        null_ref_table= t;
     }
-
-    if (null_ref_table && null_ref_table != NO_NULL_TABLE)
+    DBUG_ASSERT(null_ref_table);
+    if (null_ref_table != NO_NULL_TABLE)
       set_maybe_null();
   }
 
