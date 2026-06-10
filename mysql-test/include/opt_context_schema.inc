@@ -150,8 +150,9 @@ let $opt_context_schema=
             "items": {
               "type": "object",
               "properties": {
-                "key_number": {
-                  "type": "number"
+                "index_name": {
+                  "type": "string",
+                  "minLength": 1
                 },
                 "num_records": {
                   "type": "number"
@@ -184,7 +185,7 @@ let $opt_context_schema=
                 }
               },
               "required": [
-                "key_number",
+                "index_name",
                 "num_records",
                 "eq_ref",
                 "index_cost_io",
