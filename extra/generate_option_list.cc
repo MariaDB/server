@@ -92,7 +92,6 @@ std::string call_mariadbd(const char *mariadbd_path, const char *plugin_dir, con
   if (!f)
   {
     perror("failed to read mariadbd output");
-    my_pclose(f);
     exit(1);
   }
   output= read_output(f);
