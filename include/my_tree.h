@@ -32,11 +32,11 @@ extern "C" {
 #define tree_set_pointer(element,ptr) *((uchar **) (element+1))=((uchar*) (ptr))
 
 /*
-  A tree with its flag set to TREE_ONLY_DUPS behaves differently on inserting 
+  A tree with its flag set to TREE_ONLY_DUPS behaves differently on inserting
   an element that is not in the tree:
   the element is not added at all, but instead tree_insert() returns a special
   address TREE_ELEMENT_UNIQUE as an indication that the function has not failed
-  due to lack of memory. 
+  due to lack of memory.
 */
 
 #define TREE_ELEMENT_UNIQUE ((TREE_ELEMENT *) 1)
@@ -84,20 +84,20 @@ int reset_tree(TREE*);
 #define is_tree_inited(tree) ((tree)->root != 0)
 
 	/* Functions on leafs */
-TREE_ELEMENT *tree_insert(TREE *tree,void *key, uint key_size, 
+TREE_ELEMENT *tree_insert(TREE *tree, const void *key, uint key_size,
                           void *custom_arg);
-void *tree_search(TREE *tree, void *key, void *custom_arg);
+void *tree_search(TREE *tree, const void *key, void *custom_arg);
 int tree_walk(TREE *tree,tree_walk_action action,
 	      void *argument, TREE_WALK visit);
 int tree_delete(TREE *tree, void *key, uint key_size, void *custom_arg);
-void *tree_search_key(TREE *tree, const void *key, 
+void *tree_search_key(TREE *tree, const void *key,
                       TREE_ELEMENT **parents, TREE_ELEMENT ***last_pos,
                       enum ha_rkey_function flag, void *custom_arg);
-void *tree_search_edge(TREE *tree, TREE_ELEMENT **parents, 
+void *tree_search_edge(TREE *tree, TREE_ELEMENT **parents,
                         TREE_ELEMENT ***last_pos, int child_offs);
-void *tree_search_next(TREE *tree, TREE_ELEMENT ***last_pos, int l_offs, 
+void *tree_search_next(TREE *tree, TREE_ELEMENT ***last_pos, int l_offs,
                        int r_offs);
-ha_rows tree_record_pos(TREE *tree, const void *key, 
+ha_rows tree_record_pos(TREE *tree, const void *key,
                      enum ha_rkey_function search_flag, void *custom_arg);
 #define reset_free_element(tree) (tree)->free= 0
 
