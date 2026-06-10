@@ -5627,6 +5627,21 @@ use_covering_index:
 				offsets));
 	ut_ad(!rec_get_deleted_flag(result_rec, comp));
 
+	/* Parallel scan: stop at the exclusive upper bound of the chunk.
+	This runs before the record is returned or prefetched, so the
+	fetch cache never reaches past the chunk boundary. We treat the
+	boundary exactly like end-of-range (DB_RECORD_NOT_FOUND): any
+	rows already buffered in this call are still in range and will be
+	returned; the caller switches to the next chunk on the terminal
+	code. */
+	if (UNIV_UNLIKELY(prebuilt->m_pscan_end_tuple != NULL)
+	    && cmp_dtuple_rec(prebuilt->m_pscan_end_tuple, result_rec,
+			      result_rec != rec ? clust_index : index,
+			      offsets) <= 0) {
+		err = DB_RECORD_NOT_FOUND;
+		goto idx_cond_failed;
+	}
+
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected
 	by a page latch that was acquired when pcur was positioned.

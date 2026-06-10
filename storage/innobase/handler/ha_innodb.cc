@@ -14743,75 +14743,61 @@ int ha_innobase::pscan_init_worker(::Parallel_scan::Worker_ctx *wctx)
 
 int ha_innobase::pscan_get_next_row(Parallel_scan::Worker_ctx *wctx)
 {
-	dberr_t err;
-	{
-		mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
+	/* Loop: when a chunk is exhausted we pull the next job */
+	for (;;) {
+		dberr_t err;
+		{
+			mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
 
-		/* Disable prefetch cache by keeping n_rows_fetched below threshold.
-  		The cache would otherwise leave m_prebuilt->pcur up to 8 records ahead
-  		of the actually-returned record, breaking our end-of-chunk check. 
-		TODO: consider extending the InnoDB prefetch cache to handle this.*/
-  		m_prebuilt->n_rows_fetched = 0;
+			if (m_pscan_first_call) {
+				m_pscan_first_call = false;
+				/* Clamp the scan to this chunk inside the engine, so
+				the prefetch cache stops exactly at the boundary and
+				never reads into the next chunk. NULL == +infinity. */
+				m_prebuilt->m_pscan_end_tuple = m_pscan_end_tuple;
 
-		if (m_pscan_first_call) {
-			m_pscan_first_call = false;
-			if (m_pscan_start_tuple) {
-				// Position at first record >= start, AND load it.
-				m_prebuilt->search_tuple = m_pscan_start_tuple;
-				err= row_search_mvcc(table->record[0], PAGE_CUR_GE,
-										m_prebuilt, 0, 0 /*opening*/);
-			} else {
-				// -infinity: empty (0-field) tuple + PAGE_CUR_G = first user record.
-				m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
-				err = row_search_mvcc(table->record[0], PAGE_CUR_G,
-										m_prebuilt, 0, 0 /*opening*/);
+				if (m_pscan_start_tuple) {
+					// Position at first record >= start, AND load it.
+					m_prebuilt->search_tuple = m_pscan_start_tuple;
+					err= row_search_mvcc(table->record[0], PAGE_CUR_GE,
+											m_prebuilt, 0, 0 /*opening*/);
+				} else {
+					// -infinity: empty (0-field) tuple + PAGE_CUR_G = first user record.
+					m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
+					err = row_search_mvcc(table->record[0], PAGE_CUR_G,
+											m_prebuilt, 0, 0 /*opening*/);
+				}
 			}
-		}
-		else {
-			// Continuation: advance from stored position.
-			err= row_search_mvcc(table->record[0], PAGE_CUR_UNSUPP,
-								m_prebuilt, 0, ROW_SEL_NEXT);
-		}
-	} // <-- mariadb_set_stats destructor
+			else {
+				// Continuation: advance from stored position.
+				err= row_search_mvcc(table->record[0], PAGE_CUR_UNSUPP,
+									m_prebuilt, 0, ROW_SEL_NEXT);
+			}
+		} // <-- mariadb_set_stats destructor
 
-	if (err != DB_SUCCESS) {
-		if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
-			return HA_ERR_END_OF_FILE;
-		return convert_error_code_to_mysql(err, m_prebuilt->table->flags, m_user_thd);
+		if (err == DB_SUCCESS)
+			return 0;
+
+		/* DB_RECORD_NOT_FOUND is returned both at the chunk boundary
+		(our clamp above) and at end of index; DB_END_OF_INDEX likewise.
+		In all cases the current sub-range is exhausted: pull the next
+		chunk and continue, or stop if there is none. */
+		if (err != DB_RECORD_NOT_FOUND && err != DB_END_OF_INDEX)
+			return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
+											   m_user_thd);
+
+		auto worker_ctx = static_cast<Parallel_reader::Worker_ctx*>(wctx);
+		auto ctx = worker_ctx->preader->get_job_for_worker(worker_ctx);
+		if (ctx == nullptr)
+			return HA_ERR_END_OF_FILE; // No more data
+
+		worker_ctx->exec_ctx = ctx;
+		m_pscan_start_tuple = const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
+		m_pscan_end_tuple   = const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
+		ut_ad(m_pscan_start_tuple != nullptr);
+		m_pscan_first_call  = true;
+		// loop: re-enter the search for the new chunk
 	}
-
-	// End-of-chunk check
-	if (m_pscan_end_tuple) {
-		rec_t *rec = btr_pcur_get_rec(m_prebuilt->pcur);
-		rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
-		rec_offs_init(offsets_);
-		mem_heap_t *heap = nullptr; // OLEGS: pre-allocate and reuse heap
-		rec_offs *offsets = rec_get_offsets(rec, m_prebuilt->index, offsets_,
-											m_prebuilt->index->n_core_fields,
-											ULINT_UNDEFINED, &heap);
-		int cmp= cmp_dtuple_rec(m_pscan_end_tuple, rec, m_prebuilt->index, offsets);
-		if (heap)
-			mem_heap_free(heap);
-		if (cmp <= 0) {
-			// End of chunk, request more work
-			// OLEGS: duplication with pscan_init_worker
-			auto worker_ctx = static_cast<Parallel_reader::Worker_ctx*>(wctx);
-			auto ctx = worker_ctx->preader->get_job_for_worker(worker_ctx);
-			if (ctx == nullptr)
-				return HA_ERR_END_OF_FILE; // No more data
-
-			worker_ctx->exec_ctx = ctx;
-			auto start_tuple = const_cast<dtuple_t *>(ctx->m_range.first->m_tuple);
-			auto end_tuple = const_cast<dtuple_t *>(ctx->m_range.second->m_tuple);
-			ut_ad(start_tuple != nullptr);
-
-			m_pscan_start_tuple = start_tuple;
-			m_pscan_end_tuple   = end_tuple;    // may be null (+infinity)
-			m_pscan_first_call  = true;
-			return pscan_get_next_row(worker_ctx);
-		}
-	}
-	return 0;
 }
 
 int ha_innobase::pscan_end_worker()
@@ -14822,6 +14808,7 @@ int ha_innobase::pscan_end_worker()
 		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
 		m_pscan_saved_search_tuple = nullptr;
 	}
+	m_prebuilt->m_pscan_end_tuple = nullptr;
 	m_pscan_first_call  = false;
 	m_pscan_start_tuple = nullptr;
 	m_pscan_end_tuple   = nullptr;

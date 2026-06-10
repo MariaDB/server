@@ -559,6 +559,15 @@ struct row_prebuilt_t {
 	que_fork_t*	sel_graph;	/*!< dummy query graph used in
 					selects */
 	dtuple_t*	search_tuple;	/*!< prebuilt dtuple used in selects */
+	const dtuple_t*	m_pscan_end_tuple;
+					/*!< parallel scan: exclusive upper
+					bound of the current chunk, in
+					clustered-index key format, or NULL
+					for an unbounded scan. When set,
+					row_search_mvcc() stops (returns
+					DB_RECORD_NOT_FOUND) as soon as it
+					reaches a record >= this tuple,
+					before that record is prefetched. */
 	byte		row_id[DATA_ROW_ID_LEN];
 					/*!< if the clustered index was
 					generated, the row id of the
