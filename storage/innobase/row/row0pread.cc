@@ -873,9 +873,14 @@ dberr_t Parallel_reader::Ctx::traverse()
 
   err = traverse_recs(&pcursor, &mtr);
 
-  if (mtr.is_active()) {
-    mtr.commit();
-  }
+  /* traverse() is dead code in the pwt-driven integration: nothing calls
+  Parallel_reader::run()/spawn()/parallel_read()/worker(), which is the only
+  path here. It is MySQL-derived self-driving scaffolding kept for reference.
+  mtr_t::is_active() is UNIV_DEBUG-only in MariaDB, so the active-check (needed
+  because move_to_next_block() may have already committed the mtr at a page
+  boundary) is confined to debug builds to keep the release build compiling.
+  The whole run()->...->traverse() cluster should be removed; see commit msg. */
+  ut_d(if (mtr.is_active()) mtr.commit(););
 
   m_thread_ctx->m_pcursor = nullptr;
 
