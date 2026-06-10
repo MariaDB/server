@@ -1521,29 +1521,51 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
 
+  MHNSW_Share *ctx;
+  int err= MHNSW_Share::acquire(&ctx, table, true);
+  if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
+    return err;
+
+  if (ctx->vec_len == 0)
+    ctx->set_lengths(keyinfo->key_part->field->field_length);
+
+  size_t node_alloc_size= sizeof(FVectorNode) + ctx->gref_len + ctx->tref_len +
+                          FVector::alloc_size(ctx->vec_len);
+  size_t neighborhood_alloc_size= sizeof(Neighborhood) +
+                                  sizeof(FVectorNode*) * MY_ALIGN(ctx->M, 4) * 2;
+
+  ulonglong estimated_mem= rows * (sizeof(FVectorNode*) + node_alloc_size +
+                                   neighborhood_alloc_size);
+
+  if (estimated_mem > mhnsw_max_cache_size)
+  {
+    push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "MHNSW: Bulk insert disabled because estimated memory usage (%llu) "
+                        "exceeds mhnsw_max_cache_size (%llu). Falling back to normal insert.",
+                        (ulonglong)estimated_mem, (ulonglong)mhnsw_max_cache_size);
+    ctx->release(table);
+    return 1;
+  }
+
   MHNSW_Bulk_context *bulk= new (table->in_use->mem_root) MHNSW_Bulk_context();
   if (!bulk)
+  {
+    ctx->release(table);
     return HA_ERR_OUT_OF_MEM;
+  }
 
+  bulk->ctx= ctx;
   bulk->estimated_rows= rows;
   if (my_init_dynamic_array(PSI_INSTRUMENT_MEM, &bulk->nodes, sizeof(FVectorNode*),
                             rows + rows / 10, rows, MYF(0)))
   {
+    ctx->release(table);
     return HA_ERR_OUT_OF_MEM;
   }
 
-  int err= MHNSW_Share::acquire(&bulk->ctx, table, true);
-  if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
-  {
-    delete_dynamic(&bulk->nodes);
-    return err;
-  }
-
-  if (bulk->ctx->vec_len == 0)
-    bulk->ctx->set_lengths(keyinfo->key_part->field->field_length);
-
-  DBUG_ASSERT(!bulk->ctx->start);
   bulk->ctx->bulk_active= 1;
+  DBUG_ASSERT(!bulk->ctx->start);
   bulk->current_max_layer= 0;
   table->hlindex->context= bulk;
   return 0;

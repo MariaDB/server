@@ -10224,7 +10224,12 @@ int TABLE::hlindexes_bulk_insert_begin(ha_rows rows)
         if (hlindex && hlindex->in_use)
         {
             hlindex->bulk_insert_active= true;
-            return mhnsw_bulk_insert_begin(this, key_info + s->keys, rows);
+            int err= mhnsw_bulk_insert_begin(this, key_info + s->keys, rows);
+            if (err)
+            {
+                hlindex->bulk_insert_active= false;
+                return err;
+            }
         }
     }
     return 0;

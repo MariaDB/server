@@ -12671,8 +12671,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
       if (to->s->hlindexes())
       {
-          to->hlindexes_bulk_insert_begin(from->file->stats.records);
-          hlindex_bulk_started= 1;
+          if (to->hlindexes_bulk_insert_begin(from->file->stats.records) == 0)
+              hlindex_bulk_started= 1;
       }
   }
   mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);
