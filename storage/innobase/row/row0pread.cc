@@ -146,19 +146,14 @@ size_t Parallel_reader::available_threads(size_t n_required,
 
 void Parallel_reader::Scan_ctx::index_s_lock()
 {
-  if (m_s_locks.fetch_add(1, std::memory_order_acquire) == 0) {
-    // OLEGS: MySQL states that another thread may release this lock,
-    // however in MariaDB that will trigger a debug assertion.
-    // The same thread must release the lock
-    m_config.m_index->lock.s_lock(SRW_LOCK_CALL);
-  }
+  m_config.m_index->lock.s_lock(SRW_LOCK_CALL);
+  m_s_locks.fetch_add(1, std::memory_order_release);
 }
 
 void Parallel_reader::Scan_ctx::index_s_unlock()
 {
-  if (m_s_locks.fetch_sub(1, std::memory_order_acquire) == 1) {
-    m_config.m_index->lock.s_unlock();
-  }
+  m_s_locks.fetch_sub(1, std::memory_order_release);
+  m_config.m_index->lock.s_unlock();
 }
 
 dberr_t Parallel_reader::Ctx::split()
@@ -1204,8 +1199,38 @@ dberr_t Parallel_reader::init_worker(Worker_ctx *wctx)
 
 std::shared_ptr<Parallel_reader::Ctx> Parallel_reader::get_job_for_worker(Worker_ctx *worker_ctx)
 {
-  std::shared_ptr<Parallel_reader::Ctx> ctx = dequeue();
-  return ctx;
+  /* Pull the next scannable context. A context flagged m_split is not
+  itself scanned: split() re-partitions its sub-tree one level deeper and
+  enqueues the finer sub-contexts (for this worker and others), then we
+  pull again. This is the pull-based equivalent of the m_split handling in
+  Parallel_reader::worker() (which we don't use here) — it is what turns
+  the few coarse root-subtree ranges into one-leaf-page chunks on deep
+  trees. Without it, a deep B-tree with a narrow root yields only a handful
+  of huge chunks and almost no worker parallelism. */
+  for (;;)
+  {
+    std::shared_ptr<Parallel_reader::Ctx> ctx = dequeue();
+
+    if (ctx == nullptr)
+      return nullptr;
+
+    if (ctx->m_scan_ctx->is_error_set())
+      return nullptr;
+
+    if (ctx->m_split)
+    {
+      dberr_t err = ctx->split();
+      if (err != DB_SUCCESS)
+      {
+        ctx->m_scan_ctx->set_error_state(err);
+        return nullptr;
+      }
+      /* The sub-contexts are now queued; pull one for this worker. */
+      continue;
+    }
+
+    return ctx;
+  }
 }
 
 page_no_t Parallel_reader::Scan_ctx::search(buf_block_t *block,
