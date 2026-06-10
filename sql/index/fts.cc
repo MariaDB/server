@@ -19,6 +19,8 @@
 #include "hlindex.h"
 #include "fts.h"
 #include "create_options.h"
+#include "ft_global.h"
+#include "mysql/plugin_ftparser.h"
 
 ha_create_table_option fts_index_options[]=
 {
@@ -37,7 +39,7 @@ class fts_index : public hlindex
 {
 public:
   fts_index(TABLE *t) : hlindex(t) {}
-  int insert_row(TABLE *tbl, KEY *keyinfo) override { return HA_ERR_WRONG_COMMAND; }
+  int insert_row(TABLE *tbl, KEY *keyinfo) override;
   int read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit) override { return HA_ERR_WRONG_COMMAND; }
   int read_next(TABLE *tbl) override { return HA_ERR_WRONG_COMMAND; }
   int read_end(TABLE *tbl) override { return 0; }
@@ -45,6 +47,100 @@ public:
   int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) override { return HA_ERR_WRONG_COMMAND; }
   bool reading() override { return false; }
 };
+
+struct fts_word_ctx
+{
+  TABLE *table;
+  const uchar *tref;
+  uint tref_len;
+};
+
+static int fts_add_word(MYSQL_FTPARSER_PARAM *param,
+                        const char *word, int word_len,
+                        MYSQL_FTPARSER_BOOLEAN_INFO *)
+{
+  auto *ctx= static_cast<fts_word_ctx *>(param->ftparser_state);
+  TABLE *t= ctx->table;
+  restore_record(t, s->default_values);
+  t->field[0]->store(word, word_len, param->cs);
+  t->field[1]->store_binary(ctx->tref, ctx->tref_len);
+  return t->file->ha_write_row(t->record[0]);
+}
+
+#define fts_word_char(ctype, c) ((ctype) & (_MY_U | _MY_L | _MY_NMR) || (c) == '_')
+#define fts_misc_word_char(c)   ((c) == '\'')
+
+static int fts_mysql_parse(MYSQL_FTPARSER_PARAM *param,
+                           const char *doc_arg, int doc_len)
+{
+  CHARSET_INFO *cs= param->cs;
+  const uchar *doc= (const uchar *)doc_arg;
+  const uchar *end= doc + doc_len;
+  while (doc < end)
+  {
+    int ctype, mbl;
+    for (; doc < end; doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
+    {
+      mbl= my_ci_ctype(cs, &ctype, doc, end);
+      if (fts_word_char(ctype, *doc))
+        break;
+    }
+    if (doc >= end)
+      break;
+    const uchar *wstart= doc;
+    uint wchars= 0, mwc= 0;
+    for (; doc < end; wchars++, doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
+    {
+      mbl= my_ci_ctype(cs, &ctype, doc, end);
+      if (fts_word_char(ctype, *doc))
+        mwc= 0;
+      else if (!fts_misc_word_char(*doc) || mwc)
+        break;
+      else
+        mwc++;
+    }
+    uint wbytes= (uint)(doc - wstart) - mwc;
+    if (wchars >= ft_min_word_len && wchars < ft_max_word_len)
+      if (param->mysql_add_word(param, (char *)wstart, wbytes, nullptr))
+        return 1;
+  }
+  return 0;
+}
+
+int fts_index::insert_row(TABLE *tbl, KEY *keyinfo)
+{
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(tbl, &tbl->read_set);
+  fts_word_ctx ctx= { table, tbl->file->ref, tbl->file->ref_length };
+
+  MYSQL_FTPARSER_PARAM param {};
+  param.mysql_parse=    fts_mysql_parse;
+  param.mysql_add_word= fts_add_word;
+  param.ftparser_state= &ctx;
+  param.mode=           MYSQL_FTPARSER_SIMPLE_MODE;
+
+  struct st_mysql_ftparser *parser= keyinfo->parser
+      ? plugin_data(keyinfo->parser, struct st_mysql_ftparser *)
+      : &ft_default_parser; // XXX move ft_default_parser out of myisam
+
+  tbl->file->position(tbl->record[0]);
+
+  int err= 0;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+  for (uint i= 0; i < keyinfo->user_defined_key_parts && !err; i++)
+  {
+    Field *field= keyinfo->key_part[i].field;
+    if (field->is_null())
+      continue;
+    String *val= field->val_str(&buf);
+    param.cs=     field->charset();
+    param.doc=    val->ptr();
+    param.length= val->length();
+    err= parser->parse(&param);
+  }
+
+  dbug_tmp_restore_column_map(&tbl->read_set, old_map);
+  return err;
+}
 
 class fts_share : public hlindex_share
 {
