@@ -235,7 +235,7 @@ static int delete_tree_element(TREE *tree, TREE_ELEMENT *element,
     parent[0] = & parent[-1][0]->right
 */
 
-TREE_ELEMENT *tree_insert(TREE *tree, void *key, uint key_size, 
+TREE_ELEMENT *tree_insert(TREE *tree, const void *key, uint key_size,
                           void* custom_arg)
 {
   int cmp;
@@ -246,8 +246,7 @@ TREE_ELEMENT *tree_insert(TREE *tree, void *key, uint key_size,
   for (;;)
   {
     if (element == &null_element ||
-	(cmp = (*tree->compare)(custom_arg, ELEMENT_KEY(tree,element),
-                                key)) == 0)
+	!(cmp = (*tree->compare)(custom_arg, ELEMENT_KEY(tree,element), key)))
       break;
     if (cmp < 0)
     {
@@ -286,16 +285,16 @@ TREE_ELEMENT *tree_insert(TREE *tree, void *key, uint key_size,
     if (!tree->offset_to_key)
     {
       if (key_size == sizeof(void*))		 /* no length, save pointer */
-	*((void**) (element+1))=key;
+	*((const void**) (element+1))= key;
       else
       {
 	*((void**) (element+1))= (void*) ((void **) (element+1)+1);
-	memcpy((uchar*) *((void **) (element+1)),key,
+	memcpy((uchar*) *((void **) (element+1)), key,
 	       (size_t) (key_size-sizeof(void*)));
       }
     }
     else
-      memcpy((uchar*) element+tree->offset_to_key,key,(size_t) key_size);
+      memcpy((uchar*) element+tree->offset_to_key, key, (size_t) key_size);
     element->count=1;			/* May give warning in purify */
     tree->elements_in_tree++;
     rb_insert(tree,parent,element);	/* rebalance tree */
@@ -375,7 +374,7 @@ int tree_delete(TREE *tree, void *key, uint key_size, void *custom_arg)
 }
 
 
-void *tree_search(TREE *tree, void *key, void *custom_arg)
+void *tree_search(TREE *tree, const void *key, void *custom_arg)
 {
   int cmp;
   TREE_ELEMENT *element=tree->root;
@@ -384,8 +383,7 @@ void *tree_search(TREE *tree, void *key, void *custom_arg)
   {
     if (element == &null_element)
       return (void*) 0;
-    if ((cmp = (*tree->compare)(custom_arg, ELEMENT_KEY(tree,element),
-                                key)) == 0)
+    if (!(cmp = (*tree->compare)(custom_arg, ELEMENT_KEY(tree,element), key)))
       return ELEMENT_KEY(tree,element);
     if (cmp < 0)
       element=element->right;
@@ -394,7 +392,7 @@ void *tree_search(TREE *tree, void *key, void *custom_arg)
   }
 }
 
-void *tree_search_key(TREE *tree, const void *key, 
+void *tree_search_key(TREE *tree, const void *key,
                       TREE_ELEMENT **parents, TREE_ELEMENT ***last_pos,
                       enum ha_rkey_function flag, void *custom_arg)
 {
@@ -403,7 +401,7 @@ void *tree_search_key(TREE *tree, const void *key,
   TREE_ELEMENT **last_left_step_parent= NULL, **last_right_step_parent= NULL;
   TREE_ELEMENT **last_equal_element= NULL;
 
-/* 
+/*
   TODO: support for HA_READ_KEY_OR_PREV, HA_READ_PREFIX flags if needed.
 */
 
