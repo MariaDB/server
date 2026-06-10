@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +46,6 @@ int compare_double2(void *, const void *s_, const void *t_)
 {
   const double *s= static_cast<const double*>(s_);
   const double *t= static_cast<const double*>(t_);
-
   return compare_double(s,t);
 }
 
@@ -285,7 +285,7 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
   {
     if (((longlong) info->ullval) < 0)
       return 0; // Impossible to store as a negative number
-    ev_info->llval =  -(longlong) MY_MAX((ulonglong) -ev_info->llval, 
+    ev_info->llval =  -(longlong) MY_MAX((ulonglong) -ev_info->llval,
 				      info->ullval);
     ev_info->min_dval = (double) -MY_MAX(-ev_info->min_dval, info->dval);
   }
@@ -298,13 +298,6 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
   }
   return 1;
 } // get_ev_num_info
-
-
-int free_string(void* str, TREE_FREE, void*)
-{
-  ((String*)str)->free();
-  return 0;
-}
 
 
 void field_str::add()
@@ -371,22 +364,22 @@ void field_str::add()
   {
     if (res != &s)
       s.copy(*res);
-    if (!tree_search(&tree, (void*) &s, tree.custom_arg)) // If not in tree
+    if (!tree.find(s))                            // If not in tree
     {
       s.copy();        // slow, when SAFE_MALLOC is in use
-      if (!tree_insert(&tree, (void*) &s, 0, tree.custom_arg))
+      if (tree.insert(s))
       {
-	room_in_tree = 0;      // Remove tree, out of RAM ?
-	delete_tree(&tree, 0);
+        room_in_tree = 0;      // Remove tree, out of RAM ?
+        tree.clear();
       }
       else
       {
-	bzero((char*) &s, sizeof(s));  // Let tree handle free of this
-	if ((treemem += length) > pc->max_treemem)
-	{
-	  room_in_tree = 0;	 // Remove tree, too big tree
-	  delete_tree(&tree, 0);
-	}
+        s.release();            // Let tree handle free of this
+        if ((treemem += length) > pc->max_treemem)
+        {
+          room_in_tree = 0;    // Remove tree, too big tree
+          tree.clear();
+        }
       }
     }
   }
@@ -402,7 +395,6 @@ void field_real::add()
   char buff[MAX_FIELD_WIDTH], *ptr, *end;
   double num= item->val_real();
   uint length, zero_count, decs;
-  TREE_ELEMENT *element;
 
   if (item->null_value)
   {
@@ -437,19 +429,15 @@ void field_real::add()
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
+    if (tree.insert(num))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree, 0);
+      tree.clear();
     }
-    /*
-      if element->count == 1, this element can be found only once from tree
-      if element->count == 2, or more, this element is already in tree
-    */
-    else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
+    else if ((tree_elements= tree.elements()) > pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree, 0);
+      tree.clear();
     }
   }
 
@@ -481,7 +469,6 @@ void field_decimal::add()
   /*TODO - remove rounding stuff after decimal_div returns proper frac */
   VDec vdec(item);
   uint length;
-  TREE_ELEMENT *element;
 
   if (vdec.is_null())
   {
@@ -499,21 +486,17 @@ void field_decimal::add()
 
   if (room_in_tree)
   {
-    uchar buf[DECIMAL_MAX_FIELD_SIZE];
-    dec.to_binary(buf, item->max_length, item->decimals);
-    if (!(element = tree_insert(&tree, (void*)buf, 0, tree.custom_arg)))
+    DecimalKey key;
+    dec.to_binary(key.data, item->max_length, item->decimals);
+    if (tree.insert(key))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree, 0);
+      tree.clear();
     }
-    /*
-      if element->count == 1, this element can be found only once from tree
-      if element->count == 2, or more, this element is already in tree
-    */
-    else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
+    else if ((tree_elements= tree.elements()) > pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree, 0);
+      tree.clear();
     }
   }
 
@@ -556,7 +539,6 @@ void field_longlong::add()
   longlong numlong = item->val_int();
   double num = (double) numlong;
   uint length = (uint) (longlong10_to_str(numlong, buff, -10) - buff);
-  TREE_ELEMENT *element;
 
   if (item->null_value)
   {
@@ -568,19 +550,15 @@ void field_longlong::add()
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &numlong, 0, tree.custom_arg)))
+    if (tree.insert(numlong))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree, 0);
+      tree.clear();
     }
-    /*
-      if element->count == 1, this element can be found only once from tree
-      if element->count == 2, or more, this element is already in tree
-    */
-    else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
+    else if ((tree_elements= tree.elements()) > pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree, 0);
+      tree.clear();
     }
   }
 
@@ -614,7 +592,6 @@ void field_ulonglong::add()
   ulonglong numlong = item->val_int();
   double num= (double) numlong;
   uint length = (uint) (longlong10_to_str(numlong, buff, 10) - buff);
-  TREE_ELEMENT *element;
 
   if (item->null_value)
   {
@@ -626,19 +603,15 @@ void field_ulonglong::add()
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &numlong, 0, tree.custom_arg)))
+    if (tree.insert(numlong))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
-      delete_tree(&tree, 0);
+      tree.clear();
     }
-    /*
-      if element->count == 1, this element can be found only once from tree
-      if element->count == 2, or more, this element is already in tree
-    */
-    else if (element->count == 1 && (tree_elements++) >= pc->max_tree_elements)
+    else if ((tree_elements= tree.elements()) > pc->max_tree_elements)
     {
       room_in_tree = 0;  // Remove tree, too many elements
-      delete_tree(&tree, 0);
+      tree.clear();
     }
   }
 
@@ -683,11 +656,9 @@ int analyse::send_row(List<Item> & /* field_list */)
 int analyse::end_of_records()
 {
   field_info **f = f_info;
-  char buff[MAX_FIELD_WIDTH];
-  String *res, s_min(buff, sizeof(buff),&my_charset_bin), 
-	 s_max(buff, sizeof(buff),&my_charset_bin),
-	 ans(buff, sizeof(buff),&my_charset_bin);
+  StringBuffer<MAX_FIELD_WIDTH> s;
   StringBuffer<NAME_LEN> name;
+  String *res;
 
   for (; f != f_end; f++)
   {
@@ -708,20 +679,20 @@ int analyse::end_of_records()
     else
     {
       func_items[1]->null_value = 0;
-      res = (*f)->get_min_arg(&s_min);
+      res = (*f)->get_min_arg(&s);
       func_items[1]->set(res->ptr(), res->length(), res->charset());
       func_items[2]->null_value = 0;
-      res = (*f)->get_max_arg(&s_max);
+      res = (*f)->get_max_arg(&s);
       func_items[2]->set(res->ptr(), res->length(), res->charset());
     }
     func_items[3]->set((longlong) (*f)->min_length);
     func_items[4]->set((longlong) (*f)->max_length);
     func_items[5]->set((longlong) (*f)->empty);
     func_items[6]->set((longlong) (*f)->nulls);
-    res = (*f)->avg(&s_max, rows);
+    res = (*f)->avg(&s, rows);
     func_items[7]->set(res->ptr(), res->length(), res->charset());
     func_items[8]->null_value = 0;
-    res = (*f)->std(&s_max, rows);
+    res = (*f)->std(&s, rows);
     if (!res)
       func_items[8]->null_value = 1;
     else
@@ -730,17 +701,17 @@ int analyse::end_of_records()
       count the dots, quotas, etc. in (ENUM("a","b","c"...))
       If tree has been removed, don't suggest ENUM.
       treemem is used to measure the size of tree for strings,
-      tree_elements is used to count the elements
+      tree_elements is used to count the elements for numerics
       max_treemem tells how long the string starting from ENUM("... and
       ending to ..") shall at maximum be. If case is about numbers,
       max_tree_elements will tell the length of the above, now
       every number is considered as length 1
     */
     if (((*f)->treemem || (*f)->tree_elements) &&
-	(*f)->tree.elements_in_tree &&
+	(*f)->tree_size() &&
 	(((*f)->treemem ? max_treemem : max_tree_elements) >
 	 (((*f)->treemem ? (*f)->treemem : (*f)->tree_elements) +
-	   ((*f)->tree.elements_in_tree * 3 - 1 + 6))))
+	   ((*f)->tree_size() * 3 - 1 + 6))))
     {
       char tmp[331]; //331, because one double prec. num. can be this long
       String tmp_str(tmp, sizeof(tmp),&my_charset_bin);
@@ -751,8 +722,7 @@ int analyse::end_of_records()
       tree_info.item = (*f)->item;
 
       tmp_str.set(STRING_WITH_LEN("ENUM("),&my_charset_bin);
-      tree_walk(&(*f)->tree, (*f)->collect_enum(), (char*) &tree_info,
-		left_root_right);
+      (*f)->walk_tree(&tree_info);
       tmp_str.append(')');
 
       if (!(*f)->nulls)
@@ -764,46 +734,46 @@ int analyse::end_of_records()
       continue;
     }
 
-    ans.length(0);
+    s.length(0);
     if (!(*f)->treemem && !(*f)->tree_elements)
-      ans.append(STRING_WITH_LEN("CHAR(0)"));
+      s.append(STRING_WITH_LEN("CHAR(0)"));
     else if ((*f)->item->type() == Item::FIELD_ITEM)
     {
       switch (((Item_field*) (*f)->item)->field->real_type())
       {
       case MYSQL_TYPE_TIMESTAMP:
-	ans.append(STRING_WITH_LEN("TIMESTAMP"));
+	s.append(STRING_WITH_LEN("TIMESTAMP"));
 	break;
       case MYSQL_TYPE_DATETIME:
-	ans.append(STRING_WITH_LEN("DATETIME"));
+	s.append(STRING_WITH_LEN("DATETIME"));
 	break;
       case MYSQL_TYPE_DATE:
       case MYSQL_TYPE_NEWDATE:
-	ans.append(STRING_WITH_LEN("DATE"));
+	s.append(STRING_WITH_LEN("DATE"));
 	break;
       case MYSQL_TYPE_SET:
-	ans.append(STRING_WITH_LEN("SET"));
+	s.append(STRING_WITH_LEN("SET"));
 	break;
       case MYSQL_TYPE_YEAR:
-	ans.append(STRING_WITH_LEN("YEAR"));
+	s.append(STRING_WITH_LEN("YEAR"));
 	break;
       case MYSQL_TYPE_TIME:
-	ans.append(STRING_WITH_LEN("TIME"));
+	s.append(STRING_WITH_LEN("TIME"));
 	break;
       case MYSQL_TYPE_DECIMAL:
-	ans.append(STRING_WITH_LEN("DECIMAL"));
+	s.append(STRING_WITH_LEN("DECIMAL"));
 	// if item is FIELD_ITEM, it _must_be_ Field_num in this case
 	if (((Field_num*) ((Item_field*) (*f)->item)->field)->zerofill)
-	  ans.append(STRING_WITH_LEN(" ZEROFILL"));
+	  s.append(STRING_WITH_LEN(" ZEROFILL"));
 	break;
       default:
-	(*f)->get_opt_type(&ans, rows);
+	(*f)->get_opt_type(&s, rows);
 	break;
       }
     }
     if (!(*f)->nulls)
-      ans.append(STRING_WITH_LEN(" NOT NULL"));
-    func_items[9]->set(ans.ptr(), ans.length(), ans.charset());
+      s.append(STRING_WITH_LEN(" NOT NULL"));
+    func_items[9]->set(s.ptr(), s.length(), s.charset());
     if (result->send_data(result_fields) > 0)
       return -1;
   }
@@ -1082,26 +1052,27 @@ String *field_decimal::std(String *s, ha_rows rows)
 }
 
 
-int collect_string(void *element_, element_count, void *info_)
+int collect_string(const String &element, element_count, TREE_INFO *info)
 {
-  String *element= static_cast<String*>(element_);
-  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   if (info->found)
     info->str->append(',');
   else
     info->found = 1;
   info->str->append('\'');
-  if (info->str->append_for_single_quote(element))
+  if (info->str->append_for_single_quote(&element))
     return 1;
   info->str->append('\'');
   return 0;
 } // collect_string
 
-
-int collect_real(void *element_, element_count, void *info_)
+void field_str::walk_tree(TREE_INFO *info)
 {
-  double *element= static_cast<double*>(element_);
-  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
+  tree.walk(collect_string, info);
+}
+
+
+int collect_real(const double &element, element_count, TREE_INFO *info)
+{
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),current_thd->charset());
 
@@ -1110,17 +1081,20 @@ int collect_real(void *element_, element_count, void *info_)
   else
     info->found = 1;
   info->str->append('\'');
-  s.set_real(*element, info->item->decimals, current_thd->charset());
+  s.set_real(element, info->item->decimals, current_thd->charset());
   info->str->append(s);
   info->str->append('\'');
   return 0;
 } // collect_real
 
-
-int collect_decimal(void *element_, element_count count, void *info_)
+void field_real::walk_tree(TREE_INFO *info)
 {
-  uchar *element= static_cast<uchar*>(element_);
-  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
+  tree.walk(collect_real, info);
+}
+
+
+int collect_decimal(const DecimalKey &key, element_count, TREE_INFO *info)
+{
   char buff[DECIMAL_MAX_STR_LENGTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1128,7 +1102,7 @@ int collect_decimal(void *element_, element_count count, void *info_)
     info->str->append(',');
   else
     info->found = 1;
-  my_decimal dec(element, info->item->max_length, info->item->decimals);
+  my_decimal dec(key.data, info->item->max_length, info->item->decimals);
   info->str->append('\'');
   dec.to_string_native(&s, 0, 0, '0');
   info->str->append(s);
@@ -1136,11 +1110,14 @@ int collect_decimal(void *element_, element_count count, void *info_)
   return 0;
 }
 
-
-int collect_longlong(void *element_, element_count, void *info_)
+void field_decimal::walk_tree(TREE_INFO *info)
 {
-  longlong *element= static_cast<longlong*>(element_);
-  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
+  tree.walk(collect_decimal, info);
+}
+
+
+int collect_longlong(const longlong &element, element_count, TREE_INFO *info)
+{
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1149,17 +1126,20 @@ int collect_longlong(void *element_, element_count, void *info_)
   else
     info->found = 1;
   info->str->append('\'');
-  s.set(*element, current_thd->charset());
+  s.set(element, current_thd->charset());
   info->str->append(s);
   info->str->append('\'');
   return 0;
 } // collect_longlong
 
-
-int collect_ulonglong(void *element_, element_count, void *info_)
+void field_longlong::walk_tree(TREE_INFO *info)
 {
-  ulonglong *element= static_cast<ulonglong*>(element_);
-  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
+  tree.walk(collect_longlong, info);
+}
+
+
+int collect_ulonglong(const ulonglong &element, element_count, TREE_INFO *info)
+{
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1168,11 +1148,16 @@ int collect_ulonglong(void *element_, element_count, void *info_)
   else
     info->found = 1;
   info->str->append('\'');
-  s.set(*element, current_thd->charset());
+  s.set(element, current_thd->charset());
   info->str->append(s);
   info->str->append('\'');
   return 0;
 } // collect_ulonglong
+
+void field_ulonglong::walk_tree(TREE_INFO *info)
+{
+  tree.walk(collect_ulonglong, info);
+}
 
 
 bool analyse::change_columns(THD *thd, List<Item> &field_list)
