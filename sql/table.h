@@ -2318,13 +2318,14 @@ public:
   TABLE_LIST *table_ref; /* Original base table/view reference. */
   Item_func_coalesce *natural_full_join_field;
   /*
-    True if a common join column of two NATURAL/USING join operands. Notice
-    that when we have a hierarchy of nested NATURAL/USING joins, a column can
-    be common at some level of nesting but it may not be common at higher
-    levels of nesting. Thus this flag may change depending on at which level
-    we are looking at some column.
+    Set if a common join column of two NATURAL/USING join operands to
+    point to the matching column. Notice that when we have a hierarchy
+    of nested NATURAL/USING joins, a column can be common at some
+    level of nesting but it may not be common at higher levels of
+    nesting. Thus this flag may change depending on at which level we
+    are looking at some column.
   */
-  bool is_common;
+  Natural_join_column *is_common;
 public:
   Natural_join_column(Field_translator *field_param, TABLE_LIST *tab);
   Natural_join_column(Item_field *field_param, TABLE_LIST *tab);

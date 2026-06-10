@@ -7328,7 +7328,7 @@ Natural_join_column::Natural_join_column(Field_translator *field_param,
   table_field= nullptr;
   table_ref= tab;
   natural_full_join_field= nullptr;
-  is_common= FALSE;
+  is_common= nullptr;
 }
 
 
@@ -7340,7 +7340,7 @@ Natural_join_column::Natural_join_column(Item_field *field_param,
   view_field= NULL;
   table_ref= tab;
   natural_full_join_field= nullptr;
-  is_common= FALSE;
+  is_common= nullptr;
 }
 
 
@@ -7377,9 +7377,10 @@ Item *Natural_join_column::create_item(THD *thd)
 
 Item *Natural_join_column::get_item()
 {
+  if (natural_full_join_field)
+    return natural_full_join_field;
   if (view_field)
     return view_field->item;
-
   return table_field;
 }
 

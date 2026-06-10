@@ -1281,6 +1281,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("coalesce") };
     return name;
   }
+  enum Functype functype() const override { return COALESCE_FUNC; }
   table_map not_null_tables() const override { return 0; }
 
 protected:

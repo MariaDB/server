@@ -5777,7 +5777,7 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
     /*
       1. FULL OUTER JOIN requires an ON condition, so someone must have it
       2. Disregard the WHERE clause at this point, using only the ON
-         condition because we don't want to range analysis to
+         condition because we don't want range analysis to
          accidentally turn the FULL JOIN into an INNER JOIN.
       3. The ON condition holds for both tables so if we don't find it
          associated with one table, then look it on the partner table.
@@ -20461,6 +20461,41 @@ static COND *simplify_nested_join(JOIN *join, TABLE_LIST *table,
 }
 
 
+#ifdef DBUG_ASSERT_EXISTS
+/**
+   Assert that the ON expression of the right operand is a proper
+   condition.
+
+   When the right operand is a nested join, descend into the nest and
+   apply the same check to every table it contains.
+
+   @param right_table the right operand of the FULL JOIN
+*/
+
+static void assert_full_join_on_expr_is_cond(TABLE_LIST *right_table)
+{
+  // Recursive case.
+  if (right_table->nested_join)
+  {
+    List_iterator<TABLE_LIST> it(right_table->nested_join->join_list);
+    TABLE_LIST *tbl;
+    while ((tbl= it++))
+      assert_full_join_on_expr_is_cond(tbl);
+
+    return;
+  }
+
+  // Base case.
+  if (right_table->on_expr &&
+      !(right_table->outer_join & JOIN_TYPE_NATURAL))
+  {
+    DBUG_ASSERT((right_table->on_expr->base_flags &
+                 item_base_t::IS_COND) == item_base_t::IS_COND);
+  }
+}
+#endif
+
+
 /**
    Rewrite a FULL JOIN to a LEFT JOIN by mutating the
    left and right table state to make them appear as though
@@ -20488,6 +20523,10 @@ static void rewrite_full_to_left(TABLE_LIST *left_table,
     is called.
   */
   DBUG_ASSERT(right_table->on_expr);
+
+#ifdef DBUG_ASSERT_EXISTS
+  assert_full_join_on_expr_is_cond(right_table);
+#endif
 }
 
 

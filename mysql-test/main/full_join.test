@@ -623,6 +623,23 @@ select coalesce(t1.a, t2.a) as a, coalesce(t1.a, t2.a) + 0 as a2
 
 drop table t1, t2;
 
+--echo # Mismatched column order between the two tables
+create table t1 (a int, b int);
+create table t2 (b int, a int);
+insert into t1 (a,b) values (1,10),(2,20);
+insert into t2 (a,b) values (1,10),(3,30);
+select * from t1 natural full join t2 order by a;
+drop table t1, t2;
+
+--echo # Plain NATURAL JOIN must not duplicate the common column
+create table t1 (a int, x int);
+create table t2 (a int, y int);
+insert into t1 values (1,11);
+insert into t2 values (1,22);
+select a from t1 natural join t2;
+drop table t1, t2;
+
+
 --echo # --------------------------------------------------------
 --echo # 4e: multi-column NATURAL FULL JOIN
 --echo #
@@ -653,6 +670,358 @@ select coalesce(t1.a, t2.a) as ka, coalesce(t1.b, t2.b) as kb
   where coalesce(t1.a, t2.a) >= 2 and coalesce(t1.b, t2.b) >= 2;
 
 drop table t1, t2;
+
+
+--echo # --------------------------------------------------------
+--echo # 4f: common columns of non-matching declared types
+--echo #
+--echo # NATURAL FULL JOIN matches common columns by name, so the two
+--echo # columns named the same need not share a declared type.  The
+--echo # common column aggregates to one type and the join still
+--echo # matches by equality, so a varchar or blob '2' in one table
+--echo # matches an int 2 in the other.  The oracle is the explicit
+--echo # FULL JOIN with COALESCE(t1.a, t2.a) written out.
+--echo # --------------------------------------------------------
+
+--echo # int on the left, blob on the right.
+create table t1 (a int, b int);
+create table t2 (a blob, c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values ('2',200),('3',300);
+select a, b, c from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.b, t2.c
+  from t1 full join t2 on t1.a = t2.a order by a;
+drop table t1, t2;
+
+--echo # int on the left, varchar on the right.
+create table t1 (a int, b int);
+create table t2 (a varchar(20), c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values ('2',200),('3',300);
+select a, b, c from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.b, t2.c
+  from t1 full join t2 on t1.a = t2.a order by a;
+drop table t1, t2;
+
+
+--echo # --------------------------------------------------------
+--echo # 4g: incompatible collations on the common column
+--echo #
+--echo # When the two common columns carry different collations of the
+--echo # same character set, the common column resolves by collation
+--echo # aggregation.  A binary collation wins over a case-insensitive
+--echo # one, so the equality matches case-sensitively.  When neither
+--echo # collation can be aggregated with the other the join is
+--echo # rejected with ER_CANT_AGGREGATE_2COLLATIONS.
+--echo # --------------------------------------------------------
+
+--echo # utf8mb4_bin against utf8mb4_general_ci.  The binary collation
+--echo # wins, so 'A' and 'a' stay distinct: 'A' is left-only, 'a'
+--echo # matches, 'B' is right-only.  The coalesced column reports the
+--echo # binary collation.
+create table t1 (a varchar(20) collate utf8mb4_bin, b int);
+create table t2 (a varchar(20) collate utf8mb4_general_ci, c int);
+insert into t1 values ('A',1),('a',2);
+insert into t2 values ('a',3),('B',4);
+select a, b, c, collation(a) from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.b, t2.c
+  from t1 full join t2 on t1.a = t2.a order by a;
+drop table t1, t2;
+
+--echo # Two case-insensitive collations of the same character set
+--echo # cannot be aggregated, so the join is rejected.
+create table t1 (a varchar(20) collate utf8mb4_general_ci, b int);
+create table t2 (a varchar(20) collate utf8mb4_unicode_ci, c int);
+insert into t1 values ('x',1);
+insert into t2 values ('x',2);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select * from t1 natural full join t2;
+drop table t1, t2;
+
+--echo # The same two cases with the collation set as a table option
+--echo # instead of per column.  Every column inherits the table
+--echo # collation, so the common column resolves the same way.
+
+--echo # Binary table collation wins over the case-insensitive one.
+create table t1 (a varchar(20), b int) collate=utf8mb4_bin;
+create table t2 (a varchar(20), c int) collate=utf8mb4_general_ci;
+insert into t1 values ('A',1),('a',2);
+insert into t2 values ('a',3),('B',4);
+select a, b, c, collation(a) from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.b, t2.c
+  from t1 full join t2 on t1.a = t2.a order by a;
+drop table t1, t2;
+
+--echo # Two case-insensitive table collations cannot be aggregated.
+create table t1 (a varchar(20), b int) collate=utf8mb4_general_ci;
+create table t2 (a varchar(20), c int) collate=utf8mb4_unicode_ci;
+insert into t1 values ('x',1);
+insert into t2 values ('x',2);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select * from t1 natural full join t2;
+drop table t1, t2;
+
+
+--echo # --------------------------------------------------------
+--echo # 4h: unparenthesized chained NATURAL FULL JOIN
+--echo #
+--echo # t1 NATURAL FULL JOIN t2 NATURAL FULL JOIN t3 is left
+--echo # associative, so it means (t1 NFJ t2) NFJ t3 and gives the
+--echo # same result as the explicitly parenthesized form.  The
+--echo # unqualified a in ORDER BY resolves to the nested COALESCE.
+--echo # No UNION companion: the LEFT/RIGHT permutation UNION form
+--echo # over-approximates for chained joins (see the note above
+--echo # Section 6).  The recorded result is the oracle.
+--echo # --------------------------------------------------------
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+create table t3 (a int, d int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(5,500),(6,600);
+insert into t3 values (5,5000),(4,4000);
+
+select * from t1 natural full join t2 natural full join t3 order by a;
+
+--echo # The explicitly parenthesized form gives the same rows.
+select * from (t1 natural full join t2) natural full join t3 order by a;
+
+drop table t1, t2, t3;
+
+--echo # The set of common columns shifts along the chain.  t1 and t2
+--echo # share a and b; the third join shares only b with t3.  ORDER BY
+--echo # a still resolves through the nested COALESCE, and the b-only
+--echo # right rows from t3 surface with a NULL a.
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+create table t3 (b int, e int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,20),(3,30);
+insert into t3 values (20,1),(99,2);
+select * from t1 natural full join t2 natural full join t3 order by a;
+drop table t1, t2, t3;
+
+
+--echo # --------------------------------------------------------
+--echo # 4i: common columns at differing positions and differing
+--echo # column sets
+--echo #
+--echo # NATURAL FULL JOIN matches common columns by name, not by
+--echo # ordinal position, and the two tables need not carry the same
+--echo # set of columns.  The output lists the coalesced common columns
+--echo # first in the order they appear in the left table, then the
+--echo # remaining left columns, then the remaining right columns.  The
+--echo # oracle is the explicit FULL JOIN with a COALESCE per common
+--echo # column and the columns listed in that same order.
+--echo # --------------------------------------------------------
+
+--echo # Two common columns a and b appear in opposite relative order
+--echo # in the two tables, and each table carries its own extra
+--echo # columns (x, y on the left; z on the right).  Output order is
+--echo # a, b, x, y, z.
+create table t1 (x int, a int, y int, b int);
+create table t2 (b int, z int, a int);
+insert into t1 values (10,1,100,1),(20,2,200,2);
+insert into t2 values (2,2000,2),(3,3000,3);
+select * from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, coalesce(t1.b, t2.b) as b,
+       t1.x, t1.y, t2.z
+  from t1 full join t2 on t1.a = t2.a and t1.b = t2.b order by a;
+drop table t1, t2;
+
+--echo # A single common column a sits last in the left table and first
+--echo # in the right table.  Output order is a, then the left extras
+--echo # p, q, then the right extra r.
+create table t1 (p int, q int, a int);
+create table t2 (a int, r int);
+insert into t1 values (11,12,1),(21,22,2);
+insert into t2 values (2,200),(3,300);
+select * from t1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.p, t1.q, t2.r
+  from t1 full join t2 on t1.a = t2.a order by a;
+drop table t1, t2;
+
+
+--echo # --------------------------------------------------------
+--echo # 4j: NATURAL FULL JOIN with a view operand
+--echo #
+--echo # When an operand of a NATURAL FULL JOIN is a view, its common
+--echo # columns come from the view field translation rather than from
+--echo # a base table.  Building the COALESCE over each common column
+--echo # reads the underlying view field for that operand, so these
+--echo # cases exercise the view-field path that the base-table cases
+--echo # do not.  The oracle is the explicit FULL JOIN over the base
+--echo # tables with a COALESCE per common column.
+--echo # --------------------------------------------------------
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+create view v1 as select a, b from t1;
+
+--echo # Single common column from a view on the left.
+select a, v1.b, t2.c from v1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.b, t2.c
+  from t1 full join t2 on t1.a = t2.a order by a;
+
+--echo # The unqualified coalesced column resolves to the COALESCE in
+--echo # WHERE, GROUP BY, HAVING, and ORDER BY when the operand is a
+--echo # view.
+select a, count(*) from v1 natural full join t2
+  group by a having a >= 2 order by a;
+
+--echo # A derived table over the view join, then an outer reference to
+--echo # the coalesced column.
+select * from (select a, v1.b, t2.c from v1 natural full join t2) dt
+  where a = 3;
+
+--echo # Prepared statement: the COALESCE substitution holds across
+--echo # executes when the operand is a view.
+prepare stmt from
+  'select a, v1.b, t2.c from v1 natural full join t2 where a = ? order by a';
+set @v = 3;
+execute stmt using @v;
+set @v = 2;
+execute stmt using @v;
+deallocate prepare stmt;
+
+drop view v1;
+drop table t1, t2;
+
+--echo # A view that renames a column and carries an expression.  The
+--echo # common column b is the view expression, not a plain base field.
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+create view v1(a, b) as select a, b * 10 from t1;
+select a, v1.b, t2.c from v1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, t1.b * 10 as b, t2.c
+  from t1 full join t2 on t1.a = t2.a order by a;
+drop view v1;
+drop table t1, t2;
+
+--echo # NOT NULL base columns surfaced through a view.  A right-only
+--echo # row null-complements the view side, so a qualified reference
+--echo # to a view column reads NULL even though the base column is
+--echo # NOT NULL, and a coalesced unqualified reference takes the
+--echo # right side value.
+create table t1 (a int not null, b int not null);
+create table t2 (a int, c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+create view v1 as select a, b from t1;
+--echo # Disabling VIEW protocol here because the coalesced unqualified
+--echo # a and the qualified v1.a are both named a, so view creation
+--echo # renames one with a My_exp_ prefix, changing the result output.
+--disable_view_protocol
+select a, v1.a, v1.b, t2.c from v1 natural full join t2 order by a;
+--enable_view_protocol
+select v1.a, v1.b, t2.c from v1 natural full join t2 where v1.a is null;
+drop view v1;
+drop table t1, t2;
+
+--echo # A surviving FULL JOIN null-complements its left operand in the
+--echo # right-only rows, so that operand is nullable even when its column is
+--echo # declared NOT NULL.  The operand's nullability is established after the
+--echo # leaf tables are snapshotted for prepared statement re-execution, so
+--echo # the snapshot recorded it as non-nullable.  On the second execution
+--echo # IS NULL on the operand's NOT NULL column folded to a constant false
+--echo # and the right-only rows disappeared.  Both executions must return the
+--echo # right-only row (NULL, NULL, 300).
+create table t1 (a int not null, b int not null);
+create table t2 (a int, c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+prepare s from
+  'select t1.a, t1.b, t2.c from t1 full join t2 on t1.a = t2.a
+   where t1.a is null';
+execute s;
+execute s;
+deallocate prepare s;
+drop table t1, t2;
+
+--echo # Multi-column NATURAL FULL JOIN with a view operand builds one
+--echo # COALESCE per common column over the view fields.
+create table t1 (a int, b int, x int);
+create table t2 (a int, b int, y int);
+insert into t1 values (1,1,10),(2,2,20);
+insert into t2 values (2,2,200),(3,3,300);
+create view v1 as select a, b, x from t1;
+select a, b, v1.x, t2.y from v1 natural full join t2 order by a;
+select coalesce(t1.a, t2.a) as a, coalesce(t1.b, t2.b) as b, t1.x, t2.y
+  from t1 full join t2 on t1.a = t2.a and t1.b = t2.b order by a;
+drop view v1;
+drop table t1, t2;
+
+--echo # A view on the right side still has its common columns coalesced
+--echo # during name resolution, but the surviving FULL JOIN requires a
+--echo # base table on the right, so the query is rejected.
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(3,300);
+create view v2 as select a, c from t2;
+--error ER_FULL_JOIN_BASE_TABLES_ONLY
+select * from t1 natural full join v2;
+drop view v2;
+drop table t1, t2;
+
+
+--echo # --------------------------------------------------------
+--echo # 4k: SELECT * over combinations of views and base tables
+--echo #
+--echo # SELECT * expands the coalesced common columns followed by the
+--echo # remaining columns of each operand.  These cases mix views and
+--echo # base tables in the FROM clause.  A view may stand on the left
+--echo # or outer side of a surviving FULL JOIN, including a view whose
+--echo # body is itself a join or a FULL JOIN; the right side must stay
+--echo # a base table.  Each oracle replaces the views with their
+--echo # underlying tables, so the two row sets match.
+--echo # --------------------------------------------------------
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+create table t3 (a int, d int);
+insert into t1 values (1,10),(2,20);
+insert into t2 values (2,200),(5,500),(6,600);
+insert into t3 values (5,5000),(4,4000);
+create view v1 as select a, b from t1;
+
+--echo # View on the left, base table on the right.
+select * from v1 natural full join t2 order by a;
+select * from t1 natural full join t2 order by a;
+
+--echo # View on the far left of a chain, base tables to its right.
+select * from v1 natural full join t2 natural full join t3 order by a;
+select * from t1 natural full join t2 natural full join t3 order by a;
+
+--echo # A view whose body is a join, then NATURAL FULL JOIN a base
+--echo # table.  The oracle writes the join out as a derived table and
+--echo # coalesces the common column explicitly.
+create view v12 as
+  select t1.a as a, t1.b as b, t2.c as c from t1 join t2 on t1.a = t2.a;
+select * from v12 natural full join t3 order by a;
+select coalesce(dt.a, t3.a) as a, dt.b, dt.c, t3.d
+  from (select t1.a as a, t1.b as b, t2.c as c
+          from t1 join t2 on t1.a = t2.a) dt
+  full join t3 on dt.a = t3.a order by a;
+
+--echo # A view whose body is itself a FULL JOIN, then NATURAL FULL
+--echo # JOIN a base table.  The view carries right-only rows with a
+--echo # NULL common column, which stay unmatched against the base
+--echo # table.
+create view vf as
+  select t1.a as a, t1.b as b, t2.c as c from t1 full join t2 on t1.a = t2.a;
+select * from vf natural full join t3 order by a;
+select coalesce(dt.a, t3.a) as a, dt.b, dt.c, t3.d
+  from (select t1.a as a, t1.b as b, t2.c as c
+          from t1 full join t2 on t1.a = t2.a) dt
+  full join t3 on dt.a = t3.a order by a;
+
+drop view v1, v12, vf;
+drop table t1, t2, t3;
 
 
 --echo # ========================================================
@@ -3244,5 +3613,100 @@ create view v_ok_inner as
 drop view v_ok_left, v_ok_right, v_ok_inner;
 
 drop table t1, t2, t3;
+
+--echo # ====================================================================
+--echo # Section 21: FULL JOIN sargable condition comes from the ON clause
+--echo # ====================================================================
+--echo #
+--echo # Range analysis on a FULL JOIN table must use the ON expression, not
+--echo # the WHERE clause, so the join is never accidentally turned into an
+--echo # INNER JOIN.  When a table's own on_expr is empty the condition is
+--echo # taken from its FULL JOIN partner (MDEV-38502).
+
+create table t1 (a int, b int, key(a));
+create table t2 (a int, c int, key(a));
+insert into t1 values (1,10),(2,20),(3,30),(4,40),(5,50);
+insert into t2 values (1,11),(2,22),(3,33),(4,44),(5,55);
+
+--echo # An indexed sargable range in the ON.  The left table is analyzed
+--echo # through its partner's on_expr.  Every t1 row (including a>=3) and
+--echo # every t2 row must survive -- the FULL JOIN must not be pruned to an
+--echo # INNER JOIN.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on t1.a = t2.a and t1.a < 3;
+--echo # The plan stays a FULL JOIN with t1.a < 3 kept in the ON clause.
+explain extended
+select t1.a, t2.a from t1 full join t2 on t1.a = t2.a and t1.a < 3;
+
+--echo # Impossible ON range on an indexed column.  There are no matches, so
+--echo # every row is null-complemented; the impossible range must not fold
+--echo # the FULL JOIN to an empty result.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on t1.a = t2.a and t1.a < 0;
+
+--echo # Sargable range on the right operand's indexed column.  The in-place
+--echo # ON rewrite must not corrupt the condition shared by both partners.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on t1.a = t2.a and t2.a > 3;
+
+drop table t1, t2;
+
+--echo # A NATURAL FULL JOIN with no common columns still carries a non-NULL
+--echo # ON condition (1), so get_sargable_cond always finds an ON expression.
+create table t1 (a int, key(a));
+create table t2 (b int, key(b));
+insert into t1 values (1),(2),(3);
+insert into t2 values (1),(2),(3);
+explain extended select * from t1 natural full join t2;
+--sorted_result
+select * from t1 natural full join t2;
+drop table t1, t2;
+
+--echo # ON expressions that the optimizer can fold to a constant true.
+--echo # get_sargable_cond assumes a surviving FULL JOIN always has an ON
+--echo # expression on the table or its partner.  An always-true ON could in
+--echo # principle be removed during condition optimization; these cases keep
+--echo # that assumption honest.  The join must stay a FULL JOIN (every left
+--echo # and right row survives) and range analysis must not crash.
+create table t1 (a int not null, b int, key(a));
+create table t2 (a int not null, c int, key(a));
+insert into t1 values (1,10),(2,20),(3,30),(4,40),(5,50);
+insert into t2 values (1,11),(2,22),(3,33),(4,44),(5,55);
+
+--echo # ON 1=1: a constant true ON makes every left row match every right row.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on 1=1;
+--sorted_result
+select t1.a, t2.a from t1 left join t2 on 1=1
+  union
+select t1.a, t2.a from t1 right join t2 on 1=1;
+explain extended select t1.a, t2.a from t1 full join t2 on 1=1;
+
+--echo # ON true: same shape with the boolean literal.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on true;
+
+--echo # ON t1.a IS NOT NULL on a NOT NULL column.  remove_eq_conds can fold
+--echo # this to a constant true.  The result is still a full cross product.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on t1.a is not null;
+--sorted_result
+select t1.a, t2.a from t1 left join t2 on t1.a is not null
+  union
+select t1.a, t2.a from t1 right join t2 on t1.a is not null;
+
+--echo # A removable always-true conjunct sitting next to a sargable range on
+--echo # the partner's indexed column.  The constant part can be folded away;
+--echo # the t1.a < 3 range must still reach range analysis through the ON.
+--sorted_result
+select t1.a, t2.a from t1 full join t2 on t2.a is not null and t1.a < 3;
+--sorted_result
+select t1.a, t2.a from t1 left join t2 on t2.a is not null and t1.a < 3
+  union
+select t1.a, t2.a from t1 right join t2 on t2.a is not null and t1.a < 3;
+explain extended
+select t1.a, t2.a from t1 full join t2 on t2.a is not null and t1.a < 3;
+
+drop table t1, t2;
 
 --echo # End of 12.3 tests

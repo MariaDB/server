@@ -7758,16 +7758,16 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         continue;
 
       cur_field_name_2= cur_nj_col_2->name();
-      DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
-                           cur_nj_col_2->safe_table_name().str,
-                           cur_field_name_2.str));
+      DBUG_PRINT("info", ("cur_field_name_2: %s.%s",
+                          cur_nj_col_2->safe_table_name().str,
+                          cur_field_name_2.str));
 
       /*
         Compare the two columns and check for duplicate common fields.
         A common field is duplicate either if it was already found in
         table_ref_2 (then found == TRUE), or if a field in table_ref_2
         was already matched by some previous field in table_ref_1
-        (then cur_nj_col_2->is_common == TRUE).
+        (then cur_nj_col_2->is_common != nullptr).
         Note that it is too early to check the columns outside of the
         USING list for ambiguity because they are not actually "referenced"
         here. These columns must be checked only on unqualified reference 
@@ -7775,7 +7775,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       */
       if (field_name_1.streq(cur_field_name_2))
       {
-        DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
+        DBUG_PRINT("info", ("match c1.is_common: %d",
+                            (int) (bool) nj_col_1->is_common));
         if (cur_nj_col_2->is_common || found)
         {
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1.str, thd_where(thd));
@@ -7836,7 +7837,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
                       table_ref_1 : table_ref_2),
                 eq_cond);
 
-    nj_col_1->is_common= nj_col_2->is_common= TRUE;
+    nj_col_1->is_common= nj_col_2;
+    nj_col_2->is_common= nj_col_1;
     DBUG_PRINT ("info", ("%s.%s and %s.%s are common",
                          nj_col_1->safe_table_name().str,
                          nj_col_1->name().str,
@@ -7870,6 +7872,64 @@ err:
 }
 
 
+static inline bool is_coalesce_item(Item *item)
+{
+  return item->type() == Item::FUNC_ITEM &&
+         ((Item_func*) item)->functype() == Item_func::COALESCE_FUNC;
+}
+
+
+/*
+  Append 'item' to 'list', flattening it when it is itself a COALESCE so
+  COALESCE(a, b) contributes its arguments a, b rather than a nested
+  COALESCE.  'item' is only read, never mutated--it may be shared by an
+  already-built equi-join condition (see natural_join_eq_operand).
+
+  @return TRUE on out-of-memory, FALSE on success.
+*/
+
+static bool append_coalesce_or_item(THD *thd, List<Item> *list, Item *item)
+{
+  if (is_coalesce_item(item))
+  {
+    Item_func *fc= (Item_func*) item;
+    for (Item **a= fc->arguments(), **end= a + fc->argument_count();
+         a < end; a++)
+    {
+      if (list->push_back(*a, thd->mem_root))
+        return TRUE;
+    }
+    return FALSE;
+  }
+  return list->push_back(item, thd->mem_root);
+}
+
+
+/*
+  Build COALESCE(first, second).  When either operand is already a
+  COALESCE, return a single flattened COALESCE over all of the operands
+  instead of nesting one COALESCE inside another, so that a chain such as
+    (t1 natural full join t2) natural full join t3
+  yields COALESCE(t1.x, t2.x, t3.x) rather than
+  COALESCE(COALESCE(t1.x, t2.x), t3.x).  Neither operand is mutated, since
+  an operand may be shared by an equi-join condition built earlier.
+
+  @return the COALESCE item, or NULL on out-of-memory.
+*/
+
+static Item_func_coalesce *coalesce_items(THD *thd, Item *first, Item *second)
+{
+  if (!is_coalesce_item(first) && !is_coalesce_item(second))
+    return new (thd->mem_root) Item_func_coalesce(thd, first, second);
+
+  List<Item> list;
+  if (append_coalesce_or_item(thd, &list, first) ||
+      append_coalesce_or_item(thd, &list, second))
+    return NULL;
+  return new (thd->mem_root) Item_func_coalesce(thd, list);
+}
+
+
 /*
   For some pair of tables (t1, t2) such that
     t1 NATURAL FULL JOIN t2
@@ -7877,19 +7937,21 @@ err:
     COALESCE(t1.x_1, t2.y_1), ..., COALESCE(t1.x_n, t2.y_n)
   such that NULL results won't appear in the NATURAL FULL JOIN.
 
-  @parma thd                 the current thread
-  @param left_join_columns   common columns originating in t1
-  @param right_join_columns  common columns originating in t2
- */
-void coalesce_natural_full_join(THD *thd,
-                                List<Natural_join_column> *left_join_columns,
-                                List<Natural_join_column> *right_join_columns)
+  @param thd                 the current thread
+  @param left_tab_col        common columns originating in t1
+  @param right_tab_col       common columns originating in t2
+  @return TRUE on out-of-memory, FALSE on success.
+*/
+
+static int coalesce_natural_full_join(THD *thd,
+                                      List<Natural_join_column> *left_tab_col,
+                                      List<Natural_join_column> *right_tab_col)
 {
   /*
     It's a NATURAL JOIN so the number of columns from the left table better
     match the number from the right table.
   */
-  DBUG_ASSERT(left_join_columns->elements == right_join_columns->elements);
+  DBUG_ASSERT(left_tab_col->elements == right_tab_col->elements);
 
   /*
     Walk the left table and right table columns in lock-step, creating a
@@ -7897,38 +7959,40 @@ void coalesce_natural_full_join(THD *thd,
     on the state of left_join_columns, so set the COALESCE() item instance
     on members of that list.
    */
-  List_iterator<Natural_join_column> left(*left_join_columns);
-  List_iterator<Natural_join_column> right(*right_join_columns);
-  Natural_join_column *left_col= left++;
-  Natural_join_column *right_col= right++;
-  while (!left.at_end() && !right.at_end())
+  List_iterator<Natural_join_column> left(*left_tab_col);
+  List_iterator<Natural_join_column> right(*right_tab_col);
+  Natural_join_column *left_col= nullptr;
+  Natural_join_column *right_col= nullptr;
+  while ((left_col= left++) && (right_col= right++))
   {
     /*
       When an operand is itself a NATURAL FULL JOIN its common column is the
-      COALESCE built for that join.  Nest it so a chain such as
+      COALESCE built for that join.  coalesce_items() flattens such operands
+      so a chain such as
         (t1 natural full join t2) natural full join t3
       yields
-        COALESCE(COALESCE(t1.x, t2.x), t3.x)
+        COALESCE(t1.x, t2.x, t3.x)
+      rather than a nested COALESCE(COALESCE(t1.x, t2.x), t3.x).
+
+      TODO (future improvement):
+        Create a new function 'coalesce_items()'.  If first item is of
+        type Item_func_coalesce() then just add the item to the arg list
+        otherwise call Item_func_coalesce(thd, a, b);
     */
-    Item *left_field= left_col->natural_full_join_field ?
-                      (Item*) left_col->natural_full_join_field :
-                      left_col->get_item();
-    Item *right_field= right_col->natural_full_join_field ?
-                       (Item*) right_col->natural_full_join_field :
-                       right_col->get_item();
-    Item_func_coalesce *coal= new (thd->mem_root) Item_func_coalesce
-      (thd, left_field, right_field);
-    DBUG_ASSERT(coal);
+    Item *left_field=  left_col->get_item();
+    Item *right_field= right_col->get_item();
+    Item_func_coalesce *coal= coalesce_items(thd, left_field, right_field);
+    if (!coal)
+      return TRUE;  // out of memory
 
     // Makes the field `COALESCE(left, right) AS left`.
     coal->set_name(thd, left_field->name);
 
     // Save the result into the set of left_join_columns.
     left_col->natural_full_join_field= coal;
-
-    left_col= left++;
-    right_col= right++;
   }
+
+  return FALSE;
 }
 
 
@@ -7998,9 +8062,16 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
+      /*
+        Push the left column and its matching partner from table_ref_2 in
+        lock-step so the two lists stay aligned by name regardless of the
+        column order in the second table.  The partner's is_common is reset
+        below, in the loop over table_ref_2.
+      */
       left_join_columns->push_back(nj_col_1, thd->mem_root);
-      /* Reset the common columns for the next call to mark_common_columns. */
-      nj_col_1->is_common= FALSE;
+      right_join_columns->push_back(nj_col_1->is_common, thd->mem_root);
+      /* Reset the common column for the next call to mark_common_columns. */
+      nj_col_1->is_common= nullptr;
     }
     else
       non_join_columns->push_back(nj_col_1, thd->mem_root);
@@ -8045,10 +8116,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
       non_join_columns->push_back(nj_col_2, thd->mem_root);
     else
     {
-      right_join_columns->push_back(nj_col_2, thd->mem_root);
-
-      /* Reset the common columns for the next call to mark_common_columns. */
-      nj_col_2->is_common= FALSE;
+      /* Reset the common column for the next call to mark_common_columns. */
+      nj_col_2->is_common= nullptr;
     }
   }
 
@@ -8057,8 +8126,9 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     columns from the two joined tables.
   */
   if ((table_ref_1->outer_join & JOIN_TYPE_FULL) &&
-      (table_ref_2->outer_join & JOIN_TYPE_FULL))
-    coalesce_natural_full_join(thd, left_join_columns, right_join_columns);
+      (table_ref_2->outer_join & JOIN_TYPE_FULL) &&
+      coalesce_natural_full_join(thd, left_join_columns, right_join_columns))
+    goto err;
 
   if (non_join_columns->elements > 0)
     left_join_columns->append(non_join_columns);
