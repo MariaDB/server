@@ -510,7 +510,7 @@ public:
   const uint M;
   metric_type metric;
   bool use_subdist;
-  bool bulk_active;
+  bool bulk_active=false;
   MHNSW_Share(TABLE *t)
     : tref_len(t->file->ref_length), gref_len(t->hlindex->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
@@ -1527,9 +1527,8 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
 
   bulk->estimated_rows= rows;
   if (my_init_dynamic_array(PSI_INSTRUMENT_MEM, &bulk->nodes, sizeof(FVectorNode*),
-                            rows + rows * 0.1, rows, MYF(0)))
+                            rows + rows / 10, rows, MYF(0)))
   {
-    delete bulk;
     return HA_ERR_OUT_OF_MEM;
   }
 
@@ -1537,10 +1536,13 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
   {
     delete_dynamic(&bulk->nodes);
-    delete bulk;
     return err;
   }
 
+  if (bulk->ctx->vec_len == 0)
+    bulk->ctx->set_lengths(keyinfo->key_part->field->field_length);
+
+  DBUG_ASSERT(!bulk->ctx->start);
   bulk->ctx->bulk_active= 1;
   bulk->current_max_layer= 0;
   table->hlindex->context= bulk;
@@ -1599,8 +1601,11 @@ int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
 
 int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
 {
-  THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
+  if (!graph->context)
+    return 0;
+
+  THD *thd= table->in_use;
   MHNSW_Bulk_context *bulk= (MHNSW_Bulk_context*)graph->context;
 
   DBUG_ASSERT(graph);
@@ -1668,6 +1673,11 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   }
 
   graph->file->ha_start_bulk_insert(bulk->nodes.elements, 0);
+  bool bulk_base_started= true;
+  SCOPE_EXIT([graph, &bulk_base_started](){
+    if (bulk_base_started)
+      graph->file->ha_end_bulk_insert();
+  });
 
   for (uint i= 0; i < bulk->nodes.elements; i++)
   {
@@ -1676,6 +1686,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
       return err;
   }
 
+  bulk_base_started= false;
   if (int err= graph->file->ha_end_bulk_insert())
     return err;
 
