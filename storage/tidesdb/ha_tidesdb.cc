@@ -2549,7 +2549,9 @@ static TYPELIB log_level_typelib = {array_elements(log_level_names) - 1, "log_le
 
 static MYSQL_SYSVAR_ULONG(flush_threads, srv_flush_threads,
                           PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-                          "Number of TidesDB flush threads", NULL, NULL, 4, 1, 64, 0);
+                          "Number of TidesDB flush threads.  0 lets the library auto-size the "
+                          "shared flush pool to min(CPU count, 4) at open",
+                          NULL, NULL, 4, 0, 64, 0);
 
 static MYSQL_SYSVAR_ULONG(max_concurrent_flushes, srv_max_concurrent_flushes,
                           PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -2645,8 +2647,9 @@ static MYSQL_SYSVAR_ULONGLONG(block_cache_size, srv_block_cache_size,
 
 static MYSQL_SYSVAR_ULONG(max_open_sstables, srv_max_open_sstables,
                           PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-                          "Max cached SSTable structures in LRU cache", NULL, NULL, 256, 1, 65536,
-                          0);
+                          "Max cached SSTable structures in LRU cache.  0 means unlimited, "
+                          "bounded only by the process open-file limit",
+                          NULL, NULL, 256, 0, 65536, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(max_memory_usage, srv_max_memory_usage,
                               PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
