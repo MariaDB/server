@@ -2,9 +2,12 @@ drop table if exists t1;
 #
 # MDEV-32884 Make s3_debug dynamic
 #
+set @save_s3_debug=@@global.s3_debug;
 create or replace table t1 (a int, b int, c varchar(1000), key (a), key(c)) engine=aria;
 insert into t1 select seq, seq+10, repeat(char(65+ mod(seq, 20)),mod(seq,1000)) from seq_1_to_100;
+create table t2 as select * from t1;
 alter table t1 engine=s3;
+alter table t2 engine=s3;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -17,16 +20,17 @@ t1	CREATE TABLE `t1` (
 select count(*) from t1;
 count(*)
 100
-flush table t1;
-NOT FOUND /s3_test_/ in mysqld.1.err
+flush table t1, t2;
+NOT FOUND matches in mysqld.1.err
 set @@global.s3_debug=1;
 select count(*) from t1;
 count(*)
 100
 set @@global.s3_debug=0;
-FOUND 8 /s3_test_/ in mysqld.1.err
-select count(*) from t1;
+FOUND NUMBER matches in mysqld.1.err
+select count(*) from t2;
 count(*)
 100
-drop table t1;
-FOUND 8 /s3_test_/ in mysqld.1.err
+drop table t1, t2;
+NOT FOUND matches in mysqld.1.err
+set @@global.s3_debug=@save_s3_debug;
