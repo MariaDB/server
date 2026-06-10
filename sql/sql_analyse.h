@@ -1,7 +1,8 @@
 #ifndef SQL_ANALYSE_INCLUDED
 #define SQL_ANALYSE_INCLUDED
 
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +21,7 @@
 /* Analyse database */
 
 #include "procedure.h"                          /* Procedure */
+#include "sql_tree.h"
 
 #define my_thd_charset	default_charset_info
 
@@ -61,7 +63,12 @@ int compare_ulonglong2(void *, const void *s, const void *t);
 int compare_decimal2(void *len, const void *s, const void *t);
 Procedure *proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 			     List<Item> &field_list);
-int free_string(void* str, TREE_FREE, void*);
+
+struct DecimalKey
+{
+  uchar data[DECIMAL_MAX_FIELD_SIZE];
+};
+
 class analyse;
 
 class field_info :public Sql_alloc
@@ -70,7 +77,6 @@ protected:
   ulong   treemem, tree_elements, empty, nulls, min_length, max_length;
   uint	  room_in_tree;
   bool found;
-  TREE	  tree;
   Item	  *item;
   analyse *pc;
 
@@ -79,19 +85,20 @@ public:
     nulls(0), min_length(0), max_length(0), room_in_tree(1),
     found(0),item(a), pc(b) {};
 
-  virtual ~field_info() { delete_tree(&tree, 0); }
+  virtual ~field_info() = default;
   virtual void	 add() = 0;
   virtual void	 get_opt_type(String*, ha_rows) = 0;
   virtual String *get_min_arg(String *) = 0;
   virtual String *get_max_arg(String *) = 0;
   virtual String *avg(String*, ha_rows) = 0;
   virtual String *std(String*, ha_rows) = 0;
-  virtual tree_walk_action collect_enum() = 0;
+  virtual void   walk_tree(TREE_INFO *) = 0;
+  virtual uint   tree_size() const = 0;
   virtual uint decimals() { return 0; }
   friend  class analyse;
 };
 
-int collect_string(void *element, element_count count, void *info);
+int collect_string(const String &element, element_count count, TREE_INFO &info);
 
 int sortcmp2(void *, const void *a, const void *b);
 
@@ -103,17 +110,16 @@ class field_str :public field_info
 	      can_be_still_num;
   NUM_INFO    num_info;
   EV_NUM_INFO ev_num_info;
+  Tree<String> tree;
 
 public:
-  field_str(Item* a, analyse* b) :field_info(a,b), 
+  field_str(Item* a, analyse* b) :field_info(a,b),
     min_arg("",0,default_charset_info),
     max_arg("",0,default_charset_info), sum(0),
     must_be_blob(0), was_zero_fill(0),
-    was_maybe_zerofill(0), can_be_still_num(1)
-    {
-      init_tree(&tree, 0, 0, sizeof(String), sortcmp2, free_string, NULL,
-                MYF(MY_THREAD_SPECIFIC));
-    };
+    was_maybe_zerofill(0), can_be_still_num(1),
+    tree(sortcmp2, nullptr, MYF(MY_THREAD_SPECIFIC))
+    {};
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -130,17 +136,18 @@ public:
 	     DEC_IN_AVG,my_thd_charset);
     return s;
   }
-  friend int collect_string(String *element, element_count count,
-			    TREE_INFO *info);
-  tree_walk_action collect_enum() override
-  { return collect_string; }
+  void   walk_tree(TREE_INFO *info) override;
+  uint   tree_size() const override { return tree.elements(); }
+  friend int collect_string(const String &element, element_count count,
+			    TREE_INFO &info);
   String *std(String *s __attribute__((unused)),
 	      ha_rows rows __attribute__((unused))) override
   { return (String*) 0; }
 };
 
 
-int collect_decimal(void *element, element_count count, void *info);
+int collect_decimal(const DecimalKey &element, element_count count,
+                    TREE_INFO &info);
 
 class field_decimal :public field_info
 {
@@ -148,42 +155,40 @@ class field_decimal :public field_info
   my_decimal sum[2], sum_sqr[2];
   int cur_sum;
   int bin_size;
+  Tree<DecimalKey, int> tree;
 public:
-  field_decimal(Item* a, analyse* b) :field_info(a,b)
-  {
-    bin_size= my_decimal_get_binary_size(a->max_length, a->decimals);
-    init_tree(&tree, 0, 0, bin_size, compare_decimal2, 0, (void *) &bin_size,
-              MYF(MY_THREAD_SPECIFIC));
-  };
+  field_decimal(Item* a, analyse* b) :field_info(a,b),
+    bin_size((int) my_decimal_get_binary_size(a->max_length, a->decimals)),
+    tree(compare_decimal2, &bin_size, MYF(MY_THREAD_SPECIFIC))
+  {};
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
   String *get_min_arg(String *) override;
   String *get_max_arg(String *) override;
   String *avg(String *s, ha_rows rows) override;
-  friend int collect_decimal(uchar *element, element_count count,
-                             TREE_INFO *info);
-  tree_walk_action collect_enum() override
-  { return collect_decimal; }
+  friend int collect_decimal(const DecimalKey &element, element_count count,
+                             TREE_INFO &info);
+  void   walk_tree(TREE_INFO *info) override;
+  uint   tree_size() const override { return tree.elements(); }
   String *std(String *s, ha_rows rows) override;
 };
 
 
-int collect_real(void *element, element_count count, void *info);
+int collect_real(const double &element, element_count count, TREE_INFO &info);
 
 class field_real: public field_info
 {
   double min_arg, max_arg;
   double sum, sum_sqr;
   uint	 max_notzero_dec_len;
+  Tree<double> tree;
 
 public:
   field_real(Item* a, analyse* b) :field_info(a,b),
-    min_arg(0), max_arg(0),  sum(0), sum_sqr(0), max_notzero_dec_len(0)
-    {
-      init_tree(&tree, 0, 0, sizeof(double), compare_double2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC));
-    }
+    min_arg(0), max_arg(0),  sum(0), sum_sqr(0), max_notzero_dec_len(0),
+    tree(compare_double2, nullptr, MYF(MY_THREAD_SPECIFIC))
+    {}
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -219,26 +224,26 @@ public:
     return s;
   }
   uint	 decimals() override { return item->decimals; }
-  friend int collect_real(double *element, element_count count,
-			  TREE_INFO *info);
-  tree_walk_action collect_enum() override
-  { return collect_real;}
+  void   walk_tree(TREE_INFO *info) override;
+  uint   tree_size() const override { return tree.elements(); }
+  friend int collect_real(const double &element, element_count count,
+			  TREE_INFO &info);
 };
 
-int collect_longlong(void *element, element_count count, void *info);
+int collect_longlong(const longlong &element, element_count count,
+                     TREE_INFO &info);
 
 class field_longlong: public field_info
 {
   longlong min_arg, max_arg;
   double sum, sum_sqr;
+  Tree<longlong> tree;
 
 public:
-  field_longlong(Item* a, analyse* b) :field_info(a,b), 
-    min_arg(0), max_arg(0), sum(0), sum_sqr(0.0)
-  {
-    init_tree(&tree, 0, 0, sizeof(longlong), compare_longlong2, NULL, NULL,
-              MYF(MY_THREAD_SPECIFIC));
-  }
+  field_longlong(Item* a, analyse* b) :field_info(a,b),
+    min_arg(0), max_arg(0), sum(0), sum_sqr(0.0),
+    tree(compare_longlong2, nullptr, MYF(MY_THREAD_SPECIFIC))
+  {}
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -265,26 +270,26 @@ public:
     }
     return s;
   }
-  friend int collect_longlong(longlong *element, element_count count,
-			      TREE_INFO *info);
-  tree_walk_action collect_enum() override
-  { return collect_longlong;}
+  void   walk_tree(TREE_INFO *info) override;
+  uint   tree_size() const override { return tree.elements(); }
+  friend int collect_longlong(const longlong &element, element_count count,
+			      TREE_INFO &info);
 };
 
-int collect_ulonglong(void *element, element_count count, void *info);
+int collect_ulonglong(const ulonglong &element, element_count count,
+                      TREE_INFO &info);
 
 class field_ulonglong: public field_info
 {
   ulonglong min_arg, max_arg;
   double sum, sum_sqr;
+  Tree<ulonglong> tree;
 
 public:
   field_ulonglong(Item* a, analyse * b) :field_info(a,b),
-    min_arg(0), max_arg(0), sum(0),sum_sqr(0)
-  {
-    init_tree(&tree, 0, 0, sizeof(ulonglong), compare_ulonglong2, NULL, NULL,
-              MYF(MY_THREAD_SPECIFIC));
-  }
+    min_arg(0), max_arg(0), sum(0),sum_sqr(0),
+    tree(compare_ulonglong2, nullptr, MYF(MY_THREAD_SPECIFIC))
+  {}
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
   String *get_min_arg(String *s) override { s->set(min_arg,my_thd_charset); return s; }
@@ -312,10 +317,10 @@ public:
     }
     return s;
   }
-  friend int collect_ulonglong(ulonglong *element, element_count count,
-			       TREE_INFO *info);
-  tree_walk_action collect_enum() override
-  { return collect_ulonglong; }
+  void   walk_tree(TREE_INFO *info) override;
+  uint   tree_size() const override { return tree.elements(); }
+  friend int collect_ulonglong(const ulonglong &element, element_count count,
+			       TREE_INFO &info);
 };
 
 
