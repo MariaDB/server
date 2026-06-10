@@ -20,7 +20,6 @@
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
-#include "sql_analyse.h"
 #include "spd_db_include.h"
 #include "spd_include.h"
 #include "spd_malloc.h"
