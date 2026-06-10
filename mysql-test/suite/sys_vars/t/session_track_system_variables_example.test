@@ -1,4 +1,5 @@
 --source include/have_example_plugin.inc
+--source include/not_embedded.inc
 
 --echo #
 --echo # MDEV-39207 plugin variables disappear from session_track_system_variables list
