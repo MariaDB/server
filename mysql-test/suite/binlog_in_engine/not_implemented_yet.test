@@ -32,3 +32,12 @@ COMMIT;
 SELECT * FROM t ORDER BY a;
 DROP TRIGGER tr;
 DROP TABLE t;
+
+--echo ### MDEV-39604: @@binlog_checksum is not used with new binlog.
+SET @old_checksum= @@GLOBAL.binlog_checksum;
+SET GLOBAL binlog_checksum=CRC32;
+SELECT @@GLOBAL.binlog_checksum;
+SET GLOBAL binlog_checksum=NONE;
+SELECT @@GLOBAL.binlog_checksum;
+SET GLOBAL binlog_checksum=@old_checksum;
+SELECT @@GLOBAL.binlog_checksum;

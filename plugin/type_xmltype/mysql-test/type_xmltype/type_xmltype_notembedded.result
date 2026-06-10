@@ -1,0 +1,61 @@
+#
+# MDEV-37262 XMLISVALID() schema validation function.
+#
+SET NAMES utf8;
+CREATE TABLE t1 (
+x XMLTYPE
+) CHARACTER SET utf8;
+INSERT INTO t1 VALUES ('<root> TEXT </root>');
+--------------
+SELECT * FROM t1
+--------------
+
+Field   1:  `x`
+Org_field:  `x`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       LONG_BLOB (type=xml)
+Collation:  latin1_swedish_ci (8)
+Length:     4294967295
+Max_length: 19
+Decimals:   0
+Flags:      BLOB 
+
+
++---------------------+
+| x                   |
++---------------------+
+| <root> TEXT </root> |
++---------------------+
+0 rows in set (TIME)
+
+Bye
+--------------
+SELECT CAST('<a></a>' AS XMLTYPE) as C
+--------------
+
+Field   1:  `C`
+Org_field:  ``
+Catalog:    `def`
+Database:   ``
+Table:      ``
+Org_table:  ``
+Type:       LONG_BLOB (type=xml)
+Collation:  latin1_swedish_ci (8)
+Length:     7
+Max_length: 7
+Decimals:   0
+Flags:      
+
+
++---------+
+| C       |
++---------+
+| <a></a> |
++---------+
+0 rows in set (TIME)
+
+Bye
+DROP TABLE t1;

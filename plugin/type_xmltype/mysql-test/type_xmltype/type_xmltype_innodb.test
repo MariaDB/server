@@ -1,0 +1,34 @@
+source include/have_innodb.inc;
+
+--echo #
+--echo # MDEV-39575 Protocol::end_statement(): Assertion `0' failed after insert into xmltype union of valid and invalid xml.
+--echo #
+
+CREATE TABLE t1(x XMLTYPE) Engine=InnoDB;
+--error ER_WRONG_VALUE
+INSERT INTO t1 SELECT '<a/>' UNION SELECT 'a';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET sql_mode='';
+CREATE TABLE t1(x XMLTYPE) Engine=InnoDB;
+--error ER_WRONG_VALUE
+INSERT INTO t1 SELECT '<a/>' UNION SELECT 'a';
+SELECT * FROM t1;
+DROP TABLE t1;
+set sql_mode=default;
+
+--echo #
+--echo # MDEV-39592 ALTER.. with xmltype silently overwrites row with prior rows data.
+--echo #
+SET sql_mode = '';
+CREATE TABLE t(id INT, s VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'<abc>aaaaaaaaaa</abc>'), (2,'a'), (3,'b'), (4,'<c/>');
+--error ER_WRONG_VALUE
+ALTER TABLE t MODIFY COLUMN s XMLTYPE;
+SELECT id, s FROM t;
+SHOW CREATE TABLE t;
+DROP TABLE t;
+SET sql_mode= default;
+
+--echo # End of 12.3 tests

@@ -1,0 +1,59 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+#
+# TODO : This would be correct way to test but as CREATE TABLE is TOI
+# exactly the same string is executed on node_2 also leading to problem
+# where t1.ibd file would be in same location on both node_1 and node_2
+# and this leads to fact that CREATE TABLE fails on node_2 as it
+# file already exists.
+#
+# EVAL create table t1(id int not null primary key, b varchar(32)) engine=innodb DATA DIRECTORY='$MYSQL_TMP_DIR';
+# insert into t1 SELECT seq, md5(rand()) from seq_1_to_50000;
+# --list_files $MYSQL_TMP_DIR/test
+# --list_files $MYSQLD_DATADIR/test
+
+create table t1(id int not null primary key, b varchar(32)) engine=InnoDB;
+insert into t1 SELECT seq, md5(rand()) from seq_1_to_50000;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 50000 FROM t1
+--source include/wait_condition.inc
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+# enforce SST
+--exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_5000 FROM t1;
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_5000 FROM t1;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+DROP TABLE t1;
+
+--source include/galera_end.inc

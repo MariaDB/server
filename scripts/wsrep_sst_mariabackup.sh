@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
 set -ue
-
-# Copyright (C) 2017-2024 MariaDB
+# For script debugging
+# set -uex
+#
+# Copyright (C) 2017-2025 MariaDB
 # Copyright (C) 2013 Percona Inc
 #
 # This program is free software; you can redistribute it and/or modify
@@ -84,6 +86,7 @@ STATDIR=""
 tmpopts=""
 itmpdir=""
 xtmpdir=""
+sstdir=""
 
 scomp=""
 sdecomp=""
@@ -279,7 +282,7 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -q0"
             fi
-            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $SST_PORT"
+            tcmd="$tcmd $(safe WSREP_SST_OPT_HOST_UNESCAPED) $SST_PORT"
         fi
     else
         tfmt='socat'
@@ -404,14 +407,14 @@ get_transfer()
                 # CA verification
                 verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
                 if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-                    CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                    CN_option=",commonname='$(safe WSREP_SST_OPT_REMOTE_USER)'"
                 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
                 then
                     CN_option=",commonname=''"
                 elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
                     CN_option=',commonname=localhost'
                 else
-                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
+                    CN_option=",commonname='$(safe WSREP_SST_OPT_HOST_UNESCAPED)'"
                 fi
                 tcmd="$tcmd,cert='$tpem',key='$tkey'"
                 if [ -n "$tcert" ]; then
@@ -757,11 +760,11 @@ cleanup_at_exit()
 
 setup_ports()
 {
-    SST_PORT="$WSREP_SST_OPT_PORT"
+    SST_PORT="$(safe WSREP_SST_OPT_PORT)"
     if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
-        REMOTEIP="$WSREP_SST_OPT_HOST"
-        lsn="$WSREP_SST_OPT_LSN"
-        sst_ver="$WSREP_SST_OPT_SST_VER"
+        REMOTEIP="$(safe WSREP_SST_OPT_HOST)"
+        lsn="$(safe WSREP_SST_OPT_LSN)"
+        sst_ver="$(safe WSREP_SST_OPT_SST_VER)"
     fi
 }
 
@@ -1315,14 +1318,23 @@ else # joiner
             fi
         fi
 
-        if [ -d "$DATA/.sst" ]; then
+	# If user has configured temporary sst directory use it
+	if [ -n "$WSREP_SST_OPT_TMP_DIR" ]; then
+	    sstdir="$WSREP_SST_OPT_TMP_DIR/.sst"
+	    wsrep_log_info "Using user configured SST directory $sstdir"
+	else
+	    sstdir="$DATA/.sst"
+	    wsrep_log_info "Using default SST directory $sstdir"
+	fi
+
+        if [ -d "$sstdir" ]; then
             wsrep_log_info \
                 "WARNING: Stale temporary SST directory:" \
-                "'$DATA/.sst' from previous state transfer, removing..."
-            rm -rf "$DATA/.sst"
+                "'$sstdir' from previous state transfer, removing..."
+            rm -rf "$sstdir"
         fi
-        mkdir -p "$DATA/.sst"
-        (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
+        mkdir -p "$sstdir"
+        (recv_joiner "$sstdir" "$stagemsg-SST" 0 0 0) &
         BACKUP_PID=$!
         wsrep_log_info "Proceeding with SST"
 
@@ -1383,7 +1395,7 @@ else # joiner
         [ -f "$DATA/mariadb_backup_binlog_pos_innodb" ] && rm -f "$DATA/mariadb_backup_binlog_pos_innodb"
 
         TDATA="$DATA"
-        DATA="$DATA/.sst"
+        DATA="$sstdir"
         MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
@@ -1543,6 +1555,7 @@ else # joiner
             cd "$OLD_PWD"
         fi
 
+        cd "$TDATA"
         MAGIC_FILE="$TDATA/$INFO_FILE"
         DONOR_MAGIC_FILE="$TDATA/$DONOR_INFO_FILE"
 

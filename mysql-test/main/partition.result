@@ -2960,4 +2960,53 @@ a	b	c	d
 2	NULL	NULL	NULL
 drop table t1,t2,t3,t4;
 # End of 11.0 tests
+#
+# MDEV-39535 Server crash or assertion failure upon HANDLER operations on a partitioned table
+#
+# original case 1
+CREATE TABLE t (pk YEAR PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY key (pk) PARTITIONS 2;
+INSERT INTO t VALUES (2001);
+SELECT * FROM t WHERE pk = 3000;
+pk
+HANDLER t OPEN;
+HANDLER t READ NEXT;
+pk
+2001
+HANDLER t READ `PRIMARY` PREV;
+pk
+HANDLER t READ `PRIMARY` PREV;
+pk
+DROP TABLE t;
+# original case 2
+CREATE TABLE t (pk YEAR PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY key (pk) PARTITIONS 2;
+INSERT INTO t VALUES (2001);
+SELECT * FROM t WHERE pk = 3000;
+pk
+HANDLER t OPEN;
+HANDLER t READ `PRIMARY` PREV;
+pk
+HANDLER t READ `PRIMARY` PREV;
+pk
+DROP TABLE t;
+# asc index prev
+CREATE TABLE t1 (a INT, KEY(a asc)) PARTITION BY HASH(a);
+HANDLER t1 OPEN h;
+HANDLER h READ a PREV;
+a
+HANDLER h READ a PREV;
+a
+HANDLER h CLOSE;
+DROP TABLE t1;
+# desc index prev
+CREATE TABLE t1 (a INT, KEY(a desc)) PARTITION BY HASH(a);
+HANDLER t1 OPEN h;
+HANDLER h READ a PREV;
+a
+HANDLER h READ a PREV;
+a
+HANDLER h CLOSE;
+DROP TABLE t1;
+# End of 12.3 tests
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

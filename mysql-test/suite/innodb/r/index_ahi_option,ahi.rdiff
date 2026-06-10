@@ -1,0 +1,67 @@
+--- index_ahi_option.result
++++ index_ahi_option,ahi.reject
+@@ -2,7 +2,7 @@
+ # Test InnoDB index-level adaptive_hash_index options
+ #
+ SET @start_global_value= @@global.innodb_adaptive_hash_index;
+-SET @combination_value= 'OFF';
++SET @combination_value= 'ON';
+ SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+ CREATE TABLE t1 (
+ id INT PRIMARY KEY,
+@@ -15,10 +15,10 @@
+ SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
+ CALL run_and_check_idx(240, 1, 't1');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -28,17 +28,17 @@
+ # No AHI used in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+ ALTER TABLE t1 adaptive_hash_index='ON', ALGORITHM=INSTANT, LOCK=NONE;
+ CALL run_and_check_idx(240, 1, 't1');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -60,7 +60,7 @@
+ SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+ CALL run_and_check_idx(240, 1, 't1');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ KILL con1_id;
+ connection con1;
+ Got one of the listed errors
+@@ -81,10 +81,10 @@
+ INSERT INTO t1_part SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_511;
+ CALL run_and_check_idx(240, 1, 't1_part');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_part');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_part');
+ result_msg
+ # No AHI used in SELECT (idx_3)

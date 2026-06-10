@@ -64,6 +64,7 @@ while ($len = sysread IBD_FILE, $chunk, 1024)
 close IBD_FILE;
 EOF
 
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/start_mysqld.inc
 
 --echo # Now t1 is corrupted but we should not crash

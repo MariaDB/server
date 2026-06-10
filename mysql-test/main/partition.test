@@ -3184,4 +3184,56 @@ drop table t1,t2,t3,t4;
 
 --echo # End of 11.0 tests
 
+--echo #
+--echo # MDEV-39535 Server crash or assertion failure upon HANDLER operations on a partitioned table
+--echo #
+--source include/have_innodb.inc
+
+--echo # original case 1
+
+CREATE TABLE t (pk YEAR PRIMARY KEY) ENGINE=InnoDB
+  PARTITION BY key (pk) PARTITIONS 2;
+INSERT INTO t VALUES (2001);
+
+SELECT * FROM t WHERE pk = 3000;
+HANDLER t OPEN;
+HANDLER t READ NEXT;
+HANDLER t READ `PRIMARY` PREV;
+HANDLER t READ `PRIMARY` PREV;
+
+DROP TABLE t;
+
+--echo # original case 2
+
+CREATE TABLE t (pk YEAR PRIMARY KEY) ENGINE=InnoDB
+  PARTITION BY key (pk) PARTITIONS 2;
+INSERT INTO t VALUES (2001);
+
+SELECT * FROM t WHERE pk = 3000;
+HANDLER t OPEN;
+HANDLER t READ `PRIMARY` PREV;
+HANDLER t READ `PRIMARY` PREV;
+
+DROP TABLE t;
+
+--echo # asc index prev
+
+CREATE TABLE t1 (a INT, KEY(a asc)) PARTITION BY HASH(a);
+HANDLER t1 OPEN h;
+HANDLER h READ a PREV;
+HANDLER h READ a PREV;
+HANDLER h CLOSE;
+DROP TABLE t1;
+
+--echo # desc index prev
+
+CREATE TABLE t1 (a INT, KEY(a desc)) PARTITION BY HASH(a);
+HANDLER t1 OPEN h;
+HANDLER h READ a PREV;
+HANDLER h READ a PREV;
+HANDLER h CLOSE;
+DROP TABLE t1;
+
+--echo # End of 12.3 tests
+
 --source include/test_db_charset_restore.inc

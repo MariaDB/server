@@ -349,7 +349,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
   {
-    if (!lex->describe && !lex->analyze_stmt)
+    if (!lex->has_returning() && !lex->describe && !lex->analyze_stmt)
       flags= 0;
     else
       flags= sp_head::MULTI_RESULTS; 

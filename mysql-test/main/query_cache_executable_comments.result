@@ -1,0 +1,172 @@
+#
+# MDEV-39421: Queries with executable comments gets in query
+# cache, but never hits.
+#
+# The lexer mutates the raw query buffer when:
+#   (a) a reversed comment /*!!NNNNNN ... */ is taken (digits -> spaces),
+#   (b) a forward or reversed comment is skipped (the '!' -> space).
+# With query_cache_strip_comments=OFF (default), thd->base_query points
+# into the same buffer the lexer mutates, so the lookup key (computed
+# before parsing) and store key (computed after) disagree and the entry
+# is inserted but never hit.
+#
+# Fix: in those two lexer sites, set lex->safe_to_cache_query=0 so the
+# query is not cached in the first place. Caching still occurs when
+# query_cache_strip_comments=ON.
+#
+SET @save_query_cache_type= @@global.query_cache_type;
+SET @save_query_cache_size= @@global.query_cache_size;
+SET GLOBAL query_cache_size= 1024*1024;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL  query_cache_type= ON;
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+#
+# Case 1: forward MySQL-compatible executable comment /*!NNNNNN ... */
+#
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT /*!50300 c1 */ FROM t1;
+SELECT /*!50300 c1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	1
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	1
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	1
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+1	SELECT /*!50300 c1 */ FROM t1
+#
+# Case 2: forward MariaDB-only executable comment /*M!NNNNNN ... */
+#
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT /*M!50300 c1 */ FROM t1;
+SELECT /*M!50300 c1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	2
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	2
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	1
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+1	SELECT /*M!50300 c1 */ FROM t1
+#
+# Case 3: reversed executable comment /*!!NNNNNN ... */
+# The lexer rewrites the version digits to spaces, so the query is
+# marked not safe to cache and no entry is stored.
+#
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT /*!!999999 c1 */ FROM t1;
+SELECT /*!!999999 c1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	2
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	2
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	0
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+#
+# Case 4: reversed MariaDB syntax executable comment /*M!!NNNNNN ... */
+# Same buffer mutation as case 3; not cached.
+#
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT /*M!!999999 c1 */ FROM t1;
+SELECT /*M!!999999 c1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	2
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	2
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	0
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+#
+# Case 5: forward executable comment /*!999999 ... */ where the version
+# is higher than the server, so the body is SKIPPED. The lexer
+# overwrites the leading '!' with a space; not cached.
+#
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT c1 /*!999999 + 1 */ FROM t1;
+SELECT c1 /*!999999 + 1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	2
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	2
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	0
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+#
+# Case 6: reversed executable comment /*!!100000 ... */ where the
+# version is <= the server, so the body is SKIPPED; not cached.
+#
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT c1 /*!!100000 + 1 */ FROM t1;
+SELECT c1 /*!!100000 + 1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	2
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	2
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	0
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+#
+# Case 7: with query_cache_strip_comments=ON, caching remains enabled. 
+#
+SET LOCAL query_cache_strip_comments= ON;
+RESET QUERY CACHE;
+FLUSH STATUS;
+SELECT /*!50300 c1 */ FROM t1;
+SELECT /*!50300 c1 */ FROM t1;
+SELECT /*!!999999 c1 */ FROM t1;
+SELECT /*!!999999 c1 */ FROM t1;
+SELECT c1 /*!999999 + 1 */ FROM t1;
+SELECT c1 /*!999999 + 1 */ FROM t1;
+SELECT c1 /*!!100000 + 1 */ FROM t1;
+SELECT c1 /*!!100000 + 1 */ FROM t1;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	6
+SHOW STATUS LIKE 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	6
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	4
+SELECT hits, statement_text FROM information_schema.query_cache_info;
+hits	statement_text
+1	SELECT /*!!999999 c1 */ FROM t1
+1	SELECT /*!50300 c1 */ FROM t1
+1	SELECT c1 /*!!100000 + 1 */ FROM t1
+1	SELECT c1 /*!999999 + 1 */ FROM t1
+SET LOCAL query_cache_strip_comments= OFF;
+DROP TABLE t1;
+SET GLOBAL query_cache_type= @save_query_cache_type;
+SET GLOBAL query_cache_size= @save_query_cache_size;

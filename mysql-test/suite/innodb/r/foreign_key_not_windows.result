@@ -29,3 +29,14 @@ RENAME TABLE `d255`.u TO u;
 DROP TABLE u;
 DROP DATABASE `d255`;
 # End of 10.3 tests
+#
+#  MDEV-24356 InnoDB: Failing assertion: len < sizeof(tmp_buff)
+#               in get_foreign_key_info
+#
+CREATE DATABASE `db_new..............................................end`;
+USE `db_new..............................................end`;
+SET STATEMENT foreign_key_checks=0 for
+CREATE TABLE t1(f1 INT UNSIGNED,f2 INT UNSIGNED,
+FOREIGN KEY (f2)REFERENCES t2 (f1))ENGINE=InnoDB;
+ALTER TABLE t1 FORCE;
+DROP DATABASE `db_new..............................................end`;

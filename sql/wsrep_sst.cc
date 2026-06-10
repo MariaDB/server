@@ -1,5 +1,5 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
-   Copyright (c) 2008, 2022, MariaDB
+/* Copyright (C) 2008, 2025 Codership Oy <http://www.codership.com>
+   Copyright (c) 2008, 2026, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@
 #include <cstdlib>
 #include "debug_sync.h"
 #include "my_rnd.h"
+#include <filesystem>
 
 #include <my_service_manager.h>
 
@@ -192,12 +193,24 @@ static bool filename_char(int const c)
   return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
 }
 
+/* return true if string is comma seprated list */
+static bool comma_char(int const c)
+{
+  return (c == ',');
+}
+
 /* return true if character can be a part of an address string */
 static bool address_char(int const c)
 {
   return filename_char(c) ||
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
 }
+
+/* return true if character can be a part of an address string list */
+static bool names_list(int const c)
+{
+  return address_char(c) || comma_char(c);
+}  
 
 static bool check_request_str(const char* const str,
                               bool (*check) (int c),
@@ -270,8 +283,19 @@ static void make_wsrep_defaults_file()
 
 bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  /* Allow empty value */
+  if (!var->save_result.string_value.str || var->save_result.string_value.length == 0)
+    return 0;
+
+  /* Check length */
+  if ((var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  {
+    goto err;
+  }
+
+  /* check also that address contains only accepted characters  */
+  if (check_request_str(var->save_result.string_value.str,
+                        address_char, false))
   {
     goto err;
   }
@@ -337,16 +361,29 @@ bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 {
-  if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN -1))) // safety
+  /* Check length */
+  if (!var->save_result.string_value.str ||
+      var->save_result.string_value.length > FN_REFLEN-1) // safety
+    goto err;
+
+  /* Allow empty value */
+  if (var->save_result.string_value.length == 0)
+    return 0;
+
+  /* check also that donor string contains only accepted characters  */
+  if (check_request_str(var->save_result.string_value.str,
+                        names_list, false))
   {
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
-             var->save_result.string_value.str ?
-             var->save_result.string_value.str : "NULL");
-    return 1;
+    goto err;
   }
 
   return 0;
+
+err:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+           var->save_result.string_value.str ?
+           var->save_result.string_value.str : "NULL");
+  return 1;
 }
 
 bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
@@ -573,8 +610,37 @@ static int generate_binlog_index_opt_val(char** ret)
   return 0;
 }
 
+/*
+  Generate sst_opt_tmp_dir string for sst_donate_other()
+
+  Returns zero on success, negative error code otherwise.
+
+  String containing wsrep_sst_tmp_dir is stored in param ret if configured,
+  otherwise empty string. Returned string should be
+  freed with my_free().
+ */
+static int generate_sst_opt_tmp_dir(char** ret)
+{
+  DBUG_ASSERT(ret);
+  *ret= NULL;
+  if (wsrep_sst_tmp_dir_real && strlen(wsrep_sst_tmp_dir_real))
+  {
+    *ret= generate_name_value(WSREP_SST_OPT_TMP_DIR,
+                              wsrep_sst_tmp_dir_real);
+    WSREP_INFO("Generate sst_tmp_dir = %s", *ret);
+  }
+  else
+  {
+    *ret= my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
+  }
+  if (!*ret) return -ENOMEM;
+  return 0;
+}
+
+
 // report progress event
-static void sst_report_progress(int const       from,
+static bool sst_report_progress(const bool      joiner,
+                                int const       from,
                                 long long const total_prev,
                                 long long const total,
                                 long long const complete)
@@ -584,12 +650,42 @@ static void sst_report_progress(int const       from,
   snprintf(buf, buf_len,
            "{ \"from\": %d, \"to\": %d, \"total\": %lld, \"done\": %lld, "
            "\"indefinite\": -1 }",
-           from, WSREP_MEMBER_JOINED, total_prev + total, total_prev +complete);
-  WSREP_DEBUG("REPORTING SST PROGRESS: '%s'", buf);
+           from, WSREP_MEMBER_JOINED, total_prev + total, total_prev + complete);
+
+  if (joiner)
+  {
+    const char *path = (wsrep_sst_tmp_dir_real && strlen(wsrep_sst_tmp_dir_real) != 0) ?
+      wsrep_sst_tmp_dir_real : mysql_real_data_home_ptr;
+
+    const std::filesystem::path p(path);
+    std::error_code ec;
+    std::filesystem::space_info si = std::filesystem::space(p, ec);
+    constexpr std::uintmax_t failed(-1);
+    if (si.available == failed)
+      si.available= 0;
+
+    const unsigned long long requested= total + total_prev;
+
+    WSREP_INFO("Requested total size %llu space available %llu in path %s",
+               total, (unsigned long long)si.available, path);
+
+    if (requested >= si.available)
+    {
+      WSREP_ERROR("Target path %s does not have enough available space for"
+		  " SST data available: %llu bytes < requested total %llu bytes ",
+		  path, (unsigned long long)si.available, requested);
+      return true;
+    }
+  }
+
+  WSREP_INFO("SST in progress '%s'", buf);
+
+  return false;
 }
 
 // process "complete" event from SST script feedback
-static void sst_handle_complete(const char* const input,
+static bool sst_handle_complete(const bool        joiner,
+                                const char* const input,
                                 long long const   total_prev,
                                 long long*        total,
                                 long long*        complete,
@@ -601,12 +697,14 @@ static void sst_handle_complete(const char* const input,
   {
     *complete= x;
     if (*complete > *total) *total= *complete;
-    sst_report_progress(from, total_prev, *total, *complete);
+    return sst_report_progress(joiner, from, total_prev, *total, *complete);
   }
+  return false;
 }
 
 // process "total" event from SST script feedback
-static void sst_handle_total(const char* const input,
+static bool sst_handle_total(const bool        joiner,
+			     const char* const input,
                              long long*        total_prev,
                              long long*        total,
                              long long*        complete,
@@ -620,8 +718,9 @@ static void sst_handle_total(const char* const input,
     *total_prev+= *total;
     *total= x;
     *complete= 0;
-    sst_report_progress(from, *total_prev, *total, *complete);
+    return sst_report_progress(joiner, from, *total_prev, *total, *complete);
   }
+  return false;
 }
 
 struct sst_thread_init
@@ -722,13 +821,21 @@ static void* sst_joiner_thread (void* a)
 
       if (!strncasecmp (tmp, magic_complete, complete_len))
       {
-        sst_handle_complete(tmp + complete_len, total_prev, &total, &complete,
-                            from);
+        if (sst_handle_complete(true, tmp + complete_len, total_prev,
+                                &total, &complete, from))
+        {
+          err = 1;
+          goto err;
+        }
         goto wait_signal;
       }
       else if (!strncasecmp (tmp, magic_total, total_len))
       {
-        sst_handle_total(tmp + total_len, &total_prev, &total, &complete, from);
+        if (sst_handle_total(true, tmp + total_len, &total_prev, &total, &complete, from))
+        {
+          err = 1;
+          goto err;
+        }
         goto wait_signal;
       }
     }
@@ -1170,6 +1277,7 @@ static ssize_t sst_prepare_other (const char*  method,
 
   char* binlog_opt_val= NULL;
   char* binlog_index_opt_val= NULL;
+  char* sst_tmp_dir=NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
@@ -1187,6 +1295,14 @@ static ssize_t sst_prepare_other (const char*  method,
     return ret;
   }
 
+  if ((ret= generate_sst_opt_tmp_dir(&sst_tmp_dir)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_sst_opt_tmp_dir() failed %d",
+                ret);
+    if (sst_tmp_dir) my_free(sst_tmp_dir);
+    return ret;
+  }
+
   make_wsrep_defaults_file();
 
   ret= snprintf (cmd_str(), cmd_len,
@@ -1198,15 +1314,18 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_PARENT " %d "
                  WSREP_SST_OPT_PROGRESS " %d"
                  "%s"
+                 "%s"
                  "%s",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
                  (int)getpid(),
                  wsrep_debug ? 1 : 0,
-                 binlog_opt_val, binlog_index_opt_val);
+                 binlog_opt_val, binlog_index_opt_val,
+                 sst_tmp_dir);
 
   my_free(binlog_opt_val);
   my_free(binlog_index_opt_val);
+  my_free(sst_tmp_dir);
 
   if (ret < 0 || size_t(ret) >= cmd_len)
   {
@@ -1975,9 +2094,9 @@ static int sst_flush_tables(THD* thd)
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
     char *real_name= (char*) my_malloc(key_memory_WSREP, full_len, 0);
-    sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
+    snprintf(real_name, full_len, "%s/%s", mysql_real_data_home, base_name);
     char *tmp_name= (char*) my_malloc(key_memory_WSREP, full_len + 4, 0);
-    sprintf(tmp_name, "%s.tmp", real_name);
+    snprintf(tmp_name, full_len + 4, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
     if (0 == file)
@@ -2102,13 +2221,13 @@ wait_signal:
 
       if (!strncasecmp (out, magic_complete, complete_len))
       {
-        sst_handle_complete(out + complete_len, total_prev, &total, &complete,
+        sst_handle_complete(false, out + complete_len, total_prev, &total, &complete,
                             from);
         goto wait_signal;
       }
       else if (!strncasecmp (out, magic_total, total_len))
       {
-        sst_handle_total(out + total_len, &total_prev, &total, &complete, from);
+        sst_handle_total(false, out + total_len, &total_prev, &total, &complete, from);
         goto wait_signal;
       }
       else if (!strcasecmp (out, magic_flush))

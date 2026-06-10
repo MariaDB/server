@@ -16,6 +16,19 @@
 #ifndef PASSWORD_INCLUDED
 #define PASSWORD_INCLUDED
 
+/*
+  SCRAMBLE_LENGTH_323 and SCRAMBLED_PASSWORD_CHAR_LENGTH_323 may
+  already be defined via mysql_com.h. Define them here as well so
+  that translation units which do not include mysql_com.h (e.g.
+  mariadb-install-db via libmariadb headers) can still use them.
+*/
+#ifndef SCRAMBLE_LENGTH_323
+#define SCRAMBLE_LENGTH_323 8
+#endif
+#ifndef SCRAMBLED_PASSWORD_CHAR_LENGTH_323
+#define SCRAMBLED_PASSWORD_CHAR_LENGTH_323 (SCRAMBLE_LENGTH_323 * 2)
+#endif
+
 C_MODE_START
 
 void my_make_scrambled_password_323(char *to, const char *password,

@@ -618,7 +618,7 @@ while ($commands != '')
     --connection server_1
     --source include/show_binlog_events.inc
     sync_slave_with_master;
-    --let $n= $6
+    --let $n= 6
     while ($n)
     {
       connection master;

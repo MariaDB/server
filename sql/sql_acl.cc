@@ -1756,7 +1756,7 @@ class User_table_json: public User_table
     const char *value_start;
     if (get_value(key, JSV_STRING, &value_start, &value_len))
       return "";
-    char *ptr= (char*)alloca(value_len);
+    char *ptr= (char*)my_safe_alloca(value_len);
     if (!ptr)
       return NULL;
     int len= json_unescape(m_table->field[2]->charset(),
@@ -1764,9 +1764,9 @@ class User_table_json: public User_table
                            (const uchar*)value_start + value_len,
                            system_charset_info,
                            (uchar*)ptr, (uchar*)ptr + value_len);
-    if (len < 0)
-      return NULL;
-    return strmake_root(root, ptr, len);
+    const char *js= len < 0 ? NULL : strmake_root(root, ptr, len);
+    my_safe_afree(ptr, value_len);
+    return js;
   }
   longlong get_int_value(const char *key, longlong def_val= 0) const
   {
@@ -4358,8 +4358,8 @@ bool change_password(THD *thd, LEX_USER *user)
   result= acl_cache_is_locked= 0;
   if (mysql_bin_log.is_open())
   {
-    query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-           user->user.str, safe_str(user->host.str), auth.auth_string.str);
+    query_length= snprintf(buff, sizeof(buff), "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
+            user->user.str, safe_str(user->host.str), auth.auth_string.str);
     DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
@@ -4431,8 +4431,9 @@ int acl_set_default_role(THD *thd,
       (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
   {
     query_length=
-      sprintf(buff,"SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
-              safe_str(rolename.str), user.str, safe_str(host.str));
+      snprintf(buff, sizeof(buff),
+               "SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
+               safe_str(rolename.str), user.str, safe_str(host.str));
   }
 
   /*
@@ -9198,7 +9199,7 @@ bool check_routine_level_acl(THD *thd, privilege_t acl,
                                          NULL, db,
                                          sctx->priv_role,
                                          name, sph, 0)))
-      no_routine_acl= !(grant_proc->privs & SHOW_PROC_WITHOUT_DEFINITION_ACLS);
+      no_routine_acl= !(grant_proc->privs & acl);
   }
   mysql_rwlock_unlock(&LOCK_grant);
   return no_routine_acl;
@@ -14208,10 +14209,36 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     Cast *passwd to an unsigned char, so that it doesn't extend the sign for
     *passwd > 127 and become 2**32-127+ after casting to uint.
   */
-  uint passwd_len= (thd->client_capabilities & CLIENT_SECURE_CONNECTION ?
-                    (uchar) (*passwd++) : (uint)strlen(passwd));
-
-  db+= passwd_len + 1;
+  size_t passwd_len;
+  if (!(thd->client_capabilities & CLIENT_SECURE_CONNECTION))
+  {
+    passwd_len= strlen(passwd);
+    db= passwd + passwd_len + 1;  /* +1 to skip null terminator */
+  }
+  else
+  {
+    if (thd->client_capabilities & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA)
+    {
+      ulonglong len= safe_net_field_length_ll((uchar**)&passwd,
+                                              end - passwd);
+      if (!passwd || len > (ulonglong)(end - passwd))
+      {
+        my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+                   MYF(0));
+        DBUG_RETURN(1);
+      }
+      passwd_len= (size_t)len;
+    }
+    else
+      passwd_len= (uchar)(*passwd++);
+    if (passwd_len > (size_t)(end - passwd))
+    {
+      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
+                 MYF(0));
+      DBUG_RETURN(1);
+    }
+    db= passwd + passwd_len;
+  }
   /*
     Database name is always NUL-terminated, so in case of empty database
     the packet must contain at least the trailing '\0'.
@@ -14314,7 +14341,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     read_packet()
   */
   mpvio->cached_client_reply.pkt= passwd;
-  mpvio->cached_client_reply.pkt_len= passwd_len;
+  mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
   mpvio->cached_client_reply.plugin= client_plugin;
   mpvio->status= MPVIO_EXT::RESTART;
 #endif

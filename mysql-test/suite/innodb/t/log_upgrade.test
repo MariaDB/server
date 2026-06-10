@@ -16,6 +16,7 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/log_upgrade;
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 --let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+--let $dirs=$dirs --skip-innodb-log-archive
 
 --echo #
 --echo # MDEV-24412 InnoDB: Upgrade after a crash is not supported

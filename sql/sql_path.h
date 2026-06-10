@@ -94,7 +94,7 @@ private:
   Lex_ident_db resolve_current_schema(THD *thd, sp_head *caller, size_t i) const;
   /*
     Helper function to try resolving a routine in a specific schema.
-    Returns true if error occured.
+    Returns true if error occurred.
   */
   bool try_resolve_in_schema(THD *thd, const Lex_ident_db_normalized &schema,
                              sp_name *name, const Sp_handler **sph,

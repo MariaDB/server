@@ -1,6 +1,8 @@
 --source include/have_binlog_format_row.inc
 --source include/have_innodb_binlog.inc
 
+--let $datadir= `SELECT @@datadir`
+
 CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=InnoDB;
 
 --echo *** Test restarting the server on an existing binlog
@@ -61,3 +63,15 @@ evalp INSERT INTO t1 VALUES (8, 0, REPEAT('&', $length));
 --source include/restart_mysqld.inc
 
 DROP TABLE t1;
+
+--echo *** Test restarting on malicious binlog file with invalid chunk_len
+RESET MASTER;
+--source include/shutdown_mysqld.inc
+--remove_file $datadir/binlog-000000.ibb
+--remove_file $datadir/binlog-000001.ibb
+--copy_file std_data/corrupt-chunk-len_binlog-000000.ibb $datadir/binlog-000000.ibb
+--copy_file std_data/corrupt-chunk-len_binlog-000001.ibb $datadir/binlog-000001.ibb
+--source include/start_mysqld.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+SHOW BINLOG EVENTS IN 'binlog-000000.ibb';
+CALL mtr.add_suppression("InnoDB: Corrupt binlog found on page 1 in binlog number 0: Invalid chunk length");

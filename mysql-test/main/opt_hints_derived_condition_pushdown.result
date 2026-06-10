@@ -439,7 +439,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -536,7 +536,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -634,7 +634,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -730,7 +730,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -1654,7 +1654,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -1751,7 +1751,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -1847,7 +1847,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {
@@ -1945,7 +1945,7 @@ EXPLAIN
             "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0"
           },
           "buffer_type": "flat",
-          "buffer_size": "8Kb",
+          "buffer_size": "8KiB",
           "join_type": "BNL",
           "attached_condition": "du.a MOD 10 <> 0 or du.a MOD 5 <> 0",
           "materialized": {

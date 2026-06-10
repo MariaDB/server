@@ -716,10 +716,24 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
             continue;
           }
         }
+        continue;
       }
-      continue;
     }
 
+    /*
+      Skip non-alphanumeric separators in the input before parsing each
+      format token. This allows extra or mismatched separators in the value,
+      matching Oracle's flexible parsing behaviour.
+      Preserve a leading '-' or '+' when the format is SYYYY and it is
+      followed by a digit, so signed years are parsed correctly.
+    */
+    while (val < val_end && !my_isalnum(val_cs, *val))
+    {
+      if ((*val == '-' || *val == '+') && format == FMT_SYYYY &&
+          (val + 1 < val_end) && my_isdigit(val_cs, *(val + 1)))
+        break;
+      val++;
+    }
     error= 0;
     if (!(val_len= (uint) (val_end - val)))
       goto error;
@@ -728,13 +742,26 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
       /* Year */
     case FMT_YYYY:
     case FMT_SYYYY:
-      tmp= (char*) val + MY_MIN(4, val_len);
+    {
+      uint max_len= 4;
+      if (format == FMT_SYYYY && (*val == '-' || *val == '+'))
+      {
+        max_len= 5;
+        const char *temp_val = val + 1;
+        while (temp_val < val_end && my_isspace(val_cs, *temp_val))
+        {
+          temp_val++;
+          max_len++;
+        }
+      }
+      tmp= (char*) val + MY_MIN(max_len, val_len);
       l_time->year= (int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error);
       if (part_of_digits && (tmp-val) != 4)
         goto error;
       val= tmp;
       part_of_digits= 1;
       break;
+    }
     case FMT_YYY:
       tmp= (char*) val + MY_MIN(3, val_len);
       l_time->year= ((int) val_cs->cset->strtoll10(val_cs, val, &tmp, &error) +
@@ -969,6 +996,12 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
   if (check_date(l_time, fuzzydate, &was_cut))
     goto error;
 
+  /* Consume trailing non-alphanumeric chars to avoid false "truncated" warnings */
+  while (val < val_end && !my_isalnum(val_cs, *val))
+  {
+    val++;
+  }
+
   if (val != val_end)
   {
     /* There was more data than the format allowed.
@@ -987,7 +1020,7 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
         make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                      &err, l_time->time_type,
                                      nullptr, nullptr, nullptr);
-	break;
+        break;
       }
     } while (++val != val_end);
   }
@@ -1176,11 +1209,12 @@ static bool make_date_time(Time_zone *tz, const String *format,
 	str->append(hours_i < 12 ? "AM" : "PM",2);
 	break;
       case 'r':
-	length= sprintf(intbuff, ((l_time->hour % 24) < 12) ?
-                    "%02d:%02d:%02d AM" : "%02d:%02d:%02d PM",
-		    (l_time->hour+11)%12+1,
-		    l_time->minute,
-		    l_time->second);
+	length= snprintf(intbuff, sizeof(intbuff),
+                     ((l_time->hour % 24) < 12) ?
+                     "%02d:%02d:%02d AM" : "%02d:%02d:%02d PM",
+		     (l_time->hour+11)%12+1,
+		     l_time->minute,
+		     l_time->second);
 	str->append(intbuff, length);
 	break;
       case 'S':
@@ -1188,8 +1222,8 @@ static bool make_date_time(Time_zone *tz, const String *format,
 	str->append_zerofill(l_time->second, 2);
 	break;
       case 'T':
-	length= sprintf(intbuff, "%02d:%02d:%02d",
-		    l_time->hour, l_time->minute, l_time->second);
+	length= snprintf(intbuff, sizeof(intbuff), "%02d:%02d:%02d",
+		     l_time->hour, l_time->minute, l_time->second);
 	str->append(intbuff, length);
 	break;
       case 'U':
@@ -3015,6 +3049,8 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       }
       else if (tmp1 == 'Y')
       {
+        if (for_to_date && formats_used(&used, FMT_DAY))
+          goto error;
         *tmp_fmt= FMT_DY;                       // Day name
         tmp_len+= 3;
         type_flags|= PARSE_TYPE_WEEKDAY | PARSE_TYPE_NON_DETERMINISTIC;
@@ -3022,6 +3058,8 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
       else if (tmp1 == 'A')
       {
         if (ptr + 2 == end || my_toupper(system_charset_info, *(ptr+2)) != 'Y')
+          goto error;
+        if (for_to_date && formats_used(&used, FMT_DAY))
           goto error;
         *tmp_fmt= FMT_DAY;                      // Day name
         tmp_len+= locale->max_day_name_length * my_charset_utf8mb3_bin.mbmaxlen;
@@ -4409,8 +4447,9 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
     check_time_range(ltime, decimals, &unused);
     char buf[28];
     char *ptr= longlong10_to_str(hour.value(), buf, hour.is_unsigned() ? 10 : -10);
-    int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u",
-                                         (uint) minute, (uint) sec.sec());
+    int len = (int)(ptr - buf) + snprintf(ptr, buf + sizeof(buf) - ptr,
+                                          ":%02u:%02u",
+                                          (uint) minute, (uint) sec.sec());
     ErrConvString err(buf, len, &my_charset_bin);
     thd->push_warning_truncated_wrong_value("time", err.ptr());
   }

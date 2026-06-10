@@ -229,3 +229,15 @@ SELECT 1 FROM dual WHERE group_concat(1, 1);
 select st_collect(1), st_collect(1) is null;
 
 --echo # End of 12.2 tests
+
+--echo #
+--echo # MDEV-39523 UBSAN on ST_COLLECT (has_cached_value)
+--echo #
+
+CREATE TABLE t (c INT);
+SELECT ST_COLLECT(c) FROM t;
+SELECT ST_ASTEXT(ST_ENVELOPE(ST_COLLECT(c))) FROM t;
+
+DROP TABLE t;
+
+--echo # End of 12.3 tests

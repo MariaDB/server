@@ -545,7 +545,9 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Determine interface version */
   if (!sym)
   {
-    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_interface_version_sym, dlpath);
+    if (!opt_silent_startup)
+      my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_interface_version_sym,
+               dlpath);
     DBUG_RETURN(TRUE);
   }
   plugin_dl->mariaversion= 0;
@@ -664,8 +666,9 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       Actually this branch impossible because in case of absence of maria
       version we try mysql version.
     */
-    my_error(ER_CANT_FIND_DL_ENTRY, MyFlags,
-             maria_plugin_interface_version_sym, dlpath);
+    if (!opt_silent_startup)
+      my_error(ER_CANT_FIND_DL_ENTRY, MyFlags,
+               maria_plugin_interface_version_sym, dlpath);
     DBUG_RETURN(TRUE);
   }
   plugin_dl->mariaversion= *(int *)sym;
@@ -779,7 +782,9 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
   /* Open new dll handle */
   if (!(plugin_dl.handle= dlopen(dlpath, RTLD_NOW)))
   {
-    my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, errno, my_dlerror(dlpath));
+    if (!opt_silent_startup)
+      my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, errno,
+               my_dlerror(dlpath));
     goto ret;
   }
   dlopen_count++;
@@ -822,7 +827,8 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
         my_snprintf(buf, sizeof(buf),
                     "service '%s' interface version mismatch",
                     list_of_services[i].name);
-        my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, ENOEXEC, buf);
+        if (!opt_silent_startup)
+          my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, ENOEXEC, buf);
         goto ret;
       }
       tmp_backup[plugin_dl.nbackups++].save(ptr);
@@ -1113,7 +1119,7 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
     Requires that a write-lock is held on LOCK_system_variables_hash
 */
 static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
-                       const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
+           const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
 {
   struct st_plugin_int tmp, *maybe_dupe;
   struct st_maria_plugin *plugin;
@@ -1153,7 +1159,7 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
     if (!name->str &&
         (maybe_dupe= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)))
     {
-      if (plugin->name != maybe_dupe->plugin->name)
+      if (plugin->name != maybe_dupe->plugin->name && !opt_silent_startup)
       {
         my_error(ER_UDF_EXISTS, MyFlags, plugin->name);
         DBUG_RETURN(INSTALL_FAIL_NOT_OK);
@@ -1190,10 +1196,11 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
     }
     else if (plugin_maturity_map[plugin->maturity] < SERVER_MATURITY_LEVEL)
     {
-      sql_print_warning("Plugin '%s' is of maturity level %s while the server is %s",
-        tmp.name.str,
-        plugin_maturity_names[plugin->maturity],
-        plugin_maturity_names[SERVER_MATURITY_LEVEL]);
+      if (!opt_silent_startup)
+        sql_print_warning("Plugin '%s' is of maturity level %s while the server is %s",
+                          tmp.name.str,
+                          plugin_maturity_names[plugin->maturity],
+                          plugin_maturity_names[SERVER_MATURITY_LEVEL]);
     }
 
     tmp.plugin= plugin;
@@ -1800,7 +1807,8 @@ int plugin_init(int *argc, char **argv, int flags)
     }
 
     /* load and init plugins from the plugin table (unless done already) */
-    if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE)
+    if (flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE ||
+        plugin_table_engine_name.length == 0)
       break;
 
     mysql_mutex_unlock(&LOCK_plugin);
@@ -1910,14 +1918,10 @@ static void plugin_load(MEM_ROOT *tmp_root)
   if (result)
   {
     DBUG_PRINT("error",("Can't open plugin table"));
-    if (!opt_help)
+    if (!opt_silent_startup)
       sql_print_error("Could not open mysql.plugin table: \"%s\". "
                       "Some plugins may be not loaded",
                       new_thd->get_stmt_da()->message());
-    else
-      sql_print_warning("Could not open mysql.plugin table: \"%s\". "
-                        "Some options may be missing from the help text",
-                        new_thd->get_stmt_da()->message());
     goto end;
   }
 
@@ -2003,8 +2007,10 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
 {
   char buffer[FN_REFLEN];
   LEX_CSTRING name= {buffer, 0}, dl= {NULL, 0}, *str= &name;
+  bool got_error= 0;
   char *p= buffer;
   DBUG_ENTER("plugin_load_list");
+
   while (list)
   {
     if (p == buffer + sizeof(buffer) - 1)
@@ -2018,9 +2024,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       list= NULL; /* terminate the loop */
       /* fall through */
     case ';':
-#ifndef _WIN32
-    case ':':     /* can't use this as delimiter as it may be drive letter */
-#endif
+    case ':':
       p[-1]= 0;
       if (str == &name)  // load all plugins in named module
       {
@@ -2065,16 +2069,23 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       str->length++;
       continue;
     }
-  }
-  DBUG_RETURN(FALSE);
+
 error:
-  mysql_mutex_unlock(&LOCK_plugin);
-  if (name.str)
-    sql_print_error("Couldn't load plugin '%s' from '%s'.",
-                    name.str, dl.str);
-  else
-    sql_print_error("Couldn't load plugins from '%s'.", dl.str);
-  DBUG_RETURN(TRUE);
+    got_error= 1;
+    mysql_mutex_unlock(&LOCK_plugin);
+    if (!opt_silent_startup)
+    {
+      if (name.str)
+        sql_print_error("Couldn't load plugin '%s' from '%s'.",
+                        name.str, dl.str);
+      else
+        sql_print_error("Couldn't load plugins from '%s'.", dl.str);
+    }
+    name.length= dl.length= 0;
+    dl.str= NULL; name.str= p= buffer;
+    str= &name;
+  }	// Continue with next plugin
+  DBUG_RETURN(got_error);
 }
 
 
@@ -2963,14 +2974,15 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
 ****************************************************************************/
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length,
-                      bool throw_error)
+                      bool throw_error, bool hash_already_locked)
 {
   sys_var *var;
   sys_var_pluginvar *pi;
   DBUG_ENTER("find_sys_var");
   DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
 
-  mysql_prlock_rdlock(&LOCK_system_variables_hash);
+  if (!hash_already_locked)
+    mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
@@ -2980,7 +2992,8 @@ sys_var *find_sys_var(THD *thd, const char *str, size_t length,
       var= NULL; /* failed to lock it, it must be uninstalling */
     mysql_mutex_unlock(&LOCK_plugin);
   }
-  mysql_prlock_unlock(&LOCK_system_variables_hash);
+  if (!hash_already_locked)
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
@@ -4059,12 +4072,13 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
 
       if (opt->flags & PLUGIN_VAR_NOCMDOPT)
       {
-        char *val= global_system_variables.dynamic_variables_ptr + offset;
+        char **val= (char**)(global_system_variables.dynamic_variables_ptr + offset);
         if (((opt->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_STR) &&
              (opt->flags & PLUGIN_VAR_MEMALLOC))
         {
           char *def_val= *(char**)var_def_ptr(opt);
-          *(char**)val= def_val ? my_strdup(PSI_INSTRUMENT_ME, def_val, MYF(0)) : NULL;
+          my_free(*val);
+          *val= def_val ? my_strdup(PSI_INSTRUMENT_ME, def_val, MYF(0)) : NULL;
         }
         else
           memcpy(val, var_def_ptr(opt), var_storage_size(opt->flags));
@@ -4200,9 +4214,14 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   struct st_bookmark *var;
   size_t len=0, count= EXTRA_OPTIONS;
   st_ptr_backup *tmp_backup= 0;
+  const char *plugin_name= tmp->plugin->name;
+  size_t plugin_name_len= strlen(plugin_name);
   DBUG_ENTER("test_plugin_options");
   DBUG_ASSERT(tmp->plugin && tmp->name.str);
 
+  char *plugin_name_ptr= static_cast<char*>(alloc_root(mem_root, plugin_name_len + 1));
+  safe_strcpy(plugin_name_ptr, plugin_name_len + 1, plugin_name);
+  my_casedn_str_latin1(plugin_name_ptr);
   if (tmp->plugin->system_vars || (*argc > 1))
   {
     for (opt= tmp->plugin->system_vars; opt && *opt; opt++)
@@ -4238,7 +4257,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         sys_var *v;
 
         tmp_backup[tmp->nbackups++].save(&o->name);
-        if ((var= find_bookmark(tmp->name.str, o->name, o->flags)))
+        if ((var= find_bookmark(plugin_name_ptr, o->name, o->flags)))
         {
           varname= var->key + 1;
           var->loaded= TRUE;

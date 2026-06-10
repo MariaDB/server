@@ -1778,3 +1778,18 @@ ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 HANDLER h CLOSE;
 DROP TABLE t1;
 # End of 10.2 Test
+#
+# MDEV-38806 Non-debug assertion failure in btr_pcur_t::restore_position upon HANDLER operations
+#
+CREATE TABLE t (id INT PRIMARY KEY, a BLOB) ENGINE=InnoDB PARTITION BY KEY(id);
+INSERT INTO t (id) VALUES (1),(2);
+HANDLER t OPEN;
+HANDLER t READ `PRIMARY` = (1);
+id	a
+1	NULL
+HANDLER t READ `PRIMARY` NEXT;
+id	a
+2	NULL
+HANDLER t CLOSE;
+DROP TABLE t;
+# End of 12.3 Test

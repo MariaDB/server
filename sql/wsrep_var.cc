@@ -1,4 +1,5 @@
-/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2026 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB plc <http://www.mariadb.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,6 +30,10 @@
 #include "wsrep_server_state.h"
 #include "wsrep_plugin.h" /* wsrep_provider_plugin_enabled() */
 #include "wsrep_schema.h"
+#include "wsrep_mysqld.h"
+
+#include <sys/types.h> // statinfo
+#include <sys/stat.h> // stat
 
 ulong   wsrep_reject_queries;
 
@@ -995,6 +1000,11 @@ bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
     return true;
   }
+  if (thd->wsrep_trx().active())
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP transaction is active", MYF(0));
+    return true;
+  }
   return false;
 }
 
@@ -1033,55 +1043,6 @@ bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
   return false;
 }
 
-#if UNUSED /* eaec266eb16c (Sergei Golubchik  2014-09-28) */
-static SHOW_VAR wsrep_status_vars[]=
-{
-  {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
-  {"ready",             (char*) &wsrep_show_ready,        SHOW_FUNC},
-  {"cluster_state_uuid",(char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
-  {"cluster_conf_id",   (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
-  {"cluster_status",    (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
-  {"cluster_size",      (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
-  {"local_index",       (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
-  {"local_bf_aborts",   (char*) &wsrep_show_bf_aborts,    SHOW_FUNC},
-  {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
-  {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
-  {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"provider_capabilities", (char*) &wsrep_provider_capabilities, SHOW_CHAR_PTR},
-  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
-  {"applier_thread_count", (char*)&wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
-  {"rollbacker_thread_count", (char *)&wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
-};
-
-static int show_var_cmp(const void *var1, const void *var2)
-{
-  return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
-}
-
-/*
- * Status variables stuff below
- */
-static inline void
-wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
-{
-  mysql->name= wsrep_var->name;
-  switch (wsrep_var->type) {
-  case WSREP_VAR_INT64:
-    mysql->value= (char*) &wsrep_var->value._int64;
-    mysql->type= SHOW_LONGLONG;
-    break;
-  case WSREP_VAR_STRING:
-    mysql->value= (char*) &wsrep_var->value._string;
-    mysql->type= SHOW_CHAR_PTR;
-    break;
-  case WSREP_VAR_DOUBLE:
-    mysql->value= (char*) &wsrep_var->value._double;
-    mysql->type= SHOW_DOUBLE;
-    break;
-  }
-}
-#endif /* UNUSED */
-
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.
 static SHOW_VAR*          mysql_status_vars= NULL;
@@ -1096,6 +1057,17 @@ static void export_wsrep_status_to_mysql(THD* thd)
   int wsrep_status_len, i;
 
   thd->wsrep_status_vars= Wsrep_server_state::instance().status();
+
+  /* Add wsrep_checkpoint_position and SE checkpoint */
+  wsrep::provider::status_variable checkpoint("checkpoint_position",
+					      wsrep_get_checkpoint());
+  thd->wsrep_status_vars.push_back(checkpoint);
+  XID xid;
+  wsrep_get_SE_checkpoint(xid);
+  const std::string se_checkpoint= wsrep_xid_print(&xid);
+  wsrep::provider::status_variable se_chkpoint("se_checkpoint",
+					       se_checkpoint);
+  thd->wsrep_status_vars.push_back(se_chkpoint);
 
   wsrep_status_len= thd->wsrep_status_vars.size();
 
@@ -1220,4 +1192,77 @@ bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
   }
 
   return false;
+}
+
+bool wsrep_max_ws_rows_check(sys_var *self, THD* thd, set_var* var)
+{
+  unsigned long long max_rows= (unsigned long long)var->save_result.ulonglong_value;
+
+  // Default 0 is always allowed
+  if (max_rows == 0)
+    return false;
+
+  // Note that we allow changing this even when WSREP is not on
+  if (thd->wsrep_trx().active())
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP transaction is active", MYF(0));
+    return true;
+  }
+  return false;
+}
+
+/** Function is used to check if user given sst temporary directory
+is valid. Function allows nullptr or empty string i.e. no directory
+given. If something real is given it must be an path that exists,
+short enough, path must be a directory and it must not be
+same as datadir. If proper path was not given actual used
+parameter value remains as nullptr. If proper path was given
+it is copied to wsrep_sst_tmp_dir_real and used on SST. */
+void wsrep_sst_tmp_dir_check(void)
+{
+  if (wsrep_sst_tmp_dir == nullptr || strlen(wsrep_sst_tmp_dir) == 0)
+    return; // DEFAULT is ok
+
+  if (strlen(wsrep_sst_tmp_dir) >= FN_REFLEN)
+  {
+    WSREP_ERROR("Option --wsrep-sst-tmp-dir value %s is too long", wsrep_sst_tmp_dir);
+    return;
+  }
+
+  struct stat statinfo;
+  int ret = stat(wsrep_sst_tmp_dir, &statinfo);
+
+  if (!ret)
+  {
+    /* path exists, ok */
+  } else  {
+    /* path does not exist */
+    WSREP_WARN("SST temporary path %s does not exists, path not used.",
+	       wsrep_sst_tmp_dir);
+    return;
+  }
+
+  if (!S_ISDIR(statinfo.st_mode))
+  {
+    WSREP_WARN("SST temporary path %s is not a directory, path not used.",
+	       wsrep_sst_tmp_dir);
+    return;
+  }
+
+  /* If path is almost same, do not allow it. */
+  struct stat datadir_stat;
+  if (stat(mysql_real_data_home_ptr, &datadir_stat) == 0)
+  {
+    if (statinfo.st_dev == datadir_stat.st_dev &&
+        statinfo.st_ino == datadir_stat.st_ino)
+    {
+      WSREP_WARN("SST temporary path %s is same prefix as datadir %s, path not used.",
+                 wsrep_sst_tmp_dir, mysql_real_data_home_ptr);
+      return;
+    }
+  }
+
+  wsrep_sst_tmp_dir_real= my_strdup(PSI_INSTRUMENT_ME, wsrep_sst_tmp_dir, MYF(0));
+  if (wsrep_sst_tmp_dir_real)
+    WSREP_INFO("SST temporary path set to %s", wsrep_sst_tmp_dir_real);
 }

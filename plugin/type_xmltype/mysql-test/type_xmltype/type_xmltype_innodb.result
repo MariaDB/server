@@ -1,0 +1,40 @@
+#
+# MDEV-39575 Protocol::end_statement(): Assertion `0' failed after insert into xmltype union of valid and invalid xml.
+#
+CREATE TABLE t1(x XMLTYPE) Engine=InnoDB;
+INSERT INTO t1 SELECT '<a/>' UNION SELECT 'a';
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+SELECT * FROM t1;
+x
+DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1(x XMLTYPE) Engine=InnoDB;
+INSERT INTO t1 SELECT '<a/>' UNION SELECT 'a';
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+SELECT * FROM t1;
+x
+DROP TABLE t1;
+set sql_mode=default;
+#
+# MDEV-39592 ALTER.. with xmltype silently overwrites row with prior rows data.
+#
+SET sql_mode = '';
+CREATE TABLE t(id INT, s VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'<abc>aaaaaaaaaa</abc>'), (2,'a'), (3,'b'), (4,'<c/>');
+ALTER TABLE t MODIFY COLUMN s XMLTYPE;
+ERROR HY000: Incorrect XMLTYPE value: 'a'
+SELECT id, s FROM t;
+id	s
+1	<abc>aaaaaaaaaa</abc>
+2	a
+3	b
+4	<c/>
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) DEFAULT NULL,
+  `s` varchar(100) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t;
+SET sql_mode= default;
+# End of 12.3 tests

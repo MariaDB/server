@@ -18,7 +18,7 @@ repeat(uuid(), 7)
 from seq_1_to_16384;
 commit;
 SET GLOBAL innodb_fast_shutdown=0;
-# restart
+# restart: --innodb-log-recovery-start=0
 set log_slow_verbosity='engine';
 set long_query_time=0.0;
 set @js='$analyze_output';

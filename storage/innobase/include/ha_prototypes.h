@@ -361,16 +361,6 @@ ATTRIBUTE_COLD
 void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
                      const dict_foreign_t& foreign);
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_foreign_warn(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*table_name,
-	const char	*format,/*!< in: warning message */
-	...);
-
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
@@ -388,11 +378,6 @@ MYSQL_THD innobase_create_background_thd(const char* name);
 /** Destroy a THD object associated with a background task.
 @param[in]	thd	MYSQL_THD to destroy */
 void destroy_background_thd(MYSQL_THD thd);
-
-/** Close opened tables, free memory, delete items for a MYSQL_THD.
-@param[in]	thd	MYSQL_THD to reset */
-void
-innobase_reset_background_thd(MYSQL_THD);
 
 /** Open a table based on a database and table name.
 @param db     schema name

@@ -2577,6 +2577,15 @@ row_import_cfg_read_index_fields(
 		/* Include the NUL byte in the length. */
 		ulint	len = mach_read_from_4(ptr);
 
+		if (len == 0 || len > NAME_LEN + 1) {
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+				0UL, strerror(EINVAL),
+				"while reading .cfg field name length.");
+
+			return(DB_CORRUPTION);
+		}
+
 		byte*	name = UT_NEW_ARRAY_NOKEY(byte, len);
 
 		/* Trigger OOM */
@@ -2713,7 +2722,7 @@ row_import_read_index_data(
 		/* The NUL byte is included in the name length. */
 		ulint	len = mach_read_from_4(ptr);
 
-		if (len > OS_FILE_MAX_PATH) {
+		if (len == 0 || len > NAME_LEN + 1) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INNODB_INDEX_CORRUPT,
 				"Index name length (" ULINTPF ") is too long, "
@@ -2901,12 +2910,11 @@ row_import_read_columns(
 
 		ulint		len = mach_read_from_4(ptr);
 
-		/* FIXME: What is the maximum column name length? */
-		if (len == 0 || len > 128) {
-			ib_errf(thd, IB_LOG_LEVEL_ERROR,
-				ER_IO_READ_ERROR,
-				"Column name length " ULINTPF ", is invalid",
-				len);
+		if (len == 0 || len > NAME_LEN + 1) {
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+				0UL, strerror(EINVAL),
+				"while reading .cfg column name length.");
 
 			return(DB_CORRUPTION);
 		}
@@ -2972,6 +2980,15 @@ row_import_read_v1(
 
 	ulint	len = mach_read_from_4(value);
 
+	if (len == 0 || len > HOSTNAME_LENGTH + 1) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+			0UL, strerror(EINVAL),
+			"while reading .cfg hostname length.");
+
+		return(DB_CORRUPTION);
+	}
+
 	/* NUL byte is part of name length. */
 	cfg->m_hostname = UT_NEW_ARRAY_NOKEY(byte, len);
 
@@ -3013,6 +3030,15 @@ row_import_read_v1(
 	}
 
 	len = mach_read_from_4(value);
+
+	if (len == 0 || len > MAX_FULL_NAME_LEN + 1) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+			0UL, strerror(EINVAL),
+			"while reading .cfg table name length.");
+
+		return(DB_CORRUPTION);
+	}
 
 	/* NUL byte is part of name length. */
 	cfg->m_table_name = UT_NEW_ARRAY_NOKEY(byte, len);
@@ -4027,6 +4053,7 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
   const bool full_crc32 = fil_space_t::full_crc32(m_space_flags);
   bool skip_checksum_check = false;
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
   if (!page_compress_buf)
     return DB_OUT_OF_MEMORY;
@@ -4127,6 +4154,7 @@ static dberr_t fil_iterate(
 
 	byte* page_compress_buf= static_cast<byte*>(malloc(get_buf_size()));
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (!page_compress_buf) {
 		return DB_OUT_OF_MEMORY;
@@ -4455,6 +4483,7 @@ fil_tablespace_iterate(
 
 	ut_a(n_io_buffers > 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_1",
 			return(DB_CORRUPTION););
@@ -4733,6 +4762,7 @@ row_import_for_mysql(
 	/* The caller assured that this is not read_only_mode and that no
 	temporary tablespace is being imported. */
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(!table->is_temporary());
 
 	ut_ad(table->space_id);

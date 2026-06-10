@@ -1,0 +1,6 @@
+#
+# MDEV-39118: test_if_hard_path() crashes on recursively resolving $HOME
+#
+create table t (c int) engine=MyISAM data directory="~\\foo\\bar";
+ERROR 42000: Incorrect table name '~\foo\bar'
+# End of 10.11 tests

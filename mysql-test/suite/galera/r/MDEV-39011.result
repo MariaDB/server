@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_3;
 RESET MASTER;
@@ -17,5 +19,8 @@ SET GLOBAL DEBUG_DBUG = "";
 STOP SLAVE;
 RESET SLAVE;
 connection node_3;
-RESET MASTER;
+include/kill_binlog_dump_threads.inc
+include/reset_master.inc
 disconnect node_3;
+disconnect node_2;
+disconnect node_1;

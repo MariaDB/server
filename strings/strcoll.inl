@@ -227,8 +227,13 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
                             const uchar *b, size_t b_length,
                             my_bool *b_is_prefix)
 {
-  const uchar *a_end= a + a_length;
-  const uchar *b_end= b + b_length;
+  const uchar *a_end, *b_end;
+  DBUG_ASSERT(a);
+  DBUG_ASSERT(b);
+
+  a_end= a + a_length;
+  b_end= b + b_length;
+
   if (b_is_prefix)
     *b_is_prefix= 0;
   for ( ; ; )

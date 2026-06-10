@@ -526,15 +526,13 @@ bool trans_xa_end(THD *thd)
    to reset thd->backup_commit_lock before returning!
 */
 
-static bool trans_xa_get_backup_lock(THD *thd, MDL_request *mdl_request)
+static bool trans_xa_get_backup_lock(THD *thd)
 {
   DBUG_ASSERT(thd->backup_commit_lock == 0);
-  MDL_REQUEST_INIT(mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                   MDL_EXPLICIT);
-  if (thd->mdl_context.acquire_lock(mdl_request,
-                                    thd->variables.lock_wait_timeout))
+  if (!(thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+          MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
     return 1;
-  thd->backup_commit_lock= mdl_request;
   return 0;
 }
 
@@ -542,7 +540,7 @@ static inline void trans_xa_release_backup_lock(THD *thd)
 {
   if (thd->backup_commit_lock)
   {
-    thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
+    thd->mdl_context.release_lock(thd->backup_commit_lock);
     thd->backup_commit_lock= 0;
   }
 }
@@ -570,11 +568,10 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XAER_NOTA, MYF(0));
   else
   {
-    MDL_request mdl_request;
-    if (trans_xa_get_backup_lock(thd, &mdl_request) ||
+    if (trans_xa_get_backup_lock(thd) ||
         ha_prepare(thd))
     {
-      if (!mdl_request.ticket)
+      if (!thd->backup_commit_lock)
         /* Failed to get the backup lock */
         ha_rollback_trans(thd, TRUE);
       thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
@@ -659,7 +656,6 @@ bool trans_xa_commit(THD *thd)
     if (auto xs= xid_cache_search(thd, thd->lex->xid))
     {
       bool xid_deleted= false;
-      MDL_request mdl_request;
       bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
       if (rw_trans && thd->check_read_only_with_error())
@@ -668,7 +664,7 @@ bool trans_xa_commit(THD *thd)
         goto _end_external_xid;
       }
       res= xa_trans_rolled_back(xs);
-      if (trans_xa_get_backup_lock(thd, &mdl_request))
+      if (trans_xa_get_backup_lock(thd))
       {
         /*
           We can't rollback an XA transaction on lock failure due to
@@ -724,14 +720,13 @@ bool trans_xa_commit(THD *thd)
   else if (thd->transaction->xid_state.xid_cache_element->xa_state ==
            XA_PREPARED)
   {
-    MDL_request mdl_request;
     if (thd->lex->xa_opt != XA_NONE)
     {
       my_error(ER_XAER_INVAL, MYF(0));
       DBUG_RETURN(TRUE);
     }
 
-    if (trans_xa_get_backup_lock(thd, &mdl_request))
+    if (trans_xa_get_backup_lock(thd))
     {
       /*
         We can't rollback an XA transaction on lock failure due to
@@ -796,7 +791,6 @@ bool trans_xa_commit(THD *thd)
 bool trans_xa_rollback(THD *thd)
 {
   XID_STATE &xid_state= thd->transaction->xid_state;
-  MDL_request mdl_request;
   bool error;
   DBUG_ENTER("trans_xa_rollback");
 
@@ -826,7 +820,7 @@ bool trans_xa_rollback(THD *thd)
         goto _end_external_xid;
       }
 
-      if (trans_xa_get_backup_lock(thd, &mdl_request))
+      if (trans_xa_get_backup_lock(thd))
       {
         /*
           We can't rollback an XA transaction on lock failure due to
@@ -869,7 +863,7 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  if (trans_xa_get_backup_lock(thd, &mdl_request))
+  if (trans_xa_get_backup_lock(thd))
   {
     /*
       We can't rollback an XA transaction on lock failure due to

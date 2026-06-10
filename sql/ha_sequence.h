@@ -157,8 +157,8 @@ public:
   { return file->check_and_repair(thd); }
   bool is_crashed() const override
   { return file->is_crashed(); }
-  void column_bitmaps_signal() override
-  { return file->column_bitmaps_signal(); }
+  void column_bitmaps_signal(bool mark_for_update) override
+  { return file->column_bitmaps_signal(mark_for_update); }
   int check(THD* thd, HA_CHECK_OPT* check_opt) override;
 
   /* New methods */

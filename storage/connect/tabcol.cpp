@@ -99,7 +99,7 @@ void XTAB::Prints(PGLOBAL, char *ps, uint z)
   *ps = '\0';
 
   for (PTABLE tp = this; tp && n > 0; tp = tp->Next) {
-    i = sprintf(buf, "TABLE: %s.%s %s To_Tdb=%p ",
+    i = snprintf(buf, sizeof(buf), "TABLE: %s.%s %s To_Tdb=%p ",
                 SVP(tp->Schema), tp->Name, SVP(tp->Srcdef), tp->To_Tdb);
     strncat(ps, buf, n);
     n -= i;
@@ -159,10 +159,10 @@ void COLUMN::Prints(PGLOBAL, char *ps, uint z)
   char buf[80];
 
   if (Name)
-    sprintf(buf, "COLUMN: %s.%s table=%p col=%p",
+    snprintf(buf, sizeof(buf), "COLUMN: %s.%s table=%p col=%p",
       ((!Qualifier) ? (PSZ)"?" : Qualifier), Name, To_Table, To_Col);
   else         // LNA
-    sprintf(buf, "C%d", (!Qualifier) ? 0 : *(int *)Qualifier);
+    snprintf(buf, sizeof(buf), "C%d", (!Qualifier) ? 0 : *(int *)Qualifier);
 
   strncpy(ps, buf, z);
   ps[z - 1] = '\0';

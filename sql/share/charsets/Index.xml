@@ -72,7 +72,10 @@ To make maintaining easier please:
       <import source="latin2_general_ci"/>
     </rules>
   </collation>
-  <collation name="latin2_nopad_bin" id="1101" flag="binary" flag="nopad"/>
+  <collation name="latin2_nopad_bin" id="1101">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="dec8">
@@ -94,7 +97,10 @@ To make maintaining easier please:
       <import source="dec8_swedish_ci"/>
     </rules>
   </collation>
-  <collation name="dec8_nopad_bin" id="1093" flag="binary" flag="nopad"/>
+  <collation name="dec8_nopad_bin" id="1093">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="cp850">
@@ -119,7 +125,10 @@ To make maintaining easier please:
       <import source="cp850_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp850_nopad_bin" id="1104" flag="binary" flag="nopad"/>
+  <collation name="cp850_nopad_bin" id="1104">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="latin1">
@@ -186,7 +195,10 @@ To make maintaining easier please:
       <import source="hp8_english_ci"/>
     </rules>
   </collation>
-  <collation name="hp8_nopad_bin" id="1096" flag="binary" flag="nopad"/>
+  <collation name="hp8_nopad_bin" id="1096">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="koi8r">
@@ -201,7 +213,10 @@ To make maintaining easier please:
       <import source="koi8r_general_ci"/>
     </rules>
   </collation>
-  <collation name="koi8r_nopad_bin" id="1098" flag="binary" flag="nopad"/>
+  <collation name="koi8r_nopad_bin" id="1098">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="swe7">
@@ -215,7 +230,10 @@ To make maintaining easier please:
       <import source="swe7_swedish_ci"/>
     </rules>
   </collation>
-  <collation name="swe7_nopad_bin" id="1106" flag="binary" flag="nopad"/>
+  <collation name="swe7_nopad_bin" id="1106">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="ascii">
@@ -233,7 +251,10 @@ To make maintaining easier please:
       <import source="ascii_general_ci"/>
     </rules>
   </collation>
-  <collation name="ascii_nopad_bin" id="1089" flag="binary" flag="nopad"/>
+  <collation name="ascii_nopad_bin" id="1089">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="ujis">
@@ -306,7 +327,10 @@ To make maintaining easier please:
       <import source="cp1251_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp1251_nopad_bin" id="1074" flag="binary" flag="nopad"/>
+  <collation name="cp1251_nopad_bin" id="1074">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="hebrew">
@@ -322,7 +346,10 @@ To make maintaining easier please:
       <import source="hebrew_general_ci"/>
     </rules>
   </collation>
-  <collation name="hebrew_nopad_bin" id="1095" flag="binary" flag="nopad"/>
+  <collation name="hebrew_nopad_bin" id="1095">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="tis620">
@@ -378,7 +405,10 @@ To make maintaining easier please:
       <import source="latin7_general_ci"/>
     </rules>
   </collation>
-  <collation name="latin7_nopad_bin" id="1103" flag="binary" flag="nopad"/>
+  <collation name="latin7_nopad_bin" id="1103">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="koi8u">
@@ -392,7 +422,10 @@ To make maintaining easier please:
       <import source="koi8u_general_ci"/>
     </rules>
   </collation>
-  <collation name="koi8u_nopad_bin" id="1099" flag="binary" flag="nopad"/>
+  <collation name="koi8u_nopad_bin" id="1099">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="gb2312">
@@ -425,7 +458,10 @@ To make maintaining easier please:
       <import source="greek_general_ci"/>
     </rules>
   </collation>
-  <collation name="greek_nopad_bin" id="1094" flag="binary" flag="nopad"/>
+  <collation name="greek_nopad_bin" id="1094">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="cp1250">
@@ -457,7 +493,10 @@ To make maintaining easier please:
       <import source="cp1250_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp1250_nopad_bin" id="1090" flag="binary" flag="nopad"/>
+  <collation name="cp1250_nopad_bin" id="1090">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="gbk">
@@ -490,7 +529,10 @@ To make maintaining easier please:
       <import source="cp1257_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp1257_nopad_bin" id="1082" flag="binary" flag="nopad"/>
+  <collation name="cp1257_nopad_bin" id="1082">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
   <!--collation name="cp1257_ci"		id="60"/-->
   <!--collation name="cp1257_cs"		id="61"/-->
 </charset>
@@ -511,7 +553,10 @@ To make maintaining easier please:
       <import source="latin5_turkish_ci"/>
     </rules>
   </collation>
-  <collation name="latin5_nopad_bin" id="1102" flag="binary" flag="nopad"/>
+  <collation name="latin5_nopad_bin" id="1102">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="armscii8">
@@ -525,7 +570,10 @@ To make maintaining easier please:
       <import source="armscii8_general_ci"/>
     </rules>
   </collation>
-  <collation name="armscii8_nopad_bin" id="1088" flag="binary" flag="nopad"/>
+  <collation name="armscii8_nopad_bin" id="1088">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="utf8mb3">
@@ -569,7 +617,10 @@ To make maintaining easier please:
       <import source="cp866_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp866_nopad_bin" id="1092" flag="binary" flag="nopad"/>
+  <collation name="cp866_nopad_bin" id="1092">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="keybcs2">
@@ -582,7 +633,10 @@ To make maintaining easier please:
       <import source="keybcs2_general_ci"/>
     </rules>
   </collation>
-  <collation name="keybcs2_nopad_bin" id="1097" flag="binary" flag="nopad"/>
+  <collation name="keybcs2_nopad_bin" id="1097">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="macce">
@@ -604,7 +658,10 @@ To make maintaining easier please:
       <import source="macce_general_ci"/>
     </rules>
   </collation>
-  <collation name="macce_nopad_bin" id="1067" flag="binary" flag="nopad"/>
+  <collation name="macce_nopad_bin" id="1067">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="macroman">
@@ -632,7 +689,10 @@ To make maintaining easier please:
       <import source="macroman_general_ci"/>
     </rules>
   </collation>
-  <collation name="macroman_nopad_bin" id="1077" flag="binary" flag="nopad"/>
+  <collation name="macroman_nopad_bin" id="1077">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="cp852">
@@ -656,7 +716,10 @@ To make maintaining easier please:
       <import source="cp852_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp852_nopad_bin" id="1105" flag="binary" flag="nopad"/>
+  <collation name="cp852_nopad_bin" id="1105">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="cp1256">
@@ -676,7 +739,10 @@ To make maintaining easier please:
       <import source="cp1256_general_ci"/>
     </rules>
   </collation>
-  <collation name="cp1256_nopad_bin" id="1091" flag="binary" flag="nopad"/>
+  <collation name="cp1256_nopad_bin" id="1091">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="geostd8">
@@ -689,7 +755,10 @@ To make maintaining easier please:
       <import source="geostd8_general_ci"/>
     </rules>
   </collation>
-  <collation name="geostd8_nopad_bin" id="1117" flag="binary" flag="nopad"/>
+  <collation name="geostd8_nopad_bin" id="1117">
+    <flag>binary</flag>
+    <flag>nopad</flag>
+  </collation>
 </charset>
 
 <charset name="binary">

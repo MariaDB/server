@@ -2866,7 +2866,7 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 	);
 #endif /* ENABLED_DEBUG_SYNC */
 
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 

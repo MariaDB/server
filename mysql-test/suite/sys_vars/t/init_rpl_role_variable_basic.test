@@ -1,0 +1,18 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-38202: add init_rpl_role in output of "show variables"
+--echo #
+
+--echo # It should show SLAVE as it is set in the .opt file.
+SELECT @@GLOBAL.init_rpl_role;
+SHOW GLOBAL VARIABLES LIKE 'init_rpl_role';
+
+--echo # Verify that it's a global scope only.
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.init_rpl_role;
+
+--echo # Verify it's read-only.
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.init_rpl_role = 'MASTER';
+
+--echo # End of 13.0 tests

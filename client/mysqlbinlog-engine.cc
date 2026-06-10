@@ -383,6 +383,7 @@ chunk_reader_mysqlbinlog::read_data(uchar *buffer, int max_len, bool multipage)
 {
   uint32_t size;
   int sofar= 0;
+  uint32_t chunk_len;
 
 read_more_data:
   if (max_len == 0)
@@ -436,14 +437,19 @@ read_more_data:
       FSP_BINLOG_FLAG_BIT_CONT bit set, and the final one must have the
       FSP_BINLOG_FLAG_BIT_LAST bit set.
     */
+    chunk_len= page_buffer[s.in_page_offset + 1] |
+      ((uint32_t)page_buffer[s.in_page_offset + 2] << 8);
+    if (chunk_len + (3 + BINLOG_PAGE_DATA_END) >
+        binlog_page_size - s.in_page_offset)
+      return read_error_corruption(s.file_no, s.page_no,
+                                   "Invalid chunk length");
+    s.chunk_len= chunk_len;
     if (!s.in_record)
     {
       if (type & FSP_BINLOG_FLAG_CONT && !s.skip_current)
       {
         if (skipping_partial)
         {
-          s.chunk_len= page_buffer[s.in_page_offset + 1] |
-            ((uint32_t)page_buffer[s.in_page_offset + 2] << 8);
           s.skip_current= true;
           goto skip_chunk;
         }
@@ -463,8 +469,6 @@ read_more_data:
         if (((uint64_t)1 << (type & FSP_BINLOG_TYPE_MASK)) &
             ALLOWED_NESTED_RECORDS)
         {
-          s.chunk_len= page_buffer[s.in_page_offset + 1] |
-            ((uint32_t)page_buffer[s.in_page_offset + 2] << 8);
           goto skip_chunk;
         }
         /* Chunk type changed in the middle. */
@@ -482,12 +486,12 @@ read_more_data:
     s.skip_current= false;
     s.chunk_type= type;
     s.in_record= true;
-    s.chunk_len= page_buffer[s.in_page_offset + 1] |
-      ((uint32_t)page_buffer[s.in_page_offset + 2] << 8);
     s.chunk_read_offset= 0;
   }
 
   /* Now we have a chunk available to read data from. */
+  DBUG_ASSERT(s.in_page_offset + s.chunk_len + 3 <=
+              binlog_page_size - BINLOG_PAGE_DATA_END);
   DBUG_ASSERT(s.chunk_read_offset < s.chunk_len);
   if (s.skip_current &&
       (s.chunk_read_offset > 0 || (s.chunk_type & FSP_BINLOG_FLAG_CONT)))
@@ -517,6 +521,8 @@ read_more_data:
 
   /* We have read all of the chunk. Move to next chunk or end of the record. */
 skip_chunk:
+  DBUG_ASSERT(s.in_page_offset + s.chunk_len + 3 <=
+              binlog_page_size - BINLOG_PAGE_DATA_END);
   s.in_page_offset+= 3 + s.chunk_len;
   s.chunk_len= 0;
   s.chunk_read_offset= 0;
@@ -1061,7 +1067,12 @@ chunk_reader_mysqlbinlog::parse_file_header()
     error("Unsupported version of InnoDB binlog file, cannot read");
     return -1;
   }
-  binlog_page_size= 1 << uint4korr(page_buffer + 4);
+  if (BINLOG_PAGE_SIZE != ((uint32_t)1 << uint4korr(page_buffer + 4)))
+  {
+    error("Invalid/unsupported page size in InnoDB binlog file, cannot read");
+    return -1;
+  }
+  binlog_page_size= BINLOG_PAGE_SIZE;
   s.file_no= uint8korr(page_buffer + 16);
   return 0;
 }

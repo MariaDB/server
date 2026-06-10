@@ -1,0 +1,24 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t10(
+pk int primary key, 
+a int, 
+constraint a_big check (a>10)
+);
+insert into t10 values (1, 20);
+set check_constraint_checks=off;
+update t10 set a=a-15 where pk=1;
+update t10 set a=a+100 where pk=1;
+set check_constraint_checks=on ;
+select * from t10;
+pk	a
+1	105
+connection slave;
+select * from t10;
+pk	a
+1	105
+connection master;
+drop table t10;
+connection slave;
+include/rpl_end.inc

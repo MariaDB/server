@@ -34,13 +34,14 @@
   Write XXH3 hash value in a string to be used
   as DIGEST for the statement.
 */
-#define DIGEST_HASH_TO_STRING(_hash, _str)                 \
-  sprintf(_str, "%02x%02x%02x%02x%02x%02x%02x%02x"         \
-                "%02x%02x%02x%02x%02x%02x%02x%02x",        \
-          _hash[0], _hash[1], _hash[2], _hash[3],          \
-          _hash[4], _hash[5], _hash[6], _hash[7],          \
-          _hash[8], _hash[9], _hash[10], _hash[11],        \
-          _hash[12], _hash[13], _hash[14], _hash[15])
+#define DIGEST_HASH_TO_STRING(_hash, _str, _size)         \
+  snprintf(_str, _size,                                   \
+           "%02x%02x%02x%02x%02x%02x%02x%02x"             \
+           "%02x%02x%02x%02x%02x%02x%02x%02x",            \
+           _hash[0], _hash[1], _hash[2], _hash[3],        \
+           _hash[4], _hash[5], _hash[6], _hash[7],        \
+           _hash[8], _hash[9], _hash[10], _hash[11],      \
+           _hash[12], _hash[13], _hash[14], _hash[15])
 
 /* XXH3_128bits: 128 Bits = 16 Bytes Binary = 32 Printable characters */
 #define DIGEST_HASH_TO_STRING_LENGTH 32

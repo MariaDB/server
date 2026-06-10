@@ -577,18 +577,26 @@ err_exit:
 	row_log_table_close_func(index, size, avail)
 #endif /* UNIV_DEBUG */
 
-/** Check whether a virtual column is indexed in the new table being
-created during alter table
-@param[in]	index	cluster index
-@param[in]	v_no	virtual column number
-@return true if it is indexed, else false */
-bool
-row_log_col_is_indexed(
-	const dict_index_t*	index,
-	ulint			v_no)
+ATTRIBUTE_COLD
+void row_log_mark_virtual_cols(const dict_table_t *table,
+                               TABLE *maria_table) noexcept
 {
-	return(dict_table_get_nth_v_col(
-		index->online_log->table, v_no)->m_col.ord_part);
+  const row_log_t *const log= dict_table_get_first_index(table)->online_log;
+  ut_ad(log);
+  const dict_v_col_t *v_cols= table->v_cols, *old_v_cols= log->table->v_cols;
+  ut_d(const unsigned n_v_cols= log->table->n_v_cols);
+  ut_ad(n_v_cols == table->n_v_cols);
+  for (uint j= maria_table->s->virtual_fields, num_v= 0; j--; )
+  {
+    Field *vf= maria_table->vfield[j];
+    if (vf->stored_in_db())
+      continue;
+    ut_ad(num_v < n_v_cols);
+    ut_ad(num_v < table->n_v_cols);
+    if (v_cols[num_v].m_col.ord_part | old_v_cols[num_v].m_col.ord_part)
+      maria_table->mark_virtual_column_with_deps(vf);
+    num_v++;
+  }
 }
 
 /******************************************************//**

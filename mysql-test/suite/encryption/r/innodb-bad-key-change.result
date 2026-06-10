@@ -32,10 +32,10 @@ foobar	1
 foobar	2
 
 # Restart server with keysbad3.txt
-# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keysbad3.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keysbad3.txt --innodb-log-recovery-start=0
 SELECT * FROM t1;
 ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
-# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keysbad3.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keysbad3.txt --innodb-log-recovery-start=0
 DROP TABLE t1;
 # Start server with keys3.txt
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
@@ -44,7 +44,7 @@ CREATE TABLE t2 (c VARCHAR(8), id int not null primary key, b int, key(b)) ENGIN
 INSERT INTO t2 VALUES ('foobar',1,2);
 
 # Restart server with keys2.txt
-# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt --innodb-log-recovery-start=0
 SELECT * FROM t2;
 ERROR HY000: Table `test`.`t2` is corrupted. Please drop the table and recreate.
 SELECT * FROM t2 where id = 1;

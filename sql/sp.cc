@@ -1876,14 +1876,17 @@ bool lock_db_routines(THD *thd, const Lex_ident_db_normalized &db)
         continue;
 
       longlong sp_type= table->field[MYSQL_PROC_MYSQL_TYPE]->val_int();
-      MDL_request *mdl_request= new (thd->mem_root) MDL_request;
       const Sp_handler *sph= Sp_handler::handler((enum_sp_type)
                                                  sp_type);
       if (!sph)
         sph= &sp_handler_procedure;
-      MDL_REQUEST_INIT(mdl_request, sph->get_mdl_type(), db.str, sp_name,
-                        MDL_EXCLUSIVE, MDL_TRANSACTION);
-      mdl_requests.push_front(mdl_request);
+      if (MDL_REQUEST_LIST_ADD(&mdl_requests, thd->mem_root,
+                               sph->get_mdl_type(), db.str, sp_name,
+                               MDL_EXCLUSIVE, MDL_TRANSACTION))
+      {
+        table->file->ha_index_end();
+        goto error;
+      }
     } while (! (nxtres= table->file->ha_index_next_same(table->record[0], keybuf, key_len)));
   }
   table->file->ha_index_end();

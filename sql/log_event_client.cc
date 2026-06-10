@@ -2833,13 +2833,15 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     sizeof(fmt_delim)  + sizeof(fmt_n_delim)               +
     sizeof(fmt_binlog2) +
     3*PRINT_EVENT_INFO::max_delimiter_size;
-  size_t str_size;
+
+  size_t buf_alloc_size;
 
   if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
 
-  str_size= (size_t)cache->end_of_file + fmt_size;
-  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, str_size, MYF(0))))
+  buf_alloc_size= (size_t)cache->end_of_file + fmt_size;
+  if (!(to->str= (char*) my_malloc(PSI_NOT_INSTRUMENTED, buf_alloc_size,
+                                   MYF(0))))
   {
     perror("Out of memory: can't allocate memory in "
            "copy_cache_to_string_wrapped().");
@@ -2867,38 +2869,45 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
       contribution of non-compressed packet.
     */
     char *str= to->str;
+    const char *buf_end= to->str + buf_alloc_size;
     size_t add_to_len;
 
-    str += (to->length= snprintf(str, str_size - (str - to->str), fmt_frag, 0));
+    str += (to->length= snprintf(str, (size_t)(buf_end - str), fmt_frag, 0));
     if (my_b_read(cache, (uchar*) str, (uint32) (cache_size/2 + 1)))
       goto err;
     str += (add_to_len = (uint32) (cache_size/2 + 1));
     to->length += add_to_len;
-    str += (add_to_len= snprintf(str, str_size - (str - to->str), fmt_n_delim, delimiter));
+    str += (add_to_len= snprintf(str, (size_t)(buf_end - str),
+                                 fmt_n_delim, delimiter));
     to->length += add_to_len;
 
-    str += (add_to_len= snprintf(str, str_size - (str - to->str), fmt_frag, 1));
+    str += (add_to_len= snprintf(str, (size_t)(buf_end - str),
+                                 fmt_frag, 1));
     to->length += add_to_len;
     if (my_b_read(cache, (uchar*) str, uint32(cache->end_of_file - (cache_size/2 + 1))))
       goto err;
     str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
     to->length += add_to_len;
     {
-      str += (add_to_len= snprintf(str, str_size - (str - to->str), fmt_delim, delimiter));
+      str += (add_to_len= snprintf(str, (size_t)(buf_end - str),
+                                   fmt_delim, delimiter));
       to->length += add_to_len;
     }
-    to->length += snprintf(str, str_size - (str - to->str), fmt_binlog2, delimiter);
+    to->length += snprintf(str, (size_t)(buf_end - str),
+                           fmt_binlog2, delimiter);
   }
   else
   {
     char *str= to->str;
+    const char *buf_end= to->str + buf_alloc_size;
 
-    str += (to->length= snprintf(str, str_size - (str - to->str), str_binlog));
+    str += (to->length= snprintf(str, (size_t)(buf_end - str), str_binlog));
     if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
       goto err;
     str += cache->end_of_file;
     to->length += (size_t)cache->end_of_file;
-      to->length += snprintf(str, str_size - (str - to->str), fmt_delim, delimiter);
+      to->length += snprintf(str, (size_t)(buf_end - str),
+                             fmt_delim, delimiter);
   }
 
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);

@@ -248,7 +248,7 @@ void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
 size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
                                   uchar *bitmap_data,
                                   pgcache_page_no_t page,
-                                  char *out);
+                                  char *out, size_t out_size);
 
 uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
                                             uint page_type,

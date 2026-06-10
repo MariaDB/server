@@ -145,7 +145,7 @@ bool st_append_json(String *s,
   Appends arbitrary String to the JSON string taking charsets in
   consideration.
 */
-static int st_append_escaped(String *s, const String *a)
+int st_append_escaped(String *s, const String *a)
 {
   /*
     In the worst case one character from the 'a' string
@@ -1483,6 +1483,36 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
 }
 
 
+bool Item_func_json_extract::val_bool()
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+  longlong i= 0;
+
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
+  {
+    switch (type)
+    {
+      case JSON_VALUE_NUMBER:
+      case JSON_VALUE_STRING:
+      {
+        char *end;
+        int err;
+        i= collation.collation->strntoll(value, value_len, 10, &end, &err);
+        break;
+      }
+      case JSON_VALUE_TRUE:
+        i= 1;
+        break;
+      default:
+        i= 0;
+        break;
+    };
+  }
+  return i != 0;
+}
+
 
 bool Item_func_json_contains::fix_length_and_dec(THD *thd)
 {
@@ -2450,12 +2480,14 @@ String *Item_func_json_array_insert::val_str(String *str)
     if (!c_path->parsed)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths+n_path);
-      if (s_p &&
-          (path_setup_nwc(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+      if (!s_p)
+        goto return_null;
+
+      if (path_setup_nwc(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
                           (const uchar *) s_p->ptr() + s_p->length()) ||
            (((json_path_step_t*) (c_path->p.steps.buffer)) +
                 (c_path->p.last_step_idx) -1) < ((json_path_step_t*)(c_path->p.steps.buffer)) ||
-           ((json_path_step_t*)(c_path->p.steps.buffer) + c_path->p.last_step_idx)->type != JSON_PATH_ARRAY))
+           ((json_path_step_t*)(c_path->p.steps.buffer) + c_path->p.last_step_idx)->type != JSON_PATH_ARRAY)
       {
         if (c_path->p.s.error == 0)
           c_path->p.s.error= SHOULD_END_WITH_ARRAY;
@@ -2954,6 +2986,11 @@ null_return:
 static int copy_value_patch(String *str, json_engine_t *je)
 {
   int first_key= 1;
+
+  DBUG_EXECUTE_IF("json_check_min_stack_requirement",
+                  return dbug_json_check_min_stack_requirement(););
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 1;
 
   if (je->value_type != JSON_VALUE_OBJECT)
   {
@@ -4789,9 +4826,10 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= (uint32)(thd->variables.group_concat_max_len
-              / collation.collation->mbminlen
-              * collation.collation->mbmaxlen);
+  max_length= (uint32) MY_MIN((ulonglong) thd->gconcat_max_len()
+                               / collation.collation->mbminlen
+                               * collation.collation->mbmaxlen, UINT_MAX32);
+
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -5866,7 +5904,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
     prepare_json_and_create_hash(&je1, js1);
   }
 
-  if (null_value || args[1]->null_value)
+  if (!is_array || args[1]->null_value)
     goto null_return;
 
   str->set_charset(js2->charset());
@@ -5922,18 +5960,24 @@ bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t 
     init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   hash_root_inited= true;
 
-  if (json_read_value(je1) || je1->value_type != JSON_VALUE_ARRAY ||
-      create_hash(je1, &items, item_hash_inited, &hash_root, current_thd->mem_root, &temp_je, &stack))
+  if (!json_read_value(je1) && je1->value_type == JSON_VALUE_ARRAY)
+  {
+    is_array= true;
+
+    if (create_hash(je1, &items, item_hash_inited, &hash_root,
+                  current_thd->mem_root, &temp_je, &stack))
     {
       if (je1->s.error)
         report_json_error(js, je1, 0);
-      null_value= 1;
     }
-
-    max_length= 2*(args[0]->max_length < args[1]->max_length ?
-                 args[0]->max_length : args[1]->max_length);
-
+  }
+  else
     return false;
+
+  max_length= 2*(args[0]->max_length < args[1]->max_length ?
+              args[0]->max_length : args[1]->max_length);
+
+  return false;
 }
 
 bool Item_func_json_array_intersect::fix_length_and_dec(THD *thd)

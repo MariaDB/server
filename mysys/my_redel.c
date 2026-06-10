@@ -149,7 +149,8 @@ void my_create_backup_name(char *to, const char *from, time_t backup_start)
 {
   char ext[MY_BACKUP_NAME_EXTRA_LENGTH+1];
   ext[0]='-';
-  get_date(ext+1, GETDATE_SHORT_DATE | GETDATE_HHMMSSTIME, backup_start);
+  get_date(ext+1, sizeof(ext) - 1, GETDATE_SHORT_DATE | GETDATE_HHMMSSTIME,
+           backup_start);
   strmov(strend(ext),REDEL_EXT);
   strmov(strmov(to, from), ext);
 }

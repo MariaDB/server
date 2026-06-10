@@ -179,6 +179,10 @@ connection con1;
 SET @g = ST_GeomFromText('POLYGON((0 0,0 3,3 3,0 3,0 0))');
 SELECT seat_id, state, ST_AsText(pos) FROM t1 FORCE INDEX (pos)
 WHERE state = 0 AND MBRWithin(pos, @g) FOR UPDATE;
+# ensure the state cleanup that performs external_lock(F_UNLCK)
+# so the next default connection can obtain the lock without
+# a timeout
+--ping
 
 connection default;
 BEGIN;

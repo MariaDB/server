@@ -1782,7 +1782,7 @@ copy_back()
 	if it exists. */
 
 	ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
-	if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
+	if (!(ret = copy_or_move_file(ds_tmp, "ib_logfile0", "ib_logfile0",
 				      dst_dir, 1))) {
 		goto cleanup;
 	}
@@ -1893,7 +1893,7 @@ copy_back()
 		}
 
 		/* skip the redo log (it was already copied) */
-		if (!strcmp(filename, LOG_FILE_NAME)) {
+		if (!strcmp(filename, "ib_logfile0")) {
 			continue;
 		}
 
@@ -1978,6 +1978,14 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
  	if (needs_action) {
 
 		msg(thread_n,"%s\n", message.str().c_str());
+
+                /* all valid *.qp files are table-name-safe */
+                for (const char *s=filepath; *s; s++)
+                  if (!isalnum(*s) && !strchr("-.@/_#", *s))
+                  {
+                    msg(thread_n,"Error: invalid file name\n");
+                    return(false);
+                  }
 
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);

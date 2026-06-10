@@ -305,8 +305,8 @@ bool servers_reload(THD *thd)
       if an error condition has been raised.
     */
     if (thd->get_stmt_da()->is_error())
-      sql_print_error("Can't open and lock privilege tables: %s",
-                      thd->get_stmt_da()->message());
+      sql_print_warning("Can't open and lock privilege tables: %s",
+                        thd->get_stmt_da()->message());
     return_val= FALSE;
     goto end;
   }

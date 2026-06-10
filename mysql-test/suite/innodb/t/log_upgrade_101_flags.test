@@ -8,7 +8,7 @@ call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file");
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_upgrade;
 --mkdir $bugdir
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb-undo-directory=$bugdir
+--let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb-undo-directory=$bugdir --skip-innodb-log-archive
 
 # Test case similar to log_upgrade.test
 perl;

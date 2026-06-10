@@ -1,3 +1,4 @@
+
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
@@ -29,10 +30,12 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "que0types.h"
 #include "srw_lock.h"
+#include "row0purge.h"
 
 #include <queue>
 #include <unordered_map>
 
+struct TABLE;
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in]	trx		transaction
@@ -232,6 +235,18 @@ public:
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
 private:
+	/** Coordinator thread's THD during batch processing.
+	Set by the coordinator at the start of trx_purge() and cleared
+	at the end. This serves two purposes:
+	1. Identifies the coordinator thread in reset_worker_thd()
+	which skips THD reset for the coordinator since it manages
+	cleanup centrally in trx_purge() after all workers complete.
+
+	2. Used to set TABLE::in_use when opening tables for purge
+	operations with virtual columns, ensuring proper table
+	ownership tracking during the purge batch. */
+	THD *coordinator_thd= nullptr;
+
 	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
 					log header, if dummy record */
@@ -318,8 +333,14 @@ public:
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
 
-  /** Close and reopen all tables in case of a MDL conflict with DDL */
-  dict_table_t *close_and_reopen(table_id_t id, THD *thd, MDL_ticket **mdl);
+  /** Close and reopen all tables in case of a MDL conflict with DDL
+  @param id   table identifier that triggered reopen
+  @param pt   last purge_table entry processed
+  @param thd  coordinator thread
+  @return purge_table for the reopened table, or empty on error */
+  purge_table close_and_reopen(table_id_t id, purge_table pt,
+                               THD *thd) noexcept;
+
 private:
   /** Suspend purge during a DDL operation on FULLTEXT INDEX tables */
   void wait_FTS(bool also_sys);
@@ -340,6 +361,8 @@ public:
   { ut_d(const auto p=) m_FTS_paused.fetch_sub(1); ut_ad(p & ~PAUSED_SYS); }
   /** @return whether stop_SYS() is in effect */
   bool must_wait_FTS() const { return m_FTS_paused & ~PAUSED_SYS; }
+  /** Reset coordinator thread back to table->in_use */
+  inline void reset_in_use(TABLE *table) const noexcept;
 
 private:
   /**
@@ -424,8 +447,12 @@ public:
 
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   template<bool also_end_view= false>
-  void clone_oldest_view()
+  void clone_oldest_view(THD *thd)
   {
+    ut_ad(also_end_view == !thd);
+    ut_ad(!thd || !coordinator_thd);
+    coordinator_thd= thd;
+
     if (!also_end_view)
       wait_FTS(true);
     latch.wr_lock(SRW_LOCK_CALL);
@@ -484,6 +511,9 @@ public:
   marked for truncate.
   @param space undo tablespace being truncated */
   void cleanse_purge_queue(const fil_space_t &space);
+
+  /** Reset the state of a purge_worker_task at the end of a batch */
+  inline void reset_worker_thd(THD *thd) const noexcept;
 };
 
 /** The global data structure coordinating a purge */

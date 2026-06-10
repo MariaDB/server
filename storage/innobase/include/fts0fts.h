@@ -619,11 +619,8 @@ fts_optimize_table(
 /*===============*/
 	dict_table_t*	table);			/*!< in: table to optimiza */
 
-/**********************************************************************//**
-Startup the optimize thread and create the work queue. */
-void
-fts_optimize_init(void);
-/*====================*/
+/** Startup the optimize task and create the work queue. */
+void fts_optimize_init();
 
 /****************************************************************//**
 Drops index ancillary tables for a FTS index
@@ -646,8 +643,15 @@ fts_optimize_remove_table(
 	dict_table_t*	table);			/*!< in: table to remove */
 
 /** Shutdown fts optimize thread. */
-void
-fts_optimize_shutdown();
+void fts_optimize_shutdown();
+
+#ifdef WITH_WSREP
+/** Pause the optimize subsystem. */
+void fts_optimize_pause();
+
+/** Resume after fts_optimize_pause() */
+void fts_optimize_resume();
+#endif
 
 /** Send sync fts cache for the table.
 @param[in]	table	table to sync */

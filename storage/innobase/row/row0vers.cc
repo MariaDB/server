@@ -457,10 +457,10 @@ row_vers_build_clust_v_col(
 	dtuple_t*		row,
 	dict_index_t*		clust_index,
 	dict_index_t*		index,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	TABLE*			maria_table)
 {
 	THD*		thd= current_thd;
-	TABLE*		maria_table= 0;
 
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
@@ -630,7 +630,8 @@ row_vers_build_cur_vrow(
 	roll_ptr_t		roll_ptr,
 	mem_heap_t*		heap,
 	mem_heap_t*		v_heap,
-	mtr_t*			mtr)
+	mtr_t*			mtr,
+	TABLE*			maria_table)
 {
 	dtuple_t* cur_vrow = NULL;
 
@@ -651,7 +652,7 @@ row_vers_build_cur_vrow(
 					  NULL, NULL, NULL, NULL, heap);
 
 		if (!row_vers_build_clust_v_col(row, clust_index, index,
-						heap)) {
+						heap, maria_table)) {
 			return nullptr;
 		}
 

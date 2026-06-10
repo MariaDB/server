@@ -4073,7 +4073,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
               key->type != Key::FOREIGN_KEY)
             continue;
 
-          if (check->name.streq(key->name))
+          if (check->name.streq_safe(key->name))
           {
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
@@ -6423,7 +6423,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(Lex_ident(drop->name)))
+        if (table->s->period.name.streq_safe(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -6734,7 +6734,7 @@ remove_key:
            c < share->table_check_constraints ; c++)
       {
         Virtual_column_info *dup= table->check_constraints[c];
-        if (check->name.streq(dup->name))
+        if (check->name.streq_safe(dup->name))
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_DUP_CONSTRAINT_NAME, ER_THD(thd, ER_DUP_CONSTRAINT_NAME),
@@ -7334,7 +7334,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
          new_key < new_key_end;
          new_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7384,7 +7384,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -7416,7 +7416,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
         continue;
       }
 
-      DBUG_ASSERT(!old_key->name.streq(new_key->name));
+      DBUG_ASSERT(cmp(&old_key->name, &new_key->name));
 
       ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
       ha_alter_info->rename_keys.push_back(
@@ -7702,7 +7702,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7742,7 +7742,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (table_key= table->s->key_info; table_key < table_key_end; table_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -9455,7 +9455,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      if (share->period.constr_name.streq(check->name))
+      if (share->period.constr_name.streq_safe(check->name))
       {
         if (!drop_period && !keep)
         {
@@ -10080,7 +10080,6 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       IdentBuffer<NAME_LEN> dbuf, tbuf;
       LEX_CSTRING ref_db= fk->ref_db.str ? fk->ref_db : alter_ctx->new_db;
       LEX_CSTRING ref_table= fk->ref_table;
-      MDL_request mdl_request;
 
       if (lower_case_table_names)
       {
@@ -10088,10 +10087,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         ref_table= tbuf.copy_casedn(ref_table).to_lex_cstring();
       }
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                       ref_db.str, ref_table.str,
-                       MDL_SHARED_NO_WRITE, MDL_TRANSACTION);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
+      if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::TABLE,
+                                        ref_db.str, ref_table.str,
+                                        MDL_SHARED_NO_WRITE,
+                                        MDL_TRANSACTION,
                                         thd->variables.lock_wait_timeout))
         DBUG_RETURN(true);
     }
@@ -11170,12 +11169,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   else if (table_creation_was_logged && mysql_bin_log.is_open())
   {
     /* Protect against MDL error in binary logging */
-    MDL_request mdl_request;
     DBUG_ASSERT(!mdl_ticket);
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_TRANSACTION);
-    if (thd->mdl_context.acquire_lock(&mdl_request,
-                                      thd->variables.lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(
+            MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+            MDL_TRANSACTION, thd->variables.lock_wait_timeout))
       DBUG_RETURN(true);
   }
 
@@ -12722,16 +12719,26 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   /*
-    Mark the end of the default field list. Note that this is a temporary
-    state; fields with ON UPDATE defaults will be added back to this list
-    after the data copy is complete.
+    Temporarily finalize the state of the default fields list. At this point
+    (i.e. during the copy of the values), only newly added fields with default
+    values should exist in the list. dfield_ptr is effectively a tail pointer
+    into to->default_field. If dfield_ptr (tail) and to->default_field (head)
+    point to the same point, it means the list is empty and there were no newly
+    added fields with default values. In such case, nullify to->default_field
+    (dfield_ptr remains pointing to the old list, as it will be used to restore
+    to->default_field later). Otherwise, if dfield_ptr (tail) is after the
+    head, then we nullify its current position to mark the end of the list.
+
+    Note that this is a temporary state; new/existing fields with either ON
+    UPDATE defaults and existing fields with default values will be added back
+    to this list after the data copy is complete.
   */
   if (dfield_ptr)
   {
     if (dfield_ptr == to->default_field)
-      to->default_field= NULL; // No default fields left
+      to->default_field= NULL;
     else
-      *dfield_ptr= NULL; // Mark end of default field pointers
+      *dfield_ptr= NULL;
   }
 
   if (order)
@@ -12786,7 +12793,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (from_row_end)
     bitmap_set_bit(from->read_set, from_row_end->field_index);
 
-  from->file->column_bitmaps_signal();
+  from->file->column_bitmaps_signal(false);
 
   to->file->prepare_for_modify(true, false);
   DBUG_ASSERT(to->file->inited == handler::NONE);
@@ -13019,16 +13026,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     for new fields added to the table (i.e those which should get new default
     values). Now that the data copy is done, the to->default_field list needs
     to be restored to include all fields that have default values to fill.
-
-    First, if to->default_field is NULL, it means it was nullified to prevent
-    trying to update any default values during the copy process because there
-    were no new fields added with default values to fill in. The list needs to
-    be restored to the original location so future records in this session can
-    get default values.
-
-    Then, because to->default_field was reset and now only considers new
-    fields, it is missing fields that have ON UPDATE clauses (i.e. TIMESTAMP
-    and DATETIME). So add those back in.
+    Either:
+      1) to->default_field is NULL, in which case either dfield_ptr is also
+         NULL or the pre-alter table has fields with default values and the
+         alter doesn't add any new fields with default values. In either case,
+         simply restore the original default_field list.
+      2) Otherwise, to->default_field has been modified in-place and needs to
+         be manually restored. I.e., it is missing fields that have ON UPDATE
+         clauses (i.e. TIMESTAMP and DATETIME). So add those back in.
 
     Notes:
      * The code is similar to the dfield_ptr modification earlier in the
@@ -13037,26 +13042,39 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
        data, which requires the table's default_fields to be set up
   */
   if (!to->default_field)
+  {
     to->default_field= dfield_ptr;
-#ifndef DBUG_OFF
+  }
   else
   {
     /*
-      If to->default_field exists, dfield_ptr should point to the NULL list
-      terminator in the default_field list.
+      to->default_field was modified in-place, so we need to check to manually
+      add back missing fields.
     */
-    DBUG_ASSERT(dfield_ptr && !*dfield_ptr);
-  }
-#endif
-  if (dfield_ptr)
-  {
     it.rewind();
     for (Field **ptr= to->field; *ptr; ptr++)
     {
       def= it++;
-      if (def->field && def->field->has_update_default_function())
+
+      /*
+        New fields with a default_value already exist in to->default_field.
+        Here add the rest back: existing fields with any default, and new
+        fields with only ON UPDATE.
+      */
+      const bool is_new_field= def->field == nullptr;
+      const bool has_default= (*ptr)->default_value;
+      const bool has_update_default= (*ptr)->has_update_default_function();
+      const bool should_append= is_new_field
+                                    ? (!has_default && has_update_default)
+                                    : (has_default || has_update_default);
+      if (should_append)
         *(dfield_ptr++)= *ptr;
     }
+
+    /*
+      Finalize the default_field list. See the comment earlier in this function
+      where this same pattern is followed for an explanation.
+    */
     if (dfield_ptr == to->default_field)
       to->default_field= NULL; // No default fields
     else

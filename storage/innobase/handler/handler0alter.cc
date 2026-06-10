@@ -7979,6 +7979,7 @@ ha_innobase::prepare_inplace_alter_table(
 	DBUG_ASSERT(!ha_alter_info->handler_ctx);
 	DBUG_ASSERT(ha_alter_info->create_info);
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 
 	/* Init online ddl status variables */
 	onlineddl_rowlog_rows = 0;
@@ -8820,6 +8821,7 @@ ha_innobase::inplace_alter_table(
 	bool			rebuild_templ = false;
 	DBUG_ENTER("inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
@@ -11275,6 +11277,7 @@ ha_innobase::commit_inplace_alter_table(
 
 	DBUG_ENTER("commit_inplace_alter_table");
 	DBUG_ASSERT(!srv_read_only_mode);
+	DBUG_ASSERT(!recv_sys.rpo);
 	DBUG_ASSERT(!ctx0 || ctx0->prebuilt == m_prebuilt);
 	DBUG_ASSERT(!ctx0 || ctx0->old_table == m_prebuilt->table);
 
@@ -11700,8 +11703,8 @@ fail:
 
 		DBUG_ASSERT(ctx->need_rebuild() == new_clustered);
 
-		innobase_copy_frm_flags_from_table_share(
-			ctx->new_table, altered_table->s);
+		innobase_copy_frm_flags_from_table(
+			ctx->new_table, altered_table);
 
 		if (new_clustered) {
 			DBUG_PRINT("to_be_dropped",
@@ -11776,8 +11779,8 @@ foreign_fail:
 			ctx->prebuilt->table = innobase_reload_table(
 				m_user_thd, ctx->prebuilt->table,
 				table->s->table_name, *ctx);
-			innobase_copy_frm_flags_from_table_share(
-				ctx->prebuilt->table, altered_table->s);
+			innobase_copy_frm_flags_from_table(
+				ctx->prebuilt->table, altered_table);
 		}
 
 		unlock_and_close_files(deleted, trx);
@@ -11862,7 +11865,8 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(ctx->need_rebuild());
 
-			alter_stats_rebuild(ctx->new_table, m_prebuilt->trx);
+			alter_stats_rebuild(ctx->new_table, m_prebuilt->trx,
+					    false);
 		}
 	} else {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;

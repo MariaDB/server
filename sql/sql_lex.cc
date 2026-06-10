@@ -42,6 +42,7 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
+#include "item_windowfunc.h"
 
 void LEX::parse_error(uint err_number)
 {
@@ -1337,12 +1338,11 @@ void LEX::start(THD *thd_arg)
 
   wild= 0;
   exchange= 0;
+  clause_winfuncs.empty();
 
   table_count_update= 0;
   needs_reprepare= false;
   opt_hints_global= 0;
-
-  has_returning_list= false;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   selects_for_hint_resolution.empty();
@@ -2479,6 +2479,24 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
                (version < 50700 || version > 99999 || maria_comment_syntax)) ||
               (reversed_comment && MYSQL_VERSION_ID < version))
           {
+            if (reversed_comment)
+            {
+              /*
+                Overwrite the version digits with spaces in the raw query
+                buffer so the binlog contains a non-versioned reversed
+                executable comment that the replica always executes.
+              */
+              char *p= (char *) get_ptr();
+              for (uint i= 0; i < length; i++)
+                p[i]= ' ';
+              /*
+                Mark as non-cacheable as we are mutating the buffer unless
+                strip_comments is enabled since a separate buffer copy is used
+                by the query cache
+              */
+              if (!thd->variables.query_cache_strip_comments)
+                lex->safe_to_cache_query= 0;
+            }
             /* Accept 'M' 'm' 'm' 'd' 'd' */
             yySkipn(length);
             /* Expand the content of the special comment as real code */
@@ -2504,10 +2522,21 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
               being propagated infinitely (eg. to a slave).
             */
             char *pcom= yyUnput(' ');
+            if (reversed_comment)
+              *(pcom - 1)= ' ';
+            /*
+              Mark as non-cacheable as we are mutating the buffer unless
+              strip_comments is enabled since a separate buffer copy is used
+              by the query cache
+            */
+            if (!thd->variables.query_cache_strip_comments)
+              lex->safe_to_cache_query= 0;
             comment_closed= ! consume_comment(1);
             if (! comment_closed)
             {
               *pcom= '!';
+              if (reversed_comment)
+                *(pcom - 1)= '!';
             }
             /* version allowed to have one level of comment inside. */
           }
@@ -3057,11 +3086,16 @@ void st_select_lex_unit::remember_my_cleanup()
 
 void st_select_lex_unit::cleanup_stranded_units()
 {
-  if (!stranded_clean_list)
-    return;
-
-  stranded_clean_list->cleanup();
+  st_select_lex_unit *cur= stranded_clean_list;
   stranded_clean_list= nullptr;
+
+  while (cur)
+  {
+    st_select_lex_unit *next= cur->stranded_clean_list;
+    cur->stranded_clean_list= nullptr;
+    cur->cleanup();
+    cur= next;
+  }
 }
 
 
@@ -3108,6 +3142,7 @@ void st_select_lex::init_query()
   leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
+  returning_list.empty();
   fix_after_optimize.empty();
   min_max_opt_list.empty();
   limit_params.clear();
@@ -3146,7 +3181,8 @@ void st_select_lex::init_query()
 
   context.select_lex= this;
   context.init();
-  cond_count= between_count= with_wild= 0;
+  cond_count= between_count= 0;
+  with_wild= with_wild_returning= 0;
   max_equal_elems= 0;
   ref_pointer_array.reset();
   select_n_where_fields= 0;
@@ -3191,7 +3227,7 @@ void st_select_lex::init_select()
   having= 0;
   table_join_options= 0;
   select_lock= select_lock_type::NONE;
-  in_sum_expr= with_wild= 0;
+  in_sum_expr= with_wild= with_wild_returning= 0;
   options= 0;
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
@@ -3768,7 +3804,23 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   if (!ref_pointer_array.is_null())
     return false;
 
-  Item **array= thd->active_stmt_arena_to_use()->calloc<Item*>(n_elems);
+  DBUG_EXECUTE_IF("assert_no_alloc_ref_array", { DBUG_ASSERT(0); });
+  Query_arena *arena= thd->active_stmt_arena_to_use();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  const bool read_only_mem_root= !arena->is_conventional() &&
+                                 (arena->mem_root->flags & ROOT_FLAG_READ_ONLY);
+  if (read_only_mem_root)
+    arena->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
+  Item **array= arena->calloc<Item*>(n_elems);
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  if (read_only_mem_root)
+    arena->mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;
@@ -7852,14 +7904,29 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   }
 
   /*
+    This statement is not supported:
+        OPEN strict_cursor_variable FOR 'SELECT ...';
+    It can be rewritten:
+    - either to use a SELECT statement instead of the dynamic string:
+        OPEN strict_cursor_variable FOR SELECT ...;
+    - or to make c0 a weak cursor variable (i.e.without the RETURN clause)
+        OPEN weak_cursor_variable FOR 'SELECT ...';
+  */
+  return_type_def= dynamic_cast<const sp_type_def_ref*>(spv[0].field_def.
+                                               get_attr_const_generic_ptr(0));
+  if (return_type_def && stmt->prepared_stmt.code())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), name->str, "OPEN..FOR <dynamic string>");
+    goto error;
+  }
+
+  /*
     If the REF CURSOR declaration has the RETURN clause and
     the query select list does not have asterisks, check
     that the row sizes are equal.
     A more thorough test (field-by-field assignability) is done
     later, after the cursor has been opened.
   */
-  return_type_def= dynamic_cast<const sp_type_def_ref*>(spv[0].field_def.
-                                               get_attr_const_generic_ptr(0));
   row_def_list=
     return_type_def && return_type_def->def().is_row() ?
     return_type_def->def().row_field_definitions() : nullptr;
@@ -9154,6 +9221,12 @@ my_var *LEX::create_outvar_lvalue_function(THD *thd,
 Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;
+  if (clause_that_disallows_subselect)
+  {
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
+    return NULL;
+  }
   if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
                                                           TL_OPTION_SEQUENCE,
                                                           TL_WRITE_ALLOW_WRITE,
@@ -9167,6 +9240,12 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 Item *LEX::create_item_func_lastval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;
+  if (clause_that_disallows_subselect)
+  {
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
+    return NULL;
+  }
   if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
                                                           TL_OPTION_SEQUENCE,
                                                           TL_READ,
@@ -9182,6 +9261,12 @@ Item *LEX::create_item_func_nextval(THD *thd,
                                     const LEX_CSTRING *name)
 {
   Table_ident *table_ident;
+  if (clause_that_disallows_subselect)
+  {
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
+    return NULL;
+  }
   if (unlikely(!(table_ident=
                  new (thd->mem_root) Table_ident(thd, db, name, false))))
     return NULL;
@@ -9194,6 +9279,12 @@ Item *LEX::create_item_func_lastval(THD *thd,
                                     const LEX_CSTRING *name)
 {
   Table_ident *table_ident;
+  if (clause_that_disallows_subselect)
+  {
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
+    return NULL;
+  }
   if (unlikely(!(table_ident=
                  new (thd->mem_root) Table_ident(thd, db, name, false))))
     return NULL;
@@ -9206,6 +9297,12 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
                                    bool is_used)
 {
   TABLE_LIST *table;
+  if (clause_that_disallows_subselect)
+  {
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
+    return NULL;
+  }
   if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
                                                           TL_OPTION_SEQUENCE,
                                                           TL_WRITE_ALLOW_WRITE,
@@ -9864,6 +9961,10 @@ void st_select_lex::collect_grouping_fields_for_derived(THD *thd,
 
 /**
   Collect fields that are used in the GROUP BY of this SELECT
+
+  @retval
+    true  - no grouping fields or an error
+    false - collected group fields successfully
 */
 
 bool st_select_lex::collect_grouping_fields(THD *thd)
@@ -9883,7 +9984,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     Field_pair *grouping_tmp_field=
       new Field_pair(((Item_field *)item->real_item())->field, item);
     if (grouping_tmp_fields.push_back(grouping_tmp_field, thd->mem_root))
-      return false;
+      return true;
   }
   if (grouping_tmp_fields.elements)
     return false;
@@ -11024,7 +11125,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                              star_clex_str)))
     return NULL;
   current_select->parsing_place == IN_RETURNING ?
-              thd->lex->returning()->with_wild++ : current_select->with_wild++;
+              thd->lex->returning()->with_wild_returning++ :
+              current_select->with_wild++;
   return item;
 }
 
@@ -11040,7 +11142,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                              schema, *b, star_clex_str)))
    return NULL;
   current_select->parsing_place == IN_RETURNING ?
-            thd->lex->returning()->with_wild++ : current_select->with_wild++;
+            thd->lex->returning()->with_wild_returning++ :
+            current_select->with_wild++;
   return item;
 }
 
@@ -12431,7 +12534,7 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
 */
 
 Field_pair *get_corresponding_field_pair(Item *item,
-                                         List<Field_pair> pair_list)
+                                         List<Field_pair> &pair_list)
 {
   DBUG_ASSERT(item->type() == Item::DEFAULT_VALUE_ITEM ||
               item->type() == Item::FIELD_ITEM ||
@@ -13812,6 +13915,37 @@ TABLE_LIST *SELECT_LEX::find_table(THD *thd,
 bool st_select_lex::is_query_topmost(THD *thd)
 {
   return get_master() == &thd->lex->unit;
+}
+
+
+void st_select_lex::optimize_out_order_list()
+{
+  /* Cleanup first related window funcs */
+  for (ORDER *ord= order_list.first; ord; ord= ord->next)
+  {
+    if (ord->window_funcs.is_empty())
+      continue;
+
+    List_iterator<Item_window_func> it_sl(window_funcs);
+    List_iterator<Item_window_func> it_ord(ord->window_funcs);
+    Item_window_func *wf_sl, *wf_ord;
+    while ((wf_sl= it_sl++))
+    {
+      it_ord.rewind();
+      while ((wf_ord= it_ord++))
+      {
+        if (wf_ord == wf_sl)
+        {
+          it_sl.remove();
+          it_ord.remove();
+          break;
+        }
+      }
+      if (ord->window_funcs.is_empty())
+        break;
+    }
+  }
+  order_list.empty();
 }
 
 

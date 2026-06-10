@@ -23,7 +23,7 @@ CREATE TABLE `t1` (
 ) ENGINE=InnoDB;
 insert into t1 values (1,2,'maria','db','encryption');
 alter table t1 encrypted='yes' `encryption_key_id`=1;
-# restart: --innodb-encrypt-tables=OFF
+# restart: --innodb-encrypt-tables=OFF --innodb-log-recovery-start=0
 select * from t1;
 ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 select * from t5;

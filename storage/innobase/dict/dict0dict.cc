@@ -558,13 +558,13 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     dict_sys.unfreeze();
 
   *db_name_len= filename_to_tablename(db_buf, db_name,
-                                      MAX_DATABASE_NAME_LEN + 1, true);
+                                      NAME_LEN + 1, true);
 
   if (is_temp)
     return false;
 
   *tbl_name_len= filename_to_tablename(tbl_buf, tbl_name,
-                                       MAX_TABLE_NAME_LEN + 1, true);
+                                       NAME_LEN + 1, true);
   return true;
 }
 
@@ -654,26 +654,21 @@ retry:
     dict_sys.unfreeze();
 
   {
-    MDL_request request;
-    MDL_REQUEST_INIT(&request,MDL_key::TABLE, db_buf, tbl_buf, MDL_SHARED,
-                     MDL_EXPLICIT);
-    if (trylock
-        ? mdl_context->try_acquire_lock(&request)
-        : mdl_context->acquire_lock(&request,
-                                    /* FIXME: use compatible type, and maybe
-                                    remove this parameter altogether! */
-                                    static_cast<double>(global_system_variables
-                                                        .lock_wait_timeout)))
+    if (trylock)
     {
-      *mdl= nullptr;
-      if (trylock)
+      bool error;
+      *mdl= mdl_context->MDL_TRY_ACQUIRE_LOCK(MDL_key::TABLE, db_buf, tbl_buf,
+                                               MDL_SHARED, MDL_EXPLICIT, error);
+      if (!*mdl)
         return nullptr;
     }
     else
     {
-      *mdl= request.ticket;
-      if (trylock && !*mdl)
-        return nullptr;
+      *mdl= mdl_context->MDL_ACQUIRE_LOCK(MDL_key::TABLE, db_buf, tbl_buf,
+                                           MDL_SHARED, MDL_EXPLICIT,
+                                           static_cast<double>(
+                                             global_system_variables
+                                             .lock_wait_timeout));
     }
   }
 
@@ -917,6 +912,8 @@ void dict_sys_t::create() noexcept
 {
   ut_ad(this == &dict_sys);
   ut_ad(!is_initialised());
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   m_initialised= true;
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
@@ -930,7 +927,7 @@ void dict_sys_t::create() noexcept
 
   latch.SRW_LOCK_INIT(dict_operation_lock_key);
 
-  if (!srv_read_only_mode)
+  if (!recv_sys.rpo)
   {
     dict_foreign_err_file= os_file_create_tmpfile();
     ut_a(dict_foreign_err_file);
@@ -1089,17 +1086,14 @@ bool dict_stats::open(THD *thd) noexcept
   mdl_context= &thd->mdl_context;
   /* FIXME: use compatible type, and maybe remove this parameter altogether! */
   const double timeout= double(global_system_variables.lock_wait_timeout);
-  MDL_request request;
-  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_table_stats",
-                   MDL_SHARED, MDL_EXPLICIT);
-  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+  if (!(mdl_table= mdl_context->MDL_ACQUIRE_LOCK(
+          MDL_key::TABLE, "mysql", "innodb_table_stats",
+          MDL_SHARED, MDL_EXPLICIT, timeout)))
     return true;
-  mdl_table= request.ticket;
-  MDL_REQUEST_INIT(&request, MDL_key::TABLE, "mysql", "innodb_index_stats",
-                   MDL_SHARED, MDL_EXPLICIT);
-  if (UNIV_UNLIKELY(mdl_context->acquire_lock(&request, timeout)))
+  if (!(mdl_index= mdl_context->MDL_ACQUIRE_LOCK(
+          MDL_key::TABLE, "mysql", "innodb_index_stats",
+          MDL_SHARED, MDL_EXPLICIT, timeout)))
     goto release_mdl;
-  mdl_index= request.ticket;
   table_stats= dict_table_open_on_name("mysql/innodb_table_stats", false,
                                        DICT_ERR_IGNORE_NONE);
   if (!table_stats)
@@ -3165,6 +3159,8 @@ dict_foreign_parse_drop_constraints(
 	bool			if_exists = false;
 
 	ut_a(trx->mysql_thd);
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	cs = trx->mysql_thd->charset();
 
@@ -3207,7 +3203,7 @@ loop:
 
 	if (!success) {
 syntax_error:
-		if (!srv_read_only_mode) {
+		{
 			FILE*	ef = dict_foreign_err_file;
 
 			mysql_mutex_lock(&dict_foreign_err_mutex);
@@ -3251,9 +3247,7 @@ syntax_error:
 	    == table->foreign_set.end()) {
 		if (if_exists) {
 			goto loop;
-		}
-
-		if (!srv_read_only_mode) {
+		} else {
 			FILE*	ef = dict_foreign_err_file;
 
 			mysql_mutex_lock(&dict_foreign_err_mutex);
@@ -3685,7 +3679,7 @@ void dict_set_corrupted(trx_t *trx, dict_index_t *index, const char *ctx)
 
 	/* If this is read only mode, do not update SYS_INDEXES, just
 	mark it as corrupted in memory */
-	if (high_level_read_only) {
+	if (high_level_read_only || recv_sys.rpo) {
 		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}

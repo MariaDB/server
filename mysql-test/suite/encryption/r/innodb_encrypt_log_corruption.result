@@ -20,6 +20,13 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and we did not find a valid checkpoint/ in mysqld.1.err
 # empty redo log from before MariaDB 10.2.2
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-recovery-target=12345
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+0
+FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target=12345!=/ in mysqld.1.err
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

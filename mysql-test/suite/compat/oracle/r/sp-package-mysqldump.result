@@ -60,7 +60,8 @@ CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
 AS
 BEGIN
 SELECT pkg1.f1(); -- a standalone routine calls a package routine
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -79,7 +80,8 @@ DELIMITER ;;
 CREATE DEFINER="root"@"localhost" PACKAGE "pkg1" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN INT;
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -98,7 +100,8 @@ DELIMITER ;;
 CREATE DEFINER="root"@"localhost" PACKAGE "pkg2" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN INT;
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -123,7 +126,8 @@ FUNCTION f1 RETURN INT AS
 BEGIN
 RETURN 10;
 END;
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;

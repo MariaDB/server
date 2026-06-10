@@ -53,6 +53,11 @@ typedef unsigned short mdl_bitmap_t;
 
 enum enum_mdl_type {
   /* This means that the MDL_request is not initialized */
+  /*
+    TODO (newbie): should be MDL_NOT_INITIALIZED= 0, as it is strange
+    that not-inited request has MDL_INTENTION_EXCLUSIVE.
+    Must fix tests, as at least mysql_rm_table_no_locks() depends on this.
+  */
   MDL_NOT_INITIALIZED= -1,
   /*
     An intention exclusive metadata lock (IX). Used only for scoped locks.
@@ -309,6 +314,10 @@ public:
     Note that although there isn't metadata locking on triggers,
     it's necessary to have a separate namespace for them since
     MDL_key is also used outside of the MDL subsystem.
+
+    TODO (newbie): NOT_INITIALIZED=0 as default bzero() sets wrongly type to
+    BACKUP. But dozens switch() cases for NOT_INITIALIZED must be added to
+    pacify the compiler.
   */
   enum enum_mdl_namespace { BACKUP=0,
                             SCHEMA,
@@ -556,6 +565,19 @@ typedef void (*mdl_cached_object_release_hook)(void *);
 #define MDL_REQUEST_INIT_BY_KEY(R, P1, P2, P3) \
   (*R).init_by_key_with_source(P1, P2, P3, __FILE__, __LINE__)
 
+#define MDL_ACQUIRE_LOCK(NAMESPACE, DB, NAME, TYPE, DURATION, TIMEOUT) \
+  acquire_lock(NAMESPACE, DB, NAME, TYPE, DURATION, TIMEOUT, __FILE__, __LINE__)
+
+#define MDL_ACQUIRE_LOCK_BY_KEY(KEY, TYPE, DURATION, TIMEOUT) \
+  acquire_lock(KEY, TYPE, DURATION, TIMEOUT, __FILE__, __LINE__)
+
+#define MDL_TRY_ACQUIRE_LOCK(NAMESPACE, DB, NAME, TYPE, DURATION, ERROR) \
+  try_acquire_lock(NAMESPACE, DB, NAME, TYPE, DURATION, ERROR, __FILE__, __LINE__)
+
+#define MDL_REQUEST_LIST_ADD(LIST, MEM_ROOT, NAMESPACE, DB, NAME, TYPE, DURATION) \
+  mdl_request_list_add(LIST, MEM_ROOT, NAMESPACE, DB, NAME, TYPE, DURATION, \
+                       __FILE__, __LINE__)
+
 
 /**
   An abstract class for inspection of a connected
@@ -776,6 +798,22 @@ typedef I_P_List<MDL_request, I_P_List_adapter<MDL_request,
                  I_P_List_counter>
         MDL_request_list;
 
+inline bool mdl_request_list_add(MDL_request_list *list, MEM_ROOT *mem_root,
+                                 MDL_key::enum_mdl_namespace mdl_namespace,
+                                 const char *db, const char *name,
+                                 enum_mdl_type mdl_type,
+                                 enum_mdl_duration mdl_duration,
+                                 const char *src_file, uint src_line)
+{
+  MDL_request *r= new (mem_root) MDL_request;
+  if (!r)
+    return true;
+  r->init_with_source(mdl_namespace, db, name, mdl_type, mdl_duration,
+                      src_file, src_line);
+  list->push_front(r);
+  return false;
+}
+
 /**
   Context of the owner of metadata locks. I.e. each server
   connection has such a context.
@@ -796,11 +834,29 @@ public:
   void destroy();
 
   bool try_acquire_lock(MDL_request *mdl_request);
+  MDL_ticket *try_acquire_lock(MDL_key::enum_mdl_namespace mdl_namespace,
+                               const char *db, const char *name,
+                               enum_mdl_type mdl_type,
+                               enum_mdl_duration mdl_duration,
+                               bool &error,
+                               const char *src_file, uint src_line);
   bool acquire_lock(MDL_request *mdl_request, double lock_wait_timeout);
   bool acquire_locks(MDL_request_list *requests, double lock_wait_timeout);
   bool upgrade_shared_lock(MDL_ticket *mdl_ticket,
                            enum_mdl_type new_type,
                            double lock_wait_timeout);
+
+  MDL_ticket *acquire_lock(MDL_key::enum_mdl_namespace mdl_namespace,
+                           const char *db, const char *name,
+                           enum_mdl_type mdl_type,
+                           enum_mdl_duration mdl_duration,
+                           double lock_wait_timeout,
+                           const char *src_file, uint src_line);
+  MDL_ticket *acquire_lock(const MDL_key *key,
+                           enum_mdl_type mdl_type,
+                           enum_mdl_duration mdl_duration,
+                           double lock_wait_timeout,
+                           const char *src_file, uint src_line);
 
   bool clone_ticket(MDL_request *mdl_request);
 

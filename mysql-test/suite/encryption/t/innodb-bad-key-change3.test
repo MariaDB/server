@@ -65,6 +65,7 @@ EOF
 --write_line "restart:--innodb-encrypt-tables --innodb-stats-persistent --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys2.txt" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/restart_mysqld.inc
 
 --error ER_GET_ERRMSG

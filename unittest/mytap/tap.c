@@ -29,8 +29,9 @@
 #include <signal.h>
 
 static ulong start_timer(void);
-static void end_timer(ulong start_time,char *buff);
-static void nice_time(double sec,char *buff,my_bool part_second);
+static void end_timer(ulong start_time, char *buff, size_t buff_size);
+static void nice_time(double sec,char *buff, size_t buff_size,
+                      my_bool part_second);
 
 /*
   Visual Studio 2003 does not know vsnprintf but knows _vsnprintf.
@@ -337,7 +338,7 @@ int exit_status()
   }
   if (start_time)
   {
-    end_timer(start_time, buff);
+    end_timer(start_time, buff, sizeof(buff));
     printf("Test took %s\n", buff);
     fflush(stdout);
   }
@@ -373,38 +374,44 @@ static ulong start_timer(void)
   len("4294967296 days, 23 hours, 59 minutes, 60.00 seconds")  ->  52
 */
 
-static void nice_time(double sec,char *buff, my_bool part_second)
+static void nice_time(double sec,char *buff, size_t buff_size,
+                      my_bool part_second)
 {
   ulong tmp;
+  char *end= buff + buff_size;
+  int len;
   if (sec >= 3600.0*24)
   {
     tmp=(ulong) (sec/(3600.0*24));
     sec-=3600.0*24*tmp;
-    buff+= sprintf(buff, "%ld %s", tmp, tmp > 1 ? " days " : " day ");
+    len= snprintf(buff, end - buff, "%ld %s", tmp, tmp > 1 ? " days " : " day ");
+    buff+= len;
   }
   if (sec >= 3600.0)
   {
     tmp=(ulong) (sec/3600.0);
     sec-=3600.0*tmp;
-    buff+= sprintf(buff, "%ld %s", tmp, tmp > 1 ? " hours " : " hour ");
+    len= snprintf(buff, end - buff, "%ld %s", tmp, tmp > 1 ? " hours " : " hour ");
+    buff+= len;
   }
   if (sec >= 60.0)
   {
     tmp=(ulong) (sec/60.0);
     sec-=60.0*tmp;
-    buff+= sprintf(buff, "%ld min ", tmp);
+    len= snprintf(buff, end - buff, "%ld min ", tmp);
+    buff+= len;
   }
   if (part_second)
-    sprintf(buff,"%.2f sec",sec);
+    snprintf(buff, end - buff, "%.2f sec",sec);
   else
-    sprintf(buff,"%d sec",(int) sec);
+    snprintf(buff, end - buff, "%d sec",(int) sec);
 }
 
 
-static void end_timer(ulong start_time,char *buff)
+static void end_timer(ulong start_time, char *buff, size_t buff_size)
 {
   nice_time((double) (start_timer() - start_time) /
-	    CLOCKS_PER_SEC,buff,1);
+	    CLOCKS_PER_SEC, buff, buff_size, 1);
 }
 
 

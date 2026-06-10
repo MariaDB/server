@@ -301,8 +301,6 @@ hej
 hej 
 hej
 1
-
-
 a long variable content
 a long variable content
 a long a long variable content variable content
@@ -733,6 +731,10 @@ These lines should be repeated,
 if things work as expected
 These lines should be repeated,
 if things work as expected
+===
+These lines should be repeated,
+if things work as expected
+===
 Some data
 for cat_file command
 of mysqltest

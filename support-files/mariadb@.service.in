@@ -190,6 +190,9 @@ ProtectSystem=full
 # (https://github.com/systemd/systemd/issues/3845)
 # NoNewPrivileges=true
 
+# Restrict modifications of cgroups from the MariaDB service context.
+ProtectControlGroups=true
+
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 

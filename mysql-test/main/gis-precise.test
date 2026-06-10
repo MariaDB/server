@@ -494,3 +494,10 @@ SELECT ST_CROSSES( ST_GEOMFROMTEXT('point(1 1)'), st_geomfromtext('point(1 1)') 
 SELECT ST_CROSSES( ST_GEOMFROMTEXT('POLYGON ((59 18,67 18,67 13,59 13,59 18)) '), st_geomfromtext('polygon((2 2,2 4, 4 2,2 2))') ) a;
 SELECT ST_CROSSES( ST_GEOMFROMTEXT('POLYGON ((59 18,67 18,67 13,59 13,59 18)) '), st_geomfromtext('point(1 1)') ) a;
 
+--echo #
+--echo # MDEV-39449: Memory corruption (heap-buffer-overflow) in uint4korr and
+--echo # Gcalc_function::count_internal, apparent partial stack looping in
+--echo # Gcalc_function::count_internal and Assertion `(0)' failed in
+--echo # Item_func_spatial_precise_rel::val_bool
+--echo #
+SELECT ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))'));

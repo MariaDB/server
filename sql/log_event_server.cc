@@ -328,20 +328,6 @@ inline int idempotent_error_code(int err_code)
   return (ret);
 }
 
-/**
-  Ignore error code specified on command line.
-*/
-
-inline int ignored_error_code(int err_code)
-{
-  if (use_slave_mask && bitmap_is_set(&slave_error_mask, err_code))
-  {
-    statistic_increment(slave_skipped_errors, LOCK_status);
-    return 1;
-  }
-  return err_code == ER_SLAVE_IGNORED_TABLE;
-}
-
 /*
   This function converts an engine's error to a server error.
    
@@ -995,13 +981,13 @@ void Query_log_event::pack_info(Protocol *protocol)
   {
     buf.append(STRING_WITH_LEN("set "));
     if (flags2 & OPTION_NO_FOREIGN_KEY_CHECKS)
-      buf.append(STRING_WITH_LEN("foreign_key_checks=1, "));
+      buf.append(STRING_WITH_LEN("foreign_key_checks=0, "));
     if (flags2 & OPTION_AUTO_IS_NULL)
-      buf.append(STRING_WITH_LEN("sql_auto_is_null, "));
+      buf.append(STRING_WITH_LEN("sql_auto_is_null=1, "));
     if (flags2 & OPTION_RELAXED_UNIQUE_CHECKS)
-      buf.append(STRING_WITH_LEN("unique_checks=1, "));
+      buf.append(STRING_WITH_LEN("unique_checks=0, "));
     if (flags2 & OPTION_NO_CHECK_CONSTRAINT_CHECKS)
-      buf.append(STRING_WITH_LEN("check_constraint_checks=1, "));
+      buf.append(STRING_WITH_LEN("check_constraint_checks=0, "));
     if (flags2 & OPTION_IF_EXISTS)
       buf.append(STRING_WITH_LEN("@@sql_if_exists=1, "));
     if (flags2 & OPTION_INSERT_HISTORY)
@@ -3237,7 +3223,7 @@ Gtid_log_event::pack_info(Protocol *protocol)
                    flags2 & FL_PREPARED_XA ? "XA START " : "BEGIN GTID "));
   if (flags2 & FL_PREPARED_XA)
   {
-    p+= sprintf(p, "%s GTID ", xid.serialize());
+    p+= snprintf(p, buf + sizeof(buf) - p, "%s GTID ", xid.serialize());
   }
   p= longlong10_to_str(domain_id, p, 10);
   *p++= '-';
@@ -3338,7 +3324,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
     thd->lex->xid= &xid;
     thd->lex->xa_opt= XA_NONE;
-    sprintf(buf_xa, fmt, xid.serialize());
+    snprintf(buf_xa, sizeof(buf_xa), fmt, xid.serialize());
     thd->set_query_and_id(buf_xa, static_cast<uint32>(strlen(buf_xa)),
                           &my_charset_bin, next_query_id());
     thd->lex->sql_command= SQLCOM_XA_START;
@@ -3983,9 +3969,9 @@ void XA_prepare_log_event::pack_info(Protocol *protocol)
 {
   char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size];
 
-  sprintf(query,
-          (one_phase ? "XA COMMIT %s ONE PHASE" :  "XA PREPARE %s"),
-          m_xid.serialize());
+  snprintf(query, sizeof(query),
+           (one_phase ? "XA COMMIT %s ONE PHASE" :  "XA PREPARE %s"),
+           m_xid.serialize());
 
   protocol->store(query, strlen(query), &my_charset_bin);
 }
@@ -4463,7 +4449,7 @@ void Append_block_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
   uint length;
-  length= (uint) sprintf(buf, ";file_id=%u;block_len=%u", file_id, block_len);
+  length= (uint) snprintf(buf, sizeof(buf), ";file_id=%u;block_len=%u", file_id, block_len);
   protocol->store(buf, length, &my_charset_bin);
 }
 
@@ -4572,7 +4558,7 @@ void Delete_file_log_event::pack_info(Protocol *protocol)
 {
   char buf[64];
   uint length;
-  length= (uint) sprintf(buf, ";file_id=%u", (uint) file_id);
+  length= (uint) snprintf(buf, sizeof(buf), ";file_id=%u", (uint) file_id);
   protocol->store(buf, (int32) length, &my_charset_bin);
 }
 #endif

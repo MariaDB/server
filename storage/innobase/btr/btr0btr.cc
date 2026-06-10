@@ -1238,7 +1238,8 @@ uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
       const bool need_adjust{autoinc > max || autoinc < max_autoinc};
       ut_ad(max_autoinc <= max);
 
-      if (UNIV_UNLIKELY(need_adjust) && !high_level_read_only && !opt_readonly)
+      if (UNIV_UNLIKELY(need_adjust) && !high_level_read_only &&
+          !recv_sys.rpo && !opt_readonly)
       {
         sql_print_information("InnoDB: Resetting PAGE_ROOT_AUTO_INC from "
                               UINT64PF " to " UINT64PF

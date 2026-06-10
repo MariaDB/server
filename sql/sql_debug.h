@@ -19,6 +19,9 @@
 */
 
 
+/*
+  Used in mtr tests to check index flags and key part flags and datatypes.
+*/
 class Debug_key: public String
 {
 public:

@@ -21,6 +21,8 @@
 class Type_handler_xmltype: public Type_handler_long_blob
 {
 public:
+  static constexpr LEX_CSTRING name_on_client{STRING_WITH_LEN("xml")};
+
   virtual ~Type_handler_xmltype() {}
   const Type_collection *type_collection() const override;
   uint get_column_attributes() const override { return ATTR_CHARSET; }
@@ -62,6 +64,13 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
     override;
 
+  bool Item_append_extended_type_info(Send_field_extended_metadata *to,
+                                      const Item *item) const override
+  {
+
+    return to->set_data_type_name(name_on_client);
+  }
+
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
   bool can_return_real() const override { return false; }
@@ -99,8 +108,20 @@ public:
   {}
   const Type_handler *type_handler() const override
   { return &type_handler_xmltype; }
+
+  void make_send_field(Send_field *to) override
+  {
+    Field_longstr::make_send_field(to);
+    to->set_data_type_name(Type_handler_xmltype::name_on_client);
+  }
+
   void sql_type(String &str) const override;
   uint size_of() const  override { return sizeof(*this); }
+  int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  using Field_str::store;
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const override;
 };
 
 
@@ -119,6 +140,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *to) override;
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_xmltype_typecast>(thd, this); }
 

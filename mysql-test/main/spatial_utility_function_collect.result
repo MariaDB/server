@@ -70,18 +70,18 @@ MULTIPOINT(0 0,0 0)
 MULTIPOINT(0 0,1 0)
 MULTIPOINT(1 0,2 0)
 MULTIPOINT(2 0,3 0)
-MULTIPOINT(3 0,0 -0)
-MULTIPOINT(0 -0)
-MULTIPOINT(0 -0)
-MULTIPOINT(0 -0)
+MULTIPOINT(3 0,0 0)
+MULTIPOINT(0 0)
+MULTIPOINT(0 0)
+MULTIPOINT(0 0)
 NULL
 Excercising multiple code paths.
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(running_number)
 OVER()  FROM table_simple_aggregation GROUP BY running_number;
 geo	SUM(running_number)
 OVER()
-MULTIPOINT(0 -0)	55
-MULTIPOINT(0 -0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(1 0)	55
@@ -96,20 +96,20 @@ OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
 grouping_condition;
 geo	SUM(grouping_condition)
 OVER()	grouping_condition
-MULTIPOINT(0 -0)	1	NULL
+MULTIPOINT(0 0)	1	NULL
 MULTIPOINT(0 0,1 0,3 0)	1	0
 MULTIPOINT(0 0,2 0)	1	1
 SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(grouping_condition) OVER(),
 grouping_condition FROM table_simple_aggregation GROUP BY grouping_condition;
 geo	SUM(grouping_condition) OVER()	grouping_condition
-MULTIPOINT(0 -0,0 -0)	1	NULL
+MULTIPOINT(0 0,0 0)	1	NULL
 MULTIPOINT(0 0,1 0,3 0)	1	0
 MULTIPOINT(0 0,2 0)	1	1
 SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(running_number) OVER()  FROM
 table_simple_aggregation GROUP BY running_number;
 geo	SUM(running_number) OVER()
-MULTIPOINT(0 -0)	55
-MULTIPOINT(0 -0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(1 0)	55
@@ -268,3 +268,15 @@ select st_collect(1), st_collect(1) is null;
 st_collect(1)	st_collect(1) is null
 NULL	1
 # End of 12.2 tests
+#
+# MDEV-39523 UBSAN on ST_COLLECT (has_cached_value)
+#
+CREATE TABLE t (c INT);
+SELECT ST_COLLECT(c) FROM t;
+ST_COLLECT(c)
+NULL
+SELECT ST_ASTEXT(ST_ENVELOPE(ST_COLLECT(c))) FROM t;
+ST_ASTEXT(ST_ENVELOPE(ST_COLLECT(c)))
+NULL
+DROP TABLE t;
+# End of 12.3 tests

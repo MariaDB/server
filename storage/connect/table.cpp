@@ -321,9 +321,9 @@ void TDB::Printf(PGLOBAL g, FILE *f, uint n)
 
   } // end of Printf
 
-void TDB::Prints(PGLOBAL, char *ps, uint)
+void TDB::Prints(PGLOBAL, char *ps, uint z)
   {
-  sprintf(ps, "R%d.%s", Tdb_No, Name);
+  snprintf(ps, z, "R%d.%s", Tdb_No, Name);
   } // end of Prints
 
 /* -------------------------- class TDBASE --------------------------- */

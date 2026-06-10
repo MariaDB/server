@@ -597,6 +597,7 @@ struct export_var_t{
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
 	lsn_t innodb_lsn_last_checkpoint;
+	lsn_t innodb_lsn_archived;
 	trx_id_t innodb_max_trx_id;
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint innodb_mem_adaptive_hash;

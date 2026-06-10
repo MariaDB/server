@@ -1897,11 +1897,6 @@ int Field::warn_if_overflow(int op_result)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (op_result == E_DEC_TRUNCATED)
-  {
-    set_note(WARN_DATA_TRUNCATED, 1);
-    /* We return 0 here as this is not a critical issue */
-  }
   return 0;
 }
 
@@ -1934,8 +1929,8 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-  :ptr(ptr_arg),
-  null_ptr(null_ptr_arg), table(0), orig_table(0),
+  :ptr(ptr_arg),  ptr_old(nullptr),
+  null_ptr(null_ptr_arg), null_ptr_old(nullptr), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), vcol_direct_part_of_key(0), part_of_sortkey(0),
@@ -2288,31 +2283,28 @@ longlong Field::convert_decimal2longlong(const my_decimal *val,
                                          bool unsigned_flag, int *err)
 {
   longlong i;
+  int res= E_DEC_OVERFLOW;
   if (unsigned_flag)
   {
     if (val->sign())
     {
       set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
       i= 0;
-      *err= 1;
     }
-    else if (warn_if_overflow(my_decimal2int((E_DEC_ERROR &
-                                              ~E_DEC_OVERFLOW &
-                                              ~E_DEC_TRUNCATED),
-                                             val, TRUE, &i)))
+    else if (warn_if_overflow(res= my_decimal2int(E_DEC_FATAL_ERROR &
+                                                  ~E_DEC_OVERFLOW,
+                                                  val, TRUE, &i)))
     {
       i= ~(longlong) 0;
-      *err= 1;
     }
   }
-  else if (warn_if_overflow(my_decimal2int((E_DEC_ERROR &
-                                            ~E_DEC_OVERFLOW &
-                                            ~E_DEC_TRUNCATED),
-                                           val, FALSE, &i)))
+  else if (warn_if_overflow(res= my_decimal2int(E_DEC_FATAL_ERROR &
+                                                ~E_DEC_OVERFLOW,
+                                                val, FALSE, &i)))
   {
     i= (val->sign() ? LONGLONG_MIN : LONGLONG_MAX);
-    *err= 1;
   }
+  *err= res != 0;
   return i;
 }
 
@@ -4555,12 +4547,12 @@ int Field_long::store(const char *from,size_t len,CHARSET_INFO *cs)
 }
 
 
-int Field_long::store(double nr)
+int Field_long::store(double val)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= 0;
   int32 res;
-  nr=rint(nr);
+  double nr= rint(val);
   if (unsigned_flag)
   {
     if (nr < 0)
@@ -4594,6 +4586,8 @@ int Field_long::store(double nr)
   }
   if (unlikely(error))
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+  else if (nr != val)
+    error= 1;
 
   int4store(ptr,res);
   return error;
@@ -4891,6 +4885,10 @@ int Field_float::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_float::store(double nr)
 {
+  if (nr == 0.0)
+  {
+    nr= 0.0; // correct negative zero
+  }
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
@@ -5035,6 +5033,10 @@ int Field_double::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_double::store(double nr)
 {
+  if (nr == 0.0)
+  {
+    nr= 0.0; // correct negative zero
+  }
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
@@ -6794,11 +6796,15 @@ longlong Field_year::val_int(void)
 String *Field_year::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
-  DBUG_ASSERT(field_length < 5);
-  val_buffer->alloc(5);
+  /* "YYYY" + NUL terminator */
+  static const size_t YEAR_STR_BUFF_LEN= 5;
+  DBUG_ASSERT(field_length < YEAR_STR_BUFF_LEN);
+  val_buffer->alloc(YEAR_STR_BUFF_LEN);
   val_buffer->length(field_length);
   char *to=(char*) val_buffer->ptr();
-  sprintf(to,field_length == 2 ? "%02d" : "%04d",(int) Field_year::val_int());
+  snprintf(to, YEAR_STR_BUFF_LEN,
+           field_length == 2 ? "%02d" : "%04d",
+           (int) Field_year::val_int());
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
 }
@@ -8963,7 +8969,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= table->in_use->variables.group_concat_max_len;
+    copy_length= table->in_use->gconcat_max_len();
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,
@@ -9599,7 +9605,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
       /* This is for reading numbers with LOAD DATA INFILE */
       char *end;
       tmp=(uint) cs->strntoul(from,length,10,&end,&err);
-      if (err || end != from + length || tmp > typelib()->count)
+      if (err || end != from + length || !tmp || tmp > typelib()->count)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);

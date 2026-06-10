@@ -23,6 +23,7 @@
 #include "set_var.h"
 #include "my_json_writer.h"
 #include "sp_head.h"
+#include "item_jsonfunc.h"
 
 #include "rowid_filter.h"
 
@@ -74,7 +75,8 @@ namespace Show {
 ST_FIELD_INFO optimizer_trace_info[]=
 {
   Column("QUERY",                             Longtext(65535), NOT_NULL),
-  Column("TRACE",                             Longtext(65535), NOT_NULL),
+  Column("TRACE",
+         Longtext(65535, &my_charset_utf8mb4_general_ci), NOT_NULL),
   Column("MISSING_BYTES_BEYOND_MAX_MEM_SIZE", SLong(20),       NOT_NULL),
   Column("INSUFFICIENT_PRIVILEGES",           STiny(1),        NOT_NULL),
   CEnd()
@@ -126,7 +128,18 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
     The output is not very pretty lots of back-ticks, the output
     is as the one in explain extended , lets try to improved it here.
   */
-  writer->add("expanded_query", str.c_ptr_safe(), str.length());
+
+  StringBuffer<1024> escaped_str(system_charset_info);
+  if (st_append_escaped(&escaped_str, &str) == 0)
+  {
+    writer->add("expanded_query", escaped_str.c_ptr_safe(), 
+                                  escaped_str.length());
+  }
+  else
+  {
+    writer->add("expanded_query", 
+      "Error: failed to escape query string for JSON output");
+  }
 }
 
 void opt_trace_disable_if_no_security_context_access(THD *thd)
@@ -796,7 +809,7 @@ int fill_optimizer_trace_info(THD *thd, TABLE_LIST *tables, Item *)
     table->field[0]->store(info.query_ptr, static_cast<uint>(info.query_length),
                            info.query_charset);
     table->field[1]->store(info.trace_ptr, static_cast<uint>(info.trace_length),
-                           system_charset_info);
+                           &my_charset_utf8mb4_bin);
     table->field[2]->store(info.missing_bytes, true);
     table->field[3]->store(info.missing_priv, true);
     //  Store in IS

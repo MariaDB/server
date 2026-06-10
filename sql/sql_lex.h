@@ -998,8 +998,8 @@ public:
 };
 
 Field_pair *get_corresponding_field_pair(Item *item,
-                                         List<Field_pair> pair_list);
-Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
+                                         List<Field_pair> &pair_list);
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> & pair_list);
 
 
 #define TOUCHED_SEL_COND 1/* WHERE/HAVING/ON should be reinited before use */
@@ -1140,6 +1140,7 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
+  List<Item>          returning_list;
   List<Item>          pre_fix;    /* above list before fix_fields */
   List<Item>          fix_after_optimize;
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
@@ -1268,6 +1269,7 @@ public:
   uint in_sum_expr;
   uint select_number; /* number of select (used for EXPLAIN) */
   uint with_wild;     /* item list contain '*' ; Counter */
+  uint with_wild_returning;
   /* Number of Item_sum-derived objects in this SELECT */
   uint n_sum_items;
   /* Number of Item_sum-derived objects in children and descendant SELECTs */
@@ -1564,7 +1566,7 @@ public:
                        SQL_I_List<ORDER> win_order_list,
                        Window_frame *win_frame);
   List<Item_window_func> window_funcs;
-  bool add_window_func(Item_window_func *win_func);
+  bool add_window_func(THD *thd, Item_window_func *win_func);
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
   ORDER *find_common_window_func_partition_fields(THD *thd);
@@ -1629,6 +1631,7 @@ public:
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
   bool optimize_constant_subqueries();
+  void optimize_out_order_list();
   void set_optimizer_hints(Optimizer_hint_parser_output *hl)
   { 
     parsed_optimizer_hints= hl;
@@ -3476,6 +3479,8 @@ public:
     not support subqueries which comes standard with this rule, like
     KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
     clause name to get an error.
+
+    Note: see also table_or_sp_used().
   */
   const char *clause_that_disallows_subselect;
 
@@ -3616,8 +3621,6 @@ public:
     in the query.
   */
 
-  bool has_returning_list;
-
   void set_limit_rows_examined()
   {
     if (limit_rows_examined)
@@ -3643,6 +3646,7 @@ public:
   Window_frame_bound *frame_top_bound;
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
+  List<Item_window_func> clause_winfuncs;
 
   Item *upd_del_where;
 
@@ -4922,7 +4926,7 @@ public:
 
     Table_period_info &info= create_info.period_info;
 
-    if (check_exists && info.name.streq(name))
+    if (check_exists && info.name.streq_safe(name))
       return 0;
 
     if (info.is_set())
@@ -5066,7 +5070,7 @@ public:
   SELECT_LEX *returning()
   { return &builtin_select; }
   bool has_returning()
-  { return has_returning_list; }
+  { return !builtin_select.returning_list.is_empty(); }
 
 private:
   bool stmt_create_routine_start(const DDL_options_st &options)

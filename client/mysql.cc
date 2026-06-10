@@ -1171,8 +1171,9 @@ static void print_tab_data(MYSQL_RES *result);
 static void print_table_data_vertically(MYSQL_RES *result);
 static void print_warnings(void);
 static void print_last_query_cost(void);
-static void end_timer(ulonglong start_time, char *buff);
-static void nice_time(double sec,char *buff,bool part_second);
+static void end_timer(ulonglong start_time, char *buff, size_t buff_size);
+static void nice_time(double sec, char *buff, size_t buff_size,
+                      bool part_second);
 extern "C" sig_handler mysql_end(int sig) __attribute__ ((noreturn));
 extern "C" sig_handler handle_sigint(int sig);
 #if defined(HAVE_TERMIOS_H) && defined(GWINSZ_IN_SYS_IOCTL)
@@ -1442,18 +1443,20 @@ int main(int argc,char *argv[])
       histfile=my_strdup(PSI_NOT_INSTRUMENTED, histfile, MYF(MY_WME));
     else if ((home= getenv("HOME")))
     {
+      size_t histfile_size=
+        strlen(home) + strlen("/.mysql_history") + 2;
       histfile=(char*) my_malloc(PSI_NOT_INSTRUMENTED,
-            strlen(home) + strlen("/.mariadb_history")+2, MYF(MY_WME));
+            histfile_size, MYF(MY_WME));
       if (histfile)
       {
-        sprintf(histfile,"%s/.mariadb_history", home);
+        snprintf(histfile, histfile_size, "%s/.mariadb_history", home);
         if (my_access(histfile, F_OK))
         {
           /* no .mariadb_history, look for historical name and use if present */
-          sprintf(histfile,"%s/.mysql_history", home);
+          snprintf(histfile, histfile_size, "%s/.mysql_history", home);
           /* and go back to original if not found */
           if (my_access(histfile, F_OK))
-            sprintf(histfile,"%s/.mariadb_history", home);
+            snprintf(histfile, histfile_size, "%s/.mariadb_history", home);
         }
         char link_name[FN_REFLEN];
         if (my_readlink(link_name, histfile, 0) == 0 &&
@@ -1499,7 +1502,7 @@ int main(int argc,char *argv[])
 
 #endif
 
-  sprintf(buff, "%s",
+  snprintf(buff, sizeof(buff), "%s",
 	  "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n");
   put_info(buff,INFO_INFO);
   status.exit_status= read_and_execute(!status.batch);
@@ -1670,7 +1673,7 @@ bool kill_query(const char *reason)
     interrupted_query= 2;
 
   /* kill_buffer is always big enough because max length of %lu is 15 */
-  sprintf(kill_buffer, "KILL %s%lu",
+  snprintf(kill_buffer, sizeof(kill_buffer), "KILL %s%lu",
           (interrupted_query == 1) ? "QUERY " : "",
           mysql_thread_id(&mysql));
   if (verbose)
@@ -2734,7 +2737,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       }
       else
       {
-	sprintf(buff,"Unknown command '\\%c'.",inchar);
+	snprintf(buff, sizeof(buff), "Unknown command '\\%c'.", inchar);
 	if (put_info(buff,INFO_ERROR) > 0)
 	  DBUG_RETURN(1);
 	*out++='\\';
@@ -3261,7 +3264,7 @@ You can turn off this feature to get a quicker startup with -A\n\n");
       j=0;
       while ((sql_field=mysql_fetch_field(fields)))
       {
-	sprintf(buf,"%.64s.%.64s",table_row[0],sql_field->name);
+	snprintf(buf, sizeof(buf), "%.64s.%.64s",table_row[0], sql_field->name);
 	field_names[i][j] = strdup_root(&hash_mem_root,buf);
 	add_word(&ht,field_names[i][j]);
 	field_names[i][num_fields+j] = strdup_root(&hash_mem_root,
@@ -3705,7 +3708,7 @@ static int com_go(String *buffer, char *)
 
     report_progress_end();
     if (verbose >= 3 || !opt_silent)
-      end_timer(timer, time_buff);
+      end_timer(timer, time_buff, sizeof(time_buff));
     else
       time_buff[0]= '\0';
 
@@ -3741,9 +3744,9 @@ static int com_go(String *buffer, char *)
 	  print_tab_data(result);
 	else
 	  print_table_data(result);
-	sprintf(buff,"%ld %s in set",
-		(long) mysql_num_rows(result),
-		(long) mysql_num_rows(result) == 1 ? "row" : "rows");
+	snprintf(buff, sizeof(buff), "%llu %s in set",
+		(unsigned long long) mysql_num_rows(result),
+		mysql_num_rows(result) == 1 ? "row" : "rows");
 	end_pager();
         if (mysql_errno(&mysql))
         {
@@ -3756,9 +3759,9 @@ static int com_go(String *buffer, char *)
     else if (mysql_affected_rows(&mysql) == ~(ulonglong) 0)
       strmov(buff,"Query OK");
     else
-      sprintf(buff,"Query OK, %ld %s affected",
-	      (long) mysql_affected_rows(&mysql),
-	      (long) mysql_affected_rows(&mysql) == 1 ? "row" : "rows");
+      snprintf(buff, sizeof(buff), "Query OK, %llu %s affected",
+	      (unsigned long long) mysql_affected_rows(&mysql),
+	      mysql_affected_rows(&mysql) == 1 ? "row" : "rows");
 
     pos=strend(buff);
     if ((warnings= mysql_warning_count(&mysql)))
@@ -3936,7 +3939,7 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
   if (f)
-    sprintf(s, " unknows=0x%04x", f);
+    snprintf(s, sizeof(buf) - (size_t)(s - buf), " unknown=0x%04x", f);
   return buf;
 }
 
@@ -4687,8 +4690,10 @@ com_edit(String *buffer,char *)
   strxmov(buff,editor," ",filename,NullS);
   if ((error= system(buff)))
   {
-    char errmsg[100];
-    sprintf(errmsg, "Command '%.40s' failed", buff);
+#define EDITOR_FAIL_MSG "Command '%.40s' failed"
+    char errmsg[sizeof(EDITOR_FAIL_MSG) - 1 + 40];
+    snprintf(errmsg, sizeof(errmsg), EDITOR_FAIL_MSG, buff);
+#undef EDITOR_FAIL_MSG
     put_info(errmsg, INFO_ERROR, 0, NullS);
     goto err;
   }
@@ -4834,9 +4839,9 @@ static int com_connect(String *buffer, char *line)
 
   if (connected)
   {
-    sprintf(buff,"Connection id:    %lu",mysql_thread_id(&mysql));
+    snprintf(buff, sizeof(buff), "Connection id:    %lu",mysql_thread_id(&mysql));
     put_info(buff,INFO_INFO);
-    sprintf(buff,"Current database: %.128s\n",
+    snprintf(buff, sizeof(buff), "Current database: %.128s\n",
 	    current_db ? current_db : "*** NONE ***");
     put_info(buff,INFO_INFO);
   }
@@ -5188,7 +5193,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   if (safe_updates)
   {
     char init_command[100];
-    sprintf(init_command,
+    snprintf(init_command, sizeof(init_command),
 	    "SET SQL_SAFE_UPDATES=1,SQL_SELECT_LIMIT=%lu,MAX_JOIN_SIZE=%lu",
 	    select_limit,max_join_size);
     mysql_options(&mysql, MYSQL_INIT_COMMAND, init_command);
@@ -5384,7 +5389,7 @@ static int com_status(String *, char *)
     tee_fprintf(stdout, "%.*s\t\t\t", (int) (pos-status_str), status_str);
     if ((status_str= str2int(pos,10,0,LONG_MAX,(long*) &sec)))
     {
-      nice_time((double) sec,buff,0);
+      nice_time((double) sec,buff, sizeof(buff),0);
       tee_puts(buff, stdout);			/* print nice time */
       while (*status_str == ' ')
         status_str++;  /* to next info */
@@ -5603,8 +5608,10 @@ void tee_putc(int c, FILE *file)
 
   len("4294967296 days, 23 hours, 59 minutes, 60.000 seconds")  ->  53
 */
-static void nice_time(double sec, char *buff, bool part_second)
+static void nice_time(double sec, char *buff, size_t buff_size,
+                      bool part_second)
 {
+  char *buff_end= buff + buff_size;
   ulong tmp;
   if (sec >= 3600.0*24)
   {
@@ -5628,21 +5635,23 @@ static void nice_time(double sec, char *buff, bool part_second)
     buff=strmov(buff," min ");
   }
   if (part_second)
-    sprintf(buff,"%.3f sec",sec);
+    snprintf(buff, buff_end - buff, "%.3f sec", sec);
   else
-    sprintf(buff,"%d sec",(int) sec);
+    snprintf(buff, buff_end - buff, "%d sec", (int) sec);
 }
 
 
-static void end_timer(ulonglong start_time, char *buff)
+static void end_timer(ulonglong start_time, char *buff, size_t buff_size)
 {
   double sec;
 
+  if (buff_size < 4)
+    return;
   buff[0]=' ';
   buff[1]='(';
   sec= (microsecond_interval_timer() - start_time) / (double) (1000 * 1000);
-  nice_time(sec, buff + 2, 1);
-  strmov(strend(buff),")");
+  nice_time(sec, buff + 2, buff_size - 2, 1);
+  snprintf(strend(buff), buff_size - (strend(buff) - buff), ")");
 }
 
 static const char *construct_prompt()

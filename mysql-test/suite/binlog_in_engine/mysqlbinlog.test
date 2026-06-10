@@ -73,3 +73,25 @@ TRUNCATE t1;
 SELECT * FROM t1 ORDER BY a;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-39582 mariadb-binlog missing sanity checks for ibb files
+--echo #
+
+# file is the header and 256K zeros, rather wasteful to store it in std_data/
+perl;
+  use autodie;
+  open F, '>', "$ENV{MYSQL_TMP_DIR}/bad-binlog.ibb";
+  print F pack("V*", 0x10dfefe, 17, 1, 0, 1, 0, 16, 0, 0x11dd6, 0, 8, 0, 1, 0);
+  print F "\xff" x 8, "\x00" x 444;
+  print F pack("V", 0x81C60910);
+  print F "\x00" x 1024 for 1..256;
+EOF
+--error 1
+--exec $MYSQL_BINLOG --short-form $MYSQL_TMP_DIR/bad-binlog.ibb 2>&1
+--remove_file $MYSQL_TMP_DIR/bad-binlog.ibb
+
+--error 1
+--exec $MYSQL_BINLOG --short-form $MYSQL_TEST_DIR/std_data/corrupt-chunk-len_binlog-000000.ibb 2>&1
+
+--echo # End of 12.3 tests

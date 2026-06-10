@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/skip_innodb_log_archive.inc
 --source include/have_debug.inc
 --source include/have_sequence.inc
 
@@ -30,8 +31,6 @@ let $restart_parameters=;
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN=InnoDB: Found unexpected table in system tablespace: test\/t1;
---source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Unexpected table exists in the system tablespace;
 --source include/search_pattern_in_file.inc
 DROP TABLE t1;
 

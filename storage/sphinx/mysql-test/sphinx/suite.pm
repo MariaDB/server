@@ -13,15 +13,15 @@ sub locate_sphinx_binary {
   my @list= map "$_/$name", split /:/, $ENV{PATH};
   my $env_override= $ENV{"SPHINXSEARCH_\U$name"};
   @list= ($env_override) if $env_override;
-  for (@list) { return $_ if -x $_; }
+  for (@list) { return $ENV{"SPHINXSEARCH_\U$name"}=$_ if -x $_; }
 }
 
 # Look for Sphinx binaries
 my $exe_sphinx_indexer = &locate_sphinx_binary('indexer');
-return "'indexer' binary not found" unless $exe_sphinx_indexer;
+#return "'indexer' binary not found" unless $exe_sphinx_indexer;
 
 my $exe_sphinx_searchd = &locate_sphinx_binary('searchd');
-return "'searchd' binary not found" unless $exe_sphinx_searchd;
+#return "'searchd' binary not found" unless $exe_sphinx_searchd;
 
 my $sphinx_config= "$::opt_vardir/my_sphinx.conf";
 
@@ -29,7 +29,7 @@ my $sphinx_config= "$::opt_vardir/my_sphinx.conf";
 
 return "SphinxSE not found" unless $ENV{HA_SPHINX_SO} or $::mysqld_variables{'sphinx'} eq "ON";
 
-{
+if ($exe_sphinx_searchd) {
   local $_ = `"$exe_sphinx_searchd" --help`;
   mtr_verbose("tool: $exe_sphinx_searchd\n$_");
   my $ver = sprintf "%04d.%04d.%04d", (/([0-9]+)\.([0-9]+)(?:\.([0-9]+))?/);

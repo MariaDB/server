@@ -30,6 +30,31 @@ binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, REPEAT('2', 2000
 binlog-000000.ibb	#	Table_map	#	#	table_id: # (test.t1)
 binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 binlog-000000.ibb	#	Xid	#	#	COMMIT /* XID */
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_utf8mb4'InnoDB: innodb_read_only prevents crash recovery' COLLATE 'utf8mb4_uca1400_ai_ci'))
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (mtr.test_suppressions)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Query	#	#	COMMIT
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_utf8mb4'InnoDB: Plugin initialization aborted' COLLATE 'utf8mb4_uca1400_ai_ci'))
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (mtr.test_suppressions)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Query	#	#	COMMIT
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_utf8mb4'Plugin \'InnoDB\' registration as a STORAGE ENGINE failed' COLLATE 'utf8mb4_uca1400_ai_ci'))
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (mtr.test_suppressions)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Query	#	#	COMMIT
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_utf8mb4'unknown option \'--innodb-invalid-option\'' COLLATE 'utf8mb4_uca1400_ai_ci'))
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (mtr.test_suppressions)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Query	#	#	COMMIT
+binlog-000000.ibb	#	Gtid	#	#	BEGIN GTID #-#-#
+binlog-000000.ibb	#	Annotate_rows	#	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_utf8mb4'\\[ERROR\\] Aborting' COLLATE 'utf8mb4_uca1400_ai_ci'))
+binlog-000000.ibb	#	Table_map	#	#	table_id: # (mtr.test_suppressions)
+binlog-000000.ibb	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+binlog-000000.ibb	#	Query	#	#	COMMIT
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 binlog-000001.ibb	#	Gtid	#	#	BEGIN GTID #-#-#

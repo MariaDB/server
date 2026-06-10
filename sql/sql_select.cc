@@ -1172,7 +1172,7 @@ int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
     if (!table->table)
       continue;
     vers_select_conds_t &conds= table->period_conditions;
-    if (!table->table->s->period.name.streq(conds.name))
+    if (!table->table->s->period.name.streq_safe(conds.name))
     {
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
       if (arena)
@@ -7718,7 +7718,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
 {
   uint	and_level,i;
   KEY_FIELD *key_fields, *end, *field;
-  uint sz;
+  size_t sz;
   uint m= MY_MAX(select_lex->max_equal_elems,1);
   DBUG_ENTER("update_ref_and_keys");
   DBUG_PRINT("enter", ("normal_tables: %llx", normal_tables));
@@ -14402,15 +14402,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           Json_writer_object trace_const_cond(thd);
           trace_const_cond.add("condition_on_constant_tables", const_cond);
-          if (const_cond->is_expensive())
+          if (const_cond->can_eval_in_optimize())
           {
-            if (unlikely(trace_const_cond.trace_started()))
-              trace_const_cond.
-                add("evalualted", "false").
-                add("cause", "expensive cond");
-          }
-          else
-          {
+
             bool const_cond_result;
             {
               Json_writer_array a(thd, "computing_condition");
@@ -14426,6 +14420,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
+          }
+          else
+          {
+            trace_const_cond.add("evaluated", "false")
+                            .add("cause", "expensive cond");
           }
           join->exec_const_cond= const_cond;
         }
@@ -22076,8 +22075,8 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = temp_pool_set_next();
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
-            current_pid, m_temp_pool_slot);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
+             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
@@ -22618,7 +22617,7 @@ bool Create_tmp_table::finalize(THD *thd,
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
-      else
+      else if (orig_field->default_value == NULL)
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
@@ -32739,29 +32738,32 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   // PROCEDURE unsupported here
 }
 
-
-void st_select_lex::print_hints(THD *thd,
-                                String *str)
+void st_select_lex::print_hints(THD *thd, String *str)
 {
+  if (!parent_lex->opt_hints_global)
+    return;
+
+  const bool is_view= parent_lex->sql_command == SQLCOM_CREATE_VIEW ||
+                      parent_lex->sql_command == SQLCOM_SHOW_CREATE;
   constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
   str->append(header);
   const uint32 len_before_hints= str->length();
 
   if (opt_hints_qb)
     opt_hints_qb->append_qb_hint(thd, str);
-
-  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
-      thd->lex->sql_command == SQLCOM_SHOW_CREATE)
+  if (this == parent_lex->unit.first_select() && !is_view)
   {
-    if (str->length() <= len_before_hints &&
-        opt_hints_qb && opt_hints_qb->get_parent())
-      opt_hints_qb->get_parent()->print(thd, str);
+    /*
+      For normal queries (not views creation/show) opt_hints_global will
+      print itself and all children recursively into the first select.
+      Global hints are not supported inside views, so it is safe to skip them
+    */
+    parent_lex->opt_hints_global->print(thd, str);
   }
-  else
+  if (is_view && opt_hints_qb)
   {
-    if (thd->lex->opt_hints_global &&
-        select_number == 1)  // toplevel SELECT
-      thd->lex->opt_hints_global->print(thd, str);
+    // For views print hints related to a QB right into the QB they target
+    opt_hints_qb->print(thd, str);
   }
 
   // If no hints were added, then rollback the previouly added header.
@@ -34893,7 +34895,7 @@ bool Sql_cmd_dml::prepare(THD *thd)
   MYSQL_DML_START(thd);
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
-
+  lex->resolve_optimizer_hints();
   if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
                             get_dml_prelocking_strategy()))
   {
@@ -34948,6 +34950,7 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   SELECT_LEX_UNIT *unit = &lex->unit;
   SELECT_LEX *select_lex= lex->first_select_lex();
+
 
   if (!is_prepared())
   {

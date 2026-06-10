@@ -9,6 +9,7 @@
 #               rename t/innodb_handler.test to t/handler_innodb.test
 #
 
+--source include/have_partition.inc
 --source include/have_innodb.inc
 
 let $engine_type= InnoDB;
@@ -47,3 +48,19 @@ HANDLER h CLOSE;
 DROP TABLE t1;
 
 --echo # End of 10.2 Test
+
+--echo #
+--echo # MDEV-38806 Non-debug assertion failure in btr_pcur_t::restore_position upon HANDLER operations
+--echo #
+
+CREATE TABLE t (id INT PRIMARY KEY, a BLOB) ENGINE=InnoDB PARTITION BY KEY(id);
+INSERT INTO t (id) VALUES (1),(2);
+
+HANDLER t OPEN;
+HANDLER t READ `PRIMARY` = (1);
+HANDLER t READ `PRIMARY` NEXT;
+HANDLER t CLOSE;
+DROP TABLE t;
+
+
+--echo # End of 12.3 Test

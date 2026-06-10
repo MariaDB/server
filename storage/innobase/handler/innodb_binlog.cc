@@ -2034,8 +2034,6 @@ innodb_binlog_discover()
                               &header);
       if (res < 0) {
         file_no= binlog_files.last_file_no;
-        if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
-          return -1;
         binlog_discover_init(file_no, innodb_binlog_state_interval);
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;

@@ -1070,14 +1070,8 @@ struct dict_index_t {
     static constexpr uint8_t HASH_ANALYSIS= 16;
     /** the number of calls to hash_analysis_useful() */
     Atomic_relaxed<uint8_t> hash_analysis{0};
-  public:
-    bool hash_analysis_useful() noexcept
-    {
-      return hash_analysis > HASH_ANALYSIS ||
-        hash_analysis.fetch_add(1) >= HASH_ANALYSIS;
-    }
-    void hash_analysis_reset() noexcept { hash_analysis= 0; }
 
+  public:
     /** number of consecutive searches which would have succeeded, or
     did succeed, using the hash index; the range is 0
     .. BTR_SEARCH_BUILD_LIMIT */
@@ -1089,10 +1083,207 @@ struct dict_index_t {
     search, and the calculation itself is not always accurate! */
     Atomic_relaxed<bool> last_hash_succ{false};
 
+    /** AHI preference value for the index. */
+    enum preference : uint8_t
+    {
+      /** Force disabled */
+      AHI_INDEX_FORCE_DISABLED= 0,
+      /** No preference (set by default, use global setting) */
+      AHI_INDEX_NO_PREFERENCE= 1,
+      /** Prefer enabled (if not globally disabled) */
+      AHI_INDEX_PREFER_ENABLED= 2,
+    };
+
+  private:
+    /** Compound variable which contains:
+    - bits [0, 1]: adaptive_hash_index enabled/disabled preference (2 bits)
+      - 0b00 (0): @see AHI_INDEX_FORCE_DISABLED
+      - 0b01 (1): @see AHI_INDEX_NO_PREFERENCE
+      - 0b10 (2): @see AHI_INDEX_PREFER_ENABLED
+      - 0b11 (3): reserved
+    - bits [2, 23]: fixed parameters in recommendations (22 bits)
+      - bits [2, 8]: complete_fields (fields, 7 bits)
+      - bits [9, 22]: bytes_from_incomplete_field (bytes, 14 bits)
+      - bit 23: ~for_equal_hash_point_to_last_record (left, 1 bit)
+    - bits [24, 26]: mask which indicates valid recommendations bits (3 bits)
+      - bit 24: fields valid
+      - bit 25: bytes valid
+      - bit 26: left valid
+    - bits [27, 31]: spare (5 bits)
+    @see buf_block_t::left_bytes_fields */
+    Atomic_relaxed<uint32_t> enabled_fixed_mask{0};
+
+    /* Size in bits for each field of enabled_fixed_mask */
+    static constexpr uint32_t enabled_bits= 2;  /* First */
+    static constexpr uint32_t fields_bits= 7;
+    static constexpr uint32_t bytes_bits= 14;
+    static constexpr uint32_t left_bits= 1;
+    static constexpr uint32_t have_fields_bits= 1;
+    static constexpr uint32_t have_bytes_bits= 1;
+    static constexpr uint32_t have_left_bits= 1;  /* Last */
+
+    /* Shifts for each field of enabled_fixed_mask (packed) */
+    static constexpr uint32_t enabled_shift= 0;  /* First */
+    static constexpr uint32_t fields_shift= enabled_shift + enabled_bits;
+    static constexpr uint32_t bytes_shift= fields_shift + fields_bits;
+    static constexpr uint32_t left_shift= bytes_shift + bytes_bits;
+    static constexpr uint32_t have_fields_shift=
+      left_shift + left_bits;
+    static constexpr uint32_t have_bytes_shift=
+      have_fields_shift + have_fields_bits;
+    static constexpr uint32_t have_left_shift=
+      have_bytes_shift + have_bytes_bits;  /* Last */
+
+    static_assert(have_left_shift + have_left_bits <=
+      sizeof(enabled_fixed_mask) * 8,
+      "enabled_fixed_mask does not fit in 32 bits");
+
+    /* Masks for each field of enabled_fixed_mask */
+    static constexpr uint32_t enabled_mask= (1U << enabled_bits) - 1;
+    static constexpr uint32_t fields_mask= (1U << fields_bits) - 1;
+    static constexpr uint32_t bytes_mask= (1U << bytes_bits) - 1;
+    static constexpr uint32_t left_mask= (1U << left_bits) - 1;
+    static constexpr uint32_t have_fields_mask=
+      (1U << have_fields_bits) - 1;
+    static constexpr uint32_t have_bytes_mask=
+      (1U << have_bytes_bits) - 1;
+    static constexpr uint32_t have_left_mask=
+      (1U << have_left_bits) - 1;
+
+    static_assert(left_mask == true && false < true,
+      "left_mask is unadequate for a bool");
+
+  public:
+    bool hash_analysis_useful() noexcept
+    {
+      return hash_analysis > HASH_ANALYSIS ||
+        hash_analysis.fetch_add(1) >= HASH_ANALYSIS;
+    }
+    void hash_analysis_reset() noexcept { hash_analysis= 0; }
+
     /** recommended parameters; @see buf_block_t::left_bytes_fields */
     Atomic_relaxed<uint32_t> left_bytes_fields{buf_block_t::LEFT_SIDE | 1};
-    /** number of buf_block_t::index pointers to this index */
-    Atomic_counter<size_t> ref_count{0};
+    /** number of buf_block_t::index pointers to this index.
+    As pages of an index must be in the same tablespace, and tablespace
+    pages are representable in uint32_t, uint32_t is sufficient here. */
+    Atomic_counter<uint32_t> ref_count{0};
+
+    /* Maximum values for the enabled_fixed_mask fields */
+    static constexpr uint8_t max_enabled= enabled_mask - 1;
+    static constexpr uint8_t max_fields= fields_mask;
+    static constexpr uint16_t max_bytes= bytes_mask;
+    static_assert(AHI_INDEX_PREFER_ENABLED <= max_enabled, "Enum does not fit");
+
+    /** Set the recommended parameters values (enabled, fixed) and mask
+    for the AHI on this index, using bit-manipulation for encoding and a
+    single atomic store.
+    @param enabled the AHI enabled preference
+    @param have_fields whether the fields recommendation is set
+    @param have_bytes whether the bytes recommendation is set
+    @param have_left whether the left recommendation is set
+    @param fields the fields recommendation, if any
+    @param bytes the bytes recommendation, if any
+    @param left the left recommendation, if any
+    @see dict_index_t::ahi::enabled_fixed_mask */
+    void set_enabled_fixed_mask(preference enabled,
+                                bool have_fields,
+                                bool have_bytes,
+                                bool have_left,
+                                uint8_t fields,
+                                uint16_t bytes,
+                                bool left) noexcept
+    {
+      ut_ad(enabled <= max_enabled);
+      ut_ad(!have_fields || fields <= max_fields);
+      ut_ad(!have_bytes || bytes <= max_bytes);
+      /* Maybe overzealous, just to highlight the arithmetic used below */
+      static_assert(uint32_t(true) == 1);
+      static_assert(uint32_t(false) == 0);
+      const uint32_t val= (uint32_t(enabled & enabled_mask) << enabled_shift) |
+        (uint32_t(fields & fields_mask) << fields_shift) |
+        (uint32_t(have_fields) << have_fields_shift) |
+        (uint32_t(bytes & bytes_mask) << bytes_shift) |
+        (uint32_t(have_bytes) << have_bytes_shift) |
+        (uint32_t(left) << left_shift) |
+        (uint32_t(have_left) << have_left_shift);
+      enabled_fixed_mask.store(val);
+    }
+
+    /** Extract the enabled preference bits from a copy of the
+    dict_index_t::ahi::enabled_fixed_mask variable using bit shift and
+    masking.
+    @param val a copy of dict_index_t::ahi::enabled_fixed_mask
+    @return the AHI enabled preference from val */
+    static preference get_enabled(uint32_t val) noexcept
+    {
+      const uint8_t enabled= (val >> enabled_shift) & enabled_mask;
+      ut_ad(enabled <= max_enabled);
+      return preference{enabled};
+    }
+
+    /** Extract the enabled preference bits from the
+    dict_index_t::ahi::enabled_fixed_mask atomic variable.
+    @return the AHI enabled preference for the index */
+    preference get_enabled() const noexcept
+    {
+      return get_enabled(enabled_fixed_mask.load());
+    }
+
+    /** Read the raw content of the
+    dict_index_t::ahi::enabled_fixed_mask atomic variable.
+    @return the raw content of dict_index_t::ahi::enabled_fixed_mask */
+    uint32_t get_enabled_fixed_mask() const noexcept
+    {
+      return enabled_fixed_mask.load();
+    }
+
+    /** Transcode the raw content of a copy of
+    dict_index_t::ahi::enabled_fixed_mask into the fixed (left, bytes, fields)
+    parameters and validity mask format, which allow to do blending into
+    dict_index_t::ahi::left_bytes_fields variable using similar logic:
+
+    left_bytes_fields= (left_bytes_fields & ~mask) | (fixed & mask);
+
+    Valid fixed parameters are meant to override the left_bytes_fields
+    ones when determining the new AHI parameters in
+    btr_search_info_update_hash().
+
+    @param val a copy of dict_index_t::ahi::enabled_fixed_mask
+    @param[out] fixed fixed parameters (left, bytes, fields) in
+    dict_index_t::ahi::left_bytes_fields format
+    @param[out] mask validity mask compatible with
+    dict_index_t::ahi::left_bytes_fields format
+    @see dict_index_t::ahi::left_bytes_fields */
+    static void get_fixed_mask(uint32_t val,
+                               uint32_t& fixed,
+                               uint32_t& mask) noexcept
+    {
+      const uint32_t left= (val >> left_shift) & left_mask;
+      const uint32_t bytes= (val >> bytes_shift) & bytes_mask;
+      const uint32_t fields= (val >> fields_shift) & fields_mask;
+      const uint32_t have_left=
+        (val >> have_left_shift) & have_left_mask;
+      const uint32_t have_bytes=
+        (val >> have_bytes_shift) & have_bytes_mask;
+      const uint32_t have_fields=
+        (val >> have_fields_shift) & have_fields_mask;
+      ut_ad(!have_fields || fields <= fields_mask);
+      ut_ad(!have_bytes || bytes <= bytes_mask);
+      ut_ad(!have_left || left <= left_mask);
+      /* See buf_block_t::left_bytes_fields */
+      static_assert(left_mask < (1U << 1));
+      static_assert(bytes_mask < (1U << 15));
+      static_assert(fields_mask < (1U << 16));
+      fixed= fields | (bytes << 16) | (left << 31);
+      /* Just to highlight arithmetic used below */
+      static_assert(have_fields_mask == 1);
+      static_assert(have_bytes_mask == 1);
+      static_assert(have_left_mask == 1);
+      static_assert((0 - uint32_t(1)) == 0xFFFFFFFF);
+      mask= ((0 - have_fields) & 0x0000FFFF) |
+        ((0 - have_bytes) & 0x7FFF0000) |
+        ((0 - have_left) & 0x80000000);
+    }
 
 #  ifdef UNIV_SEARCH_PERF_STAT
     /** number of successful hash searches */
@@ -2538,7 +2729,7 @@ public:
   /** @return number of unique columns in FTS_DOC_ID index */
   uint16_t fts_n_uniq() const { return versioned() ? 2 : 1; }
 
-  /** @return the index for that starts with a specific column */
+  /** @return the index that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;
 
   /** @return whether the statistics are initialized */
@@ -2590,6 +2781,17 @@ public:
       if (i->is_spatial())
         return true;
     return false;
+  }
+
+  /** @return whether the table has any indexed virtual column */
+  bool has_virtual_index() const noexcept
+  {
+    if (UNIV_UNLIKELY(n_v_cols != 0))
+      for (dict_index_t *index = indexes.start;
+           index; index = UT_LIST_GET_NEXT(indexes, index))
+        if (index->has_virtual())
+          return true;
+   return false;
   }
 };
 

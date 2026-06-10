@@ -1111,6 +1111,22 @@ public:
   /** The minimum allowed innodb_buffer_pool_size in garbage_collect() */
   size_t size_in_bytes_auto_min;
 #endif
+#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
+  /* In constrained environments, innodb_buffer_pool_size_max
+   will default to the initial innodb_buffer_pool_size, that is,
+   by default, it will not be possible to increase innodb_buffer_pool_size.
+
+   In MemorySanitizer and possibly Valgrind memcheck, any virtual memory
+   allocation would be backed by one or more copies of shadow bits of the
+   same size that could be allocated and initialized even for dummy
+   mappings created by mmap(2) with PROT_NONE. We do not want significant
+   overhead beyond the actual innodb_buffer_pool_size. */
+  static constexpr size_t size_in_bytes_max_default{0},
+    size_in_bytes_max_minimum{0};
+#else
+  static constexpr size_t size_in_bytes_max_default{8ULL << 40},
+    size_in_bytes_max_minimum{innodb_buffer_pool_extent_size};
+#endif
   /** The maximum allowed innodb_buffer_pool_size */
   size_t size_in_bytes_max;
 
@@ -1138,6 +1154,15 @@ public:
 
   @return number of errors found in madvise() calls */
   static int madvise_do_dump() noexcept;
+#endif
+
+#if defined __linux__ || defined __FreeBSD__
+  /** Include or exclude the buffer pool from core dump. */
+  void core_advise() noexcept
+  {
+    mysql_mutex_assert_owner(&mutex);
+    madvise(memory, size_in_bytes, in_core_dump ? MADV_DODUMP : MADV_DONTDUMP);
+  }
 #endif
 
   /** Hash cell chain in page_hash_table */
@@ -1613,6 +1638,13 @@ private:
   only modified by buf_flush_page_cleaner():
   set while holding mutex, cleared while holding flush_list_mutex */
   Atomic_relaxed<bool> LRU_warned;
+
+#if defined __linux__ || defined __FreeBSD__
+public:
+  /** The value of innodb_buffer_pool_in_core_dump */
+  my_bool in_core_dump;
+private:
+#endif
 
   /** withdrawn blocks during resize() */
   UT_LIST_BASE_NODE_T(buf_page_t) withdrawn;

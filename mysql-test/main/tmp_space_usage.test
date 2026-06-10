@@ -103,6 +103,8 @@ insert into t1 (a,v) select seq, repeat(char(64+mod(seq,32)),mod(seq,254)+1) fro
 
 let $id=`select connection_id()`;
 let $tmp_usage1=`select variable_value from information_schema.session_status where variable_name="tmp_space_used"`;
+# Wait for the previous statement to finish cleanup before reading processlist.
+--ping
 
 connection c1;
 --disable_query_log

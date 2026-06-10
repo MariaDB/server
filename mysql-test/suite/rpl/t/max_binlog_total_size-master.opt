@@ -1,5 +1,1 @@
---log-bin=binary
---max-binlog-total-size=1500
---max-binlog-size=4096
---binlog-format=row
---slave_connections_needed_for_purge=1
+--log-bin=binary --max-binlog-total-size=1500 --max-binlog-size=4096 --binlog-format=row --slave_connections_needed_for_purge=1 --loose-binlog-row-event-max-size=8192

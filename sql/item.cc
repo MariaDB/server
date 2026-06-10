@@ -455,6 +455,7 @@ Item::Item(THD *thd):
     if (place == SELECT_LIST || place == IN_HAVING)
       thd->lex->current_select->select_n_having_items++;
   }
+  is_old_value_reference= false;
 }
 
 /*
@@ -470,6 +471,7 @@ Item::Item():
   null_value= 0;
   marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
+  is_old_value_reference= false;
 }
 
 
@@ -503,6 +505,7 @@ Item::Item(THD *thd, Item *item):
 {
   next= thd->free_list;				// Put in free list
   thd->free_list= this;
+  is_old_value_reference= false;
 }
 
 
@@ -1009,6 +1012,16 @@ bool Item_field::intersect_field_part_of_key(void *arg)
 {
   key_map *part_of_key= (key_map *) arg;
   part_of_key->intersect(field->part_of_key);
+  return 0;
+}
+
+
+bool Item_field::get_context_for_vcol_processor(void *arg)
+{
+  Name_resolution_context **to_context= (Name_resolution_context **) arg;
+  if (!*to_context)
+    *to_context= context;
+  DBUG_ASSERT(*to_context == context);
   return 0;
 }
 
@@ -5509,9 +5522,14 @@ longlong Item_copy_string::val_int()
 {
   DBUG_ASSERT(copied_in);
   int err;
-  return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
-                                                        str_value.length(), 10,
-                                                        (char**) 0, &err);
+  if (null_value)
+    return 0;
+  if (unsigned_flag)
+    return (longlong)
+        str_value.charset()->strntoull(str_value.ptr(), str_value.length(),
+                                       10, 0, &err);
+  return str_value.charset()->strntoll(str_value.ptr(), str_value.length(),
+                                       10, 0, &err);
 }
 
 
@@ -7959,6 +7977,60 @@ bool Item_field::send(Protocol *protocol, st_value *buffer)
   return protocol->store(result_field);
 }
 
+bool Item_old_field::send(Protocol *protocol, st_value *buffer)
+{
+  bool result;
+
+  change_field_ptr();
+  result= Item_field::send(protocol, buffer);
+  change_field_ptr();
+
+  return result;
+}
+
+void Item_old_field::change_field_ptr()
+{
+  std::swap(field->ptr_old, field->ptr);
+  std::swap(field->null_ptr, field->null_ptr_old);
+}
+
+
+bool Item_old_field::fix_fields(THD *thd, Item **reference)
+{
+  if (Item_field::fix_fields(thd, reference))
+    return true;
+  /*
+    Store the pointer to where old values are store before update.
+  */
+  if (field)
+  {
+    field->ptr_old= field->table->record[1] +
+                  field->offset(field->table->record[0]);
+    if (field->null_ptr)
+    {
+      field->null_ptr_old =
+        field->table->record[1] +
+        (field->null_ptr - field->table->record[0]);
+    }
+    else
+    {
+      field->null_ptr_old = nullptr;
+    }
+  }
+  else
+  {
+    /*
+      Field is NULL in case of view. But we need the information to field
+      to return its old value. Hence get the field from the reference item
+      and proceed.
+    */
+    field= ((Item_old_field*)((*reference)->real_item()))->field;
+    field->ptr_old= field->table->record[1] + field->offset(field->table->record[0]);
+  }
+
+  return false;
+}
+
 
 Item* Item::propagate_equal_fields_and_change_item_tree(THD *thd,
                                                         const Context &ctx,
@@ -8300,6 +8372,20 @@ Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
 }
 
 
+/*
+  @brief
+    Given an @p item from this select, check if it originates from
+    derived table made from select @p sel. If yes, return the item
+    expression from select @p sel that produces it.
+
+  @note
+    Also check the multiple equality that @p item is a member of.
+
+  @return
+    The item in sel's select list that is the source for @p item.
+    NULL if the item is not found.
+*/
+
 static
 Item *find_producing_item(Item *item, st_select_lex *sel)
 {
@@ -8349,6 +8435,16 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
   }
+  /*
+    This item doesn't come from the SELECT that we're pushing condition into.
+    This can be due to:
+     - This item refers to a constant expression. Currently we push those
+       down anyway.
+     - This item is inside Item_direct_view_ref object, call it $REF. $REF
+       participates in multiple equality which includes a pushable item $PI.
+       $REF->derived_field_transformer_for_where() will make sure that $PI
+       is pushed down instead.
+  */
   return this;
 }
 
@@ -8380,6 +8476,17 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
   }
+  /*
+    We get here in two cases:
+    1. This is DEFAULT(field). TODO: Should this be pushed?
+    2. This item doesn't come from the SELECT that we're pushing condition
+     - This item refers to a constant expression. Currently we push those
+       down anyway.
+     - This item is inside Item_direct_view_ref object, call it $REF. $REF
+       participates in multiple equality which includes a pushable item $PI.
+       $REF->derived_field_transformer_for_where() will make sure that $PI
+       is pushed down instead.
+  */
   return this;
 }
 
@@ -9995,7 +10102,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
 }
 
-
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -10030,7 +10136,12 @@ bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
     if (args[i]->type() == Item::FUNC_ITEM &&
         ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC)
       return false;
-    if (args[i]->const_item())
+    /*
+      Constant expression doesn't need to be checked.
+      BUT if it still reports to have references to tables, we must check that
+      only allowed columns are referred.
+    */
+    if (args[i]->const_item() && !args[i]->used_tables())
       continue;
     if (!args[i]->excl_dep_on_grouping_fields(sel))
       return false;
@@ -11332,6 +11443,7 @@ bool Item_cache_str::cache_value()
   }
   else
     value_buff.copy();
+  value_buff.mark_as_const();
   return TRUE;
 }
 

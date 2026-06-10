@@ -67,3 +67,16 @@ exec $XTRABACKUP --help;
 exec $XTRABACKUP -?;
 --enable_result_log
 
+--echo #
+--echo # MDEV-39565 missing filename check in mariadb-backup --decompress
+--echo #
+--write_file "$MYSQL_TMP_DIR/a;touch b.qp"
+foo
+EOF
+
+--replace_regex /.*based.*\n// /\d/#/ /[\\]/\//
+--error 1
+exec $XTRABACKUP --decompress --target-dir=$MYSQL_TMP_DIR 2>&1;
+--list_files $MYSQL_TMP_DIR b.qp
+
+--echo # End of 10.6 tests

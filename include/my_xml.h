@@ -40,6 +40,13 @@ extern "C" {
 */
 #define MY_XML_FLAG_SKIP_TEXT_NORMALIZATION 2
 
+/*
+  A flag if parsing should fail when XML is not
+  Well Formed as it's described in standards.
+  Like having exactly one root element an <?xml on top.
+*/
+#define MY_XML_FLAG_ASSERT_WELL_FORMED 4
+
 enum my_xml_node_type
 {
   MY_XML_NODE_TAG,   /* can have TAG, ATTR and TEXT children */
@@ -52,6 +59,15 @@ typedef struct xml_stack_st
   int flags;
   enum my_xml_node_type current_node_type;
   char errstr[128];
+  int root_node_counter;
+
+  /*
+    Counts some items to verify that the possible
+    <?xml..?> instruction is first in the document.
+    It counts all the root items and some nested that
+    are easier to count than to detect if they're on the root.
+  */
+  int item_counter;
 
   struct {
     char static_buffer[128];
@@ -68,6 +84,10 @@ typedef struct xml_stack_st
   int  (*enter)(struct xml_stack_st *st,const char *val, size_t len);
   int  (*value)(struct xml_stack_st *st,const char *val, size_t len);
   int  (*leave_xml)(struct xml_stack_st *st,const char *val, size_t len);
+
+  int  (*processing_instruction)(struct xml_stack_st *st,
+                                 const char *target, size_t target_len,
+                                 const char *value, size_t value_len);
 } MY_XML_PARSER;
 
 void my_xml_parser_create(MY_XML_PARSER *st);
@@ -83,6 +103,8 @@ void my_xml_set_enter_handler(MY_XML_PARSER *st, int (*)(MY_XML_PARSER *,
 void my_xml_set_leave_handler(MY_XML_PARSER *st, int (*)(MY_XML_PARSER *,
 							 const char *,
 							 size_t len));
+void my_xml_set_processing_instruction_handler(MY_XML_PARSER *st,
+    int (*)(MY_XML_PARSER *, const char *, size_t, const char *, size_t));
 void my_xml_set_user_data(MY_XML_PARSER *st, void *);
 
 size_t my_xml_error_pos(MY_XML_PARSER *st);

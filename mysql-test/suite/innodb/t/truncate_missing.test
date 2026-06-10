@@ -13,6 +13,7 @@ let $datadir=`select @@datadir`;
 
 --source include/shutdown_mysqld.inc
 --remove_file $datadir/test/t.ibd
+--let $restart_parameters=--innodb-log-recovery-start=0
 --source include/start_mysqld.inc
 
 --error ER_GET_ERRNO

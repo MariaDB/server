@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/not_windows.inc
 --source hashicorp_plugin.inc
 
 --exec vault secrets disable flush_test > /dev/null

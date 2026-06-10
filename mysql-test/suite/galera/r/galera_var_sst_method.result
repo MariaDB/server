@@ -1,0 +1,44 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET @sst_method_orig=@@GLOBAL.wsrep_sst_method;
+set global wsrep_sst_method='mariabackup;';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'mariabackup;'
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+set global wsrep_sst_method='mariabackup\'';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'mariabackup''
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+set global wsrep_sst_method='mariabackup&';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'mariabackup&'
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+set global wsrep_sst_method='mariabackup|';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'mariabackup|'
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+set global wsrep_sst_method=NULL;
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'NULL'
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+set global wsrep_sst_method='';
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of ''
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+set global wsrep_sst_method='mariabackup';
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+mariabackup
+set global wsrep_sst_method='rsync';
+select @@wsrep_sst_method;
+@@wsrep_sst_method
+rsync
+disconnect node_2;
+disconnect node_1;

@@ -806,6 +806,24 @@ str_to_date('1 Tháng 9 2026', '%d %M %Y','vi_VN')	2026-09-01
 str_to_date('1 Tháng 10 2026', '%d %M %Y','vi_VN')	2026-10-01
 str_to_date('1 Tháng 11 2026', '%d %M %Y','vi_VN')	2026-11-01
 str_to_date('1 Tháng 12 2026', '%d %M %Y','vi_VN')	2026-12-01
+#
+# MDEV-39721: SIGSEGV in check_word|(extract_date_time|extract_oracle_date_time)
+#
+# locale as a session var
+SET SESSION lc_time_names='ar_DZ';
+SELECT STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y');
+STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y')	NULL
+Warnings:
+Level	Warning
+Code	1411
+Message	Incorrect datetime value: 'Wednesday, June 2, 2014' for function str_to_date
+# locale as third param to STR_TO_DATE
+SELECT STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y', 'ar_DZ');
+STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y', 'ar_DZ')	NULL
+Warnings:
+Level	Warning
+Code	1411
+Message	Incorrect datetime value: 'Wednesday, June 2, 2014' for function str_to_date
 # End of 12.3 test
 SET @@lc_time_names=DEFAULT;
 SET NAMES latin1;

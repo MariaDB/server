@@ -103,29 +103,97 @@ bool btr_search_check_marked_free_index(const buf_block_t *block) noexcept;
 
 struct ahi_node;
 
+/** The possible AHI enabled values: disabled, enabled, enabled
+but active only when specifically enabled by index or table option.
+
+Matches innodb_ahi_names from ha_innodb.cc */
+enum ahi_status : ulong
+{
+  /** Disabled */
+  AHI_OFF= 0,
+  /** Enabled */
+  AHI_ON= 1,
+  /** Enabled, active only where index or table option specifically
+  enabled AHI */
+  AHI_IF_SPECIFIED= 2
+};
+
+static_assert(
+  uint8_t{dict_index_t::ahi::AHI_INDEX_FORCE_DISABLED} == AHI_OFF &&
+  uint8_t{dict_index_t::ahi::AHI_INDEX_NO_PREFERENCE} == AHI_ON &&
+  uint8_t{dict_index_t::ahi::AHI_INDEX_PREFER_ENABLED} == AHI_IF_SPECIFIED,
+  "ahi_status / dict_index_t::ahi::preference numeric values must match");
+
 /** The hash index system */
 struct btr_sea
 {
   /** the actual value of innodb_adaptive_hash_index, protected by
   all partition::latch. Note that if buf_block_t::index is not nullptr
   while a thread is holding a partition::latch, then also this must hold. */
-  Atomic_relaxed<bool> enabled;
+  Atomic_relaxed<ahi_status> enabled;
 
 private:
   /** Disable the adaptive hash search system and empty the index.
-  @return whether the adaptive hash index was enabled */
-  ATTRIBUTE_COLD bool disable_and_lock() noexcept;
+  @return the AHI enabled value before the operation is performed */
+  ATTRIBUTE_COLD ahi_status disable_and_lock() noexcept;
 
   /** Unlock the adaptive hash search system. */
   ATTRIBUTE_COLD void unlock() noexcept;
+
 public:
+
+  /** Check if AHI is enabled for an index.
+  @param index the index
+  @return true if AHI enabled for the index */
+  bool is_enabled(const dict_index_t *index) const noexcept
+  {
+    /* Index is enabled if global AHI is enabled and index can be enabled.
+    If enabled is set to 2 (AHI_IF_SPECIFIED), only enable indexes declared
+    with AHI enabled on (uint8_t{index->search_info.get_enabled()} == 2).
+    We don't have to check if uint8_t{index->search_info.get_enabled()} != 0
+    as the test enabled <= uint8_t{index->search_info.get_enabled()} will
+    not be true in this case.
+
+    All combinations of (btr_sea::enabled, index->search_info.get_enabled())
+    and the resulting return value:
+
+      (AHI_OFF,          AHI_INDEX_FORCE_DISABLED) -> false
+      (AHI_OFF,          AHI_INDEX_NO_PREFERENCE ) -> false
+      (AHI_OFF,          AHI_INDEX_PREFER_ENABLED) -> false
+      (AHI_ON,           AHI_INDEX_FORCE_DISABLED) -> false
+      (AHI_ON,           AHI_INDEX_NO_PREFERENCE ) -> true
+      (AHI_ON,           AHI_INDEX_PREFER_ENABLED) -> true
+      (AHI_IF_SPECIFIED, AHI_INDEX_FORCE_DISABLED) -> false
+      (AHI_IF_SPECIFIED, AHI_INDEX_NO_PREFERENCE ) -> false
+      (AHI_IF_SPECIFIED, AHI_INDEX_PREFER_ENABLED) -> true */
+    const ahi_status enabled{get_enabled()};
+    return (unlikely(enabled != AHI_OFF) &&
+            enabled <= uint8_t{index->search_info.get_enabled()});
+  }
+
+  /** Check if AHI is enabled for an index, supposing it is enabled for
+  a nullptr index. This to handle the case where we do not yet know if
+  AHI for the index is enabled or not.
+  @see btr_sea::is_enabled(), equivalent when index is not nullptr.
+  @param index the index (can be nullptr)
+  @return true if AHI may be enabled for the index */
+  bool may_be_enabled(const dict_index_t *index) const noexcept
+  {
+    const ahi_status enabled{get_enabled()};
+    return (unlikely(enabled != AHI_OFF) &&
+            (!index || enabled <= uint8_t{index->search_info.get_enabled()}));
+  }
+
+  ahi_status get_enabled() const noexcept { return enabled; }
+
   /** Disable the adaptive hash search system and empty the index.
-  @return whether the adaptive hash index was enabled */
-  ATTRIBUTE_COLD bool disable() noexcept;
+  @return the AHI enabled value before the operation is performed */
+  ATTRIBUTE_COLD ahi_status disable() noexcept;
 
   /** Enable the adaptive hash search system.
-  @param resize whether buf_pool_t::resize() is the caller */
-  ATTRIBUTE_COLD void enable(bool resize= false) noexcept;
+  @param resize whether buf_pool_t::resize() is the caller
+  @param enable_kind the requested AHI enablement kind */
+  ATTRIBUTE_COLD void enable(bool resize, ahi_status enable_kind) noexcept;
 
   /** Hash cell chain in hash_table */
   struct hash_chain

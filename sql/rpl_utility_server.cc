@@ -18,6 +18,7 @@
 #include <my_bit.h>
 #include "rpl_utility.h"
 #include "log_event.h"
+#include "slave.h"
 
 #if defined(MYSQL_CLIENT)
 #error MYSQL_CLIENT must not be defined here
@@ -1104,6 +1105,10 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
   }
   case SLAVE_FIELD_WRONG_TYPE:
   {
+    if (ignored_error_code(ER_SLAVE_CONVERSION_FAILED))
+    {
+      error_level= WARNING_LEVEL;
+    }
     Field *field= table->field[m_tabledef.master_to_slave_map[col]];
     const char *db_name= table->s->db.str;
     const char *tbl_name= table->s->table_name.str;
@@ -1117,10 +1122,13 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
     field->sql_rpl_type(&target_type);
     DBUG_ASSERT(source_type.length() > 0);
     DBUG_ASSERT(target_type.length() > 0);
-    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
-                     ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
-                     col, db_name, tbl_name,
-                     source_type.c_ptr_safe(), target_type.c_ptr_safe());
+    if (error_level == ERROR_LEVEL || table->in_use->variables.log_warnings >= 1)
+    {
+      rgi->rli->report(
+          error_level, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
+          ER_THD(thd, ER_SLAVE_CONVERSION_FAILED), col, db_name, tbl_name,
+          source_type.c_ptr_safe(), target_type.c_ptr_safe());
+    }
     break;
   }
   }

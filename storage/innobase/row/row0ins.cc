@@ -679,6 +679,7 @@ row_ins_set_detailed(
 	dict_foreign_t*	foreign)	/*!< in: foreign key constraint */
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	mysql_mutex_lock(&srv_misc_tmpfile_mutex);
 	rewind(srv_misc_tmpfile);
@@ -713,6 +714,7 @@ row_ins_foreign_trx_print(
 	ulint	heap_size;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	{
 		TMLockMutexGuard g{SRW_LOCK_CALL};
@@ -750,10 +752,6 @@ row_ins_foreign_report_err(
 					table */
 {
 	std::string fk_str;
-
-	if (srv_read_only_mode) {
-		return;
-	}
 
 	FILE*	ef	= dict_foreign_err_file;
 	trx_t*	trx	= thr_get_trx(thr);
@@ -807,11 +805,6 @@ row_ins_foreign_report_add_err(
 					child table */
 {
 	std::string fk_str;
-
-	if (srv_read_only_mode) {
-		return;
-	}
-
 	FILE*	ef	= dict_foreign_err_file;
 
 	row_ins_set_detailed(trx, foreign);

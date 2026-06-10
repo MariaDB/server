@@ -605,7 +605,7 @@ static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf) noexcept
 
   sql_print_error("InnoDB: Your database may be corrupt or"
                   " you may have copied the InnoDB"
-                  " tablespace but not the ib_logfile0. %s",
+                  " tablespaces but not the log. %s",
                   FORCE_RECOVERY_MSG);
 
   return true;
@@ -1071,7 +1071,7 @@ inline void buf_pool_t::garbage_collect() noexcept
   my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
   mysql_mutex_unlock(&flush_list_mutex);
 # ifdef BTR_CUR_HASH_ADAPT
-  bool ahi_disabled= btr_search.disable();
+  const ahi_status ahi_was_enabled= btr_search.disable();
 # endif /* BTR_CUR_HASH_ADAPT */
   time_t start= time(nullptr);
   mysql_mutex_lock(&mutex);
@@ -1091,8 +1091,8 @@ inline void buf_pool_t::garbage_collect() noexcept
       os_total_large_mem_allocated-= reduce_size;
       shrunk(size, reduce_size);
 # ifdef BTR_CUR_HASH_ADAPT
-      if (ahi_disabled)
-        btr_search.enable(true);
+      if (ahi_was_enabled)
+        btr_search.enable(true, ahi_was_enabled);
 # endif
       mysql_mutex_unlock(&mutex);
       sql_print_information("InnoDB: Memory pressure event shrunk"
@@ -1342,6 +1342,12 @@ bool buf_pool_t::create() noexcept
   allocated before innodb initialization */
   ut_ad(srv_operation >= SRV_OPERATION_RESTORE || !field_ref_zero);
 
+#if defined(__aarch64__)
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+#else
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
+#endif
+
   if (!field_ref_zero)
   {
     if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
@@ -1361,22 +1367,43 @@ bool buf_pool_t::create() noexcept
  init:
   DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", goto oom;);
   size_t size= size_in_bytes_max;
-  sql_print_information("InnoDB: innodb_buffer_pool_size_max=%zum,"
-                        " innodb_buffer_pool_size=%zum",
-                        size >> 20, size_in_bytes_requested >> 20);
 
  retry:
   {
     NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 #ifdef _WIN32
     memory_unaligned= my_virtual_mem_reserve(&size);
+    if (!memory_unaligned)
+      goto oom;
 #else
     memory_unaligned= my_large_virtual_alloc(&size);
+    if (memory_unaligned);
+# if defined __aarch64__ || defined __riscv || defined __mips__ || defined __loongarch64
+    else if (size_in_bytes_max_default != 0 &&
+             size_in_bytes_max == size_in_bytes_max_default)
+    {
+      /* Accommodate Linux ARMv8 CONFIG_ARM64_VA_BITS_39 or
+      RISC-V CONFIG_VA_BITS_SV39 or similar.
+
+      We assume that nobody would expect MariaDB to run with
+      CONFIG_ARM64_VA_BITS_36 (16 GiB virtual address space).
+      Should that be the case, an explicit innodb_buffer_pool_size_max
+      may be configured to allow InnoDB to start up.
+
+      On MIPS and LoongArch, the virtual addresses may be actually
+      be narrower than 40 bits, but we do not have any real world
+      experience. */
+
+      /* Let us aim for 128 GiB (a quarter of the 512 GiB), or the
+      initial innodb_buffer_pool_size, whichever is greater. */
+      size_in_bytes_max= std::max(size_t(1ULL << 37), size_in_bytes_requested);
+      goto init;
+    }
+# endif
+    else
+      goto oom;
 #endif
   }
-
-  if (!memory_unaligned)
-    goto oom;
 
   const size_t alignment_waste=
     ((~size_t(memory_unaligned) & (innodb_buffer_pool_extent_size - 1)) + 1) &
@@ -1390,6 +1417,9 @@ bool buf_pool_t::create() noexcept
     goto retry;
   }
 
+  sql_print_information("InnoDB: innodb_buffer_pool_size_max=%zum,"
+                        " innodb_buffer_pool_size=%zum",
+                        size >> 20, size_in_bytes_requested >> 20);
   MEM_UNDEFINED(memory_unaligned, size);
   memory= memory_unaligned + alignment_waste;
   size_unaligned= size;
@@ -1413,7 +1443,11 @@ bool buf_pool_t::create() noexcept
     memory_unaligned= nullptr;
     goto oom;
   }
-  ut_dontdump(memory_unaligned, size_unaligned, true);
+#if defined __linux__ || defined __FreeBSD__
+  ut_d(mysql_mutex_lock(&mutex));
+  core_advise();
+  ut_d(mysql_mutex_unlock(&mutex));
+#endif
 #else
   update_malloc_size(actual_size, 0);
 #endif
@@ -1459,12 +1493,6 @@ bool buf_pool_t::create() noexcept
     }
   }
 
-#if defined(__aarch64__)
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
-#else
-  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
-#endif
-
   UT_LIST_INIT(withdrawn, &buf_page_t::list);
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
   UT_LIST_INIT(flush_list, &buf_page_t::list);
@@ -1502,8 +1530,9 @@ bool buf_pool_t::create() noexcept
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
 #ifdef BTR_CUR_HASH_ADAPT
-  if (btr_search.enabled)
-    btr_search.enable();
+  const ahi_status ahi_enabled= btr_search.get_enabled();
+  if (ahi_enabled)
+    btr_search.enable(false, ahi_enabled);
 #endif
 
 #ifdef __linux__
@@ -1952,7 +1981,21 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   }
 
 #ifdef BTR_CUR_HASH_ADAPT
-  bool ahi_disabled= false;
+  /* Stores the previous AHI state if AHI is disabled during a buffer
+  pool shrink.
+
+  When growing the buffer pool, existing AHI memory pointers remain
+  valid, so we do not disable AHI.
+  Note that the AHI hash table size is not grown automatically to match
+  the new buffer pool size.
+  Therefore, this defaults to AHI_OFF so the subsequent enable() is
+  skipped.
+
+  When shrinking, AHI must be disabled to prevent dangling pointers
+  to unmapped memory. If the shrink succeeds, the code jumps to the
+  'resized:' label, at which point ahi_to_be_re_enabled holds the
+  previous state to safely re-enable AHI. */
+  ahi_status ahi_to_be_re_enabled= AHI_OFF;
 #endif
 
   const bool significant_change=
@@ -1971,9 +2014,11 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       return;
     }
 
-    ut_dontdump(memory + old_size, size - old_size, true);
     size_in_bytes_requested= size;
     size_in_bytes= size;
+#if defined __linux__ || defined __FreeBSD__
+    core_advise();
+#endif
 
     {
       const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
@@ -2068,8 +2113,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     }
 
 #ifdef BTR_CUR_HASH_ADAPT
-    if (ahi_disabled)
-      btr_search.enable(true);
+    if (ahi_to_be_re_enabled)
+      btr_search.enable(true, ahi_to_be_re_enabled);
 #endif
     if (n_blocks_removed)
       sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
@@ -2093,7 +2138,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     my_cond_wait(&done_flush_list, &flush_list_mutex.m_mutex);
     mysql_mutex_unlock(&flush_list_mutex);
 #ifdef BTR_CUR_HASH_ADAPT
-    ahi_disabled= btr_search.disable();
+    ahi_to_be_re_enabled= btr_search.disable();
 #endif /* BTR_CUR_HASH_ADAPT */
     mysql_mutex_lock(&mutex);
 
@@ -2154,8 +2199,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     my_printf_error(ER_WRONG_USAGE, "innodb_buffer_pool_size change aborted",
                     MYF(ME_ERROR_LOG));
 #ifdef BTR_CUR_HASH_ADAPT
-    if (ahi_disabled)
-      btr_search.enable(true);
+    if (ahi_to_be_re_enabled)
+      btr_search.enable(true, ahi_to_be_re_enabled);
 #endif
     mysql_mutex_lock(&LOCK_global_system_variables);
   }
@@ -3670,7 +3715,7 @@ ATTRIBUTE_COLD void buf_pool_t::clear_hash_index() noexcept
   std::set<dict_index_t*> garbage;
 
   mysql_mutex_lock(&mutex);
-  ut_ad(!btr_search.enabled);
+  ut_ad(!btr_search.get_enabled());
 
   for (char *extent= memory,
          *end= memory + block_descriptors_in_bytes(n_blocks);

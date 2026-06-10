@@ -13,7 +13,7 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space="
 CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(8)) ENGINE=InnoDB
 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
-# restart: --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
+# restart: --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 SELECT * FROM t1;
 ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 SHOW WARNINGS;
@@ -40,7 +40,7 @@ Level	Code	Message
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
-# restart: --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
+# restart: --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt --innodb-log-recovery-start=0
 ALTER TABLE t1 DISCARD TABLESPACE;
 ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
 DROP TABLE t1;

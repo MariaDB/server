@@ -4801,16 +4801,15 @@ static void update_lengths_in_typelib(TYPELIB *typelib)
 }
 
 
-void init_oracle_data_locale()
+void init_locale()
 {
-  ORACLE_DATE_LOCALE *locale;
-  for (locale= Oracle_date_locale; locale->locale ; locale++)
+  for (MY_LOCALE **locale= my_locales; *locale ; locale++)
   {
-    update_lengths_in_typelib(locale->locale->month_names);
-    update_lengths_in_typelib(locale->locale->month_names_formatting);
-    update_lengths_in_typelib(locale->locale->ab_month_names);
-    update_lengths_in_typelib(locale->locale->day_names);
-    update_lengths_in_typelib(locale->locale->ab_day_names);
+    update_lengths_in_typelib((*locale)->month_names);
+    update_lengths_in_typelib((*locale)->month_names_formatting);
+    update_lengths_in_typelib((*locale)->ab_month_names);
+    update_lengths_in_typelib((*locale)->day_names);
+    update_lengths_in_typelib((*locale)->ab_day_names);
   }
 
 }

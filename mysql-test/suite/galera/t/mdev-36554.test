@@ -35,7 +35,7 @@ SET wsrep_on=OFF;
 # wait till node 2 is back in the cluster
 --connection node_1
 SET wsrep_sync_wait=0;
---let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
 # cleanup

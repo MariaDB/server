@@ -67,6 +67,7 @@ RESET SLAVE;
 DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;
+include/kill_binlog_dump_threads.inc
 include/reset_master.inc
 connection node_1;
 disconnect node_2a;

@@ -624,7 +624,6 @@ int SEQUENCE::read_initial_values(TABLE *table)
 {
   int error= 0;
   enum thr_lock_type save_lock_type;
-  MDL_request mdl_request;                      // Empty constructor!
   DBUG_ENTER("SEQUENCE::read_initial_values");
 
   if (likely(initialized != SEQ_UNINTIALIZED))
@@ -633,7 +632,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
   if (likely(initialized == SEQ_UNINTIALIZED))
   {
     MYSQL_LOCK *lock;
-    bool mdl_lock_used= 0;
+    MDL_ticket *mdl_ticket_seq= NULL;
     THD *thd= table->in_use;
     bool has_active_transaction= !thd->transaction->stmt.is_empty();
     /*
@@ -643,19 +642,15 @@ int SEQUENCE::read_initial_values(TABLE *table)
     */
     if (table->mdl_ticket == 0)
     {
-      MDL_request_list mdl_requests;
-      mdl_lock_used= 1;
       /*
         This happens if first request is SHOW CREATE TABLE or LIST FIELDS
         where we don't have a mdl lock on the table
       */
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, table->s->db.str,
-                       table->s->table_name.str, MDL_SHARED_READ,
-                       MDL_EXPLICIT);
-      mdl_requests.push_front(&mdl_request);
-      if (thd->mdl_context.acquire_locks(&mdl_requests,
-                                         thd->variables.lock_wait_timeout))
+      if (!(mdl_ticket_seq= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::TABLE, table->s->db.str, table->s->table_name.str,
+              MDL_SHARED_READ, MDL_EXPLICIT,
+              thd->variables.lock_wait_timeout)))
       {
         write_unlock(table);
         DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
@@ -666,8 +661,8 @@ int SEQUENCE::read_initial_values(TABLE *table)
     if (!(lock= mysql_lock_tables(thd, &table, 1,
                                   MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY)))
     {
-      if (mdl_lock_used)
-        thd->mdl_context.release_lock(mdl_request.ticket);
+      if (mdl_ticket_seq)
+        thd->mdl_context.release_lock(mdl_ticket_seq);
       write_unlock(table);
 
       if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
@@ -679,8 +674,8 @@ int SEQUENCE::read_initial_values(TABLE *table)
     if (likely(!(error= read_stored_values(table))))
       initialized= SEQ_READY_TO_USE;
     mysql_unlock_tables(thd, lock);
-    if (mdl_lock_used)
-      thd->mdl_context.release_lock(mdl_request.ticket);
+    if (mdl_ticket_seq)
+      thd->mdl_context.release_lock(mdl_ticket_seq);
 
     /* Reset value to default */
     table->reginfo.lock_type= save_lock_type;
@@ -892,14 +887,14 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   save_write_set= table->write_set;
   save_read_set=  table->read_set;
   table->read_set= table->write_set= &table->s->all_set;
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
   store_fields(table);
   if (unlikely((error= table->file->ha_write_row(table->record[0]))))
     table->file->print_error(error, MYF(0));
   table->rpl_write_set= save_rpl_write_set;
   table->read_set=  save_read_set;
   table->write_set= save_write_set;
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
   return error;
 }
 

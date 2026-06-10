@@ -465,7 +465,9 @@ The following specify which files/extra groups are read (specified before remain
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
  --init-rpl-role=name 
- Set the replication role. One of: MASTER, SLAVE
+ The replication role the server starts with. Can be set
+ to help recover special semi-sync replication situations.
+ Possible values are MASTER and SLAVE
  --init-slave=name   Command(s) that are executed by a slave server each time
  the SQL thread starts
  --interactive-timeout=# 
@@ -1429,7 +1431,8 @@ The following specify which files/extra groups are read (specified before remain
  the transaction)
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this master
- --silent-startup    Don't print [Note] to the error log during startup
+ --silent-startup    Don't print [Note] or failed plugin_loads to the error
+ log during startup
  --skip-grant-tables Start without grant tables. This gives all users FULL
  ACCESS to all tables
  --skip-host-cache   Don't cache host names
@@ -1776,7 +1779,7 @@ binlog-large-commit-threshold 134217728
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-fragment-threshold 1073741824
-binlog-row-event-max-size 8192
+binlog-row-event-max-size 65536
 binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-space-limit 0

@@ -56,6 +56,18 @@ $$
 CALL p1;
 DROP PROCEDURE p1;
 #
+# Strict cursors cannot be opened from dynamic strings
+#
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b INT);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR 'SELECT 1,2';
+END;
+$$
+ERROR HY000: Incorrect usage of c0 and OPEN..FOR <dynamic string>
+#
 # Cover the deep_copy() call in LEX::sp_add_fetch_cursor().
 # Make sure that every FETCH statement uses
 # Column_definition::create_length_to_internal_length_string()

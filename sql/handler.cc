@@ -68,6 +68,9 @@
 #include "wsrep_var.h"            /* wsrep_hton_check() */
 #endif /* WITH_WSREP */
 
+/* DEFAULT (0), YES (1), NO (2) */
+const char *table_hint_options= "DEFAULT,YES,NO";
+
 /**
   @def MYSQL_TABLE_LOCK_WAIT
   Instrumentation helper for table io_waits.
@@ -123,7 +126,7 @@ ulong total_ha_2pc= 0;
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
-  have not occured.
+  have not occurred.
 */
 ulong failed_ha_2pc= 0;
 #endif
@@ -1080,13 +1083,11 @@ bool handler::log_not_redoable_operation(const char *operation)
       new log entry (and re-copy the table if needed).
     */
     THD *thd= table->in_use;
-    MDL_request mdl_backup;
     backup_log_info ddl_log;
 
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
-                     MDL_STATEMENT);
-    if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                      thd->variables.lock_wait_timeout))
+    if (!thd->mdl_context.MDL_ACQUIRE_LOCK(MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
+                                       MDL_STATEMENT,
+                                       thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
 
     bzero(&ddl_log, sizeof(ddl_log));
@@ -1851,7 +1852,7 @@ int ha_commit_trans(THD *thd, bool all)
                                                         &no_rollback);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
-  MDL_request mdl_backup;
+  bool backup_commit_lock_acquired= false;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
@@ -1871,19 +1872,17 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-
     if (!WSREP(thd))
     {
-      if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                        thd->variables.lock_wait_timeout))
+      if (!(thd->backup_commit_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+              MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+              MDL_EXPLICIT, thd->variables.lock_wait_timeout)))
       {
         my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
         ha_rollback_trans(thd, all);
         DBUG_RETURN(1);
       }
-      thd->backup_commit_lock= &mdl_backup;
+      backup_commit_lock_acquired= true;
     }
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
@@ -2133,8 +2132,8 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  // reset the pointer to the ticket when it's stack instantiated
-  if (thd->backup_commit_lock == &mdl_backup)
+  // release the backup commit lock if we acquired it in this function
+  if (backup_commit_lock_acquired && thd->backup_commit_lock)
   {
     /*
       We do not always immediately release transactional locks
@@ -2142,8 +2141,7 @@ end:
       thus we release the commit blocker lock as soon as it's
       not needed.
      */
-    if (mdl_backup.ticket)
-      thd->mdl_context.release_lock(mdl_backup.ticket);
+    thd->mdl_context.release_lock(thd->backup_commit_lock);
     thd->backup_commit_lock= 0;
   }
 #ifdef WITH_WSREP
@@ -4780,6 +4778,8 @@ int handler::update_auto_increment()
 /** @brief
   MySQL signal that it changed the column bitmap
 
+  @param mark_for_update  whether to mark indexed virtual columns
+			  for UPDATE operations
   USAGE
     This is for handlers that needs to setup their own column bitmaps.
     Normally the handler should set up their own column bitmaps in
@@ -4790,7 +4790,7 @@ int handler::update_auto_increment()
     rnd_init() call is made as after this, MySQL will not use the bitmap
     for any program logic checking.
 */
-void handler::column_bitmaps_signal()
+void handler::column_bitmaps_signal(bool mark_for_update)
 {
   DBUG_ENTER("column_bitmaps_signal");
   if (table)
@@ -6694,8 +6694,15 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
   if (error)
   {
     if (!thd->is_error())
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
-               share->table_name.str, error);
+    {
+      if (create_info->options & HA_CREATE_TMP_ALTER)
+        my_printf_error(ER_CANT_CREATE_TABLE,
+                        ER_THD(thd, ER_CANT_CREATE_TMP_ALTER_TABLE),
+                        MYF(0), share->db.str, share->table_name.str, error);
+      else
+        my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
+                 share->table_name.str, error);
+    }
     table.file->print_error(error, MYF(ME_WARNING));
   }
   *ref_length= table.file->ref_length; // for hlindexes

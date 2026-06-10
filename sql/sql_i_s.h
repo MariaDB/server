@@ -61,14 +61,16 @@ class Type
   uint m_char_length;
   uint m_unsigned_flag;
   const Typelib *m_typelib;
+  CHARSET_INFO *m_charset;
 public:
   Type(const Type_handler *th, uint length, uint unsigned_flag,
-       const Typelib *typelib= NULL)
+       const Typelib *typelib= NULL, CHARSET_INFO *charset= NULL)
    :m_type_handler(th), m_char_length(length), m_unsigned_flag(unsigned_flag),
-    m_typelib(typelib)
+    m_typelib(typelib), m_charset(charset)
   { }
   const Type_handler *type_handler() const { return m_type_handler; }
   uint char_length()      const { return m_char_length; }
+  CHARSET_INFO *charset()  const { return m_charset; }
   decimal_digits_t decimal_precision() const
   { return (decimal_digits_t) ((m_char_length / 100) % 100); }
   decimal_digits_t decimal_scale() const
@@ -153,6 +155,7 @@ class Longtext: public Type
 {
 public:
   Longtext(uint length) :Type(&type_handler_varchar, length, false) { }
+  Longtext(uint length, CHARSET_INFO *cs) :Type(&type_handler_varchar, length, false, NULL, cs) {}
 };
 
 

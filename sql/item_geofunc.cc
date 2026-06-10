@@ -66,7 +66,7 @@ String *Item_func_geometry_from_text::val_str(String *str)
   Gis_read_stream trs(wkt->charset(), wkt->ptr(), wkt->length());
   uint32 srid= 0;
 
-  if ((arg_count == 2) && !args[1]->null_value)
+  if (arg_count == 2)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
@@ -92,7 +92,8 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
   {
     String *str_ret= args[0]->val_str(str);
     null_value= args[0]->null_value;
-    if (!null_value && arg_count == 2 && !args[1]->null_value) {
+    if (!null_value && arg_count == 2)
+    {
       srid= (uint32)args[1]->val_int();
 
       if (str->copy(*str_ret))
@@ -106,7 +107,7 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 
   wkb= args[0]->val_str(&arg_val);
 
-  if ((arg_count == 2) && !args[1]->null_value)
+  if (arg_count == 2)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
@@ -146,10 +147,10 @@ String *Item_func_geometry_from_json::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0;
 
-  if (arg_count > 1 && !args[1]->null_value)
+  if (arg_count > 1)
   {
     options= args[1]->val_int();
-    if (options > 4 || options < 1)
+    if (!args[1]->null_value && (options > 4 || options < 1))
     {
       String *sv= args[1]->val_str(&tmp_js);
       my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
@@ -159,7 +160,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
     }
   }
 
-  if ((arg_count == 3) && !args[2]->null_value)
+  if (arg_count == 3)
     srid= (uint32)args[2]->val_int();
 
   str->set_charset(&my_charset_bin);
@@ -291,11 +292,7 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
     if (args[1]->null_value)
       max_dec= FLOATING_POINT_DECIMALS;
     if (arg_count > 2)
-    {
       options= args[2]->val_int();
-      if (args[2]->null_value)
-        options= 0;
-    }
   }
 
   str->length(0);
@@ -1567,6 +1564,14 @@ bool Item_func_spatial_precise_rel::val_bool()
                          Gcalc_function::op_intersection, 2);
       func.repeat_expression(shape_a);
       func.repeat_expression(shape_b);
+      break;
+    case SP_COVEREDBY_FUNC:
+      if (!g1.mbr.coveredby(&g2.mbr))
+        goto exit;
+      func.add_operation(Gcalc_function::v_find_f |
+                         Gcalc_function::op_not |
+                         Gcalc_function::op_difference, 2);
+      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     default:
       DBUG_ASSERT(FALSE);
