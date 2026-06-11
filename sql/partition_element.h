@@ -54,7 +54,9 @@ enum partition_state {
   The data in this fixed in two steps. The parser will only fill in whether
   it is a max_value or provide an expression. Filling in
   column_value, part_info, partition_id, null_value is done by the
-  function fix_column_value_function.
+  function fix_column_value_function, and in the case of range
+  interval partitioning for auto-created partitions,
+  check_range_interval_constants.
 */
 
 typedef struct p_column_list_val

@@ -1,0 +1,54 @@
+#
+# MDEV-39808 MDEV-15621: ROW-binlog + INSERT: auto-creates an interval partition & logs the row, but not the implicit ADD PARTITION
+#
+# same server
+SET timestamp= UNIX_TIMESTAMP('2026-05-10 00:00:00');
+CREATE TABLE t1 (c DATE) ENGINE=InnoDB
+PARTITION BY RANGE COLUMNS (c) INTERVAL 1 DAY
+(PARTITION p0 VALUES LESS THAN ('2026-05-05'));
+RESET MASTER;
+INSERT INTO t1 VALUES ('2026-05-08');
+set statement sql_log_bin=0 for
+DROP TABLE t1;
+set statement sql_log_bin=0 for
+CREATE TABLE t1 (c DATE) ENGINE=InnoDB
+PARTITION BY RANGE COLUMNS (c) INTERVAL 1 DAY
+(PARTITION p0 VALUES LESS THAN ('2026-05-05'));
+SELECT * FROM t1;
+c
+2026-05-08
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+partition_name	partition_method	partition_expression	partition_description	table_rows
+p0	RANGE COLUMNS	`c`	'2026-05-05'	0
+p1	RANGE COLUMNS	`c`	'2026-05-06'	0
+p2	RANGE COLUMNS	`c`	'2026-05-07'	0
+p3	RANGE COLUMNS	`c`	'2026-05-08'	0
+p4	RANGE COLUMNS	`c`	'2026-05-09'	1
+p5	RANGE COLUMNS	`c`	'2026-05-10'	0
+p6	RANGE COLUMNS	`c`	'2026-05-11'	0
+DROP TABLE t1;
+# master-slave
+include/master-slave.inc
+[connection master]
+SET timestamp= UNIX_TIMESTAMP('2026-05-10 00:00:00');
+CREATE TABLE t1 (c DATE) ENGINE=InnoDB
+PARTITION BY RANGE COLUMNS (c) INTERVAL 1 DAY
+(PARTITION p0 VALUES LESS THAN ('2026-05-05'));
+INSERT INTO t1 VALUES ('2026-05-08');
+connection slave;
+SELECT * FROM t1;
+c
+2026-05-08
+select partition_name, partition_method, partition_expression, partition_description, table_rows from information_schema.partitions where table_name='t1';
+partition_name	partition_method	partition_expression	partition_description	table_rows
+p0	RANGE COLUMNS	`c`	'2026-05-05'	0
+p1	RANGE COLUMNS	`c`	'2026-05-06'	0
+p2	RANGE COLUMNS	`c`	'2026-05-07'	0
+p3	RANGE COLUMNS	`c`	'2026-05-08'	0
+p4	RANGE COLUMNS	`c`	'2026-05-09'	1
+p5	RANGE COLUMNS	`c`	'2026-05-10'	0
+p6	RANGE COLUMNS	`c`	'2026-05-11'	0
+drop table t1;
+connection master;
+drop table t1;
+include/rpl_end.inc

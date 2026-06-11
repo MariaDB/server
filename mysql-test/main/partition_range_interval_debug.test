@@ -1,0 +1,74 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--echo # Concurrency test: if two threads T1 and T2 both try to insert
+--echo # into the same table, where T1 acquires the lock to
+--echo # auto-create the new partitions first, T2 has to wait until
+--echo # the creation to complete before it can determine how many new
+--echo # partitions to auto-create
+
+--echo ## T2 cannot acquire lock while T1 has started partition auto-creation
+set lock_wait_timeout=1;
+set timestamp= unix_timestamp('2026-05-02 00:00:00');
+
+--connect (con1,localhost,root,,)
+set lock_wait_timeout=1;
+set timestamp= unix_timestamp('2026-05-02 00:00:00');
+
+--connection default
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+SET DEBUG_SYNC = 'range_interval_create_partitions_lock_acquired SIGNAL con1_will_wait WAIT_FOR default_can_go';
+--send insert into t1 values ('2026-04-25')
+
+--connection con1
+SET DEBUG_SYNC = 'now WAIT_FOR con1_will_wait';
+SET DEBUG_SYNC = 'before_open_table_wait_refresh SIGNAL default_can_go';
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values ('2026-04-26');
+
+--connection default
+--reap
+show create table t1;
+select * from t1;
+
+drop table t1;
+
+--echo ## T2 auto-creates the correct number of partitions after
+--echo ## waiting for T1 to finish its auto-creation.
+--echo ## A slight exaggeration: T1 not finished after two days.
+
+--connection default
+set timestamp= unix_timestamp('2026-05-02 00:00:00');
+
+--connection con1
+set timestamp= unix_timestamp('2026-05-04 00:00:00');
+
+--connection default
+create table t1 (c date) engine=innodb
+PARTITION BY RANGE COLUMNS (c)
+INTERVAL 1 Day
+(
+  PARTITION p0 VALUES LESS THAN ('2026-04-20')
+);
+
+SET DEBUG_SYNC = 'range_interval_create_partitions_lock_acquired SIGNAL con1_will_wait WAIT_FOR default_can_go';
+--send insert into t1 values ('2026-04-25')
+
+--connection con1
+SET DEBUG_SYNC = 'now WAIT_FOR con1_will_wait';
+SET DEBUG_SYNC = 'before_open_table_get_mdl_lock SIGNAL default_can_go';
+insert into t1 values ('2026-04-26');
+
+--connection default
+--reap
+show create table t1;
+select * from t1;
+
+drop table t1;

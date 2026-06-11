@@ -1281,6 +1281,9 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
   DBUG_PRINT("enter", ("RANGE with %d parts, column_list = %u",
                        part_info->num_parts, part_info->column_list));
 
+  if (part_info->is_range_interval() &&
+      check_range_interval_constants(thd, part_info))
+    goto end;
   if (part_info->column_list)
   {
     part_column_list_val *loc_range_col_array;
@@ -2292,7 +2295,15 @@ static int add_column_list_values(String *str, partition_info *part_info,
     part_column_list_val *col_val= &list_value->col_val_array[i];
     const char *field_name= it++;
     if (col_val->max_value)
+    {
+      /* MAXVALUE is not allowed for range interval auto-partitioning */
+      if (part_info->is_range_interval())
+      {
+        my_error(ER_PARTITION_INTERVAL_MAXVALUE, MYF(0));
+        return 1;
+      }
       err+= str->append(STRING_WITH_LEN("MAXVALUE"));
+    }
     else if (col_val->null_value)
       err+= str->append(NULL_clex_str);
     else
@@ -2324,7 +2335,41 @@ static int add_column_list_values(String *str, partition_info *part_info,
             return 1;
           }
           th= sql_field->type_handler();
-          if (th->partition_field_check(sql_field->field_name, item_expr))
+          enum_field_types ftype= th->field_type();
+          /*
+            Only allow DATETIME and DATE, and TIMESTAMP for range
+            interval auto-partitioning. YEAR is already not allowed in
+            range column partitioning and not very useful for interval
+            partitioning.
+          */
+          if (part_info->is_range_interval())
+          {
+            if (ftype != MYSQL_TYPE_DATETIME && ftype != MYSQL_TYPE_DATE &&
+                ftype != MYSQL_TYPE_TIMESTAMP)
+            {
+              th->partition_field_type_not_allowed(sql_field->field_name);
+              return 1;
+            }
+            /*
+              Check that the interval is at least one day long when
+              partitioned by a DATE column
+            */
+            if (ftype == MYSQL_TYPE_DATE)
+            {
+              INTERVAL *interval= &part_info->interval;
+              if (!interval->year && !interval->month && !interval->day &&
+                  interval->hour < 24 && interval->minute < 1440 &&
+                  interval->second < 86400 &&
+                  interval->hour * 3600 + interval->minute * 60 +
+                  interval->second < 86400)
+              {
+                my_error(ER_PARTITION_INTERVAL_FINER_THAN_DATE, MYF(0));
+                return 1;
+              }
+            }
+          }
+          else if (th->partition_field_check(sql_field->field_name,
+                                             item_expr))
             return 1;
           field_cs= sql_field->explicit_or_derived_charset(&derived_attr);
         }
@@ -2332,7 +2377,14 @@ static int add_column_list_values(String *str, partition_info *part_info,
         {
           Field *field= part_info->part_field_array[i];
           th= field->type_handler();
-          if (th->partition_field_check(field->field_name, item_expr))
+          /*
+            th->partition_field_check(...) has the side effect of
+            reporting error so we have to rule out TIMESTAMP with
+            range interval partitioning first
+          */
+          if (likely(!part_info->is_range_interval() ||
+                     th->field_type() != MYSQL_TYPE_TIMESTAMP) &&
+              th->partition_field_check(field->field_name, item_expr))
             return 1;
           field_cs= field->charset();
         }
@@ -2672,6 +2724,13 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
     err+= str.append('(');
     part_info->part_expr->print_for_table_def(&str);
     err+= str.append(')');
+  }
+  else if (part_info->is_range_interval())
+  {
+    err+= str.append(STRING_WITH_LEN(" COLUMNS"));
+    err+= add_part_field_list(thd, &str, part_info->part_field_list);
+    err+= str.append(STRING_WITH_LEN(" INTERVAL "));
+    err+= append_interval(&str, part_info->int_type, part_info->interval);
   }
   else if (part_info->column_list)
   {
@@ -5249,7 +5308,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       */
       if (thd->lex->no_write_to_binlog &&
           tab_part_info->part_type != HASH_PARTITION &&
-          tab_part_info->part_type != VERSIONING_PARTITION)
+          tab_part_info->part_type != VERSIONING_PARTITION &&
+          !tab_part_info->is_range_interval())
       {
         my_error(ER_NO_BINLOG_ERROR, MYF(0));
         goto err;

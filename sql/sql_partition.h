@@ -336,5 +336,10 @@ bool set_up_table_before_create(THD *thd,
                                 HA_CREATE_INFO *info,
                                 partition_element *part_elem);
 
+bool check_range_interval_constants(THD *thd, partition_info *part_info);
+bool alter_add_partitions(
+  THD* thd, TABLE_LIST *tl,
+  Alter_info &alter_info, Alter_table_ctx &alter_ctx,
+  Table_specification_st &create_info, uint error);
 #endif /* SQL_PARTITION_INCLUDED */
 

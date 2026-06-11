@@ -400,7 +400,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       num_parts= 2;
     use_default_num_partitions= false;
   }
-  else if (part_type != HASH_PARTITION)
+  else if (part_type != HASH_PARTITION && !is_range_interval())
   {
     const char *error_string;
     if (part_type == RANGE_PARTITION)
@@ -892,6 +892,48 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 }
 
 
+/*
+  Common routine shared by vers_create_partitions and
+  range_interval_create_partitions, to create partitions in earnest
+*/
+bool alter_add_partitions(
+  THD* thd, TABLE_LIST *tl,
+  Alter_info &alter_info, Alter_table_ctx &alter_ctx,
+  Table_specification_st &create_info, uint error)
+{
+  TABLE *table= tl->table;
+  bool partition_changed= false;
+  bool fast_alter_partition= false;
+  if (prep_alter_part_table(thd, table, &alter_info, &create_info,
+                            &partition_changed, &fast_alter_partition))
+  {
+    my_error(error, MYF(ME_WARNING), tl->db.str, tl->table_name.str);
+    return TRUE;
+  }
+  if (!fast_alter_partition)
+  {
+    my_error(error, MYF(ME_WARNING), tl->db.str, tl->table_name.str);
+    return TRUE;
+  }
+  DBUG_ASSERT(partition_changed);
+  if (mysql_prepare_alter_table(thd, table, &create_info, &alter_info,
+                                &alter_ctx))
+  {
+    my_error(error, MYF(ME_WARNING), tl->db.str, tl->table_name.str);
+    return TRUE;
+  }
+
+  alter_info.db= alter_ctx.db;
+  alter_info.table_name= alter_ctx.table_name;
+  if (fast_alter_partition_table(thd, table, &alter_info, &alter_ctx,
+                                 &create_info, tl))
+  {
+    my_error(error, MYF(ME_WARNING), tl->db.str, tl->table_name.str);
+    return TRUE;
+  }
+  return FALSE;
+}
+
 /**
   @brief Run fast_alter_partition_table() to add new history partitions
          for tables requiring them.
@@ -964,39 +1006,9 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
                tl->db.str, tl->table_name.str);
       goto exit;
     }
-    bool partition_changed= false;
-    bool fast_alter_partition= false;
-    if (prep_alter_part_table(thd, table, &alter_info, &create_info,
-                              &partition_changed, &fast_alter_partition))
-    {
-      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
-               tl->db.str, tl->table_name.str);
+    if (alter_add_partitions(thd, tl, alter_info, alter_ctx, create_info,
+                            ER_VERS_HIST_PART_FAILED))
       goto exit;
-    }
-    if (!fast_alter_partition)
-    {
-      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
-               tl->db.str, tl->table_name.str);
-      goto exit;
-    }
-    DBUG_ASSERT(partition_changed);
-    if (mysql_prepare_alter_table(thd, table, &create_info, &alter_info,
-                                  &alter_ctx))
-    {
-      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
-               tl->db.str, tl->table_name.str);
-      goto exit;
-    }
-
-    alter_info.db= alter_ctx.db;
-    alter_info.table_name= alter_ctx.table_name;
-    if (fast_alter_partition_table(thd, table, &alter_info, &alter_ctx,
-                                   &create_info, tl))
-    {
-      my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
-               tl->db.str, tl->table_name.str);
-      goto exit;
-    }
   }
 
   result= false;
@@ -2319,6 +2331,7 @@ bool partition_info::fix_parser_data(THD *thd)
   partition_element *part_elem;
   uint num_elements;
   uint i= 0, j, k;
+  int sql_command= thd_sql_command(thd);
   DBUG_ENTER("partition_info::fix_parser_data");
 
   if (!(part_type == RANGE_PARTITION ||
@@ -2333,11 +2346,21 @@ bool partition_info::fix_parser_data(THD *thd)
         DBUG_RETURN(true);
       }
       /* If not set, use DEFAULT = 2 for CREATE and ALTER! */
-      if ((thd_sql_command(thd) == SQLCOM_CREATE_TABLE ||
-           thd_sql_command(thd) == SQLCOM_ALTER_TABLE) &&
+      if ((sql_command == SQLCOM_CREATE_TABLE ||
+           sql_command == SQLCOM_ALTER_TABLE) &&
           key_algorithm == KEY_ALGORITHM_NONE)
         key_algorithm= KEY_ALGORITHM_55;
     }
+    DBUG_RETURN(FALSE);
+  }
+  /*
+    We exit here for range interval partitions because if this is
+    called from prep_alter_part_table then partition data is not
+    calculated (in check_range_interval_constants) yet.
+  */
+  if (sql_command != SQLCOM_CREATE_TABLE &&
+      sql_command != SQLCOM_ALTER_TABLE && is_range_interval())
+  {
     DBUG_RETURN(FALSE);
   }
   if (is_sub_partitioned() && list_of_subpart_fields)
