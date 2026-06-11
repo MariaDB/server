@@ -6284,13 +6284,9 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   if (!table->file->is_open()) /* tables inside derived are opened late */
     DBUG_RETURN(0);
 
-  /* Check if init_search() has been called before */
+  /* See if init_search() has been already called (as master->init_search() */
   if (ft_handler)
-  {
-    if (join_key)
-      table->file->ft_handler= ft_handler;
     DBUG_RETURN(0);
-  }
 
   if (key == NO_SUCH_KEY)
   {
