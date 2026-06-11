@@ -5,6 +5,8 @@ create table t1 (
   b text
 ) engine=innodb;
 
+SET @save_tmp_memory_table_size=@@tmp_memory_table_size;
+SET tmp_memory_table_size=0;
 --replace_regex /'.*'/'tmp'/
 --error 140
 create table t2 as
@@ -2634,4 +2636,5 @@ select
           b as c2626
         from t1
         ) as tt1;
+SET tmp_memory_table_size=@save_tmp_memory_table_size;
 drop table t1;

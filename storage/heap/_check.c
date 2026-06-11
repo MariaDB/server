@@ -18,7 +18,7 @@
 
 #include "heapdef.h"
 
-static int check_one_key(HP_KEYDEF *, uint, ulong, ulong, my_bool);
+static int check_one_key(HP_INFO *, HP_KEYDEF *, uint, ulong, ulong, my_bool);
 static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
 
 
@@ -31,7 +31,8 @@ static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
     print_status	Prints some extra status
 
   NOTES
-    Doesn't change the state of the table handler
+    May allocate/reallocate the key_blob_buff scratch buffer in info
+    for blob key materialization; the logical table state is unchanged.
 
   RETURN VALUES
     0	ok
@@ -42,7 +43,9 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
 {
   int error;
   uint key;
-  ulong records=0, deleted=0, pos, next_block;
+  ulong records=0, deleted=0, cont_count=0, pos, next_block;
+  ulong del_link_count;
+  uchar *del_ptr;
   HP_SHARE *share=info->s;
   uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
@@ -52,9 +55,32 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     if (share->keydef[key].algorithm == HA_KEY_ALG_BTREE)
       error|= check_one_rb_key(info, key, share->records, print_status);
     else
-      error|= check_one_key(share->keydef + key, key, share->records,
-			    share->blength, print_status);
+      error|= check_one_key((HP_INFO*) info, share->keydef + key, key,
+                            share->records, share->blength, print_status);
   }
+
+  /* Verify scan-boundary invariant */
+  if (share->total_records + share->deleted != share->block.last_allocated)
+  {
+    DBUG_PRINT("error",("last_allocated mismatch: total %lu + deleted %lu "
+                        "!= last_allocated %lu",
+                        (ulong) share->total_records,
+                        (ulong) share->deleted,
+                        (ulong) share->block.last_allocated));
+    error= 1;
+  }
+
+  /* Verify free list length matches share->deleted */
+  del_link_count= 0;
+  for (del_ptr= share->del_link; del_ptr; del_ptr= *((uchar**) del_ptr))
+    del_link_count++;
+  if (del_link_count != share->deleted)
+  {
+    DBUG_PRINT("error",("free list length %lu != share->deleted %lu",
+                        del_link_count, (ulong) share->deleted));
+    error= 1;
+  }
+
   /*
     This is basicly the same code as in hp_scan, but we repeat it here to
     get shorter DBUG log file.
@@ -68,9 +94,9 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     else
     {
       next_block+= share->block.records_in_block;
-      if (next_block >= share->records+share->deleted)
+      if (next_block >= share->total_records+share->deleted)
       {
-	next_block= share->records+share->deleted;
+	next_block= share->total_records+share->deleted;
 	if (pos >= next_block)
 	  break;				/* End of file */
       }
@@ -79,8 +105,57 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
 
     if (!current_ptr[share->visible])
       deleted++;
+    else if (hp_is_cont(current_ptr, share->visible))
+    {
+      /*
+        Case A (HP_ROW_SINGLE_REC): single record, no header.
+        Case B/C: read run_rec_count from header and skip the entire run.
+      */
+      if (hp_is_single_rec(current_ptr, share->visible))
+      {
+        cont_count++;
+      }
+      else
+      {
+        uint16 run_rec_count= hp_cont_rec_count(current_ptr);
+        cont_count+= run_rec_count;
+        pos+= run_rec_count - 1;  /* -1 because for-loop does pos++ */
+      }
+    }
     else
+    {
       records++;
+
+      /* Verify HP_ROW_HAS_CONT consistency for blob tables */
+      if (share->blob_count && hp_has_cont(current_ptr, share->visible))
+      {
+        HP_BLOB_DESC *desc, *desc_end;
+        my_bool has_any_chain= FALSE;
+        for (desc= share->blob_descs,
+             desc_end= desc + share->blob_count;
+             desc < desc_end; desc++)
+        {
+          if (hp_blob_length(desc, current_ptr) > 0)
+          {
+            uchar *chain;
+            memcpy(&chain, current_ptr + desc->offset + desc->packlength,
+                   sizeof(chain));
+            if (chain)
+            {
+              has_any_chain= TRUE;
+              break;
+            }
+          }
+        }
+        if (!has_any_chain)
+        {
+          DBUG_PRINT("error",
+                     ("Primary record at pos %lu has HP_ROW_HAS_CONT "
+                      "but no blob chain", pos));
+          error= 1;
+        }
+      }
+    }
   }
 
   if (records != share->records || deleted != share->deleted)
@@ -90,12 +165,19 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
                         deleted, (ulong) share->deleted));
     error= 1;
   }
+  if (records + cont_count != share->total_records)
+  {
+    DBUG_PRINT("error",("total_records mismatch: primary %lu + cont %lu != %lu",
+                        records, cont_count,
+                        (ulong) share->total_records));
+    error= 1;
+  }
   DBUG_RETURN(error);
 }
 
 
-static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
-			 ulong blength, my_bool print_status)
+static int check_one_key(HP_INFO *info, HP_KEYDEF *keydef, uint keynr,
+                         ulong records, ulong blength, my_bool print_status)
 {
   int error;
   ulong i,found,max_links,seek,links;
@@ -107,8 +189,12 @@ static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
   hash_buckets_found= 0;
   for (i=found=max_links=seek=0 ; i < records ; i++)
   {
+    ulong recomputed;
     hash_info=hp_find_hash(&keydef->block,i);
-    if (hash_info->hash_of_key != hp_rec_hashnr(keydef, hash_info->ptr_to_rec))
+
+    recomputed= hp_rec_hashnr(info, keydef, hash_info->ptr_to_rec);
+
+    if (hash_info->hash_of_key != recomputed)
     {
       DBUG_PRINT("error",
                  ("Found row with wrong hash_of_key at position %lu", i));
@@ -151,13 +237,13 @@ static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
 	     ("key: %u  records: %ld  seeks: %lu  max links: %lu  "
               "hitrate: %.2f  buckets: %lu",
 	      keynr, records,seek,max_links,
-	      (float) seek / (float) (records ? records : 1), 
+	      (float) seek / (float) (records ? records : 1),
               hash_buckets_found));
   if (print_status)
     printf("Key: %u  records: %ld  seeks: %lu  max links: %lu  "
            "hitrate: %.2f  buckets: %lu\n",
 	   keynr, records, seek, max_links,
-	   (float) seek / (float) (records ? records : 1), 
+	   (float) seek / (float) (records ? records : 1),
            hash_buckets_found);
   return error;
 }
@@ -173,7 +259,7 @@ static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
   uint not_used[2];
   TREE_ELEMENT **last_pos;
   TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
-  
+
   if ((key= tree_search_edge(&keydef->rb_tree, parents,
 			     &last_pos, offsetof(TREE_ELEMENT, left))))
   {
@@ -185,13 +271,13 @@ static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
 		     key_length, SEARCH_FIND | SEARCH_SAME, not_used))
       {
 	error= 1;
-	DBUG_PRINT("error",("Record in wrong link:  key: %u  Record: %p\n", 
+	DBUG_PRINT("error",("Record in wrong link:  key: %u  Record: %p\n",
 			    keynr, recpos));
       }
       else
 	found++;
       key= tree_search_next(&keydef->rb_tree, &last_pos,
-			    offsetof(TREE_ELEMENT, left), 
+			    offsetof(TREE_ELEMENT, left),
 			    offsetof(TREE_ELEMENT, right));
     } while (key);
   }

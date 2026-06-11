@@ -164,7 +164,8 @@ bool Type_handler_xmltype::
 
 
 const Type_handler *Type_handler_xmltype::
-  type_handler_for_tmp_table(const Item *item) const
+  type_handler_for_tmp_table(const Item *item,
+                             const Tmp_field_param *param) const
 {
   return &type_handler_xmltype;
 }

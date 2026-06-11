@@ -1,0 +1,73 @@
+#
+# Test GROUP BY on blob/text columns wrapped in user variable
+# assignment expressions (@x := col).
+#
+# This exercises the hp_key_cmp() code path with Field_blob_key
+# having packlength < 4. When the GROUP BY item is an expression
+# like @x := col (Item_func_set_user_var), the temp table field
+# is created via create_tmp_field_ex_from_handler(), which calls
+# set_pack_length(blob_handler->length_bytes()) to preserve the
+# original blob subtype. This produces Field_blob_key with
+# packlength=1 (TINYBLOB), 2 (BLOB/TEXT), or 3 (MEDIUMBLOB)
+# instead of the default 4.
+#
+# In contrast, blob_group_by.test uses plain Item_field column
+# references, which go through create_tmp_field_from_item_field()
+# -> Field_blob::make_new_field() -> Field_blob_key constructor
+# that always sets packlength=4 regardless of the source type.
+#
+# hp_key_cmp() reads the stored record's blob length prefix using
+# packlength, then reads the chain pointer at offset packlength.
+# With a wrong packlength, both values are garbage:
+# - PAD SPACE collation (TEXT): proceeds to materialize via the
+#   garbage chain pointer, crashing in hp_is_single_rec()
+# - NO PAD collation (BLOB): garbage length != key length causes
+#   early mismatch, so the lookup misses and the subsequent write
+#   hits ER_DUP_ENTRY
+#
+# TEXT: PAD SPACE collation, packlength=2
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (0),(0);
+SELECT @x := a, count(*) FROM t1 GROUP BY 1;
+@x := a	count(*)
+0	2
+DROP TABLE t1;
+# BLOB: NO PAD (binary) collation, packlength=2
+CREATE TABLE t2 (a BLOB);
+INSERT INTO t2 VALUES (0),(0);
+SELECT @x := a, count(*) FROM t2 GROUP BY 1;
+@x := a	count(*)
+0	2
+DROP TABLE t2;
+# TINYBLOB (packlength=1)
+CREATE TABLE t3 (a TINYBLOB);
+INSERT INTO t3 VALUES ('abc'),('abc'),('def');
+SELECT @x := a, count(*) FROM t3 GROUP BY 1;
+@x := a	count(*)
+abc	2
+def	1
+DROP TABLE t3;
+# MEDIUMTEXT (packlength=3)
+CREATE TABLE t4 (a MEDIUMTEXT);
+INSERT INTO t4 VALUES ('hello'),('hello'),('world');
+SELECT @x := a, count(*) FROM t4 GROUP BY 1;
+@x := a	count(*)
+hello	2
+world	1
+DROP TABLE t4;
+# Multiple blob columns with variable assignment
+CREATE TABLE t5 (a TEXT, b BLOB);
+INSERT INTO t5 VALUES ('x','y'),('x','y'),('a','b');
+SELECT @x := a, @y := b, count(*) FROM t5 GROUP BY 1, 2;
+@x := a	@y := b	count(*)
+a	b	1
+x	y	2
+DROP TABLE t5;
+# Verify non-expression blob GROUP BY still works
+CREATE TABLE t6 (a TEXT);
+INSERT INTO t6 VALUES ('foo'),('foo'),('bar');
+SELECT a, count(*) FROM t6 GROUP BY a;
+a	count(*)
+bar	1
+foo	2
+DROP TABLE t6;

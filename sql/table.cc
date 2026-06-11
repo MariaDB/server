@@ -4328,7 +4328,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
             We are using only a prefix of the column as a key:
             Create a new field for the key part that matches the index
           */
-          field= key_part->field=field->make_new_field(root, outparam, 0);
+          field= key_part->field=field->make_new_field(root, outparam, 0, 0);
           field->field_length= key_part->length;
         }
       }
@@ -8575,7 +8575,8 @@ bool TABLE::alloc_keys(uint key_count)
 {
   KEY *new_key_info;
   key_part_map *new_const_key_parts;
-  DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE);
+  DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE ||
+              s->tmp_table == RESULT_TMP_TABLE);
 
   if (!multi_alloc_root(&mem_root,
                         &new_key_info, sizeof(*key_info)*(s->total_keys+key_count),

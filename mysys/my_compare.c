@@ -266,6 +266,52 @@ int ha_key_cmp(HA_KEYSEG *keyseg, const uchar *a,
         b+=b_length;
       }
       break;
+    case HA_KEYTYPE_VARTEXT4:
+    {
+#ifdef NOT_YET_USED
+      /* Only used for internal temporary tables */
+      int a_length,b_length;
+      uchar *a_key, *b_key;
+      DBUG_ASSERT(!(nextflag & SEARCH_PREFIX));
+
+      a_length= uint4korr(a);
+      b_length= uint4korr(b);
+      memcpy(&a_key, a, sizeof(char*));
+      memcpy(&b_key, b, sizeof(char*));
+      if (piks &&
+          (flag= ha_compare_char_varying(keyseg->charset,
+                                         a_key, a_length,
+                                         b_key, b_length, 0)))
+        return ((keyseg->flag & HA_REVERSE_SORT) ? -flag : flag);
+      a+= 4 + portable_sizeof_char_ptr;
+      b+= 4 + portable_sizeof_char_ptr;
+      break;
+#else
+      abort();
+#endif /* NOT_YET_USED */
+    }
+    case HA_KEYTYPE_VARBINARY4:
+    {
+#ifdef NOT_YET_USED
+      /* Only used for internal temporary tables */
+      int a_length,b_length;
+      uchar *a_key, *b_key;
+      DBUG_ASSERT(!(nextflag & SEARCH_PREFIX));
+
+      a_length= uint4korr(a);
+      b_length= uint4korr(b);
+      memcpy(&a_key, a, sizeof(char*));
+      memcpy(&b_key, b, sizeof(char*));
+      if (piks &&
+          (flag= compare_bin(a_key, a_length, b_key, b_length, 0, 0)))
+        return ((keyseg->flag & HA_REVERSE_SORT) ? -flag : flag);
+      a+= 4 + portable_sizeof_char_ptr;
+      b+= 4 + portable_sizeof_char_ptr;
+      break;
+#else
+      abort();
+#endif /* NOT_YET_USED */
+    }
     case HA_KEYTYPE_INT8:
     {
       int i_1= (int) *((signed char*) a);
@@ -623,6 +669,8 @@ HA_KEYSEG *ha_find_null(HA_KEYSEG *keyseg, const uchar *a)
       a= end;
       break;
     case HA_KEYTYPE_END:                        /* purecov: inspected */
+    case HA_KEYTYPE_VARTEXT4:                   /* Not used yet */
+    case HA_KEYTYPE_VARBINARY4:                 /* Not used yet */
       /* keep compiler happy */
       DBUG_ASSERT(0);
       break;

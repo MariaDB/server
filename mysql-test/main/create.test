@@ -30,9 +30,8 @@ create table t2 select auto+1 from t1;
 drop table if exists t1,t2;
 --error ER_WRONG_KEY_COLUMN
 create table t1 (b char(0) not null, index(b));
---error ER_TABLE_CANT_HANDLE_BLOB
 create table t1 (a int not null,b text) engine=heap;
-drop table if exists t1;
+drop table t1;
 
 --error ER_WRONG_AUTO_KEY
 create table t1 (ordid int(8) not null auto_increment, ord  varchar(50) not null, primary key (ord,ordid)) engine=heap;

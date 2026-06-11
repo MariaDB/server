@@ -272,7 +272,10 @@ enum ha_base_keytype {
   /* Varchar (0-65535 bytes) with length packed with 2 bytes */
   HA_KEYTYPE_VARTEXT2=17,		/* Key is sorted as letters */
   HA_KEYTYPE_VARBINARY2=18,		/* Key is sorted as unsigned chars */
-  HA_KEYTYPE_BIT=19
+  HA_KEYTYPE_BIT=19,
+  /* blob (length 4 bytes, pointer 8 bytes) used for internal tmp tables */
+  HA_KEYTYPE_VARTEXT4=20,		/* Key is sorted as letters */
+  HA_KEYTYPE_VARBINARY4=21,		/* Key is sorted as unsigned chars */
 };
 
 #define HA_MAX_KEYTYPE	31		/* Must be log2-1 */
@@ -320,13 +323,15 @@ enum ha_base_keytype {
 #define HA_UNIQUE_HASH        262144U
 
 /* Internal Flag Can be calculated */
-#define HA_INVISIBLE_KEY     (2<<18)
+#define HA_INVISIBLE_KEY     (1LL<<19)
+#define HA_NO_KEY_READ       (1LL<<20)          /* Internal debugging */
+#define HA_BLOB_PART_KEY     (1LL<<21)          /* Key has blob segments */
 
 /* The combination of the above can be used for key type comparison. */
 #define HA_KEYFLAG_MASK (HA_NOSAME | HA_AUTO_KEY | HA_NULL_ARE_EQUAL | \
                          HA_GENERATED_KEY | HA_UNIQUE_HASH)
 
-	/* These flags can be added to key-seg-flag */
+/* These flags can be added to key-seg-flag */
 
 #define HA_SPACE_PACK		 1	/* Pack space in key-seg */
 #define HA_PART_KEY_SEG		 4	/* Used by MySQL for part-key-cols */
@@ -707,5 +712,17 @@ typedef my_off_t	ha_rows;
 C_MODE_START
 typedef void (* invalidator_by_filename)(const char * filename);
 C_MODE_END
+
+static inline longlong read_lowendian(const uchar *from, uint bytes)
+{
+  switch(bytes) {
+  case 1: return from[0];
+  case 2: return uint2korr(from);
+  case 3: return uint3korr(from);
+  case 4: return uint4korr(from);
+  case 8: return sint8korr(from);
+  default: DBUG_ASSERT(0); return 0;
+  }
+}
 
 #endif /* _my_base_h */

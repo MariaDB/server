@@ -84,6 +84,9 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
   const Type_collection *type_collection() const override;
+  const Type_handler *type_handler_for_tmp_table(const Item *,
+                                                 const Tmp_field_param *param)
+                                                               const override;
   const Type_handler *type_handler_for_comparison() const override;
   virtual geometry_types geometry_type() const { return GEOM_GEOMETRY; }
   virtual Item *create_typecast_item(THD *thd, Item *item,
@@ -176,6 +179,13 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE_SHARE *share) const override;
+
+  Field *make_table_field_ex(MEM_ROOT *root,
+                             const LEX_CSTRING *name,
+                             const Record_addr &addr,
+                             const Type_all_attributes &attr,
+                             const Tmp_field_param *param,
+                             TABLE_SHARE *share) const override;
 
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,

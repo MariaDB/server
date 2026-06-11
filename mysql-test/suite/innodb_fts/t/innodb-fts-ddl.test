@@ -187,7 +187,7 @@ ANALYZE TABLE fts_test;
 set @@auto_increment_increment=1;
 
 select *, match(title, text)  AGAINST ('database') as score
-from fts_test order by score desc;
+from fts_test order by score desc, FTS_DOC_ID;
 
 drop index idx on fts_test;
 

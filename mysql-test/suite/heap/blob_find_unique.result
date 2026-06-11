@@ -1,0 +1,178 @@
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET @@max_heap_table_size= 32*1024*1024;
+#
+# SELECT ... EXCEPT SELECT with large blob columns stored in multiple
+# segments (>16KB)
+#
+CREATE TABLE t1 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, REPEAT('a', 20000)), (2, REPEAT('b', 20000)),
+(3, REPEAT('c', 20000));
+CREATE TABLE t2 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (2, REPEAT('b', 20000)), (3, REPEAT('c', 20000));
+SELECT a, LENGTH(b), LEFT(b, 1) FROM (
+SELECT a, b FROM t1 EXCEPT SELECT a, b FROM t2
+) dt;
+a	LENGTH(b)	LEFT(b, 1)
+1	20000	a
+DROP TABLE t1, t2;
+#
+# SELECT ... INTERSECT SELECT with large blobs (multiple segments)
+#
+CREATE TABLE t1 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, REPEAT('x', 25000)), (2, REPEAT('y', 25000)),
+(3, REPEAT('z', 25000));
+CREATE TABLE t2 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (2, REPEAT('y', 25000)), (4, REPEAT('w', 25000));
+SELECT a, LENGTH(b), LEFT(b, 1) FROM (
+SELECT a, b FROM t1 INTERSECT SELECT a, b FROM t2
+) dt;
+a	LENGTH(b)	LEFT(b, 1)
+2	25000	y
+DROP TABLE t1, t2;
+#
+# INTERSECT ALL with large blobs -- duplicates preserved
+#
+CREATE TABLE t1 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, REPEAT('p', 20000)), (1, REPEAT('p', 20000)),
+(2, REPEAT('q', 20000));
+CREATE TABLE t2 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (1, REPEAT('p', 20000)), (2, REPEAT('q', 20000)),
+(2, REPEAT('q', 20000));
+SELECT a, LENGTH(b), LEFT(b, 1) FROM (
+SELECT a, b FROM t1 INTERSECT ALL SELECT a, b FROM t2
+) dt;
+a	LENGTH(b)	LEFT(b, 1)
+1	20000	p
+2	20000	q
+DROP TABLE t1, t2;
+#
+# EXCEPT ALL with large blobs -- duplicates tracked
+#
+CREATE TABLE t1 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, REPEAT('m', 20000)), (1, REPEAT('m', 20000)),
+(1, REPEAT('m', 20000)), (2, REPEAT('n', 20000));
+CREATE TABLE t2 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (1, REPEAT('m', 20000)), (2, REPEAT('n', 20000));
+SELECT a, LENGTH(b), LEFT(b, 1) FROM (
+SELECT a, b FROM t1 EXCEPT ALL SELECT a, b FROM t2
+) dt;
+a	LENGTH(b)	LEFT(b, 1)
+1	20000	m
+1	20000	m
+DROP TABLE t1, t2;
+#
+# Multiple blob columns -- verify both are materialized for comparison
+#
+CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (REPEAT('a', 20000), REPEAT('1', 20000)),
+(REPEAT('b', 20000), REPEAT('2', 20000)),
+(REPEAT('c', 20000), REPEAT('3', 20000));
+CREATE TABLE t2 (a TEXT, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (REPEAT('b', 20000), REPEAT('2', 20000));
+SELECT LENGTH(a), LEFT(a, 1), LENGTH(b), LEFT(b, 1) FROM (
+SELECT a, b FROM t1 EXCEPT SELECT a, b FROM t2
+) dt;
+LENGTH(a)	LEFT(a, 1)	LENGTH(b)	LEFT(b, 1)
+20000	a	20000	1
+20000	c	20000	3
+DROP TABLE t1, t2;
+#
+# Mixed blob sizes: tiny (single record), medium (single run), large (multiple segments)
+#
+CREATE TABLE t1 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, 'hi'), (2, REPEAT('m', 5000)),
+(3, REPEAT('L', 25000));
+CREATE TABLE t2 (a INT, b TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (2, REPEAT('m', 5000));
+SELECT a, LENGTH(b) FROM (
+SELECT a, b FROM t1 EXCEPT SELECT a, b FROM t2
+) dt;
+a	LENGTH(b)
+1	2
+3	25000
+DROP TABLE t1, t2;
+#
+# PAD SPACE: trailing spaces should compare equal
+#
+CREATE TABLE t1 (a TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES ('hello');
+CREATE TABLE t2 (a TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES ('hello   ');
+SELECT COUNT(*) FROM (
+SELECT a FROM t1 INTERSECT SELECT a FROM t2
+) dt;
+COUNT(*)
+1
+DROP TABLE t1, t2;
+#
+# Mismatch path: hash collision forcing multiple comparisons.
+# Many rows with same integer but different blobs to exercise
+# the restore-on-mismatch loop.
+#
+CREATE TABLE t1 (a TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (REPEAT('a', 20000)), (REPEAT('b', 20000)),
+(REPEAT('c', 20000)), (REPEAT('d', 20000)),
+(REPEAT('e', 20000));
+CREATE TABLE t2 (a TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (REPEAT('c', 20000)), (REPEAT('e', 20000));
+SELECT LEFT(a, 1), LENGTH(a) FROM (
+SELECT a FROM t1 EXCEPT SELECT a FROM t2
+) dt;
+LEFT(a, 1)	LENGTH(a)
+a	20000
+b	20000
+d	20000
+DROP TABLE t1, t2;
+#
+# Content integrity: verify blob data survives intact
+#
+CREATE TABLE t1 (a TEXT) ENGINE=HEAP;
+INSERT INTO t1 VALUES (REPEAT('X', 20000));
+CREATE TABLE t2 (a TEXT) ENGINE=HEAP;
+INSERT INTO t2 VALUES (REPEAT('Y', 20000));
+SELECT LENGTH(a), a = REPEAT('X', 20000) AS intact FROM (
+SELECT a FROM t1 EXCEPT SELECT a FROM t2
+) dt;
+LENGTH(a)	intact
+20000	1
+DROP TABLE t1, t2;
+#
+# EXCEPT with expressions producing temp table blobs
+#
+SELECT LENGTH(a), LEFT(a, 3) FROM (
+SELECT a FROM (
+SELECT REPEAT('abc', 7000) AS a
+UNION ALL SELECT REPEAT('def', 7000)
+UNION ALL SELECT REPEAT('abc', 7000)
+) t1
+EXCEPT
+SELECT a FROM (
+SELECT REPEAT('abc', 7000) AS a
+) t2
+) dt;
+LENGTH(a)	LEFT(a, 3)
+21000	def
+#
+# EXCEPT with hash-colliding blob values
+#
+# Binary blobs 0x0069 and 0x0107 collide under my_hash_sort_bin()
+# (both hash to 66889).  In find_unique_row(), the hash chain walk
+# encounters a non-matching entry with the same hash, triggering the
+# record restore (memcpy from input_copy) before continuing to the
+# next chain entry.
+#
+CREATE TABLE t1 (val BLOB NOT NULL);
+INSERT INTO t1 VALUES (UNHEX('0069')), (UNHEX('0107')), (UNHEX('FF'));
+CREATE TABLE t2 (val BLOB NOT NULL);
+INSERT INTO t2 VALUES (UNHEX('0069'));
+# Should return 0107 and FF (everything in t1 except 0069)
+SELECT HEX(val) FROM (SELECT val FROM t1 EXCEPT SELECT val FROM t2) dt;
+HEX(val)
+0107
+FF
+# INTERSECT: should return only 0069
+SELECT HEX(val) FROM (SELECT val FROM t1 INTERSECT SELECT val FROM t2) dt;
+HEX(val)
+0069
+DROP TABLE t1, t2;
+SET @@max_heap_table_size= @save_max_heap_table_size;

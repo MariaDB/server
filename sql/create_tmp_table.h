@@ -31,6 +31,7 @@ protected:
   // The following members are initialized in ctor
   uint  m_alloced_field_count;
   bool  m_using_unique_constraint;
+  bool  m_heap_expected;
   uint m_temp_pool_slot;
   ORDER *m_group;
   bool m_distinct;
@@ -59,6 +60,7 @@ public:
   Create_tmp_table(ORDER *group, bool distinct, bool save_sum_fields,
                    ulonglong select_options, ha_rows rows_limit);
   virtual ~Create_tmp_table() {}
+  handlerton *pick_engine(THD *thd, uint reclength);
   virtual bool choose_engine(THD *thd, TABLE *table, TMP_TABLE_PARAM *param);
   void add_field(TABLE *table, Field *field, uint fieldnr,
                  bool force_not_null_cols);

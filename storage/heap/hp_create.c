@@ -37,7 +37,7 @@ static const ulong heap_min_allocation_block= 16384;
 int heap_create(const char *name, HP_CREATE_INFO *create_info,
                 HP_SHARE **res, my_bool *created_new_share)
 {
-  uint i, j, key_segs, max_length, length;
+  uint i, key_segs, max_length, length;
   HP_SHARE *share= 0;
   HA_KEYSEG *keyseg;
   HP_KEYDEF *keydef= create_info->keydef;
@@ -74,15 +74,29 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       so the visible_offset must be least at sizeof(uchar*)
     */
     visible_offset= MY_MAX(reclength, sizeof (char*));
-    
+    /*
+      Blob tables store continuation run headers (next_cont pointer +
+      run_slots count = HP_CONT_HEADER_SIZE bytes) in each run's first
+      slot.  Ensure at least 1 byte of payload beyond the header,
+      otherwise hp_write_run_data() underflows computing
+      chunk = visible - HP_CONT_HEADER_SIZE.  Only matters for
+      pathological single-TINYBLOB tables (reclength as low as 9).
+    */
+    if (create_info->blob_count)
+      visible_offset= MY_MAX(visible_offset, HP_CONT_HEADER_SIZE + 1);
+
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
+      HA_KEYSEG *keyseg, *keyseg_end;
+
       bzero((char*) &keyinfo->block,sizeof(keyinfo->block));
       bzero((char*) &keyinfo->rb_tree ,sizeof(keyinfo->rb_tree));
-      for (j= length= 0; j < keyinfo->keysegs; j++)
+      for (keyseg= keyinfo->seg, keyseg_end= keyseg+ keyinfo->keysegs, length=0;
+           keyseg < keyseg_end ;
+           keyseg++)
       {
-	length+= keyinfo->seg[j].length;
-	if (keyinfo->seg[j].null_bit)
+	length+= keyseg->length;
+	if (keyseg->null_bit)
 	{
 	  length++;
 	  if (!(keyinfo->flag & HA_NULL_ARE_EQUAL))
@@ -90,7 +104,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	  if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
 	    keyinfo->rb_tree.size_of_element++;
 	}
-	switch (keyinfo->seg[j].type) {
+	switch (keyseg->type) {
 	case HA_KEYTYPE_SHORT_INT:
 	case HA_KEYTYPE_LONG_INT:
 	case HA_KEYTYPE_FLOAT:
@@ -102,45 +116,72 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	case HA_KEYTYPE_INT24:
 	case HA_KEYTYPE_UINT24:
 	case HA_KEYTYPE_INT8:
-	  keyinfo->seg[j].flag|= HA_SWAP_KEY;
+	  keyseg->flag|= HA_SWAP_KEY;
           break;
         case HA_KEYTYPE_VARBINARY1:
           /* Case-insensitiveness is handled in hash_sort */
-          keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
+          keyseg->type= HA_KEYTYPE_VARTEXT1;
           /* fall through */
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           /*
-            For BTREE algorithm, key length, greater than or equal
-            to 255, is packed on 3 bytes.
+            Real blob fields always enter as VARTEXT4/VARBINARY4, never
+            as VARTEXT1/VARBINARY1. Strip any spurious HA_BLOB_PART
+            (e.g. from uninitialized key_part_flag in SJ weedout tables).
           */
-          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
-            length+= size_to_store_key_length(keyinfo->seg[j].length);
-          else
-            length+= 2;
-          /* Save number of bytes used to store length */
-          keyinfo->seg[j].bit_start= 1;
-          break;
-        case HA_KEYTYPE_VARBINARY2:
-          /* Case-insensitiveness is handled in hash_sort */
-          /* fall_through */
-        case HA_KEYTYPE_VARTEXT2:
-          keyinfo->flag|= HA_VAR_LENGTH_KEY;
+          DBUG_ASSERT(!(keyseg->flag & HA_BLOB_PART));
+          keyseg->flag&= ~HA_BLOB_PART;
           /*
             For BTREE algorithm, key length, greater than or equal
             to 255, is packed on 3 bytes.
           */
           if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
-            length+= size_to_store_key_length(keyinfo->seg[j].length);
+            length+= size_to_store_key_length(keyseg->length);
           else
             length+= 2;
-          /* Save number of bytes used to store length */
-          keyinfo->seg[j].bit_start= 2;
+          keyseg->bit_start= 1;         /* Packlength for records */
+          keyseg->bit_length= 2;        /* Packlength for key */
+          break;
+        case HA_KEYTYPE_VARBINARY4:
+          /* fall through */
+        case HA_KEYTYPE_VARTEXT4:
+          /* Key is stored as 4 byte length + pointer to data */
+          DBUG_ASSERT(keyseg->flag & HA_BLOB_PART);
+          DBUG_ASSERT(keyinfo->algorithm != HA_KEY_ALG_BTREE);
+          DBUG_ASSERT(keyseg->length == 4+portable_sizeof_char_ptr);
+          DBUG_ASSERT(keyseg->bit_start >= 1 && keyseg->bit_start <= 4);
+          DBUG_ASSERT(keyseg->bit_length == 0);
+
+          /*
+            bit_start holds the actual blob packlength (1-4), set by
+            heap_prepare_hp_create_info().
+          */
+          keyinfo->flag|= HA_VAR_LENGTH_KEY;
+          keyseg->type= HA_KEYTYPE_VARTEXT4;
+          break;
+
+        case HA_KEYTYPE_VARBINARY2:
+          /* Case-insensitiveness is handled in hash_sort */
+          /* fall through */
+        case HA_KEYTYPE_VARTEXT2:
+          keyinfo->flag|= HA_VAR_LENGTH_KEY;
+          /* key is stored as [length] + data */
+          keyseg->bit_start= 2;
+          keyseg->bit_length= 2;
           /*
             Make future comparison simpler by only having to check for
             one type
           */
-          keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
+          keyseg->type= HA_KEYTYPE_VARTEXT1;
+
+          /*
+            For BTREE algorithm, key length, greater than or equal
+            to 255, is packed on 3 bytes.
+          */
+          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
+            length+= size_to_store_key_length(keyseg->length);
+          else
+            length+= keyseg->bit_start;
           break;
         case HA_KEYTYPE_BIT:
           /*
@@ -174,7 +215,9 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     if (!(share= (HP_SHARE*) my_malloc(hp_key_memory_HP_SHARE,
                                        sizeof(HP_SHARE)+
 				       keys*sizeof(HP_KEYDEF)+
-				       key_segs*sizeof(HA_KEYSEG),
+				       key_segs*sizeof(HA_KEYSEG)+
+				       create_info->blob_count*
+                                       sizeof(HP_BLOB_DESC),
 				       MYF(MY_ZEROFILL |
                                            (create_info->internal_table ?
                                             MY_THREAD_SPECIFIC : 0)))))
@@ -182,6 +225,13 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
+    if (create_info->blob_count)
+    {
+      share->blob_descs= (HP_BLOB_DESC*) (keyseg + key_segs);
+      memcpy(share->blob_descs, create_info->blob_descs,
+             create_info->blob_count * sizeof(HP_BLOB_DESC));
+      share->blob_count= create_info->blob_count;
+    }
     init_block(&share->block, hp_memory_needed_per_row(reclength),
                min_records, max_records);
 	/* Fix keys */
@@ -361,6 +411,7 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
   block->records_in_block= records_in_block;
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
+  block->high_water_allocated= 0L;
   /* All allocations are done with this size, if possible */
   block->alloc_size= alloc_size - MALLOC_OVERHEAD;
 

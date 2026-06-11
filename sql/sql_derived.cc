@@ -874,27 +874,37 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   distinct= (unit->first_select()->next_select() ?
              unit->union_distinct && !unit->union_distinct->next_select() :
              unit->distinct);
+  {
+    ulonglong create_options= (first_select->options |
+                               thd->variables.option_bits |
+                               TMP_TABLE_ALL_COLUMNS);
+    /*
+      Force a disk-based engine when the outer query uses FULLTEXT
+      functions, since HEAP does not support FULLTEXT indexes.
+    */
+    if (derived->select_lex &&
+        derived->select_lex->ftfunc_list->elements)
+      create_options= create_options | TMP_TABLE_FORCE_MYISAM;
 
-  if (!(derived->table) &&
-      derived->derived_result->create_result_table(thd, &unit->types,
-                                                   distinct,
-                                                   (first_select->options |
-                                                   thd->variables.option_bits |
-                                                   TMP_TABLE_ALL_COLUMNS),
-                                                   &derived->alias,
-                                                   FALSE, FALSE, keep_row_order,
-                                                   0))
-  { 
-    thd->create_tmp_table_for_derived= FALSE;
-    if (thd->is_error())
+    if (!(derived->table) &&
+        derived->derived_result->create_result_table(thd, &unit->types,
+                                                     distinct,
+                                                     create_options,
+                                                     &derived->alias,
+                                                     FALSE, FALSE,
+                                                     keep_row_order, 0))
     {
-      /*
-        EOM error, or attempted to a create a table with a Field
-        of a not allowed data type, e.g. SYS_REFCURSOR.
-      */
-      res= true;
+      thd->create_tmp_table_for_derived= FALSE;
+      if (thd->is_error())
+      {
+        /*
+          EOM error, or attempted to a create a table with a Field
+          of a not allowed data type, e.g. SYS_REFCURSOR.
+        */
+        res= true;
+      }
+      goto exit;
     }
-    goto exit;
   }
   thd->create_tmp_table_for_derived= FALSE;
 

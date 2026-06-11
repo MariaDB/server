@@ -2559,7 +2559,8 @@ public:
   Item_temptable_rowid(TABLE *table_arg);
   const Type_handler *type_handler() const override
   { return &type_handler_string; }
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          Tmp_field_param *param)
   { return create_table_field_from_handler(root, table); }
   String *val_str(String *str) override;
   enum Functype functype() const override { return  TEMPTABLE_ROWID; }

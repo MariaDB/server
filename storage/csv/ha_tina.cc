@@ -858,7 +858,7 @@ int ha_tina::find_current_row(uchar *buf)
         uchar *src, *tgt;
         uint length, packlength;
 
-        packlength= blob->pack_length_no_ptr();
+        packlength= blob->length_size();
         length= blob->get_length(blob->ptr);
         memcpy(&src, blob->ptr + packlength, sizeof(char*));
         if (src)

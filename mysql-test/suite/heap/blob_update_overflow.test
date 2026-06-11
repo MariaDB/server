@@ -1,0 +1,154 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-38975: Overflow-to-Aria on UPDATE path for GROUP BY temp tables
+--echo #
+--echo # When ha_update_tmp_row() fails with HA_ERR_RECORD_FILE_FULL on a
+--echo # HEAP temp table (blob aggregate grows during UPDATE), the server
+--echo # should transparently convert to Aria and retry the update, just
+--echo # as the INSERT path already does.
+--echo #
+--echo # MAX(TEXT) with monotonically growing values triggers this: each
+--echo # update stores a longer blob via result_field->store(), and
+--echo # heap_update()'s write-before-free strategy requires old + new
+--echo # continuation chains to coexist briefly, exhausting capacity.
+--echo #
+
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+
+--echo #
+--echo # Test 1: MAX(TEXT) overflow during end_update()
+--echo #
+--echo # 3 groups x 50 interleaved rows. val = REPEAT('a', seq * 200).
+--echo # Since seq grows, each group's MAX increases on every update.
+--echo # The HEAP temp table (32KB, recbuffer=16, ~2048 records) overflows
+--echo # when per-group blob chains reach ~500 records (~8KB each).
+--echo #
+
+SET max_heap_table_size = 32768;
+SET tmp_table_size = 32768;
+
+CREATE TABLE t1 (grp INT, val TEXT);
+INSERT INTO t1 SELECT (seq % 3) + 1, REPEAT('a', seq * 200)
+FROM seq_1_to_150;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+
+--echo # Should overflow during UPDATE and convert HEAP->Aria transparently
+SELECT grp, LENGTH(MAX(val)) AS max_len
+FROM t1 GROUP BY grp ORDER BY grp;
+
+--echo # Verify HEAP->Aria conversion happened
+SHOW STATUS LIKE 'Created_tmp_%';
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test 2: Verify result correctness after overflow
+--echo #
+--echo # Same data but also check the actual MAX content, not just length.
+--echo #
+
+CREATE TABLE t1 (grp INT, val TEXT);
+INSERT INTO t1 SELECT (seq % 3) + 1, REPEAT('a', seq * 200)
+FROM seq_1_to_150;
+
+--echo # Group 1 gets seq=3,6,...,150 -> MAX is REPEAT('a', 30000)
+--echo # Group 2 gets seq=1,4,...,148 -> MAX is REPEAT('a', 29600)
+--echo # Group 3 gets seq=2,5,...,149 -> MAX is REPEAT('a', 29800)
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+SELECT grp,
+       LENGTH(MAX(val)) AS max_len,
+       LEFT(MAX(val), 5) AS prefix,
+       RIGHT(MAX(val), 5) AS suffix
+FROM t1 GROUP BY grp ORDER BY grp;
+
+SHOW STATUS LIKE 'Created_tmp_%';
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # Test 3: Multiple blob aggregates (two MAX columns)
+--echo #
+
+CREATE TABLE t1 (grp INT, v1 TEXT, v2 TEXT);
+INSERT INTO t1 SELECT (seq % 3) + 1,
+  REPEAT('x', seq * 200),
+  REPEAT('y', seq * 150)
+FROM seq_1_to_150;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+SELECT grp,
+       LENGTH(MAX(v1)) AS max1_len,
+       LENGTH(MAX(v2)) AS max2_len
+FROM t1 GROUP BY grp ORDER BY grp;
+
+SHOW STATUS LIKE 'Created_tmp_%';
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # Test 4: MIN(TEXT) with monotonically shrinking minimum
+--echo #
+--echo # Rows with decreasing-length values for MIN. Since shorter
+--echo # all-'a' strings are "less than" longer ones under PAD SPACE,
+--echo # MIN keeps getting replaced with shorter values. The blob
+--echo # doesn't grow, but the churn of rewriting chains can cause
+--echo # overflow when combined with other groups' large blobs.
+--echo # (MIN shrinks blobs, so this primarily tests that the conversion
+--echo # path works even when some groups have small blobs.)
+--echo #
+
+CREATE TABLE t1 (grp INT, val TEXT);
+--echo # Mix growing and fixed-size values
+INSERT INTO t1 SELECT (seq % 3) + 1,
+  CASE WHEN seq % 2 = 0 THEN REPEAT('b', seq * 200)
+       ELSE REPEAT('a', 50)
+  END
+FROM seq_1_to_150;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+SELECT grp,
+       LENGTH(MAX(val)) AS max_len,
+       LENGTH(MIN(val)) AS min_len
+FROM t1 GROUP BY grp ORDER BY grp;
+
+SHOW STATUS LIKE 'Created_tmp_%';
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # Cleanup
+--echo #
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

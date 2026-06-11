@@ -256,6 +256,24 @@ const Type_handler *Type_handler_geometry::type_handler_for_comparison() const
 }
 
 
+const Type_handler*
+Type_handler_geometry::type_handler_for_tmp_table(const Item *,
+                                                  const Tmp_field_param *param)
+                                                                          const
+{
+  if (param->group_concat())
+  {
+   /*
+     Field_geom::store() asserts !table->blob_storage, but GROUP_CONCAT
+     with ORDER BY/DISTINCT sets blob_storage on its temp table.
+     Downgrade to plain Field_blob.
+   */
+    return &type_handler_long_blob;
+  }
+  return this;
+}
+
+
 Field *Type_handler_geometry::make_conversion_table_field(MEM_ROOT *root,
                                                           TABLE *table,
                                                           uint metadata,
@@ -512,6 +530,33 @@ Field *Type_handler_geometry::make_table_field(MEM_ROOT *root,
          Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, share, 4, this,
                     Type_geom_attributes(attr.type_extra_attributes()));
+}
+
+
+Field *Type_handler_geometry::make_table_field_ex(MEM_ROOT *root,
+                                             const LEX_CSTRING *name,
+                                             const Record_addr &addr,
+                                             const Type_all_attributes &attr,
+                                             const Tmp_field_param *param,
+                                             TABLE_SHARE *share) const
+{
+  if (param->part_of_unique_key())
+  {
+    /* Unique keys parts must be of type blob_key for memory tables */
+    return type_handler_blob_key.
+      make_table_field(root, name, addr, attr, share);
+  }
+  if (param->group_concat())
+  {
+    /*
+      Field_geom::store() asserts !table->blob_storage, but GROUP_CONCAT
+      with ORDER BY/DISTINCT sets blob_storage on its temp table.
+      Downgrade to plain Field_blob.
+    */
+    return type_handler_long_blob.
+             make_table_field(root, name, addr, attr, share);
+  }
+  return make_table_field(root, name, addr, attr, share);
 }
 
 
@@ -886,6 +931,7 @@ int Field_geom::store_decimal(const my_decimal *)
 
 int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
+  DBUG_ASSERT(!table->blob_storage);
   const char *dummy;
   Geometry_buffer buffer;
   Geometry *geom;
@@ -1004,6 +1050,6 @@ uint Field_geom::get_key_image(uchar *buff,uint length, const uchar *ptr_arg,
 Binlog_type_info Field_geom::binlog_type_info() const
 {
   DBUG_ASSERT(Field_geom::type() == binlog_type());
-  return Binlog_type_info(Field_geom::type(), pack_length_no_ptr(), 1,
+  return Binlog_type_info(Field_geom::type(), length_size(), 1,
                           field_charset(), type_handler_geom()->geometry_type());
 }

@@ -334,7 +334,8 @@ class Item_sum_hybrid_simple : public Item_sum_hybrid
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field() override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override;
   void clear() override
   {
     value->clear();

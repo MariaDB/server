@@ -66,7 +66,7 @@ BEGIN
          collation_name, column_type, column_key, extra, column_comment
     FROM INFORMATION_SCHEMA.COLUMNS
       WHERE table_schema='mysql'
-        ORDER BY columns_in_mysql;
+        ORDER BY columns_in_mysql, ordinal_position;
 
   -- Dump all events, there should be none
   SELECT * FROM INFORMATION_SCHEMA.EVENTS;

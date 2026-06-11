@@ -44,6 +44,8 @@ int heap_rrnd(register HP_INFO *info, uchar *record, uchar *pos)
   }
   info->update=HA_STATE_PREV_FOUND | HA_STATE_NEXT_FOUND | HA_STATE_AKTIV;
   memcpy(record,info->current_ptr,(size_t) share->reclength);
+  if (share->blob_count && hp_read_blobs(info, record, info->current_ptr))
+    DBUG_RETURN(my_errno);
   DBUG_PRINT("exit", ("found record at %p", info->current_ptr));
   info->current_hash_ptr=0;			/* Can't use rnext */
   DBUG_RETURN(0);

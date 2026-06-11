@@ -168,6 +168,7 @@ Named_type_handler<Type_handler_varchar_compressed> type_handler_varchar_compres
 Named_type_handler<Type_handler_tiny_blob> type_handler_tiny_blob("tinyblob");
 Named_type_handler<Type_handler_medium_blob> type_handler_medium_blob("mediumblob");
 Named_type_handler<Type_handler_long_blob> type_handler_long_blob("longblob");
+Named_type_handler<Type_handler_blob_key> type_handler_blob_key("blob_key");
 Named_type_handler<Type_handler_blob> type_handler_blob("blob");
 Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed("blob");
 
@@ -1408,19 +1409,23 @@ Type_handler::string_type_handler(uint max_octet_length)
 
 
 const Type_handler *
-Type_handler::varstring_type_handler(const Item *item)
+Type_handler::varstring_type_handler(const Item *item,
+                                     const Tmp_field_param *param)
 {
   if (!item->max_length)
     return &type_handler_string;
   if (item->too_big_for_varchar())
-    return blob_type_handler(item->max_length);
+    return blob_type_handler(item->max_length, param);
   return &type_handler_varchar;
 }
 
 
 const Type_handler *
-Type_handler::blob_type_handler(uint max_octet_length)
+Type_handler::blob_type_handler(uint max_octet_length,
+                                const Tmp_field_param *param)
 {
+  if (param && param->part_of_unique_key())
+    return &type_handler_blob_key;
   if (max_octet_length <= 255)
     return &type_handler_tiny_blob;
   if (max_octet_length <= 65535)
@@ -1432,9 +1437,15 @@ Type_handler::blob_type_handler(uint max_octet_length)
 
 
 const Type_handler *
-Type_handler::blob_type_handler(const Item *item)
+Type_handler::blob_type_handler(const Item *item, const Tmp_field_param *param)
 {
-  return blob_type_handler(item->max_length);
+  return blob_type_handler(item->max_length, param);
+}
+
+const Type_handler *
+Type_handler::blob_key_type_handler()
+{
+  return &type_handler_blob_key;
 }
 
 /**
@@ -3725,6 +3736,20 @@ Field *Type_handler::make_and_init_table_field(MEM_ROOT *root,
 }
 
 
+Field *Type_handler::make_and_init_table_field_ex(MEM_ROOT *root,
+                                               const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               const Tmp_field_param *param,
+                                               TABLE *table) const
+{
+  Field *field= make_table_field_ex(root, name, addr, attr, param, table->s);
+  if (field)
+    field->init(table);
+  return field;
+}
+
+
 Field *Type_handler_int_result::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
@@ -4071,6 +4096,19 @@ Field *Type_handler_long_blob::make_table_field(MEM_ROOT *root,
                     4, attr.collation);
 }
 
+Field *Type_handler_blob_key::make_table_field(MEM_ROOT *root,
+                                               const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE_SHARE *share) const
+
+{
+  /* Note that the pack length (4) will be fixed by the caller */
+  return new (root)
+         Field_blob_key(addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                        Field::NONE, name, share, 4, attr.collation);
+}
+
 
 Field *Type_handler_enum::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
@@ -4108,6 +4146,33 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
                    get_enum_pack_length(typelib_ptr_attr.typelib_attr()->count),
                    typelib_ptr_attr.typelib_attr(),
                    attr.collation);
+}
+
+
+/***************************************************************************/
+
+
+Field *Type_handler_blob_common::make_table_field_ex(MEM_ROOT *root,
+                                             const LEX_CSTRING *name,
+                                             const Record_addr &addr,
+                                             const Type_all_attributes &attr,
+                                             const Tmp_field_param *param,
+                                             TABLE_SHARE *share) const
+{
+  if (param->part_of_unique_key())
+  {
+    Field *result= type_handler_blob_key.
+                     make_table_field(root, name, addr, attr, share);
+    if (result)
+    {
+      DBUG_ASSERT(dynamic_cast<Field_blob*>(result));
+      /* Fix length of blob to be able to return the original blob type */
+      static_cast<Field_blob*>(result)->set_pack_length(length_bytes());
+    }
+    return result;
+  }
+
+  return make_table_field(root, name, addr, attr, share);
 }
 
 
@@ -4904,7 +4969,7 @@ bool Type_handler_blob_common::
 {
   if (func->aggregate_attributes_string(func_name, items, nitems))
     return true;
-  handler->set_handler(blob_type_handler(func->max_length));
+  handler->set_handler(blob_type_handler(func->max_length, 0));
   return false;
 }
 
@@ -7481,31 +7546,30 @@ bool Type_handler_temporal_result::
 
 
 const Type_handler *
-Type_handler_null::type_handler_for_tmp_table(const Item *item) const
+Type_handler_null::type_handler_for_tmp_table(const Item *item,
+                                              const Tmp_field_param *param)
+  const
 {
   return &type_handler_string;
 }
 
 
-const Type_handler *
-Type_handler_null::type_handler_for_union(const Item *item) const
-{
-  return &type_handler_string;
-}
-
-
-const Type_handler *
-Type_handler_olddecimal::type_handler_for_tmp_table(const Item *item) const
+const Type_handler *Type_handler_olddecimal::
+type_handler_for_tmp_table(const Item *item,
+                           const Tmp_field_param *param) const
 {
   return &type_handler_newdecimal;
 }
 
-const Type_handler *
-Type_handler_olddecimal::type_handler_for_union(const Item *item) const
-{
-  return &type_handler_newdecimal;
-}
 
+const Type_handler *Type_handler_blob_common::
+type_handler_for_tmp_table(const Item *item, const Tmp_field_param *param)
+  const
+{
+  return (param->part_of_unique_key() ?
+          blob_key_type_handler() :
+          blob_type_handler(item, 0));
+}
 
 /***************************************************************************/
 

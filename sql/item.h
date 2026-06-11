@@ -670,21 +670,29 @@ class Tmp_field_param
   bool m_modify_item;
   bool m_table_cant_handle_bit_fields;
   bool m_make_copy_field;
+  bool m_part_of_unique_key;
+  bool m_group_concat;
 public:
   Tmp_field_param(bool group,
                   bool modify_item,
                   bool table_cant_handle_bit_fields,
-                  bool make_copy_field)
+                  bool make_copy_field,
+                  bool part_of_unique_key,
+                  bool group_concat)
    :m_group(group),
     m_modify_item(modify_item),
     m_table_cant_handle_bit_fields(table_cant_handle_bit_fields),
-    m_make_copy_field(make_copy_field)
+    m_make_copy_field(make_copy_field),
+    m_part_of_unique_key(part_of_unique_key),
+    m_group_concat(group_concat)
   { }
   bool group() const { return m_group; }
   bool modify_item() const { return m_modify_item; }
   bool table_cant_handle_bit_fields() const
   { return m_table_cant_handle_bit_fields; }
   bool make_copy_field() const { return m_make_copy_field; }
+  bool part_of_unique_key() const { return m_part_of_unique_key; }
+  bool group_concat() const { return m_group_concat; }
   void set_modify_item(bool to) { m_modify_item= to; }
 };
 
@@ -882,10 +890,13 @@ protected:
     @retval  NULL  error
     @retval  !NULL on success
   */
-  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table)
+  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table,
+                                         const Tmp_field_param *param)
   {
     DBUG_ASSERT(fixed());
-    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this,
+                                                                      param);
     return h->make_and_init_table_field(root, &name,
                                         Record_addr(maybe_null()),
                                         *this, table);
@@ -907,7 +918,7 @@ protected:
     DBUG_ASSERT(!param->make_copy_field());
     DBUG_ASSERT(!is_result_field());
     DBUG_ASSERT(type() != NULL_ITEM);
-    return tmp_table_field_from_field_type(root, table);
+    return tmp_table_field_from_field_type(root, table, param);
   }
   Field *create_tmp_field_int(MEM_ROOT *root, TABLE *table,
                               uint convert_int_length);
@@ -3691,7 +3702,8 @@ public:
                              const Tmp_field_param *param) override
   {
     DBUG_ASSERT(fixed());
-    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this,
+                                                                      param);
     return create_tmp_field_ex_from_handler(root, table, src, param, h);
   }
   void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
@@ -4830,7 +4842,10 @@ public:
   const Type_handler *type_handler() const override
   { return type_handler_long_or_longlong(); }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
-  { return tmp_table_field_from_field_type(root, table); }
+  {
+    const Tmp_field_param param(false, false, false, false, false, false);
+    return tmp_table_field_from_field_type(root, table, &param);
+  }
   const longlong *const_ptr_longlong() const override { return &value; }
   bool val_bool() override { return value != 0; }
   longlong val_int() override
@@ -8563,12 +8578,7 @@ public:
   String *val_str(String*) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param) override
-  {
-    return Item_type_holder::real_type_handler()->
-      make_and_init_table_field(root, &name, Record_addr(maybe_null()),
-                                *this, table);
-  }
+                             const Tmp_field_param *param) override;
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *) const override { return nullptr; }

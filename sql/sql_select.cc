@@ -21621,7 +21621,7 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
   DBUG_ASSERT(!param->make_copy_field() || type() == CONST_ITEM);
   DBUG_ASSERT(!is_result_field());
   Field *result;
-  if ((result= tmp_table_field_from_field_type(root, table)))
+  if ((result= tmp_table_field_from_field_type(root, table, param)))
   {
     if (result && is_explicit_null)
       result->is_created_from_null_item= true;
@@ -21630,7 +21630,8 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
 }
 
 
-Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                  const Tmp_field_param *param)
 {
   Field *UNINIT_VAR(new_field);
 
@@ -21645,7 +21646,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
-    new_field= tmp_table_field_from_field_type(root, table);
+    new_field= tmp_table_field_from_field_type(root, table, param);
     break;
   case ROW_RESULT:
     // This case should never be chosen
@@ -21698,7 +21699,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     */
     Record_addr rec(orig_item ? orig_item->maybe_null() : maybe_null());
     const Type_handler *handler= type_handler()->
-                                   type_handler_for_tmp_table(this);
+      type_handler_for_tmp_table(this, param);
     result= handler->make_and_init_table_field(root, new_name,
                                                rec, *this, new_table);
   }
@@ -21715,7 +21716,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
   {
     bool tmp_maybe_null= param->modify_item() ? maybe_null() :
                                                 field->maybe_null();
-    result= field->create_tmp_field(root, new_table, tmp_maybe_null);
+    result= field->create_tmp_field(root, new_table, tmp_maybe_null, param);
     if (result && ! param->modify_item())
       result->field_name= *new_name;
   }
@@ -21752,7 +21753,7 @@ Field *Item_default_value::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
       as the we have to calculate the default value before we can use it.
     */
      get_tmp_field_src(src, param);
-     Field *result= tmp_table_field_from_field_type(root, table);
+     Field *result= tmp_table_field_from_field_type(root, table, param);
      if (result && param->modify_item())
        result_field= result;
      return result;
@@ -21790,6 +21791,33 @@ Field *Item_ref::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
 }
 
 
+
+Field *Item_type_holder::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
+                                             Tmp_field_src *src,
+                                             const Tmp_field_param *param)
+{
+  Type_handler const *type_handler= Item_type_holder::real_type_handler();
+  Type_handler_blob_common const *blob_handler;
+  if (param->part_of_unique_key() &&
+      (blob_handler=
+       dynamic_cast<const Type_handler_blob_common*>(type_handler)))
+  {
+    Field_blob *blob_field= (Field_blob*) type_handler_blob_key.
+      make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                                *this, table);
+    if (blob_field)
+    {
+      /* Fix length of blob to be able to return the original blob type */
+      blob_field->set_pack_length(blob_handler->length_bytes());
+    }
+    return blob_field;
+  }
+  return type_handler->
+    make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                              *this, table);
+}
+
+
 void Item_result_field::get_tmp_field_src(Tmp_field_src *src,
                                           const Tmp_field_param *param)
 {
@@ -21811,7 +21839,7 @@ Item_result_field::create_tmp_field_ex_from_handler(
                                           TABLE *table,
                                           Tmp_field_src *src,
                                           const Tmp_field_param *param,
-                                          const Type_handler *h)
+                                          const Type_handler *type_handler)
 {
   /*
     Possible Item types:
@@ -21824,10 +21852,12 @@ Item_result_field::create_tmp_field_ex_from_handler(
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
-  if ((result= h->make_and_init_table_field(root, &name,
-                                            Record_addr(maybe_null()),
-                                            *this, table)) &&
-      param->modify_item())
+
+  result= type_handler->make_and_init_table_field_ex(root, &name,
+                                                     Record_addr(maybe_null()),
+                                                     *this, param, table);
+
+  if (result && param->modify_item())
     result_field= result;
   return result;
 }
@@ -21839,7 +21869,7 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
 {
   Field *result;
   get_tmp_field_src(src, param);
-  if ((result= sp_result_field->create_tmp_field(root, table)))
+  if ((result= sp_result_field->create_tmp_field(root, table, param)))
   {
     result->field_name= name;
     if (param->modify_item())
@@ -21893,6 +21923,8 @@ static bool make_json_valid_expr(TABLE *table, Field *field)
   @param make_copy_field
                        Set when using with rollup when we want to have
                        an exact copy of the field.
+  @param part_of_unique_key
+                       Field is part of unique key
   @retval
     0                  on error
   @retval
@@ -21905,11 +21937,13 @@ Field *create_tmp_field(TABLE *table, Item *item,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
-                        bool make_copy_field)
+                        bool make_copy_field,
+                        bool part_of_unique_key)
 {
   Tmp_field_src src;
   Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
-                      make_copy_field);
+                      make_copy_field, part_of_unique_key || group,
+                      table->group_concat);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
   if (is_json_type(item) && make_json_valid_expr(table, result))
@@ -21919,6 +21953,10 @@ Field *create_tmp_field(TABLE *table, Item *item,
   *default_field= src.default_field();
   if (src.item_result_field())
     *((*copy_func)++)= src.item_result_field();
+  if (part_of_unique_key)
+    result->flags|= FIELD_PART_OF_TMP_UNIQUE | UNIQUE_KEY_FLAG;
+  if (group)
+    result->flags|= UNIQUE_KEY_FLAG;
   return result;
 }
 
@@ -21964,6 +22002,7 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
                                    ha_rows rows_limit)
    :m_alloced_field_count(0),
     m_using_unique_constraint(false),
+    m_heap_expected(false),
     m_temp_pool_slot(MY_BIT_NONE),
     m_group(group),
     m_distinct(distinct),
@@ -22090,6 +22129,22 @@ TABLE *Create_tmp_table::start(THD *thd,
   */
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
+  /*
+    Early engine prediction: reclength is not known yet (fields haven't been
+    added), so pass 0 -- this is safe because pick_engine()'s only reclength
+    check is "> HA_MAX_REC_LENGTH", which 0 never triggers.  Returns
+    heap_hton unless session-level overrides (tmp_memory_table_size=0,
+    etc.) force a disk-based engine.  We use this
+    to avoid the too_big_for_varchar() / group_length >= MAX_BLOB_WIDTH
+    bail-outs that would force m_using_unique_constraint for HEAP tables
+    that natively support blob keys.
+
+    Note: pick_engine() also reads m_using_unique_constraint, which is
+    false at this point.  The guards below that set it to true are gated
+    by !m_heap_expected, so there is no circular dependency in practice.
+  */
+  m_heap_expected= (pick_engine(thd, 0) == heap_hton);
+
   if (m_group)
   {
     ORDER **prev= &m_group;
@@ -22104,19 +22159,18 @@ TABLE *Create_tmp_table::start(THD *thd,
         param->group_parts--;
         continue;
       }
-      else
-        prev= &(tmp->next);
+      prev= &(tmp->next);
       /*
-        marker == 4 means two things:
+        marker == MARKER_NULL_KEY means two things:
         - store NULLs in the key, and
         - convert BIT fields to 64-bit long, needed because MEMORY tables
           can't index BIT fields.
       */
       (*tmp->item)->marker= MARKER_NULL_KEY; // Store null in key
-      if ((*tmp->item)->too_big_for_varchar())
+      if (!m_heap_expected && (*tmp->item)->too_big_for_varchar())
         m_using_unique_constraint= true;
     }
-    if (param->group_length >= MAX_BLOB_WIDTH)
+    if (!m_heap_expected && param->group_length >= MAX_BLOB_WIDTH)
       m_using_unique_constraint= true;
     if (m_group)
       m_distinct= 0;                           // Can't use distinct
@@ -22199,6 +22253,7 @@ TABLE *Create_tmp_table::start(THD *thd,
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname, true);
+  share->tmp_table= RESULT_TMP_TABLE;
   share->blob_field= blob_field;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
@@ -22300,9 +22355,11 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure , false);
+                             distinct_record_structure, false,
+                             (current_counter == distinct));
           if (!new_field)
             goto err;					// Should be OOM
+
           tmp_from_field++;
 
           thd->mem_root= mem_root_save;
@@ -22326,8 +22383,6 @@ bool Create_tmp_table::add_fields(THD *thd,
             */
             arg->set_maybe_null();
           }
-          if (current_counter == distinct)
-            new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
         }
       }
     }
@@ -22364,13 +22419,15 @@ bool Create_tmp_table::add_fields(THD *thd,
                          */
                          item->marker == MARKER_NULL_KEY ||
                          param->bit_fields_as_long,
-                         param->force_copy_fields);
+                         param->force_copy_fields,
+                         (current_counter == distinct));
       if (unlikely(!new_field))
       {
         if (unlikely(thd->is_fatal_error || item->cols() == 1))
           goto err;                             // Got OOM
         continue;                               // Some kind of const item
       }
+
       if (type == Item::SUM_FUNC_ITEM)
       {
         Item_sum *agg_item= (Item_sum *) item;
@@ -22408,8 +22465,6 @@ bool Create_tmp_table::add_fields(THD *thd,
         m_group_null_items++;
         new_field->flags|= GROUP_FLAG;
       }
-      if (current_counter == distinct)
-        new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
   }
 
@@ -22434,37 +22489,55 @@ err:
 }
 
 
+/*
+  Predict which engine a temporary table will use, based on session
+  variables and the current m_using_unique_constraint / m_select_options
+  state.  Called early (before fields are added) with reclength=0 to set
+  m_heap_expected, and again from choose_engine() with the real reclength.
+*/
+
+handlerton *Create_tmp_table::pick_engine(THD *thd, uint reclength)
+{
+  if (m_using_unique_constraint ||
+      reclength > HA_MAX_REC_LENGTH ||
+      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
+      thd->variables.tmp_memory_table_size == 0)
+    return TMP_ENGINE_HTON;
+  return heap_hton;
+}
+
+
 bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
                                      TMP_TABLE_PARAM *param)
 {
   TABLE_SHARE *share= table->s;
   DBUG_ENTER("Create_tmp_table::choose_engine");
-  /*
-    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria)
-    In the future we should try making storage engine selection more dynamic
-  */
 
-  if (share->blob_fields || m_using_unique_constraint ||
-      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
-      thd->variables.tmp_memory_table_size == 0)
-  {
-    share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-    if (m_group &&
-	(param->group_parts > table->file->max_key_parts() ||
-	 param->group_length > table->file->max_key_length()))
-      m_using_unique_constraint= true;
-  }
-  else
-  {
-    share->db_plugin= ha_lock_engine(0, heap_hton);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-  }
+  handlerton *engine= pick_engine(thd, share->reclength);
+  share->db_plugin= ha_lock_engine(0, engine);
+  table->file= get_new_handler(share, &table->mem_root, share->db_type());
+
+  /*
+    When a disk engine was chosen for reasons other than key limits
+    (e.g. TMP_TABLE_FORCE_MYISAM, tmp_memory_table_size=0),
+    the GROUP BY key may still exceed the disk engine's max_key_parts()
+    or max_key_length().  Fall back to unique constraint hash dedup.
+  */
+  if (engine == TMP_ENGINE_HTON && m_group &&
+      (param->group_parts > table->file->max_key_parts() ||
+       param->group_length > table->file->max_key_length()))
+    m_using_unique_constraint= true;
+
   DBUG_RETURN(!table->file);
 }
 
+static bool is_text_key_segment(KEY_PART_INFO *m_key_part_info)
+{
+  return ((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
+          (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
+          (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2 ||
+          (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT4);
+}
 
 bool Create_tmp_table::finalize(THD *thd,
                                 TABLE *table,
@@ -22506,9 +22579,14 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!m_using_unique_constraint)
     share->reclength+= m_group_null_items; // null flag is stored separately
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
-    /* We need to ensure that first byte is not 0 for the delete link */
+    /*
+      We need to ensure that first byte is not 0 for the delete link.
+      HEAP uses fixed-width rows even with blobs (blob data lives in
+      separate continuation records within the same HP_BLOCK, not
+      inline in the primary record), so it still needs this guard.
+    */
     if (m_field_count[other])
       m_null_count[other]++;
     else
@@ -22527,11 +22605,14 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!share->reclength)
     share->reclength= 1;                // Dummy select
   share->stored_rec_length= share->reclength;
-  /* Use packed rows if there is blobs or a lot of space to gain */
-  if (share->blob_fields ||
-      (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
-       (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
-        string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS)))
+  /*
+    HEAP does not use recinfo->type, so packed format is harmless for HEAP.
+    It is needed for correct packing when converting to Aria.
+  */
+  if ((share->blob_fields ||
+       (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
+        (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
+         string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS))))
     use_packed_rows= 1;
 
   {
@@ -22562,8 +22643,13 @@ bool Create_tmp_table::finalize(THD *thd,
     share->null_bytes= share->null_bytes_for_compare= whole_null_pack_length;
   }
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
+    /*
+      Same first-byte guard as above: HEAP with blobs still uses
+      fixed-width rows and needs a non-zero first byte for the
+      delete-link mechanism.
+    */
     null_counter[(m_field_count[other] ? other : distinct)]++;
   }
 
@@ -22716,12 +22802,9 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->offset= field->offset(table->record[0]);
       m_key_part_info->length= (uint16) field->key_length();
       m_key_part_info->type=   (uint8) field->key_type();
-      m_key_part_info->key_type =
-	((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
-	0 : FIELDFLAG_BINARY;
-      m_key_part_info->key_part_flag= 0;
+      m_key_part_info->key_type= (is_text_key_segment(m_key_part_info) ?
+                                  0 : FIELDFLAG_BINARY);
+      m_key_part_info->key_part_flag= field->key_part_flag();
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;
@@ -22739,13 +22822,95 @@ bool Create_tmp_table::finalize(THD *thd,
           (*cur_group->item)->base_flags&= ~item_base_t::MAYBE_NULL;
         }
 
+        /*
+          For blob/geometry GROUP BY keys,
+          m_key_part_info->length, set from field->key_length(),
+          contains 0 (blobs) or packlength (geometry), both too
+          small to hold actual data. Use the item's max_length
+          capped to MAX_BLOB_WIDTH so new_key_field gets a
+          usable size.
+        */
+        uint32 key_field_length= m_key_part_info->length;
+        if ((field->flags & BLOB_FLAG) &&
+            key_field_length <= ((Field_blob*) field)->length_size())
+        {
+          key_field_length= MY_MIN((*cur_group->item)->max_length,
+                                   (MAX_BLOB_WIDTH - 4 - 1));
+          /*
+            Verify that the group buffer has room for this blob key
+            field.  For native blob columns calc_group_buffer() sees
+            the blob type from the start and always allocates enough
+            space.  This can only overflow when a varchar is promoted
+            to blob after calc_group_buffer() has already sized the
+            buffer (varchar-to-blob promotion path).
+          */
+          uint32 need= key_field_length + 4 /* length_bytes */ +
+                        MY_TEST(maybe_null);
+          if (m_group_buff + need >
+              param->group_buff + param->group_length)
+          {
+            m_using_unique_constraint= true;
+            DBUG_ASSERT(0);                    // Should be impossible
+            break;
+          }
+        }
+        /*
+          Set key_part_flag from the actual field type AFTER the overflow
+          check.  This ensures that if we break out due to a promoted
+          blob overflowing the group buffer, key_part_flag retains the
+          original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
+          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff()
+          from being called on a key buffer that has varchar format.
+        */
+        m_key_part_info->key_part_flag= field->key_part_flag();
+
+        /* Create a new field which value is stored in the group buffer */
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
                                                      MY_TEST(maybe_null),
-                                                     m_key_part_info->length,
+                                                     key_field_length,
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
+
+        /*
+          Mark that a key segment is a blob. Needed for
+          create_internal_tmp_table_from_heap to convert keys with blobs
+          to unique.
+        */
+        if (cur_group->field->flags & BLOB_FLAG)
+        {
+          /* We only come here for Field_blob_key's */
+          DBUG_ASSERT(cur_group->field[0].key_length() ==
+                      4 + portable_sizeof_char_ptr);
+          /* Tell engine to that this key includes a blob */
+          keyinfo->flags|= HA_BLOB_PART_KEY;
+        }
+
+        /*
+          Verify key_part_info consistency with the GROUP BY key field.
+          A blob key field must have VARTEXT4/VARBINARY4 type and the
+          matching key_length so heap_prepare_hp_create_info() takes the
+          direct blob path (with its own DBUG_ASSERTs) rather than the
+          VARTEXT2 promotion path that silently patches stale values.
+        */
+        DBUG_ASSERT(!(cur_group->field->flags & BLOB_FLAG) ||
+                    (m_key_part_info->length ==
+                     4 + portable_sizeof_char_ptr));
+        DBUG_ASSERT(!(cur_group->field->flags & BLOB_FLAG) ||
+                    ((ha_base_keytype) m_key_part_info->type ==
+                     HA_KEYTYPE_VARBINARY4 ||
+                     (ha_base_keytype) m_key_part_info->type ==
+                     HA_KEYTYPE_VARTEXT4));
+        DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                    (cur_group->field->flags & BLOB_FLAG));
+        /*
+          Set store_length for all GROUP BY key parts so
+          rebuild_key_from_group_buff() can advance through the key buffer.
+          store_length = key field pack_length + null flag byte.
+        */
+        m_key_part_info->store_length=
+            cur_group->field->key_pack_length() + MY_TEST(maybe_null);
 
 	if (maybe_null)
 	{
@@ -22762,7 +22927,7 @@ bool Create_tmp_table::finalize(THD *thd,
           cur_group->buff++;                        // Pointer to field data
 	  m_group_buff++;                         // Skip null flag
 	}
-        m_group_buff+= cur_group->field->pack_length();
+        m_group_buff+= cur_group->field->key_pack_length();
       }
       keyinfo->key_length+=  m_key_part_info->length;
     }
@@ -22797,9 +22962,17 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       keyinfo->flags|= HA_UNIQUE_HASH;
     }
+    /*
+      HEAP-specific: skip null-bits helper key part.
+      HEAP handles NULLs per-segment in its hash index, so it does not
+      need the extra null-key-part that MyISAM/Aria use for unique blob
+      constraints.
+    */
+    bool need_null_key_part= share->have_unique_constraint() &&
+                             share->db_type() != heap_hton &&
+                             null_pack_length[distinct];
     keyinfo->user_defined_key_parts= m_field_count[distinct] +
-       ((keyinfo->flags & HA_UNIQUE_HASH) ? 
-         MY_TEST(null_pack_length[distinct]) : 0);
+       MY_TEST(need_null_key_part);
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
@@ -22846,23 +23019,31 @@ bool Create_tmp_table::finalize(THD *thd,
       blobs can distinguish NULL from 0. This extra field is not needed
       when we do not use UNIQUE indexes for blobs.
     */
-    if (null_pack_length[distinct] && (keyinfo->flags & HA_UNIQUE_HASH))
+    if (need_null_key_part)
     {
       m_key_part_info->null_bit=0;
       m_key_part_info->offset= null_pack_base[distinct];
       m_key_part_info->length= null_pack_length[distinct];
+      /*
+        Use empty_clex_str (not null_clex_str) for the field name:
+        HEAP keeps share->keys visible to EXPLAIN, which iterates
+        key parts and calls strlen() on the name.  A NULL name from
+        null_clex_str causes SIGSEGV in Explain_index_use::set().
+        Empty string keeps the implicit field invisible in output.
+      */
       m_key_part_info->field= new Field_string(table->record[0],
                                              (uint32) m_key_part_info->length,
                                              (uchar*) 0,
                                              (uint) 0,
                                              Field::NONE,
-                                             &null_clex_str, &my_charset_bin);
+                                             &empty_clex_str, &my_charset_bin);
       if (!m_key_part_info->field)
         goto err;
       m_key_part_info->field->init(table);
       m_key_part_info->key_type=FIELDFLAG_BINARY;
       m_key_part_info->type=    HA_KEYTYPE_BINARY;
       m_key_part_info->fieldnr= m_key_part_info->field->field_index + 1;
+      m_key_part_info->key_part_flag= m_key_part_info->field->key_part_flag();
       m_key_part_info++;
     }
     /* Create a distinct key over the columns we are going to return */
@@ -22870,19 +23051,21 @@ bool Create_tmp_table::finalize(THD *thd,
          i < share->fields;
          i++, reg_field++)
     {
-      if (!((*reg_field)->flags & FIELD_PART_OF_TMP_UNIQUE))
+      Field *field= *reg_field;
+      if (!(field->flags & FIELD_PART_OF_TMP_UNIQUE))
         continue;
-      m_key_part_info->field= *reg_field;
-      (*reg_field)->flags |= PART_KEY_FLAG;
+      m_key_part_info->field= field;
+      field->flags |= PART_KEY_FLAG;
       if (m_key_part_info == keyinfo->key_part)
-        (*reg_field)->key_start.set_bit(0);
-      m_key_part_info->null_bit= (*reg_field)->null_bit;
-      m_key_part_info->null_offset= (uint) ((*reg_field)->null_ptr -
+        field->key_start.set_bit(0);
+      m_key_part_info->null_bit= field->null_bit;
+      m_key_part_info->null_offset= (uint) (field->null_ptr -
                                           (uchar*) table->record[0]);
 
-      m_key_part_info->offset=   (*reg_field)->offset(table->record[0]);
-      m_key_part_info->length=   (uint16) (*reg_field)->pack_length();
-      m_key_part_info->fieldnr= (*reg_field)->field_index + 1;
+      m_key_part_info->offset=   field->offset(table->record[0]);
+      m_key_part_info->length=   (uint16) field->key_pack_length();
+      m_key_part_info->fieldnr= field->field_index + 1;
+      m_key_part_info->key_part_flag= field->key_part_flag();
       /* TODO:
         The below method of computing the key format length of the
         key part is a copy/paste from opt_range.cc, and table.cc.
@@ -22893,21 +23076,42 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       m_key_part_info->store_length= m_key_part_info->length;
 
-      if ((*reg_field)->real_maybe_null())
+      if (field->real_maybe_null())
       {
         m_key_part_info->store_length+= HA_KEY_NULL_LENGTH;
         m_key_part_info->key_part_flag |= HA_NULL_PART;
       }
-      m_key_part_info->key_part_flag|= (*reg_field)->key_part_flag();
-      m_key_part_info->store_length+= (*reg_field)->key_part_length_bytes();
+
+      m_key_part_info->store_length+= field->key_part_length_bytes();
       keyinfo->key_length+= m_key_part_info->store_length;
 
-      m_key_part_info->type=     (uint8) (*reg_field)->key_type();
-      m_key_part_info->key_type =
-	((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
-	0 : FIELDFLAG_BINARY;
+      m_key_part_info->type=     (uint8) field->key_type();
+      m_key_part_info->key_type= (is_text_key_segment(m_key_part_info) ?
+                                  0 : FIELDFLAG_BINARY);
+
+      if (field->flags & BLOB_FLAG)
+      {
+        /*
+          Tell engine to that this key includes a blob
+          Heap engine will store blob key as length + pointer
+          This is safe as for unique detection we will never
+          try to read the data through a key.
+        */
+        keyinfo->flags|= HA_BLOB_PART_KEY;
+        m_key_part_info->length= 4 + portable_sizeof_char_ptr;
+        m_key_part_info->store_length= m_key_part_info->length;
+        m_key_part_info->type= (field->binary() ?
+                                HA_KEYTYPE_VARBINARY4 :
+                                HA_KEYTYPE_VARTEXT4);
+      }
+
+      DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  m_key_part_info->length == 4 + portable_sizeof_char_ptr);
+      DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  ((ha_base_keytype) m_key_part_info->type ==
+                   HA_KEYTYPE_VARBINARY4 ||
+                   (ha_base_keytype) m_key_part_info->type ==
+                   HA_KEYTYPE_VARTEXT4));
 
       m_key_part_info++;
     }
@@ -23468,7 +23672,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
       */
       if (keyinfo->key_length > table->file->max_key_length() ||
           keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
-          (keyinfo->flags & HA_UNIQUE_HASH))
+          (keyinfo->flags & (HA_UNIQUE_HASH | HA_BLOB_PART_KEY)))
       {
         if (!(keyinfo->flags & (HA_NOSAME | HA_UNIQUE_HASH)))
         {
@@ -23717,7 +23921,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
 	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() - portable_sizeof_char_ptr);
+        seg->bit_start= (uint8) ((Field_blob*) field)->pack_length_no_ptr();
 	seg->flag= HA_BLOB_PART;
 	seg->length=0;			// Whole blob in unique constraint
       }
@@ -23954,7 +24158,8 @@ free_tmp_table(THD *thd, TABLE *entry)
       as it will mark the transaction read/write
     */
     DBUG_ASSERT(entry->s->tmp_table == SYSTEM_TMP_TABLE ||
-                entry->s->tmp_table == INTERNAL_TMP_TABLE);
+                entry->s->tmp_table == INTERNAL_TMP_TABLE ||
+                entry->s->tmp_table == RESULT_TMP_TABLE);
     entry->file->drop_table(entry->s->path.str);
     delete entry->file;
     entry->file= NULL;
@@ -23964,6 +24169,19 @@ free_tmp_table(THD *thd, TABLE *entry)
   /* free blobs */
   for (Field **ptr=entry->field ; *ptr ; ptr++)
     (*ptr)->free();
+  /*
+    Free GROUP BY key fields. group->field is created by new_key_field()
+    and points into the group buffer, not into entry->field[], so the
+    loop above doesn't cover them.
+    TABLE::group is a union with TABLE::context (for hlindexes) but is
+    NULL-initialized by bzero in create_tmp_table and only set non-NULL
+    by finalize() for GROUP BY tables.  Callers that pass a non-NULL
+    group to create_tmp_table must heap-allocate the ORDER (e.g. via
+    alloc_root) so table->group remains valid until free_tmp_table.
+  */
+  for (ORDER *group= entry->group ; group ; group= group->next)
+    if (group->field)
+      group->field->free();
 
   if (entry->temp_pool_slot != MY_BIT_NONE)
     temp_pool_clear_bit(entry->temp_pool_slot);
@@ -26410,6 +26628,60 @@ end:
   @seealso end_unique_update()
 */
 
+/*
+  Convert a HEAP temp table to Aria after ha_update_tmp_row() fails with
+  HA_ERR_RECORD_FILE_FULL, then re-locate the duplicate row and retry the
+  update.
+
+  After conversion the HEAP blocks are freed, so any blob pointers in
+  record[0] that referenced HEAP memory become dangling.  We re-derive
+  record[0] by reading the pre-update row from Aria (ha_rnd_pos into
+  record[1], restore_record, update_tmptable_sum_func) before retrying.
+  update_field() is stateless (reads result_field + args[0], writes
+  result_field) so re-running it on the pre-update values is safe and
+  produces the correct post-update result.
+
+  @return 0  success (table converted, update applied, index re-opened)
+  @return -1 error (already printed)
+*/
+
+static int
+convert_heap_to_aria_update(JOIN *join, JOIN_TAB *join_tab,
+                            TABLE *table, int error)
+{
+  bool is_duplicate;
+  if (create_internal_tmp_table_from_heap(join->thd, table,
+                                     join_tab->tmp_table_param->start_recinfo,
+                                          &join_tab->tmp_table_param->recinfo,
+                                          error, 1, &is_duplicate))
+    return -1;
+  DBUG_ASSERT(is_duplicate);
+  table->file->get_dup_key(HA_ERR_FOUND_DUPP_KEY);
+  if (unlikely((error= table->file->ha_rnd_init(0))))
+  {
+    table->file->print_error(error, MYF(0));
+    return -1;
+  }
+  error= table->file->ha_rnd_pos(table->record[1],
+                                   table->file->dup_ref);
+  if (likely(!error))
+  {
+    restore_record(table, record[1]);
+    update_tmptable_sum_func(join->sum_funcs, table);
+    error= table->file->ha_update_tmp_row(table->record[1],
+                                           table->record[0]);
+  }
+  if (unlikely(error) ||
+      unlikely((error= table->file->ha_rnd_end())) ||
+      unlikely((error= table->file->ha_index_init(0, 0))))
+  {
+    table->file->print_error(error, MYF(0));
+    return -1;
+  }
+  return 0;
+}
+
+
 static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	   bool end_of_records)
@@ -26452,8 +26724,9 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (unlikely((error= table->file->ha_update_tmp_row(table->record[1],
                                                         table->record[0]))))
     {
-      table->file->print_error(error,MYF(0));	/* purecov: inspected */
-      DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
+      if (convert_heap_to_aria_update(join, join_tab, table, error))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+      join_tab->aggr->set_write_func(end_unique_update);
     }
     goto end;
   }
@@ -26505,7 +26778,7 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     DBUG_RETURN(NESTED_LOOP_OK);
 
   init_tmptable_sum_functions(join->sum_funcs);
-  copy_fields(join_tab->tmp_table_param);		// Groups are copied twice.
+  copy_fields(join_tab->tmp_table_param);     // Groups are copied twice.
   if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
@@ -26538,8 +26811,9 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (unlikely((error= table->file->ha_update_tmp_row(table->record[1],
                                                         table->record[0]))))
     {
-      table->file->print_error(error,MYF(0));	/* purecov: inspected */
-      DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
+      if (convert_heap_to_aria_update(join, join_tab, table, error))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+      rnd_inited= true;
     }
     if (!rnd_inited &&
         ((error= table->file->ha_rnd_end()) ||
@@ -28443,8 +28717,15 @@ JOIN_TAB::remove_duplicates()
   table->file->info(HA_STATUS_VARIABLE);
   table->reginfo.lock_type=TL_WRITE;
 
-  if (table->s->db_type() == heap_hton ||
-      (!table->s->blob_fields &&
+  /*
+    remove_dup_with_hash_index() copies field data into a flat key buffer
+    via make_sort_key_part() and compares with memcmp.  For LONGBLOB
+    fields, sort_length() returns UINT_MAX32, making the key buffer
+    impractically large.  Fall back to the row-by-row compare path
+    for tables with blobs.
+  */
+  if (!table->s->blob_fields &&
+      (table->s->db_type() == heap_hton ||
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
     error= remove_dup_with_hash_index(join->thd, table, field_count,
@@ -29463,7 +29744,9 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
     if (field)
     {
       enum_field_types type;
-      if ((type= field->type()) == MYSQL_TYPE_BLOB)
+      DBUG_ASSERT((bool) (field->flags & BLOB_FLAG) ==
+                  is_any_blob_field_type(field->type()));
+      if (is_any_blob_field_type(type= field->type()))
 	key_length+=MAX_BLOB_WIDTH;		// Can't be used as a key
       else if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_VAR_STRING)
         key_length+= field->field_length + HA_KEY_BLOB_LENGTH;
@@ -29473,7 +29756,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
         key_length+= 8;                         // Big enough
       }
       else
-	key_length+= field->pack_length();
+	key_length+= field->key_pack_length();
     }
     else
     { 
@@ -29502,12 +29785,12 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       case STRING_RESULT:
       {
         enum enum_field_types type= group_item->field_type();
-        if (type == MYSQL_TYPE_BLOB)
+        if (is_any_blob_field_type(type))
           key_length+= MAX_BLOB_WIDTH;		// Can't be used as a key
         else
         {
           /*
-            Group strings are taken as varstrings and require an length field.
+            Group strings are taken as varstrings and require a length field.
             A field is not yet created by create_tmp_field_ex()
             and the sizes should match up.
           */
@@ -29760,7 +30043,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	*/
 	field= item->field;
 	item->result_field=field->make_new_field(thd->mem_root,
-                                                 field->table, 1);
+                                                 field->table, 1, 0);
         /*
           We need to allocate one extra byte for null handling and
           another extra byte to not get warnings from purify in
@@ -31103,7 +31386,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       be able to print the engine statistics.
     */
     if (table->file->handler_stats &&
-        table->s->tmp_table != INTERNAL_TMP_TABLE)
+        table->s->tmp_table != RESULT_TMP_TABLE)
       eta->handler_for_stats= table->file;
 
     if (likely(thd->lex->analyze_stmt))

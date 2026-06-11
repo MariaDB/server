@@ -524,6 +524,19 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 }
 
 
+/*
+  Only needed for calc_group_buffer(), where we have an
+  enum_field_types but no Field object.
+  In all other cases use field->flags & BLOB_FLAG.
+*/
+static inline bool is_any_blob_field_type(enum_field_types type)
+{
+  return type == MYSQL_TYPE_BLOB || type == MYSQL_TYPE_TINY_BLOB ||
+         type == MYSQL_TYPE_MEDIUM_BLOB || type == MYSQL_TYPE_LONG_BLOB ||
+         type == MYSQL_TYPE_GEOMETRY;
+}
+
+
 enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
@@ -1206,7 +1219,8 @@ public:
     which is located in RAM).
   */
   virtual uint32 pack_length() const { return (uint32) field_length; }
-
+  /* length to store a key in a key buffer */
+  virtual uint32 key_pack_length() const { return pack_length(); }
   /*
     pack_length_in_rec() returns size (in bytes) used to store field data on
     storage (i.e. it returns the maximal size of the field in a row of the
@@ -1220,11 +1234,10 @@ public:
     DBUG_ENTER("Field::pack_length_from_metadata");
     DBUG_RETURN(field_metadata);
   }
-  virtual uint row_pack_length() const { return 0; }
+  /* Length of row data in a record, not including packed length prefix */
+  virtual uint row_pack_length() const { return pack_length(); }
 
-  /*
-    data_length() return the "real size" of the data in memory.
-  */
+  /* Return the current size of data stored in the record */
   virtual uint32 data_length() { return pack_length(); }
   virtual uint32 sort_length() const { return pack_length(); }
 
@@ -1622,15 +1635,20 @@ public:
     defines how to store, retrieve, or compare the field.
   */
   virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
-                                bool keep_type);
+                                bool keep_type, const Tmp_field_param *param);
+  /*
+    new_key_field is used to create a new key field for an internal temporay
+    table or for copying data between a key field and a table field
+  */
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
                                uchar *new_null_ptr, uint new_null_bit);
   Field *create_tmp_field(MEM_ROOT *root, TABLE *new_table,
-                          bool maybe_null_arg);
-  Field *create_tmp_field(MEM_ROOT *root, TABLE *new_table)
+                          bool maybe_null_arg, const Tmp_field_param *param);
+  Field *create_tmp_field(MEM_ROOT *root, TABLE *new_table,
+                          const Tmp_field_param *param)
   {
-    return create_tmp_field(root, new_table, maybe_null());
+    return create_tmp_field(root, new_table, maybe_null(), param);
   }
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff);
@@ -2240,7 +2258,6 @@ public:
     return to->store(val_int(), MY_TEST(flags & UNSIGNED_FLAG));
   }
   bool is_equal(const Column_definition &new_field) const override;
-  uint row_pack_length() const override { return pack_length(); }
   uint32 pack_length_from_metadata(uint field_metadata) const override
   {
     uint32 length= pack_length();
@@ -2497,8 +2514,8 @@ public:
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
     {}
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
   const Type_handler *type_handler() const override
   { return &type_handler_olddecimal; }
   enum ha_base_keytype key_type() const override
@@ -2625,7 +2642,6 @@ public:
   uint size_of() const override { return sizeof *this; }
   uint32 pack_length() const override { return bin_size; }
   uint pack_length_from_metadata(uint field_metadata) const override;
-  uint row_pack_length() const override { return pack_length(); }
   bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
                              uint16 mflags, int *order_var) const override;
   bool is_equal(const Column_definition &new_field) const override;
@@ -3059,7 +3075,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff, uint length) override;
   uint32 pack_length() const override { return sizeof(float); }
-  uint row_pack_length() const override { return pack_length(); }
   ulonglong get_max_int_value() const override
   {
     /*
@@ -3115,7 +3130,6 @@ public:
   int cmp(const uchar *,const uchar *) const override final;
   void sort_string(uchar *buff, uint length) override final;
   uint32 pack_length() const override final { return sizeof(double); }
-  uint row_pack_length() const override final { return pack_length(); }
   ulonglong get_max_int_value() const override final
   {
     /*
@@ -3542,7 +3556,6 @@ public:
   {
     return my_timestamp_binary_length(dec);
   }
-  uint row_pack_length() const override { return pack_length(); }
   uint pack_length_from_metadata(uint field_metadata) const override
   {
     DBUG_ENTER("Field_timestampf::pack_length_from_metadata");
@@ -3901,7 +3914,6 @@ public:
   {
     return my_time_binary_length(dec);
   }
-  uint row_pack_length() const override { return pack_length(); }
   uint pack_length_from_metadata(uint field_metadata) const override
   {
     DBUG_ENTER("Field_timef::pack_length_from_metadata");
@@ -4109,7 +4121,6 @@ public:
   {
     return my_datetime_binary_length(dec);
   }
-  uint row_pack_length() const override { return pack_length(); }
   uint pack_length_from_metadata(uint field_metadata) const override
   {
     DBUG_ENTER("Field_datetimef::pack_length_from_metadata");
@@ -4259,8 +4270,8 @@ public:
   uint max_packed_col_length(uint max_length) const override;
   uint size_of() const override { return sizeof *this; }
   bool has_charset() const override { return charset() != &my_charset_bin; }
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
   uint get_key_image(uchar *buff, uint length,
                      const uchar *ptr_arg, imagetype type) const override;
   sql_mode_t value_depends_on_sql_mode() const override;
@@ -4391,8 +4402,8 @@ public:
   uint size_of() const override { return sizeof *this; }
   bool has_charset() const override
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -4461,7 +4472,8 @@ private:
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
   Binlog_type_info binlog_type_info() const override;
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
 };
 
 
@@ -4514,18 +4526,6 @@ static inline void store_lowendian(ulonglong num, uchar *to, uint bytes)
   }
 }
 
-static inline longlong read_lowendian(const uchar *from, uint bytes)
-{
-  switch(bytes) {
-  case 1: return from[0];
-  case 2: return uint2korr(from);
-  case 3: return uint3korr(from);
-  case 4: return uint4korr(from);
-  case 8: return sint8korr(from);
-  default: DBUG_ASSERT(0); return 0;
-  }
-}
-
 
 extern LEX_CSTRING temp_lex_str;
 
@@ -4550,12 +4550,15 @@ protected:
   static void do_copy_blob(const Copy_field *copy);
   static void do_conv_blob(const Copy_field *copy);
   uint get_key_image_itRAW(const uchar *ptr_arg, uchar *buff, uint length) const;
+  int handle_group_concat(const char *from, size_t length,
+                          CHARSET_INFO *cs, bool with_zero_prefix);
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     TABLE_SHARE *share, uint blob_pack_length,
 	     const DTCollation &collation);
-  Field_blob(uint32 len_arg,bool maybe_null_arg, const LEX_CSTRING *field_name_arg,
+  Field_blob(uint32 len_arg,bool maybe_null_arg,
+             const LEX_CSTRING *field_name_arg,
              const DTCollation &collation)
     :Field_longstr((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
                    NONE, field_name_arg, collation),
@@ -4671,7 +4674,7 @@ public:
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length)
     const;
   int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U) const
-     override;
+    override;
   int key_cmp(const uchar *,const uchar*) const override;
   int key_cmp(const uchar *str, uint length) const override;
   /* Never update the value of min_val for a blob field */
@@ -4691,9 +4694,10 @@ public:
 
      @returns The length of the raw data itself without the pointer.
   */
-  uint32 pack_length_no_ptr() const
+  uint32 length_size() const override
   { return (uint32) (packlength); }
-  uint row_pack_length() const override { return pack_length_no_ptr(); }
+  void set_pack_length(uint32 packlength_arg);
+  uint row_pack_length() const override { return packlength; }
   uint32 sort_length() const override;
   uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
@@ -4715,10 +4719,10 @@ public:
     store_length(ptr, packlength, (uint32)number);
   }
   inline uint32 get_length(my_ptrdiff_t row_offset= 0) const
-  { return get_length(ptr+row_offset, this->packlength); }
+  { return get_length(ptr+row_offset, packlength); }
   uint32 get_length(const uchar *ptr, uint packlength) const;
   uint32 get_length(const uchar *ptr_arg) const
-  { return get_length(ptr_arg, this->packlength); }
+  { return get_length(ptr_arg, packlength); }
   inline uchar *get_ptr() const { return get_ptr(ptr); }
   inline uchar *get_ptr(const uchar *ptr_arg) const
   {
@@ -4749,7 +4753,8 @@ public:
     return get_key_image_itRAW(ptr_arg, buff, length);
   }
   void set_key_image(const uchar *buff,uint length) override;
-  Field *make_new_field(MEM_ROOT *, TABLE *new_table, bool keep_type) override;
+  Field *make_new_field(MEM_ROOT *, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -4903,8 +4908,57 @@ private:
     override
   { DBUG_ASSERT(0); return 0; }
   Binlog_type_info binlog_type_info() const override;
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
 };
+
+
+/*
+  class for using Blob keys for internal temporary tables.
+
+  The difference to Field_blob is that the blob key is stored as
+  [length (4 bytes) ] [pointer to data (8 bytes)]
+  This allows us to use the whole blob as a key and also avoids copying
+  the blob value to the key.
+*/
+
+class Field_blob_key final :public Field_blob {
+public:
+  Field_blob_key(uchar *ptr_arg, uchar *null_ptr_arg,
+                 uchar null_bit_arg, enum utype unireg_check_arg,
+                 const LEX_CSTRING *field_name_arg, TABLE_SHARE *share,
+                 uint blob_pack_length, const DTCollation &collation) :
+    Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+               field_name_arg, share, blob_pack_length, collation)
+    {}
+  Field_blob_key(uint32 len_arg, bool maybe_null_arg,
+                 const LEX_CSTRING *field_name_arg,
+                 const DTCollation &collation)
+    :Field_blob(len_arg, maybe_null_arg, field_name_arg, collation)
+  {}
+
+  /* Field blob keys have always a 4 byte length and HA_KEYTYPE_XXX4 */
+  uint32 key_pack_length() const override
+  { return (uint32) (4 + portable_sizeof_char_ptr); }
+  uint16 key_part_length_bytes() const override { return 4; }
+  int key_cmp(const uchar *,const uchar*) const override;
+  int key_cmp(const uchar *str, uint length) const override;
+  uint get_key_image(uchar *buff, uint length,
+                     const uchar *ptr_arg, imagetype type) const override
+  {
+    /* Internal temporary tables doesn't use key-only-reads */
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  void set_key_image(const uchar *buff,uint length) override;
+  enum ha_base_keytype key_type() const override
+    { return binary() ? HA_KEYTYPE_VARBINARY4 : HA_KEYTYPE_VARTEXT4; }
+  uint32 key_length() const override { return 4 + portable_sizeof_char_ptr; }
+  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit) override;
+};
+
 
 
 class Field_enum :public Field_str,
@@ -4931,8 +4985,8 @@ public:
   {
       flags|=ENUM_FLAG;
   }
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-    override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
   const Type_handler *type_handler() const override
   { return &type_handler_enum; }
   enum ha_base_keytype key_type() const override;
@@ -4992,7 +5046,6 @@ public:
   uint size_of() const override { return sizeof *this; }
   uint pack_length_from_metadata(uint field_metadata) const override
   { return (field_metadata & 0x00ff); }
-  uint row_pack_length() const override { return pack_length(); }
   bool zero_pack() const override { return false; }
   bool optimize_range(uint, uint) const override { return false; }
   bool eq_def(const Field *field) const override;

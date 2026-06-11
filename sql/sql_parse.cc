@@ -8054,6 +8054,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->used=0;
   order->counter_used= 0;
   order->fast_field_copier_setup= 0;
+  order->field= 0;
   if (thd->lex->clause_winfuncs.is_empty())
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))

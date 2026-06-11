@@ -648,13 +648,13 @@ CREATE TABLE t1 (b BIT);
 INSERT INTO t1 (b) VALUES (1), (0);
 SELECT DISTINCT b FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	b	b	16	1	1	Y	32	0	63
+def	test	t1	t1	b	b	16	1	1	Y	36	0	63
 b
 #
 #
 SELECT b FROM t1 GROUP BY b;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	b	b	16	1	1	Y	32	0	63
+def	test	t1	t1	b	b	16	1	1	Y	36	0	63
 b
 #
 #

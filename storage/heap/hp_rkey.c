@@ -29,6 +29,7 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
   {
     DBUG_RETURN(my_errno= HA_ERR_WRONG_INDEX);
   }
+  DBUG_ASSERT(!(keyinfo->flag & HA_NO_KEY_READ));
   info->lastinx= inx;
   info->current_record= (ulong) ~0L;		/* For heap_rrnd() */
   info->key_version= info->s->key_version;
@@ -69,6 +70,8 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
       memcpy(info->lastkey, key, (size_t) keyinfo->length);
   }
   memcpy(record, pos, (size_t) share->reclength);
+  if (share->blob_count && hp_read_blobs(info, record, pos))
+    DBUG_RETURN(my_errno);
   info->update= HA_STATE_AKTIV;
   DBUG_RETURN(0);
 }

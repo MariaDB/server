@@ -524,11 +524,12 @@ public:
     aggregator_clear();
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
-  virtual Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
+  virtual Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                  const Tmp_field_param *param);
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
   {
-    return create_tmp_field(root, param->group(), table);
+    return create_tmp_field(root, param->group(), table, param);
   }
   bool collect_outer_ref_processor(void *param) override;
   bool init_sum_func_check(THD *thd);
@@ -996,7 +997,8 @@ public:
     return has_with_distinct() ? name_distinct : name_normal;
   }
   Item *copy_or_same(THD* thd) override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override;
   void cleanup() override
   {
     count= 0;
@@ -1085,7 +1087,8 @@ public:
     return sample ? name_sample : name_normal;
   }
   Item *copy_or_same(THD* thd) override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override
     final;
   void cleanup() override final
   {
@@ -1207,7 +1210,8 @@ public:
   bool any_value() { return was_values; }
   void no_rows_in_result() override;
   void restore_to_before_no_rows_in_result() override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override;
   void setup_caches(THD *thd) override
   { setup_hybrid(thd, arguments()[0], NULL); }
 };

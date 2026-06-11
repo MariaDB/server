@@ -329,8 +329,8 @@ public:
     DBUG_RETURN(rc);
   }
 
-  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
-                                                                 override
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param= 0) override
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
              sys_refcursor_str.str, "CREATE TABLE");

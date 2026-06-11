@@ -132,7 +132,9 @@ bool Update_plan::save_explain_data_intern(THD *thd,
     explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
-    if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
+    if (table->file->handler_stats &&
+        table->s->tmp_table != RESULT_TMP_TABLE &&
+        table->s->tmp_table != INTERNAL_TMP_TABLE)
       explain->handler_for_stats= table->file;
   }
 
@@ -1326,10 +1328,12 @@ multi_delete::initialize_tables(JOIN *join)
       if (temp_fields.push_back(item, thd->mem_root))
         DBUG_RETURN(1);
       /* Make an unique key over the first field to avoid duplicated updates */
-      ORDER group;
-      bzero((char*) &group, sizeof(group));
-      group.direction= ORDER::ORDER_ASC;
-      group.item= (Item**) temp_fields.head_ref();
+      ORDER *group= (ORDER*) alloc_root(thd->mem_root, sizeof(ORDER));
+      if (!group)
+        DBUG_RETURN(1);
+      bzero((char*) group, sizeof(*group));
+      group->direction= ORDER::ORDER_ASC;
+      group->item= (Item**) temp_fields.head_ref();
       TMP_TABLE_PARAM *tmp_param;
       prior->shared = index;
       tmp_param= &tmp_table_param[prior->shared];
@@ -1337,9 +1341,9 @@ multi_delete::initialize_tables(JOIN *join)
       tmp_param->tmp_name="update";
       tmp_param->field_count= temp_fields.elements;
       tmp_param->func_count= temp_fields.elements;
-      calc_group_buffer(tmp_param, &group);
+      calc_group_buffer(tmp_param, group);
       tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
-                                       (ORDER*) &group, 0, 0,
+                                       group, 0, 0,
                                        TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
       if (!tmp_tables[index])
         DBUG_RETURN(1);
