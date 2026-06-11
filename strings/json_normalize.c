@@ -750,6 +750,19 @@ json_norm_value_true_init(struct json_norm_value *val)
 }
 
 
+/*
+  Store the raw (unprocessed) string value from the JSON engine
+  into a normalized value. Used as a fallback when escape decoding fails.
+*/
+static int
+json_norm_value_raw_string_init(struct json_norm_value *val, json_engine_t *je)
+{
+  const char *je_value_begin= (const char *)je->value_begin;
+  size_t je_value_len= (size_t)(je->value_end - je->value_begin);
+  return json_norm_value_string_init(val, je_value_begin, je_value_len);
+}
+
+
 static int
 json_norm_value_init(struct json_norm_value *val, json_engine_t *je)
 {
@@ -757,9 +770,88 @@ json_norm_value_init(struct json_norm_value *val, json_engine_t *je)
   switch (je->value_type) {
   case JSON_VALUE_STRING:
   {
-    const char *je_value_begin= (const char *)je->value_begin;
-    size_t je_value_len= (je->value_end - je->value_begin);
-    err= json_norm_value_string_init(val, je_value_begin, je_value_len);
+    if (je->value_escaped)
+    {
+      /*
+        The string contains escape sequences (e.g. \u0041).
+        Decode and re-encode to get a canonical form so that
+        semantically equal strings like "A" and "\u0041" normalize
+        to the same representation.
+      */
+      uchar stack_buf[256];
+      uchar *unescaped= stack_buf;
+      int unesc_len;
+
+      if ((size_t)je->value_len > sizeof(stack_buf))
+      {
+        unescaped= (uchar *) my_malloc(PSI_JSON, je->value_len, MYF(0));
+        if (!unescaped)
+        {
+          err= json_norm_value_raw_string_init(val, je);
+          break;
+        }
+      }
+
+      unesc_len= json_unescape(je->s.cs,
+                                je->value, je->value + je->value_len,
+                                je->s.cs, unescaped,
+                                unescaped + je->value_len);
+      if (unesc_len < 0)
+      {
+        if (unescaped != stack_buf)
+          my_free(unescaped);
+        err= json_norm_value_raw_string_init(val, je);
+      }
+      else
+      {
+        /*
+          Re-escape the decoded string. The escaped form can be at most
+          6x the unescaped length (\uXXXX) plus quotes.
+        */
+        size_t esc_buf_len= (size_t)unesc_len * 6 + 3;
+        uchar esc_stack_buf[1536];
+        uchar *esc_buf= esc_stack_buf;
+        int esc_len;
+
+        if (esc_buf_len > sizeof(esc_stack_buf))
+        {
+          esc_buf= (uchar *) my_malloc(PSI_JSON, esc_buf_len, MYF(0));
+          if (!esc_buf)
+          {
+            if (unescaped != stack_buf)
+              my_free(unescaped);
+            err= json_norm_value_raw_string_init(val, je);
+            break;
+          }
+        }
+
+        esc_buf[0]= '"';
+        esc_len= json_escape(je->s.cs, unescaped, unescaped + unesc_len,
+                             je->s.cs, esc_buf + 1,
+                             esc_buf + esc_buf_len - 1);
+        if (unescaped != stack_buf)
+          my_free(unescaped);
+
+        if (esc_len < 0)
+        {
+          if (esc_buf != esc_stack_buf)
+            my_free(esc_buf);
+          err= json_norm_value_raw_string_init(val, je);
+        }
+        else
+        {
+          esc_buf[1 + esc_len]= '"';
+          err= json_norm_value_string_init(val, (const char *)esc_buf,
+                                           (size_t)(esc_len + 2));
+          if (esc_buf != esc_stack_buf)
+            my_free(esc_buf);
+        }
+      }
+    }
+    else
+    {
+      err= json_norm_value_raw_string_init(val, je);
+    }
     break;
   }
   case JSON_VALUE_NULL:
@@ -888,7 +980,43 @@ json_norm_parse(struct json_norm_value *root, json_engine_t *je, MEM_ROOT *curre
       /* we have the key name */
       /* reset the dynstr: */
       dynstr_trunc(&key, key.length);
-      dynstr_append_mem(&key, (char*)key_start, (key_end - key_start));
+
+      {
+        /*
+          Decode the key to resolve any Unicode escape sequences
+          (e.g. \u006B\u0065\u0079 -> "key"), so that semantically
+          equal keys normalize to the same representation.
+        */
+        size_t raw_len= (size_t)(key_end - key_start);
+        uchar key_stack_buf[256];
+        uchar *decoded= key_stack_buf;
+        int use_heap= (raw_len > sizeof(key_stack_buf));
+
+        if (use_heap)
+        {
+          decoded= (uchar *) my_malloc(PSI_JSON, raw_len, MYF(0));
+          if (!decoded)
+          {
+            dynstr_append_mem(&key, (char*)key_start, raw_len);
+            use_heap= 0;
+          }
+        }
+
+        if (decoded)
+        {
+          int dec_len= json_unescape(je->s.cs, key_start,
+                                     key_start + raw_len,
+                                     je->s.cs, decoded,
+                                     decoded + raw_len);
+          if (dec_len >= 0)
+            dynstr_append_mem(&key, (char*)decoded, (size_t)dec_len);
+          else
+            dynstr_append_mem(&key, (char*)key_start, raw_len);
+        }
+
+        if (use_heap)
+          my_free(decoded);
+      }
 
       /* After reading the key, we have a follow-up value. */
       err = json_read_value(je);

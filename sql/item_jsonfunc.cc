@@ -1704,12 +1704,10 @@ int Item_func_json_contains::check_contains(json_engine_t *js,
     {
       return FALSE;
     }
-    /*
-       TODO: make proper json-json comparison here that takes excipient
-             into account.
-     */
-    return value->value_len == js->value_len &&
-           memcmp(value->value, js->value, value->value_len) == 0;
+    return json_string_compare(js->s.cs,
+                               js->value, js->value_len, js->value_escaped,
+                               value->value, value->value_len,
+                               value->value_escaped) == 0;
   case JSON_VALUE_NUMBER:
     if (value->value_type == JSON_VALUE_NUMBER)
     {
@@ -5044,8 +5042,10 @@ static bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *valu
       }
       else if (js->value_type == JSON_VALUE_STRING)
       {
-        return value->value_len == js->value_len &&
-               memcmp(value->value, js->value, value->value_len) == 0;
+        return json_string_compare(js->s.cs,
+                                   js->value, js->value_len, js->value_escaped,
+                                   value->value, value->value_len,
+                                   value->value_escaped) == 0;
       }
     }
     return value->value_type == js->value_type;
