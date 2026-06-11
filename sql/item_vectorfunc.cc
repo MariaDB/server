@@ -21,7 +21,7 @@
 */
 
 #include "item_vectorfunc.h"
-#include "index/vector_mhnsw.h"
+#include "index/hlindex.h"
 #include "sql_type_vector.h"
 
 static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)
@@ -71,7 +71,8 @@ bool Item_func_vec_distance::fix_length_and_dec(THD *thd)
         for (uint j= share->keys; j < share->total_keys; j++)
           if (kinfo[j].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(j))
           {
-            kind= mhnsw_uses_distance(f->table, kinfo + j);
+            kind= (Item_func_vec_distance::distance_kind)
+                        kinfo[j].hliton->uses_distance(kinfo + j);
             return fix_length_and_dec(thd);
           }
       }
@@ -92,7 +93,7 @@ key_map Item_func_vec_distance::part_of_sortkey() const
     for (uint i= f->table->s->keys; i < f->table->s->total_keys; i++)
       if (!keyinfo[i].is_ignored && keyinfo[i].algorithm == HA_KEY_ALG_VECTOR
           && f->key_start.is_set(i)
-          && mhnsw_uses_distance(f->table, keyinfo + i) == kind)
+          && keyinfo[i].hliton->uses_distance(keyinfo + i) == kind)
         map.set_bit(i);
   }
   return map;

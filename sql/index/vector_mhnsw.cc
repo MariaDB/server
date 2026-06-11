@@ -16,13 +16,14 @@
 */
 
 #include <my_global.h>
+#include <scope.h>
+#include <my_atomic_wrapper.h>
 #include "key.h"                                // key_copy()
 #include "create_options.h"
 #include "table_cache.h"
+#include "item_vectorfunc.h"
 #include "hlindex.h"
 #include "vector_mhnsw.h"
-#include <scope.h>
-#include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
 
 // distance can be a little bit < 0 because of fast math
@@ -803,9 +804,10 @@ static struct hlindexton mhnsw_hliton=
   nullptr, nullptr},              /* checkpoint, versioned */
   mhnsw_index_options,            /* options */
   mhnsw_hlindex_table_def,        /* tabledef */
-  [](TABLE_SHARE *s, MEM_ROOT *mem_root) -> hlindex_share* {
+  [](TABLE_SHARE *s, MEM_ROOT *mem_root) -> hlindex_share* { /* create */
     return new (mem_root) mhnsw_share(s);
-  }
+  },
+  [](KEY *k) -> uint { return k->option_struct->metric; } /* uses_distance */
 };
 
 int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)
@@ -1779,13 +1781,6 @@ int mhnsw_index::delete_all(TABLE *tbl, KEY *keyinfo, bool truncate)
 
   ctx->release(tbl);
   return 0;
-}
-
-Item_func_vec_distance::distance_kind mhnsw_uses_distance(const TABLE *table, KEY *keyinfo)
-{
-  if (keyinfo->option_struct->metric == EUCLIDEAN)
-    return Item_func_vec_distance::EUCLIDEAN;
-  return Item_func_vec_distance::COSINE;
 }
 
 st_plugin_int *mhnsw_plugin;

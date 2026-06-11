@@ -59,4 +59,5 @@ struct hlindexton : public transaction_participant
   ha_create_table_option *options;
   const LEX_CSTRING (*table_def)(THD *thd, uint ref_length);
   hlindex_share *(*create)(TABLE_SHARE *share, MEM_ROOT *mem_root);
+  uint (*uses_distance)(KEY *keyinfo);
 };
