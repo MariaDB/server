@@ -1510,7 +1510,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 struct MHNSW_Bulk_context : public Sql_alloc {
     MHNSW_Share *ctx;       
     DYNAMIC_ARRAY nodes;    
-    ha_rows estimated_rows; 
     uint8_t current_max_layer;
 };
 
@@ -1521,10 +1520,14 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
 
-  MHNSW_Share *ctx;
+  MHNSW_Share *ctx= nullptr;
   int err= MHNSW_Share::acquire(&ctx, table, true);
   if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
+  {
+    if (ctx)
+      ctx->release(table);
     return err;
+  }
 
   if (ctx->vec_len == 0)
     ctx->set_lengths(keyinfo->key_part->field->field_length);
@@ -1545,7 +1548,7 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
                         "exceeds mhnsw_max_cache_size (%llu). Falling back to normal insert.",
                         (ulonglong)estimated_mem, (ulonglong)mhnsw_max_cache_size);
     ctx->release(table);
-    return 1;
+    return 0;
   }
 
   MHNSW_Bulk_context *bulk= new (table->in_use->mem_root) MHNSW_Bulk_context();
@@ -1556,7 +1559,8 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   }
 
   bulk->ctx= ctx;
-  bulk->estimated_rows= rows;
+
+  /*we add a 10% margin to avoid reallocations when rows is approximate (InnoDB)*/
   if (my_init_dynamic_array(PSI_INSTRUMENT_MEM, &bulk->nodes, sizeof(FVectorNode*),
                             rows + rows / 10, rows, MYF(0)))
   {
