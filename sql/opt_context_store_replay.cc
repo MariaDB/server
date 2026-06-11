@@ -131,7 +131,7 @@ public:
 class cost_index_read_call_record : public Sql_alloc
 {
 public:
-  uint key;
+  char *idx_name;
   ha_rows records;
   bool eq_ref;
   bool is_covering;
@@ -295,7 +295,7 @@ static void dump_index_read_calls(List<cost_index_read_call_record> *irc_list,
   while (cost_index_read_call_record *irc= irc_li++)
   {
     Json_writer_object obj(ctx_writer);
-    obj.add("key_number", irc->key);
+    obj.add("index_name", irc->idx_name);
     obj.add("num_records", irc->records);
     obj.add("eq_ref", irc->eq_ref ? 1 : 0);
     obj.add("covering", irc->is_covering? 1:0);
@@ -998,7 +998,9 @@ void Optimizer_context_recorder::record_cost_for_index_read(
   if (unlikely(!idx_read_rec))
     return; // OOM
 
-  idx_read_rec->key= key;
+  KEY *keyinfo= table->key_info + key;
+  const char *idx_name= keyinfo->name.str;
+  idx_read_rec->idx_name= strdup_root(mem_root, idx_name);
   idx_read_rec->records= records;
   idx_read_rec->eq_ref= eq_ref;
   idx_read_rec->cost= *cost;
@@ -1513,15 +1515,14 @@ static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
     1  Parse Error
    -1  EOF
 */
-static int parse_index_read_cost_context(MEM_ROOT* , json_engine_t *je,
+static int parse_index_read_cost_context(MEM_ROOT *mem_root, json_engine_t *je,
                                          String *err_buf,
                                          cost_index_read_call_record *out)
 {
   const char *err_msg= "Expected an object in the index_read_costs array";
 
   Read_named_member array[]= {
-      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->key),
-       false},
+      {"index_name", Read_string(mem_root, &out->idx_name), false},
       {"num_records",
        Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
       {"eq_ref", Read_non_neg_integer<bool, 1>(&out->eq_ref), false},
@@ -1535,8 +1536,7 @@ static int parse_index_read_cost_context(MEM_ROOT* , json_engine_t *je,
            &out->cost.max_index_blocks),
        false},
       {"max_row_blocks",
-       Read_non_neg_integer<longlong, LONGLONG_MAX>(
-           &out->cost.max_row_blocks),
+       Read_non_neg_integer<longlong, LONGLONG_MAX>(&out->cost.max_row_blocks),
        false},
       {"copy_cost", Read_double(&out->cost.copy_cost), false},
       {NULL, Read_double(NULL), true}};
@@ -1809,6 +1809,8 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
 
   String tbl_name;
   append_base_table_name(tbl, &tbl_name);
+  KEY *keyinfo= tbl->key_info + keynr;
+  const char *idx_name= keyinfo->name.str;
 
   bool is_covering= tbl->covering_keys.is_set(keynr) && !tbl->no_keyread;
 
@@ -1818,8 +1820,8 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
     List_iterator<cost_index_read_call_record> irc_itr(tbl_ctx->irc_list);
     while (cost_index_read_call_record *rec= irc_itr++)
     {
-      if (rec->key == keynr && rec->records == records &&
-          rec->eq_ref == eq_ref && rec->is_covering== is_covering)
+      if (!strcmp(rec->idx_name, idx_name) && rec->records == records &&
+          rec->eq_ref == eq_ref && rec->is_covering == is_covering)
       {
         *cost= rec->cost;
         return false;
@@ -2159,7 +2161,7 @@ void Optimizer_context_replay::dbug_print_read_stats()
     for (cost_index_read_call_record *rec= irc_itr++; rec; rec= irc_itr++)
     {
       DBUG_PRINT("info", ("...........New Index Read Cost Context........."));
-      DBUG_PRINT("info", ("key_number: %u", rec->key));
+      DBUG_PRINT("info", ("index_name: %s", rec->idx_name));
       DBUG_PRINT("info", ("num_records: %llx", rec->records));
       DBUG_PRINT("info", ("eq_ref: %d", rec->eq_ref));
       DBUG_PRINT("info", ("is_covering: %d", rec->is_covering));

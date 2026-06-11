@@ -257,7 +257,7 @@ explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 set @saved_opt_context_1= @opt_context;
 
 set optimizer_replay_context=@opt_context_var_name;
-set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].cost_for_index_read_calls[0].key_number');
+set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].cost_for_index_read_calls[0].index_name');
 select * from t1 where a > 10;
 
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].cost_for_index_read_calls[0].num_records');
