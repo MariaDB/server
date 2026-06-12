@@ -10266,7 +10266,7 @@ int TABLE::hlindexes_on_delete_all(bool truncate)
   return 0;
 }
 
-int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
+int TABLE::hlindex_init(uint nr, Item *item, ulonglong limit)
 {
   DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
@@ -10276,7 +10276,7 @@ int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
 
   DBUG_ASSERT(hlindex->in_use == in_use);
 
-  return mhnsw_read_first(this, key_info + s->keys, item, limit);
+  return mhnsw_init(this, key_info + s->keys, item, limit);
 }
 
 int TABLE::hlindex_read_next()
