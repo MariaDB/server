@@ -8715,6 +8715,8 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
     key_len+= fld_store_len;
   }
 
+  if (!key_len)
+    return FALSE;
   //  We use the on-disk storage engine's limit
   return key_len <= tmp_table_max_key_length() &&
          key_parts <= tmp_table_max_key_parts();

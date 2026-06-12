@@ -187,8 +187,9 @@ CREATE TABLE t1 (a varchar(1024)) engine=aria CHARSET=latin1;
 INSERT INTO t1 VALUES ('this'),('is'),('just'),('a'),('filling'),('for'),(REPEAT('a',500));
 set @@global.max_tmp_total_space_usage=2*1024*1024;
 SET max_tmp_session_space_usage= 1024*1024, max_heap_table_size= 4*1024*1024;
+SET tmp_memory_table_size= 0;
 SELECT DISTINCT a, seq FROM t1 JOIN seq_1_to_600;
-ERROR HY000: Got error 201 "Local temporary space limit reached" when merging index
+ERROR HY000: Local temporary space limit reached
 DROP TABLE t1;
 connection default;
 disconnect c1;
@@ -210,6 +211,7 @@ CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
 SET max_tmp_session_space_usage = 64*1024;
+SET tmp_memory_table_size= 0;
 SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
 ERROR HY000: Local temporary space limit reached
 ROLLBACK;

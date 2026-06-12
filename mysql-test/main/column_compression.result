@@ -3035,9 +3035,9 @@ create algorithm=temptable view v1 as select * from t1;
 insert into t1 values ('foo'),('bar'),('foo');
 select * from v1 where a in (select a from t1);
 a
-foo
-foo
 bar
+foo
+foo
 drop view v1;
 drop table t1;
 create table t1 (f1 varchar(8)) charset=eucjpms collate=eucjpms_nopad_bin;
@@ -3054,9 +3054,9 @@ create algorithm=temptable view v1 as select * from t1;
 insert into t1 values ('foo'),('bar'),('foo');
 select * from v1 where a in (select a from t1);
 a
-foo
-foo
 bar
+foo
+foo
 drop view v1;
 drop table t1;
 create table t1 (f1 text) charset=eucjpms collate=eucjpms_nopad_bin;

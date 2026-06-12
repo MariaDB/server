@@ -21796,21 +21796,37 @@ Field *Item_type_holder::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                                              Tmp_field_src *src,
                                              const Tmp_field_param *param)
 {
-  Type_handler const *type_handler= Item_type_holder::real_type_handler();
-  Type_handler_blob_common const *blob_handler;
-  if (param->part_of_unique_key() &&
-      (blob_handler=
-       dynamic_cast<const Type_handler_blob_common*>(type_handler)))
+  const Type_handler *type_handler= Item_type_holder::real_type_handler();
+  const Type_handler *tmp_handler=
+    type_handler->type_handler_for_tmp_table(this, param);
+  /*
+    Only enter the blob_key path when BOTH conditions hold:
+    1. type_handler_for_tmp_table() returned blob_key_type_handler()
+       (implies part_of_unique_key is true)
+    2. The original type IS a blob (dynamic_cast succeeds)
+
+    Condition 1 excludes xmltype (its override returns itself, never
+    blob_key).  Condition 2 excludes VARCHAR types that were promoted
+    to blob_key via varstring_type_handler() -> too_big_for_varchar()
+    -> blob_type_handler(). Without condition 2, wide VARCHAR columns
+    would get promoted to blob in the main table (which has
+    part_of_unique_key=true for UNION DISTINCT) but stay as VARCHAR in
+    the incremental table of a recursive CTE (which has
+    part_of_unique_key=false), causing a reclength mismatch assertion.
+  */
+  if (tmp_handler == Type_handler::blob_key_type_handler() &&
+      dynamic_cast<const Type_handler_blob_common*>(type_handler))
   {
-    Field_blob *blob_field= (Field_blob*) type_handler_blob_key.
+    Field *field= tmp_handler->
       make_and_init_table_field(root, &name, Record_addr(maybe_null()),
                                 *this, table);
-    if (blob_field)
+    if (field)
     {
-      /* Fix length of blob to be able to return the original blob type */
-      blob_field->set_pack_length(blob_handler->length_bytes());
+      ((Field_blob*) field)->set_pack_length(
+        static_cast<const Type_handler_blob_common*>(
+          Type_handler::blob_type_handler(max_length, NULL))->length_bytes());
     }
-    return blob_field;
+    return field;
   }
   return type_handler->
     make_and_init_table_field(root, &name, Record_addr(maybe_null()),
@@ -21953,10 +21969,13 @@ Field *create_tmp_field(TABLE *table, Item *item,
   *default_field= src.default_field();
   if (src.item_result_field())
     *((*copy_func)++)= src.item_result_field();
-  if (part_of_unique_key)
-    result->flags|= FIELD_PART_OF_TMP_UNIQUE | UNIQUE_KEY_FLAG;
-  if (group)
-    result->flags|= UNIQUE_KEY_FLAG;
+  if (result)
+  {
+    if (part_of_unique_key)
+      result->flags|= FIELD_PART_OF_TMP_UNIQUE | UNIQUE_KEY_FLAG;
+    if (group)
+      result->flags|= UNIQUE_KEY_FLAG;
+  }
   return result;
 }
 
@@ -22130,20 +22149,17 @@ TABLE *Create_tmp_table::start(THD *thd,
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
   /*
-    Early engine prediction: reclength is not known yet (fields haven't been
-    added), so pass 0 -- this is safe because pick_engine()'s only reclength
-    check is "> HA_MAX_REC_LENGTH", which 0 never triggers.  Returns
-    heap_hton unless session-level overrides (tmp_memory_table_size=0,
-    etc.) force a disk-based engine.  We use this
-    to avoid the too_big_for_varchar() / group_length >= MAX_BLOB_WIDTH
-    bail-outs that would force m_using_unique_constraint for HEAP tables
-    that natively support blob keys.
+    Early engine prediction.  Returns heap_hton unless session-level
+    overrides (tmp_memory_table_size=0, etc.) force a disk-based engine.
+    We use this to avoid the too_big_for_varchar() / group_length >=
+    MAX_BLOB_WIDTH bail-outs that would force m_using_unique_constraint
+    for HEAP tables that natively support blob keys.
 
     Note: pick_engine() also reads m_using_unique_constraint, which is
     false at this point.  The guards below that set it to true are gated
     by !m_heap_expected, so there is no circular dependency in practice.
   */
-  m_heap_expected= (pick_engine(thd, 0) == heap_hton);
+  m_heap_expected= (pick_engine(thd) == heap_hton);
 
   if (m_group)
   {
@@ -22492,14 +22508,13 @@ err:
 /*
   Predict which engine a temporary table will use, based on session
   variables and the current m_using_unique_constraint / m_select_options
-  state.  Called early (before fields are added) with reclength=0 to set
-  m_heap_expected, and again from choose_engine() with the real reclength.
+  state.  Called early (before fields are added) to set m_heap_expected,
+  and again from choose_engine().
 */
 
-handlerton *Create_tmp_table::pick_engine(THD *thd, uint reclength)
+handlerton *Create_tmp_table::pick_engine(THD *thd)
 {
   if (m_using_unique_constraint ||
-      reclength > HA_MAX_REC_LENGTH ||
       (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
       thd->variables.tmp_memory_table_size == 0)
     return TMP_ENGINE_HTON;
@@ -22513,7 +22528,7 @@ bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
   TABLE_SHARE *share= table->s;
   DBUG_ENTER("Create_tmp_table::choose_engine");
 
-  handlerton *engine= pick_engine(thd, share->reclength);
+  handlerton *engine= pick_engine(thd);
   share->db_plugin= ha_lock_engine(0, engine);
   table->file= get_new_handler(share, &table->mem_root, share->db_type());
 

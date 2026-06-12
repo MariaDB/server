@@ -2308,15 +2308,10 @@ loop_end:
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
     calc_group_buffer(tmp_param, group);
-    /* small table, ignore @@tmp_memory_table_size=0 */
-    ulonglong save_tmp_memory_table_size= thd->variables.tmp_memory_table_size;
-    if (!save_tmp_memory_table_size)
-      thd->variables.tmp_memory_table_size= SIZE_T_MAX;
     tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
                                      (ORDER*) group, 0, 0,
                                      TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR,
                                      &empty_clex_str);
-    thd->variables.tmp_memory_table_size= save_tmp_memory_table_size;
     if (!tmp_tables[index])
       DBUG_RETURN(1);
     tmp_tables[index]->file->extra(HA_EXTRA_WRITE_CACHE);

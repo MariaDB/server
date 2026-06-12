@@ -60,7 +60,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE `t1` (
   `INFO_BINARY` blob,
   `TID` bigint(10) NOT NULL,
   `TMP_SPACE_USED` bigint(10) NOT NULL
-) ENGINE=Aria PAGE_CHECKSUM=0
+) ENGINE=MEMORY
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE t2_tmp like t2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
@@ -91,7 +91,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE `t1` (
   `INFO_BINARY` blob,
   `TID` bigint(10) NOT NULL,
   `TMP_SPACE_USED` bigint(10) NOT NULL
-) ENGINE=Aria PAGE_CHECKSUM=0
+) ENGINE=MEMORY
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE t2_tmp like t2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#

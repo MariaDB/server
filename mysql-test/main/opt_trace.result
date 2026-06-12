@@ -13887,7 +13887,7 @@ OPTIMIZER_TRACE	CREATE TEMPORARY TABLE `OPTIMIZER_TRACE` (
   `TRACE` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `MISSING_BYTES_BEYOND_MAX_MEM_SIZE` int(20) NOT NULL,
   `INSUFFICIENT_PRIVILEGES` tinyint(1) NOT NULL
-) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=0
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;
