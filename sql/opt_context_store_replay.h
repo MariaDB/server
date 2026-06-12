@@ -103,8 +103,33 @@ private:
 /* Save the collected context into optimizer_context IS table */
 bool store_optimizer_context(THD *thd);
 
+
+
 /***************************************************************************
- * Part 2: APIs for loading previously saved Optimizer Context and replaying
+ * Part 2: Definitions for optimizer context that was captured, serialized
+ *  into JSON and is available for the user through
+ *  INFORMATION_SCHEMA.OPTIMIZER_CONTEXT
+ ***************************************************************************/
+
+/*
+  Optimizer context that is captured and serialized into an SQL script.
+  This is the source data for INFORMATION_SCHEMA.OPTIMIZER_CONTEXT.
+*/
+class Optimizer_context_capture
+{
+public:
+  String query;
+  /* Optimizer context in the form of SQL script */
+  String ctx;
+  Optimizer_context_capture(THD *thd, String &ctx_arg);
+};
+
+int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *);
+
+void clean_captured_ctx(THD *thd);
+
+/***************************************************************************
+ * Part 3: APIs for loading previously saved Optimizer Context and replaying
  *  it: making the optimizer work as if the environment was like it has been
  *  at the time the context was recorded.
  ***************************************************************************/
@@ -187,21 +212,4 @@ private:
 #endif
 };
 
-/*
-  Optimizer context that is captured and serialized into an SQL script.
-
-  This is the source data for INFORMATION_SCHEMA.OPTIMIZER_CONTEXT.
-*/
-class Optimizer_context_capture
-{
-public:
-  String query;
-  /* Optimizer context in the form of SQL script */
-  String ctx;
-  Optimizer_context_capture(THD *thd, String &ctx_arg);
-};
-
-int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *);
-
-void clean_captured_ctx(THD *thd);
 #endif

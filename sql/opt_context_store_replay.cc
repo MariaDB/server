@@ -384,8 +384,8 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
   dump_recorded_table_calls(thd, tbl_name, tbl_name_len, ctx_writer);
 }
 
-static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
-                            String *buf)
+static void get_create_view_stmt(THD *thd, TABLE_LIST *table, String *name,
+                                 String *buf)
 {
   buf->append(STRING_WITH_LEN("CREATE "));
   view_store_options(thd, table, buf);
@@ -393,6 +393,53 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
   buf->append(*name);
   buf->append(STRING_WITH_LEN(" AS "));
   buf->append(table->select_stmt.str, table->select_stmt.length);
+}
+
+
+static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
+{
+  const sql_mode_t bad_modes= MODE_ORACLE|
+                              MODE_NO_TABLE_OPTIONS;
+  bool res= false;
+  bool restore_mode= false;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
+
+  /*
+    Some @@sql_mode settings prevent printing of essential table options like
+    ENGINE=....
+    If these are enabled
+    - Temporarily turn them off.
+    - Write appropriate "SET sql_mode=..." into the SQL script we're producing.
+      Note that we've captured @@sql_mode as a "relevant system variable", so
+      that the replay side will have the same value.
+  */
+  if (thd->variables.sql_mode & bad_modes)
+  {
+    sql_mode_t compatible_modes= thd->variables.sql_mode & ~bad_modes;
+    thd->variables.sql_mode= compatible_modes;
+    restore_mode= true;
+    LEX_CSTRING str;
+    sql_mode_string_representation(thd, compatible_modes, &str);
+    ddl->append(STRING_WITH_LEN("SET sql_mode='"));
+    ddl->append(str);
+    ddl->append(STRING_WITH_LEN("';\n"));
+  }
+
+  if (show_create_table(thd, tbl, ddl, NULL, WITH_DB_NAME))
+    res= true;
+
+  if (restore_mode)
+  {
+    thd->variables.sql_mode= saved_mode;
+    LEX_CSTRING str;
+    sql_mode_string_representation(thd, saved_mode, &str);
+
+    ddl->append(STRING_WITH_LEN(";\n"));
+    ddl->append(STRING_WITH_LEN("SET sql_mode='"));
+    ddl->append(str);
+    ddl->append(STRING_WITH_LEN("';\n"));
+  }
+  return res;
 }
 
 /*
@@ -700,7 +747,7 @@ bool store_optimizer_context(THD *thd)
       drop.append(STRING_WITH_LEN(";\n"));
       qry_ctx_script.append(drop);
 
-      create_view_def(thd, tbl, &full_tbl_name, &ddl);
+      get_create_view_stmt(thd, tbl, &full_tbl_name, &ddl);
     }
     else
     {
@@ -709,40 +756,10 @@ bool store_optimizer_context(THD *thd)
       drop.append(full_tbl_name);
       drop.append(STRING_WITH_LEN(";\n"));
       qry_ctx_script.append(drop);
-
-      sql_mode_t bad_modes= MODE_ORACLE|
-                            MODE_NO_TABLE_OPTIONS;
-      bool restore_mode= false;
-      sql_mode_t saved_mode= thd->variables.sql_mode;
-
-      if (thd->variables.sql_mode & bad_modes)
-      {
-        sql_mode_t compatible_modes= thd->variables.sql_mode & ~bad_modes;
-        thd->variables.sql_mode= compatible_modes;
-        restore_mode= true;
-        LEX_CSTRING str;
-        sql_mode_string_representation(thd, compatible_modes, &str);
-        qry_ctx_script.append(STRING_WITH_LEN("SET sql_mode='"));
-        qry_ctx_script.append(str);
-        qry_ctx_script.append(STRING_WITH_LEN("';\n"));
-      }
-
-      if (show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME))
+      if (get_create_table_stmt(thd, tbl, &ddl))
       {
         res= true;
         break;
-      }
-
-      if (restore_mode)
-      {
-        thd->variables.sql_mode= saved_mode;
-        LEX_CSTRING str;
-        sql_mode_string_representation(thd, saved_mode, &str);
-
-        ddl.append(STRING_WITH_LEN(";\n"));
-        ddl.append(STRING_WITH_LEN("SET sql_mode='"));
-        ddl.append(str);
-        ddl.append(STRING_WITH_LEN("';\n"));
       }
     }
 
@@ -765,6 +782,7 @@ bool store_optimizer_context(THD *thd)
     qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
 
     // sequence table doesn't contain any stats
+    // TODO: why did we store CREATE TABLE for sequence table?
     if (tbl->table && tbl->table->s && tbl->table->s->sequence)
       continue;
 
@@ -1103,8 +1121,10 @@ void Optimizer_context_recorder::record_subquery_exec(Item_subselect *subq)
   subquery_runs.push_back((int*)(ptrdiff_t)num);
 }
 
-// Append the name of base table (in case of single-table VIEWs 
-// that "become" tables, take the base table's table, NOT the view)
+/*
+  Append the name of base table (in case of single-table VIEWs that "become"
+  tables, take the base table's table, NOT the view).
+*/
 static void append_base_table_name(const TABLE *table, String *buf)
 {
   // TODO : eventually we'll need quoting.
@@ -2324,9 +2344,9 @@ Optimizer_context_capture::Optimizer_context_capture(THD *thd, String &ctx_arg)
     pseudo-table.
 */
 
-int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tables, Item *)
+int fill_optimizer_context_capture_info(THD *thd, TABLE_LIST *tbl, Item *)
 {
-  TABLE *table= tables->table;
+  TABLE *table= tbl->table;
 
   Optimizer_context_capture *captured_ctx= thd->captured_opt_ctx;
 
