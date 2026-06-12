@@ -1741,7 +1741,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
   if ((parser= sql_parse_prepare(&path, &table->mem_root, 1)))
   {
-    if (is_equal(&triggers_file_type, parser->type()))
+    if (lex_string_eq(&triggers_file_type, parser->type()))
     {
       Handle_old_incorrect_sql_modes_hook sql_modes_hook(path.str);
       LEX_CSTRING *trg_create_str, *trg_sql_path;
@@ -3223,7 +3223,7 @@ bool load_table_name_for_trigger(THD *thd,
   if (!(parser= sql_parse_prepare(trn_path, thd->mem_root, TRUE)))
     DBUG_RETURN(TRUE);
 
-  if (!is_equal(&trigname_file_type, parser->type()))
+  if (!lex_string_eq(&trigname_file_type, parser->type()))
   {
     my_error(ER_WRONG_OBJECT, MYF(0),
              trg_name->m_name.str,
