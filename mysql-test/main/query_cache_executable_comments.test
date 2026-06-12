@@ -40,7 +40,7 @@ INSERT INTO t1 VALUES (1),(2),(3);
 --echo # Case 1: forward MySQL-compatible executable comment /*!NNNNNN ... */
 --echo #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT /*!50300 c1 */ FROM t1;
 SELECT /*!50300 c1 */ FROM t1;
@@ -54,7 +54,7 @@ SELECT hits, statement_text FROM information_schema.query_cache_info;
 --echo # Case 2: forward MariaDB-only executable comment /*M!NNNNNN ... */
 --echo #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT /*M!50300 c1 */ FROM t1;
 SELECT /*M!50300 c1 */ FROM t1;
@@ -70,7 +70,7 @@ SELECT hits, statement_text FROM information_schema.query_cache_info;
 --echo # marked not safe to cache and no entry is stored.
 --echo #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT /*!!999999 c1 */ FROM t1;
 SELECT /*!!999999 c1 */ FROM t1;
@@ -85,7 +85,7 @@ SELECT hits, statement_text FROM information_schema.query_cache_info;
 --echo # Same buffer mutation as case 3; not cached.
 --echo #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT /*M!!999999 c1 */ FROM t1;
 SELECT /*M!!999999 c1 */ FROM t1;
@@ -101,7 +101,7 @@ SELECT hits, statement_text FROM information_schema.query_cache_info;
 --echo # overwrites the leading '!' with a space; not cached.
 --echo #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT c1 /*!999999 + 1 */ FROM t1;
 SELECT c1 /*!999999 + 1 */ FROM t1;
@@ -116,7 +116,7 @@ SELECT hits, statement_text FROM information_schema.query_cache_info;
 --echo # version is <= the server, so the body is SKIPPED; not cached.
 --echo #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT c1 /*!!100000 + 1 */ FROM t1;
 SELECT c1 /*!!100000 + 1 */ FROM t1;
@@ -131,7 +131,7 @@ SELECT hits, statement_text FROM information_schema.query_cache_info;
 --echo #
 SET LOCAL query_cache_strip_comments= ON;
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_result_log
 SELECT /*!50300 c1 */ FROM t1;
 SELECT /*!50300 c1 */ FROM t1;
