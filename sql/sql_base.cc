@@ -9860,11 +9860,6 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
 }
 
 
-bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b)
-{
-  return a->length == b->length && !strncmp(a->str, b->str, a->length);
-}
-
 /*
   Open and lock system tables for read.
 

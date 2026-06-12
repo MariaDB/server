@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1174,7 +1174,7 @@ loop_out:
         goto err;
       }
 
-      if (!parser->ok() || !is_equal(&view_type, parser->type()))
+      if (!parser->ok() || !lex_string_eq(&view_type, parser->type()))
       {
         my_error(ER_WRONG_OBJECT, MYF(0), view->db.str, view->table_name.str,
                  "VIEW");
@@ -2364,7 +2364,7 @@ mysql_rename_view(THD *thd,
                                        reg_ext, 0);
 
   if ((parser= sql_parse_prepare(&pathstr, thd->mem_root, 1)) && 
-       is_equal(&view_type, parser->type()))
+       lex_string_eq(&view_type, parser->type()))
   {
     TABLE_LIST view_def;
     char dir_buff[FN_REFLEN + 1];
