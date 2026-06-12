@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2011, 2018, MariaDB
+   Copyright (c) 2011, 2026, MariaDB plc.
 
 
    This program is free software; you can redistribute it and/or modify
@@ -307,7 +307,6 @@ TABLE_LIST*
 unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          uint check_flag);
-bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b);
 
 class Open_tables_backup;
 /* Functions to work with system tables. */
