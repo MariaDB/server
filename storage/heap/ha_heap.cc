@@ -369,7 +369,7 @@ void ha_heap::position(const uchar *record)
 int ha_heap::remember_rnd_pos()
 {
   saved_current_record= file->current_record;
-  position((uchar*) 0);
+  position((uchar*) 0);                         // Store position in ref
   return 0;
 }
 
@@ -973,7 +973,13 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
   } while ((pos= pos->next_key));
 
   if (result)
+  {
+    /*
+      In case of error, restore orginal record, for possible
+      error messages by caller.
+    */
     memcpy(record, input_copy, (size_t) share->reclength);
+  }
   my_safe_afree(input_copy, share->reclength);
   DBUG_RETURN(result);
 }

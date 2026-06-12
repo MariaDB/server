@@ -201,8 +201,8 @@ typedef struct st_heap_info
   uint key_version;                     /* Version at last read */
   uint file_version;                    /* Version at scan */
   uint lastkey_len;
-  uint32 blob_buff_len;        /* Current allocated size of blob_buff */
-  uint32 key_blob_buff_len;    /* Current allocated size of key_blob_buff */
+  ulonglong blob_buff_len;      /* Current allocated size of blob_buff */
+  ulonglong key_blob_buff_len;  /* Current allocated size of key_blob_buff */
   my_bool implicit_emptied;
   my_bool has_zerocopy_blobs;  /* Last hp_read_blobs produced zero-copy ptrs */
   my_bool has_pending_blob_free; /* pending_blob_chains awaits freeing */
@@ -256,6 +256,7 @@ extern int heap_extra(HP_INFO *info,enum ha_extra_function function);
 extern int heap_reset(HP_INFO *info);
 extern int heap_rename(const char *old_name,const char *new_name);
 extern int heap_panic(enum ha_panic_function flag);
+extern int heap_rsame(HP_INFO *info,uchar *record,int inx);
 extern int heap_rnext(HP_INFO *info,uchar *record);
 extern int heap_rprev(HP_INFO *info,uchar *record);
 extern int heap_rfirst(HP_INFO *info,uchar *record,int inx);

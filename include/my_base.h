@@ -306,7 +306,8 @@ enum ha_base_keytype {
 */
 #define HA_KEY_HAS_PART_KEY_SEG 65536
 /* Internal Flag Can be calculated */
-#define HA_INVISIBLE_KEY 2<<18
+#define HA_INVISIBLE_KEY (1LL<<19)
+#define HA_BLOB_PART_KEY (1LL<<20)          /* Key has blob segments */
 
 /* Automatic bits in key-flag */
 
@@ -318,8 +319,6 @@ enum ha_base_keytype {
 #define HA_USES_BLOCK_SIZE	 ((uint) 32768)
 #define HA_SORT_ALLOWS_SAME      512    /* Intern bit when sorting records */
 #define HA_NO_KEY_READ           1024   /* internal, for debugging */
-
-#define HA_BLOB_PART_KEY	 65536  /* Some key parts are blobs */
 
 /* This flag can be used only in KEY::ext_key_flags */
 #define HA_EXT_NOSAME            131072

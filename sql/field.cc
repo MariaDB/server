@@ -8459,12 +8459,11 @@ Field *Field_varstring_compressed::make_new_field(MEM_ROOT *root,
                                                   const Tmp_field_param *param)
 {
   Field_varstring *res;
-  if (new_table->s->is_optimizer_tmp_table() ||
-      (param && param->part_of_unique_key()))
+  if (param && param->part_of_unique_key())
   {
     /*
-      Compressed field cannot be part of a key. For optimizer temporary
-      table we create uncompressed substitute.
+      A compressed field cannot be part of an unique key.
+      Create an uncompressed substitute instead.
     */
     res= new (root) Field_varstring(ptr, field_length, length_bytes, null_ptr,
                                     null_bit, Field::NONE, &field_name,
@@ -8490,8 +8489,7 @@ Field *Field_blob_compressed::make_new_field(MEM_ROOT *root, TABLE *new_table,
                                              const Tmp_field_param *param)
 {
   Field_blob *res;
-  if (new_table->s->is_optimizer_tmp_table() &&
-      (param && param->part_of_unique_key()))
+  if (param && param->part_of_unique_key())
   {
     /*
       Compressed field cannot be part of a key. For optimizer temporary

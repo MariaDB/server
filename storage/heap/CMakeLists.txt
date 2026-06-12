@@ -13,11 +13,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-SET(HEAP_SOURCES  _check.c _rectest.c hp_block.c hp_blob.c hp_clear.c hp_close.c hp_create.c
-				ha_heap.cc
-				hp_delete.c hp_extra.c hp_hash.c hp_info.c hp_open.c hp_panic.c
-				hp_rename.c hp_rfirst.c hp_rkey.c hp_rlast.c hp_rnext.c hp_rprev.c
-				hp_rrnd.c hp_scan.c hp_static.c hp_update.c hp_write.c)
+SET(HEAP_SOURCES _check.c _rectest.c hp_block.c hp_blob.c hp_clear.c hp_close.c
+                 hp_create.c ha_heap.cc hp_delete.c hp_extra.c
+                 hp_hash.c hp_info.c hp_open.c hp_panic.c hp_rename.c
+                 hp_rfirst.c hp_rkey.c hp_rlast.c hp_rnext.c
+                 hp_rprev.c hp_rrnd.c hp_rsame.c hp_scan.c hp_static.c
+                 hp_update.c hp_write.c)
 
 MYSQL_ADD_PLUGIN(heap ${HEAP_SOURCES} STORAGE_ENGINE MANDATORY RECOMPILE_FOR_EMBEDDED)
 
@@ -27,6 +28,10 @@ IF(CMAKE_SYSTEM_NAME MATCHES AIX AND CMAKE_BUILD_TYPE STREQUAL "DEBUG")
 ENDIF()
 
 IF(WITH_UNIT_TESTS)
+  ADD_EXECUTABLE(hp_test1 hp_test1.c)
+  TARGET_LINK_LIBRARIES(hp_test1 heap mysys dbug strings)
+  ADD_EXECUTABLE(hp_test2 hp_test2.c)
+  TARGET_LINK_LIBRARIES(hp_test2 heap mysys dbug strings)
   MY_ADD_TESTS(hp_test_hash hp_test_scan hp_test_freelist hp_test_concurrent LINK_LIBRARIES heap mysys dbug strings)
 
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql

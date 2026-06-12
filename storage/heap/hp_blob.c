@@ -741,7 +741,7 @@ int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos)
   HP_BLOB_DESC *desc, *desc_end;
   uint visible= share->visible;
   uint recbuffer= share->block.recbuffer;
-  uint32 total_copy_size= 0;
+  ulonglong total_copy_size= 0;
   my_bool force_copy= share->write_can_replace;
   uchar *buff_ptr;
   DBUG_ENTER("hp_read_blobs");
