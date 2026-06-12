@@ -1,0 +1,51 @@
+#
+# MDEV-39998: JSON_OVERLAPS must be symmetric for nested arrays
+#
+
+--echo #
+--echo # MDEV-39998: JSON_OVERLAPS asymmetry for ordered array comparison
+--echo #
+
+# Original reported bug: prefix of nested array falsely matches
+SELECT JSON_OVERLAPS('[[1,2]]', '[[1]]') AS must_be_0;
+SELECT JSON_OVERLAPS('[[1]]', '[[1,2]]') AS must_be_0_too;
+
+# Exact match must still work
+SELECT JSON_OVERLAPS('[[1,2]]', '[[1,2]]') AS must_be_1;
+
+# Both directions must agree (symmetry)
+SELECT JSON_OVERLAPS('[[1,2,3]]', '[[1,2]]') AS r1,
+       JSON_OVERLAPS('[[1,2]]', '[[1,2,3]]') AS r2;
+
+# Scalar overlap still works
+SELECT JSON_OVERLAPS('[1,2,3]', '[3,4,5]') AS scalar_overlap;
+
+# Empty nested arrays
+SELECT JSON_OVERLAPS('[[]]', '[[]]') AS empty_match;
+SELECT JSON_OVERLAPS('[[1]]', '[[]]') AS r1,
+       JSON_OVERLAPS('[[]]', '[[1]]') AS r2;
+
+# Nested objects inside arrays
+SELECT JSON_OVERLAPS('[{"a":1}]', '[{"a":1}]') AS obj_match;
+SELECT JSON_OVERLAPS('[{"a":1,"b":2}]', '[{"a":1}]') AS r1,
+       JSON_OVERLAPS('[{"a":1}]', '[{"a":1,"b":2}]') AS r2;
+
+# Deeply nested arrays
+SELECT JSON_OVERLAPS('[[[1,2]]]', '[[[1]]]') AS r1,
+       JSON_OVERLAPS('[[[1]]]', '[[[1,2]]]') AS r2;
+SELECT JSON_OVERLAPS('[[[1,2]]]', '[[[1,2]]]') AS deep_match;
+
+# NULL handling
+SELECT JSON_OVERLAPS(NULL, '[[1]]') AS r1,
+       JSON_OVERLAPS('[[1]]', NULL) AS r2;
+
+# Mixed types in outer array
+SELECT JSON_OVERLAPS('[1,[1,2]]', '[[1,2],1]') AS mixed_match;
+SELECT JSON_OVERLAPS('[1,[1,2]]', '[[1],1]') AS r1,
+       JSON_OVERLAPS('[[1],1]', '[1,[1,2]]') AS r2;
+
+# Single element arrays
+SELECT JSON_OVERLAPS('[[1]]', '[[1]]') AS single_match;
+SELECT JSON_OVERLAPS('[["a"]]', '[["a","b"]]') AS r1,
+       JSON_OVERLAPS('[["a","b"]]', '[["a"]]') AS r2;
+
