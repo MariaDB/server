@@ -5649,6 +5649,147 @@ a	x	b
 NULL	NULL	3
 drop table t1, t2, t3;
 # ====================================================================
+# MDEV-39967 not a bug, but preserving the test case.
+# ====================================================================
+#
+# The right operand of a RIGHT JOIN is itself a FULL JOIN, and a
+# second FULL JOIN sits inside a scalar subquery.  The reporter saw
+# the null-complemented row of the outer join emitted twice when it
+# should appear once.
+# The complete row set was compared against PostgreSQL and agrees.
+# Two engine differences remain and neither is a join error.  CONCAT
+# of a NULL argument returns NULL in MariaDB and the empty string in
+# PostgreSQL, so field5 differs on the null-complemented rows.  ASC
+# ordering places NULL first in MariaDB and last in PostgreSQL, so the
+# ORDER BY with LIMIT 2 keeps a different pair on each system even
+# though the two ordered row sets are otherwise the same.
+create table t1 (
+pk int not null,
+col_int_nokey int default null,
+col_int_key int default null,
+col_varchar_key varchar(1) default null,
+col_varchar_nokey varchar(1) default null,
+primary key (pk),
+key col_int_key (col_int_key),
+key col_varchar_key (col_varchar_key, col_int_key)
+);
+create table t2 (
+pk int not null,
+col_int_nokey int default null,
+col_int_key int default null,
+col_varchar_key varchar(1) default null,
+col_varchar_nokey varchar(1) default null,
+primary key (pk),
+key col_int_key (col_int_key),
+key col_varchar_key (col_varchar_key, col_int_key)
+);
+create table t3 (i int default null);
+insert into t1 values
+(1,2,4,'v','v'),(2,150,62,'v','v'),(3,NULL,7,'c','c'),(4,2,1,NULL,NULL),
+(5,5,0,'x','x'),(6,3,7,'i','i'),(7,1,7,'e','e'),(8,4,1,'p','p'),
+(9,NULL,7,'s','s'),(10,2,1,'j','j'),(11,6,5,'z','z'),(12,6,2,'c','c'),
+(13,8,0,'a','a'),(14,2,1,'q','q'),(15,6,8,'y','y'),(16,8,1,NULL,NULL),
+(17,3,1,'r','r'),(18,3,9,'v','v'),(19,9,1,NULL,NULL),(20,6,5,'r','r');
+insert into t2 values
+(10,NULL,8,'x','x'),(11,8,7,'d','d'),(12,1,1,'r','r'),(13,9,7,'f','f'),
+(14,4,9,'y','y'),(15,3,NULL,'u','u'),(16,2,1,'m','m'),(17,NULL,9,NULL,NULL),
+(18,2,2,'o','o'),(19,NULL,9,'w','w'),(20,6,2,'m','m'),(21,7,4,'q','q'),
+(22,2,0,NULL,NULL),(23,5,4,'d','d'),(24,7,8,'g','g'),(25,6,NULL,'x','x'),
+(26,6,NULL,'f','f'),(27,2,0,'p','p'),(28,9,NULL,'j','j'),(29,6,8,'c','c');
+insert into t3 values (0);
+# The reported query.  The null-complemented outer row
+# (NULL, 26, NULL, NULL, NULL) appears once, not twice.
+select a.col_int_nokey as field1,
+(select count(s2.col_varchar_key)
+from (t2 as s1 full join t2 as s2
+on (s2.col_varchar_key = s1.col_varchar_key))) as field2,
+a.col_int_key as field3,
+a.pk as field4,
+concat(a.col_varchar_key, a.col_varchar_nokey) as field5
+from (t1 as a
+right outer join ((t1 as b full outer join t1 as c
+on (c.pk = b.col_int_nokey)))
+on (c.col_int_nokey = b.pk))
+where (b.pk in (select 5 from t3 union all select 7 from t3))
+or (a.col_varchar_key = 'o' and a.col_varchar_key = 'v')
+and b.col_varchar_key < 'u'
+order by a.col_int_key asc, field1, field2, field3, field4, field5
+limit 2;
+field1	field2	field3	field4	field5
+NULL	26	NULL	NULL	NULL
+5	26	0	5	xx
+# The complete result set, independent of order.  This is the
+# PostgreSQL-validated oracle apart from the CONCAT NULL difference
+# noted above.
+select a.col_int_nokey as field1,
+(select count(s2.col_varchar_key)
+from (t2 as s1 full join t2 as s2
+on (s2.col_varchar_key = s1.col_varchar_key))) as field2,
+a.col_int_key as field3,
+a.pk as field4,
+concat(a.col_varchar_key, a.col_varchar_nokey) as field5
+from (t1 as a
+right outer join ((t1 as b full outer join t1 as c
+on (c.pk = b.col_int_nokey)))
+on (c.col_int_nokey = b.pk))
+where (b.pk in (select 5 from t3 union all select 7 from t3))
+or (a.col_varchar_key = 'o' and a.col_varchar_key = 'v')
+and b.col_varchar_key < 'u';
+field1	field2	field3	field4	field5
+1	26	7	7	ee
+150	26	62	2	vv
+2	26	1	10	jj
+2	26	1	14	qq
+2	26	1	4	NULL
+2	26	4	1	vv
+3	26	1	17	rr
+3	26	7	6	ii
+3	26	9	18	vv
+4	26	1	8	pp
+5	26	0	5	xx
+6	26	2	12	cc
+6	26	5	11	zz
+6	26	5	20	rr
+6	26	8	15	yy
+8	26	0	13	aa
+8	26	1	16	NULL
+9	26	1	19	NULL
+NULL	26	7	3	cc
+NULL	26	7	9	ss
+NULL	26	NULL	NULL	NULL
+# Both FULL JOINs survive the rewrite.  The outer RIGHT JOIN is
+# normalized to a LEFT JOIN with alias a.
+# The inner join of b and c and the subquery join of s1 and s2 stay
+# FULL JOIN.
+explain extended
+select a.col_int_nokey as field1,
+(select count(s2.col_varchar_key)
+from (t2 as s1 full join t2 as s2
+on (s2.col_varchar_key = s1.col_varchar_key))) as field2,
+a.col_int_key as field3,
+a.pk as field4,
+concat(a.col_varchar_key, a.col_varchar_nokey) as field5
+from (t1 as a
+right outer join ((t1 as b full outer join t1 as c
+on (c.pk = b.col_int_nokey)))
+on (c.col_int_nokey = b.pk))
+where (b.pk in (select 5 from t3 union all select 7 from t3))
+or (a.col_varchar_key = 'o' and a.col_varchar_key = 'v')
+and b.col_varchar_key < 'u'
+order by a.col_int_key asc, field1, field2, field3, field4, field5
+limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	b	ALL	NULL	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
+1	PRIMARY	c	eq_ref	PRIMARY	PRIMARY	4	test.b.col_int_nokey	1	100.00	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	20	100.00	Using where; Using join buffer (flat, BNL join)
+3	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
+4	DEPENDENT UNION	t3	system	NULL	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	s1	index	NULL	col_varchar_key	12	NULL	20	100.00	Using index
+2	SUBQUERY	s2	ref	col_varchar_key	col_varchar_key	7	test.s1.col_varchar_key	3	100.00	Using where; Using index
+Warnings:
+Note	1003	/* select#1 */ select `test`.`a`.`col_int_nokey` AS `field1`,(/* select#2 */ select count(`test`.`s2`.`col_varchar_key`) from `test`.`t2` `s1` full join `test`.`t2` `s2` on(`test`.`s2`.`col_varchar_key` = `test`.`s1`.`col_varchar_key` and `test`.`s1`.`col_varchar_key` is not null) where 1) AS `field2`,`test`.`a`.`col_int_key` AS `field3`,`test`.`a`.`pk` AS `field4`,concat(`test`.`a`.`col_varchar_key`,`test`.`a`.`col_varchar_nokey`) AS `field5` from (`test`.`t1` `b` full join `test`.`t1` `c` on(`test`.`c`.`pk` = `test`.`b`.`col_int_nokey` and `test`.`b`.`col_int_nokey` is not null)) left join `test`.`t1` `a` on(`test`.`c`.`col_int_nokey` = `test`.`b`.`pk`) where 1 order by `test`.`a`.`col_int_key`,`test`.`a`.`col_int_nokey`,`test`.`a`.`pk`,concat(`test`.`a`.`col_varchar_key`,`test`.`a`.`col_varchar_nokey`) limit 2
+drop table t1, t2, t3;
+# ====================================================================
 # Section 19: Right side of FULL JOIN must be a base table
 # ====================================================================
 #
