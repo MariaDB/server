@@ -4852,30 +4852,47 @@ sub check_expected_crash_and_restart {
       # test script to control when the server should start
       # up again. Keep trying for up to 5s at a time.
       my $last_line= mtr_lastlinesfromfile($expect_file, 1);
-      if ($last_line =~ /^wait/ )
+      chomp $last_line;
+      # Skip empty lines: partial writes to the expect file can be observed
+      # before the intended command is fully written.
+      next if $last_line =~ /^\s*$/;
+      # "wait" or "wait-<tag>" (tag is a diagnostic marker, usually the
+      # name of the test that wrote the file).
+      if ($last_line =~ /^wait(-\S+)?\s*$/)
       {
         mtr_verbose("Test says wait before restart") if $waits == 0;
         next;
       }
       delete $ENV{MTR_BINDIR_FORCED};
 
-      # Ignore any partial or unknown command
-      next unless $last_line =~ /^restart/;
       # If last line begins "restart:", the rest of the line is read as
       # extra command line options to add to the restarted mysqld.
-      # Anything other than 'wait' or 'restart:' (with a colon) will
-      # result in a restart with original mysqld options.
-      if ($last_line =~ /restart_bindir\s+(\S+)(:.+)?/) {
+      # "restart" or "restart-<tag>" restarts with the original options.
+      # "restart_bindir <path>[:opts]" additionally forces the mysqld
+      # binary to be picked from <path> (used during development to
+      # test upgrades between two build trees).
+      # Anything else is treated as an error to catch typos in expect
+      # file commands (e.g. MDEV-39153).
+      if ($last_line =~ /^restart_bindir\s+(\S+)(:.+)?/) {
         $ENV{MTR_BINDIR_FORCED}= $1;
         if ($2) {
           my @rest_opt= split(' ', $2);
           $mysqld->{'restart_opts'}= \@rest_opt;
         }
-      } elsif ($last_line =~ /restart:(.+)/) {
-        my @rest_opt= split(' ', $1);
-        $mysqld->{'restart_opts'}= \@rest_opt;
-      } else {
+      } elsif ($last_line =~ /^restart:(.*)$/) {
+        # Empty tail (e.g. bare 'restart:') is equivalent to 'restart'.
+        my $rest_opt_str= $1;
+        if ($rest_opt_str =~ /\S/) {
+          my @rest_opt= split(' ', $rest_opt_str);
+          $mysqld->{'restart_opts'}= \@rest_opt;
+        } else {
+          delete $mysqld->{'restart_opts'};
+        }
+      } elsif ($last_line =~ /^restart(-\S+)?\s*$/) {
         delete $mysqld->{'restart_opts'};
+      } else {
+        mtr_error("Unknown command '$last_line' in expect file " .
+                  "'$expect_file'");
       }
       unlink($expect_file);
 
