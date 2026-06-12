@@ -1871,7 +1871,7 @@ public:
 
   int hlindex_open(uint nr);
   int hlindex_lock(uint nr);
-  int hlindex_read_first(uint nr, Item *item, ulonglong limit);
+  int hlindex_init(uint nr, Item *item, ulonglong limit);
   int hlindex_read_next();
   int hlindex_read_end();
 

@@ -25916,8 +25916,9 @@ join_read_first(JOIN_TAB *tab)
     DBUG_ASSERT(order->next == NULL);
     DBUG_ASSERT(order->item[0]->real_item()->type() == Item::FUNC_ITEM);
     tab->read_record.read_record_func= join_hlindex_read_next;
-    error= tab->table->hlindex_read_first(tab->index, *order->item,
-                                          tab->join->select_limit);
+    if (!(error= tab->table->hlindex_init(tab->index, *order->item,
+                                          tab->join->select_limit)))
+      error= tab->table->hlindex_read_next();
   }
   else
   {

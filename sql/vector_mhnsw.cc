@@ -1517,7 +1517,7 @@ struct Search_context: public Sql_alloc
 };
 
 
-int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
+int mhnsw_init(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
@@ -1586,7 +1586,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   auto result= new (thd->mem_root) Search_context(&candidates, ctx, target);
   graph->context= result;
 
-  return mhnsw_read_next(table);
+  return 0;
 }
 
 int mhnsw_read_next(TABLE *table)
