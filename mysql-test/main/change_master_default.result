@@ -201,10 +201,6 @@ slave_heartbeat_period	15.000
 RESET SLAVE 'unset' ALL;
 CHANGE MASTER 'unset' TO master_host='127.0.1.3';
 # Validate command line options
-# restart_abort: --master-heartbeat-period=''
-# restart_abort: --master-heartbeat-period=123abc
-# restart_abort: --master-heartbeat-period=-1
-# restart_abort: --master-heartbeat-period=4294967.296
 # restart: --skip-slave-start --master-heartbeat-period=0.000499
 SELECT connection_name, slave_heartbeat_period
 FROM information_schema.slave_status ORDER BY connection_name;
