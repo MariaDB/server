@@ -659,10 +659,11 @@ static void escape_json_for_sql_literal(String &sql_script, const char *str,
   @return
     false when no error occurred during the computation
 */
+bool dump_sql_script(THD* thd, String &sql_script);
+
 bool store_optimizer_context(THD *thd)
 {
-  LEX *lex= thd->lex;
-
+  bool res;
   if (thd->spcont)
   {
     /* This is a sub-statement inside SP. Don't do anything */
@@ -674,13 +675,25 @@ bool store_optimizer_context(THD *thd)
     return false;
   }
   String sql_script;
+  res= dump_sql_script(thd, sql_script);
+  clean_captured_ctx(thd);
+
+  if (res)
+    return true;
+
+  thd->captured_opt_ctx= new Optimizer_context_capture(thd, sql_script);
+  if (!thd->captured_opt_ctx)
+    res= true; // OOM
+  return res;
+}
+
+bool dump_sql_script(THD* thd, String &sql_script)
+{
   String qry_ctx_script;
   String sys_vars_script;
-  sql_script.set_charset(system_charset_info);
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "tables");
-  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
   HASH table_name_hash;
   HASH used_storage_engines;
   HASH db_name_hash;
@@ -688,10 +701,10 @@ bool store_optimizer_context(THD *thd)
   bool res= false;
 
   /*
-    lex->query_tables lists the VIEWs before their underlying tables.
+    thd->lex->query_tables lists the VIEWs before their underlying tables.
     Create a list in the reverse order.
   */
-  for (TABLE_LIST *tbl= lex->query_tables; tbl; tbl= tbl->next_global)
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
   {
     if (!tbl->is_view() && !is_base_table(tbl))
       continue;
@@ -700,7 +713,6 @@ bool store_optimizer_context(THD *thd)
   }
 
   List_iterator li(tables_list);
-  clean_captured_ctx(thd);
 
   if (my_hash_init(key_memory_trace_ddl_info, &table_name_hash,
                    system_charset_info, 16, 0, 0, get_hash_key, NULL,
@@ -839,6 +851,8 @@ bool store_optimizer_context(THD *thd)
   if (!res)
     res= dump_eits_stats(thd, &uniq_tables_list, qry_ctx_script);
 
+  sql_script.set_charset(system_charset_info);
+  sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
   if (!res)
   {
     store_optimizer_costs("heap", &heap_optimizer_costs, sys_vars_script);
@@ -878,9 +892,6 @@ bool store_optimizer_context(THD *thd)
     sql_script.append(thd->query(), thd->query_length());
     sql_script.append(STRING_WITH_LEN(";\n\n"));
     sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
-    thd->captured_opt_ctx= new Optimizer_context_capture(thd, sql_script);
-    if (!thd->captured_opt_ctx)
-      res= true; // OOM
   }
   my_hash_free(&table_name_hash);
   my_hash_free(&used_storage_engines);
@@ -892,7 +903,7 @@ bool store_optimizer_context(THD *thd)
   Create a new table context if it is not already present in the
   hash.
   The table context is also persisted in the hash which is to be
-  used later for dumping all the context infomation into the
+  used later for dumping all the context information into the
   optimizer_context IS table.
 */
 table_context_for_store *
