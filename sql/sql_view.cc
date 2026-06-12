@@ -1174,7 +1174,7 @@ loop_out:
         goto err;
       }
 
-      if (!parser->ok() || !is_equal(&view_type, parser->type()))
+      if (!parser->ok() || !lex_string_eq(&view_type, parser->type()))
       {
         my_error(ER_WRONG_OBJECT, MYF(0), view->db.str, view->table_name.str,
                  "VIEW");
@@ -2364,7 +2364,7 @@ mysql_rename_view(THD *thd,
                                        reg_ext, 0);
 
   if ((parser= sql_parse_prepare(&pathstr, thd->mem_root, 1)) && 
-       is_equal(&view_type, parser->type()))
+       lex_string_eq(&view_type, parser->type()))
   {
     TABLE_LIST view_def;
     char dir_buff[FN_REFLEN + 1];
