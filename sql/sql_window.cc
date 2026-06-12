@@ -2255,6 +2255,7 @@ private:
      between them, top bound row  and bottom bound row inclusive. */
   void compute_values_for_current_row()
   {
+    THD *thd= current_thd;
     if (top_bound.is_outside_computation_bounds() ||
         bottom_bound.is_outside_computation_bounds())
       return;
@@ -2265,7 +2266,8 @@ private:
 
     cursor.move_to(start_rownum);
 
-    for (ha_rows idx= start_rownum; idx <= bottom_rownum; idx++)
+    for (ha_rows idx= start_rownum; idx <= bottom_rownum
+         && ((idx & 0xFF) || !thd->check_killed(true)); idx++)
     {
       if (cursor.fetch()) //EOF
         break;

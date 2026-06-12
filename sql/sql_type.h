@@ -6148,6 +6148,7 @@ public:
                                  uchar **pos, ulong len) const override;
 
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item_copy *create_item_copy(THD *thd, Item *item) const override;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *)
@@ -6203,6 +6204,7 @@ public:
                                  uchar **pos, ulong len) const override;
 
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item_copy *create_item_copy(THD *thd, Item *item) const override;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *)

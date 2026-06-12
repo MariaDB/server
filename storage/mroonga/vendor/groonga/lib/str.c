@@ -2899,7 +2899,7 @@ grn_text_otoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj, grn_obj_format *format)
       } else {
         /* TODO: Does we still need this code? If we don't need this, we should
            remove this. */
-        int i, j;
+        int j;
         grn_id *v = (grn_id *)GRN_BULK_HEAD(obj), *ve = (grn_id *)GRN_BULK_CURR(obj);
         int ncolumns = GRN_BULK_VSIZE(&format->columns) / sizeof(grn_obj *);
         grn_obj **columns = (grn_obj **)GRN_BULK_HEAD(&format->columns);
@@ -2937,7 +2937,7 @@ grn_text_otoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj, grn_obj_format *format)
             }
             GRN_TEXT_PUTC(ctx, bulk, ']');
           }
-          for (i = 0;; i++) {
+          while (GRN_TRUE) {
             GRN_TEXT_PUTS(ctx, bulk, ",[");
             for (j = 0; j < ncolumns; j++) {
               if (j) { GRN_TEXT_PUTC(ctx, bulk, ','); }
@@ -3076,7 +3076,7 @@ grn_text_otoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj, grn_obj_format *format)
   case GRN_TABLE_PAT_KEY :
   case GRN_TABLE_NO_KEY :
     if (format) {
-      int i, j;
+      int j;
       int ncolumns = GRN_BULK_VSIZE(&format->columns)/sizeof(grn_obj *);
       grn_obj **columns = (grn_obj **)GRN_BULK_HEAD(&format->columns);
       grn_table_cursor *tc = grn_table_cursor_open(ctx, obj, NULL, 0, NULL, 0,
@@ -3118,7 +3118,7 @@ grn_text_otoj(grn_ctx *ctx, grn_obj *bulk, grn_obj *obj, grn_obj_format *format)
       }
       if (tc) {
         grn_id id;
-        for (i = 0; (id = grn_table_cursor_next(ctx, tc)) != GRN_ID_NIL; i++) {
+        while ((id = grn_table_cursor_next(ctx, tc)) != GRN_ID_NIL) {
           GRN_TEXT_PUTS(ctx, bulk, ",[");
           for (j = 0; j < ncolumns; j++) {
             if (j) { GRN_TEXT_PUTC(ctx, bulk, ','); }

@@ -264,6 +264,9 @@ grn_config_cursor_get_value(grn_ctx *ctx, grn_obj *cursor, const char **value)
   value_size_raw = grn_hash_cursor_get_value(ctx,
                                              config_cursor->hash_cursor,
                                              &value_raw);
+  GRN_ASSERT(value_size_raw);
+  if (!value_size_raw)
+    GRN_API_RETURN(0);
   *value = (char *)value_raw + sizeof(uint32_t);
   value_size = *((uint32_t *)value_raw);
 

@@ -197,6 +197,7 @@ grn_io_max_n_files(grn_io *io)
                                     file_size);
 }
 
+#ifdef WIN32
 static inline uint32_t
 grn_io_compute_nth_file_info(grn_io *io, uint32_t nth_segment)
 {
@@ -211,6 +212,7 @@ grn_io_compute_nth_file_info(grn_io *io, uint32_t nth_segment)
   resolved_nth_segment = nth_segment + io->base_seg;
   return resolved_nth_segment / segments_per_file;
 }
+#endif
 
 static grn_io *
 grn_io_create_tmp(grn_ctx *ctx, uint32_t header_size, uint32_t segment_size,
@@ -1469,7 +1471,6 @@ grn_io_flush(grn_ctx *ctx, grn_io *io)
     segment_size = header->segment_size;
     for (i = 0; i < max_mapped_segment; i++) {
       grn_io_mapinfo *info = &(io->maps[i]);
-      uint32_t nth_file_info;
       uint32_t *pnref;
       uint32_t nref;
       int msync_result;
@@ -1491,9 +1492,8 @@ grn_io_flush(grn_ctx *ctx, grn_io *io)
         continue;
       }
 
-      nth_file_info = grn_io_compute_nth_file_info(io, i);
       msync_result = GRN_MSYNC(ctx,
-                               io->fis[nth_file_info].fh,
+                               io->fis[grn_io_compute_nth_file_info(io, i)].fh,
                                info->map,
                                segment_size);
       GRN_ATOMIC_ADD_EX(pnref, -1, nref);
