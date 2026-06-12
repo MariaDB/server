@@ -44,7 +44,11 @@ SELECT grp, LENGTH(MAX(val)) AS max_len
 FROM t1 GROUP BY grp ORDER BY grp;
 
 --echo # Verify HEAP->Aria conversion happened
-SHOW STATUS LIKE 'Created_tmp_%';
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+  ORDER BY variable_name;
+--enable_warnings
 --enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
@@ -76,7 +80,11 @@ SELECT grp,
        RIGHT(MAX(val), 5) AS suffix
 FROM t1 GROUP BY grp ORDER BY grp;
 
-SHOW STATUS LIKE 'Created_tmp_%';
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+  ORDER BY variable_name;
+--enable_warnings
 --enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
@@ -103,7 +111,11 @@ SELECT grp,
        LENGTH(MAX(v2)) AS max2_len
 FROM t1 GROUP BY grp ORDER BY grp;
 
-SHOW STATUS LIKE 'Created_tmp_%';
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+  ORDER BY variable_name;
+--enable_warnings
 --enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
@@ -140,7 +152,11 @@ SELECT grp,
        LENGTH(MIN(val)) AS min_len
 FROM t1 GROUP BY grp ORDER BY grp;
 
-SHOW STATUS LIKE 'Created_tmp_%';
+--disable_warnings
+SELECT variable_name, variable_value FROM information_schema.session_status
+  WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+  ORDER BY variable_name;
+--enable_warnings
 --enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol

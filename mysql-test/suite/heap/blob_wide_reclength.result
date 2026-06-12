@@ -1,0 +1,39 @@
+#
+# Test that internal temp tables with reclength > HA_MAX_REC_LENGTH (65535)
+# stay in MEMORY engine and are not forced to disk.
+#
+# The GROUP BY temp table reclength is computed from the field widths.
+# When m_heap_expected is true, VARCHAR fields are NOT promoted to BLOB
+# via too_big_for_varchar(), so they contribute their full width to
+# reclength.  pick_engine() must not force such tables to disk based
+# on reclength alone.
+#
+# We use LEFT() to produce VARCHAR(512) expressions (at the
+# CONVERT_IF_BIGGER_TO_BLOB threshold) in utf8mb4, giving 2050 bytes
+# per column.  With 33 such columns in GROUP BY, the total reclength
+# exceeds 65535.
+#
+CREATE TABLE t1 (a VARCHAR(100)) CHARACTER SET utf8mb4 ENGINE=HEAP;
+INSERT INTO t1 VALUES ('abc'), ('def');
+FLUSH STATUS;
+SELECT
+LEFT(a,512) AS c1,  LEFT(a,512) AS c2,  LEFT(a,512) AS c3,
+LEFT(a,512) AS c4,  LEFT(a,512) AS c5,  LEFT(a,512) AS c6,
+LEFT(a,512) AS c7,  LEFT(a,512) AS c8,  LEFT(a,512) AS c9,
+LEFT(a,512) AS c10, LEFT(a,512) AS c11, LEFT(a,512) AS c12,
+LEFT(a,512) AS c13, LEFT(a,512) AS c14, LEFT(a,512) AS c15,
+LEFT(a,512) AS c16, LEFT(a,512) AS c17, LEFT(a,512) AS c18,
+LEFT(a,512) AS c19, LEFT(a,512) AS c20, LEFT(a,512) AS c21,
+LEFT(a,512) AS c22, LEFT(a,512) AS c23, LEFT(a,512) AS c24,
+LEFT(a,512) AS c25, LEFT(a,512) AS c26, LEFT(a,512) AS c27,
+LEFT(a,512) AS c28, LEFT(a,512) AS c29, LEFT(a,512) AS c30,
+LEFT(a,512) AS c31, LEFT(a,512) AS c32, LEFT(a,512) AS c33,
+COUNT(*)
+FROM t1
+GROUP BY c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12,
+c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24,
+c25, c26, c27, c28, c29, c30, c31, c32, c33;
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+DROP TABLE t1;

@@ -60,7 +60,7 @@ public:
   Create_tmp_table(ORDER *group, bool distinct, bool save_sum_fields,
                    ulonglong select_options, ha_rows rows_limit);
   virtual ~Create_tmp_table() {}
-  handlerton *pick_engine(THD *thd, uint reclength);
+  handlerton *pick_engine(THD *thd);
   virtual bool choose_engine(THD *thd, TABLE *table, TMP_TABLE_PARAM *param);
   void add_field(TABLE *table, Field *field, uint fieldnr,
                  bool force_not_null_cols);
