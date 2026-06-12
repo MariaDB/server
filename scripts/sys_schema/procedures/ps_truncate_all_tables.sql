@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS ps_truncate_all_tables;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_truncate_all_tables (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_truncate_all_tables (
         IN in_verbose BOOLEAN
     )
     COMMENT '

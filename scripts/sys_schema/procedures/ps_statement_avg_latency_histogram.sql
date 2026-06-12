@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS ps_statement_avg_latency_histogram;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_statement_avg_latency_histogram ()
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_statement_avg_latency_histogram ()
     COMMENT '
              Description
              -----------

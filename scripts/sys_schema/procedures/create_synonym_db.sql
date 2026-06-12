@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS create_synonym_db;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE create_synonym_db (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE create_synonym_db (
         IN in_db_name VARCHAR(64), 
         IN in_synonym VARCHAR(64)
     )
