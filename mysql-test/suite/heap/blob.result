@@ -527,7 +527,7 @@ a
 2
 check table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	note	The storage engine for the table doesn't support check
+test.t1	check	status	OK
 drop table t1;
 #
 # Large blob exceeding uint16 run_rec_count cap (65535 records)
