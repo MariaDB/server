@@ -7933,7 +7933,6 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
       (error= ha_check_inserver_constraints(old_data, new_data)))
   {
-    int e= 0;
     if (ha_thd()->lex->ignore)
     {
       my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE in READ "
@@ -7942,7 +7941,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
         table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
       return HA_ERR_UNSUPPORTED;
     }
-    return e ? e : error;
+    return error;
   }
 
   rows_changed++;
