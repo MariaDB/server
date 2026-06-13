@@ -1,0 +1,25 @@
+#
+# Test that check_tmp_key rejects zero-length keys from CHAR(0) NOT NULL.
+# The optimizer tries to add a ref key on a materialized derived table,
+# but CHAR(0) NOT NULL has key_length()=0, producing a useless zero-length
+# key that must be rejected.
+#
+
+SET optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (a CHAR(0) NOT NULL, b INT) ENGINE=MEMORY;
+INSERT INTO t1 VALUES ('', 1), ('', 2), ('', 3);
+
+CREATE TABLE t2 (c CHAR(0) NOT NULL, d INT) ENGINE=MEMORY;
+INSERT INTO t2 VALUES ('', 10), ('', 20);
+
+# Materialized derived table: the optimizer sees the equi-join dt.a = t2.c
+# and tries to add a key on column a. check_tmp_key() must reject the
+# zero-length key. Without the guard the server would create a key with
+# key_length=0 which is invalid.
+EXPLAIN SELECT * FROM t2, (SELECT * FROM t1) dt WHERE dt.a = t2.c;
+--sorted_result
+SELECT * FROM t2, (SELECT * FROM t1) dt WHERE dt.a = t2.c;
+
+DROP TABLE t1, t2;
+SET optimizer_switch=DEFAULT;

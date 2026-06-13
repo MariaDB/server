@@ -8870,6 +8870,12 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
     key_len+= fld_store_len;
   }
 
+  /*
+    Reject zero-length keys (e.g. all parts are CHAR(0) NOT NULL):
+    such a key cannot distinguish rows and would be useless for lookup.
+  */
+  if (!key_len)
+    return FALSE;
   //  We use the on-disk storage engine's limit
   return key_len <= tmp_table_max_key_length() &&
          key_parts <= tmp_table_max_key_parts();

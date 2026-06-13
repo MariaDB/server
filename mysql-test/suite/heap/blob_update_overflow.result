@@ -35,11 +35,12 @@ grp	max_len
 2	29600
 3	29800
 # Verify HEAP->Aria conversion happened
-SHOW STATUS LIKE 'Created_tmp_%';
-Variable_name	Value
-Created_tmp_disk_tables	1
-Created_tmp_files	0
-Created_tmp_tables	2
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+ORDER BY variable_name;
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	2
+CREATED_TMP_TABLES	4
 DROP TABLE t1;
 #
 # Test 2: Verify result correctness after overflow
@@ -62,11 +63,12 @@ grp	max_len	prefix	suffix
 1	30000	aaaaa	aaaaa
 2	29600	aaaaa	aaaaa
 3	29800	aaaaa	aaaaa
-SHOW STATUS LIKE 'Created_tmp_%';
-Variable_name	Value
-Created_tmp_disk_tables	1
-Created_tmp_files	0
-Created_tmp_tables	2
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+ORDER BY variable_name;
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	2
+CREATED_TMP_TABLES	4
 DROP TABLE t1;
 #
 # Test 3: Multiple blob aggregates (two MAX columns)
@@ -85,11 +87,12 @@ grp	max1_len	max2_len
 1	30000	22500
 2	29600	22200
 3	29800	22350
-SHOW STATUS LIKE 'Created_tmp_%';
-Variable_name	Value
-Created_tmp_disk_tables	1
-Created_tmp_files	0
-Created_tmp_tables	2
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+ORDER BY variable_name;
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	2
+CREATED_TMP_TABLES	4
 DROP TABLE t1;
 #
 # Test 4: MIN(TEXT) with monotonically shrinking minimum
@@ -118,11 +121,12 @@ grp	max_len	min_len
 1	30000	50
 2	29600	50
 3	29200	50
-SHOW STATUS LIKE 'Created_tmp_%';
-Variable_name	Value
-Created_tmp_disk_tables	1
-Created_tmp_files	0
-Created_tmp_tables	2
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name IN ('Created_tmp_disk_tables', 'Created_tmp_tables')
+ORDER BY variable_name;
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	2
+CREATED_TMP_TABLES	4
 DROP TABLE t1;
 #
 # Cleanup

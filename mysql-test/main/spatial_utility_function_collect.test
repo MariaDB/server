@@ -72,8 +72,8 @@ INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
 ( NULL),
 ( NULL);
-SELECT ST_ASTEXT(ST_COLLECT(location) OVER ( ROWS BETWEEN 1 PRECEDING AND
-CURRENT ROW)) c FROM table_simple_aggregation;
+SELECT ST_ASTEXT(ST_COLLECT(location) OVER ( ORDER BY running_number
+ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)) c FROM table_simple_aggregation;
 
 
 --echo Excercising multiple code paths.
