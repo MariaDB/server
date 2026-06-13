@@ -1,0 +1,38 @@
+--echo #
+--echo # MDEV-39981: ST_GEOMFROMGEOJSON returns wrong result with reversed key order
+--echo #
+
+--echo # GeometryCollection: type before geometries (baseline)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"GeometryCollection","geometries":[]}'));
+
+--echo # GeometryCollection: geometries before type (empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[],"type":"GeometryCollection"}'));
+
+--echo # GeometryCollection: geometries before type (non-empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[0,1]}],"type":"GeometryCollection"}'));
+
+--echo # GeometryCollection: multiple geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[1,2]},{"type":"Point","coordinates":[3,4]}],"type":"GeometryCollection"}'));
+
+--echo # Point: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[0,1],"type":"Point"}'));
+
+--echo # LineString: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[0,0],[1,1],[2,2]],"type":"LineString"}'));
+
+--echo # Polygon: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]],"type":"Polygon"}'));
+
+--echo # FeatureCollection: features before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[5,6]},"properties":{}}],"type":"FeatureCollection"}'));
+
+--echo # Feature: geometry before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometry":{"type":"Point","coordinates":[7,8]},"type":"Feature","properties":{}}'));
+
+--echo # Unknown keys interspersed (should be ignored)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"foo":"bar","geometries":[],"type":"GeometryCollection","extra":123}'));
+
+--echo # Deeply nested geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[9,10]}]}],"type":"GeometryCollection"}'));
+
+--echo # End of test

@@ -696,6 +696,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
           coord_start= geom_start;
           goto create_geom;
         }
+        if (json_skip_level(je))
+          goto err_return;
       }
     }
     else if (key_len == features_keyname_len &&
@@ -712,6 +714,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         features_start= je->value_begin;
         if (fcoll_type_found)
           goto handle_feature_collection;
+        if (json_skip_level(je))
+          goto err_return;
       }
     }
     else if (key_len == geometry_keyname_len &&
@@ -724,6 +728,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         geometry_start= je->value_begin;
         if (feature_type_found)
           goto handle_geometry_key;
+        if (json_skip_level(je))
+          goto err_return;
       }
       else
         goto err_return;

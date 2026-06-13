@@ -1,0 +1,48 @@
+#
+# MDEV-39981: ST_GEOMFROMGEOJSON returns wrong result with reversed key order
+#
+# GeometryCollection: type before geometries (baseline)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"GeometryCollection","geometries":[]}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"GeometryCollection","geometries":[]}'))
+GEOMETRYCOLLECTION EMPTY
+# GeometryCollection: geometries before type (empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[],"type":"GeometryCollection"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[],"type":"GeometryCollection"}'))
+GEOMETRYCOLLECTION EMPTY
+# GeometryCollection: geometries before type (non-empty)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[0,1]}],"type":"GeometryCollection"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[0,1]}],"type":"GeometryCollection"}'))
+GEOMETRYCOLLECTION(POINT(0 1))
+# GeometryCollection: multiple geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[1,2]},{"type":"Point","coordinates":[3,4]}],"type":"GeometryCollection"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"Point","coordinates":[1,2]},{"type":"Point","coordinates":[3,4]}],"type":"GeometryCollection"}'))
+GEOMETRYCOLLECTION(POINT(1 2),POINT(3 4))
+# Point: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[0,1],"type":"Point"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[0,1],"type":"Point"}'))
+POINT(0 1)
+# LineString: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[0,0],[1,1],[2,2]],"type":"LineString"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[0,0],[1,1],[2,2]],"type":"LineString"}'))
+LINESTRING(0 0,1 1,2 2)
+# Polygon: coordinates before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]],"type":"Polygon"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]],"type":"Polygon"}'))
+POLYGON((0 0,1 0,1 1,0 1,0 0))
+# FeatureCollection: features before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[5,6]},"properties":{}}],"type":"FeatureCollection"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[5,6]},"properties":{}}],"type":"FeatureCollection"}'))
+GEOMETRYCOLLECTION(POINT(5 6))
+# Feature: geometry before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometry":{"type":"Point","coordinates":[7,8]},"type":"Feature","properties":{}}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometry":{"type":"Point","coordinates":[7,8]},"type":"Feature","properties":{}}'))
+POINT(7 8)
+# Unknown keys interspersed (should be ignored)
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"foo":"bar","geometries":[],"type":"GeometryCollection","extra":123}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"foo":"bar","geometries":[],"type":"GeometryCollection","extra":123}'))
+GEOMETRYCOLLECTION EMPTY
+# Deeply nested geometries before type
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[9,10]}]}],"type":"GeometryCollection"}'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"geometries":[{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[9,10]}]}],"type":"GeometryCollection"}'))
+GEOMETRYCOLLECTION(GEOMETRYCOLLECTION(POINT(9 10)))
+# End of test
