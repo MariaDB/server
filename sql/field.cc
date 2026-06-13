@@ -10555,18 +10555,22 @@ int Field_bit::cmp_offset(my_ptrdiff_t row_offset)
 }
 
 
-uint Field_bit::get_key_image(uchar *buff, uint length, const uchar *ptr_arg, imagetype type_arg) const
+uint Field_bit::get_key_image(uchar *buff, uint length,
+                              const uchar *ptr_arg, imagetype type_arg) const
 {
+  uint bit_byte= 0;
   if (bit_len)
   {
     const uchar *bit_ptr_for_arg= ptr_arg + (bit_ptr - ptr);
     uchar bits= get_rec_bits(bit_ptr_for_arg, bit_ofs, bit_len);
     *buff++= bits;
     length--;
+    bit_byte= 1;
   }
-  uint tmp_data_length = MY_MIN(length, bytes_in_rec);
-  memcpy(buff, ptr, tmp_data_length);
-  return tmp_data_length + 1;
+  /* We don't support prefix read on bit fields */
+  DBUG_ASSERT(length == bytes_in_rec);
+  memcpy(buff, ptr_arg, bytes_in_rec);
+  return bytes_in_rec + bit_byte;
 }
 
 
