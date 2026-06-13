@@ -563,7 +563,7 @@ static void store_system_variables(THD *thd, String &script)
         script.append(STRING_WITH_LEN("'"));
         break;
       }
-      script.append(STRING_WITH_LEN(";\n\n"));
+      script.append(STRING_WITH_LEN(";\n"));
     }
   }
   mysql_prlock_unlock(&LOCK_system_variables_hash);
@@ -614,51 +614,30 @@ static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &script,
 
 /*
   @brief
-    Append the json "str" to sql_script, by escaping only backslash,
+    Append the @arg json to sql_script, by escaping only backslash,
     and single quote
 */
-static void escape_json_for_sql_literal(String &sql_script, const char *str,
-                                        size_t len)
+static void escape_json_for_sql_literal(const String& json, String *sql_script)
 {
-  const char *end= str + len;
+  const char *str= json.ptr();
+  const char *end= str + json.length();
   for (; str < end; str++)
   {
     switch (*str)
     {
     case '\\':
-      sql_script.append(STRING_WITH_LEN("\\\\"));
+      sql_script->append(STRING_WITH_LEN("\\\\"));
       break;
     case '\'':
-      sql_script.append(STRING_WITH_LEN("\\'"));
+      sql_script->append(STRING_WITH_LEN("\\'"));
       break;
     default:
-      sql_script.append(*str);
+      sql_script->append(*str);
     }
   }
 }
 
 
-/*
-  @brief
-    Dump definitions, basic stats of all tables and views used by the
-    statement into the optimizer_context IS table.
-    The goal is to eventually save everything that is needed to
-    reproduce the query execution
-
-  @detail
-    Stores the ddls, stats of the tables, and views that are used
-    in either SELECT, INSERT, DELETE, and UPDATE queries,
-    into the optimizer_context IS table.
-    Global query_tables are read in reverse order from the thd->lex,
-    and a record with table_name, and ddl of the table are created.
-    Hash is used to store the records, where in no duplicates
-    are stored. db_name.table_name is used as a key to discard any
-    duplicates. If a new record that is created is not in the hash,
-    then that is dumped into the IS table.
-
-  @return
-    false when no error occurred during the computation
-*/
 bool dump_sql_script(THD* thd, String &sql_script);
 
 bool store_optimizer_context(THD *thd)
@@ -675,7 +654,7 @@ bool store_optimizer_context(THD *thd)
     return false;
   }
   String sql_script;
-  res= dump_sql_script(thd, sql_script);
+  res= thd->opt_ctx_recorder->dump_sql_script(thd, sql_script);
   clean_captured_ctx(thd);
 
   if (res)
@@ -687,7 +666,29 @@ bool store_optimizer_context(THD *thd)
   return res;
 }
 
-bool dump_sql_script(THD* thd, String &sql_script)
+/*
+  @brief
+    Dump definitions, basic stats of all tables and views used by the
+    statement into an SQL script.
+    The goal is to eventually save everything that is needed to
+    reproduce the query execution.
+
+  @detail
+    Stores the ddls, stats of the tables, and views that are used
+    in either SELECT, INSERT, DELETE, and UPDATE queries,
+    into an SQL script.
+    Global query_tables are read in reverse order from the thd->lex,
+    and a record with table_name, and ddl of the table are created.
+    Hash is used to store the records, where in no duplicates
+    are stored. db_name.table_name is used as a key to discard any
+    duplicates. If a new record that is created is not in the hash,
+    then that is dumped into the IS table.
+
+  @return
+    false when no error occurred during the computation
+*/
+
+bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
 {
   String qry_ctx_script;
   String sys_vars_script;
@@ -702,6 +703,7 @@ bool dump_sql_script(THD* thd, String &sql_script)
 
   /*
     thd->lex->query_tables lists the VIEWs before their underlying tables.
+    We want to dump them in reverse order: first VIEW's tables, then the VIEW.
     Create a list in the reverse order.
   */
   for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
@@ -711,8 +713,6 @@ bool dump_sql_script(THD* thd, String &sql_script)
     if (tables_list.push_front(tbl))
       return true;
   }
-
-  List_iterator li(tables_list);
 
   if (my_hash_init(key_memory_trace_ddl_info, &table_name_hash,
                    system_charset_info, 16, 0, 0, get_hash_key, NULL,
@@ -729,12 +729,19 @@ bool dump_sql_script(THD* thd, String &sql_script)
   }
 
   List<TABLE_LIST> uniq_tables_list;
+  List_iterator li(tables_list);
   for (TABLE_LIST *tbl= li++; !res && tbl; tbl= li++)
   {
     String ddl;
-    String full_tbl_name;
+    StringBuffer<256> full_tbl_name;
     LEX_CSTRING *tbl_name_key;
     append_table_or_view_name(tbl, &full_tbl_name);
+
+    /*
+      Sequence table doesn't need CREATE TABLE or contain any stats
+    */
+    if (tbl->table && tbl->table->s && tbl->table->s->sequence)
+      continue;
 
     /*
       A query can use the same table multiple times. Do not dump the
@@ -744,6 +751,22 @@ bool dump_sql_script(THD* thd, String &sql_script)
                        full_tbl_name.length()))
       continue;
 
+    if (!(tbl_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))) ||
+        !(tbl_name_key->str= strdup_root(thd->mem_root, &full_tbl_name)))
+    {
+      res= true;
+      break;
+    }
+    tbl_name_key->length= strlen(tbl_name_key->str);
+
+    if (my_hash_insert(&table_name_hash, (uchar *) tbl_name_key))
+    {
+      res= true; // OOM
+      break;
+    }
+    uniq_tables_list.push_front(tbl);
+
+    /* Add CREATE DATABASE table_database IF NOT EXISTS */
     if (store_db_ddl(thd, &db_name_hash, qry_ctx_script,
                      tbl->get_db_name().str, false))
     {
@@ -768,41 +791,21 @@ bool dump_sql_script(THD* thd, String &sql_script)
       drop.append(full_tbl_name);
       drop.append(STRING_WITH_LEN(";\n"));
       qry_ctx_script.append(drop);
+
       if (get_create_table_stmt(thd, tbl, &ddl))
       {
         res= true;
         break;
       }
     }
-
-    if (!(tbl_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))) ||
-        !(tbl_name_key->str= strdup_root(thd->mem_root, &full_tbl_name)))
-    {
-      res= true;
-      break;
-    }
-
-    tbl_name_key->length= strlen(tbl_name_key->str);
-
-    if (my_hash_insert(&table_name_hash, (uchar *) tbl_name_key))
-    {
-      res= true; // OOM
-      break;
-    }
-
     qry_ctx_script.append(ddl);
     qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
-
-    // sequence table doesn't contain any stats
-    // TODO: why did we store CREATE TABLE for sequence table?
-    if (tbl->table && tbl->table->s && tbl->table->s->sequence)
-      continue;
 
     if (!tbl->is_view())
     {
       Json_writer_object ctx_wrapper(&ctx_writer);
-      table_context_for_store *table_context= thd->opt_ctx_recorder->search(
-          (uchar *) tbl_name_key->str, tbl_name_key->length);
+      table_context_for_store *table_context=
+        search((uchar *) tbl_name_key->str, tbl_name_key->length);
       if (table_context)
       {
         List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
@@ -815,7 +818,6 @@ bool dump_sql_script(THD* thd, String &sql_script)
       dump_table_stats(thd, tbl, (uchar *) tbl_name_key->str,
                        tbl_name_key->length, ctx_wrapper, &ctx_writer);
     }
-    uniq_tables_list.push_front(tbl);
 
     if (is_base_table(tbl))
     {
@@ -835,64 +837,62 @@ bool dump_sql_script(THD* thd, String &sql_script)
       }
     }
   }
-
   context_list.end();
 
-  if (thd->opt_ctx_recorder->subquery_runs.elements)
+  if (subquery_runs.elements)
   {
     Json_writer_array subq_runs_arr(&ctx_writer, "subquery_runs");
     longlong num;
-    List_iterator<int> it(thd->opt_ctx_recorder->subquery_runs);
+    List_iterator<int> it(subquery_runs);
     while ((num= (longlong)(ptrdiff_t)(it++)) != 0)
       subq_runs_arr.add(num);
   }
   context.end();
+  
+  if (res)
+    goto end;
 
-  if (!res)
-    res= dump_eits_stats(thd, &uniq_tables_list, qry_ctx_script);
+  if ((res= dump_eits_stats(thd, &uniq_tables_list, qry_ctx_script)))
+    goto end;
 
   sql_script.set_charset(system_charset_info);
   sql_script.append(STRING_WITH_LEN("SET NAMES utf8mb4;\n\n"));
-  if (!res)
-  {
-    store_optimizer_costs("heap", &heap_optimizer_costs, sys_vars_script);
-    store_optimizer_costs("temp_table", &tmp_table_optimizer_costs,
-                          sys_vars_script);
-    store_system_variables(thd, sys_vars_script);
-    sql_script.append(sys_vars_script);
-    sql_script.append(qry_ctx_script);
-    const char *SET_OPT_CONTEXT_VAR= "set @opt_context=\'\n";
-    const char *SET_REPLAY_CONTEXT_VAR=
-        "set optimizer_replay_context=\'opt_context\'";
+  store_optimizer_costs("heap", &heap_optimizer_costs, sys_vars_script);
+  store_optimizer_costs("temp_table", &tmp_table_optimizer_costs,
+                        sys_vars_script);
 
-    const String *opt_context= ctx_writer.output.get_string();
-    sql_script.append(SET_OPT_CONTEXT_VAR, strlen(SET_OPT_CONTEXT_VAR));
+  store_system_variables(thd, sys_vars_script);
+  sql_script.append(sys_vars_script);
+  sql_script.append(qry_ctx_script);
 
-    // require extra escaping of the opt_ctx so as to counter the
-    // unescaping done by sql parse
-    escape_json_for_sql_literal(sql_script, opt_context->ptr(),
-                                opt_context->length());
+  sql_script.append(STRING_WITH_LEN("set @opt_context=\'\n"));
 
-    sql_script.append(STRING_WITH_LEN("\n\';#opt_context_ends\n\n"));
-    sql_script.append(SET_REPLAY_CONTEXT_VAR, strlen(SET_REPLAY_CONTEXT_VAR));
-    sql_script.append(STRING_WITH_LEN(";\n\n"));
+  // require extra escaping of the opt_ctx so as to counter the
+  // unescaping done by sql parse
+  escape_json_for_sql_literal(*ctx_writer.output.get_string(), &sql_script);
 
-    sql_script.append(STRING_WITH_LEN("SET character_set_client="));
-    sql_script.append(thd->variables.character_set_client->cs_name);
-    sql_script.append(STRING_WITH_LEN(";\n"));
+  sql_script.append(STRING_WITH_LEN("\n\';#opt_context_ends\n\n"));
+  sql_script.append(
+      STRING_WITH_LEN("SET optimizer_replay_context=\'opt_context\'"));
+  sql_script.append(STRING_WITH_LEN(";\n\n"));
 
-    sql_script.append(STRING_WITH_LEN("SET character_set_results="));
-    sql_script.append(thd->variables.character_set_results->cs_name);
-    sql_script.append(STRING_WITH_LEN(";\n"));
+  sql_script.append(STRING_WITH_LEN("SET character_set_client="));
+  sql_script.append(thd->variables.character_set_client->cs_name);
+  sql_script.append(STRING_WITH_LEN(";\n"));
 
-    sql_script.append(STRING_WITH_LEN("SET collation_connection="));
-    sql_script.append(thd->variables.collation_connection->coll_name);
-    sql_script.append(STRING_WITH_LEN(";\n"));
+  sql_script.append(STRING_WITH_LEN("SET character_set_results="));
+  sql_script.append(thd->variables.character_set_results->cs_name);
+  sql_script.append(STRING_WITH_LEN(";\n"));
 
-    sql_script.append(thd->query(), thd->query_length());
-    sql_script.append(STRING_WITH_LEN(";\n\n"));
-    sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
-  }
+  sql_script.append(STRING_WITH_LEN("SET collation_connection="));
+  sql_script.append(thd->variables.collation_connection->coll_name);
+  sql_script.append(STRING_WITH_LEN(";\n"));
+
+  sql_script.append(thd->query(), thd->query_length());
+  sql_script.append(STRING_WITH_LEN(";\n\n"));
+  sql_script.append(STRING_WITH_LEN("set optimizer_replay_context='';\n\n"));
+
+end:
   my_hash_free(&table_name_hash);
   my_hash_free(&used_storage_engines);
   my_hash_free(&db_name_hash);
