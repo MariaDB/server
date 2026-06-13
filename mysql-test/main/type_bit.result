@@ -108,9 +108,16 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select a+0 from t1;
 a+0
 0
-4
-5
-9
+104
+106
+108
+111
+116
+118
+119
+122
+123
+127
 23
 24
 28
@@ -118,8 +125,10 @@ a+0
 30
 31
 34
+4
 44
 49
+5
 56
 57
 59
@@ -133,70 +142,68 @@ a+0
 79
 87
 88
+9
 94
 94
-104
-106
-108
-111
-116
-118
-119
-122
-123
-127
 explain select b+0 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	38	Using index
 select b+0 from t1;
 b+0
-177
-245
-178
-363
-36
-398
-499
-399
-83
-438
-202
-307
-345
-379
-135
-188
-343
-152
-206
-454
-42
-133
+118
 123
+133
+135
+152
+177
+178
+188
+202
+206
+245
+280
+307
+343
+345
 349
 351
+36
+363
+368
+368
+379
+380
+390
+398
+399
+403
 411
+411
+42
+438
+446
+454
 46
 468
-280
-446
+499
 67
-368
-390
-380
-368
-118
-411
-403
+83
 explain select a+0, b+0 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	38	Using index
 select a+0, b+0 from t1;
 a+0	b+0
 0	177
-4	245
-5	178
-9	363
+104	280
+106	446
+108	67
+111	368
+116	390
+118	380
+119	368
+122	118
+123	411
+127	403
 23	36
 24	398
 28	499
@@ -204,8 +211,10 @@ a+0	b+0
 30	83
 31	438
 34	202
+4	245
 44	307
 49	345
+5	178
 56	379
 57	135
 59	188
@@ -219,18 +228,9 @@ a+0	b+0
 79	349
 87	351
 88	411
+9	363
 94	46
 94	468
-104	280
-106	446
-108	67
-111	368
-116	390
-118	380
-119	368
-122	118
-123	411
-127	403
 explain select a+0, b+0 from t1 where a > 40 and b > 200 order by 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	2	NULL	27	Using where; Using index; Using filesort
@@ -296,17 +296,20 @@ create table t1 (a int not null, b bit, c bit(9), key(a, b, c));
 insert into t1 values
 (4, NULL, 1), (4, 0, 3), (2, 1, 4), (1, 1, 100), (4, 0, 23), (4, 0, 54),
 (56, 0, 22), (4, 1, 100), (23, 0, 1), (4, 0, 34);
+explain select a+0, b+0, c+0 from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	9	NULL	10	Using index
 select a+0, b+0, c+0 from t1;
 a+0	b+0	c+0
 1	1	100
 2	1	4
-4	NULL	1
-4	0	3
+23	0	1
 4	0	23
+4	0	3
 4	0	34
 4	0	54
 4	1	100
-23	0	1
+4	NULL	1
 56	0	22
 select hex(min(b)) from t1 where a = 4;
 hex(min(b))
@@ -327,19 +330,19 @@ a+0	b+0	c+0
 select a+0, b+0, c+0 from t1 where a = 4 and b = 1 and c=100;
 a+0	b+0	c+0
 4	1	100
-select a+0, b+0, c+0 from t1 order by b desc;
+select a+0, b+0, c+0 from t1 order by b desc, a, c;
 a+0	b+0	c+0
-2	1	4
 1	1	100
+2	1	4
 4	1	100
 4	0	3
 4	0	23
-4	0	54
-56	0	22
-23	0	1
 4	0	34
+4	0	54
+23	0	1
+56	0	22
 4	NULL	1
-select a+0, b+0, c+0 from t1 order by c;
+select a+0, b+0, c+0 from t1 order by c,a,b;
 a+0	b+0	c+0
 4	NULL	1
 23	0	1

@@ -316,7 +316,7 @@ ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
     }
   }
 #ifdef ONLY_FOR_HASH_DEBUGGING
-  DBUG_PRINT("exit", ("hash: 0x%lx", nr));
+  DBUG_PRINT("exit", ("hash: 0x%lx", hasher.m_nr1));
 #endif
   return((ulong) hasher.m_nr1);
 }
@@ -755,10 +755,9 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
         if (bits != (*key))
           return 1;
         dec= 1;
-        key++;
       }
 
-      if (bcmp(rec + seg->start, key, seg->length - dec))
+      if (bcmp(rec + seg->start, key + dec, seg->length - dec))
 	return 1;
     }
   }
@@ -848,6 +847,7 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
   for (seg= keydef->seg, endseg= seg + keydef->keysegs; seg < endseg; seg++)
   {
     size_t char_length;
+    size_t offset;
     if (seg->null_bit)
     {
       if (!(*key++= 1 - MY_TEST(rec[seg->null_pos] & seg->null_bit)))
@@ -907,10 +907,12 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
       continue;
     }
 
+    offset= 0;
     char_length= seg->length;
+
     if (seg->charset->mbmaxlen > 1)
     {
-      char_length= hp_charpos(seg->charset, 
+      char_length= hp_charpos(seg->charset,
                               rec + seg->start, rec + seg->start + char_length,
                               char_length / seg->charset->mbmaxlen);
       set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
@@ -920,11 +922,15 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
     }
     if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
     {
-      *key++= get_rec_bits(rec + seg->bit_pos,
+      /*
+        The uneven high bits are stored in the record null-map header.
+        Put them in the first key byte.
+      */
+      *key= get_rec_bits(rec + seg->bit_pos,
                            seg->bit_start, seg->bit_length);
-      char_length--;
+      offset= 1;
     }
-    memcpy(key, rec + seg->start, (size_t) char_length);
+    memcpy(key + offset, rec + seg->start, char_length - offset);
     key+= seg->length;
   }
   memcpy(key, &recpos, sizeof(uchar*));
