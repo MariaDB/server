@@ -7028,8 +7028,6 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   enum_tbl_map_status tblmap_status= check_table_map(rgi, table_list);
   if (tblmap_status == OK_TO_PROCESS)
   {
-    DBUG_ASSERT(thd->lex->query_tables != table_list);
-
     /*
       Use placement new to construct the table_def instance in the
       memory allocated for it inside table_list.
