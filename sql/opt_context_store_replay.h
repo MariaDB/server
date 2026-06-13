@@ -23,6 +23,8 @@
 #include "table.h"
 
 class Item_subselect;
+class Json_writer;
+class Json_writer_object;
 
 /***************************************************************************
  * Part 1: APIs for recording Optimizer Context.
@@ -80,7 +82,6 @@ public:
   bool dump_sql_script(THD* thd, String &sql_script);
 
   bool has_records();
-  table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
 private:
   List<int> subquery_runs;
   void record_table_row(TABLE *tbl, int row_index);
@@ -92,13 +93,21 @@ private:
   */
   HASH tbl_ctx_hash;
 
-  table_context_for_store *get_table_context(const TABLE *tbl);
-  static const uchar *get_tbl_ctx_key(const void *entry_, size_t *length,
-                                      my_bool flags);
   /*
     counter that tracks record_multi_range_read_info_const() calls
   */
   ulong mrr_counter= 0;
+
+  table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
+  void dump_recorded_table_calls(table_context_for_store *tbl,
+                                 Json_writer *ctx_writer);
+  void dump_table_stats(TABLE_LIST *tbl, uchar *tbl_name,
+                        size_t tbl_name_len,
+                        Json_writer_object &ctx_wrapper,
+                        Json_writer *ctx_writer);
+  table_context_for_store *get_table_context(const TABLE *tbl);
+  static const uchar *get_tbl_ctx_key(const void *entry_, size_t *length,
+                                      my_bool flags);
 };
 
 /* Save the collected context into optimizer_context IS table */
