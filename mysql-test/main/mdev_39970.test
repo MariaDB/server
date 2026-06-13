@@ -1,0 +1,41 @@
+--echo #
+--echo # MDEV-39970: JSON_KEYS fails to deduplicate keys with escaped characters
+--echo #
+
+--echo # Plain duplicate key - should deduplicate
+SELECT JSON_KEYS('{"a":1,"a":2}');
+
+--echo # Key with escaped quote via hex literal (utf8mb4)
+SET @j=CONVERT(X'7B22615C2262223A312C22615C2262223A327D' USING utf8mb4);
+SELECT JSON_KEYS(@j);
+
+--echo # Key with escaped quote via SQL string
+SELECT JSON_KEYS('{"a\\"b":1,"a\\"b":2}');
+
+--echo # Key with escaped backslash
+SELECT JSON_KEYS('{"a\\\\b":1,"a\\\\b":2}');
+
+--echo # Mixed: one unique, one duplicate with escape
+SELECT JSON_KEYS('{"a\\"b":1,"c":2,"a\\"b":3}');
+
+--echo # Escaped newline in key
+SELECT JSON_KEYS('{"a\\nb":1,"a\\nb":2}');
+
+--echo # Escaped tab in key
+SELECT JSON_KEYS('{"a\\tb":1,"a\\tb":2}');
+
+--echo # Unicode escape in key (\u0041 = A)
+SELECT JSON_KEYS('{"a\\u0041b":1,"a\\u0041b":2}');
+
+--echo # Key that is only an escaped quote
+SET @j2=CONVERT(X'7B225C2222223A312C225C2222223A327D' USING utf8mb4);
+SELECT JSON_KEYS(@j2);
+
+--echo # Escaped chars with non-duplicate (should keep both)
+SELECT JSON_KEYS('{"a\\nb":1,"a\\tb":2}');
+
+--echo # Nested object - JSON_KEYS with path hitting escaped keys
+SELECT JSON_KEYS('{"outer":{"a\\"b":1,"a\\"b":2}}', '$.outer');
+
+--echo # Prefix overlap: a\" vs a\"b should NOT deduplicate
+SELECT JSON_KEYS('{"a\\"":1,"a\\"b":2}');

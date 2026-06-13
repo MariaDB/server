@@ -1,0 +1,55 @@
+#
+# MDEV-39970: JSON_KEYS fails to deduplicate keys with escaped characters
+#
+# Plain duplicate key - should deduplicate
+SELECT JSON_KEYS('{"a":1,"a":2}');
+JSON_KEYS('{"a":1,"a":2}')
+["a"]
+# Key with escaped quote via hex literal (utf8mb4)
+SET @j=CONVERT(X'7B22615C2262223A312C22615C2262223A327D' USING utf8mb4);
+SELECT JSON_KEYS(@j);
+JSON_KEYS(@j)
+["a\"b"]
+# Key with escaped quote via SQL string
+SELECT JSON_KEYS('{"a\\"b":1,"a\\"b":2}');
+JSON_KEYS('{"a\\"b":1,"a\\"b":2}')
+["a\"b"]
+# Key with escaped backslash
+SELECT JSON_KEYS('{"a\\\\b":1,"a\\\\b":2}');
+JSON_KEYS('{"a\\\\b":1,"a\\\\b":2}')
+["a\\b"]
+# Mixed: one unique, one duplicate with escape
+SELECT JSON_KEYS('{"a\\"b":1,"c":2,"a\\"b":3}');
+JSON_KEYS('{"a\\"b":1,"c":2,"a\\"b":3}')
+["a\"b", "c"]
+# Escaped newline in key
+SELECT JSON_KEYS('{"a\\nb":1,"a\\nb":2}');
+JSON_KEYS('{"a\\nb":1,"a\\nb":2}')
+["a\nb"]
+# Escaped tab in key
+SELECT JSON_KEYS('{"a\\tb":1,"a\\tb":2}');
+JSON_KEYS('{"a\\tb":1,"a\\tb":2}')
+["a\tb"]
+# Unicode escape in key (\u0041 = A)
+SELECT JSON_KEYS('{"a\\u0041b":1,"a\\u0041b":2}');
+JSON_KEYS('{"a\\u0041b":1,"a\\u0041b":2}')
+["a\u0041b"]
+# Key that is only an escaped quote
+SET @j2=CONVERT(X'7B225C2222223A312C225C2222223A327D' USING utf8mb4);
+SELECT JSON_KEYS(@j2);
+JSON_KEYS(@j2)
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 5
+# Escaped chars with non-duplicate (should keep both)
+SELECT JSON_KEYS('{"a\\nb":1,"a\\tb":2}');
+JSON_KEYS('{"a\\nb":1,"a\\tb":2}')
+["a\nb", "a\tb"]
+# Nested object - JSON_KEYS with path hitting escaped keys
+SELECT JSON_KEYS('{"outer":{"a\\"b":1,"a\\"b":2}}', '$.outer');
+JSON_KEYS('{"outer":{"a\\"b":1,"a\\"b":2}}', '$.outer')
+["a\"b"]
+# Prefix overlap: a" vs a"b should NOT deduplicate
+SELECT JSON_KEYS('{"a\\"":1,"a\\"b":2}');
+JSON_KEYS('{"a\\"":1,"a\\"b":2}')
+["a\"", "a\"b"]
