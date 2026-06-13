@@ -1044,6 +1044,16 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
   DBUG_RETURN(result);
 }
 
+int ha_heap::check(THD* thd, HA_CHECK_OPT* check_opt)
+{
+  if (!file)
+    return HA_ADMIN_INTERNAL_ERROR;
+  if (heap_check_heap(file, 0))
+    return HA_ADMIN_CORRUPT;
+  return HA_ADMIN_OK;
+};
+
+
 struct st_mysql_storage_engine heap_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
