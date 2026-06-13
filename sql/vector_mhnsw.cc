@@ -23,6 +23,8 @@
 #include <scope.h>
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
+#include <thread>
+#include <atomic>
 
 // distance can be a little bit < 0 because of fast math
 static constexpr float NEAREST = -1.0f;
@@ -480,7 +482,7 @@ public:
 class MHNSW_Share : public Sql_alloc
 {
   mysql_mutex_t cache_lock;     // for node_cache and stats
-  mysql_mutex_t node_lock[8];
+  mysql_mutex_t node_lock[32];
 
   void cache_internal(FVectorNode *node)
   {
@@ -664,6 +666,14 @@ public:
     stats.diameter= std::max(stats.diameter, addend.diameter);
     stats.ef_power= std::max(stats.ef_power, addend.ef_power);
     stats.subdist.add(addend.subdist);
+    mysql_mutex_unlock(&cache_lock);
+  }
+
+  void update_start_parallel(FVectorNode *node)
+  {
+    mysql_mutex_lock(&cache_lock);
+    if (!start || node->max_layer > start->max_layer)
+      start= node;
     mysql_mutex_unlock(&cache_lock);
   }
 };
@@ -1046,7 +1056,10 @@ int FVectorNode::load_from_record(TABLE *graph)
 void FVectorNode::push_neighbor(size_t layer, FVectorNode *other)
 {
   DBUG_ASSERT(neighbors[layer].num < ctx->max_neighbors(layer));
-  neighbors[layer].links[neighbors[layer].num++]= other;
+  size_t cur_num= neighbors[layer].num;
+  neighbors[layer].links[cur_num]= other;
+  std::atomic_thread_fence(std::memory_order_release);
+  neighbors[layer].num= cur_num + 1;
 }
 
 size_t FVectorNode::tref_len() const { return ctx->tref_len; }
@@ -1070,8 +1083,10 @@ struct MHNSW_param
   Stats acc;
   dgt_mode mode;
   double max_est_size;
-  MHNSW_param(MHNSW_Share *ctx, TABLE *graph, int layer)
-    : ctx(ctx), graph(graph), layer(layer)
+  MEM_ROOT *mem_root;
+  MHNSW_param(MHNSW_Share *ctx, TABLE *graph, int layer, MEM_ROOT *mem_root_arg= nullptr)
+    : ctx(ctx), graph(graph), layer(layer),
+      mem_root(mem_root_arg ? mem_root_arg : (graph ? graph->in_use->mem_root : nullptr))
   {
     Stats stats;
     ctx->read_stats(&stats);
@@ -1159,7 +1174,7 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   if (pq.init(max_ef, false, Visited::cmp))
     return my_errno= HA_ERR_OUT_OF_MEM;
 
-  MEM_ROOT * const root= p->graph->in_use->mem_root;
+  MEM_ROOT * const root= p->mem_root;
   auto discarded= (Visited**)my_safe_alloca(sizeof(Visited**)*max_neighbor_connections);
   size_t discarded_num= 0;
   Neighborhood &neighbors= target->neighbors[p->layer];
@@ -1173,29 +1188,38 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   }
   if (extra_candidate)
     pq.push(new (root) Visited(extra_candidate, extra_candidate->distance_to(target->vec)));
-
   DBUG_ASSERT(pq.elements());
-  neighbors.num= 0;
 
-  while (pq.elements() && neighbors.num < max_neighbor_connections)
+  size_t temp_num = 0;
+  FVectorNode **temp_links = (FVectorNode**)my_safe_alloca(sizeof(FVectorNode*) * max_neighbor_connections);
+
+  while (pq.elements() && temp_num < max_neighbor_connections)
   {
     Visited *vec= pq.pop();
     FVectorNode * const node= vec->node;
     const float target_dista= std::max(32*FLT_EPSILON, vec->distance_to_target);
     bool discard= false;
-    for (size_t i=0; i < neighbors.num; i++)
-      if ((discard= node->distance_greater_than(neighbors.links[i]->vec,
+    for (size_t i=0; i < temp_num; i++)
+      if ((discard= node->distance_greater_than(temp_links[i]->vec,
                             target_dista, p->mode, &p->acc) < target_dista))
         break;
     if (!discard)
-      target->push_neighbor(p->layer, node);
-    else if (discarded_num + neighbors.num < max_neighbor_connections)
+      temp_links[temp_num++]= node;
+    else if (discarded_num + temp_num < max_neighbor_connections)
       discarded[discarded_num++]= vec;
   }
 
-  for (size_t i=0; i < discarded_num && neighbors.num < max_neighbor_connections; i++)
-    target->push_neighbor(p->layer, discarded[i]->node);
+  for (size_t i= 0; i < discarded_num && temp_num < max_neighbor_connections; i++)
+    temp_links[temp_num++]= discarded[i]->node;
 
+  // Publish the new neighbors atomically
+  for (size_t i= 0; i < temp_num; i++)
+    neighbors.links[i]= temp_links[i];
+
+  std::atomic_thread_fence(std::memory_order_release);
+  neighbors.num= temp_num;
+
+  my_safe_afree(temp_links, sizeof(FVectorNode*) * max_neighbor_connections);
   my_safe_afree(discarded, sizeof(Visited**)*max_neighbor_connections);
   return 0;
 }
@@ -1256,21 +1280,29 @@ int FVectorNode::save(TABLE *graph)
 static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
 {
   const uint max_neighbors= p->ctx->max_neighbors(p->layer);
-  // it seems that one could update nodes in the gref order
-  // to avoid InnoDB deadlocks, but it produces no noticeable effect
-  for (size_t i=0; i < node->neighbors[p->layer].num; i++)
+  const bool bulk= p->ctx->bulk_active;
+
+  for (size_t i= 0; i < node->neighbors[p->layer].num; i++)
   {
     FVectorNode *neigh= node->neighbors[p->layer].links[i];
+    uint ticket= 0;
+    if (bulk)
+      ticket= p->ctx->lock_node(neigh);
+
     Neighborhood &neighneighbors= neigh->neighbors[p->layer];
+    int err= 0;
     if (neighneighbors.num < max_neighbors)
       neigh->push_neighbor(p->layer, node);
     else
-      if (int err= select_neighbors(p, neigh, neighneighbors, node,
-                                    max_neighbors))
-        return err;
-    if (!p->ctx->bulk_active)
-        if (int err= neigh->save(p->graph))
-            return err;
+      err= select_neighbors(p, neigh, neighneighbors, node, max_neighbors);
+
+    if (bulk)
+      p->ctx->unlock_node(ticket);
+    else if (!err)
+      err= neigh->save(p->graph);
+
+    if (err)
+      return err;
   }
   return 0;
 }
@@ -1293,7 +1325,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
 {
   DBUG_ASSERT(inout->num > 0);
 
-  MEM_ROOT * const root= p->graph->in_use->mem_root;
+  MEM_ROOT * const root= p->mem_root;
   Queue<Visited> candidates, best;
   bool skip_deleted;
   uint ef= result_size;
@@ -1343,6 +1375,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
     visited.flush();
 
     Neighborhood &neighbors= cur.node->neighbors[p->layer];
+    std::atomic_thread_fence(std::memory_order_acquire);
     FVectorNode **links= neighbors.links, **end= links + neighbors.num;
     for (; links < end; links+= 8)
     {
@@ -1513,6 +1546,78 @@ struct MHNSW_Bulk_context : public Sql_alloc {
     uint8_t current_max_layer;
 };
 
+
+
+struct BulkBuildThreadArg
+{
+  MHNSW_Bulk_context *bulk;
+  uint start_idx;
+  uint end_idx;
+  int error;
+};
+
+
+static void *bulk_build_thread(void *param)
+{
+  my_thread_init();
+  SCOPE_EXIT([]() { my_thread_end(); });
+
+  BulkBuildThreadArg *arg= (BulkBuildThreadArg*) param;
+  MHNSW_Bulk_context *bulk= arg->bulk;
+  MHNSW_Share *ctx= bulk->ctx;
+
+  MEM_ROOT thread_root;
+  init_alloc_root(PSI_INSTRUMENT_MEM, &thread_root, 256*1024, 0, MYF(0));
+  SCOPE_EXIT([&thread_root]() { free_root(&thread_root, MYF(0)); });
+
+  for (uint i = arg->start_idx; i < arg->end_idx; i++)
+  {
+    FVectorNode *target= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
+    const uint8_t max_layer= ctx->start->max_layer;
+    uint8_t target_layer= target->max_layer;
+
+    MHNSW_param p(ctx, nullptr, max_layer, &thread_root);
+    p.acc.graph_size= 1;
+
+    const size_t max_found= ctx->max_neighbors(0);
+    Neighborhood candidates;
+    candidates.init((FVectorNode**)alloc_root(&thread_root, sizeof(FVectorNode*) * (max_found + 8)), max_found);
+    candidates.links[candidates.num++]= ctx->start;
+
+    for (; p.layer > target_layer; p.layer--)
+    {
+      if ((arg->error= search_layer(&p, target->vec, NEAREST, 1, &candidates, false)))
+        return nullptr;
+    }
+
+    for (; p.layer >= 0; p.layer--)
+    {
+      uint max_neighbors= ctx->max_neighbors(p.layer);
+      if ((arg->error= search_layer(&p, target->vec, NEAREST, max_neighbors, &candidates, true)))
+        return nullptr;
+      if ((arg->error= select_neighbors(&p, target, candidates, 0, max_neighbors)))
+        return nullptr;
+    }
+
+    ctx->add_to_stats(p.acc);
+
+    for (p.layer= target_layer; p.layer >= 0; p.layer--)
+    {
+      if ((arg->error= update_second_degree_neighbors(&p, target)))
+        return nullptr;
+    }
+
+    if (target_layer > max_layer)
+    {
+      ctx->update_start_parallel(target);
+    }
+
+    free_root(&thread_root, MYF(MY_MARK_BLOCKS_FREE));
+  }
+
+  return nullptr;
+}
+
 int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
 {
   TABLE *graph= table->hlindex;
@@ -1547,6 +1652,18 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
                         "MHNSW: Bulk insert disabled because estimated memory usage (%llu) "
                         "exceeds mhnsw_max_cache_size (%llu). Falling back to normal insert.",
                         (ulonglong)estimated_mem, (ulonglong)mhnsw_max_cache_size);
+    ctx->release(table);
+    return 0;
+  }
+
+  uint N= std::thread::hardware_concurrency();
+  if (N <= 1)
+  {
+    push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "MHNSW: Bulk insert disabled because available thread count (%u) is <= 1. "
+                        "Falling back to normal insert.",
+                        N);
     ctx->release(table);
     return 0;
   }
@@ -1631,7 +1748,6 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   if (!graph->context)
     return 0;
 
-  THD *thd= table->in_use;
   MHNSW_Bulk_context *bulk= (MHNSW_Bulk_context*)graph->context;
 
   DBUG_ASSERT(graph);
@@ -1645,58 +1761,62 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
     table->hlindex->context= nullptr;
   });
 
-  for (uint i= 0; i < bulk->nodes.elements; i++)
+  if (bulk->nodes.elements == 0)
+    return 0;
+
+  FVectorNode *first_target= *(FVectorNode**)dynamic_element(&bulk->nodes, 0, FVectorNode**);
+  ctx->start= first_target;
+
+  uint N= std::thread::hardware_concurrency();
+  uint total_nodes= bulk->nodes.elements - 1;
+  uint workers= std::min(N, total_nodes);
+
+  pthread_t *threads= (pthread_t*) my_malloc(PSI_INSTRUMENT_MEM, sizeof(pthread_t) * workers, MYF(MY_WME));
+  BulkBuildThreadArg *args= (BulkBuildThreadArg*) my_malloc(PSI_INSTRUMENT_MEM, sizeof(BulkBuildThreadArg) * workers, MYF(MY_WME));
+  SCOPE_EXIT([threads, args]() {
+    my_free(threads);
+    my_free(args);
+  });
+  if (!threads || !args)
   {
-    FVectorNode *target= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
-
-    if (!ctx->start)
-    {
-      ctx->start= target;
-      continue;
-    }
-
-    MEM_ROOT_SAVEPOINT memroot_sv;
-    root_make_savepoint(thd->mem_root, &memroot_sv);
-    SCOPE_EXIT([memroot_sv](){ root_free_to_savepoint(&memroot_sv); });
-
-    const uint8_t max_layer= ctx->start->max_layer;
-    uint8_t target_layer= target->max_layer;
-
-    MHNSW_param p(ctx, graph, max_layer);
-    p.acc.graph_size= 1;
-
-    const size_t max_found= ctx->max_neighbors(0);
-    Neighborhood candidates;
-    candidates.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
-    candidates.links[candidates.num++]= ctx->start;
-
-    for (; p.layer > target_layer; p.layer--)
-    {
-      if (int err= search_layer(&p, target->vec, NEAREST, 1, &candidates, false))
-        return err;
-    }
-
-    for (; p.layer >= 0; p.layer--)
-    {
-      uint max_neighbors= ctx->max_neighbors(p.layer);
-      if (int err= search_layer(&p, target->vec, NEAREST, max_neighbors,
-                                &candidates, true))
-        return err;
-      if (int err= select_neighbors(&p, target, candidates, 0, max_neighbors))
-        return err;
-    }
-
-    ctx->add_to_stats(p.acc);
-
-    if (target_layer > max_layer)
-      ctx->start= target;
-
-    for (p.layer= target_layer; p.layer >= 0; p.layer--)
-    {
-      if (int err= update_second_degree_neighbors(&p, target))
-        return err;
-    }
+    return HA_ERR_OUT_OF_MEM;
   }
+
+  uint chunk_size = total_nodes / workers;
+  uint remainder = total_nodes % workers;
+  uint current_start = 1;
+
+  uint workers_spawned= 0;
+
+  for (uint i= 0; i < workers; i++)
+  {
+    uint count = chunk_size + (i == 0 ? remainder : 0);
+    args[i].bulk= bulk;
+    args[i].start_idx = current_start;
+    args[i].end_idx = current_start + count;
+    args[i].error= 0;
+    current_start += count;
+
+    int err= mysql_thread_create(0, &threads[i], nullptr, bulk_build_thread, &args[i]);
+    if (err)
+    {
+      for (uint j= 0; j < workers_spawned; j++)
+        pthread_join(threads[j], nullptr);
+      return err;
+    }
+    workers_spawned++;
+  }
+
+  int final_err= 0;
+  for (uint i= 0; i < workers_spawned; i++)
+  {
+    pthread_join(threads[i], nullptr);
+    if (args[i].error && !final_err)
+      final_err= args[i].error;
+  }
+
+  if (final_err)
+    return final_err;
 
   graph->file->ha_start_bulk_insert(bulk->nodes.elements, 0);
   bool bulk_base_started= true;
