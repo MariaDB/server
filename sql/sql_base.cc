@@ -24,19 +24,19 @@
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"
-#include "lock.h"        // mysql_lock_remove,
-                         // mysql_unlock_tables,
-                         // mysql_lock_have_duplicate
-#include "sql_show.h"    // append_identifier
-#include "strfunc.h"     // find_type
-#include "sql_view.h"    // mysql_make_view, VIEW_ANY_ACL
-#include "sql_parse.h"   // check_table_access
-#include "sql_insert.h"  // kill_delayed_threads
-#include "sql_partition.h"               // ALTER_PARTITION_PARAM_TYPE
-#include "sql_derived.h" // mysql_derived_prepare,
-                         // mysql_handle_derived,
-                         // mysql_derived_filling
-#include "sql_handler.h" // mysql_ha_flush
+#include "lock.h"                               // mysql_lock_remove,
+                                                // mysql_unlock_tables,
+                                                // mysql_lock_have_duplicate
+#include "sql_show.h"                           // append_identifier
+#include "strfunc.h"                            // find_type
+#include "sql_view.h"                           // mysql_make_view, VIEW_ANY_ACL
+#include "sql_parse.h"                          // check_table_access
+#include "sql_insert.h"                         // kill_delayed_threads
+#include "sql_partition.h"                      // ALTER_PARTITION_PARAM_TYPE
+#include "sql_derived.h"                        // mysql_derived_prepare,
+                                                // mysql_handle_derived,
+                                                // mysql_derived_filling
+#include "sql_handler.h"                        // mysql_ha_flush
 #include "sql_test.h"
 #include "sql_partition.h"                      // ALTER_PARTITION_PARAM_TYPE
 #include "log_event.h"                          // Query_log_event
@@ -49,16 +49,16 @@
 #include "sql_prepare.h"
 #include "sql_statistics.h"
 #include "sql_cte.h"
-#include "sql_update.h"  // class Sql_cmd_update
-#include "sql_delete.h"  // class Sql_cmd_delete
+#include "sql_update.h"                         // class Sql_cmd_update
+#include "sql_delete.h"                         // class Sql_cmd_delete
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
 #include "rpl_filter.h"
 #include "sql_table.h"                          // build_table_filename
-#include "datadict.h"   // dd_frm_is_view()
-#include "rpl_mi.h"   // Master_info_index
-#include "rpl_rli.h"   // rpl_group_info
+#include "datadict.h"                           // dd_frm_is_view()
+#include "rpl_mi.h"                             // Master_info_index
+#include "rpl_rli.h"                            // rpl_group_info
 #include "vector_mhnsw.h"
 #ifdef  _WIN32
 #include <io.h>
