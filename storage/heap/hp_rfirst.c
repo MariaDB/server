@@ -34,9 +34,12 @@ int heap_rfirst(HP_INFO *info, uchar *record, int inx)
     if ((pos = tree_search_edge(&keyinfo->rb_tree, info->parents,
                                 &info->last_pos, offsetof(TREE_ELEMENT, left))))
     {
-      memcpy(&pos, pos + keyinfo->get_key_length(keyinfo, pos), sizeof(uchar*));
+      memcpy(&pos, pos + (*keyinfo->get_key_length)(keyinfo, pos),
+             sizeof(uchar*));
       info->current_ptr = pos;
       memcpy(record, pos, (size_t)share->reclength);
+      if (share->blob_count && hp_read_blobs(info, record, pos))
+        DBUG_RETURN(my_errno);
       /*
         If we're performing index_first on a table that was taken from
         table cache, info->lastkey_len is initialized to previous query.

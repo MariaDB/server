@@ -26,6 +26,7 @@ int heap_delete(HP_INFO *info, const uchar *record)
   DBUG_PRINT("enter",("info: %p  record: %p", info, record));
 
   test_active(info);
+  hp_flush_pending_blob_free(info);
 
   if (info->opt_flag & READ_CHECK_USED && hp_rectest(info,record))
     DBUG_RETURN(my_errno);			/* Record changed */
@@ -42,11 +43,51 @@ int heap_delete(HP_INFO *info, const uchar *record)
       goto err;
   }
 
+  if (share->blob_count && hp_has_cont(pos, share->visible))
+  {
+    if (share->internal)
+    {
+      /*
+        Internal temporary tables are never binlogged, so blob chains
+        can be freed immediately.
+      */
+      hp_free_blobs(share, pos);
+    }
+    else
+    {
+      /*
+        Defer blob chain free: save chain pointers for later cleanup.
+
+        The handler layer calls binlog_log_row() AFTER delete_row()
+        returns, reading blob data from the record buffer via zero-copy
+        pointers into HP_BLOCK chain records.  Freeing chains here would
+        overwrite those records with del_link pointers, making the
+        zero-copy pointers dangle.
+
+        Save the chain head pointers and free them on the next mutating
+        operation (write/update/delete) or on reset/close.
+      */
+      HP_BLOB_DESC *desc;
+      uint i;
+      for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
+      {
+        if (hp_blob_length(desc, pos) == 0)
+        {
+          info->pending_blob_chains[i]= NULL;
+          continue;
+        }
+        memcpy(&info->pending_blob_chains[i],
+               pos + desc->offset + desc->packlength, sizeof(uchar*));
+      }
+      info->has_pending_blob_free= TRUE;
+    }
+  }
   info->update=HA_STATE_DELETED;
   *((uchar**) pos)=share->del_link;
   share->del_link=pos;
   pos[share->visible]=0;		/* Record deleted */
   share->deleted++;
+  share->total_records--;
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
   DBUG_EXECUTE("check_heap",heap_check_heap(info, 0););
@@ -104,7 +145,7 @@ int hp_rb_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 		  const uchar *record, uchar *recpos, int flag)
 {
-  ulong blength, pos2, pos_hashnr, lastpos_hashnr, key_pos;
+  ulong blength, pos2, pos_hashnr, lastpos_hashnr, key_pos, rec_hash;
   HASH_INFO *lastpos,*gpos,*pos,*pos3,*empty,*last_ptr;
   HP_SHARE *share=info->s;
   DBUG_ENTER("hp_delete_key");
@@ -116,14 +157,20 @@ int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
   last_ptr=0;
 
   /* Search after record with key */
-  key_pos= hp_mask(hp_rec_hashnr(keyinfo, record), blength, share->records + 1);
+  rec_hash= hp_rec_hashnr(0, keyinfo, record);
+  key_pos= hp_mask(rec_hash, blength, share->records + 1);
   pos= hp_find_hash(&keyinfo->block, key_pos);
 
   gpos = pos3 = 0;
 
   while (pos->ptr_to_rec != recpos)
   {
-    if (flag && !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec))
+    /*
+      Hash pre-check avoids expensive blob materialization
+      for non-matching entries.
+    */
+    if (flag && pos->hash_of_key == rec_hash &&
+        !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, info))
       last_ptr=pos;				/* Previous same key */
     gpos=pos;
     if (!(pos=pos->next_key))

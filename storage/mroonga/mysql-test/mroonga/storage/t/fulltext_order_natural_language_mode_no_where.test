@@ -37,10 +37,9 @@ INSERT INTO logs VALUES("Warning Warning Warning Warning");
 
 SELECT * FROM logs;
 
-SELECT *,       MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE) AS score
+SELECT *, MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE) AS score
        FROM logs
-       ORDER BY MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE);
-
+       ORDER BY MATCH(message) AGAINST("Error" IN NATURAL LANGUAGE MODE), message;
 DROP TABLE logs;
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

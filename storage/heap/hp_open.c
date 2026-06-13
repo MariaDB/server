@@ -46,6 +46,19 @@ HP_INFO *heap_open_from_share(HP_SHARE *share, int mode)
   info->mode= mode;
   info->current_record= (ulong) ~0L;		/* No current record */
   info->lastinx= info->errkey= -1;
+  if (share->blob_count && !share->internal)
+  {
+    info->pending_blob_chains=
+      (uchar**) my_malloc(hp_key_memory_HP_BLOB,
+                           share->blob_count * sizeof(uchar*),
+                           MYF(MY_ZEROFILL));
+    if (!info->pending_blob_chains)
+    {
+      share->open_count--;
+      my_free(info);
+      DBUG_RETURN(0);
+    }
+  }
 #ifndef DBUG_OFF
   info->opt_flag= READ_CHECK_USED;		/* Check when changing */
 #endif

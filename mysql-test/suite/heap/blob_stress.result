@@ -1,0 +1,181 @@
+drop table if exists t1, t_verify;
+#
+# Phase 1: Sustained insert/delete/update churn (200 cycles)
+#
+set @save_max_heap= @@max_heap_table_size;
+set max_heap_table_size= 64*1024*1024;
+create table t1 (
+id int not null primary key,
+b1 blob,
+b2 blob,
+v int not null default 0
+) engine=memory;
+create table t_verify (
+id int not null primary key
+) engine=memory;
+create procedure blob_stress(in cycles int)
+begin
+declare i int default 0;
+declare base_id int;
+declare sz1 int;
+declare sz2 int;
+declare del_id int;
+declare heap_cnt int;
+declare verify_cnt int;
+while i < cycles do
+set base_id = i * 5;
+# Vary blob sizes: cycle through Case A (tiny), B (medium), C (large)
+set sz1 = case i % 6
+when 0 then 5 + (i % 15)
+when 1 then 2000 + (i % 10) * 500
+when 2 then 15000 + (i % 7) * 1000
+when 3 then 4000 + (i % 8) * 500
+when 4 then 18000 + (i % 5) * 1000
+else 10 + (i % 10)
+end;
+set sz2 = case (i + 3) % 6
+when 0 then 8 + (i % 12)
+when 1 then 3000 + (i % 9) * 400
+when 2 then 14000 + (i % 6) * 800
+when 3 then 5000 + (i % 11) * 300
+when 4 then 16000 + (i % 4) * 1000
+else 15 + (i % 8)
+end;
+# INSERT 5 rows per iteration with different blob patterns
+insert into t1 values
+(base_id, repeat(char(65 + (i % 26)), sz1),
+repeat(char(97 + (i % 26)), sz2), i);
+insert into t_verify values (base_id);
+insert into t1 values
+(base_id + 1, repeat(char(66 + (i % 26)), sz2), null, i);
+insert into t_verify values (base_id + 1);
+insert into t1 values
+(base_id + 2, null, repeat(char(67 + (i % 26)), sz1), i);
+insert into t_verify values (base_id + 2);
+insert into t1 values
+(base_id + 3, repeat(char(68 + (i % 26)), greatest(sz1, sz2)),
+repeat(char(69 + (i % 26)), least(sz1, sz2)), i);
+insert into t_verify values (base_id + 3);
+insert into t1 values
+(base_id + 4, repeat(char(70 + (i % 26)), sz1 div 2),
+repeat(char(71 + (i % 26)), sz2 div 2), i);
+insert into t_verify values (base_id + 4);
+# DELETE rows from earlier iterations (free-list churn)
+if i >= 3 then
+set del_id = (i - 3) * 5 + (i % 3);
+delete from t1 where id = del_id;
+delete from t_verify where id = del_id;
+set del_id = (i - 2) * 5 + ((i + 1) % 5);
+delete from t1 where id = del_id;
+delete from t_verify where id = del_id;
+end if;
+# UPDATE: grow small blobs to large, shrink large to small,
+# update non-blob column (blob chains must survive)
+if i >= 2 then
+update t1 set b1 = repeat(char(72 + (i % 26)), 20000 + (i % 3) * 2000)
+where id = (i - 2) * 5 and b1 is not null;
+update t1 set b2 = repeat(char(73 + (i % 26)), 8 + (i % 10))
+where id = (i - 2) * 5 + 3;
+update t1 set v = v + 100 where id = (i - 1) * 5 + 1;
+# NULL -> non-NULL: update rows that had NULL b2 to have data
+update t1 set b2 = repeat(char(74 + (i % 26)), 3000 + (i % 5) * 500)
+where id = (i - 2) * 5 + 2 and b2 is null;
+# non-NULL -> NULL: set b1 to NULL for some rows
+update t1 set b1 = null
+where id = (i - 1) * 5 + 3 and b1 is not null;
+end if;
+# Inline integrity check every 50 iterations
+if i % 50 = 49 then
+set heap_cnt = (select count(*) from t1);
+set verify_cnt = (select count(*) from t_verify);
+if heap_cnt != verify_cnt then
+signal sqlstate '45000'
+          set message_text = 'Row count mismatch during stress';
+end if;
+end if;
+set i = i + 1;
+end while;
+end |
+# Phase 1 verification
+# (HEAP does not support CHECK TABLE)
+select (select count(*) from t1) = (select count(*) from t_verify)
+as row_counts_match;
+row_counts_match
+1
+select count(*) as missing_from_heap
+from t_verify where id not in (select id from t1);
+missing_from_heap
+0
+select count(*) as extra_in_heap
+from t1 where id not in (select id from t_verify);
+extra_in_heap
+0
+select count(*) as corrupted_b1 from t1
+where b1 is not null and length(b1) > 0
+and b1 != repeat(left(b1, 1), length(b1));
+corrupted_b1
+0
+select count(*) as corrupted_b2 from t1
+where b2 is not null and length(b2) > 0
+and b2 != repeat(left(b2, 1), length(b2));
+corrupted_b2
+0
+drop procedure blob_stress;
+drop table t1, t_verify;
+set max_heap_table_size= @save_max_heap;
+#
+# Phase 2: Near-capacity stress with fragmentation recovery
+#
+set @save_max_heap= @@max_heap_table_size;
+set max_heap_table_size= 2*1024*1024;
+create table t1 (
+id int not null primary key,
+b blob
+) engine=memory;
+select count(*) as rows_after_fill from t1;
+rows_after_fill
+100
+select count(*) as rows_after_fragment from t1;
+rows_after_fragment
+66
+# Phase 2 verification after fragmented reinsert
+# (HEAP does not support CHECK TABLE)
+select count(*) as corrupted from t1
+where b is not null and length(b) > 0
+and b != repeat(left(b, 1), length(b));
+corrupted
+0
+delete from t1;
+# Phase 2 verification after full-delete reinsert
+# (HEAP does not support CHECK TABLE)
+select count(*) as final_rows from t1;
+final_rows
+80
+select count(*) as corrupted from t1
+where b is not null and length(b) > 0
+and b != repeat(left(b, 1), length(b));
+corrupted
+0
+drop table t1;
+set max_heap_table_size= @save_max_heap;
+#
+# Phase 3: Repeated UPDATE grow/shrink cycles
+#
+set @save_max_heap= @@max_heap_table_size;
+set max_heap_table_size= 2*1024*1024;
+create table t1 (
+id int not null primary key,
+b longblob
+) engine=memory;
+# Phase 3 verification
+# (HEAP does not support CHECK TABLE)
+select count(*) as row_count from t1;
+row_count
+50
+select count(*) as corrupted from t1
+where b is not null and length(b) > 0
+and b != repeat(left(b, 1), length(b));
+corrupted
+0
+drop table t1;
+set max_heap_table_size= @save_max_heap;

@@ -1,0 +1,155 @@
+include/master-slave.inc
+[connection master]
+#
+# Test 1: HEAP blob replication with PRIMARY KEY
+#
+CREATE TABLE t (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+a TEXT,
+b TEXT,
+c INT
+) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'','',0);
+UPDATE t SET a = 'foo';
+DELETE FROM t;
+connection slave;
+# Verify slave is consistent
+SELECT * FROM t;
+pk	a	b	c
+connection master;
+DROP TABLE t;
+connection slave;
+#
+# Test 2: HEAP blob replication without PRIMARY KEY
+#
+connection master;
+CREATE TABLE t2 (
+a TEXT,
+b TEXT,
+c INT
+) ENGINE=HEAP;
+INSERT INTO t2 VALUES ('','',0);
+UPDATE t2 SET a = 'foo';
+DELETE FROM t2;
+connection slave;
+# Verify slave is consistent
+SELECT * FROM t2;
+a	b	c
+connection master;
+DROP TABLE t2;
+#
+# Test 3: MDEV-39782 -- UPDATE on HEAP blob with non-empty data
+#
+# heap_update() was freeing old blob chains immediately via
+# hp_free_run_chain(), but binlog_log_row() reads the before-image
+# after update_row() returns. The zero-copy pointers in the old
+# record dangled into freed HP_BLOCK records, corrupting the
+# binlog event. The slave then failed to find the row.
+#
+connection master;
+CREATE TABLE t3 (a BLOB) ENGINE=HEAP;
+INSERT INTO t3 VALUES (0);
+UPDATE t3 SET a = 1;
+INSERT INTO t3 VALUES ('hello world');
+UPDATE t3 SET a = 'goodbye' WHERE a = 'hello world';
+INSERT INTO t3 VALUES (REPEAT('x', 1000));
+UPDATE t3 SET a = REPEAT('y', 2000);
+connection slave;
+# Verify slave is consistent
+SELECT LENGTH(a), LEFT(a, 20) FROM t3;
+LENGTH(a)	LEFT(a, 20)
+2000	yyyyyyyyyyyyyyyyyyyy
+2000	yyyyyyyyyyyyyyyyyyyy
+2000	yyyyyyyyyyyyyyyyyyyy
+connection master;
+SELECT LENGTH(a), LEFT(a, 20) FROM t3;
+LENGTH(a)	LEFT(a, 20)
+2000	yyyyyyyyyyyyyyyyyyyy
+2000	yyyyyyyyyyyyyyyyyyyy
+2000	yyyyyyyyyyyyyyyyyyyy
+DROP TABLE t3;
+connection slave;
+#
+# Test 4: UPDATE with multiple blob columns changing independently
+#
+connection master;
+CREATE TABLE t4 (a TEXT, b BLOB, c INT) ENGINE=HEAP;
+INSERT INTO t4 VALUES ('alpha', 'beta', 1);
+UPDATE t4 SET a = 'gamma';
+UPDATE t4 SET b = 'delta';
+UPDATE t4 SET a = 'epsilon', b = 'zeta', c = 2;
+connection slave;
+# Verify slave is consistent
+SELECT * FROM t4;
+a	b	c
+epsilon	zeta	2
+connection master;
+DROP TABLE t4;
+connection slave;
+#
+# Test 5: UPDATE blob to/from NULL
+#
+connection master;
+CREATE TABLE t5 (a BLOB) ENGINE=HEAP;
+INSERT INTO t5 VALUES ('data');
+UPDATE t5 SET a = NULL;
+UPDATE t5 SET a = 'restored';
+connection slave;
+# Verify slave is consistent
+SELECT * FROM t5;
+a
+restored
+connection master;
+DROP TABLE t5;
+#
+# Test 6: REPLACE with blob -- self-referencing and cross-table
+#
+# REPLACE deletes the conflicting row (deferred blob free) then
+# inserts the new row.  The insert must materialize the blob data
+# before flushing the deferred free, and the materialized buffer
+# must stay valid for binlog_log_row() after heap_write() returns.
+#
+connection master;
+CREATE TABLE t6 (
+pk INT PRIMARY KEY,
+b TEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=HEAP;
+INSERT INTO t6 VALUES (1, REPEAT('x', 561), 'foo');
+REPLACE INTO t6 SELECT * FROM t6;
+connection slave;
+# Verify slave has correct blob data after self-REPLACE
+SELECT pk, LENGTH(b), b = REPEAT('x', 561) AS blob_ok, c FROM t6;
+pk	LENGTH(b)	blob_ok	c
+1	561	1	foo
+connection master;
+SELECT pk, LENGTH(b), b = REPEAT('x', 561) AS blob_ok, c FROM t6;
+pk	LENGTH(b)	blob_ok	c
+1	561	1	foo
+# REPLACE with new value via VALUES
+REPLACE INTO t6 VALUES (1, REPEAT('y', 800), 'foo');
+connection slave;
+SELECT pk, LENGTH(b), b = REPEAT('y', 800) AS blob_ok, c FROM t6;
+pk	LENGTH(b)	blob_ok	c
+1	800	1	foo
+connection master;
+# REPLACE with multiple blob columns
+CREATE TABLE t7 (
+pk INT PRIMARY KEY,
+b1 TEXT,
+b2 MEDIUMTEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=HEAP;
+INSERT INTO t7 VALUES (1, REPEAT('a', 400), REPEAT('b', 800), 'bar');
+REPLACE INTO t7 SELECT * FROM t7;
+connection slave;
+SELECT pk, LENGTH(b1), b1 = REPEAT('a', 400) AS b1_ok,
+LENGTH(b2), b2 = REPEAT('b', 800) AS b2_ok, c FROM t7;
+pk	LENGTH(b1)	b1_ok	LENGTH(b2)	b2_ok	c
+1	400	1	800	1	bar
+connection master;
+DROP TABLE t6, t7;
+connection slave;
+include/rpl_end.inc

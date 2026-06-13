@@ -49,6 +49,8 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
       }
     }
     memcpy(record,info->current_ptr,(size_t) share->reclength);
+    if (share->blob_count && hp_read_blobs(info, record, info->current_ptr))
+      DBUG_RETURN(my_errno);
     DBUG_RETURN(0);
   }
   info->update=0;

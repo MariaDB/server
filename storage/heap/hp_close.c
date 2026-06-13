@@ -39,7 +39,13 @@ int hp_close(register HP_INFO *info)
   if (info->open_list.data)
     heap_open_list=list_delete(heap_open_list,&info->open_list);
   if (!--info->s->open_count && info->s->delete_on_close)
+  {
+    hp_flush_pending_blob_free(info);
     hp_free(info->s);				/* Table was deleted */
+  }
+  my_free(info->pending_blob_chains);
+  my_free(info->blob_buff);
+  my_free(info->key_blob_buff);
   my_free(info);
   DBUG_RETURN(error);
 }

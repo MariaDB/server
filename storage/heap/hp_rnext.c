@@ -92,7 +92,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
     }
     if (pos)
     {
-      info->lastkey_len= keyinfo->get_key_length(keyinfo, pos);
+      info->lastkey_len= (*keyinfo->get_key_length)(keyinfo, pos);
       if ((keyinfo->flag & (HA_NOSAME | HA_NULL_PART_KEY)) != HA_NOSAME)
         memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
       memcpy(&pos, pos + info->lastkey_len, sizeof(uchar*));
@@ -129,6 +129,8 @@ int heap_rnext(HP_INFO *info, uchar *record)
     DBUG_RETURN(my_errno);
   }
   memcpy(record,pos,(size_t) share->reclength);
+  if (share->blob_count && hp_read_blobs(info, record, pos))
+    DBUG_RETURN(my_errno);
   info->update=HA_STATE_AKTIV | HA_STATE_NEXT_FOUND;
   DBUG_RETURN(0);
 }
