@@ -21,9 +21,9 @@
 #include "my_global.h"
 #include "sql_list.h"
 #include "table.h"
-//#include "json_lib.h"
 
 class Item_subselect;
+
 /***************************************************************************
  * Part 1: APIs for recording Optimizer Context.
  ***************************************************************************/
@@ -77,11 +77,12 @@ public:
 
   void record_subquery_exec(Item_subselect *subq);
 
+  bool dump_sql_script(THD* thd, String &sql_script);
+
   bool has_records();
   table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
-
-  List<int> subquery_runs;
 private:
+  List<int> subquery_runs;
   void record_table_row(TABLE *tbl, int row_index);
   MEM_ROOT *mem_root;
   /*
