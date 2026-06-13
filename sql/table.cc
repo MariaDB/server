@@ -1519,10 +1519,8 @@ void TABLE_SHARE::set_ignored_indexes()
 {
   KEY *keyinfo= key_info;
   for (uint i= 0; i < keys; i++, keyinfo++)
-  {
     if (keyinfo->is_ignored)
       ignored_indexes.set_bit(i);
-  }
 }
 
 
