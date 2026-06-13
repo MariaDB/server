@@ -300,10 +300,12 @@ CREATE TABLE t1 (b BIT);
 INSERT INTO t1 (b) VALUES (1), (0);
 --enable_metadata
 --disable_view_protocol
+--disable_cursor_protocol
 --replace_column 1 #
 SELECT DISTINCT b FROM t1;
 --replace_column 1 #
 SELECT b FROM t1 GROUP BY b;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 DROP TABLE t1;

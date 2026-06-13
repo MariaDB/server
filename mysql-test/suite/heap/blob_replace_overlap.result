@@ -1,0 +1,87 @@
+#
+# REPLACE into HEAP table with blobs must preserve blob data integrity.
+#
+# When REPLACE deletes a row whose blob is stored in HP_BLOCK (zero-copy),
+# the freed continuation records may be reused by the subsequent insert.
+# The blob source data and write destination then overlap, so the copy
+# must handle overlapping ranges correctly.
+#
+#
+# Single blob column, self-referencing REPLACE
+#
+CREATE TABLE t (
+pk INT PRIMARY KEY,
+b TEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=HEAP CHARACTER SET latin1;
+INSERT INTO t VALUES (1, REPEAT('x', 561), 'foo');
+REPLACE INTO t SELECT * FROM t;
+SELECT pk, LENGTH(b), b = REPEAT('x', 561) AS blob_ok, c FROM t;
+pk	LENGTH(b)	blob_ok	c
+1	561	1	foo
+DROP TABLE t;
+#
+# Multiple blob columns, different sizes
+#
+CREATE TABLE t2 (
+pk INT PRIMARY KEY,
+b1 TEXT,
+b2 MEDIUMTEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=HEAP CHARACTER SET latin1;
+INSERT INTO t2 VALUES (1, REPEAT('a', 400), REPEAT('b', 800), 'bar');
+REPLACE INTO t2 SELECT * FROM t2;
+SELECT pk, LENGTH(b1), b1 = REPEAT('a', 400) AS b1_ok,
+LENGTH(b2), b2 = REPEAT('b', 800) AS b2_ok, c FROM t2;
+pk	LENGTH(b1)	b1_ok	LENGTH(b2)	b2_ok	c
+1	400	1	800	1	bar
+DROP TABLE t2;
+#
+# Blob sizes exercising different storage paths:
+# single-record run, multi-record run, bulk inner-record copy
+#
+CREATE TABLE t3 (
+pk INT PRIMARY KEY,
+b TEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=HEAP CHARACTER SET latin1;
+# Small blob (single-record run)
+INSERT INTO t3 VALUES (1, REPEAT('s', 10), 'k1');
+REPLACE INTO t3 SELECT * FROM t3;
+SELECT pk, LENGTH(b), b = REPEAT('s', 10) AS blob_ok, c FROM t3;
+pk	LENGTH(b)	blob_ok	c
+1	10	1	k1
+DELETE FROM t3;
+# Medium blob (few continuation records)
+INSERT INTO t3 VALUES (1, REPEAT('m', 200), 'k2');
+REPLACE INTO t3 SELECT * FROM t3;
+SELECT pk, LENGTH(b), b = REPEAT('m', 200) AS blob_ok, c FROM t3;
+pk	LENGTH(b)	blob_ok	c
+1	200	1	k2
+DELETE FROM t3;
+# Large blob (many continuation records with bulk copy)
+INSERT INTO t3 VALUES (1, REPEAT('L', 2000), 'k3');
+REPLACE INTO t3 SELECT * FROM t3;
+SELECT pk, LENGTH(b), b = REPEAT('L', 2000) AS blob_ok, c FROM t3;
+pk	LENGTH(b)	blob_ok	c
+1	2000	1	k3
+DROP TABLE t3;
+#
+# INSERT ON DUPLICATE KEY UPDATE with blob (update path, no delete+insert)
+#
+CREATE TABLE t4 (
+pk INT PRIMARY KEY,
+b TEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=HEAP CHARACTER SET latin1;
+INSERT INTO t4 VALUES (1, REPEAT('z', 561), 'dup');
+INSERT INTO t4 VALUES (1, REPEAT('z', 561), 'dup')
+ON DUPLICATE KEY UPDATE b = VALUES(b);
+SELECT pk, LENGTH(b), b = REPEAT('z', 561) AS blob_ok, c FROM t4;
+pk	LENGTH(b)	blob_ok	c
+1	561	1	dup
+DROP TABLE t4;

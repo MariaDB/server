@@ -1,0 +1,131 @@
+#
+# MDEV-38975: Overflow-to-Aria on UPDATE path for GROUP BY temp tables
+#
+# When ha_update_tmp_row() fails with HA_ERR_RECORD_FILE_FULL on a
+# HEAP temp table (blob aggregate grows during UPDATE), the server
+# should transparently convert to Aria and retry the update, just
+# as the INSERT path already does.
+#
+# MAX(TEXT) with monotonically growing values triggers this: each
+# update stores a longer blob via result_field->store(), and
+# heap_update()'s write-before-free strategy requires old + new
+# continuation chains to coexist briefly, exhausting capacity.
+#
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+#
+# Test 1: MAX(TEXT) overflow during end_update()
+#
+# 3 groups x 50 interleaved rows. val = REPEAT('a', seq * 200).
+# Since seq grows, each group's MAX increases on every update.
+# The HEAP temp table (32KB, recbuffer=16, ~2048 records) overflows
+# when per-group blob chains reach ~500 records (~8KB each).
+#
+SET max_heap_table_size = 32768;
+SET tmp_table_size = 32768;
+CREATE TABLE t1 (grp INT, val TEXT);
+INSERT INTO t1 SELECT (seq % 3) + 1, REPEAT('a', seq * 200)
+FROM seq_1_to_150;
+FLUSH STATUS;
+# Should overflow during UPDATE and convert HEAP->Aria transparently
+SELECT grp, LENGTH(MAX(val)) AS max_len
+FROM t1 GROUP BY grp ORDER BY grp;
+grp	max_len
+1	30000
+2	29600
+3	29800
+# Verify HEAP->Aria conversion happened
+SHOW STATUS LIKE 'Created_tmp_%';
+Variable_name	Value
+Created_tmp_disk_tables	1
+Created_tmp_files	0
+Created_tmp_tables	2
+DROP TABLE t1;
+#
+# Test 2: Verify result correctness after overflow
+#
+# Same data but also check the actual MAX content, not just length.
+#
+CREATE TABLE t1 (grp INT, val TEXT);
+INSERT INTO t1 SELECT (seq % 3) + 1, REPEAT('a', seq * 200)
+FROM seq_1_to_150;
+# Group 1 gets seq=3,6,...,150 -> MAX is REPEAT('a', 30000)
+# Group 2 gets seq=1,4,...,148 -> MAX is REPEAT('a', 29600)
+# Group 3 gets seq=2,5,...,149 -> MAX is REPEAT('a', 29800)
+FLUSH STATUS;
+SELECT grp,
+LENGTH(MAX(val)) AS max_len,
+LEFT(MAX(val), 5) AS prefix,
+RIGHT(MAX(val), 5) AS suffix
+FROM t1 GROUP BY grp ORDER BY grp;
+grp	max_len	prefix	suffix
+1	30000	aaaaa	aaaaa
+2	29600	aaaaa	aaaaa
+3	29800	aaaaa	aaaaa
+SHOW STATUS LIKE 'Created_tmp_%';
+Variable_name	Value
+Created_tmp_disk_tables	1
+Created_tmp_files	0
+Created_tmp_tables	2
+DROP TABLE t1;
+#
+# Test 3: Multiple blob aggregates (two MAX columns)
+#
+CREATE TABLE t1 (grp INT, v1 TEXT, v2 TEXT);
+INSERT INTO t1 SELECT (seq % 3) + 1,
+REPEAT('x', seq * 200),
+REPEAT('y', seq * 150)
+FROM seq_1_to_150;
+FLUSH STATUS;
+SELECT grp,
+LENGTH(MAX(v1)) AS max1_len,
+LENGTH(MAX(v2)) AS max2_len
+FROM t1 GROUP BY grp ORDER BY grp;
+grp	max1_len	max2_len
+1	30000	22500
+2	29600	22200
+3	29800	22350
+SHOW STATUS LIKE 'Created_tmp_%';
+Variable_name	Value
+Created_tmp_disk_tables	1
+Created_tmp_files	0
+Created_tmp_tables	2
+DROP TABLE t1;
+#
+# Test 4: MIN(TEXT) with monotonically shrinking minimum
+#
+# Rows with decreasing-length values for MIN. Since shorter
+# all-'a' strings are "less than" longer ones under PAD SPACE,
+# MIN keeps getting replaced with shorter values. The blob
+# doesn't grow, but the churn of rewriting chains can cause
+# overflow when combined with other groups' large blobs.
+# (MIN shrinks blobs, so this primarily tests that the conversion
+# path works even when some groups have small blobs.)
+#
+CREATE TABLE t1 (grp INT, val TEXT);
+# Mix growing and fixed-size values
+INSERT INTO t1 SELECT (seq % 3) + 1,
+CASE WHEN seq % 2 = 0 THEN REPEAT('b', seq * 200)
+ELSE REPEAT('a', 50)
+END
+FROM seq_1_to_150;
+FLUSH STATUS;
+SELECT grp,
+LENGTH(MAX(val)) AS max_len,
+LENGTH(MIN(val)) AS min_len
+FROM t1 GROUP BY grp ORDER BY grp;
+grp	max_len	min_len
+1	30000	50
+2	29600	50
+3	29200	50
+SHOW STATUS LIKE 'Created_tmp_%';
+Variable_name	Value
+Created_tmp_disk_tables	1
+Created_tmp_files	0
+Created_tmp_tables	2
+DROP TABLE t1;
+#
+# Cleanup
+#
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

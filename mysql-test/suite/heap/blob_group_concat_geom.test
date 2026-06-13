@@ -1,0 +1,71 @@
+--source include/have_geometry.inc
+
+#
+# GROUP_CONCAT with geometry expressions on HEAP temp tables.
+#
+# Field_geom::store() asserts !table->blob_storage, but GROUP_CONCAT
+# with ORDER BY or DISTINCT sets blob_storage on its internal temp table.
+# Geometry expressions (IF, CASE, COALESCE, etc.) go through the type
+# handler field creation path which must downgrade Field_geom to plain
+# Field_blob, matching the downgrade already done for direct field
+# references in Field_blob::make_new_field().
+#
+
+--echo #
+--echo # Geometry expression in GROUP_CONCAT with ORDER BY
+--echo #
+CREATE TABLE t (f GEOMETRY);
+INSERT INTO t VALUES (POINT(1,1)), (POINT(2,2));
+SELECT LENGTH(GROUP_CONCAT(IF(TRUE, f, POINT(0,0)) ORDER BY 1)) > 0 AS ok FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # Geometry expression in GROUP_CONCAT with DISTINCT
+--echo #
+CREATE TABLE t (f GEOMETRY);
+INSERT INTO t VALUES (POINT(1,1)), (POINT(1,1)), (POINT(2,2));
+SELECT LENGTH(GROUP_CONCAT(DISTINCT COALESCE(f, POINT(0,0)))) > 0 AS ok FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # CASE expression returning geometry in GROUP_CONCAT
+--echo #
+CREATE TABLE t (id INT, f GEOMETRY);
+INSERT INTO t VALUES (1, POINT(1,1)), (2, POINT(2,2));
+SELECT LENGTH(GROUP_CONCAT(CASE WHEN id > 0 THEN f ELSE POINT(0,0) END ORDER BY id)) > 0 AS ok FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # Multiple geometry expressions in GROUP_CONCAT
+--echo #
+CREATE TABLE t (f1 GEOMETRY, f2 GEOMETRY);
+INSERT INTO t VALUES (POINT(1,1), POINT(3,3)), (POINT(2,2), POINT(4,4));
+SELECT LENGTH(GROUP_CONCAT(IF(TRUE, f1, POINT(0,0)), IF(TRUE, f2, POINT(0,0)) ORDER BY 1)) > 0 AS ok FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # User variable assignment with geometry in GROUP_CONCAT
+--echo # Item_func_set_user_var::create_tmp_field_ex() calls
+--echo # create_tmp_field_ex_from_handler() directly with type_handler(),
+--echo # bypassing type_handler_for_tmp_table().
+--echo #
+CREATE TABLE t (f GEOMETRY);
+INSERT INTO t VALUES (POINT(1,1)), (POINT(2,2));
+SELECT LENGTH(GROUP_CONCAT(@g := f ORDER BY f)) > 0 AS ok FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # DEFAULT(geom) with expression default in GROUP_CONCAT
+--echo # Item_default_value::create_tmp_field_ex() has its own blob path
+--echo # via tmp_table_field_from_field_type() that also needs the downgrade.
+--echo #
+CREATE TABLE t (
+  id INT NOT NULL,
+  x DOUBLE NOT NULL DEFAULT 0,
+  g GEOMETRY DEFAULT (ST_GeomFromText(CONCAT('POINT(', x, ' 0)')))
+) ENGINE=MyISAM;
+INSERT INTO t VALUES (1, 10, ST_GeomFromText('POINT(1 1)'));
+INSERT INTO t VALUES (1, 20, ST_GeomFromText('POINT(2 2)'));
+INSERT INTO t VALUES (2, 30, ST_GeomFromText('POINT(3 3)'));
+SELECT id, LENGTH(GROUP_CONCAT(DEFAULT(g) ORDER BY id)) > 0 AS ok FROM t GROUP BY id;
+DROP TABLE t;

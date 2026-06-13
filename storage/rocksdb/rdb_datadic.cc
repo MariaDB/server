@@ -3301,7 +3301,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
         m_max_image_len =
           key_length + (field->charset()->number == COLLATION_BINARY
                               ? reinterpret_cast<const Field_blob *>(field)
-                                    ->pack_length_no_ptr()
+                                    ->length_size()
                               : 0);
         // Return false because indexes on text/blob will always require
         // a prefix. With a prefix, the optimizer will not be able to do an

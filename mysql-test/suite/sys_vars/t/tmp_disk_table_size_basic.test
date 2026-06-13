@@ -201,6 +201,7 @@ SELECT tmp_disk_table_size = @@session.tmp_disk_table_size;
 --echo #
 
 SET @@tmp_disk_table_size=16384;
+set @@tmp_memory_table_size=16384;
 CREATE VIEW v AS SELECT 'a';
 
 --error ER_RECORD_FILE_FULL

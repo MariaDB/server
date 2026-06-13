@@ -133,7 +133,7 @@ SELECT THREAD_ID,
   SQL_TEXT
 FROM performance_schema.events_statements_history_long s
 WHERE ((s.thread_id = @con1_thread_id) OR (@all_threads = 1))
-ORDER BY thread_id, r_event_id;
+ORDER BY thread_id, r_event_id, r_end_event_id;
 
 --echo #
 --echo ### Clear statement and transaction history

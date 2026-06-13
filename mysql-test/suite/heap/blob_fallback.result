@@ -1,0 +1,57 @@
+drop table if exists t1;
+#
+# Setup: constrained MEMORY table with blob column
+#
+set @save_max_heap_table_size=@@max_heap_table_size;
+set max_heap_table_size=1*1024*1024;
+create table t1 (a int not null, b blob, hash char(64), primary key(a)) engine=memory;
+#
+# Fill table with short-blob rows to consume capacity
+#
+select count(*) as total_rows from t1;
+total_rows
+500
+#
+# Delete every other row to create fragmentation
+#
+select count(*) as rows_after_delete from t1;
+rows_after_delete
+250
+#
+# Insert new rows with blobs -- exercises free-list scavenge
+#
+set @b1= concat(repeat('ABCD', 50));
+set @b2= concat(repeat('EFGH', 125));
+set @b3= concat(repeat('IJ', 25));
+insert into t1 values (10000, @b1, sha2(@b1, 256));
+insert into t1 values (10001, @b2, sha2(@b2, 256));
+insert into t1 values (10002, @b3, sha2(@b3, 256));
+#
+# Verify data integrity
+#
+select a, length(b) as blob_len, left(b, 5) as prefix from t1
+where a >= 10000 order by a;
+a	blob_len	prefix
+10000	200	ABCDA
+10001	500	EFGHE
+10002	50	IJIJI
+select a, sha2(b, 256) = hash as intact from t1 where a=10000;
+a	intact
+10000	1
+select a, sha2(b, 256) = hash as intact from t1 where a=10001;
+a	intact
+10001	1
+select a, sha2(b, 256) = hash as intact from t1 where a=10002;
+a	intact
+10002	1
+#
+# Verify scan still works correctly
+#
+select count(*) as scan_count from t1;
+scan_count
+253
+#
+# Cleanup
+#
+drop table t1;
+set max_heap_table_size=@save_max_heap_table_size;

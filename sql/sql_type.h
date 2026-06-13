@@ -105,6 +105,7 @@ class sp_type_def;
 class sp_head;
 class sp_instr;
 class my_var;
+class Tmp_field_param;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -3984,7 +3985,8 @@ public:
                                              THD *thd,
                                              const Log_event_data_type &type);
   static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
-  static const Type_handler *blob_type_handler(uint max_octet_length);
+  static const Type_handler *blob_type_handler(uint max_octet_length,
+                                               const Tmp_field_param *param);
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *bit_and_int_mixture_handler(uint max_char_len);
   static const Type_handler *type_handler_long_or_longlong(uint max_char_len,
@@ -3996,8 +3998,11 @@ public:
     If max_length == 0 create a CHAR(0)
     @param item - the Item to get the handler to.
   */
-  static const Type_handler *varstring_type_handler(const Item *item);
-  static const Type_handler *blob_type_handler(const Item *item);
+  static const Type_handler
+  *varstring_type_handler(const Item *item, const Tmp_field_param *param);
+  static const Type_handler *blob_type_handler(const Item *item,
+                                               const Tmp_field_param *param);
+  static const Type_handler *blob_key_type_handler();
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
   static const Type_collection *
@@ -4175,11 +4180,9 @@ public:
   {
     return this;
   }
-  virtual const Type_handler *type_handler_for_tmp_table(const Item *) const
-  {
-    return this;
-  }
-  virtual const Type_handler *type_handler_for_union(const Item *) const
+  virtual const Type_handler
+  *type_handler_for_tmp_table(const Item *,
+                              const Tmp_field_param *param) const
   {
     return this;
   }
@@ -4457,11 +4460,26 @@ public:
                                   const Record_addr &addr,
                                   const Type_all_attributes &attr,
                                   TABLE_SHARE *share) const= 0;
+  virtual Field *make_table_field_ex(MEM_ROOT *root,
+                                     const LEX_CSTRING *name,
+                                     const Record_addr &addr,
+                                     const Type_all_attributes &attr,
+                                     const Tmp_field_param *param,
+                                     TABLE_SHARE *share) const
+  {
+    return make_table_field(root, name, addr, attr, share);
+  }
   Field *make_and_init_table_field(MEM_ROOT *root,
                                    const LEX_CSTRING *name,
                                    const Record_addr &addr,
                                    const Type_all_attributes &attr,
                                    TABLE *table) const;
+  Field *make_and_init_table_field_ex(MEM_ROOT *root,
+                                      const LEX_CSTRING *name,
+                                      const Record_addr &addr,
+                                      const Type_all_attributes &attr,
+                                      const Tmp_field_param *param,
+                                      TABLE *table) const;
   virtual Field *make_schema_field(MEM_ROOT *root,
                                    TABLE *table,
                                    const Record_addr &addr,
@@ -7180,8 +7198,9 @@ public:
   enum_field_types field_type() const override { return MYSQL_TYPE_DECIMAL; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length; }
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const override;
-  const Type_handler *type_handler_for_union(const Item *item) const override;
+  const Type_handler
+  *type_handler_for_tmp_table(const Item *item,
+                              const Tmp_field_param *param) const override;
   void show_binlog_type(const Conv_source &src, const Field &, String *str)
     const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
@@ -7259,8 +7278,9 @@ public:
     return DYN_COL_NULL;
   }
   const Type_handler *type_handler_for_comparison() const override;
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const override;
-  const Type_handler *type_handler_for_union(const Item *) const override;
+  const Type_handler *type_handler_for_tmp_table(const Item *item,
+                                                 const Tmp_field_param *param)
+    const override;
   uint32 max_display_length(const Item *item) const override { return 0; }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   {
@@ -7367,10 +7387,11 @@ public:
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length; }
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const
-    override
+  const Type_handler *type_handler_for_tmp_table(const Item *item,
+                                                 const Tmp_field_param *param)
+    const override
   {
-    return varstring_type_handler(item);
+    return varstring_type_handler(item, param);
   }
   bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
     const override
@@ -7419,9 +7440,11 @@ public:
     return MYSQL_TYPE_VARCHAR;
   }
   const Type_handler *type_handler_for_implicit_upgrade() const override;
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const override
+  const Type_handler *type_handler_for_tmp_table(const Item *item,
+                                                 const Tmp_field_param *param)
+    const override
   {
-    return varstring_type_handler(item);
+    return varstring_type_handler(item, param);
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
@@ -7430,10 +7453,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_STRING); }
-  const Type_handler *type_handler_for_union(const Item *item) const override
-  {
-    return varstring_type_handler(item);
-  }
 };
 
 
@@ -7457,14 +7476,11 @@ public:
   {
     return (length + (length < 256 ? 1: 2));
   }
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const
-    override
+  const Type_handler *type_handler_for_tmp_table(const Item *item,
+                                                 const Tmp_field_param *param)
+    const override
   {
-    return varstring_type_handler(item);
-  }
-  const Type_handler *type_handler_for_union(const Item *item) const override
-  {
-    return varstring_type_handler(item);
+    return varstring_type_handler(item, param);
   }
   bool is_param_long_data_type() const override { return true; }
   bool partition_field_check(const LEX_CSTRING &, Item *item_expr)
@@ -7580,15 +7596,9 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const
-    override
-  {
-    return blob_type_handler(item);
-  }
-  const Type_handler *type_handler_for_union(const Item *item) const override
-  {
-    return blob_type_handler(item);
-  }
+  const Type_handler *type_handler_for_tmp_table(const Item *item,
+                                                 const Tmp_field_param *param)
+    const override;
   bool subquery_type_allows_materialization(const Item *, const Item *, bool)
     const override
   {
@@ -7643,6 +7653,12 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+  Field *make_table_field_ex(MEM_ROOT *root,
+                             const LEX_CSTRING *name,
+                             const Record_addr &addr,
+                             const Type_all_attributes &attr,
+                             const Tmp_field_param *param,
+                             TABLE_SHARE *share) const override;
   const Vers_type_handler *vers() const override;
 };
 
@@ -7698,6 +7714,18 @@ public:
                           const Type_all_attributes &attr,
                           TABLE_SHARE *share) const override;
   uint max_octet_length() const override { return UINT_MAX32; }
+};
+
+
+class Type_handler_blob_key: public Type_handler_long_blob
+{
+public:
+  virtual ~Type_handler_blob_key() = default;
+  Field *make_table_field(MEM_ROOT *root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE_SHARE *share) const override;
 };
 
 
@@ -8056,6 +8084,7 @@ extern Named_type_handler<Type_handler_hex_hybrid>  type_handler_hex_hybrid;
 extern Named_type_handler<Type_handler_tiny_blob>   type_handler_tiny_blob;
 extern Named_type_handler<Type_handler_medium_blob> type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_blob>   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_blob_key>   type_handler_blob_key;
 extern Named_type_handler<Type_handler_blob>        type_handler_blob;
 extern Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed;
 

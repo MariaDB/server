@@ -45,6 +45,12 @@ int heap_extra(register HP_INFO *info, enum ha_extra_function function)
   case HA_EXTRA_CHANGE_KEY_TO_DUP:
     heap_extra_keyflag(info, function);
     break;
+  case HA_EXTRA_WRITE_CAN_REPLACE:
+    info->s->write_can_replace= TRUE;
+    break;
+  case HA_EXTRA_WRITE_CANNOT_REPLACE:
+    info->s->write_can_replace= FALSE;
+    break;
   default:
     break;
   }
@@ -54,11 +60,24 @@ int heap_extra(register HP_INFO *info, enum ha_extra_function function)
 
 int heap_reset(HP_INFO *info)
 {
+  hp_flush_pending_blob_free(info);
   info->lastinx= -1;
   info->current_record= (ulong) ~0L;
   info->current_hash_ptr=0;
   info->update=0;
   info->next_block=0;
+  if (info->blob_buff)
+  {
+    my_free(info->blob_buff);
+    info->blob_buff= NULL;
+    info->blob_buff_len= 0;
+  }
+  if (info->key_blob_buff)
+  {
+    my_free(info->key_blob_buff);
+    info->key_blob_buff= NULL;
+    info->key_blob_buff_len= 0;
+  }
   return 0;
 }
 

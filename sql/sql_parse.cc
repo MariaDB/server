@@ -8111,6 +8111,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->item_ptr= item;
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
+  order->field= 0;
   if (thd->lex->clause_winfuncs.is_empty())
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))

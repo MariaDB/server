@@ -1,0 +1,85 @@
+#
+# MDEV-38975: Free-list scavenge fallback for blob allocation
+#
+# Tests that blob inserts succeed via the Step 3 free-list scavenge
+# fallback when the table is near max_heap_table_size and has a
+# heavily fragmented free list (alternating used/deleted rows).
+#
+# Without the fallback, blob allocation fails with table-full even
+# though free slots exist -- they're just too scattered for normal
+# free-list reuse (Step 1) and the tail is at capacity (Step 2).
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--echo #
+--echo # Setup: constrained MEMORY table with blob column
+--echo #
+set @save_max_heap_table_size=@@max_heap_table_size;
+set max_heap_table_size=1*1024*1024;
+
+create table t1 (a int not null, b blob, hash char(64), primary key(a)) engine=memory;
+
+--echo #
+--echo # Fill table with short-blob rows to consume capacity
+--echo #
+
+--disable_query_log
+--let $i=0
+while ($i < 500)
+{
+  eval insert into t1 values ($i, repeat('x', 100), sha2(repeat('x', 100), 256));
+  --inc $i
+}
+--enable_query_log
+
+select count(*) as total_rows from t1;
+
+--echo #
+--echo # Delete every other row to create fragmentation
+--echo #
+
+--disable_query_log
+--let $i=0
+while ($i < 500)
+{
+  eval delete from t1 where a=$i;
+  --inc $i
+  --inc $i
+}
+--enable_query_log
+
+select count(*) as rows_after_delete from t1;
+
+--echo #
+--echo # Insert new rows with blobs -- exercises free-list scavenge
+--echo #
+set @b1= concat(repeat('ABCD', 50));
+set @b2= concat(repeat('EFGH', 125));
+set @b3= concat(repeat('IJ', 25));
+insert into t1 values (10000, @b1, sha2(@b1, 256));
+insert into t1 values (10001, @b2, sha2(@b2, 256));
+insert into t1 values (10002, @b3, sha2(@b3, 256));
+
+--echo #
+--echo # Verify data integrity
+--echo #
+select a, length(b) as blob_len, left(b, 5) as prefix from t1
+  where a >= 10000 order by a;
+
+select a, sha2(b, 256) = hash as intact from t1 where a=10000;
+select a, sha2(b, 256) = hash as intact from t1 where a=10001;
+select a, sha2(b, 256) = hash as intact from t1 where a=10002;
+
+--echo #
+--echo # Verify scan still works correctly
+--echo #
+select count(*) as scan_count from t1;
+
+--echo #
+--echo # Cleanup
+--echo #
+drop table t1;
+set max_heap_table_size=@save_max_heap_table_size;

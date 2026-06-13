@@ -22,6 +22,7 @@ C_MODE_START
 #include "heap.h"			/* Structs & some defines */
 #include "my_tree.h"
 
+
 /*
   When allocating keys /rows in the internal block structure, do it
   within the following boundaries.
@@ -32,6 +33,123 @@ C_MODE_START
 
 #define HP_MIN_RECORDS_IN_BLOCK 16
 #define HP_MAX_RECORDS_IN_BLOCK 8192
+
+/* Flags stored in the 'visible' byte at end of each record */
+#define HP_ROW_ACTIVE    1   /* Bit 0: record is active (not deleted) */
+#define HP_ROW_HAS_CONT  2   /* Bit 1: primary record has continuation chain(s) */
+#define HP_ROW_IS_CONT   4   /* Bit 2: this record IS a continuation record */
+#define HP_ROW_CONT_ZEROCOPY 8 /* Bit 3: zero-copy layout (data in rec 1..N-1) */
+#define HP_ROW_SINGLE_REC   16 /* Bit 4: single-record run, no header -- data at offset 0 */
+#define HP_ROW_MULTIPLE_REC  32 /* Bit 5: multi-run chain, data needs reassembly */
+
+/*
+  Continuation run header: next_cont pointer + run_rec_count.
+  Stored at the beginning of the first blob segment in each run.
+*/
+#define HP_CONT_REC_COUNT_SIZE sizeof(uint16)
+#define HP_CONT_HEADER_SIZE    (sizeof(uchar*) + HP_CONT_REC_COUNT_SIZE)
+
+/*
+  Row flags byte predicates.
+  The flags byte is at offset 'visible' in each primary or run-header record.
+*/
+
+/* Record is active (not deleted) */
+static inline my_bool hp_is_active(const uchar *rec, uint visible)
+{
+  return (rec[visible] & HP_ROW_ACTIVE) != 0;
+}
+
+/* Primary record that owns blob continuation chain(s) */
+static inline my_bool hp_has_cont(const uchar *rec, uint visible)
+{
+  return (rec[visible] & HP_ROW_HAS_CONT) != 0;
+}
+
+/* This record IS a continuation run header (rec 0 of a run) */
+static inline my_bool hp_is_cont(const uchar *rec, uint visible)
+{
+  return (rec[visible] & HP_ROW_IS_CONT) != 0;
+}
+
+/* Case A: single-record run, no header -- data at offset 0 */
+static inline my_bool hp_is_single_rec(const uchar *rec, uint visible)
+{
+  return (rec[visible] & HP_ROW_SINGLE_REC) != 0;
+}
+
+/* Case B: single run, data in rec 1..N-1 -- zero-copy read */
+static inline my_bool hp_is_zerocopy(const uchar *rec, uint visible)
+{
+  return (rec[visible] & HP_ROW_CONT_ZEROCOPY) != 0;
+}
+
+/* Case C: multi-run chain -- data needs reassembly into blob_buff */
+static inline my_bool hp_is_multi_run(const uchar *rec, uint visible)
+{
+  return (rec[visible] & HP_ROW_MULTIPLE_REC) != 0;
+}
+
+/*
+  Continuation run header accessors.
+  Read next_cont pointer and run_rec_count from the first record of a run.
+*/
+static inline const uchar *hp_cont_next(const uchar *chain)
+{
+  const uchar *next;
+  memcpy(&next, chain, sizeof(uchar*));
+  return next;
+}
+
+static inline uint16 hp_cont_rec_count(const uchar *chain)
+{
+  return uint2korr(chain + sizeof(uchar*));
+}
+
+/*
+  Blob continuation run storage format.
+
+  Case A (HP_ROW_SINGLE_REC):     Single-record run, no header.
+      Data starts at offset 0, full `visible` bytes available for
+      payload.  Detected by hp_is_single_rec().
+      Zero-copy: blob pointer -> chain.
+
+  Case B (HP_ROW_CONT_ZEROCOPY):  Single run, multiple records.
+      Header in rec 0, data contiguous in rec 1..N-1.  Detected by
+      hp_is_zerocopy().
+      Zero-copy: blob pointer -> chain + recbuffer.
+
+  Case C (HP_ROW_MULTIPLE_REC):   One or more runs linked via
+      next_cont.  Header in each run's rec 0, data in rec 0 (after
+      header) + rec 1..N-1.  Detected by hp_is_multi_run().
+      Requires reassembly into blob_buff.
+*/
+
+/*
+  Minimum contiguous run size parameters.
+  Runs smaller than this are not worth scavenging from the
+  delete list because the per-run header overhead (10 bytes)
+  becomes a significant fraction of payload.  Skip them and
+  allocate from the tail instead.
+
+  HP_CONT_MIN_RUN_BYTES: absolute floor for minimum run payload.
+  HP_CONT_RUN_FRACTION_NUM/DEN: minimum run size as a fraction
+    of blob size.
+    min_run_bytes = MAX(blob_length * NUM / DEN,
+                        HP_CONT_MIN_RUN_BYTES)
+*/
+#define HP_CONT_MIN_RUN_BYTES  128
+#define HP_CONT_RUN_FRACTION_NUM  1
+#define HP_CONT_RUN_FRACTION_DEN  10
+
+static inline uint32 hp_blob_min_run_bytes(uint32 blob_length)
+{
+  uint32 length= (blob_length / HP_CONT_RUN_FRACTION_DEN *
+                  HP_CONT_RUN_FRACTION_NUM);
+  set_if_bigger(length, HP_CONT_MIN_RUN_BYTES);
+  set_if_smaller(length, blob_length);
+  return length;
+}
 
 	/* Some extern variables */
 
@@ -81,13 +199,16 @@ extern uchar *hp_search(HP_INFO *info,HP_KEYDEF *keyinfo,const uchar *key,
 		       uint nextflag);
 extern uchar *hp_search_next(HP_INFO *info, HP_KEYDEF *keyinfo,
 			    const uchar *key, HASH_INFO *pos);
-extern ulong hp_rec_hashnr(HP_KEYDEF *keyinfo,const uchar *rec);
+extern ulong hp_rec_hashnr(HP_INFO *info, HP_KEYDEF *keyinfo,const uchar *rec);
 extern void hp_movelink(HASH_INFO *pos,HASH_INFO *next_link,
 			 HASH_INFO *newlink);
 extern int hp_rec_key_cmp(HP_KEYDEF *keydef,const uchar *rec1,
-			  const uchar *rec2);
+			  const uchar *rec2, HP_INFO *info);
 extern int hp_key_cmp(HP_KEYDEF *keydef,const uchar *rec,
-		      const uchar *key);
+		      const uchar *key, HP_INFO *info);
+extern const uchar *hp_materialize_one_blob(HP_INFO *info,
+                                            const uchar *chain,
+                                            uint32 data_len);
 extern void hp_make_key(HP_KEYDEF *keydef,uchar *key,const uchar *rec);
 extern uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
 			   const uchar *rec, uchar *recpos);
@@ -104,12 +225,35 @@ extern ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
                           size_t memory_limit);
 extern size_t hp_memory_needed_per_row(size_t reclength);
 
+extern uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks);
+extern uchar *next_free_record_pos(HP_SHARE *info);
+static inline uint32 hp_blob_length(const HP_BLOB_DESC *desc,
+                                    const uchar *record)
+{
+  return (uint32) read_lowendian(record + desc->offset, desc->packlength);
+}
+extern int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
+                             uint32 data_len, uchar **first_run_out);
+extern int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos);
+extern int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos);
+extern void hp_free_blobs(HP_SHARE *share, uchar *pos);
+extern void hp_free_run_chain(HP_SHARE *share, uchar *chain);
+extern void hp_shrink_tail(HP_SHARE *share);
+extern void hp_flush_pending_blob_free_impl(HP_INFO *info);
+
+static inline void hp_flush_pending_blob_free(HP_INFO *info)
+{
+  if (info->has_pending_blob_free)
+    hp_flush_pending_blob_free_impl(info);
+}
+
 extern mysql_mutex_t THR_LOCK_heap;
 
 extern PSI_memory_key hp_key_memory_HP_SHARE;
 extern PSI_memory_key hp_key_memory_HP_INFO;
 extern PSI_memory_key hp_key_memory_HP_PTRS;
 extern PSI_memory_key hp_key_memory_HP_KEYDEF;
+extern PSI_memory_key hp_key_memory_HP_BLOB;
 
 #ifdef HAVE_PSI_INTERFACE
 void init_heap_psi_keys();
