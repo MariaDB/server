@@ -95,6 +95,10 @@
 #define FTB_LQUOT (ft_boolean_syntax[10])
 #define FTB_RQUOT (ft_boolean_syntax[11])
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct st_maria_ft_word {
   const uchar * pos;
   uint	 len;
@@ -129,28 +133,29 @@ FT_WORD * _ma_ft_parserecord(MARIA_HA *, uint, const uchar *, MEM_ROOT *);
 uint _ma_ft_parse(TREE *, MARIA_HA *, uint, const uchar *,
                   MYSQL_FTPARSER_PARAM *, MEM_ROOT *);
 
-FT_INFO *maria_ft_init_nlq_search(MARIA_HA *, uint, uchar *, uint, uint,
-                                  uchar *);
-FT_INFO *maria_ft_init_boolean_search(MARIA_HA *, uint, uchar *, uint,
-                                      CHARSET_INFO *);
+struct ma_ft_nlq_info;
+struct ma_ft_nlq_info *maria_ft_init_nlq_search(MARIA_HA *, uint, uchar *,
+                                                uint, uint, uchar *);
+int   maria_ft_nlq_read_next(struct ma_ft_nlq_info *, char *);
+float maria_ft_nlq_find_relevance(struct ma_ft_nlq_info *, uchar *, uint);
+void  maria_ft_nlq_close_search(struct ma_ft_nlq_info *);
+float maria_ft_nlq_get_relevance(struct ma_ft_nlq_info *);
+void  maria_ft_nlq_reinit_search(struct ma_ft_nlq_info *);
 
-extern const struct _ft_vft _ma_ft_vft_nlq;
-int maria_ft_nlq_read_next(FT_INFO *, char *);
-float maria_ft_nlq_find_relevance(FT_INFO *, uchar *, uint);
-void maria_ft_nlq_close_search(FT_INFO *);
-float maria_ft_nlq_get_relevance(FT_INFO *);
-my_off_t maria_ft_nlq_get_docid(FT_INFO *);
-void maria_ft_nlq_reinit_search(FT_INFO *);
-
-extern const struct _ft_vft _ma_ft_vft_boolean;
-int maria_ft_boolean_read_next(FT_INFO *, char *);
-float maria_ft_boolean_find_relevance(FT_INFO *, uchar *, uint);
-void maria_ft_boolean_close_search(FT_INFO *);
-float maria_ft_boolean_get_relevance(FT_INFO *);
-my_off_t maria_ft_boolean_get_docid(FT_INFO *);
-void maria_ft_boolean_reinit_search(FT_INFO *);
+struct ma_ft_bool_info;
+struct ma_ft_bool_info *maria_ft_init_boolean_search(MARIA_HA *, uint, uchar *,
+                                                     uint, CHARSET_INFO *);
+int   maria_ft_boolean_read_next(struct ma_ft_bool_info *, char *);
+float maria_ft_boolean_find_relevance(struct ma_ft_bool_info *, uchar *, uint);
+void  maria_ft_boolean_close_search(struct ma_ft_bool_info *);
+float maria_ft_boolean_get_relevance(struct ma_ft_bool_info *);
+void  maria_ft_boolean_reinit_search(struct ma_ft_bool_info *);
 MYSQL_FTPARSER_PARAM* maria_ftparser_alloc_param(MARIA_HA *info);
 extern MYSQL_FTPARSER_PARAM *maria_ftparser_call_initializer(MARIA_HA *info,
                                                              uint keynr,
                                                              uint paramnr);
 extern void maria_ftparser_call_deinitializer(MARIA_HA *info);
+
+#ifdef __cplusplus
+}
+#endif

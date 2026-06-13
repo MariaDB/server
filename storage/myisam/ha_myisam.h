@@ -76,19 +76,8 @@ class ha_myisam final : public handler
   int index_first(uchar * buf) override;
   int index_last(uchar * buf) override;
   int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
-  int ft_init() override
-  {
-    if (!ft_handler)
-      return 1;
-    ft_handler->please->reinit_search(ft_handler);
-    return 0;
-  }
-  FT_INFO *ft_init_ext(uint flags, uint inx,String *key) override
-  {
-    return ft_init_search(flags,file,inx,
-                          (uchar *)key->ptr(), key->length(), key->charset(),
-                          table->record[0]);
-  }
+  int ft_init() override;
+  ft_handler *ft_init_ext(uint flags, uint inx, String *key) override;
   int ft_read(uchar *buf) override;
   int rnd_init(bool scan) override;
   int rnd_next(uchar *buf) override;

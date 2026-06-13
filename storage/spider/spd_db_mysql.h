@@ -1037,13 +1037,13 @@ public:
   );
   int append_match_against_part(
     ulong sql_type,
-    st_spider_ft_info *ft_info,
+    spider_ft_handler *fth,
     const char *alias,
     uint alias_length
   );
   int append_match_against(
     spider_string *str,
-    st_spider_ft_info  *ft_info,
+    spider_ft_handler  *fth,
     const char *alias,
     uint alias_length
   );

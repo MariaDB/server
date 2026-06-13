@@ -192,7 +192,7 @@ enum spider_index_rnd_init {
   SPD_RND
 };
 
-struct st_spider_ft_info;
+struct spider_ft_handler;
 struct st_spider_result;
 typedef struct st_spider_transaction SPIDER_TRX;
 typedef struct st_spider_share SPIDER_SHARE;
@@ -1670,8 +1670,8 @@ typedef struct st_spider_position
   bool                   mrr_with_cnt;
   bool                   direct_aggregate;
   uchar                  *position_bitmap;
-  st_spider_ft_info      *ft_first;
-  st_spider_ft_info      *ft_current;
+  spider_ft_handler      *ft_first;
+  spider_ft_handler      *ft_current;
   my_off_t               tmp_tbl_pos;
   SPIDER_RESULT          *result;
 } SPIDER_POSITION;

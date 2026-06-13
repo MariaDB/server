@@ -16,7 +16,7 @@
 /* Initialize an maria-database */
 
 #include "maria_def.h"
-#include <ft_global.h>
+#include "ma_fulltext.h"
 #include "ma_blockrec.h"
 #include "trnman_public.h"
 #include "ma_checkpoint.h"

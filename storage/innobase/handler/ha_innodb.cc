@@ -423,87 +423,6 @@ const char* innodb_instant_alter_column_allowed_names[] = {
 static TYPELIB innodb_instant_alter_column_allowed_typelib =
 		CREATE_TYPELIB_FOR(innodb_instant_alter_column_allowed_names);
 
-/** Retrieve the FTS Relevance Ranking result for doc with doc_id
-of m_prebuilt->fts_doc_id
-@param[in,out]	fts_hdl	FTS handler
-@return the relevance ranking value */
-static
-float
-innobase_fts_retrieve_ranking(
-	FT_INFO*	fts_hdl);
-/** Free the memory for the FTS handler
-@param[in,out]	fts_hdl	FTS handler */
-static
-void
-innobase_fts_close_ranking(
-	FT_INFO*	fts_hdl);
-/** Find and Retrieve the FTS Relevance Ranking result for doc with doc_id
-of m_prebuilt->fts_doc_id
-@param[in,out]	fts_hdl	FTS handler
-@return the relevance ranking value */
-static
-float
-innobase_fts_find_ranking(
-	FT_INFO*	fts_hdl,
-	uchar*,
-	uint);
-
-/* Call back function array defined by MySQL and used to
-retrieve FTS results. */
-const struct _ft_vft ft_vft_result = {NULL,
-				      innobase_fts_find_ranking,
-				      innobase_fts_close_ranking,
-				      innobase_fts_retrieve_ranking,
-				      NULL};
-
-/** @return version of the extended FTS API */
-static
-uint
-innobase_fts_get_version()
-{
-	/* Currently this doesn't make much sense as returning
-	HA_CAN_FULLTEXT_EXT automatically mean this version is supported.
-	This supposed to ease future extensions.  */
-	return(2);
-}
-
-/** @return Which part of the extended FTS API is supported */
-static
-ulonglong
-innobase_fts_flags()
-{
-	return(FTS_ORDERED_RESULT | FTS_DOCID_IN_RESULT);
-}
-
-/** Find and Retrieve the FTS doc_id for the current result row
-@param[in,out]	fts_hdl	FTS handler
-@return the document ID */
-static
-ulonglong
-innobase_fts_retrieve_docid(
-	FT_INFO_EXT*	fts_hdl);
-
-/** Find and retrieve the size of the current result
-@param[in,out]	fts_hdl	FTS handler
-@return number of matching rows */
-static
-ulonglong
-innobase_fts_count_matches(
-	FT_INFO_EXT*	fts_hdl)	/*!< in: FTS handler */
-{
-	NEW_FT_INFO*	handle = reinterpret_cast<NEW_FT_INFO*>(fts_hdl);
-
-	if (handle->ft_result->rankings_by_id != NULL) {
-		return(rbt_size(handle->ft_result->rankings_by_id));
-	} else {
-		return(0);
-	}
-}
-
-const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
-					      innobase_fts_flags,
-					      innobase_fts_retrieve_docid,
-					      innobase_fts_count_matches};
 
 #ifdef HAVE_PSI_INTERFACE
 # define PSI_KEY(n) {&n##_key, #n, 0}
@@ -9740,7 +9659,7 @@ int ha_innobase::ft_init()
 	}
 
         /* If there is an FTS scan in progress, stop it */
-        fts_result_t* result =  (reinterpret_cast<NEW_FT_INFO*>(ft_handler))->ft_result;
+        fts_result_t* result = static_cast<innobase_ft_handler*>(fth)->ft_result;
         if (result)
                 result->current= NULL;
 
@@ -9749,16 +9668,16 @@ int ha_innobase::ft_init()
 
 /**********************************************************************//**
 Initialize FT index scan
-@return FT_INFO structure if successful or NULL */
+@return ft_handler structure if successful or NULL */
 
-FT_INFO*
+ft_handler*
 ha_innobase::ft_init_ext(
 /*=====================*/
 	uint			flags,	/* in: */
 	uint			keynr,	/* in: */
 	String*			key)	/* in: */
 {
-	NEW_FT_INFO*		fts_hdl = NULL;
+	innobase_ft_handler*	fts_hdl = NULL;
 	dict_index_t*		index;
 	fts_result_t*		result;
 	char			buf_tmp[8192];
@@ -9848,18 +9767,15 @@ ha_innobase::ft_init_ext(
 	}
 
 	/* Allocate FTS handler, and instantiate it before return */
-	fts_hdl = reinterpret_cast<NEW_FT_INFO*>(
-		my_malloc(PSI_INSTRUMENT_ME, sizeof(NEW_FT_INFO), MYF(0)));
+	fts_hdl = new innobase_ft_handler();
 
-	fts_hdl->please = const_cast<_ft_vft*>(&ft_vft_result);
-	fts_hdl->could_you = const_cast<_ft_vft_ext*>(&ft_vft_ext_result);
 	fts_hdl->ft_prebuilt = m_prebuilt;
 	fts_hdl->ft_result = result;
 
 	/* FIXME: Re-evaluate the condition when Bug 14469540 is resolved */
 	m_prebuilt->in_fts_query = true;
 
-	return(reinterpret_cast<FT_INFO*>(fts_hdl));
+	return fts_hdl;
 }
 
 /*****************************************************************//**
@@ -9935,13 +9851,13 @@ ha_innobase::ft_read(
 {
 	row_prebuilt_t*	ft_prebuilt;
 
-	ft_prebuilt = reinterpret_cast<NEW_FT_INFO*>(ft_handler)->ft_prebuilt;
+	ft_prebuilt = static_cast<innobase_ft_handler*>(fth)->ft_prebuilt;
 
 	ut_a(ft_prebuilt == m_prebuilt);
 
 	fts_result_t*	result;
 
-	result = reinterpret_cast<NEW_FT_INFO*>(ft_handler)->ft_result;
+	result = static_cast<innobase_ft_handler*>(fth)->ft_result;
 
 	if (result->current == NULL) {
 		/* This is the case where the FTS query did not
@@ -18830,61 +18746,21 @@ innobase_index_name_is_reserved(
 	return(false);
 }
 
-/** Retrieve the FTS Relevance Ranking result for doc with doc_id
-of m_prebuilt->fts_doc_id
-@param[in,out]	fts_hdl	FTS handler
-@return the relevance ranking value */
-static
-float
-innobase_fts_retrieve_ranking(
-	FT_INFO*	fts_hdl)
+innobase_ft_handler::~innobase_ft_handler()
 {
-	fts_result_t*	result;
-	row_prebuilt_t*	ft_prebuilt;
-
-	result = reinterpret_cast<NEW_FT_INFO*>(fts_hdl)->ft_result;
-
-	ft_prebuilt = reinterpret_cast<NEW_FT_INFO*>(fts_hdl)->ft_prebuilt;
-
-	fts_ranking_t*  ranking = rbt_value(fts_ranking_t, result->current);
-	ft_prebuilt->fts_doc_id= ranking->doc_id;
-
-	return(ranking->rank);
+	fts_query_free_result(ft_result);
 }
 
-/** Free the memory for the FTS handler
-@param[in,out]	fts_hdl	FTS handler */
-static
-void
-innobase_fts_close_ranking(
-	FT_INFO*	fts_hdl)
+float innobase_ft_handler::get_relevance()
 {
-	fts_result_t*	result;
-
-	result = reinterpret_cast<NEW_FT_INFO*>(fts_hdl)->ft_result;
-
-	fts_query_free_result(result);
-
-	my_free((uchar*) fts_hdl);
+	fts_ranking_t *ranking = rbt_value(fts_ranking_t, ft_result->current);
+	ft_prebuilt->fts_doc_id = ranking->doc_id;
+	return ranking->rank;
 }
 
-/** Find and Retrieve the FTS Relevance Ranking result for doc with doc_id
-of m_prebuilt->fts_doc_id
-@param[in,out]	fts_hdl	FTS handler
-@return the relevance ranking value */
-static
-float
-innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
+float innobase_ft_handler::find_relevance(uchar*, uint)
 {
-	fts_result_t*	result;
-	row_prebuilt_t*	ft_prebuilt;
-
-	ft_prebuilt = reinterpret_cast<NEW_FT_INFO*>(fts_hdl)->ft_prebuilt;
-	result = reinterpret_cast<NEW_FT_INFO*>(fts_hdl)->ft_result;
-
-	/* Retrieve the ranking value for doc_id with value of
-	m_prebuilt->fts_doc_id */
-	return(fts_retrieve_ranking(result, ft_prebuilt->fts_doc_id));
+	return fts_retrieve_ranking(ft_result, ft_prebuilt->fts_doc_id);
 }
 
 /** Update a field that is protected by buf_pool.mutex */
@@ -18982,30 +18858,6 @@ innodb_merge_threshold_set_all_debug_update(THD* thd, st_mysql_sys_var*, void*,
 }
 #endif /* UNIV_DEBUG */
 
-/** Find and Retrieve the FTS doc_id for the current result row
-@param[in,out]	fts_hdl	FTS handler
-@return the document ID */
-static
-ulonglong
-innobase_fts_retrieve_docid(
-	FT_INFO_EXT*	fts_hdl)
-{
-	fts_result_t*	result;
-	row_prebuilt_t* ft_prebuilt;
-
-	ft_prebuilt = reinterpret_cast<NEW_FT_INFO *>(fts_hdl)->ft_prebuilt;
-	result = reinterpret_cast<NEW_FT_INFO *>(fts_hdl)->ft_result;
-
-	if (ft_prebuilt->read_just_key) {
-
-		fts_ranking_t* ranking =
-			rbt_value(fts_ranking_t, result->current);
-
-		return(ranking->doc_id);
-	}
-
-	return(ft_prebuilt->fts_doc_id);
-}
 
 /* These variables are never read by InnoDB or changed. They are a kind of
 dummies that are needed by the MySQL infrastructure to call

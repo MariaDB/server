@@ -9831,13 +9831,13 @@ int spider_mbase_handler::append_match_where(
 ) {
   int error_num;
   bool first = TRUE;
-  st_spider_ft_info *ft_info = spider->ft_first;
+  spider_ft_handler *fth = spider->ft_first;
   DBUG_ENTER("spider_mbase_handler::append_match_where");
   if (spider->ft_current)
   {
     while (TRUE)
     {
-      if (ft_info->used_in_where)
+      if (fth->used_in_where)
       {
         if (first)
         {
@@ -9846,16 +9846,16 @@ int spider_mbase_handler::append_match_where(
           str->q_append(SPIDER_SQL_WHERE_STR, SPIDER_SQL_WHERE_LEN);
           first = FALSE;
         }
-        if ((error_num = append_match_against(str, ft_info, NULL, 0)))
+        if ((error_num = append_match_against(str, fth, NULL, 0)))
           DBUG_RETURN(error_num);
         if (str->reserve(SPIDER_SQL_AND_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_AND_STR, SPIDER_SQL_AND_LEN);
       }
 
-      if (ft_info == spider->ft_current)
+      if (fth == spider->ft_current)
         break;
-      ft_info = ft_info->next;
+      fth = fth->next;
     }
     if (!first)
       str->length(str->length() - SPIDER_SQL_AND_LEN);
@@ -10076,7 +10076,7 @@ int spider_mbase_handler::append_condition(
 
 int spider_mbase_handler::append_match_against_part(
   ulong sql_type,
-  st_spider_ft_info *ft_info,
+  spider_ft_handler *fth,
   const char *alias,
   uint alias_length
 ) {
@@ -10092,13 +10092,13 @@ int spider_mbase_handler::append_match_against_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = append_match_against(str, ft_info, alias, alias_length);
+  error_num = append_match_against(str, fth, alias, alias_length);
   DBUG_RETURN(error_num);
 }
 
 int spider_mbase_handler::append_match_against(
   spider_string *str,
-  st_spider_ft_info  *ft_info,
+  spider_ft_handler  *fth,
   const char *alias,
   uint alias_length
 ) {
@@ -10116,8 +10116,8 @@ int spider_mbase_handler::append_match_against(
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_MATCH_STR, SPIDER_SQL_MATCH_LEN);
 
-  ft_init_key = ft_info->key;
-  key_info = &table->key_info[ft_info->inx];
+  ft_init_key = fth->key;
+  key_info = &table->key_info[fth->inx];
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
 
@@ -10166,16 +10166,16 @@ int spider_mbase_handler::append_match_against(
 
   if (str->reserve(
     SPIDER_SQL_VALUE_QUOTE_LEN + SPIDER_SQL_CLOSE_PAREN_LEN +
-    ((ft_info->flags & FT_BOOL) ? SPIDER_SQL_IN_BOOLEAN_MODE_LEN : 0) +
-    ((ft_info->flags & FT_EXPAND) ?
+    ((fth->flags & FT_BOOL) ? SPIDER_SQL_IN_BOOLEAN_MODE_LEN : 0) +
+    ((fth->flags & FT_EXPAND) ?
       SPIDER_SQL_WITH_QUERY_EXPANSION_LEN : 0)
   ))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  if (ft_info->flags & FT_BOOL)
+  if (fth->flags & FT_BOOL)
     str->q_append(SPIDER_SQL_IN_BOOLEAN_MODE_STR,
       SPIDER_SQL_IN_BOOLEAN_MODE_LEN);
-  if (ft_info->flags & FT_EXPAND)
+  if (fth->flags & FT_EXPAND)
     str->q_append(SPIDER_SQL_WITH_QUERY_EXPANSION_STR,
       SPIDER_SQL_WITH_QUERY_EXPANSION_LEN);
   str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
@@ -10213,18 +10213,18 @@ int spider_mbase_handler::append_match_select(
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider->ft_current)
   {
-    st_spider_ft_info *ft_info = spider->ft_first;
+    spider_ft_handler *fth = spider->ft_first;
     while (TRUE)
     {
-      if ((error_num = append_match_against(str, ft_info,
+      if ((error_num = append_match_against(str, fth,
         alias, alias_length)))
         DBUG_RETURN(error_num);
       if (str->reserve(SPIDER_SQL_COMMA_LEN))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-      if (ft_info == spider->ft_current)
+      if (fth == spider->ft_current)
         break;
-      ft_info = ft_info->next;
+      fth = fth->next;
     }
   }
   DBUG_RETURN(0);

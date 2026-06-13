@@ -167,7 +167,7 @@ public:
 
 	int ft_init() override;
 	void ft_end() override { rnd_end(); }
-	FT_INFO *ft_init_ext(uint flags, uint inx, String* key) override;
+	ft_handler *ft_init_ext(uint flags, uint inx, String* key) override;
 	int ft_read(uchar* buf) override;
 
 	void position(const uchar *record) override;
@@ -565,16 +565,15 @@ extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **
 
 struct trx_t;
 
-extern const struct _ft_vft ft_vft_result;
-
 /** Structure Returned by ha_innobase::ft_init_ext() */
-typedef struct new_ft_info
+struct innobase_ft_handler : public ft_handler
 {
-	struct _ft_vft		*please;
-	struct _ft_vft_ext	*could_you;
 	row_prebuilt_t*		ft_prebuilt;
 	fts_result_t*		ft_result;
-} NEW_FT_INFO;
+	~innobase_ft_handler() override;
+	float find_relevance(uchar*, uint) override;
+	float get_relevance() override;
+};
 
 /**
 Allocates an InnoDB transaction for a MySQL handler object.

@@ -32,10 +32,9 @@
   }
 
 class ha_spider;
-struct st_spider_ft_info
+struct spider_ft_handler : public ft_handler
 {
-  struct _ft_vft *please;
-  st_spider_ft_info *next;
+  spider_ft_handler *next;
   ha_spider *file;
   uint target;
   bool used_in_where;
@@ -43,6 +42,10 @@ struct st_spider_ft_info
   uint flags;
   uint inx;
   String *key;
+  ~spider_ft_handler() override;
+  static void operator delete(void *ptr);
+  float find_relevance(uchar *record, uint length) override;
+  float get_relevance() override;
 };
 
 class ha_spider final : public handler
@@ -199,8 +202,8 @@ public:
   uint               ft_init_idx;
   uint               ft_count;
   bool               ft_init_without_index_init;
-  st_spider_ft_info  *ft_first;
-  st_spider_ft_info  *ft_current;
+  spider_ft_handler  *ft_first;
+  spider_ft_handler  *ft_current;
 
   /* for dbton */
   spider_db_handler  **dbton_handler;
@@ -343,7 +346,7 @@ public:
   ) override;
   int ft_init() override;
   void ft_end() override;
-  FT_INFO *ft_init_ext(
+  ft_handler *ft_init_ext(
     uint flags,
     uint inx,
     String *key

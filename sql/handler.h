@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1139,6 +1139,13 @@ struct handlerton;
 
 #define view_pseudo_hton ((handlerton *)1)
 
+class ft_handler
+{
+public:
+  virtual float find_relevance(uchar *record, uint length)= 0;
+  virtual float get_relevance()= 0;
+  virtual ~ft_handler() {}
+};
 /*
   Definitions for engine-specific table/field/index options in the CREATE TABLE.
 
@@ -3492,7 +3499,7 @@ public:
 
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
-  FT_INFO *ft_handler;
+  ft_handler *fth;
   enum init_stat { NONE=0, INDEX, RND };
   init_stat inited, pre_inited;
 
@@ -3658,7 +3665,7 @@ public:
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
-    ft_handler(0), inited(NONE), pre_inited(NONE),
+    fth(0), inited(NONE), pre_inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
     tracker(NULL),
     pushed_idx_cond(NULL),
@@ -4508,7 +4515,7 @@ public:
   virtual int pre_ft_init() { return HA_ERR_WRONG_COMMAND; }
   virtual void ft_end() {}
   virtual int pre_ft_end() { return 0; }
-  virtual FT_INFO *ft_init_ext(uint flags, uint inx,String *key)
+  virtual ft_handler *ft_init_ext(uint flags, uint inx,String *key)
     { return NULL; }
 public:
   virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
@@ -4538,7 +4545,7 @@ public:
 
   /* Same as above, but with statistics */
   inline int ha_ft_read(uchar *buf);
-  inline void ha_ft_end() { ft_end(); ft_handler=NULL; }
+  inline void ha_ft_end() { ft_end(); fth=NULL; }
   int ha_rnd_next(uchar *buf);
   int ha_rnd_pos(uchar *buf, uchar *pos);
   inline int ha_rnd_pos_by_record(uchar *buf);

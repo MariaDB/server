@@ -25,6 +25,7 @@
 #include "ha_maria.h"
 #include "trnman_public.h"
 #include "trnman.h"
+#include "ma_ftdefs.h"
 
 C_MODE_START
 #include "maria_def.h"
@@ -45,6 +46,33 @@ C_MODE_END
 #include "mysql/plugin.h"
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
+
+struct ma_ft_handler_base : public ft_handler {
+  virtual int  ft_read(char *buf)= 0;
+  virtual void ft_reinit()= 0;
+};
+
+struct ma_nlq_ft_handler final : public ma_ft_handler_base {
+  ma_ft_nlq_info *m_ctx;
+  explicit ma_nlq_ft_handler(ma_ft_nlq_info *c) : m_ctx(c) {}
+  ~ma_nlq_ft_handler() override            { maria_ft_nlq_close_search(m_ctx); }
+  float find_relevance(uchar *r, uint l) override
+    { return maria_ft_nlq_find_relevance(m_ctx, r, l); }
+  float get_relevance() override         { return maria_ft_nlq_get_relevance(m_ctx); }
+  int   ft_read(char *buf) override      { return maria_ft_nlq_read_next(m_ctx, buf); }
+  void  ft_reinit() override             { maria_ft_nlq_reinit_search(m_ctx); }
+};
+
+struct ma_bool_ft_handler final : public ma_ft_handler_base {
+  ma_ft_bool_info *m_ctx;
+  explicit ma_bool_ft_handler(ma_ft_bool_info *c) : m_ctx(c) {}
+  ~ma_bool_ft_handler() override            { maria_ft_boolean_close_search(m_ctx); }
+  float find_relevance(uchar *r, uint l) override
+    { return maria_ft_boolean_find_relevance(m_ctx, r, l); }
+  float get_relevance() override         { return maria_ft_boolean_get_relevance(m_ctx); }
+  int   ft_read(char *buf) override      { return maria_ft_boolean_read_next(m_ctx, buf); }
+  void  ft_reinit() override             { maria_ft_boolean_reinit_search(m_ctx); }
+};
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -3552,11 +3580,28 @@ ha_rows ha_maria::records_in_range(uint inx, const key_range *min_key,
 }
 
 
-FT_INFO *ha_maria::ft_init_ext(uint flags, uint inx, String * key)
+int ha_maria::ft_init()
 {
-  return maria_ft_init_search(flags, file, inx,
-                              (uchar *) key->ptr(), key->length(),
-                              key->charset(), table->record[0]);
+  if (!fth)
+    return 1;
+  static_cast<ma_ft_handler_base*>(fth)->ft_reinit();
+  return 0;
+}
+
+ft_handler *ha_maria::ft_init_ext(uint flags, uint inx, String * key)
+{
+  if (flags & FT_BOOL)
+  {
+    ma_ft_bool_info *c= maria_ft_init_boolean_search(file, inx,
+                                                     (uchar*)key->ptr(),
+                                                     key->length(),
+                                                     key->charset());
+    return c ? new ma_bool_ft_handler(c) : nullptr;
+  }
+  ma_ft_nlq_info *c= maria_ft_init_nlq_search(file, inx, (uchar*)key->ptr(),
+                                               key->length(), flags,
+                                               table->record[0]);
+  return c ? new ma_nlq_ft_handler(c) : nullptr;
 }
 
 
@@ -3564,7 +3609,7 @@ int ha_maria::ft_read(uchar * buf)
 {
   int error;
 
-  if (!ft_handler)
+  if (!fth)
     return -1;
 
   register_handler(file);
@@ -3572,7 +3617,7 @@ int ha_maria::ft_read(uchar * buf)
   thread_safe_increment(table->in_use->status_var.ha_read_next_count,
                         &LOCK_status);  // why ?
 
-  error= ft_handler->please->read_next(ft_handler, (char*) buf);
+  error= static_cast<ma_ft_handler_base*>(fth)->ft_read((char*) buf);
 
   return error;
 }
