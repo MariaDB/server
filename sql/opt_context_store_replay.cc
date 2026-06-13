@@ -327,19 +327,13 @@ void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
   }
 }
 
-static void dump_recorded_table_calls(THD *thd, uchar *tbl_name,
-                                      size_t tbl_name_len,
-                                      Json_writer *ctx_writer)
+void Optimizer_context_recorder::dump_recorded_table_calls(
+    table_context_for_store *tbl,
+    Json_writer *writer)
 {
-  table_context_for_store *table_context=
-      thd->opt_ctx_recorder->search(tbl_name, tbl_name_len);
-
-  if (!table_context)
-    return;
-
-  dump_mrr_info_calls(&table_context->mrr_list, ctx_writer);
-  dump_index_read_calls(&table_context->irc_list, ctx_writer);
-  dump_records_in_range_calls(&table_context->rir_list, ctx_writer);
+  dump_mrr_info_calls(&tbl->mrr_list, writer);
+  dump_index_read_calls(&tbl->irc_list, writer);
+  dump_records_in_range_calls(&tbl->rir_list, writer);
 }
 
 /*
@@ -350,10 +344,11 @@ static void dump_recorded_table_calls(THD *thd, uchar *tbl_name,
   3. range stats on the indexes
   4. cost of reading indexes
 */
-static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
-                             size_t tbl_name_len,
-                             Json_writer_object &ctx_wrapper,
-                             Json_writer *ctx_writer)
+void Optimizer_context_recorder::dump_table_stats(
+    TABLE_LIST *tbl, uchar *tbl_name,
+    size_t tbl_name_len,
+    Json_writer_object &ctx_wrapper,
+    Json_writer *ctx_writer)
 {
   TABLE *table= tbl->table;
   ha_rows records= table->stat_records();
@@ -381,7 +376,6 @@ static void dump_table_stats(THD *thd, TABLE_LIST *tbl, uchar *tbl_name,
     rpk_wrapper.end();
   }
   indexes_wrapper.end();
-  dump_recorded_table_calls(thd, tbl_name, tbl_name_len, ctx_writer);
 }
 
 static void get_create_view_stmt(THD *thd, TABLE_LIST *table, String *name,
@@ -774,6 +768,7 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
       break;
     }
 
+    /* Add CREATE TABLE|VIEW statement */
     if (tbl->is_view())
     {
       StringBuffer<64> drop;
@@ -801,43 +796,55 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
     qry_ctx_script.append(ddl);
     qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
 
-    if (!tbl->is_view())
+    /* If this is a VIEW, we've stored its DDL and we're done. */
+    if (tbl->is_view())
+      continue;
+
+    /* No, it's a base table */
+    Json_writer_object ctx_wrapper(&ctx_writer);
+
+    /* Write basic table statistics */
+    dump_table_stats(tbl, (uchar*)tbl_name_key->str, tbl_name_key->length,
+                     ctx_wrapper, &ctx_writer);
+
+    /* Find the table in the captured context */
+    table_context_for_store *table_context=
+      search((uchar *) tbl_name_key->str, tbl_name_key->length);
+
+    if (table_context)
     {
-      Json_writer_object ctx_wrapper(&ctx_writer);
-      table_context_for_store *table_context=
-        search((uchar *) tbl_name_key->str, tbl_name_key->length);
-      if (table_context)
+      dump_recorded_table_calls(table_context, &ctx_writer);
+
+      List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
+      while (char *stmt= inserts_li++)
       {
-        List_iterator inserts_li(table_context->const_tbl_ins_stmt_list);
-        while (char *stmt= inserts_li++)
-        {
-          qry_ctx_script.append(stmt, strlen(stmt));
-          qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
-        }
+        qry_ctx_script.append(stmt, strlen(stmt));
+        qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
       }
-      dump_table_stats(thd, tbl, (uchar *) tbl_name_key->str,
-                       tbl_name_key->length, ctx_wrapper, &ctx_writer);
     }
 
-    if (is_base_table(tbl))
+    /*
+      Dump the engine's cost settings into the SET statements for
+      system variables.
+    */
+    handlerton *hton= tbl->table->file->partition_ht();
+    const LEX_CSTRING *engine_name= hton_name(hton);
+    if (!my_hash_search(&used_storage_engines, (uchar *) engine_name->str,
+                        engine_name->length))
     {
-      handlerton *hton= tbl->table->file->partition_ht();
-      const LEX_CSTRING *engine_name= hton_name(hton);
-      if (!my_hash_search(&used_storage_engines, (uchar *) engine_name->str,
-                          engine_name->length))
+      if (my_hash_insert(&used_storage_engines, (uchar *) engine_name))
       {
-        if (my_hash_insert(&used_storage_engines, (uchar *) engine_name))
-        {
-          res= true; // OOM
-          break;
-        }
-        store_optimizer_costs(engine_name->str,
-                              (OPTIMIZER_COSTS *) hton->optimizer_costs,
-                              sys_vars_script);
+        res= true; // OOM
+        break;
       }
+      store_optimizer_costs(engine_name->str,
+                            (OPTIMIZER_COSTS *) hton->optimizer_costs,
+                            sys_vars_script);
     }
   }
   context_list.end();
+  if (res)
+    goto end;
 
   if (subquery_runs.elements)
   {
@@ -848,7 +855,7 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
       subq_runs_arr.add(num);
   }
   context.end();
-  
+
   if (res)
     goto end;
 
