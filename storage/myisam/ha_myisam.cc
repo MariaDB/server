@@ -18,7 +18,7 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "sql_plugin.h"
-#include "myisamdef.h"
+#include "ftdefs.h"
 #include "sql_priv.h"
 #include "key.h"                                // key_copy
 #include <m_ctype.h>
@@ -29,6 +29,33 @@
 #include "sql_class.h"                          // THD
 #include "debug_sync.h"
 #include "sql_debug.h"
+
+struct mi_ft_handler_base : public ft_handler {
+  virtual int  ft_read(char *buf)= 0;
+  virtual void ft_reinit()= 0;
+};
+
+struct mi_nlq_ft_handler final : public mi_ft_handler_base {
+  ft_nlq_info *m_ctx;
+  explicit mi_nlq_ft_handler(ft_nlq_info *c) : m_ctx(c) {}
+  ~mi_nlq_ft_handler() override           { ft_nlq_close_search(m_ctx); }
+  float find_relevance(uchar *r, uint l) override
+    { return ft_nlq_find_relevance(m_ctx, r, l); }
+  float get_relevance() override        { return ft_nlq_get_relevance(m_ctx); }
+  int   ft_read(char *buf) override     { return ft_nlq_read_next(m_ctx, buf); }
+  void  ft_reinit() override            { ft_nlq_reinit_search(m_ctx); }
+};
+
+struct mi_bool_ft_handler final : public mi_ft_handler_base {
+  ft_bool_info *m_ctx;
+  explicit mi_bool_ft_handler(ft_bool_info *c) : m_ctx(c) {}
+  ~mi_bool_ft_handler() override           { ft_boolean_close_search(m_ctx); }
+  float find_relevance(uchar *r, uint l) override
+    { return ft_boolean_find_relevance(m_ctx, r, l); }
+  float get_relevance() override        { return ft_boolean_get_relevance(m_ctx); }
+  int   ft_read(char *buf) override     { return ft_boolean_read_next(m_ctx, buf); }
+  void  ft_reinit() override            { ft_boolean_reinit_search(m_ctx); }
+};
 
 ulonglong myisam_recover_options;
 static ulong opt_myisam_block_size;
@@ -2423,17 +2450,38 @@ ha_rows ha_myisam::records_in_range(uint inx, const key_range *min_key,
 }
 
 
+int ha_myisam::ft_init()
+{
+  if (!fth)
+    return 1;
+  static_cast<mi_ft_handler_base*>(fth)->ft_reinit();
+  return 0;
+}
+
+ft_handler *ha_myisam::ft_init_ext(uint flags, uint inx, String *key)
+{
+  if (flags & FT_BOOL)
+  {
+    ft_bool_info *c= ft_init_boolean_search(file, inx, (uchar*)key->ptr(),
+                                            key->length(), key->charset());
+    return c ? new mi_bool_ft_handler(c) : nullptr;
+  }
+  ft_nlq_info *c= ft_init_nlq_search(file, inx, (uchar*)key->ptr(),
+                                     key->length(), flags, table->record[0]);
+  return c ? new mi_nlq_ft_handler(c) : nullptr;
+}
+
 int ha_myisam::ft_read(uchar *buf)
 {
   int error;
 
-  if (!ft_handler)
+  if (!fth)
     return -1;
 
   thread_safe_increment(table->in_use->status_var.ha_read_next_count,
 			&LOCK_status); // why ?
 
-  error=ft_handler->please->read_next(ft_handler,(char*) buf);
+  error= static_cast<mi_ft_handler_base*>(fth)->ft_read((char*) buf);
   return error;
 }
 

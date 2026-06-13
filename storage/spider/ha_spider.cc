@@ -68,7 +68,7 @@ void ha_spider::init_fields()
   pushed_pos = NULL;
   pt_clone_source_handler = NULL;
   pt_clone_last_searcher = NULL;
-  ft_handler = NULL;
+  fth = NULL;
   ft_first = NULL;
   ft_current = NULL;
   ft_count = 0;
@@ -532,15 +532,8 @@ int ha_spider::close()
       conns[roop_count] = NULL;
   }
 
-  if (ft_first)
-  {
-    st_spider_ft_info *tmp_ft_info;
-    do {
-      tmp_ft_info = ft_first->next;
-      spider_free(spider_current_trx, ft_first, MYF(0));
-      ft_first = tmp_ft_info;
-    } while (ft_first);
-  }
+  while (ft_first)
+    delete ft_first;
 
   spider_db_free_result(this, TRUE);
   if (conn_keys)
@@ -1067,7 +1060,7 @@ int ha_spider::reset()
     multi_range_keys = NULL;
   }
   multi_range_num = 0;
-  ft_handler = NULL;
+  fth = NULL;
   ft_current = NULL;
   ft_count = 0;
   ft_init_without_index_init = FALSE;
@@ -4569,42 +4562,45 @@ int ha_spider::cmp_ref(
   DBUG_RETURN(ret);
 }
 
-float spider_ft_find_relevance(
-  FT_INFO *handler,
-  uchar *record,
-  uint length
-) {
-  DBUG_ENTER("spider_ft_find_relevance");
-  st_spider_ft_info *info = (st_spider_ft_info*) handler;
-  DBUG_PRINT("info",("spider info=%p", info));
-  DBUG_PRINT("info",("spider score=%f", info->score));
-  DBUG_RETURN(info->score);
+spider_ft_handler::~spider_ft_handler()
+{
+  if (file->ft_first == this)
+    file->ft_first = next;
+  else
+  {
+    for (spider_ft_handler *p= file->ft_first; p; p= p->next)
+    {
+      if (p->next == this)
+      {
+        p->next= next;
+        break;
+      }
+    }
+  }
+  if (file->ft_current == this)
+    file->ft_current= nullptr;
 }
 
-float spider_ft_get_relevance(
-  FT_INFO *handler
-) {
-  DBUG_ENTER("spider_ft_get_relevance");
-  st_spider_ft_info *info = (st_spider_ft_info*) handler;
-  DBUG_PRINT("info",("spider info=%p", info));
-  DBUG_PRINT("info",("spider score=%f", info->score));
-  DBUG_RETURN(info->score);
+void spider_ft_handler::operator delete(void *ptr)
+{
+  spider_free(spider_current_trx, ptr, MYF(0));
 }
 
-void spider_ft_close_search(
-  FT_INFO *handler
-) {
-  DBUG_ENTER("spider_ft_close_search");
-  DBUG_VOID_RETURN;
+float spider_ft_handler::find_relevance(uchar *record, uint length)
+{
+  DBUG_ENTER("spider_ft_handler::find_relevance");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider score=%f", score));
+  DBUG_RETURN(score);
 }
 
-_ft_vft spider_ft_vft = {
-  NULL, // spider_ft_read_next
-  spider_ft_find_relevance,
-  spider_ft_close_search,
-  spider_ft_get_relevance,
-  NULL // spider_ft_reinit_search
-};
+float spider_ft_handler::get_relevance()
+{
+  DBUG_ENTER("spider_ft_handler::get_relevance");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider score=%f", score));
+  DBUG_RETURN(score);
+}
 
 int ha_spider::ft_init()
 {
@@ -4615,22 +4611,22 @@ int ha_spider::ft_init()
     DBUG_RETURN(store_error_num);
   if (active_index == MAX_KEY && inited == NONE)
   {
-    st_spider_ft_info  *ft_info = ft_first;
+    spider_ft_handler  *fth = ft_first;
     ft_init_without_index_init = TRUE;
     ft_init_idx = MAX_KEY;
     while (TRUE)
     {
-      if (ft_info->used_in_where)
+      if (fth->used_in_where)
       {
-        ft_init_idx = ft_info->inx;
+        ft_init_idx = fth->inx;
         if ((error_num = index_init(ft_init_idx, FALSE)))
           DBUG_RETURN(error_num);
         active_index = MAX_KEY;
         break;
       }
-      if (ft_info == ft_current)
+      if (fth == ft_current)
         break;
-      ft_info = ft_info->next;
+      fth = fth->next;
     }
     if (ft_init_idx == MAX_KEY)
     {
@@ -4663,12 +4659,12 @@ void ha_spider::ft_end()
   DBUG_VOID_RETURN;
 }
 
-FT_INFO *ha_spider::ft_init_ext(
+ft_handler *ha_spider::ft_init_ext(
   uint flags,
   uint inx,
   String *key
 ) {
-  st_spider_ft_info *tmp_ft_info;
+  spider_ft_handler *tmp_fth;
   backup_error_status();
   DBUG_ENTER("ha_spider::ft_init_ext");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -4681,7 +4677,7 @@ FT_INFO *ha_spider::ft_init_ext(
     DBUG_RETURN(NULL);
   }
 
-  tmp_ft_info = ft_current;
+  tmp_fth = ft_current;
   if (ft_current)
     ft_current = ft_current->next;
   else {
@@ -4691,20 +4687,20 @@ FT_INFO *ha_spider::ft_init_ext(
 
   if (!ft_current)
   {
-    if (!(ft_current = (st_spider_ft_info *)
-      spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_FT_INIT_EXT_1, sizeof(st_spider_ft_info),
-        MYF(MY_WME | MY_ZEROFILL))))
+    void *mem= spider_malloc(spider_current_trx, SPD_MID_HA_SPIDER_FT_INIT_EXT_1,
+                             sizeof(spider_ft_handler), MYF(MY_WME | MY_ZEROFILL));
+    if (!mem)
     {
       my_error(HA_ERR_OUT_OF_MEM, MYF(0));
       DBUG_RETURN(NULL);
     }
-    if (tmp_ft_info)
-      tmp_ft_info->next = ft_current;
+    ft_current= new(mem) spider_ft_handler;
+    if (tmp_fth)
+      tmp_fth->next = ft_current;
     else
       ft_first = ft_current;
   }
 
-  ft_current->please = &spider_ft_vft;
   ft_current->file = this;
   ft_current->used_in_where = (flags & FT_SORTED);
   ft_current->target = ft_count;
@@ -4713,7 +4709,7 @@ FT_INFO *ha_spider::ft_init_ext(
   ft_current->key = key;
 
   ft_count++;
-  DBUG_RETURN((FT_INFO *) ft_current);
+  DBUG_RETURN(ft_current);
 }
 
 int ha_spider::ft_read_internal(

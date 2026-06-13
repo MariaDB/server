@@ -3943,7 +3943,7 @@ public:
   uint key, match_flags;
   bool join_key;
   DTCollation cmp_collation;
-  FT_INFO *ft_handler;
+  ft_handler *fth;
   TABLE *table;
   Item_func_match *master;   // for master-slave optimization
   Item *concat_ws;           // Item_func_concat_ws
@@ -3951,15 +3951,15 @@ public:
   String search_value;       // key_item()'s value converted to cmp_collation
 
   Item_func_match(THD *thd, List<Item> &a, uint b):
-    Item_real_func(thd, a), key(0), match_flags(b), join_key(0), ft_handler(0),
+    Item_real_func(thd, a), key(0), match_flags(b), join_key(0), fth(0),
     table(0), master(0), concat_ws(0) { }
   void cleanup() override
   {
     DBUG_ENTER("Item_func_match::cleanup");
     Item_real_func::cleanup();
-    if (!master && ft_handler)
-      ft_handler->please->close_search(ft_handler);
-    ft_handler= 0;
+    if (!master && fth)
+      delete fth;
+    fth= 0;
     concat_ws= 0;
     table= 0;           // required by Item_func_match::eq()
     DBUG_VOID_RETURN;
@@ -3999,17 +3999,8 @@ protected:
   Item *deep_copy(THD *thd) const override { return nullptr; }
 private:
   /**
-     Check whether storage engine for given table, 
+     Check whether storage engine for given table,
      allows FTS Boolean search on non-indexed columns.
-
-     @todo A flag should be added to the extended fulltext API so that 
-           it may be checked whether search on non-indexed columns are 
-           supported. Currently, it is not possible to check for such a 
-           flag since @c this->ft_handler is not yet set when this function is 
-           called.  The current hack is to assume that search on non-indexed
-           columns are supported for engines that does not support the extended
-           fulltext API (e.g., MyISAM), while it is not supported for other 
-           engines (e.g., InnoDB)
 
      @param table_arg Table for which storage engine to check
 

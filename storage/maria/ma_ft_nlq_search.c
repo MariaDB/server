@@ -15,7 +15,6 @@
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
-#define FT_CORE
 #include "ma_ftdefs.h"
 
 /* search with natural language queries */
@@ -26,9 +25,8 @@ typedef struct ft_doc_rec
   double    weight;
 } FT_DOC;
 
-struct st_ft_info
+struct ma_ft_nlq_info
 {
-  struct _ft_vft *please;
   MARIA_HA  *info;
   int       ndocs;
   int       curdoc;
@@ -227,13 +225,14 @@ static int FT_DOC_cmp(void *unused __attribute__((unused)),
 }
 
 
-FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
-                                  uint query_len, uint flags, uchar *record)
+struct ma_ft_nlq_info *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr,
+                                               uchar *query, uint query_len,
+                                               uint flags, uchar *record)
 {
-  TREE	      wtree;
-  ALL_IN_ONE  aio;
-  FT_DOC     *dptr;
-  FT_INFO    *dlist=NULL;
+  TREE	               wtree;
+  ALL_IN_ONE           aio;
+  FT_DOC              *dptr;
+  struct ma_ft_nlq_info *dlist=NULL;
   MARIA_RECORD_POS saved_lastpos= info->cur_row.lastpos;
   struct st_mysql_ftparser *parser;
   MYSQL_FTPARSER_PARAM *ftparser_param;
@@ -299,17 +298,17 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
   }
 
   /*
-    If ndocs == 0, this will not allocate RAM for FT_INFO.doc[],
-    so if ndocs == 0, FT_INFO.doc[] must not be accessed.
+    If ndocs == 0, this will not allocate RAM for ma_ft_nlq_info.doc[],
+    so if ndocs == 0, ma_ft_nlq_info.doc[] must not be accessed.
    */
-  dlist=(FT_INFO *)my_malloc(PSI_INSTRUMENT_ME, sizeof(FT_INFO)+
-			     sizeof(FT_DOC)*
-			     (int)(aio.dtree.elements_in_tree-1),
-			     MYF(0));
+  dlist=(struct ma_ft_nlq_info *)my_malloc(PSI_INSTRUMENT_ME,
+                                           sizeof(struct ma_ft_nlq_info)+
+                                           sizeof(FT_DOC)*
+                                           (int)(aio.dtree.elements_in_tree-1),
+                                           MYF(0));
   if (!dlist)
     goto err;
 
-  dlist->please= (struct _ft_vft *) & _ma_ft_vft_nlq;
   dlist->ndocs=aio.dtree.elements_in_tree;
   dlist->curdoc=-1;
   dlist->info=aio.info;
@@ -329,9 +328,9 @@ err:
 }
 
 
-int maria_ft_nlq_read_next(FT_INFO *handler, char *record)
+int maria_ft_nlq_read_next(struct ma_ft_nlq_info *handler, char *record)
 {
-  MARIA_HA *info= (MARIA_HA *) handler->info;
+  MARIA_HA *info= handler->info;
 
   if (++handler->curdoc >= handler->ndocs)
   {
@@ -351,7 +350,7 @@ int maria_ft_nlq_read_next(FT_INFO *handler, char *record)
 }
 
 
-float maria_ft_nlq_find_relevance(FT_INFO *handler,
+float maria_ft_nlq_find_relevance(struct ma_ft_nlq_info *handler,
 			    uchar *record __attribute__((unused)),
 			    uint length __attribute__((unused)))
 {
@@ -379,19 +378,19 @@ float maria_ft_nlq_find_relevance(FT_INFO *handler,
 }
 
 
-void maria_ft_nlq_close_search(FT_INFO *handler)
+void maria_ft_nlq_close_search(struct ma_ft_nlq_info *handler)
 {
   my_free(handler);
 }
 
 
-float maria_ft_nlq_get_relevance(FT_INFO *handler)
+float maria_ft_nlq_get_relevance(struct ma_ft_nlq_info *handler)
 {
   return (float) handler->doc[handler->curdoc].weight;
 }
 
 
-void maria_ft_nlq_reinit_search(FT_INFO *handler)
+void maria_ft_nlq_reinit_search(struct ma_ft_nlq_info *handler)
 {
   handler->curdoc=-1;
 }

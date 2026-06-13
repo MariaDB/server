@@ -51,7 +51,6 @@
     MY_MAX(word1.max_docid, word3.max_docid).
 */
 
-#define FT_CORE
 #include "ma_ftdefs.h"
 
 /* search with boolean queries */
@@ -127,9 +126,8 @@ typedef struct st_ftb_word
   uchar      word[1];
 } FTB_WORD;
 
-typedef struct st_ft_info
+typedef struct ma_ft_bool_info
 {
-  struct _ft_vft *please;
   MARIA_HA   *info;
   CHARSET_INFO *charset;
   FTB_EXPR  *root;
@@ -488,7 +486,7 @@ static int _ft2_search(FTB *ftb, FTB_WORD *ftbw, my_bool init_search)
 }
 
 
-static void _ftb_init_index_search(FT_INFO *ftb)
+static void _ftb_init_index_search(FTB *ftb)
 {
   int i;
   FTB_WORD   *ftbw;
@@ -559,9 +557,9 @@ static void _ftb_init_index_search(FT_INFO *ftb)
 }
 
 
-FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
-                                       uchar *query, uint query_len,
-                                       CHARSET_INFO *cs)
+FTB * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
+                                   uchar *query, uint query_len,
+                                   CHARSET_INFO *cs)
 {
   FTB       *ftb;
   FTB_EXPR  *ftbe;
@@ -569,7 +567,6 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
 
   if (!(ftb=(FTB *)my_malloc(PSI_INSTRUMENT_ME, sizeof(FTB), MYF(MY_WME))))
     return 0;
-  ftb->please= (struct _ft_vft *) & _ma_ft_vft_boolean;
   ftb->state=UNINITIALIZED;
   ftb->info=info;
   ftb->keynr=keynr;
@@ -811,7 +808,7 @@ static int _ftb_climb_the_tree(FTB *ftb, FTB_WORD *ftbw, FT_SEG_ITERATOR *ftsi_o
 }
 
 
-int maria_ft_boolean_read_next(FT_INFO *ftb, char *record)
+int maria_ft_boolean_read_next(FTB *ftb, char *record)
 {
   FTB_EXPR  *ftbe;
   FTB_WORD  *ftbw;
@@ -888,7 +885,7 @@ err:
 
 typedef struct st_my_ftb_find_param
 {
-  FT_INFO *ftb;
+  FTB *ftb;
   FT_SEG_ITERATOR *ftsi;
 } MY_FTB_FIND_PARAM;
 
@@ -899,7 +896,7 @@ static int ftb_find_relevance_add_word(MYSQL_FTPARSER_PARAM *param,
                                        *boolean_info __attribute__((unused)))
 {
   MY_FTB_FIND_PARAM *ftb_param= param->mysql_ftparam;
-  FT_INFO *ftb= ftb_param->ftb;
+  FTB *ftb= ftb_param->ftb;
   FTB_WORD *ftbw;
   int a, b, c;
   /*
@@ -959,7 +956,7 @@ static int ftb_find_relevance_parse(MYSQL_FTPARSER_PARAM *param,
                                     const char *doc, int len)
 {
   MY_FTB_FIND_PARAM *ftb_param= param->mysql_ftparam;
-  FT_INFO *ftb= ftb_param->ftb;
+  FTB *ftb= ftb_param->ftb;
   uchar *end= (uchar*) doc + len;
   FT_WORD w;
   while (maria_ft_simple_get_word(ftb->charset, (uchar**)&doc, end, &w, TRUE))
@@ -968,7 +965,7 @@ static int ftb_find_relevance_parse(MYSQL_FTPARSER_PARAM *param,
 }
 
 
-float maria_ft_boolean_find_relevance(FT_INFO *ftb, uchar *record, uint length)
+float maria_ft_boolean_find_relevance(FTB *ftb, uchar *record, uint length)
 {
   FTB_EXPR *ftbe;
   FT_SEG_ITERATOR ftsi, ftsi2;
@@ -1038,7 +1035,7 @@ float maria_ft_boolean_find_relevance(FT_INFO *ftb, uchar *record, uint length)
 }
 
 
-void maria_ft_boolean_close_search(FT_INFO *ftb)
+void maria_ft_boolean_close_search(FTB *ftb)
 {
   if (is_tree_inited(& ftb->no_dupes))
   {
@@ -1049,13 +1046,13 @@ void maria_ft_boolean_close_search(FT_INFO *ftb)
 }
 
 
-float maria_ft_boolean_get_relevance(FT_INFO *ftb)
+float maria_ft_boolean_get_relevance(FTB *ftb)
 {
   return ftb->root->cur_weight;
 }
 
 
-void maria_ft_boolean_reinit_search(FT_INFO *ftb)
+void maria_ft_boolean_reinit_search(FTB *ftb)
 {
   _ftb_init_index_search(ftb);
 }

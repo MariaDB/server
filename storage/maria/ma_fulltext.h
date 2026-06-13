@@ -30,3 +30,17 @@ int  _ma_ft_add(MARIA_HA *, uint, uchar *, const uchar *, my_off_t);
 int  _ma_ft_del(MARIA_HA *, uint, uchar *, const uchar *, my_off_t);
 
 my_bool _ma_ft_convert_to_ft2(MARIA_HA *, MARIA_KEY *);
+
+extern struct st_mysql_ftparser ft_default_parser;
+void ft_free_stopwords(void);
+
+#define HA_FT_WTYPE  HA_KEYTYPE_FLOAT
+#define HA_FT_WLEN   4
+#define FT_SEGS      2
+
+#define ft_sintXkorr(A)    mi_sint4korr(A)
+#define ft_intXstore(T,A)  mi_int4store(T,A)
+
+extern const HA_KEYSEG ft_keysegs[FT_SEGS];
+
+typedef union {int32 i; float f;} FT_WEIGTH;

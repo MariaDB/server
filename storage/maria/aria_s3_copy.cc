@@ -21,6 +21,7 @@
 #include <my_global.h>
 #include <m_string.h>
 #include "maria_def.h"
+#include "ma_ftdefs.h"
 #include <aria_backup.h>
 #include <my_getopt.h>
 #include <my_check_opt.h>

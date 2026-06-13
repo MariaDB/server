@@ -250,12 +250,8 @@ extern "C" {
 class ha_mroonga;
 
 /* structs */
-struct st_mrn_ft_info
+struct mrn_ft_handler : public ft_handler
 {
-  struct _ft_vft *please;
-#ifdef HA_CAN_FULLTEXT_EXT
-  struct _ft_vft_ext *could_you;
-#endif
   grn_ctx *ctx;
   grn_encoding encoding;
   grn_obj *table;
@@ -270,6 +266,27 @@ struct st_mrn_ft_info
   grn_obj *id_accessor;
   grn_obj *key_accessor;
   ha_mroonga *mroonga;
+  ~mrn_ft_handler() override;
+  float find_relevance(uchar *record, uint length) override = 0;
+  float get_relevance() override = 0;
+};
+
+struct mrn_wrapper_ft_handler final : public mrn_ft_handler
+{
+  float find_relevance(uchar *record, uint length) override;
+  float get_relevance() override;
+};
+
+struct mrn_storage_ft_handler final : public mrn_ft_handler
+{
+  float find_relevance(uchar *record, uint length) override;
+  float get_relevance() override;
+};
+
+struct mrn_no_key_ft_handler final : public mrn_ft_handler
+{
+  float find_relevance(uchar *, uint) override { return 0.0; }
+  float get_relevance() override { return 0.0; }
 };
 
 #ifdef MRN_SUPPORT_CUSTOM_OPTIONS
@@ -478,7 +495,7 @@ public:
   int index_next_same(uchar *buf, const uchar *key, uint keylen) mrn_override;
 
   int ft_init() mrn_override;
-  FT_INFO *ft_init_ext(uint flags, uint inx, String *key) mrn_override;
+  ft_handler *ft_init_ext(uint flags, uint inx, String *key) mrn_override;
   int ft_read(uchar *buf) mrn_override;
 
   const Item *cond_push(const Item *cond) mrn_override;
@@ -1008,26 +1025,26 @@ private:
   int generic_ft_init();
   int wrapper_ft_init();
   int storage_ft_init();
-  FT_INFO *wrapper_ft_init_ext(uint flags, uint key_nr, String *key);
-  FT_INFO *storage_ft_init_ext(uint flags, uint key_nr, String *key);
+  ft_handler *wrapper_ft_init_ext(uint flags, uint key_nr, String *key);
+  ft_handler *storage_ft_init_ext(uint flags, uint key_nr, String *key);
   void generic_ft_init_ext_add_conditions_fast_order_limit(
-      struct st_mrn_ft_info *info, grn_obj *expression);
+      struct mrn_ft_handler *info, grn_obj *expression);
   grn_rc generic_ft_init_ext_prepare_expression_in_boolean_mode(
-    struct st_mrn_ft_info *info,
+    struct mrn_ft_handler *info,
     String *key,
     grn_obj *index_column,
     grn_obj *match_columns,
     grn_obj *expression);
   grn_rc generic_ft_init_ext_prepare_expression_in_normal_mode(
-    struct st_mrn_ft_info *info,
+    struct mrn_ft_handler *info,
     String *key,
     grn_obj *index_column,
     grn_obj *match_columns,
     grn_obj *expression);
-  struct st_mrn_ft_info *generic_ft_init_ext_select(uint flags,
-                                                    uint key_nr,
-                                                    String *key);
-  FT_INFO *generic_ft_init_ext(uint flags, uint key_nr, String *key);
+  bool generic_ft_init_ext_select(mrn_ft_handler *info, uint flags,
+                                  uint key_nr, String *key);
+  ft_handler *generic_ft_init_ext(mrn_ft_handler *info, uint flags,
+                                uint key_nr, String *key);
   int wrapper_ft_read(uchar *buf);
   int storage_ft_read(uchar *buf);
   const Item *wrapper_cond_push(const Item *cond);

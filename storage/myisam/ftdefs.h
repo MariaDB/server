@@ -98,6 +98,10 @@
 #define FTB_LQUOT (ft_boolean_syntax[10])
 #define FTB_RQUOT (ft_boolean_syntax[11])
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct st_ft_word {
   const uchar *pos;
   double weight;
@@ -131,26 +135,27 @@ FT_WORD * _mi_ft_parserecord(MI_INFO *, uint, const uchar *, MEM_ROOT *);
 uint _mi_ft_parse(TREE *, MI_INFO *, uint, const uchar *,
                   MYSQL_FTPARSER_PARAM *, MEM_ROOT *);
 
-FT_INFO *ft_init_nlq_search(MI_INFO *, uint, uchar *, uint, uint, uchar *);
-FT_INFO *ft_init_boolean_search(MI_INFO *, uint, uchar *, uint, CHARSET_INFO *);
+struct ft_nlq_info;
+struct ft_nlq_info *ft_init_nlq_search(MI_INFO *, uint, uchar *, uint, uint, uchar *);
+int   ft_nlq_read_next(struct ft_nlq_info *, char *);
+float ft_nlq_find_relevance(struct ft_nlq_info *, uchar *, uint);
+void  ft_nlq_close_search(struct ft_nlq_info *);
+float ft_nlq_get_relevance(struct ft_nlq_info *);
+void  ft_nlq_reinit_search(struct ft_nlq_info *);
 
-extern const struct _ft_vft _ft_vft_nlq;
-int ft_nlq_read_next(FT_INFO *, char *);
-float ft_nlq_find_relevance(FT_INFO *, uchar *, uint);
-void ft_nlq_close_search(FT_INFO *);
-float ft_nlq_get_relevance(FT_INFO *);
-my_off_t ft_nlq_get_docid(FT_INFO *);
-void ft_nlq_reinit_search(FT_INFO *);
-
-extern const struct _ft_vft _ft_vft_boolean;
-int ft_boolean_read_next(FT_INFO *, char *);
-float ft_boolean_find_relevance(FT_INFO *, uchar *, uint);
-void ft_boolean_close_search(FT_INFO *);
-float ft_boolean_get_relevance(FT_INFO *);
-my_off_t ft_boolean_get_docid(FT_INFO *);
-void ft_boolean_reinit_search(FT_INFO *);
+struct ft_bool_info;
+struct ft_bool_info *ft_init_boolean_search(MI_INFO *, uint, uchar *, uint, CHARSET_INFO *);
+int   ft_boolean_read_next(struct ft_bool_info *, char *);
+float ft_boolean_find_relevance(struct ft_bool_info *, uchar *, uint);
+void  ft_boolean_close_search(struct ft_bool_info *);
+float ft_boolean_get_relevance(struct ft_bool_info *);
+void  ft_boolean_reinit_search(struct ft_bool_info *);
 MYSQL_FTPARSER_PARAM* ftparser_alloc_param(MI_INFO *info);
 extern MYSQL_FTPARSER_PARAM *ftparser_call_initializer(MI_INFO *info,
                                                        uint keynr,
                                                        uint paramnr);
 extern void ftparser_call_deinitializer(MI_INFO *info);
+
+#ifdef __cplusplus
+}
+#endif

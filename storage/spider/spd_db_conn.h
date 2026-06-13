@@ -513,8 +513,8 @@ int spider_db_fetch_for_item_sum_func(
 
 int spider_db_append_match_fetch(
   ha_spider *spider,
-  st_spider_ft_info *ft_first,
-  st_spider_ft_info *ft_current,
+  spider_ft_handler *ft_first,
+  spider_ft_handler *ft_current,
   SPIDER_DB_ROW *row
 );
 

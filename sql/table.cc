@@ -6006,7 +6006,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   status= STATUS_NO_RECORD;
   insert_values= 0;
   fulltext_searched= 0;
-  file->ft_handler= 0;
+  file->fth= 0;
   reginfo.impossible_range= 0;
   reginfo.join_tab= NULL;
   reginfo.not_exists_optimize= FALSE;

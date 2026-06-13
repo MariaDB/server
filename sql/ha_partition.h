@@ -81,12 +81,16 @@ public:
 class ha_partition;
 
 /* Partition Full Text Search info */
-struct st_partition_ft_info
+struct partition_ft_handler : public ft_handler
 {
-  struct _ft_vft        *please;
-  st_partition_ft_info  *next;
+  partition_ft_handler  *next;
   ha_partition          *file;
-  FT_INFO               **part_ft_info;
+  ft_handler               **part_fth;
+  uint                  tot_parts;
+  ~partition_ft_handler() override;
+  static void operator delete(void *) {}
+  float find_relevance(uchar *record, uint length) override;
+  float get_relevance() override;
 };
 
 
@@ -311,8 +315,8 @@ private:
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
-  st_partition_ft_info *ft_first;
-  st_partition_ft_info *ft_current;
+  partition_ft_handler *ft_first;
+  partition_ft_handler *ft_current;
   /*
     Current index.
     When used in key_rec_cmp: If clustered pk, index compare
@@ -1511,12 +1515,11 @@ public:
     MODULE fulltext index
     -------------------------------------------------------------------------
   */
-    void ft_close_search(FT_INFO *handler);
     int ft_init() override;
     int pre_ft_init() override;
     void ft_end() override;
     int pre_ft_end() override;
-    FT_INFO *ft_init_ext(uint flags, uint inx, String *key) override;
+    ft_handler *ft_init_ext(uint flags, uint inx, String *key) override;
     int ft_read(uchar *buf) override;
     int pre_ft_read(bool use_parallel) override;
 

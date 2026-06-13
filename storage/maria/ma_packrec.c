@@ -17,6 +17,7 @@
 	/* Functions to compressed records */
 
 #include "maria_def.h"
+#include "ma_fulltext.h"
 
 #define IS_CHAR ((uint) 32768)		/* Bit if char (not offset) in tree */
 

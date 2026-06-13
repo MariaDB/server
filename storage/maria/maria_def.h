@@ -315,9 +315,6 @@ int maria_preload(MARIA_HA *info, ulonglong key_map, my_bool ignore_leaves);
 void maria_ignore_trids(MARIA_HA *info);
 my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows);
 
-/* fulltext functions */
-FT_INFO *maria_ft_init_search(uint,void *, uint, uchar *, size_t,
-                              CHARSET_INFO *, uchar *);
 
 /* 'Almost-internal' Maria functions */
 

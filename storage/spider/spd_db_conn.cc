@@ -2208,25 +2208,25 @@ int spider_db_fetch_for_item_sum_func(
 
 int spider_db_append_match_fetch(
   ha_spider *spider,
-  st_spider_ft_info *ft_first,
-  st_spider_ft_info *ft_current,
+  spider_ft_handler *ft_first,
+  spider_ft_handler *ft_current,
   SPIDER_DB_ROW *row
 ) {
   DBUG_ENTER("spider_db_append_match_fetch");
   if (ft_current)
   {
-    st_spider_ft_info *ft_info = ft_first;
+    spider_ft_handler *fth = ft_first;
     while (TRUE)
     {
-      DBUG_PRINT("info",("spider ft_info=%p", ft_info));
+      DBUG_PRINT("info",("spider fth=%p", fth));
       if (!row->is_null())
-        ft_info->score = (float) row->val_real();
+        fth->score = (float) row->val_real();
       else
         DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
       row->next();
-      if (ft_info == ft_current)
+      if (fth == ft_current)
         break;
-      ft_info = ft_info->next;
+      fth = fth->next;
     }
   }
   DBUG_RETURN(0);

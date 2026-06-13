@@ -6285,7 +6285,7 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
     DBUG_RETURN(0);
 
   /* See if init_search() has been already called (as master->init_search() */
-  if (ft_handler)
+  if (fth)
     DBUG_RETURN(0);
 
   if (key == NO_SUCH_KEY)
@@ -6312,7 +6312,7 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
     join_key= master->join_key= join_key | master->join_key;
     if (master->init_search(thd, no_order))
       DBUG_RETURN(1);
-    ft_handler= master->ft_handler;
+    fth= master->fth;
     join_key= master->join_key;
     DBUG_RETURN(0);
   }
@@ -6341,12 +6341,12 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   if (key != NO_SUCH_KEY)
     THD_STAGE_INFO(table->in_use, stage_fulltext_initialization);
 
-  ft_handler= table->file->ft_init_ext(match_flags, key, ft_tmp);
+  fth= table->file->ft_init_ext(match_flags, key, ft_tmp);
 
-  if (!ft_handler)
+  if (!fth)
     DBUG_RETURN(1);
   if (join_key)
-    table->file->ft_handler=ft_handler;
+    table->file->fth=fth;
 
   DBUG_RETURN(0);
 }
@@ -6544,7 +6544,7 @@ double Item_func_match::val_real()
 {
   DBUG_ASSERT(fixed());
   DBUG_ENTER("Item_func_match::val");
-  if (ft_handler == NULL)
+  if (fth == NULL)
     DBUG_RETURN(-1.0);
 
   if (key != NO_SUCH_KEY && table->null_row) /* NULL row from an outer join */
@@ -6552,8 +6552,8 @@ double Item_func_match::val_real()
 
   if (join_key)
   {
-    if (table->file->ft_handler)
-      DBUG_RETURN(ft_handler->please->get_relevance(ft_handler));
+    if (table->file->fth)
+      DBUG_RETURN(fth->get_relevance());
     join_key=0;
   }
 
@@ -6562,11 +6562,9 @@ double Item_func_match::val_real()
     String *a= concat_ws->val_str(&value);
     if ((null_value= (a == 0)) || !a->length())
       DBUG_RETURN(0);
-    DBUG_RETURN(ft_handler->please->find_relevance(ft_handler,
-				      (uchar *)a->ptr(), a->length()));
+    DBUG_RETURN(fth->find_relevance((uchar *)a->ptr(), a->length()));
   }
-  DBUG_RETURN(ft_handler->please->find_relevance(ft_handler,
-                                                 table->record[0], 0));
+  DBUG_RETURN(fth->find_relevance(table->record[0], 0));
 }
 
 void Item_func_match::print(String *str, enum_query_type query_type)

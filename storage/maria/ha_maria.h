@@ -89,14 +89,8 @@ public:
   int index_first(uchar * buf) override final;
   int index_last(uchar * buf) override final;
   int index_next_same(uchar * buf, const uchar * key, uint keylen) override final;
-  int ft_init() override final
-  {
-    if (!ft_handler)
-      return 1;
-    ft_handler->please->reinit_search(ft_handler);
-    return 0;
-  }
-  FT_INFO *ft_init_ext(uint flags, uint inx, String * key) override final;
+  int ft_init() override final;
+  ft_handler *ft_init_ext(uint flags, uint inx, String * key) override final;
   int ft_read(uchar * buf) override final;
   int index_init(uint idx, bool sorted) override final;
   int index_end() override final;

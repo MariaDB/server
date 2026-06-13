@@ -4134,16 +4134,16 @@ int ha_partition::close(void)
   bool first= TRUE;
   handler **file;
   uint i;
-  st_partition_ft_info *tmp_ft_info;
+  partition_ft_handler *tmp_fth;
   DBUG_ENTER("ha_partition::close");
   DBUG_ASSERT(table->s == table_share);
   DBUG_ASSERT(m_part_info);
 
   destroy_record_priority_queue();
 
-  for (; ft_first ; ft_first= tmp_ft_info)
+  for (; ft_first ; ft_first= tmp_fth)
   {
-    tmp_ft_info= ft_first->next;
+    tmp_fth= ft_first->next;
     my_free(ft_first);
   }
 
@@ -6926,88 +6926,34 @@ int ha_partition::multi_range_read_explain_info(uint mrr_mode, char *str,
   @retval                   Relevance value
 */
 
-float partition_ft_find_relevance(FT_INFO *handler,
-                                  uchar *record, uint length)
+partition_ft_handler::~partition_ft_handler()
 {
-  st_partition_ft_info *info= (st_partition_ft_info *)handler;
-  uint m_last_part= ((ha_partition*) info->file)->last_part();
-  FT_INFO *m_handler= info->part_ft_info[m_last_part];
-  DBUG_ENTER("partition_ft_find_relevance");
-  if (!m_handler)
-    DBUG_RETURN((float)-1.0);
-  DBUG_RETURN(m_handler->please->find_relevance(m_handler, record, length));
-}
-
-
-/**
-  Retrieve the Full Text Search relevance ranking for the current
-  full text search.
-
-  @param  handler           Full Text Search handler
-
-  @retval                   Relevance value
-*/
-
-float partition_ft_get_relevance(FT_INFO *handler)
-{
-  st_partition_ft_info *info= (st_partition_ft_info *)handler;
-  uint m_last_part= ((ha_partition*) info->file)->last_part();
-  FT_INFO *m_handler= info->part_ft_info[m_last_part];
-  DBUG_ENTER("partition_ft_get_relevance");
-  if (!m_handler)
-    DBUG_RETURN((float)-1.0);
-  DBUG_RETURN(m_handler->please->get_relevance(m_handler));
-}
-
-
-/**
-  Free the memory for a full text search handler.
-
-  @param  handler           Full Text Search handler
-*/
-
-void partition_ft_close_search(FT_INFO *handler)
-{
-  st_partition_ft_info *info= (st_partition_ft_info *)handler;
-  info->file->ft_close_search(handler);
-}
-
-
-/**
-  Free the memory for a full text search handler.
-
-  @param  handler           Full Text Search handler
-*/
-
-void ha_partition::ft_close_search(FT_INFO *handler)
-{
-  uint i;
-  st_partition_ft_info *info= (st_partition_ft_info *)handler;
-  DBUG_ENTER("ha_partition::ft_close_search");
-
-  for (i= 0; i < m_tot_parts; i++)
+  for (uint i= 0; i < tot_parts; i++)
   {
-    FT_INFO *m_handler= info->part_ft_info[i];
-    DBUG_ASSERT(!m_handler ||
-                (m_handler->please && m_handler->please->close_search));
-    if (m_handler &&
-        m_handler->please &&
-        m_handler->please->close_search)
-      m_handler->please->close_search(m_handler);
+    delete part_fth[i];
+    part_fth[i]= nullptr;
   }
-  DBUG_VOID_RETURN;
 }
 
-
-/* Partition Full Text search function table */
-_ft_vft partition_ft_vft =
+float partition_ft_handler::find_relevance(uchar *record, uint length)
 {
-  NULL, // partition_ft_read_next
-  partition_ft_find_relevance,
-  partition_ft_close_search,
-  partition_ft_get_relevance,
-  NULL  // partition_ft_reinit_search
-};
+  uint m_last_part= file->last_part();
+  ft_handler *m_handler= part_fth[m_last_part];
+  DBUG_ENTER("partition_ft_handler::find_relevance");
+  if (!m_handler)
+    DBUG_RETURN((float)-1.0);
+  DBUG_RETURN(m_handler->find_relevance(record, length));
+}
+
+float partition_ft_handler::get_relevance()
+{
+  uint m_last_part= file->last_part();
+  ft_handler *m_handler= part_fth[m_last_part];
+  DBUG_ENTER("partition_ft_handler::get_relevance");
+  if (!m_handler)
+    DBUG_RETURN((float)-1.0);
+  DBUG_RETURN(m_handler->get_relevance());
+}
 
 
 /**
@@ -7228,15 +7174,15 @@ void ha_partition::swap_blobs(uchar * rec_buf, Ordered_blob_storage ** storage, 
   @param  inx               Key number
   @param  key               Key value
 
-  @return FT_INFO structure if successful
+  @return ft_handler structure if successful
           NULL              otherwise
 */
 
-FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
+ft_handler *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
 {
-  FT_INFO *ft_handler;
+  ft_handler *fth;
   handler **file;
-  st_partition_ft_info *ft_target, **parent;
+  partition_ft_handler *ft_target, **parent;
   DBUG_ENTER("ha_partition::ft_init_ext");
 
   if (ft_current)
@@ -7246,17 +7192,17 @@ FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
 
   if (!(ft_target= *parent))
   {
-    FT_INFO **tmp_ft_info;
-    if (!(ft_target= (st_partition_ft_info *)
-          my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | MY_ZEROFILL),
-                          &ft_target, sizeof(st_partition_ft_info),
-                          &tmp_ft_info, sizeof(FT_INFO *) * m_tot_parts,
-                          NullS)))
+    ft_handler **tmp_fth;
+    if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | MY_ZEROFILL),
+                         &ft_target, sizeof(partition_ft_handler),
+                         &tmp_fth, sizeof(ft_handler *) * m_tot_parts,
+                         NullS))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       DBUG_RETURN(NULL);
     }
-    ft_target->part_ft_info= tmp_ft_info;
+    ft_target= new(ft_target) partition_ft_handler;
+    ft_target->part_fth= tmp_fth;
     (*parent)= ft_target;
   }
 
@@ -7266,22 +7212,22 @@ FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
   {
     if (bitmap_is_set(&(m_part_info->read_partitions), (uint)(file - m_file)))
     {
-      if ((ft_handler= (*file)->ft_init_ext(flags, inx, key)))
-        (*file)->ft_handler= ft_handler;
+      if ((fth= (*file)->ft_init_ext(flags, inx, key)))
+        (*file)->fth= fth;
       else
-        (*file)->ft_handler= NULL;
-      ft_target->part_ft_info[file - m_file]= ft_handler;
+        (*file)->fth= NULL;
+      ft_target->part_fth[file - m_file]= fth;
     }
     else
     {
-      (*file)->ft_handler= NULL;
-      ft_target->part_ft_info[file - m_file]= NULL;
+      (*file)->fth= NULL;
+      ft_target->part_fth[file - m_file]= NULL;
     }
   } while (*(++file));
 
-  ft_target->please= &partition_ft_vft;
   ft_target->file= this;
-  DBUG_RETURN((FT_INFO*)ft_target);
+  ft_target->tot_parts= m_tot_parts;
+  DBUG_RETURN(ft_target);
 }
 
 
