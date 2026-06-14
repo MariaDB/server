@@ -3387,7 +3387,6 @@ public:
   Column_definition *last_field;
   Table_function_json_table *json_table;
   Item_sum *in_sum_func;
-  Item_func_any_value *in_any_value;
   udf_func udf;
   HA_CHECK_OPT   check_opt;                        // check/repair options
   Table_specification_st create_info;

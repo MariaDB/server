@@ -6231,7 +6231,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (*from_field)
       {
         if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-            !thd->lex->in_sum_func && !thd->lex->in_any_value &&
+            !thd->lex->in_sum_func &&
             select->cur_pos_in_select_list != UNDEF_POS)
         {
           /*
@@ -6774,7 +6774,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (check_ora_join(reference, outer_fixed))
     goto error;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !outer_fixed && !thd->lex->in_sum_func && !thd->lex->in_any_value &&
+      !outer_fixed && !thd->lex->in_sum_func &&
       select &&
       select->cur_pos_in_select_list != UNDEF_POS &&
       select->join)
@@ -6810,10 +6810,9 @@ mark_non_agg_field:
       */
       select_lex= context->select_lex;
     }
-    if (!thd->lex->in_sum_func && !thd->lex->in_any_value)
+    if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
-    else if (!thd->lex->in_any_value ||
-             thd->lex->in_any_value->nest_level != select->nest_level)
+    else
     {
       if (outer_fixed)
         thd->lex->in_sum_func->outer_fields.push_back(this, thd->mem_root);

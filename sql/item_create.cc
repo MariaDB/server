@@ -168,19 +168,6 @@ protected:
 };
 
 
-class Create_func_any_value : public Create_func_arg1
-{
-public:
-  Item *create_1_arg(THD *thd, Item *arg1) override;
-
-  static Create_func_any_value s_singleton;
-
-protected:
-  Create_func_any_value() = default;
-  ~Create_func_any_value() override = default;
-};
-
-
 class Create_func_kdf : public Create_native_func
 {
 public:
@@ -3284,15 +3271,6 @@ Create_func_aes_decrypt::create_native(THD *thd, const LEX_CSTRING *name,
 }
 
 
-Create_func_any_value Create_func_any_value::s_singleton;
-
-Item*
-Create_func_any_value::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_any_value(thd, arg1);
-}
-
-
 Create_func_kdf Create_func_kdf::s_singleton;
 
 Item*
@@ -6384,7 +6362,6 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("ADD_MONTHS") }, BUILDER(Create_func_addmonths)},
   { { STRING_WITH_LEN("AES_DECRYPT") }, BUILDER(Create_func_aes_decrypt)},
   { { STRING_WITH_LEN("AES_ENCRYPT") }, BUILDER(Create_func_aes_encrypt)},
-  { { STRING_WITH_LEN("ANY_VALUE") }, BUILDER(Create_func_any_value)},
   { { STRING_WITH_LEN("ASIN") }, BUILDER(Create_func_asin)},
   { { STRING_WITH_LEN("ATAN") }, BUILDER(Create_func_atan)},
   { { STRING_WITH_LEN("ATAN2") }, BUILDER(Create_func_atan)},

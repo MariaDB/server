@@ -3072,7 +3072,6 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   thd->variables.select_limit= HA_POS_ERROR;
 
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
-  thd->lex->in_any_value= 0;
 
   /*
     We never write CALL statements into binlog:
