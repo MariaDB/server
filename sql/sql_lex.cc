@@ -1315,7 +1315,6 @@ void LEX::start(THD *thd_arg)
   builtin_select.nest_level_base= &unit;
   allow_sum_func.clear_all();
   in_sum_func= NULL;
-  in_any_value= NULL;
 
   used_tables= 0;
   table_type= TABLE_TYPE_UNKNOWN;
