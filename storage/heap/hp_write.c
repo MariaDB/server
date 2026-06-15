@@ -114,11 +114,7 @@ err_delete_written_keys:
     and hp_write_blobs(). The slot at pos still contains stale data from the
     delete list, so hp_free_blobs would chase garbage chain pointers.
   */
-  share->deleted++;
-  share->total_records--;
-  *((uchar**) pos)=share->del_link;
-  share->del_link=pos;
-  pos[share->visible]= 0;                                 /* Record deleted */
+  hp_push_free_record(share, pos);
 
   DBUG_RETURN(my_errno);
 } /* heap_write */
@@ -233,6 +229,57 @@ uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
 
 
 /*
+  Take 'count' contiguous records from the head block.
+  The head must be a block-end with at least 'count' records.
+  Returns the lowest address of the taken range.
+*/
+
+uchar *hp_take_free_block(HP_SHARE *share, uint16 count)
+{
+  uchar *pos= share->del_link;
+  uchar *first;
+  uint recbuffer= share->block.recbuffer;
+  uint16 block_count, remaining;
+  uchar *taken_start;
+
+  DBUG_ASSERT(pos && hp_is_free_block_end(pos));
+
+  first= hp_free_block_first(pos);
+  block_count= hp_free_block_start_count(first);
+
+  DBUG_ASSERT(count >= 1 && count <= block_count);
+
+  remaining= block_count - count;
+  taken_start= first + (uint32) remaining * recbuffer;
+
+  if (remaining == 0)
+  {
+    /* Block fully consumed */
+    share->del_link= *((uchar**) first);
+  }
+  else if (remaining == 1)
+  {
+    /* Collapse to single record; first's del_link already has next entry */
+    first[HP_DEL_FLAG_OFFSET]= 0;
+    share->del_link= first;
+  }
+  else
+  {
+    /* Shrink block */
+    uchar *new_last= taken_start - recbuffer;
+    *((uchar**) new_last)= first;
+    new_last[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+    int2store(first + HP_DEL_COUNT_OFFSET, remaining);
+    share->del_link= new_last;
+  }
+
+  share->deleted-= count;
+  share->total_records+= count;
+  return taken_start;
+}
+
+
+/*
   Find where to place a new record.
 
   Allocates from the free list (del_link) first; if empty, extends the
@@ -250,10 +297,7 @@ uchar *next_free_record_pos(HP_SHARE *info)
 
   if (info->del_link)
   {
-    pos=info->del_link;
-    info->del_link= *((uchar**) pos);
-    info->deleted--;
-    info->total_records++;
+    pos= hp_pop_free_record(info);
     DBUG_PRINT("exit",("Used old position: %p", pos));
     DBUG_RETURN(pos);
   }

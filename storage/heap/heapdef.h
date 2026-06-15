@@ -46,7 +46,7 @@ C_MODE_START
   Continuation run header: next_cont pointer + run_rec_count.
   Stored at the beginning of the first blob segment in each run.
 */
-#define HP_CONT_REC_COUNT_SIZE sizeof(uint16)
+#define HP_CONT_REC_COUNT_SIZE 2
 #define HP_CONT_HEADER_SIZE    (sizeof(uchar*) + HP_CONT_REC_COUNT_SIZE)
 
 /*
@@ -93,12 +93,13 @@ static inline my_bool hp_is_multi_run(const uchar *rec, uint visible)
 /*
   Continuation run header accessors.
   Read next_cont pointer and run_rec_count from the first record of a run.
+  In heap, all delete/chain link pointers in records are 8 byte aligned
+  and thus safe to access directly.
 */
+
 static inline const uchar *hp_cont_next(const uchar *chain)
 {
-  const uchar *next;
-  memcpy(&next, chain, sizeof(uchar*));
-  return next;
+  return *((const uchar**) chain);
 }
 
 static inline uint16 hp_cont_rec_count(const uchar *chain)
@@ -149,6 +150,148 @@ static inline uint32 hp_blob_min_run_bytes(uint32 blob_length)
   set_if_bigger(length, HP_CONT_MIN_RUN_BYTES);
   set_if_smaller(length, blob_length);
   return length;
+}
+
+/*
+  Delete-list block metadata.
+
+  Deleted records store a del_link pointer in bytes 0..sizeof(uchar*)-1
+  and a flags byte at offset 'visible'.  Block coalescing reuses bytes
+  after del_link for block metadata:
+    byte HP_DEL_FLAG_OFFSET   (8):  del_flag (block-start / block-end bits)
+    bytes HP_DEL_COUNT_OFFSET (9-10): block record count (uint16, LE)
+
+  HP_DEL_METADATA_SIZE (11) is the minimum 'visible' offset needed to
+  guarantee these bytes never overlap with the flags byte.
+*/
+#define HP_DEL_FLAG_OFFSET    sizeof(uchar*)
+#define HP_DEL_BLOCK_END      1              /* bit 0: last record of block */
+#define HP_DEL_BLOCK_START    2              /* bit 1: first record of block */
+#define HP_DEL_COUNT_OFFSET   (sizeof(uchar*) + 1)
+#define HP_DEL_METADATA_SIZE  (sizeof(uchar*) + 1 + HP_CONT_REC_COUNT_SIZE)
+
+/*
+  Free-list block predicates and accessors.
+  A contiguous group of N >= 2 deleted records is represented as a block:
+    rec[0]     (first): del_flag = HP_DEL_BLOCK_START, del_link = next entry,
+                        count at bytes 9-10
+    rec[1..N-2] (dark): bytes 0-10 zeroed, pos[visible] = 0
+    rec[N-1]   (last):  del_flag = HP_DEL_BLOCK_END, del_link = &rec[0]
+    share->del_link = &rec[N-1]
+  Single deleted records have del_flag = 0 (unchanged behavior).
+*/
+
+static inline my_bool hp_is_free_block_end(const uchar *pos)
+{
+  return (pos[HP_DEL_FLAG_OFFSET] & HP_DEL_BLOCK_END) != 0;
+}
+
+static inline uchar *hp_free_block_first(uchar *pos)
+{
+  return *((uchar**) pos);
+}
+
+static inline my_bool hp_is_free_block_start(const uchar *pos)
+{
+  return (pos[HP_DEL_FLAG_OFFSET] & HP_DEL_BLOCK_START) != 0;
+}
+
+static inline uint16 hp_free_block_start_count(const uchar *pos)
+{
+  return uint2korr(pos + HP_DEL_COUNT_OFFSET);
+}
+
+/*
+  Clear the metadata bytes of dark records (records between block-start
+  and block-end that are not individually on the free list).
+  Uses a strided loop so only the essential bytes per record are touched.
+  For short record lengths a contiguous bzero over the full range would
+  be faster, but the crossover point has not been measured.
+*/
+
+static inline void hp_clear_dark_records(uchar *from, uchar *to,
+                                         uint recbuffer, uint visible)
+{
+  uchar *pos;
+  for (pos= from; pos < to; pos+= recbuffer)
+  {
+    *((uchar**) pos)= NULL;
+    pos[HP_DEL_FLAG_OFFSET]= 0;
+    pos[visible]= 0;
+  }
+}
+
+/*
+  Push a single deleted record onto the free list.
+  Replaces the inlined 3-line pattern in heap_delete(), heap_write()
+  error path, and hp_free_run_chain() for single-record runs.
+*/
+
+static inline void hp_push_free_record(HP_SHARE *share, uchar *pos)
+{
+  *((uchar**) pos)= share->del_link;
+  pos[HP_DEL_FLAG_OFFSET]= 0;
+  share->del_link= pos;
+  pos[share->visible]= 0;
+  share->deleted++;
+  share->total_records--;
+}
+
+/*
+  Push a contiguous block of deleted records onto the free list.
+  Defined in hp_delete.c.
+*/
+extern void hp_push_free_block(HP_SHARE *share, uchar *first, uint16 count);
+
+/*
+  Push a contiguous block (count >= 2) or single record (count == 1)
+  onto the free list, coalescing with the head entry if adjacent.
+  Defined in hp_delete.c.
+*/
+extern void hp_push_free_block_coalesce(HP_SHARE *share, uchar *first,
+                                        uint16 count);
+
+/*
+  Push a deleted record onto the free list, coalescing with the head
+  entry if adjacent.  Delegates to hp_push_free_block_coalesce with
+  count=1; both merge branches produce correct results for a single
+  record (dark-record clearing ranges become empty no-ops where no
+  dark records exist).
+*/
+
+static inline void hp_push_free_record_coalesce(HP_SHARE *share, uchar *pos)
+{
+  hp_push_free_block_coalesce(share, pos, 1);
+}
+
+/*
+  Take 'count' contiguous records from the head block.
+  Defined in hp_write.c.
+*/
+extern uchar *hp_take_free_block(HP_SHARE *share, uint16 count);
+
+/*
+  Pop one record from the head of the free list.
+  If the head is a block-end, takes the last record and shrinks
+  or collapses the block.
+*/
+
+static inline uchar *hp_pop_free_record(HP_SHARE *share)
+{
+  uchar *pos= share->del_link;
+
+  DBUG_ASSERT(pos);
+
+  if (!hp_is_free_block_end(pos))
+  {
+    /* Single record */
+    share->del_link= *((uchar**) pos);
+    share->deleted--;
+    share->total_records++;
+    return pos;
+  }
+
+  return hp_take_free_block(share, 1);
 }
 
 	/* Some extern variables */

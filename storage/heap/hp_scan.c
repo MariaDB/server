@@ -93,6 +93,16 @@ retry:
   }
   if (!info->current_ptr[share->visible])
   {
+    if (hp_is_free_block_start(info->current_ptr))
+    {
+      uint16 block_count= hp_free_block_start_count(info->current_ptr);
+      uint skip;
+      DBUG_ASSERT(block_count > 1);
+      skip= block_count - 1;
+      info->current_record+= skip;
+      info->current_ptr+= skip * share->block.recbuffer;
+      goto retry;
+    }
     DBUG_PRINT("warning",("Found deleted record"));
     info->update= HA_STATE_PREV_FOUND | HA_STATE_NEXT_FOUND;
     DBUG_RETURN(my_errno=HA_ERR_RECORD_DELETED);
