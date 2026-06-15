@@ -631,9 +631,6 @@ static void escape_json_for_sql_literal(const String& json, String *sql_script)
   }
 }
 
-
-bool dump_sql_script(THD* thd, String &sql_script);
-
 bool store_optimizer_context(THD *thd)
 {
   bool res;
@@ -846,13 +843,11 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
   if (res)
     goto end;
 
-  if (subquery_runs.elements)
+  if (subquery_runs.size())
   {
     Json_writer_array subq_runs_arr(&ctx_writer, "subquery_runs");
-    longlong num;
-    List_iterator<int> it(subquery_runs);
-    while ((num= (longlong)(ptrdiff_t)(it++)) != 0)
-      subq_runs_arr.add(num);
+    for (uint i= 0; i < subquery_runs.size(); i++)
+      subq_runs_arr.add((ulonglong) subquery_runs[i]);
   }
   context.end();
 
@@ -938,8 +933,8 @@ Optimizer_context_recorder::get_table_context(const TABLE *table)
   return table_ctx;
 }
 
-Optimizer_context_recorder::Optimizer_context_recorder(MEM_ROOT *mem_root_arg) :
-  mem_root(mem_root_arg)
+Optimizer_context_recorder::Optimizer_context_recorder(MEM_ROOT *mem_root_arg)
+    : subquery_runs(mem_root_arg), mem_root(mem_root_arg)
 {
   my_hash_init(key_memory_trace_ddl_info, &tbl_ctx_hash, system_charset_info,
                16, 0, 0, &Optimizer_context_recorder::get_tbl_ctx_key, 0,
@@ -1136,7 +1131,7 @@ void Optimizer_context_recorder::record_subquery_exec(Item_subselect *subq)
   /* Subqueries are identified by the select_number of their first SELECT */
   uint num= subq->unit->first_select()->select_number;
 
-  subquery_runs.push_back((int*)(ptrdiff_t)num);
+  subquery_runs.append(num);
 }
 
 /*
@@ -1174,8 +1169,9 @@ static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf)
 class index_context_for_replay : public Sql_alloc
 {
 public:
-  char *idx_name;
-  List<double> rec_per_key;
+  index_context_for_replay() : rec_per_key(current_thd->mem_root) {}
+  char *idx_name= NULL;
+  Mem_root_dynamic_array<double> rec_per_key;
 };
 
 /*
@@ -1254,17 +1250,19 @@ public:
   }
 };
 
-// psergey: reads an array of integers..
+// psergey: reads an array of doubles..
 class Read_rec_per_key : public Read_array
 {
   MEM_ROOT *mem_root;
-  List<double> *list_values;
+  Mem_root_dynamic_array<double> *list_values;
 
 public:
-  Read_rec_per_key(MEM_ROOT *mem_root_arg, List<double> *list_values_arg)
+  Read_rec_per_key(MEM_ROOT *mem_root_arg,
+                   Mem_root_dynamic_array<double> *list_values_arg)
       : mem_root(mem_root_arg), list_values(list_values_arg)
   {
   }
+
   int read_container(json_engine_t *je, const char *name, String *err_buf)
     override
   {
@@ -1273,14 +1271,9 @@ public:
       double val;
       if (read_double(je , name, err_buf, val))
         return 1;
-      double *records_ptr= (double *) alloc_root(mem_root, sizeof(double));
 
-      if (unlikely(!records_ptr))
-        return 1; // OOM
-
-      *records_ptr= val;
-      if (list_values->push_back(records_ptr, mem_root) || json_scan_next(je))
-         return 1;
+      if (list_values->append(val) || json_scan_next(je))
+        return 1;
     }
     return 0;
   }
@@ -1909,10 +1902,10 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   for (key_info= table->key_info, key_info_end= key_info + table->s->keys;
        key_info < key_info_end; key_info++)
   {
-    List<double> *index_freq_list=
+    Mem_root_dynamic_array<double> *index_freq_list=
         get_index_rec_per_key_list(table, key_info->name.str);
 
-    if (!index_freq_list || index_freq_list->is_empty())
+    if (!index_freq_list || !index_freq_list->size())
       continue;
 
     Saved_index_stats *saved_is= new Saved_index_stats();
@@ -1920,7 +1913,6 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     if (unlikely(!saved_is))
       return; // OOM
 
-    uint i= 0;
     uint num_key_parts= key_info->ext_key_parts;
     Index_statistics *original_read_stats= key_info->read_stats;
     bool original_is_statistics_from_stat_tables=
@@ -1937,17 +1929,14 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
       return; // OOM
 
     new_read_stats->init_avg_frequency(frequencies);
-    List_iterator li(*index_freq_list);
-    double *freq= li++;
     key_info->read_stats= new_read_stats;
 
-    while (freq && i < num_key_parts)
+    for (uint i= 0; i < num_key_parts && i < index_freq_list->size(); i++)
     {
       // Apparently this can be=0 for prefix indexes.
-      //DBUG_ASSERT(*freq > 0);
-      key_info->read_stats->set_avg_frequency(i, *freq);
-      freq= li++;
-      i++;
+      // DBUG_ASSERT(freq > 0);
+      double freq= index_freq_list->at(i);
+      key_info->read_stats->set_avg_frequency(i, freq);
     }
 
     key_info->is_statistics_from_stat_tables= true;
@@ -2144,13 +2133,9 @@ void Optimizer_context_replay::dbug_print_read_stats()
       DBUG_PRINT("info", ("...........New Index Context........."));
       DBUG_PRINT("info", ("index_name: %s", idx_ctx->idx_name));
       DBUG_PRINT("info", ("list_rec_per_key: [ "));
-      List_iterator<double> rec_itr(idx_ctx->rec_per_key);
-      while (true)
+      for (uint i= 0; i < idx_ctx->rec_per_key.size(); i++)
       {
-        double *num_rec= rec_itr++;
-        if (!num_rec)
-          break;
-        DBUG_PRINT("info", ("%g, ", *num_rec));
+        DBUG_PRINT("info", ("%g, ", idx_ctx->rec_per_key[i]));
       }
       DBUG_PRINT("info", ("]"));
     }
@@ -2259,7 +2244,7 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
   parsed replay json context, and return the List of number of records per key
   for the given table and index name
 */
-List<double> *
+Mem_root_dynamic_array<double> *
 Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
                                                      const char *idx_name)
 {
