@@ -4506,4 +4506,66 @@ md5(a) IN (SELECT * FROM (SELECT '' FROM t1) as x)
 0
 DROP table t1;
 SET optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-36059: 2nd PS exec crash w/nested VIEWs
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT b FROM t2;
+CREATE VIEW v2 AS SELECT b FROM v1;
+SELECT * FROM t1 WHERE a IN (SELECT b FROM v2);
+a
+1
+2
+PREPARE stmt FROM 'DELETE FROM t1 WHERE a IN (SELECT b FROM v2)';
+SELECT * FROM t1;
+a
+1
+2
+EXECUTE stmt;
+SELECT * FROM t1;
+a
+EXECUTE stmt;
+SELECT * FROM t1;
+a
+DROP VIEW v2, v1;
+DROP TABLE t1, t2;
+#
+# Same crash when the subquery view sits inside deep nest.
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (c INT);
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (d INT);
+INSERT INTO t4 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT b FROM t2;
+CREATE VIEW v2 AS SELECT b FROM v1;
+SELECT * FROM t1;
+a
+1
+2
+3
+SELECT * FROM t1 WHERE a IN (SELECT t3.c FROM t3 LEFT JOIN (v2 JOIN t4 ON v2.b = t4.d) ON t3.c = v2.b);
+a
+1
+2
+PREPARE stmt FROM 'DELETE FROM t1 WHERE a IN (SELECT t3.c FROM t3 LEFT JOIN (v2 JOIN t4 ON v2.b = t4.d) ON t3.c = v2.b)';
+EXECUTE stmt;
+SELECT * FROM t1;
+a
+3
+EXECUTE stmt;
+SELECT * FROM t1;
+a
+3
+SELECT a FROM t1;
+a
+3
+DROP VIEW v2, v1;
+DROP TABLE t1, t2, t3, t4;
 # End of 11.4 tests

@@ -63,6 +63,21 @@ dt_processor processors[]=
   &mysql_derived_optimize_stage2
 };
 
+
+/*
+  Walk the embedding chain (nested tables) to see if there is
+  a IN converted to semijoin.
+*/
+
+static bool is_semijoin_inner_table(TABLE_LIST *tl)
+{
+  for (TABLE_LIST *emb= tl->embedding; emb; emb= emb->embedding)
+    if (emb->sj_subq_pred)
+      return true;
+  return false;
+}
+
+
 /*
   Run specified phases on all derived tables/views in given LEX.
 
@@ -110,7 +125,24 @@ mysql_handle_derived(LEX *lex, uint phases)
 	   cursor && !res;
 	   cursor= cursor->next_local)
       {
-        if (!cursor->is_view_or_derived() && phases == DT_MERGE_FOR_INSERT)
+        /*
+          During the DT_MERGE_FOR_INSERT pass, a plain base table is
+          not a VIEW or subquery and thus has nothing to merge, so the
+          original code skips these kinds of tables.
+
+          Converting an IN subquery to a semijoin moves the subquery's
+          tables to the first SELECT_LEX, and that conversion persists
+          across executions of prepared statements.  Because PREPARE
+          runs again on every execution of a prepared statement, the
+          second execution reaches DT_MERGE_FOR_INSERT with the VIEW
+          already flattened into the first SELECT_LEX.  Merging such a
+          VIEW again finds no underlying table and crashes on the NULL
+          table pointer, so a table whose embedding chain reaches a
+          semijoin nest is skipped here (as such a nest indicates an
+          IN-to-subquery conversion).
+        */
+        if (phases == DT_MERGE_FOR_INSERT &&
+            (!cursor->is_view_or_derived() || is_semijoin_inner_table(cursor)))
           continue;
         uint allowed_phases= (cursor->is_merged_derived() ? DT_PHASES_MERGE :
                               DT_PHASES_MATERIALIZE | DT_MERGE_FOR_INSERT);
