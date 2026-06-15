@@ -573,3 +573,24 @@ select * from (select * from t) as t natural join (select * from t) as t1;
 drop tables t, t4;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-39450: Memory corruption: overlapping memory ranges in `Field_longstr::compress` on UPDATE of compressed column
+--echo #
+
+CREATE TABLE t (c VARCHAR(255) COMPRESSED);
+REPLACE INTO t VALUES ('abcdefghijklm');
+UPDATE t SET c=RIGHT(c,10);
+DROP TABLE t;
+
+CREATE TABLE t (c VARCHAR(255) COMPRESSED);
+REPLACE INTO t VALUES ('abcdefghijklm');
+UPDATE t SET c=SUBSTRING(c,3);
+DROP TABLE t;
+
+CREATE TABLE t (c VARCHAR(255) COMPRESSED);
+REPLACE INTO t VALUES ('abcdefghijklm');
+UPDATE t SET c=MID(c,2,4);
+DROP TABLE t;
+
+--echo # End of 10.6 tests
