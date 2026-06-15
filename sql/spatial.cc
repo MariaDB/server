@@ -351,7 +351,7 @@ Geometry *Geometry::construct(Geometry_buffer *buffer,
   uint32 geom_type;
   Geometry *result;
 
-  if (data_len < SRID_SIZE + WKB_HEADER_SIZE)   // < 4 + (1 + 4)
+  if (!is_valid_geometry_length(data_len))
     return NULL;
   /* + 1 to skip the byte order (stored in position SRID_SIZE). */
   geom_type= uint4korr(data + SRID_SIZE + 1);
