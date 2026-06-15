@@ -486,6 +486,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> ALTER                         /* SQL-2003-R */
 %token  <kwd> ANALYZE_SYM
 %token  <kwd> AND_SYM                       /* SQL-2003-R */
+%token  <kwd> ANY_VALUE_SYM
 %token  <kwd> ASC                           /* SQL-2003-N */
 %token  <kwd> ASENSITIVE_SYM                /* FUTURE-USE */
 %token  <kwd> AS                            /* SQL-2003-R */
@@ -11583,7 +11584,19 @@ udf_expr:
         ;
 
 sum_expr:
-          AVG_SYM '(' in_sum_expr ')'
+          ANY_VALUE_SYM '(' in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_any_value(thd, $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | ANY_VALUE_SYM '(' DISTINCT in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_any_value(thd, $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | AVG_SYM '(' in_sum_expr ')'
           {
             $$= new (thd->mem_root) Item_sum_avg(thd, $3, FALSE);
             if (unlikely($$ == NULL))

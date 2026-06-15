@@ -2615,6 +2615,36 @@ bool Item_sum_max::add()
 }
 
 
+bool Item_sum_any_value::add()
+{
+  DBUG_ENTER("Item_sum_any_value::add");
+
+  if (!has_value)
+  {
+    value->store(args[0]);
+    value->cache_value();
+    null_value= args[0]->null_value;
+    has_value= 1;
+  }
+  DBUG_RETURN(0);
+}
+
+
+void Item_sum_any_value::clear()
+{
+  DBUG_ENTER("Item_sum_any_value::clear");
+  if (!const_item())
+  {
+    value->clear();
+    null_value= 1;
+    has_value= 0;
+  }
+  DBUG_VOID_RETURN;
+}
+
+void Item_sum_any_value::update_field() {}
+
+
 /* bit_or and bit_and */
 
 longlong Item_sum_bit::val_int()

@@ -348,7 +348,7 @@ public:
 
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
-    AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
+    AVG_DISTINCT_FUNC, ANY_VALUE_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
     VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
@@ -1252,6 +1252,40 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_sum_max>(thd, this); }
+};
+
+
+class Item_sum_any_value final : public Item_sum_min_max
+{
+public:
+  Item_sum_any_value(THD *thd, Item *item_par)
+      : Item_sum_min_max(thd, item_par, 1), has_value(FALSE)
+  {
+  }
+  Item_sum_any_value(THD *thd, Item_sum_any_value *item)
+      : Item_sum_min_max(thd, item), has_value(FALSE)
+  {
+  }
+
+  bool add() override;
+  void clear() override;
+  void update_field() override;
+
+  enum Sumfunctype sum_func() const override { return ANY_VALUE_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("any_value(")};
+    return sum_name;
+  }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Item_sum_any_value>(thd, this);
+  }
+
+private:
+  bool has_value;
 };
 
 
