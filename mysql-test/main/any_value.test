@@ -1,14 +1,30 @@
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (c INT, d INT);
 CREATE TABLE t3 (x INT, y INT, z INT);
+CREATE TABLE t4 (x INT, y INT, INDEX idx (y, x));
 INSERT INTO t1 VALUES (1,10),(2,10),(3,20);
 INSERT INTO t2 VALUES (1,100),(2,200),(3,300);
 INSERT INTO t3 VALUES (1,10,10),(2,10,10),(3,20,20),(4,20,20),(5,30,30);
+INSERT INTO t4 VALUES (1,10),(2,10),(3,20),(4,20),(5,30);
 
 SET SQL_MODE=ONLY_FULL_GROUP_BY;
 
-# Mixing real aggregate function and ANY_VALUE without GROUP BY
+#
+# Without GROUP BY
+#
+
+SELECT ANY_VALUE(b) FROM t1;
+
+# Mixing real aggregate function
 SELECT COUNT(*), ANY_VALUE(b) FROM t1;
+
+# In WHERE
+--error ER_INVALID_GROUP_FUNC_USE 
+SELECT c FROM t2 WHERE ANY_VALUE(d) = 200;
+
+#
+# With GROUP BY
+#
 
 # Regular use in SELECT-list
 SELECT ANY_VALUE(a), b FROM t1 GROUP BY b;
@@ -19,11 +35,19 @@ SELECT b, ANY_VALUE(a + 100) FROM t1 GROUP BY b;
 SELECT b, ANY_VALUE(a * 2 + b) FROM t1 GROUP BY b;
 SELECT y, ANY_VALUE(x + z) FROM t3 GROUP BY y;
 
+# Table with index on GROUP BY column
+SELECT y, ANY_VALUE(x) FROM t4 GROUP BY y;
+EXPLAIN SELECT y, ANY_VALUE(x) FROM t4 GROUP BY y;
+
 # Correlated subquery
 SELECT b, (SELECT SUM(t2.d) + SUM(t1.a) FROM t2) AS sub FROM t1 GROUP BY b;
 
 SELECT b, (SELECT SUM(t2.d) + ANY_VALUE(t1.a) FROM t2) AS sub FROM t1 GROUP BY b;
 
+# In HAVING
+SELECT y, ANY_VALUE(z) FROM t3 GROUP BY y HAVING ANY_VALUE(z) = 20;
+
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+DROP TABLE t4;
