@@ -82,8 +82,10 @@ public:
   bool dump_sql_script(THD* thd, String &sql_script);
 
   bool has_records();
+
+  Mem_root_dynamic_array<uint> subquery_runs;
+
 private:
-  List<int> subquery_runs;
   void record_table_row(TABLE *tbl, int row_index);
   MEM_ROOT *mem_root;
   /*
@@ -212,8 +214,8 @@ private:
   List<table_context_for_replay> ctx_list;
   bool parse();
   bool has_records();
-  List<double> *get_index_rec_per_key_list(const TABLE *tbl,
-                                           const char *idx_name);
+  Mem_root_dynamic_array<double> *
+  get_index_rec_per_key_list(const TABLE *tbl, const char *idx_name);
   void store_range_contexts(const TABLE *tbl, const char *idx_name,
                             List<Multi_range_read_const_call_record> *list);
   table_context_for_replay *find_table_context(const char *name);
