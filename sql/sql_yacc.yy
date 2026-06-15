@@ -11592,7 +11592,7 @@ sum_expr:
           }
         | ANY_VALUE_SYM '(' DISTINCT in_sum_expr ')'
           {
-            $$= new (thd->mem_root) Item_sum_any_value(thd, $3);
+            $$= new (thd->mem_root) Item_sum_any_value(thd, $4);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }

@@ -421,6 +421,7 @@ public:
   bool is_aggr_sum_func()
   {
     switch (sum_func()) {
+    case ANY_VALUE_FUNC:
     case COUNT_FUNC:
     case COUNT_DISTINCT_FUNC:
     case SUM_FUNC:
