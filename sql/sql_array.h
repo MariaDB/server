@@ -317,4 +317,97 @@ public:
 
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
+/*
+  A typesafe wrapper around MEM_ROOT_DYNAMIC_ARRAY
+*/
+
+template <class Elem> class Mem_root_dynamic_array
+{
+  MEM_ROOT_DYNAMIC_ARRAY array;
+
+public:
+  Mem_root_dynamic_array(MEM_ROOT *root, size_t prealloc= 16,
+                         size_t increment= 16)
+  {
+    mem_root_dynamic_array_init(root, root->psi_key, &array, sizeof(Elem),
+                                NULL, prealloc, increment, MYF(0));
+  }
+
+  /**
+     @note Though formally this could be declared "const" it would be
+     misleading at it returns a non-const pointer to array's data.
+  */
+  Elem &at(size_t idx)
+  {
+    DBUG_ASSERT(idx < array.elements);
+    return *(((Elem *) array.buffer) + idx);
+  }
+
+  /// Const variant of at(), which cannot change data
+  const Elem &at(size_t idx) const
+  {
+    DBUG_ASSERT(idx < array.elements);
+    return *(((const Elem *) array.buffer) + idx);
+  }
+
+  Elem &operator[](size_t idx) { return at(idx); }
+
+  /// Const variant of operator[]
+  const Elem &operator[](size_t idx) const { return at(idx); }
+
+  /// @returns pointer to first element
+  Elem *front() { return (Elem *) array.buffer; }
+
+  /// @returns pointer to first element
+  const Elem *front() const { return (const Elem *) array.buffer; }
+
+  /// @returns pointer to last element
+  Elem *back() { return ((Elem *) array.buffer) + array.elements - 1; }
+
+  /// @returns pointer to last element
+  const Elem *back() const
+  {
+    return ((const Elem *) array.buffer) + array.elements - 1;
+  }
+
+  static const size_t NOT_FOUND= (size_t) -1;
+
+  /// @returns index of the first element equal to el, or NOT_FOUND
+  size_t find_first(const Elem &el) const
+  {
+    for (size_t i= 0; i < size(); i++)
+    {
+      if (el == at(i))
+        return i;
+    }
+    return NOT_FOUND;
+  }
+
+  size_t size() const { return array.elements; }
+
+  const Elem *end() const
+  {
+    return (const Elem *) array.buffer + array.elements;
+  }
+
+  /// @returns pointer to n-th element
+  Elem *get_pos(size_t idx) { return ((Elem *) array.buffer) + idx; }
+
+  /// @returns pointer to n-th element
+  const Elem *get_pos(size_t idx) const
+  {
+    return ((const Elem *) array.buffer) + idx;
+  }
+
+  /**
+     @retval false ok
+     @retval true  OOM, @c my_error() has been called.
+  */
+  bool append(const Elem &el)
+  {
+    return mem_root_dynamic_array_resize_and_set_val(&array, &el,
+                                                     array.elements);
+  }
+};
+
 #endif /* SQL_ARRAY_INCLUDED */
