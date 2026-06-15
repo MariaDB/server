@@ -388,6 +388,7 @@ Repairing tables
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 # Running mysql_upgrade for the second time
 # This should report OK for all tables
 Phase 1/8: Checking and upgrading mysql database
@@ -545,6 +546,7 @@ test.mysql050614_xxx_croatian_ci                   OK
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
 Table	Create Table
 maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (

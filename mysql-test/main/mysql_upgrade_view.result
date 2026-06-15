@@ -237,6 +237,7 @@ test.t1                                            OK
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
@@ -491,6 +492,7 @@ test.t1                                            OK
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 flush tables;
 show create view v1;
 View	Create View	character_set_client	collation_connection
@@ -708,6 +710,7 @@ Phase 6/8: Checking and upgrading tables... Skipped
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 drop table mysql.event;
 rename table mysql.ev_bk to mysql.event;
 drop view v1,v2,v3;
