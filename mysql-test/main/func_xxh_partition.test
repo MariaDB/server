@@ -48,3 +48,14 @@ FROM t2
 ORDER BY partition_name;
 
 DROP TABLE t1, t2;
+
+--echo ## Partition agreement
+CREATE OR REPLACE TABLE tp (c1 VARCHAR(10)) PARTITION BY KEY ALGORITHM=XXH3 (c1) PARTITIONS 4;
+INSERT INTO tp SELECT CAST(seq AS CHAR) FROM seq_1_to_200;
+
+SELECT partition_name, table_rows FROM information_schema.partitions
+WHERE table_schema=DATABASE() AND table_name='tp' ORDER BY partition_name;
+
+SELECT MOD(XXH3(c1),4) AS pid, COUNT(*) FROM tp GROUP BY pid ORDER BY pid;
+
+DROP TABLE tp;

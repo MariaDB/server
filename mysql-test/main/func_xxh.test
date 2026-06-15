@@ -44,4 +44,156 @@ XXH3(_koi8u 0x60 COLLATE koi8u_general_ci) AS xxh3_koi8u_eq;
 
 SELECT XXH32(REGEXP_REPLACE('a','a','')) AS h;
 
+--echo #
+--echo # MDEV-38180 extra test coverage
+--echo #
+
+--echo ## 1. Determinism / known-answer
+SELECT XXH32('abc') AS x32_abc;
+SELECT XXH3('abc') AS x3_abc;
+SELECT XXH32('') AS x32_empty, XXH3('') AS x3_empty;
+
+--echo ## 2. NULL propagation
+SELECT XXH32(NULL) IS NULL AS n32, XXH3(NULL) IS NULL AS n3;
+SELECT XXH32(CONCAT('a',NULL)) IS NULL AS n32c, XXH3(CONCAT('a',NULL)) IS NULL AS n3c;
+
+--echo ## 3. Long input
+SELECT LENGTH(REPEAT('a',16777200)) AS len, XXH32(REPEAT('a',16777200)) AS x32, XXH3(REPEAT('a',16777200)) AS x3;
+
+--echo ## 4. Binary vs CHAR
+SELECT XXH32(BINARY 'abc') AS x32b, XXH32('abc') AS x32c;
+SELECT XXH3(BINARY 'abc') AS x3b, XXH3('abc') AS x3c;
+
+--echo ## 5. PADSPACE behavior (latin1_swedish_ci is PADSPACE)
+SELECT XXH32(_latin1 'abc' COLLATE latin1_swedish_ci) = XXH32(_latin1 'abc    ' COLLATE latin1_swedish_ci) AS pad_eq_sw;
+SELECT XXH32(_latin1 'abc' COLLATE latin1_bin) = XXH32(_latin1 'abc    ' COLLATE latin1_bin) AS pad_eq_bin;
+
+--echo ## 6. Case-insensitive collation should yield equal hashes
+SELECT XXH32(_latin1 'ABC' COLLATE latin1_swedish_ci) = XXH32(_latin1 'abc' COLLATE latin1_swedish_ci) AS ci_eq_sw;
+SELECT XXH3(_utf8mb4 'ABC' COLLATE utf8mb4_general_ci) = XXH3(_utf8mb4 'abc' COLLATE utf8mb4_general_ci) AS ci_eq_u4;
+
+--echo ## 7. Case-sensitive (bin) collation should NOT
+SELECT XXH32(_latin1 'ABC' COLLATE latin1_bin) <> XXH32(_latin1 'abc' COLLATE latin1_bin) AS bin_ne;
+
+--echo ## 8. Charset conversion
+SET NAMES utf8mb4;
+SELECT XXH32(CONVERT('café' USING utf8mb4));
+SELECT XXH32(CONVERT('café' USING latin1));
+
+--echo ## 9. Reject non-string types
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH32(1);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH3(1);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH32(1.5);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH3(NOW());
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH32(CURDATE());
+
+--echo ## 10. ENUM / SET behavior
+CREATE OR REPLACE TABLE t_enum (e ENUM('a','b'), s SET('a','b'));
+INSERT INTO t_enum VALUES ('a','a,b');
+
+--error 0,ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH32(e) FROM t_enum;
+
+--error 0,ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT XXH3(s) FROM t_enum;
+
+DROP TABLE t_enum;
+
+--echo ## 11. JSON column hashing
+CREATE OR REPLACE TABLE t_json (j JSON);
+INSERT INTO t_json VALUES ('{"a":1}'),(NULL),('"x"');
+
+SELECT j, XXH32(j), XXH3(j) FROM t_json;
+
+DROP TABLE t_json;
+
+--echo ## 12. Generated columns (virtual + stored), indexed
+CREATE OR REPLACE TABLE t_gen
+  (d VARCHAR(50) CHARACTER SET utf8mb4,
+   h32v INT UNSIGNED AS (XXH32(d)) VIRTUAL,
+   h3s  BIGINT UNSIGNED AS (XXH3(d)) STORED,
+   KEY (h3s));
+INSERT INTO t_gen (d) VALUES ('alpha'),('beta'),(NULL),('');
+
+SELECT d, h32v, h3s FROM t_gen ORDER BY h3s;
+
+SELECT * FROM t_gen WHERE h3s = XXH3('alpha');
+
+DROP TABLE t_gen;
+
+--echo ## 13. Stored function wrapping XXH
+CREATE OR REPLACE FUNCTION fxh32(s VARCHAR(255)) RETURNS INT UNSIGNED DETERMINISTIC RETURN XXH32(s);
+CREATE OR REPLACE FUNCTION fxh3(s VARCHAR(255)) RETURNS BIGINT UNSIGNED DETERMINISTIC RETURN XXH3(s);
+
+SELECT fxh32('abc') = XXH32('abc'), fxh3('abc') = XXH3('abc');
+
+DROP FUNCTION fxh32;
+DROP FUNCTION fxh3;
+
+--echo ## 14. Prepared statement with user var
+PREPARE p32 FROM 'SELECT XXH32(?)';
+PREPARE p3  FROM 'SELECT XXH3(?)';
+
+SET @s='abc';
+EXECUTE p32 USING @s;
+EXECUTE p3  USING @s;
+
+SET @s='different';
+EXECUTE p32 USING @s;
+
+DEALLOCATE PREPARE p32;
+DEALLOCATE PREPARE p3;
+
+--echo ## 15. View using XXH
+CREATE OR REPLACE TABLE t_v (d VARCHAR(20));
+INSERT INTO t_v VALUES ('a'),('b'),('c');
+CREATE OR REPLACE VIEW v_xxh AS SELECT d, XXH32(d) AS h32, XXH3(d) AS h3 FROM t_v;
+SELECT * FROM v_xxh ORDER BY d;
+
+DROP VIEW v_xxh; DROP TABLE t_v;
+
+--echo ## 16. Aggregation
+CREATE OR REPLACE TABLE t_agg (d VARCHAR(20));
+INSERT INTO t_agg VALUES ('a'),('a'),('b'),('c'),(NULL);
+SELECT COUNT(DISTINCT XXH3(d)) FROM t_agg;
+
+SELECT SUM(XXH32(d) MOD 100) FROM t_agg;
+
+DROP TABLE t_agg;
+
+--echo ## 17. Use inside CHECK constraint
+CREATE OR REPLACE TABLE t_chk (d VARCHAR(20), CHECK (XXH32(d) <> 0));
+INSERT INTO t_chk VALUES ('a');
+
+--error 0,ER_CONSTRAINT_FAILED
+INSERT INTO t_chk VALUES ('');
+
+DROP TABLE t_chk;
+
+--echo ## 18. Determinism across stored-procedure context vs direct
+CREATE OR REPLACE PROCEDURE p_xxh()
+  SELECT XXH32(_latin1'abc') = 2154901205 AS x32_ok, XXH3(_latin1'abc') = 2615927343983396622 AS x3_ok;
+
+CALL p_xxh();
+
+DROP PROCEDURE p_xxh;
+
+--echo ## 19. Per-row NULL handling: hash null-ness must match column null-ness
+CREATE OR REPLACE TABLE t_null (d VARCHAR(10));
+INSERT INTO t_null VALUES ('aa'),(NULL),('bb'),(NULL),('cc'),(NULL);
+
+SELECT COUNT(*) AS xxh32_null_disagreements FROM t_null WHERE (XXH32(d) IS NULL) <> (d IS NULL);
+SELECT COUNT(*) AS xxh3_null_disagreements FROM t_null WHERE (XXH3(d) IS NULL) <> (d IS NULL);
+
+DROP TABLE t_null;
+
 --echo # End of 13.1 tests
