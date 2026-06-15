@@ -37,3 +37,11 @@ SELECT XXH32(_koi8u 0x20 COLLATE koi8u_general_ci) =
 XXH32(_koi8u 0x60 COLLATE koi8u_general_ci) AS xxh32_koi8u_eq;
 SELECT XXH3(_koi8u 0x20 COLLATE koi8u_general_ci) =
 XXH3(_koi8u 0x60 COLLATE koi8u_general_ci) AS xxh3_koi8u_eq;
+
+--echo #
+--echo # MDEV-40043 Assertion `s' failed in my_uca_hash_sort_utf8mb4 on SELECT XXH32(REGEXP_REPLACE...)
+--echo #
+
+SELECT XXH32(REGEXP_REPLACE('a','a','')) AS h;
+
+--echo # End of 13.1 tests

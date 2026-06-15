@@ -233,7 +233,8 @@ public:
   }
   void add(CHARSET_INFO *cs, const uchar *str, size_t length)
   {
-    cs->coll->hash_sort(this, cs, str, length);
+    if (length)
+      cs->coll->hash_sort(this, cs, str, length);
   }
   void add(CHARSET_INFO *cs, const char *str, size_t length)
   {
