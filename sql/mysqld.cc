@@ -118,6 +118,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include "sql_sys_or_ddl_trigger.h"
 #include "sp_head.h"  // init_sp_psi_keys
 #include "log_cache.h"
 #include <mysqld_default_groups.h>
@@ -6413,6 +6414,15 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
+  /*
+    Since opt_noacl can be modified between calling the functions
+    run_after_startup_triggers and run_before_shutdown_triggers (on handling
+    the statement FLUSH PRIVILAGES), calculate the flag based on their
+    original values.
+  */
+  const bool bootstrap_or_noacl= (opt_bootstrap || opt_noacl);
+  if (run_after_startup_triggers(bootstrap_or_noacl))
+    unireg_abort(1);
 
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);
@@ -6428,6 +6438,8 @@ int mysqld_main(int argc, char **argv)
   run_main_loop();
 
   /* Shutdown requested */
+  run_before_shutdown_triggers(bootstrap_or_noacl);
+
   char *user= shutdown_user.load(std::memory_order_relaxed);
   sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,
                         user ? user : "unknown");

@@ -12406,3 +12406,9 @@ ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
         eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."
+ER_SYS_TRG_SEMANTIC_ERROR
+        eng "Incorrect definition of the trigger %s.%s: action '%s' is not compatible with event '%s'"
+ER_TRG_EVENT_CONFLICTS_NAME
+        eng "%s with the same name '%s' already exists"
+ER_SYSTEM_TRG_DISABLED
+        eng "The table mysql.event doesn't contain all mandatory columns required for support of system triggers. Operations with system triggers is disabled."

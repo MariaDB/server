@@ -4,6 +4,7 @@
 call mtr.add_suppression('Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted');
 call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler');
 call mtr.add_suppression('Event Scheduler.*shutdown.*');
+call mtr.add_suppression('Event Scheduler will not function when starting with --skip-grant-tables');
 --enable_query_log
 
 let $collation_server=`select @@collation_server`;
@@ -47,6 +48,10 @@ alter table mysql.event
 --echo # Now we restart the server
 
 call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
+
+--echo # Turn the option --skip-grant-tables on in order to be able
+--echo # to start server on broken mysql.event table
+--let $restart_parameters=--skip-grant-tables
 --source include/restart_mysqld.inc
 
 use events_test;
@@ -55,27 +60,28 @@ select @@event_scheduler;
 # Try various Event Scheduler operation and check the output.
 --error ER_EVENTS_DB_ERROR
 show events;
---error ER_EVENTS_DB_ERROR
 select event_name from information_schema.events;
 --error ER_EVENTS_DB_ERROR
 show create event intact_check;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 drop event no_such_event;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 create event intact_check_1 on schedule every 5 hour do select 5;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 alter event intact_check_1 on schedule every 8 hour do select 8;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 alter event intact_check_1 rename to intact_check_2;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 drop event intact_check_1;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 drop event intact_check_2;
---error ER_EVENTS_DB_ERROR
+--error ER_OPTION_PREVENTS_STATEMENT
 drop event intact_check;
---error ER_STARTUP
+--echo # Since server is started with --skip-grant-tables option the following
+--echo # two statements be failed with the error ER_OPTION_PREVENTS_STATEMENT
+--error ER_OPTION_PREVENTS_STATEMENT
 set global event_scheduler=on;
---error ER_STARTUP
+--error ER_OPTION_PREVENTS_STATEMENT
 set global event_scheduler=off;
 show variables like 'event_scheduler';
 --echo # Make sure that we still can create and drop databases,
@@ -87,18 +93,11 @@ drop database mysqltest_db1;
 drop table mysql.event;
 rename table event_like to mysql.event;
 
---echo # check that we can now enable events without restart
-set global event_scheduler=original;
-select @@global.event_scheduler;
-set global event_scheduler=on;
-select @@global.event_scheduler;
---sorted_result
---replace_column 6 # 9 # 10 #
---replace_result $collation_server latin1_swedish_ci
-show events;
-
 --echo # Now let's restart the server again
 
+--echo # clean the flag '--skip-grant-tables' previously set
+--echo # to start server on broken mysql.event table
+--let $restart_parameters=
 --source include/restart_mysqld.inc
 
 # We need this file primarily to make sure that the scheduler is restarted

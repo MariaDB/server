@@ -122,6 +122,7 @@ bool mysqld_show_contributors(THD *thd);
 bool mysqld_show_privileges(THD *thd);
 char *make_backup_log_name(char *buff, const char *name, const char* log_ext);
 uint calc_sum_of_all_status(STATUS_VAR *to);
+bool append_at_host(THD *thd, String *buffer, const LEX_CSTRING *host);
 bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
@@ -130,6 +131,10 @@ ulonglong get_status_vars_version(void);
 void init_status_vars();
 void free_status_vars();
 void reset_status_vars();
+bool send_show_create_trigger_metadata(THD *thd, MEM_ROOT *mem_root,
+                                       Protocol *p,
+                                       const LEX_CSTRING &trg_sql_mode_str,
+                                       LEX_CSTRING trg_sql_original_stmt);
 bool show_create_trigger(THD *thd, const sp_name *trg_name);
 void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 

@@ -111,6 +111,13 @@ public:
 
   bool dropped;
 
+  /**
+    This flag indicates whether the loaded object represents a record
+    containing trigger or event metadata. True in case the loaded record of
+    the table mysq.event represents trigger, false for the real event.
+  */
+  bool trigger_event= {false};
+
   uint execution_count;
 
   Event_queue_element();
@@ -199,6 +206,19 @@ event_basic_db_equal(const LEX_CSTRING *db, Event_basic *et);
 bool
 event_basic_identifier_equal(const LEX_CSTRING *db, const LEX_CSTRING *name,
                              Event_basic *b);
+
+/**
+  Wrapper around the static method Event_creation_ctx::load_from_db to
+  load data from the table mysql.event and create an instance of the class
+  based on the data retrieved from table.
+*/
+bool
+load_creation_context_for_sys_trg(THD *thd,
+                                  MEM_ROOT *event_mem_root,
+                                  const char *db_name,
+                                  const char *event_name,
+                                  TABLE *event_tbl,
+                                  Stored_program_creation_ctx **ctx);
 
 /**
   @} (End of group Event_Scheduler)

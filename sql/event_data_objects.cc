@@ -27,6 +27,7 @@
 #include "tztime.h"     // my_tz_find, my_tz_OFFSET0, struct Time_zone
 #include "sp.h"         // load_charset, load_collation
 #include "events.h"
+#include "event_common.h"            // Event_creation_ctx
 #include "event_data_objects.h"
 #include "event_db_repository.h"
 #include "sp_head.h"
@@ -52,124 +53,6 @@ void init_scheduler_psi_keys()
 PSI_statement_info Event_queue_element_for_exec::psi_info=
 { 0, "event", 0};
 #endif
-
-/*************************************************************************/
-
-/**
-  Event_creation_ctx -- creation context of events.
-*/
-
-class Event_creation_ctx :public Stored_program_creation_ctx,
-                          public Sql_alloc
-{
-public:
-  static bool load_from_db(THD *thd,
-                           MEM_ROOT *event_mem_root,
-                           const char *db_name,
-                           const char *event_name,
-                           TABLE *event_tbl,
-                           Stored_program_creation_ctx **ctx);
-
-public:
-  Stored_program_creation_ctx *clone(MEM_ROOT *mem_root) override
-  {
-    return new (mem_root)
-               Event_creation_ctx(m_client_cs, m_connection_cl, m_db_cl);
-  }
-
-protected:
-  Object_creation_ctx *create_backup_ctx(THD *thd) const override
-  {
-    /*
-      We can avoid usual backup/restore employed in stored programs since we
-      know that this is a top level statement and the worker thread is
-      allocated exclusively to execute this event.
-    */
-
-    return NULL;
-  }
-
-private:
-  Event_creation_ctx(CHARSET_INFO *client_cs,
-                     CHARSET_INFO *connection_cl,
-                     CHARSET_INFO *db_cl)
-    : Stored_program_creation_ctx(client_cs, connection_cl, db_cl)
-  { }
-};
-
-/**************************************************************************
-  Event_creation_ctx implementation.
-**************************************************************************/
-
-bool
-Event_creation_ctx::load_from_db(THD *thd,
-                                 MEM_ROOT *event_mem_root,
-                                 const char *db_name,
-                                 const char *event_name,
-                                 TABLE *event_tbl,
-                                 Stored_program_creation_ctx **ctx)
-{
-  /* Load character set/collation attributes. */
-
-  CHARSET_INFO *client_cs;
-  CHARSET_INFO *connection_cl;
-  CHARSET_INFO *db_cl;
-
-  bool invalid_creation_ctx= FALSE;
-
-  if (load_charset(thd, event_mem_root,
-                   event_tbl->field[ET_FIELD_CHARACTER_SET_CLIENT],
-                   thd->variables.character_set_client,
-                   &client_cs))
-  {
-    sql_print_warning("Event '%s'.'%s': invalid value "
-                      "in column mysql.event.character_set_client.",
-                      (const char *) db_name,
-                      (const char *) event_name);
-
-    invalid_creation_ctx= TRUE;
-  }
-
-  if (load_collation(thd, event_mem_root,
-                     event_tbl->field[ET_FIELD_COLLATION_CONNECTION],
-                     thd->variables.collation_connection,
-                     &connection_cl))
-  {
-    sql_print_warning("Event '%s'.'%s': invalid value "
-                      "in column mysql.event.collation_connection.",
-                      (const char *) db_name,
-                      (const char *) event_name);
-
-    invalid_creation_ctx= TRUE;
-  }
-
-  if (load_collation(thd, event_mem_root,
-                     event_tbl->field[ET_FIELD_DB_COLLATION],
-                     NULL,
-                     &db_cl))
-  {
-    sql_print_warning("Event '%s'.'%s': invalid value "
-                      "in column mysql.event.db_collation.",
-                      (const char *) db_name,
-                      (const char *) event_name);
-
-    invalid_creation_ctx= TRUE;
-  }
-
-  /*
-    If we failed to resolve the database collation, load the default one
-    from the disk.
-  */
-
-  if (!db_cl)
-    db_cl= get_default_db_collation(thd, db_name);
-
-  /* Create the context. */
-
-  *ctx= new Event_creation_ctx(client_cs, connection_cl, db_cl);
-
-  return invalid_creation_ctx;
-}
 
 /*************************************************************************/
 
@@ -478,6 +361,15 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   if (table->s->fields < ET_FIELD_COUNT)
     DBUG_RETURN(TRUE);
 
+  Event_parse_data::enum_kind kind=
+    (Event_parse_data::enum_kind)table->field[ET_FIELD_KIND]->val_int();
+
+  if (kind != Event_parse_data::SCHEDULE_EVENT)
+  {
+    trigger_event= true;
+    DBUG_RETURN(false);
+  }
+
   if (load_string_fields(table->field,
                          ET_FIELD_DB, &dbname,
                          ET_FIELD_NAME, &name,
@@ -621,6 +513,13 @@ Event_timed::load_from_row(THD *thd, TABLE *table)
 
   if (Event_queue_element::load_from_row(thd, table))
     DBUG_RETURN(TRUE);
+
+  if (trigger_event)
+    /*
+      Don't do loading of event metadata in case the current row represents
+      a trigger.
+    */
+    DBUG_RETURN(false);
 
   if (load_string_fields(table->field,
                          ET_FIELD_BODY, &body,
