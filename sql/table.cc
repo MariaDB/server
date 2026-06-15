@@ -1521,7 +1521,7 @@ void TABLE_SHARE::set_overlapped_keys()
 void TABLE_SHARE::set_ignored_indexes()
 {
   KEY *keyinfo= key_info;
-  for (uint i= 0; i < keys; i++, keyinfo++)
+  for (uint i= 0; i < total_keys; i++, keyinfo++)
     if (keyinfo->is_ignored)
       ignored_indexes.set_bit(i);
 }
@@ -1535,11 +1535,12 @@ void TABLE_SHARE::set_ignored_indexes()
 key_map TABLE_SHARE::usable_indexes(THD *thd)
 {
   key_map usable_indexes(keys_in_use);
-  usable_indexes.subtract(ignored_indexes);
 
   /* take into account keys that the engine knows nothing about */
   for (uint i= keys; i < total_keys; i++)
     usable_indexes.set_bit(i);
+
+  usable_indexes.subtract(ignored_indexes);
 
   return usable_indexes;
 }
