@@ -4642,6 +4642,13 @@ bool Item_func_collect::add() {
   if (tmp_arg[0]->null_value)
     return 0;
 
+  /*
+    A value too short to hold the SRID and WKB header isn't a valid
+    geometry, so contribute nothing (NULL) to the aggregate.
+  */
+  if (!Geometry::is_valid_geometry_length(wkb->length()))
+    return 0;
+
   if(is_distinct && list_contains_element(wkb))
     return 0;
 
