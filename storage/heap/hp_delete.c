@@ -17,6 +17,127 @@
 
 #include "heapdef.h"
 
+/*
+  Push a contiguous block of deleted records onto the free list.
+  'first' is the lowest address; the block spans count records
+  at stride share->block.recbuffer.
+*/
+
+void hp_push_free_block(HP_SHARE *share, uchar *first, uint16 count)
+{
+  uint recbuffer= share->block.recbuffer;
+  uint visible= share->visible;
+  uchar *last= first + (uint32)(count - 1) * recbuffer;
+
+  DBUG_ASSERT(count >= 2);
+
+  /* First record: block-start with chain to next free-list entry */
+  *((uchar**) first)= share->del_link;
+  first[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_START;
+  int2store(first + HP_DEL_COUNT_OFFSET, count);
+  first[visible]= 0;
+
+  /* Dark records: clear metadata bytes at stride recbuffer */
+  hp_clear_dark_records(first + recbuffer, last, recbuffer, visible);
+
+  /* Last record: block-end with back-pointer to first */
+  *((uchar**) last)= first;
+  last[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+  last[visible]= 0;
+
+  share->del_link= last;
+  share->deleted+= count;
+  share->total_records-= count;
+}
+
+
+/*
+  Push a contiguous block (count >= 2) or single record (count == 1)
+  onto the free list, coalescing with the head entry if adjacent.
+  Normalizes the head by treating a single record as a block of count 1,
+  then checks adjacency in two directions (above/below).
+  Falls back to hp_push_free_block/hp_push_free_record when no adjacency.
+*/
+
+void hp_push_free_block_coalesce(HP_SHARE *share, uchar *first,
+                                 uint16 count)
+{
+  uchar *head= share->del_link;
+  uint recbuffer= share->block.recbuffer;
+  uchar *last= first + (uint32)(count - 1) * recbuffer;
+
+  DBUG_ASSERT(count >= 1);
+
+  if (head)
+  {
+    /* Normalize head: treat single record as a block of count 1 */
+    uchar *head_first;
+    uint16 head_count;
+    uint32 combined;
+
+    if (hp_is_free_block_end(head))
+    {
+      head_first= hp_free_block_first(head);
+      head_count= hp_free_block_start_count(head_first);
+    }
+    else
+    {
+      head_first= head;
+      head_count= 1;
+    }
+    combined= (uint32) head_count + count;
+
+    if (combined <= UINT_MAX16)
+    {
+      if (head == first - recbuffer)
+      {
+        /* Head immediately below new block: extend upward */
+        hp_clear_dark_records((head_count > 1 ? head : first), last,
+                              recbuffer, share->visible);
+
+        *((uchar**) last)= head_first;
+        last[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+        last[share->visible]= 0;
+
+        head_first[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_START;
+        int2store(head_first + HP_DEL_COUNT_OFFSET, (uint16) combined);
+
+        share->del_link= last;
+        share->deleted+= count;
+        share->total_records-= count;
+        return;
+      }
+
+      if (head_first == last + recbuffer)
+      {
+        /* Head immediately above new block: extend downward */
+        uchar *next_entry= *((uchar**) head_first);
+
+        hp_clear_dark_records(first + recbuffer, head_first + recbuffer,
+                              recbuffer, share->visible);
+
+        *((uchar**) first)= next_entry;
+        first[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_START;
+        int2store(first + HP_DEL_COUNT_OFFSET, (uint16) combined);
+        first[share->visible]= 0;
+
+        *((uchar**) head)= first;
+        head[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+
+        share->deleted+= count;
+        share->total_records-= count;
+        return;
+      }
+    }
+  }
+
+  if (count == 1)
+    hp_push_free_record(share, first);
+  else
+    hp_push_free_block(share, first, count);
+}
+
+
 int heap_delete(HP_INFO *info, const uchar *record)
 {
   uchar *pos;
@@ -83,11 +204,7 @@ int heap_delete(HP_INFO *info, const uchar *record)
     }
   }
   info->update=HA_STATE_DELETED;
-  *((uchar**) pos)=share->del_link;
-  share->del_link=pos;
-  pos[share->visible]=0;		/* Record deleted */
-  share->deleted++;
-  share->total_records--;
+  hp_push_free_record_coalesce(share, pos);
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
   DBUG_EXECUTE("check_heap",heap_check_heap(info, 0););

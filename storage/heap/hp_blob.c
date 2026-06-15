@@ -82,11 +82,30 @@ void hp_shrink_tail(HP_SHARE *share)
 
   while (share->del_link == tail_pos)
   {
-    share->del_link= *((uchar**) share->del_link);
-    share->deleted--;
-    block->last_allocated--;
-    tail_pos-= recbuffer;
-    block_pos--;
+    ulong reclaim_count;
+
+    if (hp_is_free_block_end(share->del_link))
+    {
+      /*
+        Block entry at tail: reclaim the entire block at once.
+        Blocks from hp_free_run_chain() are always within a single
+        leaf (hp_alloc_from_tail caps at the leaf boundary), so the
+        block cannot span leaf boundaries.
+      */
+      uchar *first= hp_free_block_first(share->del_link);
+      reclaim_count= hp_free_block_start_count(first);
+      share->del_link= *((uchar**) first);
+    }
+    else
+    {
+      reclaim_count= 1;
+      share->del_link= *((uchar**) share->del_link);
+    }
+
+    block->last_allocated-= reclaim_count;
+    tail_pos-= reclaim_count * recbuffer;
+    block_pos-= reclaim_count;
+    share->deleted-= reclaim_count;
 
     /*
       When the current leaf block becomes empty (block_pos has reached 0),
@@ -153,14 +172,12 @@ void hp_flush_pending_blob_free_impl(HP_INFO *info)
 
 void hp_free_run_chain(HP_SHARE *share, uchar *chain)
 {
-  uint recbuffer= share->block.recbuffer;
   uint visible= share->visible;
 
   while (chain)
   {
     uchar *next_run;
     uint16 run_rec_count;
-    uint16 j;
 
     if (hp_is_single_rec(chain, visible))
     {
@@ -171,19 +188,14 @@ void hp_free_run_chain(HP_SHARE *share, uchar *chain)
     else
     {
       /* Case B/C: header present with next_cont and run_rec_count */
-      memcpy(&next_run, chain, sizeof(uchar*));
-      run_rec_count= uint2korr(chain + sizeof(uchar*));
+      next_run= (uchar*) hp_cont_next(chain);
+      run_rec_count= hp_cont_rec_count(chain);
     }
 
-    for (j= 0; j < run_rec_count; j++)
-    {
-      uchar *pos= chain + j * recbuffer;
-      *((uchar**) pos)= share->del_link;
-      share->del_link= pos;
-      pos[visible]= 0;
-      share->deleted++;
-      share->total_records--;
-    }
+    if (run_rec_count == 1)
+      hp_push_free_record_coalesce(share, chain);
+    else
+      hp_push_free_block_coalesce(share, chain, run_rec_count);
 
     chain= next_run;
   }
@@ -286,42 +298,68 @@ static void hp_write_run_data(HP_SHARE *share, const uchar *data,
 
 
 /*
-  Unlink a contiguous group from the delete list and write blob data into it.
-  Does not support zerocopy (always uses HP_ROW_MULTIPLE_REC format).
+  Take runs from the free list and write blob data into them.
+
+  Iterates the free list, accepting blocks with at least min_avail
+  records and singles (avail=1).  Stops when all data is written,
+  the free list is exhausted, or a too-small entry is found.
 
   @param share          Table share
   @param data_ptr       Blob data
   @param data_len       Total blob data length
-  @param run_start      Lowest address of the contiguous group
-  @param run_count      Number of contiguous records in the group
+  @param min_avail      Minimum block size to accept (1 = accept anything)
   @param data_offset    [in/out] Current offset into blob data
-  @param first_run      [out] Pointer to first run; undefined until return
+  @param first_run      [in/out] Pointer to first run
   @param prev_run_start [in/out] Pointer to previous run's start
 */
 
-static void hp_unlink_and_write_run(HP_SHARE *share, const uchar *data_ptr,
-                                    uint32 data_len, uchar *run_start,
-                                    uint16 run_count, uint32 *data_offset,
-                                    uchar **first_run, uchar **prev_run_start)
+static void hp_take_free_list_runs(HP_SHARE *share, const uchar *data_ptr,
+                                   uint32 data_len, uint16 min_avail,
+                                   uint32 *data_offset,
+                                   uchar **first_run, uchar **prev_run_start)
 {
-  uint recbuffer= share->block.recbuffer;
-  DBUG_ASSERT(share->del_link == run_start + (run_count-1) * recbuffer);
-  DBUG_ASSERT(share->del_link >= run_start &&
-              share->del_link < run_start + run_count * recbuffer);
+  uint32 recbuffer= share->block.recbuffer;
+  uint32 first_payload= share->visible - HP_CONT_HEADER_SIZE;
 
-  share->del_link= *(uchar**) (share->del_link -
-                               (run_count-1) * recbuffer);
-  share->deleted-= run_count;
-  share->total_records+= run_count;
+  while (share->del_link && *data_offset < data_len)
+  {
+    uchar *pos= share->del_link;
+    uchar *run_start;
+    uint16 avail;
+    uint16 take;
+    uint32 remaining= data_len - *data_offset;
+    uint32 remaining_records=
+      (remaining <= first_payload ? 1 :
+       1 + (remaining - first_payload + recbuffer - 1) / recbuffer);
 
-  hp_write_run_data(share, data_ptr, data_len, run_start,
-                    run_count, HP_ROW_MULTIPLE_REC, data_offset);
+    if (hp_is_free_block_end(pos))
+      avail= hp_free_block_start_count(hp_free_block_first(pos));
+    else
+      avail= 1;
 
-  if (*prev_run_start)
-    memcpy(*prev_run_start, &run_start, sizeof(run_start));
-  else
-    *first_run= run_start;
-  *prev_run_start= run_start;
+    if (avail < min_avail)
+      break;
+
+    take= (uint16) MY_MIN((uint32) avail,
+                           MY_MIN(remaining_records, (uint32) UINT_MAX16));
+
+    if (avail > 1)
+      run_start= hp_take_free_block(share, take);
+    else
+    {
+      DBUG_ASSERT(take == 1);
+      run_start= hp_pop_free_record(share);
+    }
+
+    hp_write_run_data(share, data_ptr, data_len, run_start,
+                      take, HP_ROW_MULTIPLE_REC, data_offset);
+
+    if (*prev_run_start)
+      memcpy(*prev_run_start, &run_start, sizeof(run_start));
+    else
+      *first_run= run_start;
+    *prev_run_start= run_start;
+  }
 }
 
 
@@ -387,75 +425,16 @@ int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
   /*
     Step 1: Try to allocate contiguous runs from the top of the delete list.
 
-    Peek at delete list records by walking next pointers without unlinking.
-    Track contiguous groups (descending addresses - LIFO order from
-    hp_free_run_chain).  On discontinuity: if the group qualifies
-    (>= min_run_records), unlink and use it; if it doesn't, the tail
-    of the delete_link is too small. Instead of continue searching
-    for a larger block, we stop searching.
+    With block-coalesced free lists, each block entry encodes contiguity
+    directly (count + boundaries).  No per-record walk needed -- just
+    inspect each free-list entry and take from it if large enough.
+
+    remaining_records is recomputed each iteration because each take
+    creates a separate run with its own HP_CONT_HEADER_SIZE overhead,
+    so the per-run payload is less than in a single-run estimate.
   */
-  {
-    uchar *run_start;
-    uint16 run_count= 1;
-    uchar *pos;
-    uint32 max_run= MY_MIN(total_records_needed, UINT_MAX16);
-
-    if ((run_start= share->del_link))
-    {
-      pos= *((uchar**) run_start);
-      run_count= 1;
-      for (; pos ; pos= *((uchar**) pos))
-      {
-        /*
-          Only check descending direction: hp_free_run_chain() frees
-          records in ascending address order (j=0..N), so LIFO pushes
-          them onto the delete list in reverse - consecutive delete
-          list entries have descending addresses.  Ascending adjacency
-          from unrelated deletes is ignored intentionally; we only
-          recover runs that were freed together.
-        */
-        if (run_count == total_records_needed)
-          break;                           /* Use this run */
-
-        if (pos == run_start - recbuffer)
-        {
-          run_start= pos;
-          run_count++;
-          if (run_count < max_run)
-            continue;
-          if (run_count == total_records_needed)
-            break;                           /* Use this run */
-          /* run_count is now UINT_MAX16 */
-        }
-
-        /*
-          Discontinuity.  If the accumulated group qualifies, use it.
-          If not, the top of the delete list is fragmented - give up entirely.
-        */
-        if (run_count < min_run_records)
-          break;
-        hp_unlink_and_write_run(share, data_ptr, data_len, run_start,
-                                run_count, &data_offset,
-                                &first_run, &prev_run_start);
-
-        pos= share->del_link;
-        total_records_needed-= run_count;
-
-        /* This cannot be last run */
-        DBUG_ASSERT(data_offset < data_len && pos);
-        DBUG_ASSERT(total_records_needed != 0);
-
-        run_start= pos;
-        run_count= 1;
-      }
-
-      /* Handle the last group after the loop ends */
-      if (run_count >= min_run_records && data_offset < data_len)
-        hp_unlink_and_write_run(share, data_ptr, data_len, run_start,
-                                run_count, &data_offset,
-                                &first_run, &prev_run_start);
-    }
-  }
+  hp_take_free_list_runs(share, data_ptr, data_len, min_run_records,
+                         &data_offset, &first_run, &prev_run_start);
 
   /*
     Step 2: Allocate remaining data from the block tail.
@@ -541,41 +520,10 @@ int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
     Step 3: Free-list scavenge fallback.
 
     When the tail is full but there are deleted records on the free list,
-    walk the entire free list accepting any contiguous group (even a
-    single slot).  This produces maximally fragmented chains (many short
-    runs, Case C), which are slower to read but correct.  Failing with
-    table-full when free slots exist is worse than a fragmented chain.
+    take whatever blocks or singles remain, accepting any size.
   */
-  while (data_offset < data_len && share->del_link)
-  {
-    uchar *run_start= share->del_link;
-    uchar *pos= *((uchar**) run_start);
-    uint16 run_count= 1;
-    uint32 remaining= data_len - data_offset;
-    uint32 remaining_records=
-      (remaining <= first_payload ? 1 :
-       1 + (remaining - first_payload + recbuffer - 1) / recbuffer);
-    uint32 max_run= MY_MIN(remaining_records, UINT_MAX16);
-
-    /* Traverse the delete link list */
-    for (; pos; pos= *((uchar**) pos))
-    {
-      if (run_count >= max_run)
-        break;
-      if (pos == run_start - recbuffer)
-      {
-        /* Found block directly before current block. Combine them */
-        run_start= pos;
-        run_count++;
-        continue;
-      }
-      break;
-    }
-
-    hp_unlink_and_write_run(share, data_ptr, data_len, run_start,
-                            run_count, &data_offset,
-                            &first_run, &prev_run_start);
-  }
+  hp_take_free_list_runs(share, data_ptr, data_len, 1,
+                         &data_offset, &first_run, &prev_run_start);
 
   if (data_offset < data_len)
   {
@@ -686,7 +634,6 @@ static void hp_reassemble_chain(const uchar *chain, uint32 data_len,
   uint32 remaining= data_len;
   while (chain && remaining > 0)
   {
-    uint16 rec;
     uint16 run_rec_count;
     uint32 chunk;
     const uchar *next_cont;
@@ -703,16 +650,19 @@ static void hp_reassemble_chain(const uchar *chain, uint32 data_len,
     remaining-= chunk;
 
     /* Inner records: recbuffer stride, no flags byte */
-    for (rec= 1; rec < run_rec_count; rec++)
     {
-      const uchar *rec_ptr= chain + rec * recbuffer;
-      DBUG_ASSERT(remaining != 0);
-      chunk= recbuffer;
-      if (chunk > remaining)
-        chunk= remaining;
-      memcpy(out, rec_ptr, chunk);
-      out+= chunk;
-      remaining-= chunk;
+      const uchar *rec_end= chain + (uint32) run_rec_count * recbuffer;
+      const uchar *rec_ptr;
+      for (rec_ptr= chain + recbuffer; rec_ptr < rec_end; rec_ptr+= recbuffer)
+      {
+        DBUG_ASSERT(remaining != 0);
+        chunk= recbuffer;
+        if (chunk > remaining)
+          chunk= remaining;
+        memcpy(out, rec_ptr, chunk);
+        out+= chunk;
+        remaining-= chunk;
+      }
     }
 
     chain= next_cont;

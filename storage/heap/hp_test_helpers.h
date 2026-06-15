@@ -7,7 +7,7 @@
     bytes 5-6:    blob packlength=2 (length, little-endian)
     bytes 7-14:   blob data pointer (portable_sizeof_char_ptr = 8 bytes always)
   reclength = 15
-  visible_offset = MAX(15, 8) = 15
+  visible_offset = MAX(15, HP_DEL_METADATA_SIZE=11) = 15
   recbuffer = ALIGN(15 + 1, 8) = 16
 
   The pointer slot is always portable_sizeof_char_ptr (8) bytes in the record

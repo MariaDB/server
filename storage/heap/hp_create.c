@@ -70,20 +70,13 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     DBUG_PRINT("info",("Initializing new table"));
     
     /*
-      We have to store sometimes uchar* del_link in records,
-      so the visible_offset must be least at sizeof(uchar*)
+      Deleted records store del_link (sizeof(uchar*) bytes), a block
+      flags byte, and a uint16 block count.  visible_offset must be
+      at least HP_DEL_METADATA_SIZE so that these fields never overlap
+      the flags byte at offset 'visible'.  This also satisfies the
+      blob continuation header requirement (HP_CONT_HEADER_SIZE + 1).
     */
-    visible_offset= MY_MAX(reclength, sizeof (char*));
-    /*
-      Blob tables store continuation run headers (next_cont pointer +
-      run_slots count = HP_CONT_HEADER_SIZE bytes) in each run's first
-      slot.  Ensure at least 1 byte of payload beyond the header,
-      otherwise hp_write_run_data() underflows computing
-      chunk = visible - HP_CONT_HEADER_SIZE.  Only matters for
-      pathological single-TINYBLOB tables (reclength as low as 9).
-    */
-    if (create_info->blob_count)
-      visible_offset= MY_MAX(visible_offset, HP_CONT_HEADER_SIZE + 1);
+    visible_offset= MY_MAX(reclength, HP_DEL_METADATA_SIZE);
 
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
@@ -336,10 +329,16 @@ static int keys_compare(void *heap_rb_, const void *key1_,
 
 size_t hp_memory_needed_per_row(size_t reclength)
 {
-  /* Data needed for storing record + pointer to records */
-  reclength= MY_MAX(reclength, sizeof(char*));
-  /* The + 1 below is for the delete marker at the end of record*/
-  reclength= MY_ALIGN(reclength+1, sizeof(char*));
+  /*
+    Must accommodate del_link + del_flag + block count.
+    The + 1 below is for the required visibility byte at the end of each record.
+  */
+  reclength= MY_MAX(reclength + 1, HP_DEL_METADATA_SIZE);
+  /*
+    Record has to be aligned for faster memcpy and also for allowing
+    direct access to delete link/chain at start of record.
+  */
+  reclength= MY_ALIGN(reclength, sizeof(char*));
   return reclength;
 }
 

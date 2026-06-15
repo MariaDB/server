@@ -46,6 +46,7 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
   ulong records=0, deleted=0, cont_count=0, pos, next_block;
   ulong del_link_count;
   uchar *del_ptr;
+  my_bool block_count_error_printed= FALSE;
   HP_SHARE *share=info->s;
   uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
@@ -70,13 +71,25 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     error= 1;
   }
 
-  /* Verify free list length matches share->deleted */
+  /* Verify free list record count matches share->deleted */
   del_link_count= 0;
-  for (del_ptr= share->del_link; del_ptr; del_ptr= *((uchar**) del_ptr))
-    del_link_count++;
+  for (del_ptr= share->del_link; del_ptr; )
+  {
+    if (hp_is_free_block_end(del_ptr))
+    {
+      uchar *first= hp_free_block_first(del_ptr);
+      del_link_count+= hp_free_block_start_count(first);
+      del_ptr= *((uchar**) first);
+    }
+    else
+    {
+      del_link_count++;
+      del_ptr= *((uchar**) del_ptr);
+    }
+  }
   if (del_link_count != share->deleted)
   {
-    DBUG_PRINT("error",("free list length %lu != share->deleted %lu",
+    DBUG_PRINT("error",("free list record count %lu != share->deleted %lu",
                         del_link_count, (ulong) share->deleted));
     error= 1;
   }
@@ -104,7 +117,72 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     current_ptr= hp_find_block(&share->block, pos);
 
     if (!current_ptr[share->visible])
-      deleted++;
+    {
+      if (hp_is_free_block_start(current_ptr))
+      {
+        uint16 block_count= hp_free_block_start_count(current_ptr);
+        uchar *block_last;
+
+        if (block_count < 2 ||
+            pos + block_count > share->total_records + share->deleted)
+        {
+          if (!block_count_error_printed)
+          {
+            DBUG_PRINT("error",
+                       ("Block at pos: %lu invalid count: %u "
+                        "(total_records+deleted=%lu)",
+                        pos, (uint) block_count,
+                        (ulong)(share->total_records + share->deleted)));
+            block_count_error_printed= TRUE;
+          }
+          error= 1;
+          deleted++;
+          goto next_record;
+        }
+
+        block_last= current_ptr +
+          (uint32)(block_count - 1) * share->block.recbuffer;
+
+        if (!(block_last[HP_DEL_FLAG_OFFSET] & HP_DEL_BLOCK_END))
+        {
+          DBUG_PRINT("error",
+                     ("Block at pos %lu: last record missing "
+                      "HP_DEL_BLOCK_END flag", pos));
+          error= 1;
+        }
+#ifndef DBUG_OFF
+        {
+          uchar *dark;
+          for (dark= current_ptr + share->block.recbuffer;
+               dark < block_last; dark+= share->block.recbuffer)
+          {
+            if (dark[HP_DEL_FLAG_OFFSET] != 0)
+            {
+              DBUG_PRINT("error",
+                         ("Dark record at pos %lu+%u has non-zero del_flag",
+                          pos,
+                          (uint)((dark - current_ptr) /
+                                 share->block.recbuffer)));
+              error= 1;
+            }
+            if (dark[share->visible] != 0)
+            {
+              DBUG_PRINT("error",
+                         ("Dark record at pos %lu+%u has non-zero visible",
+                          pos,
+                          (uint)((dark - current_ptr) /
+                                 share->block.recbuffer)));
+              error= 1;
+            }
+          }
+        }
+#endif
+        deleted+= block_count;
+        pos+= block_count - 1;
+      }
+      else
+        deleted++;
+    }
     else if (hp_is_cont(current_ptr, share->visible))
     {
       /*
@@ -156,6 +234,7 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
         }
       }
     }
+next_record: ;
   }
 
   if (records != share->records || deleted != share->deleted)
