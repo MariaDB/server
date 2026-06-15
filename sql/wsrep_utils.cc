@@ -1,4 +1,5 @@
 /* Copyright 2010-2015 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -597,4 +598,51 @@ size_t wsrep_host_len(const char* const addr, size_t const addr_len)
     const char* const colon= strchr(addr, ':');
     return (colon ? colon - addr : addr_len);
   }
+}
+
+/* return true if character can be a part of a filename */
+bool wsrep_filename_char(int const c)
+{
+  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
+}
+
+/* return true if string is comma seprated list */
+bool wsrep_comma_char(int const c)
+{
+  return (c == ',');
+}
+
+/* return true if character can be a part of an address string */
+bool wsrep_address_char(int const c)
+{
+  return wsrep_filename_char(c) ||
+         (c == ':') || (c == '[') || (c == ']') || (c == '/');
+}
+
+bool wsrep_shell_char(int const c)
+{
+  return (c != '`') && (c != '\'') && (c != '$') && (c != ' ');
+}
+
+/* return true if character can be a part of an address string list */
+bool wsrep_names_list(int const c)
+{
+  return wsrep_address_char(c) || wsrep_comma_char(c);
+}
+
+bool wsrep_check_request_str(const char* const str,
+                             bool (*check) (int c),
+                             bool log_warn)
+{
+  for (size_t i(0); str[i] != '\0'; ++i)
+  {
+    if (!check(str[i]))
+    {
+      if (log_warn) WSREP_WARN("Illegal character in variable: %i (%c).",
+                               str[i], str[i]);
+      return true;
+    }
+  }
+
+  return false;
 }
