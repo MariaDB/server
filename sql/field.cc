@@ -8601,7 +8601,7 @@ int Field_longstr::compress(char *to, uint to_length,
     /* Store uncompressed */
     to[0]= 0;
     if (buf_length < to_length)
-      memcpy(to + 1, buf, buf_length);
+      memmove(to + 1, buf, buf_length);
     else
     {
       /* Storing string at blob capacity, e.g. 255 bytes string to TINYBLOB. */
