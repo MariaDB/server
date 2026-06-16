@@ -45,6 +45,7 @@
 #include "mem_root_array.h"
 #include <utility>     // pair
 #include <my_attribute.h> /* __attribute__ */
+#include "parallel_worker_ctx.h"
 
 class Alter_info;
 class Virtual_column_info;
@@ -3762,6 +3763,95 @@ public:
     DBUG_ASSERT((cached_table_flags >> 1) < HA_LAST_TABLE_FLAG);
     return cached_table_flags;
   }
+
+/**
+  Parallel scan interface: the following functions are to be implemented by
+  handlers that support parallel scanning.
+*/
+  enum Parallel_scan_type : uint32
+  {
+    PSCAN_TABLE_FULL = 0x1,
+    PSCAN_TABLE_RANGE = 0x2,
+    PSCAN_INDEX_FULL = 0x4,
+    PSCAN_INDEX_RANGE = 0x8
+  };
+
+  /*
+    Returns a bitmap of the types of parallel scan supported by the handler.
+    Override this method in the handler implementation to indicate support
+    of particular types.
+  */
+  virtual uint32 parallel_scan_support() const { return 0; }
+
+  /**
+    To be called from the master thread to initiate the parallel scanning.
+
+    @param n_workers  number of workers to partition the scan for
+    @param ranges     key intervals to scan, in key order, in the same
+                      representation the MRR interface uses: an endpoint whose
+                      keypart_map is 0 is unbounded, and start_key.flag /
+                      end_key.flag say whether the endpoint itself belongs to
+                      the interval. Empty means scan the whole table.
+  */
+  virtual int parallel_init_coordinator(size_t n_workers,
+                    const Dynamic_array<KEY_MULTI_RANGE> &ranges)
+              __attribute__ ((warn_unused_result))
+  {
+    /*
+      The default means "this handler does not support parallel scan"; the
+      SQL layer treats HA_ERR_UNSUPPORTED as a signal to fall back
+      to the serial scan
+    */
+    return HA_ERR_UNSUPPORTED;
+  }
+
+  /**
+    To be called from the master thread to finish the parallel scanning.
+  */
+  virtual int parallel_end_coordinator() { return 0; }
+
+  /* To be called from the master thread to get context data for each worker */
+  virtual Parallel_worker_ctx *parallel_get_worker_context(size_t worker_idx)
+  {
+    return nullptr;
+  }
+
+  /**
+    To be called by worker (child) threads of a parallel scan.
+    Prepares the worker to start scanning of data from the chunk assigned
+    to this worker.
+  */
+  virtual int parallel_init_worker(Parallel_worker_ctx *wctx)
+              __attribute__ ((warn_unused_result))
+  {
+    return HA_ERR_UNSUPPORTED;
+  }
+
+  /**
+    To be called by worker (child) threads of a parallel scan.
+    Reads next row from a chunk assigned to this worker
+
+    1. Public non-virtual wrapper, called by SQL layer.
+    Does the same bookkeeping ha_rnd_next does.
+  */
+  int ha_parallel_get_next_row(Parallel_worker_ctx *ctx);
+
+protected:
+  /* 2. Engine-private virtual: just fetch the next row, no bookkeeping. */
+  virtual int parallel_get_next_row(Parallel_worker_ctx *ctx)
+              __attribute__ ((warn_unused_result))
+  {
+    return HA_ERR_UNSUPPORTED;
+  }
+
+public:
+  /* To be called from worker thread to finish the parallel scanning */
+  virtual int parallel_end_worker() { return 0; }
+
+/**
+  End of parallel scan interface.
+*/
+
   /**
     These functions represent the public interface to *users* of the
     handler class, hence they are *not* virtual. For the inheritance
@@ -5390,6 +5480,7 @@ protected:
   /* Same as increment_statistics but doesn't increase accessed_rows_and_keys */
   inline void fast_increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
+  bool is_parallel_scan_supported() const;
 
 private:
   /*
