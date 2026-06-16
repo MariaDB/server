@@ -97,13 +97,15 @@ extern	char *strfill(char * s,size_t len,pchar fill);
 extern	char *strmake(char *dst,const char *src,size_t length);
 
 #if !defined(__GNUC__) || (__GNUC__ < 4)
-#define strmake_buf(D,S)        strmake(D, S, sizeof(D) - 1)
+#define type_assert_buf(D) (D)
 #else
-#define strmake_buf(D,S) ({                             \
+#define type_assert_buf(D) ({                           \
   __typeof__ (D) __x __attribute__((unused)) = { 2 };   \
-  strmake(D, S, sizeof(D) - 1);                         \
+  (D);                                                  \
   })
 #endif
+
+#define strmake_buf(D,S) strmake(type_assert_buf(D), S, sizeof(D) - 1)
 
 #ifndef strmov
 extern	char *strmov(char *dst,const char *src);

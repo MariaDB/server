@@ -626,7 +626,7 @@ static int dump_all_udfs();
 static int dump_all_servers();
 static int dump_all_stats();
 static int dump_all_timezones();
-static char *quote_name(const char *name, char *buff, my_bool force);
+static char *quote_name_sz(const char *, char *, my_bool, size_t);
 char check_if_ignore_table(const char *table_name, char *table_type);
 static char *primary_key_fields(const char *table_name);
 static my_bool get_view_structure(char *table, char* db);
@@ -636,6 +636,10 @@ static int dump_tablespaces_for_tables(char *db, char **table_names, int tables)
 static int dump_tablespaces_for_databases(char** databases);
 static int dump_tablespaces(char* ts_where);
 static void print_comment(FILE *, my_bool, const char *, ...);
+
+#define quote_name(A,B,C)    quote_name_sz(A,type_assert_buf(B),C,sizeof(B))
+#define quote_for_equal(A,B) quote_for_equal_sz(A,type_assert_buf(B),sizeof(B))
+#define quote_for_like(A,B)  quote_for_like_sz(A,type_assert_buf(B),sizeof(B))
 
 /*
   Print the supplied message if in verbose mode
@@ -2051,7 +2055,7 @@ static my_bool test_if_special_chars(const char *str)
 
 
 /*
-  quote_name(name, buff, force)
+  quote_name_sz(name, buff, force, buff_size)
 
   Quotes a string, if it requires quoting. To force quoting regardless
   of the characters within the string, the force flag can be set to true.
@@ -2061,21 +2065,24 @@ static my_bool test_if_special_chars(const char *str)
   name                 Unquoted string containing that which will be quoted
   buff                 The buffer that contains the quoted value, also returned
   force                Flag to make it ignore 'test_if_special_chars'
+  buff_size            Size of buff
 
   Returns
      A pointer to the quoted string, or the original string if nothing has
      changed.
 
 */
-static char *quote_name(const char *name, char *buff, my_bool force)
+static char *quote_name_sz(const char *name, char *buff, my_bool force,
+                            size_t buff_size)
 {
   char *to= buff;
   char qtype= (opt_compatible_mode & MASK_ANSI_QUOTES) ? '\"' : '`';
+  const char *end= buff + buff_size - 4;
 
   if (!force && !opt_quoted && !test_if_special_chars(name))
     return (char*) name;
   *to++= qtype;
-  while (*name)
+  while (*name && to < end)
   {
     if (*name == qtype)
       *to++= qtype;
@@ -2091,9 +2098,10 @@ static char *quote_name(const char *name, char *buff, my_bool force)
   Quote a table name so it can be used in "SHOW TABLES LIKE <tabname>"
 
   SYNOPSIS
-    quote_for_like()
+    quote_for_like_sz()
     name     name of the table
     buff     quoted name of the table
+    buff_size size of buff
 
   DESCRIPTION
     Quote \, _, ' and % characters
@@ -2109,11 +2117,12 @@ static char *quote_name(const char *name, char *buff, my_bool force)
     Example: "t\1" => "t\\\\1"
 
 */
-static char *quote_for_like(const char *name, char *buff)
+static char *quote_for_like_sz(const char *name, char *buff, size_t buff_size)
 {
   char *to= buff;
+  const char *end= buff + buff_size - 6;
   *to++= '\'';
-  while (*name)
+  while (*name && to < end)
   {
     if (*name == '\\')
     {
@@ -2130,17 +2139,16 @@ static char *quote_for_like(const char *name, char *buff)
   return buff;
 }
 
-static char *quote_for_equal(const char *name, char *buff)
+static char *quote_for_equal_sz(const char *name, char *buff, size_t buff_size)
 {
   char *to= buff;
+  const char *end= buff + buff_size - 4;
   *to++= '\'';
-  while (*name)
+  while (*name && to < end)
   {
     if (*name == '\\')
-    {
       *to++='\\';
-    }
-    if (*name == '\'')
+    else if (*name == '\'')
       *to++= '\'';
     *to++= *name++;
   }
@@ -5163,7 +5171,7 @@ static int dump_tablespaces(char* ts_where)
     if (first)
     {
       first= 0;
-      strxmov(buf, row[0], NullS);
+      strmake_buf(buf, row[0]);
     }
   }
   dynstr_free(&sqlbuf);
@@ -5227,7 +5235,7 @@ static int dump_tablespaces(char* ts_where)
     if (first)
     {
       first= 0;
-      strxmov(buf, row[0], NullS);
+      strmake_buf(buf, row[0]);
     }
   }
 
@@ -5506,7 +5514,7 @@ static int dump_all_tables_in_db(char *database)
   int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
   DBUG_ENTER("dump_all_tables_in_db");
 
-  afterdot= strmov(hash_key, database);
+  afterdot= strnmov(hash_key, database, NAME_LEN);
   *afterdot++= '.';
 
   if (init_dumping(database, using_mysql_db ? init_dumping_mysql_tables
@@ -5524,7 +5532,7 @@ static int dump_all_tables_in_db(char *database)
     init_dynamic_string_checked(&query, "LOCK TABLES ", 256, 1024);
     for (numrows= 0 ; (table= getTableName(1, DUMP_TABLE_ALL)) ; )
     {
-      char *end= strmov(afterdot, table);
+      char *end= strnmov(afterdot, table, NAME_LEN);
       if (include_table((uchar*) hash_key,end - hash_key))
       {
         numrows++;
@@ -5563,14 +5571,14 @@ static int dump_all_tables_in_db(char *database)
     // First process sequences
     while ((table= getTableName(1, DUMP_TABLE_SEQUENCE)))
     {
-      char *end= strmov(afterdot, table);
+      char *end= strnmov(afterdot, table, NAME_LEN);
       if (include_table((uchar*) hash_key, end - hash_key))
         get_sequence_structure(table, database);
     }
   }
   while ((table= getTableName(0, DUMP_TABLE_TABLE)))
   {
-    char *end= strmov(afterdot, table);
+    char *end= strnmov(afterdot, table, NAME_LEN);
     if (include_table((uchar*) hash_key, end - hash_key))
     {
       dump_table(table, database, (uchar*) hash_key, end - hash_key);
@@ -5684,7 +5692,7 @@ static my_bool dump_all_views_in_db(char *database)
   char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
   char *afterdot;
 
-  afterdot= strmov(hash_key, database);
+  afterdot= strnmov(hash_key, database, NAME_LEN);
   *afterdot++= '.';
 
   if (init_dumping(database, init_dumping_views))
@@ -5697,7 +5705,7 @@ static my_bool dump_all_views_in_db(char *database)
     init_dynamic_string_checked(&query, "LOCK TABLES ", 256, 1024);
     for (numrows= 0 ; (table= getTableName(1, DUMP_TABLE_TABLE)); )
     {
-      char *end= strmov(afterdot, table);
+      char *end= strnmov(afterdot, table, NAME_LEN);
       if (include_table((uchar*) hash_key,end - hash_key))
       {
         numrows++;
@@ -5720,7 +5728,7 @@ static my_bool dump_all_views_in_db(char *database)
   }
   while ((table= getTableName(0, DUMP_TABLE_TABLE)))
   {
-    char *end= strmov(afterdot, table);
+    char *end= strnmov(afterdot, table, NAME_LEN);
     if (include_table((uchar*) hash_key, end - hash_key))
       get_view_structure(table, database);
   }
@@ -6706,8 +6714,8 @@ cleanup:
 */
 
 static int replace(DYNAMIC_STRING *ds_str,
-                   const char *search_str, ulong search_len,
-                   const char *replace_str, ulong replace_len)
+                   const char *search_str, size_t search_len,
+                   const char *replace_str, size_t replace_len)
 {
   DYNAMIC_STRING ds_tmp;
   const char *start= strstr(ds_str->str, search_str);
@@ -6716,7 +6724,7 @@ static int replace(DYNAMIC_STRING *ds_str,
   init_dynamic_string_checked(&ds_tmp, "",
                       ds_str->length + replace_len, 256);
   dynstr_append_mem_checked(&ds_tmp, ds_str->str, (uint)(start - ds_str->str));
-  dynstr_append_mem_checked(&ds_tmp, replace_str, replace_len);
+  dynstr_append_mem_checked(&ds_tmp, replace_str, (uint)replace_len);
   dynstr_append_checked(&ds_tmp, start + search_len);
   dynstr_set_checked(ds_str, ds_tmp.str);
   dynstr_free(&ds_tmp);
@@ -6823,10 +6831,9 @@ static my_bool get_view_structure(char *table, char* db)
   }
   else
   {
-    char *ptr;
     ulong *lengths;
     char search_buf[256], replace_buf[256];
-    ulong search_len, replace_len;
+    size_t search_len, replace_len;
     DYNAMIC_STRING ds_view;
 
     /* Save the result of SHOW CREATE TABLE in ds_view */
@@ -6854,13 +6861,10 @@ static my_bool get_view_structure(char *table, char* db)
     */
     if (strcmp(row[0], "NONE"))
     {
-
-      ptr= search_buf;
-      search_len= (ulong)(strxmov(ptr, "WITH ", row[0],
-                                  " CHECK OPTION", NullS) - ptr);
-      ptr= replace_buf;
-      replace_len=(ulong)(strxmov(ptr, "*/\n/*!50002 WITH ", row[0],
-                                  " CHECK OPTION", NullS) - ptr);
+      search_len= my_snprintf(search_buf, sizeof(search_buf),
+                              "WITH %s CHECK OPTION", row[0]);
+      replace_len= my_snprintf(replace_buf, sizeof(replace_buf),
+                              "*/\n/*!50002 WITH %s CHECK OPTION", row[0]);
       replace(&ds_view, search_buf, search_len, replace_buf, replace_len);
     }
 
@@ -6879,21 +6883,16 @@ static my_bool get_view_structure(char *table, char* db)
       parse_user(row[1], lengths[1], user_name_str, &user_name_len,
                  host_name_str, &host_name_len);
 
-      ptr= search_buf;
-      search_len=
-        (ulong)(strxmov(ptr, "DEFINER=",
-                        quote_name(user_name_str, quoted_user_name_str, FALSE),
-                        "@",
-                        quote_name(host_name_str, quoted_host_name_str, FALSE),
-                        " SQL SECURITY ", row[2], NullS) - ptr);
-      ptr= replace_buf;
-      replace_len=
-        (ulong)(strxmov(ptr, "*/\n/*!50013 DEFINER=",
-                        quote_name(user_name_str, quoted_user_name_str, FALSE),
-                        "@",
-                        quote_name(host_name_str, quoted_host_name_str, FALSE),
-                        " SQL SECURITY ", row[2],
-                        " */\n/*!50001", NullS) - ptr);
+      search_len= my_snprintf(search_buf, sizeof(search_buf),
+                    "DEFINER=%s@%s SQL SECURITY %s",
+                    quote_name(user_name_str, quoted_user_name_str, FALSE),
+                    quote_name(host_name_str, quoted_host_name_str, FALSE),
+                    row[2]);
+      replace_len= my_snprintf(replace_buf, sizeof(replace_buf),
+                    "*/\n/*!50013 DEFINER=%s@%s SQL SECURITY %s */\n/*!50001",
+                    quote_name(user_name_str, quoted_user_name_str, FALSE),
+                    quote_name(host_name_str, quoted_host_name_str, FALSE),
+                    row[2]);
       replace(&ds_view, search_buf, search_len, replace_buf, replace_len);
     }
 
