@@ -1,0 +1,61 @@
+# mysqlbinlog_convert.test
+#
+# Purpose:
+#   Basic test for MDEV-37605: mariadb-binlog conversion of InnoDB-format
+#   binlogs (.ibb) into legacy-format binary log 
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--let $datadir= `SELECT @@datadir`
+
+--source include/reset_master.inc
+
+# Fixed timestamp for deterministic event listings (with --timezone=GMT-3
+# from the -master.opt file, matching binlog_in_engine.mysqlbinlog).
+set TIMESTAMP= UNIX_TIMESTAMP("1970-01-21 15:32:22");
+
+--echo *** Generate a small workload into binlog-000000.ibb
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+UPDATE t1 SET b=1 WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+REPLACE INTO t1 VALUES (3, 3);
+SELECT * FROM t1 ORDER BY a;
+
+# Rotate so binlog-000000.ibb is complete on disk. Waiting for the *next*
+# pre-allocated file (binlog-000002.ibb, fully pre-allocated and empty)
+# guarantees both 000000 and the new active 000001 exist.
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+
+--echo *** Convert binlog-000000.ibb to legacy format
+--exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/conv $datadir/binlog-000000.ibb
+
+
+--echo *** Converted file contains the synthesized header events
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/conv.000001 > $MYSQL_TMP_DIR/conv_listing.txt
+--let SEARCH_FILE= $MYSQL_TMP_DIR/conv_listing.txt
+--let SEARCH_PATTERN= Gtid list
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Binlog checkpoint
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Start: binlog v 4
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQL_TMP_DIR/conv_listing.txt
+
+--echo *** Round-trip: replay the converted file and compare data
+# The replayed GTIDs duplicate the originals, so the replay must not use
+# GTID strict mode (same as in binlog_in_engine.mysqlbinlog).
+--exec $MYSQL_BINLOG --gtid-strict-mode=0 $MYSQL_TMP_DIR/conv.000001 > $MYSQLTEST_VARDIR/tmp/convert_replay.sql
+DROP TABLE t1;
+--exec $MYSQL --abort-source-on-error -e "source $MYSQLTEST_VARDIR/tmp/convert_replay.sql;" test
+--remove_file $MYSQLTEST_VARDIR/tmp/convert_replay.sql
+SELECT * FROM t1 ORDER BY a;
+
+# Cleanup
+--remove_file $MYSQL_TMP_DIR/conv.000001
+DROP TABLE t1;

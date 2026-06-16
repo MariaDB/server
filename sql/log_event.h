@@ -2662,10 +2662,11 @@ public:
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol* protocol) override;
 #endif /* HAVE_REPLICATION */
-  bool to_packet(String *packet);
 #else
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
+  bool to_packet(String *packet);
+
   bool header_is_valid() const
   {
     return common_header_len >= LOG_EVENT_MINIMAL_HEADER_LEN && post_header_len;
@@ -3329,14 +3330,15 @@ public:
   uint binlog_file_len;
 
 #ifdef MYSQL_SERVER
-  Binlog_checkpoint_log_event(const char *binlog_file_name_arg,
-                              uint binlog_file_len_arg);
+  
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol) override;
 #endif
 #else
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
+  Binlog_checkpoint_log_event(const char *binlog_file_name_arg,
+                              uint binlog_file_len_arg);
   Binlog_checkpoint_log_event(const uchar *buf, uint event_len,
                               const Format_description_log_event
                               *description_event);
@@ -3679,6 +3681,7 @@ public:
   void pack_info(Protocol *protocol) override;
 #endif
 #else
+  Gtid_list_log_event(rpl_binlog_state_base *gtid_set);
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
   Gtid_list_log_event(const uchar *buf, uint event_len,
@@ -3694,8 +3697,8 @@ public:
             GTID_LIST_HEADER_LEN+2 : GTID_LIST_HEADER_LEN+count*element_size);
   }
   bool is_valid() const override { return list != NULL; }
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool to_packet(String *packet);
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool write(Log_event_writer *writer) override;
   int do_apply_event(rpl_group_info *rgi) override;
   enum_skip_reason do_shall_skip(rpl_group_info *rgi) override;
