@@ -6339,7 +6339,19 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
     match_flags|=FT_SORTED;
 
   if (key != NO_SUCH_KEY)
+  {
     THD_STAGE_INFO(table->in_use, stage_fulltext_initialization);
+
+    if (table->key_info[key].is_hlindex())
+    {
+      fth= new hli_ft_handler();
+      if (!fth)
+        DBUG_RETURN(1);
+      if (join_key)
+        table->file->fth= fth;
+      DBUG_RETURN(0);
+    }
+  }
 
   fth= table->file->ft_init_ext(match_flags, key, ft_tmp);
 
@@ -6447,7 +6459,7 @@ bool Item_func_match::fix_index()
   if (!table) 
     goto err;
 
-  for (keynr=0 ; keynr < table->s->keys ; keynr++)
+  for (keynr=0 ; keynr < table->s->total_keys ; keynr++)
   {
     if (table->key_info[keynr].algorithm == HA_KEY_ALG_FULLTEXT &&
         (match_flags & FT_BOOL ?

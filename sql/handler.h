@@ -1146,6 +1146,15 @@ public:
   virtual float get_relevance()= 0;
   virtual ~ft_handler() {}
 };
+
+class hli_ft_handler : public ft_handler
+{
+public:
+  float relevance= 0;
+  float find_relevance(uchar *, uint) override { return relevance; }
+  float get_relevance() override { return relevance; }
+};
+
 /*
   Definitions for engine-specific table/field/index options in the CREATE TABLE.
 

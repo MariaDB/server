@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16824,10 +16824,10 @@ void JOIN_TAB::cleanup()
   if (table)
   {
     table->file->ha_end_keyread();
-    if (type == JT_FT)
-      table->file->ha_ft_end();
-    else if (table->hli && table->hli->reading())
+    if (table->hli && table->hli->reading())
       table->hlindex_read_end();
+    else if (type == JT_FT)
+      table->file->ha_ft_end();
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
@@ -26004,6 +26004,23 @@ join_ft_read_first(JOIN_TAB *tab)
   int error;
   TABLE *table= tab->table;
 
+  if ((uint)tab->ref.key >= table->s->keys)
+  {
+    List_iterator<Item_func_match> li(*tab->join->select_lex->ftfunc_list);
+    Item_func_match *ifm;
+    while ((ifm= li++))
+      if (ifm->key == (uint)tab->ref.key && ifm->table == table && !ifm->master)
+        break;
+    if (unlikely(!ifm))
+      return 1;
+    if (unlikely((error= table->hlindex_init(tab->ref.key, ifm,
+                                             tab->join->select_limit))))
+      return report_error(table, error);
+    if (unlikely((error= table->hlindex_read_next())))
+      return report_error(table, error);
+    return 0;
+  }
+
   if (!table->file->inited &&
       (error= table->file->ha_index_init(tab->ref.key, 1)))
   {
@@ -26022,8 +26039,17 @@ static int
 join_ft_read_next(READ_RECORD *info)
 {
   int error;
-  if (unlikely((error= info->table->file->ha_ft_read(info->record()))))
-    return report_error(info->table, error);
+  TABLE *table= info->table;
+
+  if (table->hli && table->hli->reading())
+  {
+    if (unlikely((error= table->hlindex_read_next())))
+      return report_error(table, error);
+    return 0;
+  }
+
+  if (unlikely((error= table->file->ha_ft_read(info->record()))))
+    return report_error(table, error);
   return 0;
 }
 
@@ -28358,7 +28384,9 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
   }
  
   table->file->ha_end_keyread();
-  if (tab->type == JT_FT)
+  if (table->hli && table->hli->reading())
+    table->hlindex_read_end();
+  else if (tab->type == JT_FT)
     table->file->ha_ft_end();
   else
     table->file->ha_index_or_rnd_end();
