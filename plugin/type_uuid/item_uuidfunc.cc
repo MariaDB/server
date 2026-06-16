@@ -60,30 +60,36 @@ static bool is_valid_uuid_format_any(const std::string &str)
   return true;
 }
 
-static int return_uuid_version(const std::string &str)
+static int hex_digit_value(unsigned char ch)
 {
-  if (!is_valid_uuid_format_any(str))
-  {
-    return -1;
-  }
-  if (!isxdigit(str[14]))
-  {
-    return -1;
-  }
-  // Currently the only supported versions are below 9, as per RFC 9562.
-  // If the version is above 8, it's either not a valid UUID or it's a
-  // future version that we don't support, so we return -1.
-  // 0 is also not a valid version number for a UUID, so we return -1 for
-  // that as well.
-  int version= str[14] - '0';
-  if (version < 1 || version > 8)
-  {
-    return -1;
-  }
-  return (str[14] <= '9') ? (str[14] - '0')
-                          : (static_cast<char>(std::tolower(
-                                 static_cast<unsigned char>(str[14]))) -
-                             'a' + 10);
+  ch= static_cast<unsigned char>(std::tolower(ch));
+  return (ch <= '9') ? ch - '0' : ch - 'a' + 10;
+}
+
+static int uuid_variant(unsigned char ch)
+{
+  int value= hex_digit_value(ch);
+  if ((value & 0x8) == 0)
+    return 0;
+  if ((value & 0xc) == 0x8)
+    return 2;
+  if ((value & 0xe) == 0xc)
+    return 6;
+  return 7;
+}
+
+static int uuid_variant_octet(const std::string &str)
+{
+  return (hex_digit_value(static_cast<unsigned char>(str[19])) << 4) +
+         hex_digit_value(static_cast<unsigned char>(str[20]));
+}
+
+static void my_error_incorrect_uuid_value(const std::string &str, int version,
+                                          int variant)
+{
+  my_printf_error(ER_TRUNCATED_WRONG_VALUE,
+                  "Incorrect uuid value (version: %d, variant: %d): '%-.128s'",
+                  MYF(0), version, variant, str.c_str());
 }
 
 longlong Item_func_uuid_version::val_int()
@@ -97,8 +103,7 @@ longlong Item_func_uuid_version::val_int()
   }
 
   std::string in_str(uuid_arg->ptr(), uuid_arg->length());
-  int version= return_uuid_version(in_str);
-  if (version < 0)
+  if (!is_valid_uuid_format_any(in_str))
   {
     my_printf_error(ER_TRUNCATED_WRONG_VALUE,
                     "Incorrect uuid value: '%-.128s'", MYF(0), in_str.c_str());
@@ -106,20 +111,38 @@ longlong Item_func_uuid_version::val_int()
     return 0;
   }
 
-  // For each valid version, we check the variant and reserved
-  // bits to ensure the UUID is well-formed according to the RFC.
-  const unsigned char variant_ch= static_cast<unsigned char>(
-      std::tolower(static_cast<unsigned char>(in_str[19])));
+  int version= hex_digit_value(static_cast<unsigned char>(in_str[14]));
+  int variant= uuid_variant(static_cast<unsigned char>(in_str[19]));
 
-  // RFC 9562 variant must be 10xx, i.e. nibble 8, 9, a, or b.
-  if (variant_ch != '8' && variant_ch != '9' && variant_ch != 'a' &&
-      variant_ch != 'b')
+  // Currently the only supported versions are below 9, as per RFC 9562.
+  // If the version is above 8, it's either not a valid UUID or it's a
+  // future version that we don't support. 0 is also not a valid version.
+  if (version < 1 || version > 8)
   {
-    my_printf_error(ER_TRUNCATED_WRONG_VALUE,
-                    "Incorrect uuid value (variant check failed): '%-.128s'",
-                    MYF(0), in_str.c_str());
+    my_error_incorrect_uuid_value(in_str, version, variant);
     null_value= true;
     return 0;
+  }
+
+  // For each valid version, we check the variant and reserved
+  // bits to ensure the UUID is well-formed according to the RFC.
+  int variant_octet= uuid_variant_octet(in_str);
+
+  if (version == 8 && variant == 0 && variant_octet != 0)
+  {
+    my_error_incorrect_uuid_value(in_str, version, variant);
+    null_value= true;
+    return 0;
+  }
+
+  // RFC 9562 variant must be 10xx, i.e. nibble 8, 9, a, or b.
+  if (variant != 2)
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_TRUNCATED_WRONG_VALUE,
+                        "Incorrect uuid value (variant check failed, "
+                        "version: %d, variant: %d): '%-.128s'",
+                        version, variant, in_str.c_str());
   }
 
   null_value= false;

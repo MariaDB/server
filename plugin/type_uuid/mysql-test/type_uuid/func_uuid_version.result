@@ -34,7 +34,7 @@ ERROR 22007: Incorrect uuid value: 'lefred'
 # not valid with wrong uuid (version 0)
 #
 SELECT UUID_VERSION("AF39A01C-E29D-0C4C-8072-60CEB26A82F1") AS version;
-ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-0C4C-8072-60CEB26A82F1'
+ERROR 22007: Incorrect uuid value (version: 0, variant: 2): 'AF39A01C-E29D-0C4C-8072-60CEB26A82F1'
 #
 # valid with uuid (version 2)
 #
@@ -51,7 +51,7 @@ version
 # not valid with wrong uuid (version 9)
 #
 SELECT UUID_VERSION("AF39A01C-E29D-9C4C-8072-60CEB26A82F1") AS version;
-ERROR 22007: Incorrect uuid value: 'AF39A01C-E29D-9C4C-8072-60CEB26A82F1'
+ERROR 22007: Incorrect uuid value (version: 9, variant: 2): 'AF39A01C-E29D-9C4C-8072-60CEB26A82F1'
 #
 # wrong uuid full of hyphens
 #
@@ -66,7 +66,25 @@ ERROR 22007: Incorrect uuid value: '--------------1---------------------'
 # wrong variant for valid uuid version
 #
 SELECT UUID_VERSION("f7525aa0-1eba-11f1-4c6e-5e1b9081e705") AS version;
-ERROR 22007: Incorrect uuid value (variant check failed): 'f7525aa0-1eba-11f1-4c6e-5e1b9081e705'
+version
+1
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Incorrect uuid value (variant check failed, version: 1, variant: 0): 'f7525aa0-1eba-11f1-4c6e-5e1b9081e705'
+SELECT UUID_VERSION("019aa13d-2bc0-7a8e-3b7f-4df6dff8c1a2") AS version;
+version
+7
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Incorrect uuid value (variant check failed, version: 7, variant: 0): '019aa13d-2bc0-7a8e-3b7f-4df6dff8c1a2'
+SELECT UUID_VERSION("00000000-0000-8000-0000-000000000000") AS version;
+version
+8
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Incorrect uuid value (variant check failed, version: 8, variant: 0): '00000000-0000-8000-0000-000000000000'
+SELECT UUID_VERSION("00000000-0000-8000-0100-000000000000") AS version;
+ERROR 22007: Incorrect uuid value (version: 8, variant: 0): '00000000-0000-8000-0100-000000000000'
 #
 # no argument
 #

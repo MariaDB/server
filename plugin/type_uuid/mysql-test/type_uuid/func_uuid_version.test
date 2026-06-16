@@ -32,23 +32,23 @@ SELECT UUID_VERSION("lefred") AS version;
 --echo # not valid with wrong uuid (version 0)
 --echo #
 --error ER_TRUNCATED_WRONG_VALUE
-SELECT UUID_VERSION("AF39A01C-E29D-0C4C-8072-60CEB26A82F1") AS version;
+SELECT UUID_VERSION("af39a01c-e29d-0c4c-8072-60ceb26a82f1") AS version;
 
 --echo #
 --echo # valid with uuid (version 2)
 --echo #
-SELECT UUID_VERSION("AF39A01C-E29D-2C4C-8072-60CEB26A82F1") AS version;
+SELECT UUID_VERSION("af39a01c-e29d-2c4c-8072-60ceb26a82f1") AS version;
 
 --echo #
 --echo # valid with uuid (version 8)
 --echo #
-SELECT UUID_VERSION("AF39A01C-E29D-8C4C-8072-60CEB26A82F1") AS version;
+SELECT UUID_VERSION("af39a01c-e29d-8c4c-8072-60ceb26a82f1") AS version;
 
 --echo #
 --echo # not valid with wrong uuid (version 9)
 --echo #
 --error ER_TRUNCATED_WRONG_VALUE
-SELECT UUID_VERSION("AF39A01C-E29D-9C4C-8072-60CEB26A82F1") AS version;
+SELECT UUID_VERSION("af39a01c-e29d-9c4c-8072-60ceb26a82f1") AS version;
 
 --echo #
 --echo # wrong uuid full of hyphens
@@ -65,8 +65,14 @@ SELECT UUID_VERSION("--------------1---------------------") AS version;
 --echo #
 --echo # wrong variant for valid uuid version
 --echo #
---error ER_TRUNCATED_WRONG_VALUE
 SELECT UUID_VERSION("f7525aa0-1eba-11f1-4c6e-5e1b9081e705") AS version;
+SHOW WARNINGS;
+SELECT UUID_VERSION("019aa13d-2bc0-7a8e-3b7f-4df6dff8c1a2") AS version;
+SHOW WARNINGS;
+SELECT UUID_VERSION("00000000-0000-8000-0000-000000000000") AS version;
+SHOW WARNINGS;
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT UUID_VERSION("00000000-0000-8000-0100-000000000000") AS version;
 
 --echo #
 --echo # no argument
