@@ -1,0 +1,129 @@
+#
+# Purpose:
+#   Verify that mariadb-binlog populates synthesized GTID_LIST_EVENTs correctly
+#   when converting InnoDB-format binlogs (.ibb) to legacy binlog files.
+#
+# Methodology:
+#   Generate several .ibb files with GTIDs across multiple domains and server
+#   ids, including GTIDs that are not ordered by server id. Restart the server
+#   in the middle so the converter sees another FORMAT_DESCRIPTION_EVENT and
+#   rotates the generated legacy output. Convert all completed .ibb files and
+#   verify each generated legacy binlog contains the expected Gtid_list state.
+#   Convert the .ibb files again in random order and verify the generated 
+#   legacy binlogs contain the expected Gtid_list state.
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--let $datadir= `SELECT @@datadir`
+
+# start of binlog-000000.ibb
+
+SET @@session.sql_log_bin= 0;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET @@session.sql_log_bin= 1;
+
+--source include/reset_master.inc
+
+--echo *** Generate GTIDs across several InnoDB binlog files
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+INSERT INTO t1 VALUES (2);
+
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+INSERT INTO t2 VALUES (1);
+
+# end of binlog-000000.ibb
+
+FLUSH BINARY LOGS;
+
+# start of binlog-000001.ibb
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+INSERT INTO t1 VALUES (1);
+
+SET @@session.gtid_domain_id= 2;
+SET @@session.server_id= 3;
+INSERT INTO t3 VALUES (1);
+
+# end of binlog-000001.ibb
+
+FLUSH BINARY LOGS;
+
+# start of binlog-000002.ibb
+
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 1;
+INSERT INTO t2 VALUES (2);
+
+SET @@session.gtid_domain_id= 3;
+SET @@session.server_id= 4;
+INSERT INTO t4 VALUES (1);
+
+--source include/restart_mysqld.inc
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+INSERT INTO t1 VALUES (3);
+
+# end of binlog-000002.ibb
+
+FLUSH BINARY LOGS;
+
+--let $binlog_name= binlog-000003.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+
+
+--echo *** Convert the generated InnoDB binlogs to legacy format
+--exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb
+
+--echo *** Verify synthesized Gtid_list events in converted legacy binlogs
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000001 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_FILE= $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_PATTERN= Gtid list \[\]
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000002 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_PATTERN= Gtid list \[0-1-1,\n# 1-2-1\]
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000003 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 2-3-1\]
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000004 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000001
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000002
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000003
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000004
+
+
+--echo *** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format in random order
+--exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000002.ibb
+
+--echo *** Verify synthesized Gtid_list events in converted legacy binlogs
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000001 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_FILE= $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]
+# TODO: Tarun this search will fail now as this functionality is not yet implemented
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQL_TMP_DIR/gtid_conv_listing.txt
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000001
+
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;

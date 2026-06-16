@@ -1517,6 +1517,7 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
   return p;
 }
 
+#endif
 
 void
 rpl_binlog_state_base::init()
@@ -1694,6 +1695,7 @@ rpl_binlog_state_base::find_nolock(uint32 domain_id, uint32 server_id)
                                     sizeof(server_id));
 }
 
+#ifndef MYSQL_CLIENT
 
 /*
   Return true if this binlog state is before the position specified by the
@@ -1895,10 +1897,12 @@ end:
   return res;
 }
 
-
+#endif // MYSQL_CLIENT
+/* TODO: Tarun get this reviewed. changed the base class name from
+rpl_gtid_base to rpl_binlog_state_base (also get reviewed the ifndef blocks )*/
 /* Helper functions for update. */
 int
-rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
+rpl_binlog_state_base::element::update_element(const rpl_gtid *gtid)
 {
   rpl_gtid *lookup_gtid;
 
@@ -1938,6 +1942,7 @@ rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
   return 0;
 }
 
+#ifndef MYSQL_CLIENT
 
 /*
   Check that a new GTID can be logged without creating an out-of-order

@@ -128,6 +128,7 @@ static my_bool print_row_count_used= 0, print_row_event_positions_used= 0;
 static my_bool debug_info_flag, debug_check_flag;
 static my_bool force_if_open_opt= 1;
 static my_bool opt_raw_mode= 0, opt_stop_never= 0;
+static my_bool opt_convert_engine_binlog= 0;
 my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
@@ -210,6 +211,17 @@ static enum Binlog_format {
 } binlog_format= ORIGINAL_BINLOG_FORMAT;
 
 static handler_binlog_reader *engine_binlog_reader;
+
+static FILE *output_legacy_binlog_file= 0;
+static ulonglong convert_engine_output_index= 0;
+static char default_output_legacy_binlog_prefix[]= "legacy_log";
+
+static char out_file_name[FN_REFLEN + 1]= {0};
+
+/* Used to track the position of the log file for computing legacy end_log_pos for converted legacy binlog file */
+static ulonglong log_file_pos= 0;
+
+static rpl_binlog_state_base *gtid_state= NULL;
 
 
 /**
@@ -1556,6 +1568,438 @@ end_skip_count:
   DBUG_RETURN(retval);
 }
 
+/*
+  ##############################################################################
+  Helper functions used for serializing the events to the legacy binlog format.
+  ##############################################################################
+*/
+
+static bool write_event_header(FILE *outfile, Log_event_type event_type,
+                               ulong extra_len, time_t timestamp,
+                               my_bool *do_checksum, ha_checksum *crc,
+                               enum_binlog_checksum_alg checksum_alg)
+{
+  uchar header[LOG_EVENT_HEADER_LEN];
+  ulong event_len;
+
+  *do_checksum= checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+                checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF;
+
+  int4store(header, timestamp);
+  header[EVENT_TYPE_OFFSET] = (uchar)event_type;
+  event_len=  LOG_EVENT_HEADER_LEN + extra_len +
+  (*do_checksum ? BINLOG_CHECKSUM_LEN : 0);
+
+  // TODO: Tarun get this reviewed. what should the server id be? should i get from 
+  // innodb binlog header
+  int4store(header + SERVER_ID_OFFSET, 0);
+  int4store(header + EVENT_LEN_OFFSET, event_len);
+  /*
+    Notes: For a normal open/current binlog file, the format-description 
+    header flags are typically 0x0001. After clean close, they become 
+    0x0000. 
+    For GTID_LIST_EVENT and BINLOG_CHECKPOINT_EVENT, the flags are 0x0000 typically.
+    TODO: Tarun get this reviewed.
+  */
+  int2store(header + FLAGS_OFFSET, 0);
+  /* Update the log_file_pos */
+  log_file_pos+= event_len;
+  int4store(header + LOG_POS_OFFSET, log_file_pos);
+  /* Write this header to outfile */
+  if (my_fwrite(outfile, (const uchar *)header, LOG_EVENT_HEADER_LEN, MYF(MY_NABP))) {
+    error("Could not write header into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+  if (*do_checksum)
+  {
+    *crc= my_checksum(0, (uchar*)header, sizeof(header));
+  }
+  return false;
+}
+
+
+static bool
+write_event_footer(FILE *outfile, my_bool do_checksum, ha_checksum crc)
+{
+  if (do_checksum)
+  {
+    char b[BINLOG_CHECKSUM_LEN];
+    int4store(b, crc);
+    if (my_fwrite(outfile, (const uchar *)b, sizeof(b), MYF(MY_NABP)))
+    {
+      error("Could not write footer into converted binlog file '%s'",
+            out_file_name);
+      return true;
+    }
+  }
+  return false;
+}
+
+/* 
+  updates the log_file_pos(end_log_pos) to include the raw bytes of the event
+  It does not update the log_pos variable of ev as it is not 
+  really needed for the conversion.
+*/
+static void update_event_end_log_pos(Log_event *ev)
+{
+  DBUG_ASSERT(ev->temp_buf != NULL && ev->data_written >= LOG_EVENT_HEADER_LEN);
+  log_file_pos+= ev->data_written;
+  int4store(&ev->temp_buf[LOG_POS_OFFSET], log_file_pos);
+}
+
+/*
+  Updates the checksum of the event only in the raw bytes of the event.
+  Mainly used for FORMAT_DESCRIPTION_EVENT.
+*/
+static void update_checksum(Log_event *ev)
+{
+  DBUG_ASSERT(ev->temp_buf != NULL &&
+              ev->data_written >= LOG_EVENT_HEADER_LEN + BINLOG_CHECKSUM_LEN);
+  ha_checksum crc= my_checksum(0, (uchar *) ev->temp_buf,
+                               ev->data_written - BINLOG_CHECKSUM_LEN);
+  int4store(&ev->temp_buf[ev->data_written - BINLOG_CHECKSUM_LEN], crc);
+}
+
+static bool write_format_description_event_to_legacy_binlog(
+    FILE *outfile, Format_description_log_event *fdev)
+{
+  // temp_buf stores the raw bytes of the event and data_written is the length of those raw bytes
+  if(fdev->temp_buf) {
+    /* Update the log_file_pos */
+    update_event_end_log_pos(fdev);
+
+    /* recompute checksum */
+    update_checksum(fdev);
+
+    if (my_fwrite(outfile, (const uchar *)fdev->temp_buf,
+                  fdev->data_written, MYF(MY_NABP)))
+    {
+      error("Could not write into converted binlog file '%s'",
+            out_file_name);
+      return true;
+    }
+
+    fflush(outfile);
+    
+    return false;
+  }
+
+  /*
+    fdev->temp_buf is empty, which means fdev was dynamically generated.
+    Therefore, serialize the FDEV and write it to the output file.
+  */
+
+  my_bool do_checksum;
+  ha_checksum crc;
+
+  char buf[320];
+  String str(buf, sizeof(buf), system_charset_info);
+
+  str.length(0);
+  fdev->dont_set_created= true;
+  fdev->used_checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+
+  if (fdev->to_packet(&str))
+  {
+    error("Failed due to out-of-memory writing Format_description event");
+    return true;
+  }
+  /* Write header of FORMAT_DESCRIPTION_EVENT to output legacy binlog file first */
+  if (write_event_header(outfile, FORMAT_DESCRIPTION_EVENT, str.length(),
+                         fdev->created, &do_checksum, &crc,
+                         BINLOG_CHECKSUM_ALG_CRC32))
+  {
+    error("Could not write FORMAT_DESCRIPTION_EVENT header to output legacy "
+          "binlog file");
+    return true;
+  }
+
+  /* Write body to output legacy binlog file */
+  if (my_fwrite(outfile, (const uchar *) str.ptr(), str.length(),
+                MYF(MY_NABP)))
+  {
+    error("Could not write body into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+
+  if (do_checksum)
+  {
+    crc= my_checksum(crc, (uchar *) str.ptr(), str.length());
+  }
+
+  /* Write footer to output legacy binlog file */
+  if (write_event_footer(outfile, do_checksum, crc))
+  {
+    error("Could not write footer into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+  fflush(outfile);
+
+  return false;
+}
+
+static bool write_gtid_list_event_to_legacy_binlog(FILE *outfile,
+                                                   Gtid_list_log_event *glev)
+{
+  my_bool do_checksum;
+  ha_checksum crc= 0;
+  char buf[128];
+  String str(buf, sizeof(buf), system_charset_info);
+  str.length(0);
+
+  if (glev->to_packet(&str))
+  {
+    error("Failed due to out-of-memory writing Gtid_list event");
+    return true;
+  }
+
+  /* Write header of GTID_LIST_EVENT to output legacy binlog file first */
+  /* TODO: Tarun verify and fix behaviour of timestamp (ts) */
+  time_t ts= 0;
+  if (write_event_header(outfile, GTID_LIST_EVENT, str.length(), ts,
+                         &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
+  {
+    error(
+        "Could not write GTID_LIST_EVENT header to output legacy binlog file");
+    return true;
+  }
+
+  /* Write body to output legacy binlog file */
+  if (my_fwrite(outfile, (const uchar *)str.ptr(), str.length(), MYF(MY_NABP))) {
+    error("Could not write body into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+
+  /* 
+    TODO: Tarun get this reviewed. We are disabling/not supporting the checksum in every event.
+    Should I keep the below code for extensibility?
+    (do_checksum will always be false here)
+  */
+  if (do_checksum) {
+    crc= my_checksum(crc, (uchar*)str.ptr(), str.length());
+  }
+
+  /* Write footer to output legacy binlog file */
+  if (write_event_footer(outfile, do_checksum, crc)) {
+    error("Could not write footer into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+  fflush(outfile);
+
+  return false;
+}
+
+static bool write_binlog_checkpoint_event_to_legacy_binlog(
+    FILE *outfile, Binlog_checkpoint_log_event *bcle)
+{
+  my_bool do_checksum;
+  ha_checksum crc= 0;
+  char buf[128];
+  String str(buf, sizeof(buf), system_charset_info);
+  str.length(0);
+
+  /* Generate BINLOG_CHECKPOINT_EVENT body (This is equivalent to the
+     to_packet() method used in case of FORMAT_DESCRIPTION_EVENT,
+     GTID_LIST_EVENT, etc.) */
+  uchar header_buf[BINLOG_CHECKPOINT_HEADER_LEN];
+  int4store(header_buf, bcle->binlog_file_len);
+  if (str.append((char *) header_buf, BINLOG_CHECKPOINT_HEADER_LEN))
+  {
+    error("Failed due to out-of-memory writing BINLOG_CHECKPOINT_EVENT body");
+    return true;
+  }
+
+  if (str.append((char *) bcle->binlog_file_name, bcle->binlog_file_len))
+  {
+    error("Failed due to out-of-memory writing BINLOG_CHECKPOINT_EVENT body");
+    return true;
+  }
+
+  /* Write header of BINLOG_CHECKPOINT_EVENT to output legacy binlog file first
+   */
+  /* TODO: Tarun verify and fix behaviour of timestamp (ts) */
+  time_t ts= 0;
+  if (write_event_header(outfile, BINLOG_CHECKPOINT_EVENT, str.length(), ts,
+                         &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
+  {
+    error("Could not write BINLOG_CHECKPOINT_EVENT header to output legacy "
+          "binlog file");
+    return true;
+  }
+
+  /* Write body to output legacy binlog file */
+  if (my_fwrite(outfile, (const uchar *) str.ptr(), str.length(),
+                MYF(MY_NABP)))
+  {
+    error("Could not write body into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+
+  if (do_checksum)
+  {
+    crc= my_checksum(crc, (uchar *) str.ptr(), str.length());
+  }
+
+  /* write footer to output legacy binlog file */
+  if (write_event_footer(outfile, do_checksum, crc))
+  {
+    error("Could not write footer into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+  fflush(outfile);
+
+  return false;
+}
+
+static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
+                                      size_t out_name_len)
+{
+
+  /* Reset the log_file_pos to 0 for the new output legacy binlog file */
+  log_file_pos= 0;
+
+  const char *prefix= result_file_name ? result_file_name
+                                       : default_output_legacy_binlog_prefix;
+
+  my_snprintf(out_name, out_name_len, "%s.%06llu", prefix,
+              ++convert_engine_output_index);
+
+  if (!(*out_file= my_fopen(out_name, O_WRONLY | O_BINARY, MYF(MY_WME))))
+  {
+    error("Could not create converted binlog file: %s", out_name);
+    return true;
+  }
+
+  fprintf(stderr, "Generated output file: %s\n", out_name);
+
+  // Write the BINLOG_MAGIC to the output legacy binlog file
+  if (my_fwrite(*out_file, (const uchar *) BINLOG_MAGIC, BIN_LOG_HEADER_SIZE,
+                MYF(MY_NABP)))
+  {
+    error("Could not write into converted binlog file '%s'", out_name);
+    return true;
+  }
+  log_file_pos+= BIN_LOG_HEADER_SIZE;
+
+  // Write the FORMAT_DESCRIPTION_EVENT to the output legacy binlog file
+  if (write_format_description_event_to_legacy_binlog(*out_file,
+                                                      glob_description_event))
+  {
+    error("Could not write FORMAT_DESCRIPTION_EVENT to output legacy binlog "
+          "file");
+    return true;
+  }
+
+  /* Write the GTID_LIST_EVENT to the output legacy binlog file */
+  Gtid_list_log_event gle= Gtid_list_log_event(gtid_state);
+  if (write_gtid_list_event_to_legacy_binlog(*out_file, &gle))
+  {
+    error("Could not write GTID_LIST_EVENT to output legacy binlog file");
+    return true;
+  }
+
+  /* BINLOG_CHECKPOINT_EVENT only accepts the basename of the binlog file, not
+   * the full path */
+  size_t off= dirname_length(out_name);
+  uint32 length= (uint32) (strlen(out_name) - off);
+
+  // Write the BINLOG_CHECKPOINT_EVENT to the output legacy binlog file
+  Binlog_checkpoint_log_event bcle=
+      Binlog_checkpoint_log_event(out_name + off, length);
+  if (!bcle.is_valid())
+  {
+    error("Failed to create BINLOG_CHECKPOINT_EVENT");
+    return true;
+  }
+  if (write_binlog_checkpoint_event_to_legacy_binlog(*out_file, &bcle))
+  {
+    error("Could not write BINLOG_CHECKPOINT_EVENT to output legacy binlog "
+          "file");
+    return true;
+  }
+  return false;
+}
+
+/*
+  Writes the event to the converted legacy binlog file
+  @param ev: The event to write
+  @return: OK_CONTINUE if successful, ERROR_STOP if failed
+*/
+static Exit_status write_event_to_legacy_binlog(Log_event *ev)
+{
+
+  // if event type is FORMAT_DESCRIPTION_EVENT, store the event in global variable glob_description_event
+  if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT) {
+
+    delete glob_description_event;
+    glob_description_event= (Format_description_log_event*) ev;
+
+    // close the output legacy binlog file if it is open
+    if (output_legacy_binlog_file) {
+      // TODO: tarun Write the ROTATE_EVENT to the output legacy binlog file
+      my_fclose(output_legacy_binlog_file, MYF(0));
+      output_legacy_binlog_file= NULL;
+    }
+
+    return OK_CONTINUE;
+  }
+
+  /*
+    Open and initialize the output legacy binlog file.
+    Writes the FORMAT_DESCRIPTION_EVENT, GTID_LIST event, and BINLOG_CHECKPOINT event.
+  */
+  if (!output_legacy_binlog_file)
+  {
+
+    if (init_output_legacy_binlog(&output_legacy_binlog_file, out_file_name,
+                                  sizeof(out_file_name)))
+      goto err;
+  }
+
+  /*
+    if event type is GTID_EVENT, update the gtid_state
+    which will be used to write the GTID_LIST_EVENT in 
+    the next output legacy binlog file.
+  */
+  if (ev->get_type_code() == GTID_EVENT) {
+    rpl_gtid ev_gtid;
+    Gtid_log_event *gle= (Gtid_log_event*) ev;
+    ev_gtid= {gle->domain_id, gle->server_id, gle->seq_no};
+
+    if (gtid_state->update_nolock(&ev_gtid)) {
+      error("Failed to update GTID state");
+      goto err;
+    }
+  }
+
+  /* Update the log_file_pos */
+  update_event_end_log_pos(ev);
+
+  // ev->temp_buf contains the raw event bytes and ev->data_written is the length of the event
+  if (my_fwrite(output_legacy_binlog_file, (const uchar *)ev->temp_buf,
+                ev->data_written, MYF(MY_NABP)))
+  {
+    error("Could not write into converted binlog file '%s'",
+          out_file_name);
+    goto err;
+  }
+  fflush(output_legacy_binlog_file);
+
+  delete ev;
+  return OK_CONTINUE;
+
+err:
+  delete ev;
+  return ERROR_STOP;
+}
+
 
 static struct my_option my_options[] =
 {
@@ -1609,6 +2053,10 @@ static struct my_option my_options[] =
     "already have. NOTE: you will need a SUPER privilege to use this option.",
    &disable_log_bin, &disable_log_bin, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"convert-engine-binlog", 0,
+   "Convert InnoDB based engine binlog files to legacy binlog files.",
+   &opt_convert_engine_binlog, &opt_convert_engine_binlog, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"flashback", 'B', "Flashback feature can rollback you committed data to a special time point.",
 #ifdef WHEN_FLASHBACK_REVIEW_READY
    "before Flashback feature writing a row, original row can insert to review-dbname.review-tablename,"
@@ -1656,8 +2104,8 @@ static struct my_option my_options[] =
    "statements. Output files named after server logs.",
    &opt_raw_mode, &opt_raw_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
-  {"result-file", 'r', "Direct output to a given file. With --raw this is a "
-   "prefix for the file names.",
+  {"result-file", 'r', "Direct output to a given file. With --raw or "
+   "--convert-engine-binlog this is a prefix for the output file names.",
    &result_file_name, &result_file_name, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -1971,6 +2419,8 @@ static void cleanup()
     delete_dynamic(&binlog_events);
     delete_dynamic(&events_in_stmt);
   }
+  if (gtid_state)
+    delete gtid_state;
   delete engine_binlog_reader;
   DBUG_VOID_RETURN;
 }
@@ -2554,7 +3004,7 @@ static Exit_status dump_log_entries(const char* logname)
      Set safe delimiter, to dump things
      like CREATE PROCEDURE safely
   */
-  if (!opt_raw_mode)
+  if (!opt_raw_mode && !opt_convert_engine_binlog)
     fprintf(result_file, "DELIMITER /*!*/;\n");
   strmov(print_event_info.delimiter, "/*!*/;");
   
@@ -2575,7 +3025,8 @@ static Exit_status dump_log_entries(const char* logname)
   print_event_info.short_form= short_form;
   print_event_info.print_row_count= print_row_count;
   print_event_info.file= result_file;
-  fflush(result_file);
+  if (result_file)
+    fflush(result_file);
   rc= (remote_opt ? dump_remote_log_entries(&print_event_info, logname) :
        dump_local_log_entries(&print_event_info, logname));
 
@@ -2585,7 +3036,7 @@ static Exit_status dump_log_entries(const char* logname)
     return rc;
 
   /* Set delimiter back to semicolon */
-  if (!opt_raw_mode && !opt_flashback)
+  if (!opt_raw_mode && !opt_flashback && !opt_convert_engine_binlog)
     fprintf(result_file, "DELIMITER ;\n");
   strmov(print_event_info.delimiter, ";");
   return rc;
@@ -2825,8 +3276,6 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   DBUG_RETURN(OK_CONTINUE);
 }
 
-
-static char out_file_name[FN_REFLEN + 1];
 
 static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
                                          ulong *len,
@@ -3149,6 +3598,12 @@ static Exit_status check_header(IO_CACHE* file,
     error("File is not a binary log file.");
     return ERROR_STOP;
   }
+  if (opt_convert_engine_binlog)
+  {
+    error("The --convert-engine-binlog option requires InnoDB-engine "
+          "binlog input files");
+    return ERROR_STOP;
+  }
 
   /*
     Imagine we are running with --start-position=1000. We still need
@@ -3369,6 +3824,12 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   {
     if (open_engine_binlog(engine_binlog_reader, start_position, logname, file))
       goto err;
+    /* Initialize the GTID state tracker used to generate GTID_LIST_EVENT while
+     converting the engine binlog to legacy binlog */
+    if (opt_convert_engine_binlog && !gtid_state) {
+      gtid_state= new rpl_binlog_state_base();
+      gtid_state->init();
+    }
   }
   for (;;)
   {
@@ -3444,9 +3905,16 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
         ((ev->get_type_code() == UNKNOWN_EVENT &&
           ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
         old_off + ev->data_written == my_b_tell(file));
-    if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
-        OK_CONTINUE)
-      goto end;
+
+    if (opt_convert_engine_binlog) {
+      if ((retval= write_event_to_legacy_binlog(ev)) != OK_CONTINUE)
+        goto end;
+    }
+    else {
+      if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
+          OK_CONTINUE)
+        goto end;
+    }
   }
 
   /* NOTREACHED */
@@ -3455,6 +3923,11 @@ err:
   retval= ERROR_STOP;
 
 end:
+  if (output_legacy_binlog_file)
+  {
+    my_fclose(output_legacy_binlog_file, MYF(0));
+    output_legacy_binlog_file= NULL;
+  }
   if (fd >= 0)
     my_close(fd, MYF(MY_WME));
   /*
@@ -3516,7 +3989,6 @@ int main(int argc, char** argv)
     error("The --raw mode is not allowed with --flashback mode");
     die(1);
   }
-
   if (opt_flashback)
   {
     my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &binlog_events,
@@ -3527,7 +3999,28 @@ int main(int argc, char** argv)
   if (opt_stop_never)
     to_last_remote_log= TRUE;
 
-  if (opt_raw_mode)
+  if (opt_convert_engine_binlog)
+  {
+    if (remote_opt)
+    {
+      error("The --convert-engine-binlog option does not support "
+            "--read-from-remote-server");
+      die(1);
+    }
+    if (opt_raw_mode)
+    {
+      error("The --convert-engine-binlog option cannot be combined with --raw");
+      die(1);
+    }
+    if (opt_flashback)
+    {
+      error("The --convert-engine-binlog option cannot be combined "
+            "with --flashback");
+      die(1);
+    }
+    
+  }
+  else if (opt_raw_mode)
   {
     if (!remote_opt)
     {
@@ -3583,7 +4076,7 @@ int main(int argc, char** argv)
   else
     load_processor.init_by_cur_dir();
 
-  if (!opt_raw_mode)
+  if (!opt_raw_mode && !opt_convert_engine_binlog)
   {
     fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
 
@@ -3627,14 +4120,16 @@ int main(int argc, char** argv)
     if we finished processing input before reaching the stop
     boundaries indicated by --stop-datetime or --stop-position.
   */
-  if (stop_datetime_given && stop_datetime > last_processed_ev.datetime)
+  if (!opt_convert_engine_binlog &&
+      stop_datetime_given && stop_datetime > last_processed_ev.datetime)
     warning("Did not reach stop datetime '%s' before end of input",
             stop_datetime_str);
-  if ((static_cast<longlong>(stop_position) != stop_position_default) &&
+  if (!opt_convert_engine_binlog &&
+      (static_cast<longlong>(stop_position) != stop_position_default) &&
       stop_position > last_processed_ev.position)
     warning("Did not reach stop position %llu before end of input",
             stop_position);
-  if (position_gtid_filter)
+  if (!opt_convert_engine_binlog && position_gtid_filter)
     position_gtid_filter->verify_final_state();
 
   /*
@@ -3656,7 +4151,7 @@ int main(int argc, char** argv)
   }
 
   /* Set delimiter back to semicolon */
-  if (retval != ERROR_STOP)
+  if (retval != ERROR_STOP && !opt_convert_engine_binlog)
   {
     if (!stop_event_string.is_empty() && result_file)
       fprintf(result_file, "%s", stop_event_string.ptr());
@@ -3664,7 +4159,7 @@ int main(int argc, char** argv)
       fprintf(result_file, "DELIMITER ;\n");
   }
 
-  if (retval != ERROR_STOP && !opt_raw_mode)
+  if (retval != ERROR_STOP && !opt_raw_mode && !opt_convert_engine_binlog)
   {
     /*
       Issue a ROLLBACK in case the last printed binlog was crashed and had half
@@ -3709,7 +4204,7 @@ int main(int argc, char** argv)
     are processed because it immediately errors (i.e. retval will be
     ERROR_STOP)
   */
-  if (retval != ERROR_STOP && gtid_state_validator &&
+  if (retval != ERROR_STOP && !opt_convert_engine_binlog && gtid_state_validator &&
       gtid_state_validator->report(stderr, opt_gtid_strict_mode))
     retval= ERROR_STOP;
 
