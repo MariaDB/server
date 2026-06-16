@@ -4091,6 +4091,33 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(result);
 }
 
+int handler::ha_parallel_get_next_row(Parallel_worker_ctx *ctx)
+{
+  int result;
+  DBUG_ENTER("handler::ha_parallel_get_next_row");
+
+  TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, MAX_KEY, result,
+    { result = parallel_get_next_row(ctx); });
+
+  if (result == 0)
+  {
+    update_rows_read();
+    if (table->vfield)
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    table->status= 0;
+  }
+  else if (result != HA_ERR_END_OF_FILE)
+  {
+    table->status= STATUS_NOT_FOUND;
+  }
+  else
+  {
+    table->status= STATUS_NOT_FOUND;   // EOF also marks not-found
+  }
+  status_var_increment(table->in_use->status_var.ha_read_rnd_next_count);
+
+  DBUG_RETURN(result);
+}
 
 int handler::ha_index_init(uint idx, bool sorted)
 {
@@ -8904,6 +8931,11 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
   @return
     always 0
 */
+
+bool handler::is_parallel_scan_supported() const
+{
+  return ha_table_flags() & HA_CAN_PARALLEL_SCAN;
+}
 
 int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 {
