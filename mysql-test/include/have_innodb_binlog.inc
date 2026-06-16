@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 --source include/have_innodb.inc
 
 # Use GTID for --sync_slave_with_master, since non-GTID is not available
