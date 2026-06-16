@@ -3100,7 +3100,7 @@ private:
   static bool from_item(THD *thd, Sql_path *path, Item *item)
   {
     String *value, buffer;
-    if (!(value= item->val_str_ascii(&buffer)))
+    if (!(value= item->val_str(&buffer)))
       return true;
     return path->from_text(thd->variables, value);
   }
