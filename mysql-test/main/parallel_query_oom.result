@@ -13,7 +13,7 @@ set session parallel_worker_threads=1;
 # manager-surfaced ER_OUTOFMEMORY warning.
 create table t1 (a int) engine=innodb;
 insert into t1 select seq from seq_1_to_2;
-select SQL_BUFFER_RESULT * from t1;
+select * from t1;
 a
 1
 2

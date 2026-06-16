@@ -35,27 +35,31 @@
         parallel_worker_thread_func
                 Entry point for our worker threads
         abort_worker
-        pwt_management::free_queue
+        pwt_manager::free_queue
                 helper for error conditions
-        pwt_management::init_parallel_workers
+        pwt_manager::init_parallel_workers
                 Initialise our parallel worker threads
         pwt_init_psi_keys
                 initialize PSI keys
         worker_produce_chunks / worker_scan_table_to_manager
                 producer: scan the source table and stream rows to the manager
                 a batch at a time through the worker's reused raw row buffer
-        pwt_management::handoff_batch
+        pwt_manager::handoff_batch
                 producer: hand the filled row buffer to the manager and block
                 until it is drained
         parallel_scan_read_next
                 consumer: copy raw records from the worker row buffers
-        pwt_management::finalize_parallel_workers
+        pwt_manager::finalize_parallel_workers
                 stop the workers, reap them, surface diagnostics, tear down
 */
 
 
-#include "sql_parallel_workers.h"
+#include "mariadb.h"
+#include "mysqld_error.h"
+#include "sql_priv.h"
+#include "unireg.h"
 #include "sql_select.h"
+#include "sql_parallel_workers.h"
 #include "debug_sync.h"
 #include "transaction.h"
 
@@ -71,24 +75,24 @@ static PSI_mutex_key key_mutex_pwt_LOCK_thread,
                      key_mutex_pwt_LOCK_data;
 static PSI_mutex_info all_pwt_mutexes[]=
 {
-  { &key_mutex_pwt_LOCK_thread,      "pwt_management::LOCK_pwt_thread",   0},
+  { &key_mutex_pwt_LOCK_thread,      "pwt_manager::LOCK_pwt_thread",   0},
   { &key_mutex_pwt_LOCK_worker,      "pwt_worker::LOCK_worker",           0},
-  { &key_mutex_pwt_LOCK_data,        "pwt_management::LOCK_data",         0},
+  { &key_mutex_pwt_LOCK_data,        "pwt_manager::LOCK_data",         0},
 };
 
 static PSI_cond_key key_COND_pwt_data_avail, key_COND_pwt_data_space;
 
 static PSI_cond_info all_pwt_conds[]=
 {
-  { &key_COND_pwt_data_avail,  "pwt_management::COND_data_avail",      0},
-  { &key_COND_pwt_data_space,  "pwt_management::COND_data_space",      0},
+  { &key_COND_pwt_data_avail,  "pwt_manager::COND_data_avail",      0},
+  { &key_COND_pwt_data_space,  "pwt_manager::COND_data_space",      0},
 };
 
 static PSI_memory_info all_pwt_memory[]=
 {
   { &key_memory_pwt_queued_event,  "pwt_queued_event",          0},
   { &key_memory_pwt_error_message, "pwt_error_message",         0},
-  { &key_memory_pwt_workers,       "pwt_management::workers",   0},
+  { &key_memory_pwt_workers,       "pwt_manager::workers",   0},
   { &key_memory_pwt_db,            "pwt_worker::db",            0},
   { &key_memory_pwt_batch_rows,    "pwt_worker::batch_rows",    0},
 };
@@ -121,7 +125,9 @@ bool table_can_be_parallel_scanned(TABLE *table)
   return table->s->tmp_table == NO_TMP_TABLE &&
          table->s->blob_fields == 0 &&
          !table->fulltext_searched &&
+#ifdef WITH_PARTITION_STORAGE_ENGINE
          !table->part_info &&
+#endif
          (table->file->ha_table_flags() & HA_CAN_PARALLEL_SCAN);
 }
 
@@ -231,6 +237,26 @@ public:
   {
     if (pwt_worker *worker= thd->pwt_worker_info)
     {
+      /*
+        A genuine error (not a warning) raised while the worker runs the query
+        -- e.g. a WHERE/projection/join evaluation error -- must abort the whole
+        query. Trip fatal_error so the worker stops producing and the manager
+        aborts instead of sending a truncated result. The error text is still
+        relayed to the manager below and surfaced from finalize.
+
+        Exclude a killed worker's own ER_QUERY_INTERRUPTED: a KILL is reported
+        separately via kill_signal (which also carries the kill type, so a
+        KILL vs KILL QUERY of a worker maps to dropping the manager connection
+        vs just its query). Tripping fatal_error here would make the manager
+        take the generic-error path and lose that distinction.
+      */
+      if (*level == Sql_condition::WARN_LEVEL_ERROR && !thd->killed)
+      {
+        mysql_mutex_lock(&worker->manager->LOCK_data);
+        worker->manager->fatal_error= true;
+        mysql_cond_broadcast(&worker->manager->COND_data_avail);
+        mysql_mutex_unlock(&worker->manager->LOCK_data);
+      }
       pwt_queued_event *event;
       if (error_to_queue(&event, sql_errno, *level, msg))
       {
@@ -268,100 +294,417 @@ public:
     false  the buffer was drained; refill it
 */
 
-bool pwt_management::handoff_batch(pwt_worker *worker)
+bool pwt_manager::handoff_batch(pwt_worker *worker)
 {
+  DBUG_ENTER("pwt_manager::handoff_batch");
   mysql_mutex_lock(&LOCK_data);
   if (stop)
   {
     mysql_mutex_unlock(&LOCK_data);
-    return true;
+    DBUG_RETURN(true);
   }
   worker->batch_full= true;
-  mysql_cond_signal(&COND_data_avail);          // wake the consumer
+  mysql_cond_signal(&COND_data_avail);                  // wake the consumer
   while (worker->batch_full && !stop)
+  {
     mysql_cond_wait(&COND_data_space, &LOCK_data);
+    DBUG_PRINT("info", ("worker wakes"));
+  }
   bool stopped= stop;
   mysql_mutex_unlock(&LOCK_data);
-  return stopped;
+  DBUG_RETURN(stopped);
 }
 
 
-void inline close_worker_scan_table(pwt_worker *worker)
+static void close_one_worker_table(TABLE **t)
 {
-  if (worker->our_scan_table)
+  if (*t)
   {
-    worker->our_scan_table->file->update_global_table_stats();
-    closefrm(worker->our_scan_table);
-    my_free(worker->our_scan_table);
-    worker->our_scan_table= nullptr;
+    (*t)->file->update_global_table_stats();
+    closefrm(*t);
+    my_free(*t);
+    *t= nullptr;
   }
 }
+
+
+void pwt_worker::close_worker_tables()
+{
+  if (worker_tables)
+    for (uint i= 0; i < n_tables; i++)
+      close_one_worker_table(&worker_tables[i]);
+  our_scan_table= nullptr;       // == worker_tables[0], closed above
+}
+
+
+/*
+  @brief
+    Visitor that rebinds an Item_field from a manager join table to the
+    worker's private copy of that table.
+
+  @description
+    A deep_copy of a WHERE/ref/select-list Item tree carries Item_field nodes
+    whose Field* still points into a manager join table. We walk the clone with
+    enumerate_field_refs_processor and, for every field that belongs to one of
+    the parallel-scanned tables (from_tables[i]), repoint it at the same column
+    of the worker's copy (to_tables[i]). Fields of any other table (e.g. a const
+    table read once during optimization) are left untouched -- they are
+    read-only and safely shared across workers.
+*/
+class Pwt_field_rebinder : public Field_enumerator
+{
+  TABLE **from_tables, **to_tables;
+  uint  n;
+public:
+  Pwt_field_rebinder(TABLE **from, TABLE **to, uint n_arg)
+    : from_tables(from), to_tables(to), n(n_arg) {}
+  void visit_field(Item_field *item) override
+  {
+    if (!item->field)
+      return;
+    for (uint i= 0; i < n; i++)
+      if (item->field->table == from_tables[i])
+      {
+        item->field= to_tables[i]->field[item->field->field_index];
+        /*
+          Item_field::save_in_field() (used when this field is a top-level
+          projection item) copies from result_field, not field. The worker's
+          value for this column lives in the rebound source field, so point
+          result_field there too. Harmless for fields used only in val_*()
+          (conditions, ref values and sub-expressions read field directly).
+        */
+        item->result_field= item->field;
+        return;
+      }
+  }
+};
+
+
+/*
+  @brief
+    Deep-clone an Item tree and rebind its join-table field references to the
+    worker's private table copies.
+
+  @return  the clone, or nullptr if the item is not clonable (deep_copy
+           declined) or 'src' was nullptr.
+*/
+
+static Item *pwt_clone_rebind(THD *thd, Item *src,
+                              TABLE **from, TABLE **to, uint n)
+{
+  if (!src)
+    return nullptr;
+  Item *clone= src->deep_copy_with_checks(thd);
+  if (!clone)
+    return nullptr;
+
+  /*
+    1. Rebind every field reference to the worker's table copy. The fields stay
+       fixed and keep their column position, so no name re-resolution happens.
+  */
+  Pwt_field_rebinder rebinder(from, to, n);
+  clone->walk(&Item::enumerate_field_refs_processor, (void*) &rebinder, 0);
+
+  /*
+    2. deep_copy duplicates the tree structurally but does not rebuild the
+       fix-time caches some predicates hold (e.g. Item_func_in's in_vector,
+       a comparator's collation/cmp_item) -- those would still compare against
+       the original args and read the wrong table. Reset those caches on the
+       non-field items (cleanup_excluding_fields_processor leaves the rebound,
+       still-fixed fields alone) and re-fix the tree so they rebuild against the
+       rebound args. A bare field clone is already fixed and needs no re-fix.
+       (Same protocol the optimizer uses for re-evaluable clones, e.g.
+       opt_rewrite_remove_casefold.cc.)
+  */
+  clone->walk(&Item::cleanup_excluding_fields_processor, (void*) nullptr, 0);
+  if (!clone->fixed() && clone->fix_fields(thd, &clone))
+    return nullptr;
+  return clone;
+}
+
+
+/*
+  @brief
+    Build a worker-bound clone of a ref-access descriptor (mirrors the store_key
+    setup in create_ref_for_key). The cloned ref has its own key buffer and a
+    store_key per key part that evaluates the worker-bound key-value items into
+    that buffer; cp_buffer_from_ref() then builds the lookup key from it.
+
+  All key parts (even constant ones) get a runtime store_key -- we set
+  const_ref_part_map to 0 so cp_buffer_from_ref recomputes every part each
+  lookup. Re-evaluating a constant per lookup is cheap and avoids the
+  "filled once at setup" bookkeeping.
+
+  @return  true on error.
+*/
+
+static bool clone_table_ref(THD *thd, TABLE_REF *src, TABLE *wtable,
+                            TABLE **from, TABLE **to, uint n, TABLE_REF *dst)
+{
+  const uint kp= src->key_parts;
+  const uint len= src->key_length;
+  KEY *keyinfo= wtable->key_info + src->key;
+
+  dst->key_parts= kp;
+  dst->key_length= len;
+  dst->key= src->key;
+  dst->key_err= 1;
+  dst->has_record= FALSE;
+  dst->null_rejecting= src->null_rejecting;
+  dst->disable_cache= FALSE;
+  dst->null_ref_part= NO_REF_PART;
+  dst->null_ref_key= nullptr;
+  dst->const_ref_part_map= 0;            // recompute every part each lookup
+  dst->uses_splitting= FALSE;
+  dst->use_count= 0;
+  dst->cond_guards= nullptr;             // gated: no subquery trigger guards
+  dst->depend_map= src->depend_map;
+
+  if (!(dst->key_buff= thd->calloc<uchar>(ALIGN_SIZE(len) * 2)) ||
+      !(dst->key_copy= thd->alloc<store_key*>(kp + 1)) ||
+      !(dst->items= thd->alloc<Item*>(kp)))
+    return true;
+  dst->key_buff2= dst->key_buff + ALIGN_SIZE(len);
+
+  store_key **ref_key= dst->key_copy;
+  uchar *key_buff= dst->key_buff;
+  for (uint i= 0; i < kp; i++)
+  {
+    Item *it= pwt_clone_rebind(thd, src->items[i], from, to, n);
+    if (!it)
+      return true;
+    dst->items[i]= it;
+
+    KEY_PART_INFO *kpi= keyinfo->key_part + i;
+    const uint maybe_null= MY_TEST(kpi->null_bit);
+    Item *real= it->real_item();
+    store_key *sk;
+    if (real->type() == Item::FIELD_ITEM)
+      sk= new store_key_field(thd, kpi->field, key_buff + maybe_null,
+                              maybe_null ? key_buff : 0, kpi->length,
+                              ((Item_field*) real)->field, real->full_name());
+    else
+      sk= new store_key_item(thd, kpi->field, key_buff + maybe_null,
+                             maybe_null ? key_buff : 0, kpi->length, it, FALSE);
+    if (!sk)
+      return true;
+    *ref_key++= sk;
+    key_buff+= kpi->store_length;
+  }
+  *ref_key= nullptr;                     // end marker
+  return false;
+}
+
+
+/*
+  @brief
+    Project the current full row and add its image to the worker's batch,
+    handing the batch to the manager when it fills.
+
+  @return  
+    -1 = continue with inner join
+    0 = row emitted
+    1 = stop (manager asked us to stop, or a fatal error).
+*/
+
+int pwt_worker::worker_emit_row(uint level)
+{
+  DBUG_ENTER("pwt_worker::worker_emit_row");
+  if (level + 1 < n_tables)
+    DBUG_RETURN(-1);
+  /*
+    Evaluate each cloned select-list item (which reads from the worker's table
+    copies, now holding the current matching row of every table) and store it
+    into the matching result_table field. Evaluation errors are intercepted by
+    PWT_error_handler, which trips fatal_error; the caller checks that.
+  */
+  for (uint i= 0; i < proj_count; i++)
+    worker_proj[i]->save_in_field(result_table->field[i], false);
+
+  if (manager->fatal_error)                       // projection raised an error
+    DBUG_RETURN(1);
+
+  memcpy(batch_rows + (size_t) batch_count * manager->reclength,
+         result_table->record[0], manager->reclength);
+  if (++batch_count == PWT_CHUNK_ROWS)
+  {
+    if (manager->handoff_batch(this))             // manager asked us to stop
+      DBUG_RETURN(1);
+    batch_count= 0;                               // buffer drained; refill
+  }
+  DBUG_RETURN(0);
+}
+
+
+/*
+  @brief
+    Join the non-driving tables, levels [level .. n_tables-2], against the rows
+    of the earlier tables already in their record[0], and emit each full match.
+
+  Inner equi-join only (the gate excludes outer joins and semijoins): for a
+  REF/EQ_REF table the key is built from the earlier tables (cp_buffer_from_ref)
+  and looked up in the worker's private index; for a JT_ALL table the worker's
+  copy is rnd-scanned. Each table's cloned condition is applied as we descend,
+  which is where the optimizer left the multi-table predicates, so together
+  they reconstitute the whole WHERE.
+
+  @return  0 = continue, 1 = stop (manager stop or fatal error).
+*/
+
+int pwt_worker::worker_join_inner(uint level)
+{
+  DBUG_ENTER("pwt_worker::worker_join_inner");
+  int ret= worker_emit_row(level);
+  if (ret >= 0)
+    DBUG_RETURN(ret);
+
+  pwt_jointab *it= &join_tables[level];
+  TABLE *t= it->table;
+  int err;
+
+  if (it->type == JT_ALL)
+  {
+    if ((err= t->file->ha_rnd_init(true)))
+    {
+      manager->fatal_error= true;
+      t->file->print_error(err, MYF(0));
+      DBUG_RETURN(1);
+    }
+    while (!(err= t->file->ha_rnd_next(t->record[0])))
+    {
+      if (it->cond)
+      {
+        bool pass= it->cond->val_bool();
+        if (manager->fatal_error)
+        {
+          t->file->ha_rnd_end();
+          DBUG_RETURN(1);
+        }
+        if (!pass)
+          continue;
+      }
+      if (worker_join_inner(level+1))
+      {
+        t->file->ha_rnd_end();
+        DBUG_RETURN(1);
+      }
+    }
+    t->file->ha_rnd_end();
+    if (err != HA_ERR_END_OF_FILE)
+    {
+      manager->fatal_error= true;
+      t->file->print_error(err, MYF(0));
+      DBUG_RETURN(1);
+    }
+    DBUG_RETURN(0);
+  }
+
+  // REF / EQ_REF: build the lookup key from the earlier tables and probe.
+  // cp_buffer_from_ref returns true if a null-rejecting key part is NULL,
+  // i.e. there can be no match -> just backtrack.
+  if (cp_buffer_from_ref(thd, t, &it->ref))
+    DBUG_RETURN(0);
+  err= t->file->ha_index_read_map(t->record[0], it->ref.key_buff,
+                                  make_prev_keypart_map(it->ref.key_parts),
+                                  HA_READ_KEY_EXACT);
+  while (!err)
+  {
+    bool pass= !it->cond || it->cond->val_bool();
+    if (manager->fatal_error)
+      DBUG_RETURN(1);
+    if (pass && worker_join_inner(level + 1))
+      DBUG_RETURN(1);
+    if (it->type == JT_EQ_REF)
+      break;                                     // unique key: at most one match
+    err= t->file->ha_index_next_same(t->record[0], it->ref.key_buff,
+                                     it->ref.key_length);
+  }
+  if (err && err != HA_ERR_KEY_NOT_FOUND && err != HA_ERR_END_OF_FILE)
+  {
+    manager->fatal_error= true;
+    t->file->print_error(err, MYF(0));
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
+
 
 /**
   @brief
-    Scan the worker's private source-table partition and stream the rows to the
-    manager, a batch at a time, through the worker's reused row buffer.
+    Run the query over the worker's private chunk of the driving table, joining
+    the other tables, and stream the *result* rows to the manager a batch at a
+    time through the worker's reused row buffer.
 
-  Each worker scans its own private copy of the source table
-  (worker->our_scan_table, opened with in_use == this worker's thd) so the
-  workers scan truly concurrently -- no shared-scan lock is needed. It copies
-  up to PWT_CHUNK_ROWS raw record[0] images into batch_rows (the worker and
-  the manager share the source TABLE_SHARE, so a byte-for-byte record copy
-  reconstructs the row on the manager side -- no field_conv, no temp table),
-  hands the buffer to the manager, and blocks until the manager has drained it
-  (handoff_batch). It then refills the buffer from the top, until the
-  partition is exhausted.
-
-  The worker only reproduces the source scan; it does not apply WHERE/JOIN
-  conditions or run the rest of the join. The manager consumes these rows and
-  drives the join itself as they arrive (see parallel_scan_read_next).
+  The worker scans its own copy of the driving table (our_scan_table, opened
+  with in_use == this worker's thd) so the workers scan concurrently with no
+  shared-scan lock. For each driving row that passes the pushed WHERE it joins
+  the remaining tables (worker_join_inner) and, for every full match, projects
+  the select list into result_table and ships that record image. The manager
+  (manager_collect_and_send) only concatenates these final rows.
 
   @return
-  0 on success, or the handler error code; HA_ERR_END_OF_FILE is mapped
-  to success. A clean stop requested by the manager (handoff_batch -> stop)
-  also returns success: the manager is done, not in error.
+  0 on success, or a handler error code. A clean stop requested by the manager
+  (handoff_batch -> stop) also returns success: the manager is done, not in
+  error.
 */
 
-static int worker_produce_chunks(pwt_worker *worker)
+int pwt_worker::worker_run_query()
 {
-  TABLE *src= worker->our_scan_table;
-  const uint reclength= worker->manager->reclength;
-  int err;
+  DBUG_ENTER("pwt_worker::worker_run_query");
+  TABLE *src= our_scan_table;
+  pwt_manager *mgr= manager;
+  const uint nt= n_tables;
+  int err= 0;
+  uint i;
 
-  src->use_all_columns();    // read every column into record[0]
+  src->use_all_columns();                  // read every source column
+  result_table->use_all_columns();         // we write every result column
+  for (i= 1; i < nt; i++)
+    worker_tables[i]->use_all_columns();
 
   /*
-    Our handle bypassed lock_tables(), so take the engine-level read lock
-    ourselves; InnoDB needs this to register the table with its trx before
-    a scan. Paired with the F_UNLCK below.
+    Our handles bypassed lock_tables(), so take the engine-level read lock on
+    every table ourselves; InnoDB needs this to register a table with its trx
+    before reading it. All-or-nothing: unlock the locked prefix on failure.
   */
-  if ((err= src->file->ha_external_lock(worker->thd, F_RDLCK)))
-    return err;
-
-  err= src->file->pscan_init_worker(worker->engine_ctx);
-  if (err != 0)
+  uint locked= 0;
+  while (locked < nt)
   {
-    src->file->ha_external_lock(worker->thd, F_UNLCK);
-    return err == HA_ERR_END_OF_FILE ? 0 : err;
+    if ((err= worker_tables[locked]->file->ha_external_lock(thd, F_RDLCK)))
+    {
+      while (locked--)
+        worker_tables[locked]->file->ha_external_lock(thd, F_UNLCK);
+      DBUG_RETURN(err);
+    }
+    locked++;
   }
 
-  bool eof= false, killed= false;
-  while (!eof && !killed)
+  // Initialise the index on each ref/eq_ref inner table; reused across lookups.
+  for (i= 0; i + 1 < nt; i++)
   {
-    uint rows= 0;
-    while (rows < PWT_CHUNK_ROWS)
+    pwt_jointab *it= &join_tables[i];
+    if ((it->type == JT_EQ_REF || it->type == JT_REF) &&
+        (err= it->table->file->ha_index_init(it->ref.key, it->sorted)))
+      break;
+  }
+
+  if (!err && !(err= src->file->pscan_init_worker(engine_ctx)))
+  {
+    batch_count= 0;
+    bool eof= false, killed= false;
+    while (!eof && !killed)
     {
       // honour a direct KILL of this worker's thread
-      mysql_mutex_lock(&worker->thd->LOCK_thd_kill);
-      killed= worker->thd->killed;
-      mysql_mutex_unlock(&worker->thd->LOCK_thd_kill);
+      mysql_mutex_lock(&thd->LOCK_thd_kill);
+      killed= thd->killed;
+      mysql_mutex_unlock(&thd->LOCK_thd_kill);
       if (killed)
       {
         my_error(ER_QUERY_INTERRUPTED, MYF(0));
-        break;                          // stop now; do not hand off
+        break;
       }
 
-      if ((err= src->file->ha_pscan_get_next_row(worker->engine_ctx)))
+      if ((err= src->file->ha_pscan_get_next_row(engine_ctx)))
       {
         if (err == HA_ERR_END_OF_FILE)
         {
@@ -370,40 +713,56 @@ static int worker_produce_chunks(pwt_worker *worker)
         }
         break;
       }
-      memcpy(worker->batch_rows + (size_t) rows * reclength,
-             src->record[0], reclength);
-      rows++;
-    }
 
-    if (err && err != HA_ERR_END_OF_FILE)
-      break;                            // real error; do not hand off
+      // apply per worker select_cond
+      if (worker_cond)
+      {
+        bool pass= worker_cond->val_bool();
+        if (mgr->fatal_error)
+        {
+          eof= true;
+          break;
+        }
+        if (!pass)         // skip below
+          continue;
+      }
+
+      // join the rest of the tables and emit each full match
+      if (worker_join_inner(0))
+      {
+        eof= true;
+        break;
+      }
+    }
+    src->file->pscan_end_worker();
+
+    // hand off the final partial batch (ignore a late stop -- we are done)
+    if (!err && !killed && !mgr->fatal_error && batch_count)
+      mgr->handoff_batch(this);
+  }
+  else if (err == HA_ERR_END_OF_FILE)
     err= 0;
 
-    if (rows && !killed)                // hand the filled batch to the manager
-    {
-      worker->batch_count= rows;
-      if (worker->manager->handoff_batch(worker))  // manager asked us to stop
-        break;
-    }
-  }
-
-  src->file->pscan_end_worker();
-  src->file->ha_external_lock(worker->thd, F_UNLCK);
-  return err;
+  // end any open index/rnd scans (no-op for tables left in NONE state), unlock
+  for (i= 0; i + 1 < nt; i++)
+    join_tables[i].table->file->ha_index_or_rnd_end();
+  for (i= 0; i < nt; i++)
+    worker_tables[i]->file->ha_external_lock(thd, F_UNLCK);
+  DBUG_RETURN(err);
 }
 
 
 /**
-   @brief  Write rows to our manager, when done, tidy up.  Entry point for
-           worker_produce_chunks.
-
-   @return  true on error, false on success
+   @brief  Run the query for this worker, ship the result rows to the manager,
+           and tidy up. Entry point for worker_run_query.
 */
 
-bool worker_scan_table_to_manager(pwt_worker *worker)
+void pwt_worker::worker_run_query_to_manager()
 {
-  pwt_management *mgr= worker->manager;
-  int err= worker_produce_chunks(worker);
+  DBUG_ENTER("pwt_worker::worker_run_query_to_manager");
+
+  pwt_manager *mgr= manager;
+  int err= worker_run_query();
 
   /*
     End the worker's read transaction now, while we are still on the worker
@@ -412,8 +771,8 @@ bool worker_scan_table_to_manager(pwt_worker *worker)
     empty, so we must close it out here. Any commit failure is captured by the
     installed PWT_error_handler.
   */
-  trans_commit_stmt(worker->thd);
-  trans_commit(worker->thd);
+  trans_commit_stmt(thd);
+  trans_commit(thd);
 
   /*
     Mark this producer done so the consumer can detect EOF, and wake it in
@@ -423,9 +782,9 @@ bool worker_scan_table_to_manager(pwt_worker *worker)
     so the consumer can propagate it to the manager's THD and abort the join
     with ER_QUERY_INTERRUPTED before any result is sent.
   */
-  mysql_mutex_lock(&worker->thd->LOCK_thd_kill);
-  killed_state killed= worker->thd->killed;
-  mysql_mutex_unlock(&worker->thd->LOCK_thd_kill);
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  killed_state killed= thd->killed;
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 
   mysql_mutex_lock(&mgr->LOCK_data);
   if (err)
@@ -437,11 +796,9 @@ bool worker_scan_table_to_manager(pwt_worker *worker)
   mysql_mutex_unlock(&mgr->LOCK_data);
 
   if (err)
-  {
-    worker->our_scan_table->file->print_error(err, MYF(0));
-    return true;
-  }
-  return false;
+    our_scan_table->file->print_error(err, MYF(0));
+
+  DBUG_VOID_RETURN;
 }
 
 
@@ -453,6 +810,7 @@ bool worker_scan_table_to_manager(pwt_worker *worker)
 
 static void *parallel_worker_thread_func(void *arg)
 {
+  DBUG_ENTER("parallel_worker_thread_func");
   pwt_worker *worker= (pwt_worker*) arg;
   PWT_error_handler error_handler;
 
@@ -503,7 +861,7 @@ static void *parallel_worker_thread_func(void *arg)
   }
   mysql_mutex_unlock(&worker->thd->LOCK_thd_kill);
 
-  worker_scan_table_to_manager(worker);
+  worker->worker_run_query_to_manager();
 
   /*
     Null worker->thd under LOCK_worker so abort_worker() -- which takes
@@ -517,13 +875,13 @@ static void *parallel_worker_thread_func(void *arg)
   mysql_mutex_unlock(&worker->LOCK_worker);
 
   /*
-    Close our private source table while we are still attached to our THD
+    Close our private table copies while we are still attached to our THD
     (current_thd == thd) and, crucially, before destroy_background_thd()
     tears down the THD's transaction: the engine handle's close frees state
     that references that transaction (InnoDB's prebuilt). The manager never
-    touches a started worker's our_scan_table, so no lock is needed here.
+    touches a started worker's tables, so no lock is needed here.
   */
-  close_worker_scan_table(worker);
+  worker->close_worker_tables();
 
   /*
     executing thd_detach_thd sets my_thread_var to null, stopping our ability
@@ -534,7 +892,7 @@ static void *parallel_worker_thread_func(void *arg)
   server_threads.erase(thd);
   destroy_background_thd(thd);
 
-  return nullptr;
+  DBUG_RETURN(nullptr);
 }
 
 
@@ -548,14 +906,14 @@ static void *parallel_worker_thread_func(void *arg)
   it has, the worker is on its way out and pthread_join will reap it.
 */
 
-void abort_worker(pwt_worker *worker)
+void pwt_worker::abort_worker()
 {
-  mysql_mutex_lock(&worker->LOCK_worker);
-  if (worker->thd)
-    worker->thd->awake(ABORT_QUERY);
-  mysql_mutex_unlock(&worker->LOCK_worker);
-  pthread_join(worker->pthread, nullptr);
-  mysql_mutex_destroy(&worker->LOCK_worker);
+  mysql_mutex_lock(&LOCK_worker);
+  if (thd)
+    thd->awake(ABORT_QUERY);
+  mysql_mutex_unlock(&LOCK_worker);
+  pthread_join(pthread, nullptr);
+  mysql_mutex_destroy(&LOCK_worker);
 }
 
 
@@ -564,7 +922,7 @@ void abort_worker(pwt_worker *worker)
      Free our message queue, discard the messages
 */
 
-void pwt_management::free_queue()
+void pwt_manager::free_queue()
 {
   // process queue
   if (!parallel_messages.head())
@@ -598,9 +956,8 @@ void pwt_management::free_queue()
     true on error
 */
 
-int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
+int pwt_manager::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
 {
-  bool result= false;
   uint i= 0;
 
   const uint n= thd->variables.parallel_worker_threads;
@@ -649,7 +1006,125 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
   mysql_cond_init(key_COND_pwt_data_avail, &COND_data_avail, nullptr);
   mysql_cond_init(key_COND_pwt_data_space, &COND_data_space, nullptr);
   active_workers= nworkers= n;
-  reclength= table->s->reclength;     // shared record image size
+
+  /*
+    The non-const join tables in join order (mgr_tabs[0] == scan_tab). These
+    plus each worker's table copies form the manager->worker table map used to
+    rebind the cloned conditions/refs/select list. No semijoin bushes here (the
+    gate excludes them), so the tabs are simply join_tab[const_tables ..].
+  */
+  n_tables= join->table_count - join->const_tables;
+  if (!(mgr_tabs= thd->alloc<JOIN_TAB*>(n_tables)) ||
+      !(mgr_tables= thd->alloc<TABLE*>(n_tables)))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_tables * sizeof(void*)));
+    goto cleanup_old_workers;
+  }
+  for (uint t= 0; t < n_tables; t++)
+  {
+    mgr_tabs[t]= &join->join_tab[join->const_tables + t];
+    mgr_tables[t]= mgr_tabs[t]->table;
+  }
+
+  /*
+    Build the result containers.
+
+    What a worker ships is every base-table column the query reads, in table
+    order. The manager copies each one back into the field it came from in its
+    own table instances, so that after a row is drained the manager's records
+    hold what a serial scan would have left there and the query's own items read
+    it directly. Shipping the projected select list instead would mean every
+    expression the manager evaluates had to be re-pointed at a shipped value,
+    and re-pointing Items does not reach everything that reads a record --
+    create_tmp_table() builds Copy_field pairs holding raw Field pointers into
+    the base tables, which no Item indirection can redirect.
+
+    result_defn holds clones of the shipped items, so the query's own items are
+    never bound to a tmp field; it defines the columns, and the manager plus
+    every worker create an identical-layout copy.
+  */
+  {
+    for (uint t= 0; t < n_tables; t++)
+    {
+      TABLE *tbl= mgr_tables[t];
+      for (Field **f= tbl->field; *f; f++)
+      {
+        if (!bitmap_is_set(tbl->read_set, (*f)->field_index))
+          continue;
+        Item *itf= new (thd->mem_root) Item_field(thd, *f);
+        if (!itf || ship_list.push_back(itf, thd->mem_root))
+        {
+          my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_field));
+          goto cleanup_old_workers;
+        }
+      }
+    }
+    /*
+      A query reading no column of any table still needs a row shape, because the
+      transport measures its batches in record images. "SELECT COUNT(*)" is that
+      query: it reads no column, and the count is the number of images that
+      arrive.
+    */
+    if (ship_list.is_empty())
+    {
+      Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+      if (!one || ship_list.push_back(one, thd->mem_root))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
+        goto cleanup_old_workers;
+      }
+    }
+    if (!(copy_back= new (thd->mem_root) Copy_field[ship_list.elements]))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0),
+               (int) (ship_list.elements * sizeof(Copy_field)));
+      goto cleanup_old_workers;
+    }
+    List_iterator_fast<Item> li(ship_list);
+    Item *sel_item;
+    while ((sel_item= li++))
+    {
+      Item *c= sel_item->deep_copy_with_checks(thd);
+      if (!c || result_defn.push_back(c, thd->mem_root))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item));
+        goto cleanup_old_workers;
+      }
+    }
+  }
+  result_tmp_param= new (thd->mem_root) TMP_TABLE_PARAM;
+  if (!result_tmp_param)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(TMP_TABLE_PARAM));
+    goto cleanup_old_workers;
+  }
+  result_tmp_param->init();
+  count_field_types(join->select_lex, result_tmp_param, result_defn, false);
+  result_tmp_param->skip_create_table= true;
+  if (make_result_table(thd, result_defn, &result_table))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), 0);
+    goto cleanup_old_workers;
+  }
+  reclength= result_table->s->reclength;     // result-row image size
+
+  /*
+    Pair each column of result_table with the base-table field it was projected
+    from, so that draining a row is a copy per column back into the manager's own
+    records. Position i of ship_list is column i of result_table, which is how
+    make_result_table() built it. The one item that is not an Item_field is the
+    filler shipped for a query that reads no column, and it has nowhere to go
+    back to.
+  */
+  {
+    List_iterator_fast<Item> si(ship_list);
+    Item *it;
+    n_copy_back= 0;
+    for (uint i= 0; (it= si++); i++)
+      if (it->type() == Item::FIELD_ITEM)
+        copy_back[n_copy_back++].set(((Item_field*) it)->field,
+                                     result_table->field[i], false);
+  }
   cur_cursor= 0;
   fatal_error= false;
   stop= false;
@@ -659,10 +1134,7 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
 
   for (i= 0; i < n; i++)
   {
-    Parallel_scan::Worker_ctx *engine_ctx= file->pscan_get_worker_context(i);
-    DBUG_ASSERT(engine_ctx);
-    workers[i].engine_ctx= engine_ctx;
-
+    workers[i].set_engine_ctx(file->pscan_get_worker_context(i));
     workers[i].thd= create_background_thd();
     if (!workers[i].thd)
     {
@@ -726,63 +1198,32 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
     workers[i].thd->userstat_running= thd->userstat_running;
 
     /*
-      Give this worker its own TABLE+handler for the manager's first
-      non-const source table, opened from the shared TABLE_SHARE.
-
-      open_table_from_share() runs here on the manager thread, so the open
-      must happen with in_use == current_thd: handler::ha_thd() asserts
-      table->in_use == current_thd, and ha_innobase::open() calls it. So we
-      open under the manager's thd, then repoint in_use at the worker.
-
-      That is enough for engines that cache the THD: InnoDB sets m_user_thd
-      lazily on the first operation (update_thd()), not at open time, so it
-      binds to the worker when the worker scans on its own thread. Each
-      worker thus gets a private handler and they scan concurrently without
-      a shared-scan lock.
-
-      Arguments to open_table_from_share() below:
-        thd          open under the manager's THD (the in_use rule above);
-                      in_use is repointed to the worker afterwards.
-        src->s       the shared TABLE_SHARE of the first non-const source
-                      table -- the worker's TABLE is built from it.
-        &src->s->table_name
-                      alias (name) for the opened TABLE.
-        HA_OPEN_KEYFILE | HA_TRY_READ_ONLY
-                      db_stat (handler open mode): open the index/key file,
-                      read-only -- the worker only scans the table.
-        EXTRA_RECORD
-                      prgflag: allocate a second record buffer (record[1])
-                      in addition to record[0], as for a normal table open.
-        thd->open_options
-                      ha_open_flags, the handler open options from the THD.
-        st           outparam: the TABLE we just allocated, initialised here
-                      as this worker's private table.
-        false        is_create_table: this open is not part of CREATE TABLE.
-        nullptr      partitions_to_open: open all partitions (no subset).
+      Give this worker its own copy of every non-const join table, opened from
+      the shared TABLE_SHARE (open_worker_tables); the driving table is
+      worker_tables[0] / our_scan_table. Self-cleans on failure, so on error we
+      go to cleanup_db_string (the worker thd is not yet registered).
     */
-    {
-      TABLE *src= scan_tab->table;
-      TABLE *st= (TABLE*) my_malloc(key_memory_TABLE, sizeof(TABLE),
-                                    MYF(MY_WME | MY_ZEROFILL));
-      if (!st)
-        goto cleanup_db_string;
-
-      if (open_table_from_share(thd, src->s, &src->s->table_name,
-                                HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
-                                EXTRA_RECORD, thd->open_options, st,
-                                false, nullptr))
-      {
-        my_free(st);
-        my_error(ER_INTERNAL_ERROR, MYF(0),
-                "init_parallel_workers: failed to open table from share");
-        goto cleanup_db_string;
-      }
-      st->in_use= workers[i].thd;
-      st->file->ha_handler_stats_reset();
-      workers[i].our_scan_table= st;
-    }
+    if (open_worker_tables(thd, workers + i))
+      goto cleanup_db_string;
 
     server_threads.insert(workers[i].thd);  // +information_schema.processlist
+
+    /*
+      Set up how this worker joins the non-driving tables (access method,
+      worker-bound ref clone, condition), its result container, and private
+      clones of the WHERE condition + select list with field references rebound
+      to this worker's table copies. At run time the worker scans the driving
+      chunk, joins the inner tables, projects worker_proj into result_table and
+      ships that record image.
+    */
+    if (setup_worker_inner_tabs(thd, workers + i) ||
+        make_result_table(thd, result_defn, &workers[i].result_table) ||
+        clone_worker_exprs(thd, workers + i))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "init_parallel_workers: failed to set up worker execution");
+      goto cleanup_thread_create;
+    }
 
     if (mysql_thread_create(key_thread_pwt, &workers[i].pthread, nullptr,
                             parallel_worker_thread_func, &workers[i]))
@@ -796,7 +1237,7 @@ int pwt_management::init_parallel_workers(THD *thd, JOIN *join, JOIN_TAB *scan_t
 
 cleanup_thread_create:
   server_threads.erase(workers[i].thd);
-  close_worker_scan_table(workers+i);
+  workers[i].close_worker_tables();
 
 cleanup_db_string:
   /*
@@ -824,8 +1265,9 @@ cleanup_old_workers:
   mysql_cond_broadcast(&COND_data_space);
   mysql_mutex_unlock(&LOCK_data);
   for (uint j= 0; j < i; j++)
-    abort_worker(workers+j);
+    workers[j].abort_worker();
   free_queue();
+  free_result_tables(thd);            // workers reaped; result tables now idle
   // free each worker's row buffer (NULL for those not yet allocated)
   for (uint j= 0; j < n; j++)
     my_free(workers[j].batch_rows);
@@ -837,7 +1279,7 @@ cleanup_old_workers:
   mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
   file->pscan_end_coordinator();
-  return result;
+  return 1;                           // reached only on failure
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -858,120 +1300,577 @@ void pwt_init_psi_keys(void)
 
 /*
   @brief
-    function installed into the manager join execution to extract rows from
-    the worker threads.
+    Copy the next worker result-row image into dst (reclength bytes).
 
   @description
-  Consumer side of the streaming channel. This pluggable read function feeds
-  the first join_tab from the worker row buffers instead of scanning the real
-  first table: each raw record image a worker placed in its batch_rows buffer
-  is memcpy'd straight into the first table's record[0] (worker and manager
-  share the source TABLE_SHARE), so the manager's nested-loop join evaluates
-  exactly as if it had scanned the table itself, but driven by the worker rows
-  as they arrive. parallel_init_read_record installs the read function and
-  returns the first row; parallel_scan_read_next returns each subsequent row,
-  blocking when no worker batch is momentarily ready.
-
-  The manager drains one worker's buffer at a time (mgr->cur_worker), advancing
-  mgr->cur_cursor through its batch_count rows; when the buffer is exhausted it
-  releases the worker to refill (clears batch_full, signals COND_data_space)
-  and picks the next ready worker.
+  Consumer side of the streaming channel. The manager drains one worker's
+  buffer at a time (cur_worker), advancing cur_cursor through its batch_count
+  result rows; when the buffer is exhausted it releases the worker to refill
+  (clears batch_full, signals COND_data_space) and picks the next ready worker.
+  Blocks when no worker batch is momentarily ready. Kill of a worker is
+  propagated to the manager THD; a worker error (fatal_error) aborts.
 
   @returns
-    0 = row produced,
-   -1 = end of data
+    0 = row produced into dst,
+   -1 = end of data,
     1 = error (matching report_error()).
 */
-int parallel_scan_read_next(READ_RECORD *info)
+int pwt_manager::drain_next_row(uchar *dst)
 {
-  TABLE *dst= info->table;                       // real first table
-  pwt_management *mgr= dst->reginfo.join_tab->join->parallel_work_manager;
-  const uint reclength= mgr->reclength;
+  DBUG_ENTER("pwt_manager::drain_next_row");
+  const uint reclen= reclength;
   struct timespec wait;
   wait.tv_nsec= 0;
 
   for (;;)
   {
-    if (mgr->cur_worker)                          // draining a worker's buffer
+    if (cur_worker)                               // draining a worker's buffer
     {
-      pwt_worker *w= mgr->cur_worker;
-      if (mgr->cur_cursor < w->batch_count)
+      pwt_worker *w= cur_worker;
+      if (cur_cursor < w->batch_count)
       {
-        // raw record image -> first table's record[0]; no Field::store()
-        memcpy(dst->record[0],
-               w->batch_rows + (size_t) mgr->cur_cursor * reclength,
-               reclength);
-        mgr->cur_cursor++;
-        return 0;
+        memcpy(dst, w->batch_rows + (size_t) cur_cursor * reclen, reclen);
+        cur_cursor++;
+        DBUG_RETURN(0);
       }
       // buffer drained; release the worker so it can refill
-      mysql_mutex_lock(&mgr->LOCK_data);
-      mgr->cur_worker= nullptr;
+      mysql_mutex_lock(&LOCK_data);
+      cur_worker= nullptr;
       w->batch_full= false;                       // buffer is the worker's again
-      mysql_cond_broadcast(&mgr->COND_data_space); // wake it to refill
-      mysql_mutex_unlock(&mgr->LOCK_data);
+      mysql_cond_broadcast(&COND_data_space);     // wake it to refill
+      mysql_mutex_unlock(&LOCK_data);
       // fall through and look for the next ready worker
     }
 
     // find the next worker whose buffer is filled and ready
     pwt_worker *next= nullptr;
     PSI_stage_info old_stage;
-    mysql_mutex_lock(&mgr->LOCK_data);
+    mysql_mutex_lock(&LOCK_data);
     for (;;)
     {
-      for (uint i= 0; i < mgr->nworkers; i++)
-        if (mgr->workers[i].batch_full)
+      for (uint i= 0; i < nworkers; i++)
+        if (workers[i].batch_full)
         {
-          next= &mgr->workers[i];
+          next= &workers[i];
           break;
         }
       if (next)
         break;
       /*
         A worker exited because it was killed: propagate the kill to the
-        manager's own THD so the join aborts now with ER_QUERY_INTERRUPTED,
-        before any result is sent. (The join's sub_select kill checks turn
-        thd->killed into the error message.)
+        manager's own THD so the query aborts now with ER_QUERY_INTERRUPTED,
+        before any result is sent.
       */
-      if (mgr->kill_signal != NOT_KILLED && !mgr->thd->killed)
+      if (kill_signal != NOT_KILLED && !thd->killed)
       {
-        killed_state ks= mgr->kill_signal;
-        mysql_mutex_unlock(&mgr->LOCK_data);
-        mysql_mutex_lock(&mgr->thd->LOCK_thd_kill);
-        mgr->thd->killed= ks;
-        mysql_mutex_unlock(&mgr->thd->LOCK_thd_kill);
-        return 1;
+        killed_state ks= kill_signal;
+        mysql_mutex_unlock(&LOCK_data);
+        mysql_mutex_lock(&thd->LOCK_thd_kill);
+        thd->killed= ks;
+        mysql_mutex_unlock(&thd->LOCK_thd_kill);
+        DBUG_RETURN(1);
       }
-      if (mgr->fatal_error)                       // a worker failed
+      if (fatal_error)                            // a worker failed
       {
-        mysql_mutex_unlock(&mgr->LOCK_data);
-        return 1;
+        mysql_mutex_unlock(&LOCK_data);
+        DBUG_RETURN(1);
       }
-      if (!mgr->active_workers)                   // all producers done, drained
+      if (!active_workers)                        // all producers done, drained
       {
-        mysql_mutex_unlock(&mgr->LOCK_data);
-        return -1;
+        mysql_mutex_unlock(&LOCK_data);
+        DBUG_RETURN(-1);
       }
-      if (mgr->thd->killed)
+      if (thd->killed)
       {
-        mysql_mutex_unlock(&mgr->LOCK_data);
-        return 1;
+        mysql_mutex_unlock(&LOCK_data);
+        DBUG_RETURN(1);
       }
       // wait for a batch, a finishing worker, or a 1s tick to re-check killed.
       // ENTER_COND/EXIT_COND publish the "Reading data from parallel workers"
       // stage and register the cond so a KILL of the manager wakes it.
       wait.tv_sec= time(0) + 1;
-      mgr->thd->ENTER_COND(&mgr->COND_data_avail, &mgr->LOCK_data,
-                           &stage_reading_data_from_parallel_worker, &old_stage);
-      mysql_cond_timedwait(&mgr->COND_data_avail, &mgr->LOCK_data, &wait);
-      mgr->thd->EXIT_COND(&old_stage);          // unlocks LOCK_data
-      mysql_mutex_lock(&mgr->LOCK_data);         // re-lock for the next pass
+      thd->ENTER_COND(&COND_data_avail, &LOCK_data,
+                      &stage_reading_data_from_parallel_worker, &old_stage);
+      mysql_cond_timedwait(&COND_data_avail, &LOCK_data, &wait);
+      thd->EXIT_COND(&old_stage);                 // unlocks LOCK_data
+      mysql_mutex_lock(&LOCK_data);               // re-lock for the next pass
     }
-    mgr->cur_worker= next;
-    mgr->cur_cursor= 0;                            // start of next's buffer
-    mysql_mutex_unlock(&mgr->LOCK_data);
+    cur_worker= next;
+    cur_cursor= 0;                                // start of next's buffer
+    mysql_mutex_unlock(&LOCK_data);
     // loop back to drain next->batch_rows
   }
+}
+
+
+/*
+  @brief
+    Drain the workers' result rows and send them to the client.
+
+  @description
+  The workers ran the whole select-project query over their disjoint chunks
+  and produced the final result rows; the manager just concatenates them (in
+  arrival order) and sends each to the client. The select-list metadata was
+  already sent (from the query's own field list) before do_select() ran, so we
+  only supply the row values here -- the select list is evaluated against the
+  manager's own records, which the drain has filled from the shipped columns.
+  send_records is advanced so do_select() can set limit_found_rows.
+
+  @return  0 on success (all rows sent), 1 on error.
+*/
+int pwt_manager::manager_collect_and_send(JOIN *join)
+{
+  DBUG_ENTER("pwt_manager::manager_collect_and_send");
+  uchar *dst= result_table->record[0];
+  int ret= 0;
+
+  /*
+    The manager's tables were opened but never read, so clear the flags a reader
+    would have left. Copy_field captures &table->null_row, and a stale null_row
+    would make every copied field read as NULL.
+
+    Writing into these records is not something a SELECT's write_set allows, and
+    Field::store() asserts on that, so mark the fields writable for the drain. A
+    record is being filled here in place of the reader that would normally have
+    filled it, which is what the helper is for.
+  */
+  MY_BITMAP **saved_write_set= (MY_BITMAP**)
+                                thd->alloc(n_tables * sizeof(MY_BITMAP*));
+  if (!saved_write_set)
+    DBUG_RETURN(1);
+  for (uint t= 0; t < n_tables; t++)
+  {
+    mgr_tables[t]->status= 0;
+    mgr_tables[t]->null_row= false;
+    saved_write_set[t]= dbug_tmp_use_all_columns(mgr_tables[t],
+                                                 &mgr_tables[t]->write_set);
+  }
+
+  for (;;)
+  {
+    int rc= drain_next_row(dst);
+    if (rc < 0)
+      break;                                      // -1: all rows drained
+    if (rc > 0)
+    {
+      ret= 1;                                     // killed / worker error
+      break;
+    }
+
+    /* Put the shipped columns back where the query expects to find them. */
+    for (uint i= 0; i < n_copy_back; i++)
+      (*copy_back[i].do_copy)(&copy_back[i]);
+
+    int err= join->result->send_data_with_check(join->fields_list, join->unit,
+                                                 join->send_records);
+    if (unlikely(err))
+    {
+      if (err > 0)
+      {
+        ret= 1;
+        break;
+      }
+      join->duplicate_rows++;                     // err < 0: duplicate row
+    }
+    join->send_records++;
+    join->accepted_rows++;
+  }
+
+  for (uint t= 0; t < n_tables; t++)
+    dbug_tmp_restore_column_map(&mgr_tables[t]->write_set, saved_write_set[t]);
+
+  DBUG_PRINT("info", ("join records:%llu", join->send_records));
+  DBUG_RETURN(ret);
+}
+
+
+/*
+  @brief
+    Create + instantiate one result container in result_defn's column layout.
+
+  Only the record buffer and the fields are ever used (the worker projects into
+  result_table->record[0] and ships its image; the manager receives images and
+  sends from it) -- no rows are written through the storage engine.
+
+  @return  true on error, false on success (*out set).
+*/
+bool pwt_manager::make_result_table(THD *thd, List<Item> &defn, TABLE **out)
+{
+  TABLE *t= create_tmp_table(thd, result_tmp_param, defn,
+                             nullptr, false, false,
+                             join->select_options, HA_POS_ERROR,
+                             &empty_clex_str, true, false);
+  if (!t)
+    return true;
+  if (instantiate_tmp_table(t, result_tmp_param->keyinfo,
+                            result_tmp_param->start_recinfo,
+                            &result_tmp_param->recinfo,
+                            join->select_options, true /*cross_thread*/))
+  {
+    free_tmp_table(thd, t);
+    return true;
+  }
+  *out= t;
+  return false;
+}
+
+
+/*
+  @brief
+    Open this worker's private copy of every non-const join table from the
+    shared TABLE_SHARE.
+
+  @description
+    open_table_from_share() runs here on the manager thread, so the open must
+    happen with in_use == current_thd (handler::ha_thd() asserts that, and
+    ha_innobase::open() calls it); we repoint in_use at the worker afterwards.
+    InnoDB caches the THD lazily (update_thd() on first use), not at open, so
+    each worker gets a private handler and they scan concurrently without a
+    shared-scan lock. worker_tables[0] is the parallel-scanned driving table
+    (also kept as our_scan_table). Self-cleans on failure.
+
+  @return  true on error.
+*/
+bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
+{
+  worker->n_tables= n_tables;
+  if (!(worker->worker_tables= thd->alloc<TABLE*>(n_tables)))
+    return true;
+  for (uint t= 0; t < n_tables; t++)
+    worker->worker_tables[t]= nullptr;
+
+  for (uint t= 0; t < n_tables; t++)
+  {
+    TABLE *src= mgr_tables[t];
+    TABLE *st= (TABLE*) my_malloc(key_memory_TABLE, sizeof(TABLE),
+                                  MYF(MY_WME | MY_ZEROFILL));
+    if (!st)
+      goto err;
+    if (open_table_from_share(thd, src->s, &src->s->table_name,
+                              HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
+                              EXTRA_RECORD, thd->open_options, st,
+                              false, nullptr))
+    {
+      my_free(st);
+      goto err;
+    }
+    st->in_use= worker->thd;
+    st->file->ha_handler_stats_reset();
+    worker->worker_tables[t]= st;
+  }
+  worker->our_scan_table= worker->worker_tables[0];   // the driving table
+  return false;
+
+err:
+  my_error(ER_INTERNAL_ERROR, MYF(0),
+           "init_parallel_workers: failed to open worker table from share");
+  worker->close_worker_tables();
+  return true;
+}
+
+
+/*
+  @brief
+    Describe how this worker joins each non-driving table: access method, a
+    worker-bound clone of the ref (for REF/EQ_REF), and a cloned + rebound
+    per-table condition. Tables are taken in join order; their ref values
+    reference earlier (already-read) tables, which is why the worker joins
+    them in this order.
+
+  @return  true on error.
+*/
+bool pwt_manager::setup_worker_inner_tabs(THD *thd, pwt_worker *worker)
+{
+  const uint m= n_tables - 1;            // number of non-driving tables
+  worker->join_tables= nullptr;
+  if (!m)
+    return false;                        // single table: no inner join
+
+  if (!(worker->join_tables= thd->calloc<pwt_jointab>(m)))
+    return true;
+
+  for (uint k= 0; k < m; k++)
+  {
+    JOIN_TAB *mtab= mgr_tabs[k + 1];     // manager's non-driving tab
+    pwt_jointab *it= &worker->join_tables[k];
+    it->table= worker->worker_tables[k + 1];
+    it->type= mtab->type;
+    it->sorted= mtab->sorted;
+
+    if (mtab->select_cond &&
+        !(it->cond= pwt_clone_rebind(thd, mtab->select_cond,
+                                     mgr_tables, worker->worker_tables,
+                                     n_tables)))
+      return true;
+
+    if (it->type == JT_EQ_REF || it->type == JT_REF)
+    {
+      if (clone_table_ref(thd, &mtab->ref, it->table,
+                          mgr_tables, worker->worker_tables, n_tables, &it->ref))
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Build this worker's private clones of the driving table's WHERE condition
+    and the select list, rebinding their field references to the worker's table
+    copies.
+
+  @return  true  error
+           false clone built
+*/
+bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
+{
+  TABLE **from= mgr_tables;
+  TABLE **to= worker->worker_tables;
+
+  // possible select_cond pushed to the driving table
+  worker->worker_cond= nullptr;
+  if (scan_tab->select_cond &&
+      !(worker->worker_cond= pwt_clone_rebind(thd, scan_tab->select_cond,
+                                              from, to, n_tables)))
+    return true;
+
+  // shipped columns -> per-item projection into result_table->field[i]
+  worker->proj_count= ship_list.elements;
+  worker->worker_proj= (Item**) thd->alloc(worker->proj_count * sizeof(Item*));
+  if (!worker->worker_proj)
+    return true;
+
+  List_iterator_fast<Item> li(ship_list);
+  Item *src;
+  uint i= 0;
+  while ((src= li++))
+  {
+    if (!(worker->worker_proj[i++]= pwt_clone_rebind(thd, src, from, to,
+                                                     n_tables)))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  @brief  Free the manager and per-worker result containers.
+*/
+void pwt_manager::free_result_tables(THD *thd)
+{
+  if (workers)
+    for (uint i= 0; i < nworkers; i++)
+      if (workers[i].result_table)
+      {
+        free_tmp_table(thd, workers[i].result_table);
+        workers[i].result_table= nullptr;
+      }
+  if (result_table)
+  {
+    free_tmp_table(thd, result_table);
+    result_table= nullptr;
+  }
+}
+
+
+/*
+  @brief
+    Determine if the parallel workers run this whole query themselves and ship
+      final result rows.
+      (Called from make_join_readinfo, see JOIN::worker_side_parallel.)
+
+  @description
+  True for a streaming select-project[-join] query whose driving table
+  'scan_tab' is parallel-scannable and whose remaining tables the workers can
+  join themselves:
+    - at least one non-const table (the parallel-scanned driving table);
+    - all joins are inner (no outer-join null-complementation, no semijoin),
+      and every non-driving table is reached by an index ref/eq_ref lookup or a
+      plain full scan -- nothing that needs a join buffer, range/quick, rowid
+      filter, loose scan, or a subquery trigger guard on the ref;
+    - no temporary table (rules out GROUP BY, DISTINCT, ORDER BY, window
+      functions, SQL_BUFFER_RESULT, ...): the result is the plain concatenation
+      of the per-chunk join results;
+    - no LIMIT/OFFSET, SQL_CALC_FOUND_ROWS, aggregate, or PROCEDURE -- these
+      need a global post-pass the workers cannot do independently;
+    - every condition, ref value and select-list item can be deep-cloned (so
+      each worker gets private, thread-safe copies bound to its own tables).
+
+  Anything else simply runs serially.
+
+  @return
+        true  if we can run this query in parallel
+        false otherwise
+*/
+bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab)
+{
+  DBUG_ENTER("can_run_query_in_workers");
+  THD *thd= join->thd;
+  SELECT_LEX *sl= join->select_lex;
+
+  if (join->table_count - join->const_tables < 1)   // need the driving table
+  {
+    DBUG_PRINT("info", ("only constant tables"));
+    DBUG_RETURN(false);
+  }
+  if (join->need_tmp)                             // group/distinct/order/...
+  {
+    DBUG_PRINT("info", ("group/distinct/order by"));
+    DBUG_RETURN(false);
+  }
+  if (sl->limit_params.explicit_limit)            // LIMIT / OFFSET
+  {
+    DBUG_PRINT("info", ("limit/offset"));
+    DBUG_RETURN(false);
+  }
+  if (join->select_options & OPTION_FOUND_ROWS)  // SQL_CALC_FOUND_ROWS
+  {
+    DBUG_PRINT("info", ("SQL_CALC_FOUND_ROWS"));
+    DBUG_RETURN(false);
+  }
+  if (join->procedure)
+  {
+    DBUG_PRINT("info", ("procedure"));
+    DBUG_RETURN(false);
+  }
+  if (sl->have_window_funcs())
+  {
+    DBUG_PRINT("info", ("window funcs"));
+    DBUG_RETURN(false);
+  }
+  if (sl->agg_func_used() || sl->with_sum_func )
+  {
+    DBUG_PRINT("info", ("aggregate funcs"));
+    DBUG_RETURN(false);
+  }
+
+  if (join->group_list || join->group)
+  {
+    DBUG_PRINT("info", ("group"));
+    DBUG_RETURN(false);
+  }
+  if (join->select_distinct)
+  {
+    DBUG_PRINT("info", ("distinct"));
+    DBUG_RETURN(false);
+  }
+  if (join->order)
+  {
+    DBUG_PRINT("info", ("order by"));
+    DBUG_RETURN(false);
+  }
+  if (join->having || join->tmp_having)
+  {
+    DBUG_PRINT("info", ("having"));
+    DBUG_RETURN(false);
+  }
+  if (join->outer_join)                             // no outer joins
+  {
+    DBUG_PRINT("info", ("outer_join"));
+    DBUG_RETURN(false);
+  }
+
+  // every non-const join table must be one the worker can scan / look up itself
+  for (uint j= join->const_tables; j < join->table_count; j++)
+  {
+    JOIN_TAB *tab= &join->join_tab[j];
+    if (tab->bush_children)                       // semijoin materialization
+    {
+      DBUG_PRINT("info", ("SJM on %s",tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
+    if (tab->loosescan_match_tab)                 // loose scan
+    {
+      DBUG_PRINT("info", ("loosescan on %s",tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
+    if (tab->rowid_filter)                        // rowid filter
+    {
+      DBUG_PRINT("info", ("rowid_filter on %s",tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
+    if (tab->select && tab->select->quick)        // range / index_merge
+    {
+      DBUG_PRINT("info", ("quick select on %s",tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
+    if (j > join->const_tables)                     // non-driving table access
+    {
+      if (tab->type != JT_EQ_REF && tab->type != JT_REF && tab->type != JT_ALL)
+      {
+        DBUG_PRINT("info", ("%s on %s",
+                            join_type_str[tab->type],
+                            tab->table->alias.ptr()));
+        DBUG_RETURN(false);
+      }
+      if (tab->type == JT_EQ_REF || tab->type == JT_REF)
+        for (uint p= 0; p < tab->ref.key_parts; p++)
+        {
+          if (tab->ref.cond_guards && tab->ref.cond_guards[p])  // subquery trigger
+          {
+            DBUG_PRINT("info", ("cond_guards, %s",tab->table->alias.ptr()));
+            DBUG_RETURN(false);
+          }
+          if (!tab->ref.items[p]->deep_copy_with_checks(thd))   // clonable?
+          {
+            DBUG_PRINT("info", ("ref unclonable, %s",tab->table->alias.ptr()));
+            DBUG_RETURN(false);
+          }
+        }
+    }
+    if (tab->select_cond && !tab->select_cond->deep_copy_with_checks(thd))
+    {
+      DBUG_PRINT("info", ("cond unclonable, %s",tab->table->alias.ptr()));
+      DBUG_RETURN(false);
+    }
+  }
+
+  // select list clonable
+  List_iterator_fast<Item> li(join->fields_list);
+  Item *item;
+  while ((item= li++))
+    if (!item->deep_copy_with_checks(thd))
+    {
+      DBUG_PRINT("info", ("scan table fields unclonable"));
+      DBUG_RETURN(false);
+    }
+  DBUG_RETURN(true);
+}
+
+
+/*
+  @brief
+    Drive worker-side execution from do_select(): spin up the workers and then
+    collect and send their result rows.
+
+  @return  0 = handled (result sent), 1 = error, -1 = the engine declined the
+           parallel scan (caller should run the query serially instead).
+*/
+int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
+{
+  DBUG_ENTER("run_worker_side_join");
+  DBUG_PRINT("info",  ("parallel scan on %s", scan_tab->table->alias.ptr()));
+  THD *thd= join->thd;
+  pwt_manager *mgr= new (thd->mem_root) pwt_manager;
+  if (!mgr)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_manager));
+    DBUG_RETURN(1);
+  }
+  join->parallel_work_manager= mgr;
+
+  int err= mgr->init_parallel_workers(thd, join, scan_tab);
+  if (err == HA_ERR_UNSUPPORTED)
+  {
+    // the engine declined the parallel scan; run the query serially instead
+    join->parallel_work_manager= nullptr;
+    DBUG_RETURN(1);
+  }
+  if (err)
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(mgr->manager_collect_and_send(join));
 }
 
 
@@ -993,10 +1892,11 @@ int parallel_scan_read_next(READ_RECORD *info)
     early-out.
 */
 
-void pwt_management::quiesce_workers()
+void pwt_manager::quiesce_workers()
 {
+  DBUG_ENTER("pwt_manager::quiesce_workers");
   if (!workers || reaped)
-    return;
+    DBUG_VOID_RETURN;
 
   // the consumer may have stopped mid-batch; drop its position (no open scan)
   cur_worker= nullptr;
@@ -1012,6 +1912,7 @@ void pwt_management::quiesce_workers()
     mysql_mutex_destroy(&workers[i].LOCK_worker);
   }
   reaped= true;
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1025,10 +1926,11 @@ void pwt_management::quiesce_workers()
     own result has been produced.
 */
 
-void pwt_management::finalize_parallel_workers(THD *thd, JOIN *join)
+void pwt_manager::finalize_parallel_workers(THD *thd, JOIN *join)
 {
+  DBUG_ENTER("pwt_manager::finalize_parallel_workers");
   if (!workers)
-    return;
+    DBUG_VOID_RETURN;
 
   quiesce_workers();                  // stop + join (no-op if already reaped)
   scan_tab->table->file->pscan_end_coordinator();
@@ -1072,9 +1974,11 @@ void pwt_management::finalize_parallel_workers(THD *thd, JOIN *join)
   mysql_cond_destroy(&COND_data_space);
   mysql_mutex_destroy(&LOCK_data);
   mysql_mutex_destroy(&LOCK_pwt_thread);
+  free_result_tables(thd);              // workers joined; result tables idle
   for (uint i= 0; i < nworkers; i++)    // workers are joined, buffers idle
     my_free(workers[i].batch_rows);
   my_free(workers);
   workers= nullptr;
   nworkers= 0;
+  DBUG_VOID_RETURN;
 }

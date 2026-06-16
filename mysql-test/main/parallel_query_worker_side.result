@@ -1,0 +1,86 @@
+CREATE TABLE t1 (a INT, b INT, c VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t1
+SELECT seq, seq * 10, CONCAT('row-', seq) FROM seq_1_to_5000;
+SET @save= @@session.parallel_worker_threads;
+SET SESSION parallel_worker_threads= 0;
+CREATE TEMPORARY TABLE t_serial ENGINE=InnoDB AS
+SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100;
+SET SESSION parallel_worker_threads= 4;
+CREATE TEMPORARY TABLE t_par ENGINE=InnoDB AS
+SELECT a, b, c FROM t1 WHERE a % 7 = 0 AND b > 100;
+# same number of rows serially and in parallel (expect equal, non-zero)
+SELECT (SELECT COUNT(*) FROM t_serial) AS serial_rows,
+(SELECT COUNT(*) FROM t_par)    AS par_rows;
+serial_rows	par_rows
+713	713
+# symmetric difference of the two result sets is empty (expect 0 and 0)
+SELECT COUNT(*) AS only_in_serial
+FROM (SELECT a,b,c FROM t_serial EXCEPT SELECT a,b,c FROM t_par) x;
+only_in_serial
+0
+SELECT COUNT(*) AS only_in_parallel
+FROM (SELECT a,b,c FROM t_par EXCEPT SELECT a,b,c FROM t_serial) y;
+only_in_parallel
+0
+DROP TEMPORARY TABLE t_serial, t_par;
+# projected expressions, sorted for a stable comparison
+SELECT a, a + b AS sum_ab, UPPER(c) AS uc FROM t1 WHERE a BETWEEN 4990 AND 5000;
+a	sum_ab	uc
+4990	54890	ROW-4990
+4991	54901	ROW-4991
+4992	54912	ROW-4992
+4993	54923	ROW-4993
+4994	54934	ROW-4994
+4995	54945	ROW-4995
+4996	54956	ROW-4996
+4997	54967	ROW-4997
+4998	54978	ROW-4998
+4999	54989	ROW-4999
+5000	55000	ROW-5000
+# whole-table scan (no WHERE), counted
+SELECT COUNT(*) AS n FROM (SELECT a, b, c FROM t1) d;
+n
+5000
+CREATE TABLE t2 (id INT PRIMARY KEY, label VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, CONCAT('L', seq) FROM seq_1_to_50;
+# multi-table join (more than one non-const table): correct join result
+SELECT t1.a, t2.label FROM t1 JOIN t2 ON t2.id = t1.a WHERE t1.a IN (3,17,42);
+a	label
+17	L17
+3	L3
+42	L42
+# aggregation / GROUP BY: correct grouped result
+SELECT a % 3 AS g, COUNT(*) AS n, SUM(b) AS s FROM t1 GROUP BY a % 3 ORDER BY g;
+g	n	s
+0	1666	41658330
+1	1667	41675000
+2	1667	41691670
+# ORDER BY with LIMIT: correct top-N
+SELECT a, b FROM t1 WHERE a > 100 ORDER BY a LIMIT 5;
+a	b
+101	1010
+102	1020
+103	1030
+104	1040
+105	1050
+DROP TABLE t2;
+SET @save_ot= @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+SELECT a, b FROM t1 WHERE a > 0;
+# worker-side parallel query was chosen for the scan (expect 1)
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS chosen
+FROM information_schema.optimizer_trace;
+chosen
+1
+# a query that does NOT qualify (ORDER BY needs a global sort): not chosen
+SELECT a FROM t1 WHERE a > 0 ORDER BY a;
+# expect 0
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL
+AS chosen
+FROM information_schema.optimizer_trace;
+chosen
+0
+SET optimizer_trace= @save_ot;
+SET SESSION parallel_worker_threads= @save;
+DROP TABLE t1;

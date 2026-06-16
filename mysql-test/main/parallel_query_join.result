@@ -1,0 +1,129 @@
+CREATE TABLE fact (id INT, dim1 INT, dim2 INT, val INT) ENGINE=InnoDB;
+INSERT INTO fact
+SELECT seq, seq % 50 + 1, seq % 20 + 1, seq * 3 FROM seq_1_to_5000;
+CREATE TABLE d1 (id INT PRIMARY KEY, name VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO d1 SELECT seq, CONCAT('n', seq) FROM seq_1_to_50;
+CREATE TABLE d2 (k INT, label VARCHAR(20), KEY(k)) ENGINE=InnoDB;
+INSERT INTO d2 SELECT seq % 20 + 1, CONCAT('L', seq) FROM seq_1_to_60;
+CREATE TABLE d3 (x INT, descr VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO d3 SELECT seq, CONCAT('D', seq) FROM seq_1_to_20;
+SET @s= @@session.parallel_worker_threads;
+#
+# eq_ref: fact STRAIGHT_JOIN d1 on PK
+#
+SET SESSION parallel_worker_threads=0;
+CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100;
+SET SESSION parallel_worker_threads=4;
+CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1 AND f.val>100;
+# equal row count (expect 1, non-zero) and empty symmetric difference (0,0)
+SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
+same	n
+1	4967
+SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
+only_ser
+0
+SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
+only_par
+0
+DROP TEMPORARY TABLE ser, par;
+#
+# ref with fan-out: fact STRAIGHT_JOIN d2 on a non-unique key
+#
+SET SESSION parallel_worker_threads=0;
+CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000;
+SET SESSION parallel_worker_threads=4;
+CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d2.label FROM fact f, d2 WHERE d2.k=f.dim2 AND f.id<=2000;
+SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
+same	n
+1	6000
+SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
+only_ser
+0
+SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
+only_par
+0
+DROP TEMPORARY TABLE ser, par;
+#
+# 3-table chain: fact STRAIGHT_JOIN d1 STRAIGHT_JOIN d2
+#
+SET SESSION parallel_worker_threads=0;
+CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2
+WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000;
+SET SESSION parallel_worker_threads=4;
+CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d1.name, d2.label FROM fact f, d1, d2
+WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id<=1000;
+SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
+same	n
+1	3000
+SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
+only_ser
+0
+SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
+only_par
+0
+DROP TEMPORARY TABLE ser, par;
+#
+# non-indexed inner table (d3, full scan): fact STRAIGHT_JOIN d3
+#
+SET SESSION parallel_worker_threads=0;
+CREATE TEMPORARY TABLE ser ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500;
+SET SESSION parallel_worker_threads=4;
+CREATE TEMPORARY TABLE par ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500;
+SELECT (SELECT COUNT(*) FROM ser)=(SELECT COUNT(*) FROM par) AS same, (SELECT COUNT(*) FROM ser) AS n;
+same	n
+1	500
+SELECT COUNT(*) AS only_ser FROM (SELECT * FROM ser EXCEPT SELECT * FROM par) a;
+only_ser
+0
+SELECT COUNT(*) AS only_par FROM (SELECT * FROM par EXCEPT SELECT * FROM ser) b;
+only_par
+0
+DROP TEMPORARY TABLE ser, par;
+#
+# small deterministic spot-check, run worker-side (sorted for stability)
+#
+SET SESSION parallel_worker_threads=4;
+SELECT STRAIGHT_JOIN f.id, f.dim1, d1.name, d2.label
+FROM fact f, d1, d2
+WHERE d1.id=f.dim1 AND d2.k=f.dim2 AND f.id IN (1, 2, 21);
+id	dim1	name	label
+1	2	n2	L1
+1	2	n2	L21
+1	2	n2	L41
+2	3	n3	L2
+2	3	n3	L22
+2	3	n3	L42
+21	22	n22	L1
+21	22	n22	L21
+21	22	n22	L41
+#
+# confirm worker-side is chosen for a multi-table join, and that
+# CREATE ... AS SELECT (used above) also runs worker-side
+#
+SET @ot= @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
+# expect 1
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS chosen
+FROM information_schema.optimizer_trace;
+chosen
+1
+CREATE TEMPORARY TABLE ctas ENGINE=InnoDB AS
+SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
+# CTAS worker-side too (expect 1)
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ctas_chosen
+FROM information_schema.optimizer_trace;
+ctas_chosen
+1
+DROP TEMPORARY TABLE ctas;
+SET optimizer_trace= @ot;
+SET SESSION parallel_worker_threads= @s;
+DROP TABLE fact, d1, d2, d3;
