@@ -1,0 +1,61 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE USER 'u'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON test.* TO 'u'@'localhost';
+connection slave;
+# Verify baseline GRANT replicated
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+# DENY SELECT and verify replication
+connection master;
+DENY SELECT ON test.* TO 'u'@'localhost';
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+DENY SELECT ON `test`.* TO `u`@`localhost`
+connection slave;
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+DENY SELECT ON `test`.* TO `u`@`localhost`
+# DENY INSERT and verify replication
+connection master;
+DENY INSERT ON test.* TO 'u'@'localhost';
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+DENY SELECT, INSERT ON `test`.* TO `u`@`localhost`
+connection slave;
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+DENY SELECT, INSERT ON `test`.* TO `u`@`localhost`
+# REVOKE DENY SELECT and verify replication
+connection master;
+REVOKE DENY SELECT ON test.* FROM 'u'@'localhost';
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+DENY INSERT ON `test`.* TO `u`@`localhost`
+connection slave;
+connection slave;
+SHOW GRANTS FOR 'u'@'localhost';
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost`
+GRANT SELECT, INSERT, UPDATE ON `test`.* TO `u`@`localhost`
+DENY INSERT ON `test`.* TO `u`@`localhost`
+connection master;
+DROP USER 'u'@'localhost';
+connection slave;
+include/rpl_end.inc

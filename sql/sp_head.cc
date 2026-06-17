@@ -2983,15 +2983,12 @@ bool check_db_routine_access(THD *thd, privilege_t privilege,
                              const Sp_handler *sph,
                              bool no_errors)
 {
-  privilege_t db_priv;
+  access_t db_priv(NO_ACL);
   if (check_access(thd, privilege, db,
                    &db_priv, NULL, 0, no_errors))
     return 1;
-  if ((db_priv & privilege) == privilege)
-    return 0;
-
-  return check_routine_level_acl(thd, (privilege & ~db_priv),
-                                 db, name, sph);
+  return check_routine_level_acl(thd, privilege,
+                                 db, name, sph, db_priv);
 }
 
 /**

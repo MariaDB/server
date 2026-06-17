@@ -7123,7 +7123,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
       /* REPAIR needs SELECT_ACL */
       while ((tbl= tb++))
       {
-        tbl->grant.privilege= SELECT_ACL;
+        tbl->grant.privilege= access_t(SELECT_ACL);
         tbl->security_ctx= save_security_ctx;
       }
       DBUG_RETURN(FALSE);
@@ -7154,7 +7154,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
   thd->security_ctx= save_security_ctx;
 #else
   while ((tbl= tb++))
-    tbl->grant.privilege= ALL_KNOWN_ACL;
+    tbl->grant.privilege= access_t(ALL_KNOWN_ACL);
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }
@@ -8952,6 +8952,11 @@ void TABLE_LIST::reinit_before_use(THD *thd)
   table= 0;
   /* Reset is_schema_table_processed value(needed for I_S tables */
   schema_table_state= NOT_PROCESSED;
+  /*
+    Reset want_privilege: a previous prepare/execute  may have left
+    something here.
+  */
+  grant.want_privilege= NO_ACL;
 
   TABLE_LIST *embedded; /* The table at the current level of nesting. */
   TABLE_LIST *parent_embedding= this; /* The parent nested table reference. */

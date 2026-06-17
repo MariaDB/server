@@ -174,7 +174,7 @@ int FiberScanState::init(TABLE *tbl,
   }
 
   /* Grant full privileges so the fiber can open any table */
-  fiber_thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  fiber_thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
 
   /* Disable query cache — fiber queries are internal, not cacheable */
   fiber_thd->query_cache_is_applicable= 0;

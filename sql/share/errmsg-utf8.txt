@@ -6928,12 +6928,12 @@ ER_LOAD_FROM_FIXED_SIZE_ROWS_TO_VAR
         spa "No puedo cargar valor desde fichero/archivo con filas de tamaño fijo en variable"
         sw "Haiwezi kupakia thamani kutoka kwa faili iliyo na safu za saizi maalum hadi kutofautisha"
 ER_CANT_CREATE_USER_WITH_GRANT 42000
-        chi "您不允许使用创建用户时给予GRANT"
-        eng "You are not allowed to create a user with GRANT"
-        ger "Sie dürfen keinen Benutzer mit GRANT anlegen"
-        geo "GRANT-ით მომხმარებლის შექმნის უფლება არ გაქვთ"
-        spa "No está autorizado a crear un usuario con GRANT"
-        sw "Hauruhusiwi kuunda mtumiaji na GRANT"
+        chi "您不允许使用创建用户时给予%s"
+        eng "You are not allowed to create a user with %s"
+        ger "Sie dürfen keinen Benutzer mit %s anlegen"
+        geo "%s-ით მომხმარებლის შექმნის უფლება არ გაქვთ"
+        spa "No está autorizado a crear un usuario con %s"
+        sw "Hauruhusiwi kuunda mtumiaji na %s"
 ER_WRONG_VALUE_FOR_TYPE  
         chi "不正确的%-.32s值：'%-.128sT' 函数：%-.32s"
         eng "Incorrect %-.32s value: '%-.128sT' for function %-.32s"

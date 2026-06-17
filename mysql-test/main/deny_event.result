@@ -1,0 +1,17 @@
+#
+# DENY EVENT privilege tests
+#
+CREATE DATABASE ev_db;
+CREATE USER ev_user@localhost;
+GRANT ALL PRIVILEGES ON ev_db.* TO ev_user@localhost;
+#
+# DENY EVENT: blocks CREATE EVENT in database ev_db
+#
+DENY EVENT ON ev_db.* TO ev_user@localhost;
+connect  con1, localhost, ev_user,,ev_db;
+CREATE EVENT e1 ON SCHEDULE EVERY 1 HOUR DO SELECT 1;
+ERROR 42000: Access denied for user 'ev_user'@'localhost' to database 'ev_db'
+disconnect con1;
+connection default;
+DROP DATABASE ev_db;
+DROP USER ev_user@localhost;
