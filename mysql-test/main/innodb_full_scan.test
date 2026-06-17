@@ -1,0 +1,291 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/no_view_protocol.inc
+--source include/innodb_table_lock_on_full_scan.inc
+--echo #
+--echo # MDEV-24813 Locking full table scan fails to use table-level locking
+--echo #
+
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=InnoDB;
+insert into t values (42);
+
+--echo # SELECT
+# The .opt file sets innodb_monitor_enable=lock_rec_lock_created.
+# $rec_lock_created reads the counter; capture it into $start_val before each
+# measured statement and into $end_val after, then print ($end_val - $start_val)
+# as the per-statement number of record locks created.
+let $rec_lock_created= SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created';
+
+let $start_val= `$rec_lock_created`;
+BEGIN;
+SELECT * FROM t LOCK IN SHARE MODE;
+COMMIT;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+BEGIN;
+SELECT * FROM t for update;
+COMMIT;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+--echo ## SELECT without explicit transaction
+let $start_val= `$rec_lock_created`;
+SELECT * FROM t;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+--echo # SELECT with a condition
+let $start_val= `$rec_lock_created`;
+BEGIN;
+select * from t where a > 10 lock in share mode;
+COMMIT;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+BEGIN;
+SELECT * FROM t where a > 10 for update;
+COMMIT;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+--echo ## SELECT with a condition without explicit transaction
+let $start_val= `$rec_lock_created`;
+SELECT * FROM t where a > 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+DROP TABLE t;
+
+--echo # INSERT INTO ... SELECT with UNION
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int, b int) engine=innodb;
+let $start_val= `$rec_lock_created`;
+insert into t2
+  select * from t1 where t1.a = 10
+  UNION
+  select * from t1;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+insert into t2
+  select * from t1
+  UNION
+  select * from t1 where t1.a = 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+insert into t2
+  select * from t1 where t1.a > 10
+  UNION
+  select * from t1;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+insert into t2
+  select * from t1
+  UNION
+  select * from t1 where t1.a > 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+drop table t1, t2;
+
+--echo # CREATE ... SELECT with UNION
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+let $start_val= `$rec_lock_created`;
+create table t2 (a int, b int) engine=innodb
+  select * from t1 where t1.a = 10
+  UNION
+  select * from t1;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+create or replace table t2 (a int, b int) engine=innodb
+  select * from t1
+  UNION
+  select * from t1 where t1.a = 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+create or replace table t2 (a int, b int) engine=innodb
+  select * from t1 where t1.a > 10
+  UNION
+  select * from t1;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+create or replace table t2 (a int, b int) engine=innodb
+  select * from t1
+  UNION
+  select * from t1 where t1.a > 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+drop table t1, t2;
+
+--echo # UPDATE
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+
+let $start_val= `$rec_lock_created`;
+UPDATE t1 SET b = b + 3;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+UPDATE t1 SET b = b + 3 WHERE a = 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+UPDATE t1 SET b = b + 3 WHERE a > 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+--echo # DELETE
+let $start_val= `$rec_lock_created`;
+DELETE FROM t1;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+DELETE FROM t1 WHERE a = 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+DELETE FROM t1 WHERE a > 10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+drop table t1;
+
+--echo # JOIN
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 select seq, seq from seq_1_to_100;
+create table t2 (a int primary key, b int) engine=innodb;
+insert into t2 select seq, seq from seq_1_to_100;
+
+let $start_val= `$rec_lock_created`;
+--disable_result_log
+begin;
+select * from t1 join t2 on t1.a = t2.a LOCK IN SHARE MODE;
+commit;
+--enable_result_log
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+--disable_result_log
+begin;
+select * from t1 join t2 on t1.a = t2.b LOCK IN SHARE MODE;
+commit;
+--enable_result_log
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+let $start_val= `$rec_lock_created`;
+--disable_result_log
+begin;
+select * from t1 join t2 on t1.b = t2.b LOCK IN SHARE MODE;
+commit;
+--enable_result_log
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+
+drop table t1, t2;
+
+--echo # Full index scan
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+let $start_val= `$rec_lock_created`;
+insert into t11 select a from t10;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+drop table t10, t11;
+
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+let $start_val= `$rec_lock_created`;
+insert into t11 select a from t10 order by a desc;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+drop table t10, t11;
+
+--echo # Range access
+create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+insert into t10 select seq, uuid() from seq_1_to_10000;
+create table t11(a int) engine=innodb;
+--replace_column 9 #
+explain
+insert into t11 select a from t10 where a > 30;
+let $start_val= `$rec_lock_created`;
+insert into t11 select a from t10 where a > 30;
+let $end_val= `$rec_lock_created`;
+let $result= `SELECT $end_val - $start_val`;
+echo # lock_rec_created;
+echo $result;
+drop table t10, t11;

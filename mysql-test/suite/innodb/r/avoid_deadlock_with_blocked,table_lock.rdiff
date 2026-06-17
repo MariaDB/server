@@ -1,0 +1,51 @@
+--- avoid_deadlock_with_blocked.result
++++ avoid_deadlock_with_blocked.reject
+@@ -32,8 +32,7 @@
+ 1
+ COMMIT;
+ connection con2;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ # The scenario when we bypass X<-S pair:
+ # <con1, S, granted>,
+@@ -107,7 +106,8 @@
+ INSERT INTO t1 VALUES (0);
+ ROLLBACK;
+ connection con2;
+-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++id
++1
+ COMMIT;
+ # More complicated scenario:
+ # <con1, S, granted>,
+@@ -175,8 +175,7 @@
+ 1
+ COMMIT;
+ connection con3;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ # A scenario, where con1 has to bypass two transactions:
+ # <con1, S, granted>
+@@ -201,16 +200,12 @@
+ connection con1;
+ SET DEBUG_SYNC = 'now WAIT_FOR con3_will_wait';
+ SELECT * FROM t1 WHERE id=1 FOR UPDATE;
+-id
+-1
+ COMMIT;
+ connection con2;
+-id
+-1
++ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ COMMIT;
+ connection con3;
+-id
+-1
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ COMMIT;
+ connection default;
+ disconnect con1;

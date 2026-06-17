@@ -9749,6 +9749,8 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_ABORT_COPY:
   case HA_EXTRA_BEGIN_ALTER_IGNORE_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
+  case HA_EXTRA_FULL_SCAN:
+    break;
   default:
   {
     /* Temporary crash to discover what is wrong */
@@ -9825,6 +9827,8 @@ int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
       DBUG_RETURN(loop_read_partitions(start_keyread_cb, &arg));
     case HA_EXTRA_CACHE:
       prepare_extra_cache(arg);
+      DBUG_RETURN(0);
+    case HA_EXTRA_FULL_SCAN:
       DBUG_RETURN(0);
     default:
       DBUG_ASSERT(0);

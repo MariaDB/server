@@ -1,0 +1,16 @@
+--- insert_into_empty.result
++++ insert_into_empty.reject
+@@ -162,13 +162,10 @@
+ INSERT INTO t1 VALUES (0,1);
+ ERROR 21S01: Column count doesn't match value count at row 1
+ INSERT INTO t1 VALUES (2);
+-ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+ COMMIT;
+ SET GLOBAL innodb_limit_optimistic_insert_debug = @save_limit;
+ SELECT * FROM t1;
+ a
+-0
+-1
+ 2
+ DROP TABLE t1;
+ #

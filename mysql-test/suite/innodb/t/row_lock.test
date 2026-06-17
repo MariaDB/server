@@ -9,6 +9,7 @@ call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
 
 --source include/have_innodb.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,1),(2,2);
@@ -38,11 +39,22 @@ let $wait_condition=
         trx_query like "%SELECT a FROM t1%";
 --source include/wait_condition.inc
 
-UPDATE t4 SET d = 9;
+if ($MTR_COMBINATION_ROW_LOCK) {
+  UPDATE t4 SET d = 9;
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  UPDATE t4 SET d = 9;
+}
 
 --connection con12
---error ER_LOCK_DEADLOCK
---reap
+if ($MTR_COMBINATION_ROW_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --reap
+}
 --connection con11
 commit;
 --connection default
