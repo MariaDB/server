@@ -1,6 +1,6 @@
---- vector.result
-+++ vector,myisam.reject
-@@ -388,8 +388,30 @@
+--- a/mysql-test/main/vector.result
++++ b/mysql-test/main/vector.result
+@@ -391,8 +391,30 @@
  create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
  truncate table t1;
@@ -31,7 +31,7 @@
  insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
  select id, hex(v) from t1;
  id	hex(v)
-@@ -407,27 +429,33 @@
+@@ -410,27 +432,33 @@
  # Test RENAME TABLE with vector index
  create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  db.opt
@@ -74,7 +74,7 @@
  drop database test1;
  db.opt
  #
-@@ -504,9 +532,11 @@
+@@ -507,9 +535,11 @@
  # ADD/DROP COLUMN, ALGORITHM=COPY
  alter table t1 add column a int, algorithm=copy;
  db.opt
@@ -88,7 +88,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -515,12 +545,14 @@
+@@ -518,12 +548,14 @@
    `a` int(11) DEFAULT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -106,7 +106,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -528,13 +560,15 @@
+@@ -531,13 +563,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -125,7 +125,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -543,12 +577,14 @@
+@@ -546,12 +580,14 @@
    PRIMARY KEY (`id`),
    KEY `a` (`id`),
    VECTOR KEY `v` (`v`)
@@ -143,7 +143,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -556,13 +592,15 @@
+@@ -559,13 +595,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -162,7 +162,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -571,12 +609,14 @@
+@@ -574,12 +612,14 @@
    PRIMARY KEY (`id`),
    KEY `a` (`id`),
    VECTOR KEY `v` (`v`)
@@ -180,7 +180,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -584,13 +624,15 @@
+@@ -587,13 +627,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -199,7 +199,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -599,12 +641,14 @@
+@@ -602,12 +644,14 @@
    `a` int(11) DEFAULT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -217,7 +217,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -612,24 +656,27 @@
+@@ -615,24 +659,27 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -250,7 +250,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -637,24 +684,27 @@
+@@ -640,24 +687,27 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -283,7 +283,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -662,7 +712,7 @@
+@@ -665,7 +715,7 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -292,7 +292,7 @@
  # ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
  alter table t1 add index a(id), algorithm=inplace;
  ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-@@ -685,31 +735,15 @@
+@@ -688,31 +738,15 @@
  alter table t1 modify column v vector(7) not null, algorithm=inplace;
  ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
  # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
@@ -328,7 +328,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -717,13 +751,15 @@
+@@ -720,13 +754,15 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -347,7 +347,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -731,14 +767,16 @@
+@@ -734,14 +770,16 @@
    `w` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`w`)
@@ -367,7 +367,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -746,7 +784,7 @@
+@@ -749,7 +787,7 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `w` (`v`)
@@ -376,7 +376,7 @@
  alter table t1 rename key w to v;
  # IF [NOT] EXISTS
  create vector index if not exists v on t1(v);
-@@ -757,77 +795,22 @@
+@@ -760,77 +798,22 @@
  Warnings:
  Note	1091	Can't DROP INDEX `v`; check that it exists
  db.opt
@@ -457,7 +457,7 @@
  # CHANGE/MODIFY/DROP COLUMN (vector)
  alter table t1 modify column v int;
  ERROR HY000: Incorrect arguments to VECTOR INDEX
-@@ -839,9 +822,11 @@
+@@ -842,9 +825,11 @@
  ERROR 42000: All parts of a VECTOR index must be NOT NULL
  alter table t1 modify column v vector(7) not null;
  db.opt
@@ -471,7 +471,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -849,12 +834,14 @@
+@@ -852,12 +837,14 @@
    `v` vector(7) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -489,7 +489,7 @@
  show create table t1;
  Table	Create Table
  t1	CREATE TABLE `t1` (
-@@ -862,17 +849,18 @@
+@@ -865,17 +852,18 @@
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
@@ -511,10 +511,47 @@
  drop table t1;
  create table t1(v vector(5) not null, vector index(v));
  alter table t1 add column a int;
-@@ -889,5 +877,5 @@
+@@ -892,7 +880,7 @@
  t	CREATE TABLE `t` (
    `v` vector(1) NOT NULL,
    VECTOR KEY `v` (`v`) `distance`='cosine'
 -) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  drop table t;
+ #
+ # MDEV-35821 - vector index sizes are not in INDEX_LENGTH
+@@ -929,8 +917,8 @@
+ TABLE_NAME	t_vec
+ INDEX_NAME	vi
+ VECTOR_DIMENSIONS	4
+-INDEX_SIZE	49152
+-TOTAL_NODES	1
++INDEX_SIZE	1024
++TOTAL_NODES	0
+ CACHED_NODES	0
+ DELETED_ROWS	0
+ SUBDIST_ENABLED	NO
+@@ -949,11 +937,11 @@
+ SUBDIST_ENABLED
+ FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+-INDEX_SIZE	49152
++INDEX_SIZE	3244
+ TOTAL_NODES	3
+-CACHED_NODES	0
++CACHED_NODES	3
+ DELETED_ROWS	0
+-has_mem	0
++has_mem	1
+ SUBDIST_ENABLED	NO
+ # After search
+ SELECT id FROM t_vec ORDER BY vec_distance_euclidean(v, VEC_FromText('[1,2,3,4]')) LIMIT 1;
+@@ -990,7 +978,7 @@
+ DELETED_ROWS
+ FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_vec';
+-INDEX_SIZE	49152
++INDEX_SIZE	3244
+ TOTAL_NODES	3
+ CACHED_NODES	3
+ has_mem	1
