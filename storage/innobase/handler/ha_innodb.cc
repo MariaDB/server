@@ -14580,6 +14580,212 @@ func_exit:
 	goto cleanup;
 }
 
+int ha_innobase::parallel_init_coordinator(size_t n_threads,
+					  const Dynamic_array<KEY_MULTI_RANGE> &ranges)
+{
+	if (ranges.elements() > 0) {
+		// Only full scans are supported for now.
+		return HA_ERR_UNSUPPORTED;
+	}
+
+	/* Reset any state left by a prior execution (correlateds subquery
+	re-execution, stored procedure loop, etc.) before initializing fresh. */
+	(void) parallel_end_coordinator();
+
+	/* Parallel scan performs consistent (non-locking) reads only. If this
+	statement requires row locks, decline so the caller falls back to a
+	serial scan that acquires them. */
+	if (m_prebuilt->select_lock_type != LOCK_NONE)
+		return HA_ERR_UNSUPPORTED;
+
+	/* ROW_TYPE_REDUNDANT uses the old (pre-COMPACT) record header layout;
+	the partitioner uses rec_get_node_ptr_flag() which assumes the new-style
+	status byte. Decline so REDUNDANT tables take the serial path.*/
+	if (dict_tf_get_rec_format(m_prebuilt->table->flags) ==
+													REC_FORMAT_REDUNDANT) {
+		return HA_ERR_UNSUPPORTED;
+	}
+
+	/* The partitioner and the end-of-chunk check (cmp_dtuple_rec(...) <= 0)
+	assume ascending physical key order. A descending key column in the
+	clustered index reverses B+Tree traversal, breaking range boundaries
+	and dropping rows. Decline; fall back to the serial scan. */
+	const dict_index_t *clust = m_prebuilt->table->indexes.start;
+	for (unsigned i = dict_index_get_n_unique_in_tree(clust); i--; ) {
+		if (clust->fields[i].descending) {
+			return HA_ERR_UNSUPPORTED;
+		}
+	}
+
+	/* Refuse the scan if the tablespace is discarded or unreadable. */
+	if (!m_prebuilt->table->space) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_ERROR,
+			    ER_TABLESPACE_DISCARDED,
+			    table->s->table_name.str);
+		return HA_ERR_TABLESPACE_MISSING;
+	}
+	if (!m_prebuilt->table->is_readable()) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_ERROR,
+			    ER_TABLESPACE_MISSING,
+			    table->s->table_name.str);
+		return HA_ERR_TABLESPACE_MISSING;
+	}
+
+	/* Open the transaction's ReadView NOW, before any worker runs.
+	  A serial rnd_next() opens it lazily inside row_search_mvcc(). For
+	  parallel scan, an empty partition (no rows) skips row_search_mvcc()
+	  entirely, leaving the transaction with no snapshot — a later SELECT
+	  in the same RR transaction would then see uncommitted (to us) writes
+	  from other transactions. Open the ReadView here to match serial
+	  semantics. open() is a no-op if already open. */
+	if (m_prebuilt->select_lock_type == LOCK_NONE) {
+		trx_start_if_not_started(m_prebuilt->trx, false);
+		m_prebuilt->trx->read_view.open(m_prebuilt->trx);
+	}
+
+	const Parallel_coordinator::Scan_range FULL_SCAN;
+	m_parallel_coordinator.initialize(n_threads);
+
+	// Get the clustered index which is always first in the list
+	dict_index_t *index = m_prebuilt->table->indexes.start;
+	ut_ad(index->is_clust());
+	Parallel_coordinator::Config config(FULL_SCAN, index);
+
+	dberr_t err = m_parallel_coordinator.add_scan(m_prebuilt->trx, config);
+	if (err != DB_SUCCESS) {
+		return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
+						   m_user_thd);
+	}
+	return 0;
+}
+
+Parallel_worker_ctx *ha_innobase::parallel_get_worker_context(
+	size_t worker_idx)
+{
+	return m_parallel_coordinator.get_worker_ctx(worker_idx);
+}
+
+int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx)
+{
+	/* This handler may still carry state from a previous execution of the
+	same plan (correlated subquery, stored procedure loop, ...).
+	Reset it before starting over */
+	(void) parallel_end_worker();
+
+	auto worker_ctx= static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
+	DBUG_ASSERT(worker_ctx && worker_ctx->m_pcoordinator);
+	auto exec_ctx= worker_ctx->m_pcoordinator->get_job_for_worker(worker_ctx);
+	if (exec_ctx == nullptr)
+		return HA_ERR_END_OF_FILE; // No more data
+
+	/* Save the prebuilt-owned search_tuple: parallel_get_next_row() points
+	  m_prebuilt->search_tuple at a chunk boundary key owned by the
+	  coordinator, and parallel_end_worker() has to put this one back before
+	  the coordinator releases the chunks. */
+	m_pscan_saved_search_tuple= m_prebuilt->search_tuple;
+
+	if (int err= ha_rnd_init(/*scan*/ true))
+		return err; // preserve HA_ERR_* (e.g. HA_ERR_TABLE_DEF_CHANGED)
+
+	worker_ctx->m_exec_ctx= exec_ctx;
+	auto start_tuple= const_cast<dtuple_t *>(exec_ctx->m_range.first->m_tuple);
+	auto end_tuple= const_cast<dtuple_t *>(exec_ctx->m_range.second->m_tuple);
+	ut_ad(start_tuple != nullptr);
+
+	m_pscan_start_tuple= start_tuple;
+    m_pscan_end_tuple= end_tuple;    // may be null (+infinity)
+    m_pscan_first_call= true;
+
+	ut_ad(m_pscan_start_tuple != nullptr);
+    return 0;
+}
+
+
+int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
+{
+	/* Loop: when a chunk is exhausted we pull the next job */
+	for (;;) {
+		dberr_t err;
+		{
+			mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
+
+			if (m_pscan_first_call) {
+				m_pscan_first_call = false;
+				/* Clamp the scan to this chunk inside the engine, so
+				the prefetch cache stops exactly at the boundary and
+				never reads into the next chunk. NULL == +infinity. */
+				m_prebuilt->set_pscan_end_tuple(m_pscan_end_tuple);
+
+				if (m_pscan_start_tuple) {
+					// Position at first record >= start, AND load it.
+					m_prebuilt->search_tuple = m_pscan_start_tuple;
+					err= row_search_mvcc(table->record[0], PAGE_CUR_GE,
+											m_prebuilt, 0, 0 /*opening*/);
+				} else {
+					/* -infinity: empty (0-field) tuple + PAGE_CUR_G =
+					 first user record. */
+					m_prebuilt->search_tuple = dtuple_create(m_prebuilt->heap, 0);
+					err = row_search_mvcc(table->record[0], PAGE_CUR_G,
+											m_prebuilt, 0, 0 /*opening*/);
+				}
+			}
+			else {
+				// Continuation: advance from stored position.
+				err= row_search_mvcc(table->record[0], PAGE_CUR_UNSUPP,
+									m_prebuilt, 0, ROW_SEL_NEXT);
+			}
+		} // <-- mariadb_set_stats destructor
+
+		if (err == DB_SUCCESS)
+			return 0;
+
+		/* DB_RECORD_NOT_FOUND is returned both at the chunk boundary
+		(our clamp above) and at end of index; DB_END_OF_INDEX likewise.
+		In all cases the current sub-range is exhausted: pull the next
+		chunk and continue, or stop if there is none. */
+		if (err != DB_RECORD_NOT_FOUND && err != DB_END_OF_INDEX)
+			return convert_error_code_to_mysql(err, m_prebuilt->table->flags,
+											   m_user_thd);
+
+		auto worker_ctx = static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
+		auto exec_ctx =
+		  worker_ctx->m_pcoordinator->get_job_for_worker(worker_ctx);
+		if (exec_ctx == nullptr)
+			return HA_ERR_END_OF_FILE; // No more data
+
+		worker_ctx->m_exec_ctx = exec_ctx;
+		m_pscan_start_tuple =
+		  const_cast<dtuple_t *>(exec_ctx->m_range.first->m_tuple);
+		m_pscan_end_tuple  =
+		  const_cast<dtuple_t *>(exec_ctx->m_range.second->m_tuple);
+		ut_ad(m_pscan_start_tuple != nullptr);
+		m_pscan_first_call  = true;
+		// loop: re-enter the search for the new chunk
+	}
+}
+
+int ha_innobase::parallel_end_worker()
+{
+	if (inited == RND)
+	  ha_rnd_end();
+	if (m_pscan_saved_search_tuple)
+	{
+		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
+		m_pscan_saved_search_tuple = nullptr;
+	}
+	m_prebuilt->set_pscan_end_tuple(nullptr);
+	m_pscan_first_call  = false;
+	m_pscan_start_tuple = nullptr;
+	m_pscan_end_tuple   = nullptr;
+	return 0;
+}
+
+int ha_innobase::parallel_end_coordinator()
+{
+	m_parallel_coordinator.cleanup();
+	return 0;
+}
+
 /*********************************************************************//**
 Gives an UPPER BOUND to the number of rows in a table. This is used in
 filesort.cc.
