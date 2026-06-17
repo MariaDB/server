@@ -4320,6 +4320,90 @@ bool row_search_with_covering_prefix(
 	return true;
 }
 
+/** Parallel scan: check whether a qualifying record has reached the
+exclusive upper bound of the chunk that is being scanned.
+
+The straightforward check is one cmp_dtuple_rec() per fetched record, which
+is pure overhead for every record except the last one of the chunk. Records
+on a leaf page are sorted, so the boundary can only fall inside the page
+whose last user record is >= the boundary: on any page before that one every
+record is in range and no per-record comparison is needed. The verdict is
+therefore taken once per leaf page and cached in prebuilt, keyed by page
+number and modify_clock so that a page which was split, merged or
+reorganized in the meantime is re-examined.
+
+The shortcut is confined to consistent reads of records that live on the
+page the cursor is positioned on. A record read at READ UNCOMMITTED may have
+been inserted onto the page after the verdict was taken (a plain insert does
+not bump modify_clock), and an old version built in the heap is not covered
+by the verdict of any page.
+
+@param prebuilt	row fetch struct with a non-NULL m_pscan_end_tuple
+@param rec	the record that is about to be returned to the SQL layer
+@param index	the index that rec belongs to
+@param offsets	rec_get_offsets(rec, index)
+@return whether rec is at or past the exclusive upper bound of the chunk */
+static bool row_pscan_reached_chunk_end(
+	row_prebuilt_t*		prebuilt,
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	const rec_offs*		offsets)
+{
+	const dtuple_t*	end_tuple = prebuilt->m_pscan_end_tuple;
+	const btr_pcur_t* pcur = prebuilt->pcur;
+
+	ut_ad(end_tuple != NULL);
+
+	if (rec == btr_pcur_get_rec(pcur)
+	    && prebuilt->select_lock_type == LOCK_NONE
+	    && prebuilt->trx->isolation_level != TRX_ISO_READ_UNCOMMITTED) {
+		const buf_block_t*	block = btr_pcur_get_block(pcur);
+		const uint32_t		page_no = block->page.id().page_no();
+
+		if (prebuilt->m_pscan_clamp_page == page_no
+		    && prebuilt->m_pscan_clamp_clock == block->modify_clock) {
+			if (prebuilt->m_pscan_clamp_in_range) {
+				return false;
+			}
+			/* The boundary lies on this page: fall through to
+			the per-record comparison below. */
+		} else if (const rec_t* last = page_rec_get_prev_const(
+				   page_get_supremum_rec(block->page.frame))) {
+			bool	in_range = false;
+
+			if (!page_rec_is_infimum(last)) {
+				mem_heap_t*	heap = NULL;
+				rec_offs	last_offsets_[
+						REC_OFFS_NORMAL_SIZE];
+				rec_offs*	last_offsets = last_offsets_;
+				rec_offs_init(last_offsets_);
+
+				last_offsets = rec_get_offsets(
+					last, index, last_offsets,
+					index->n_core_fields,
+					dtuple_get_n_fields_cmp(end_tuple),
+					&heap);
+				in_range = cmp_dtuple_rec(end_tuple, last,
+							  index, last_offsets)
+					> 0;
+				if (UNIV_LIKELY_NULL(heap)) {
+					mem_heap_free(heap);
+				}
+			}
+
+			prebuilt->m_pscan_clamp_page = page_no;
+			prebuilt->m_pscan_clamp_clock = block->modify_clock;
+			prebuilt->m_pscan_clamp_in_range = in_range;
+
+			if (in_range) {
+				return false;
+			}
+		}
+	}
+
+	return cmp_dtuple_rec(end_tuple, rec, index, offsets) <= 0;
+}
+
 /** Searches for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and
 so it employs technique that can help re-construct the rows that
@@ -5626,6 +5710,21 @@ use_covering_index:
 				result_rec != rec ? clust_index : index,
 				offsets));
 	ut_ad(!rec_get_deleted_flag(result_rec, comp));
+
+	/* Parallel scan: stop at the exclusive upper bound of the chunk.
+	This runs before the record is returned or prefetched, so the
+	fetch cache never reaches past the chunk boundary. We treat the
+	boundary exactly like end-of-range (DB_RECORD_NOT_FOUND): any
+	rows already buffered in this call are still in range and will be
+	returned; the caller switches to the next chunk on the terminal
+	code. */
+	if (UNIV_UNLIKELY(prebuilt->m_pscan_end_tuple != NULL)
+	    && row_pscan_reached_chunk_end(
+		    prebuilt, result_rec,
+		    result_rec != rec ? clust_index : index, offsets)) {
+		err = DB_RECORD_NOT_FOUND;
+		goto idx_cond_failed;
+	}
 
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected
