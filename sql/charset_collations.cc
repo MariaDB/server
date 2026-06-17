@@ -54,6 +54,10 @@ bool Charset_collation_map_st::insert_or_replace(
                                   bool error_on_conflicting_duplicate,
                                   myf utf8_flag)
 {
+  if (cs_name.length > MY_CS_CHARACTER_SET_NAME_SIZE ||
+      cl_name.length > MY_CS_COLLATION_NAME_SIZE)
+    return true;
+
   char charset_name_c[MY_CS_CHARACTER_SET_NAME_SIZE + 1/*for '\0'*/];
   strmake(charset_name_c, cs_name.str, cs_name.length);
   CHARSET_INFO *cs= get_charset_by_csname(charset_name_c,
