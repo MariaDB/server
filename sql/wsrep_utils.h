@@ -425,13 +425,13 @@ private:
 } // namespace wsrep
 
 // Functions to validate dynamic variable safety
-bool wsrep_filename_char(int const c);
-bool wsrep_comma_char(int const c);
-bool wsrep_address_char(int const c);
-bool wsrep_shell_char(int const c);
-bool wsrep_names_list(int const c);
+bool wsrep_filename_char(const unsigned char c);
+bool wsrep_comma_char(const unsigned char c);
+bool wsrep_address_char(const unsigned char c);
+bool wsrep_shell_char(const unsigned char c);
+bool wsrep_names_list(const unsigned char c);
 bool wsrep_check_request_str(const char* const str,
-                             bool (*check) (int c),
+                             bool (*check) (const unsigned char),
                              bool log_warn = true);
 
 #endif /* WSREP_UTILS_H */

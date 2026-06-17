@@ -1,4 +1,5 @@
 /* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+   Copyright 2025-2026 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -632,10 +633,10 @@ static int wsrep_cluster_address_verify (const char* cluster_address_str)
 
 bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  char addr_buf[FN_REFLEN];
+  char addr_buf[FN_REFLEN+1];
 
   if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length >= sizeof(addr_buf))) // safety
+      (var->save_result.string_value.length >= FN_REFLEN)) // safety
     goto err;
 
   strmake(addr_buf, var->save_result.string_value.str,
@@ -738,20 +739,19 @@ bool wsrep_node_name_update (sys_var *self, THD* thd, enum_var_type type)
   return 0;
 }
 
-// TODO: do something more elaborate, like checking connectivity
 bool wsrep_node_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  char addr_buf[FN_REFLEN];
-
   if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+      (var->save_result.string_value.length >= FN_REFLEN)) // safety
     goto err;
 
-  memcpy(addr_buf, var->save_result.string_value.str,
-         var->save_result.string_value.length);
-  addr_buf[var->save_result.string_value.length]= 0;
+  if (var->save_result.string_value.length)
+  {
+    if (wsrep_check_request_str(var->save_result.string_value.str,
+				wsrep_address_char, false))
+	goto err;
+  }
 
-  // TODO: for now 'allow' 0-length string to be valid (default)
   return 0;
 
 err:

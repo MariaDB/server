@@ -601,37 +601,39 @@ size_t wsrep_host_len(const char* const addr, size_t const addr_len)
 }
 
 /* return true if character can be a part of a filename */
-bool wsrep_filename_char(int const c)
+bool wsrep_filename_char(const unsigned char c)
 {
   return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
 }
 
-/* return true if string is comma seprated list */
-bool wsrep_comma_char(int const c)
+/* return true if string is comma separated list */
+bool wsrep_comma_char(const unsigned char c)
 {
   return (c == ',');
 }
 
 /* return true if character can be a part of an address string */
-bool wsrep_address_char(int const c)
+bool wsrep_address_char(const unsigned char c)
 {
   return wsrep_filename_char(c) ||
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
 }
 
-bool wsrep_shell_char(int const c)
+bool wsrep_shell_char(const unsigned char c)
 {
-  return (c != '`') && (c != '\'') && (c != '$') && (c != ' ');
+  return (c != '`') && (c != '\'') && (c != '$') &&
+         (c != ' ') && (c != '\t') && (c != '\n') &&
+         (c != '\r') && (c != '\v') && (c != '\f');
 }
 
 /* return true if character can be a part of an address string list */
-bool wsrep_names_list(int const c)
+bool wsrep_names_list(const unsigned char c)
 {
   return wsrep_address_char(c) || wsrep_comma_char(c);
 }
 
 bool wsrep_check_request_str(const char* const str,
-                             bool (*check) (int c),
+                             bool (*check) (const unsigned char),
                              bool log_warn)
 {
   for (size_t i(0); str[i] != '\0'; ++i)
