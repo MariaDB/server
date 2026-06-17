@@ -1,0 +1,12 @@
+--- mdev-14846.result
++++ mdev-14846.reject
+@@ -54,8 +54,8 @@
+ 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	#	
+ 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	#	
+ UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
+-connection default;
+ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++connection default;
+ connection con1;
+ COMMIT;
+ disconnect con1;

@@ -5,6 +5,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --connection default
 # There are various scenarious in which a transaction already holds "half"
@@ -129,7 +130,13 @@ INSERT INTO t (`id`) VALUES (1), (2);
   COMMIT;
 
 --connection waiter
+if ($MTR_COMBINATION_ROW_LOCK) {
   --reap
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --error ER_LOCK_DEADLOCK
+  --reap
+}
 
 --connection default
 

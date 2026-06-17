@@ -1,0 +1,11 @@
+--- lock_isolation.result
++++ lock_isolation.reject
+@@ -110,7 +110,7 @@
+ connection default;
+ SELECT * FROM t;
+ a	b
+-10	1
++10	20
+ 10	20
+ TRUNCATE TABLE t;
+ #

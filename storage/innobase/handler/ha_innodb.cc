@@ -915,6 +915,12 @@ static MYSQL_THDVAR_BOOL(ft_enable_stopword, PLUGIN_VAR_OPCMDARG,
   NULL, NULL,
   /* default */ TRUE);
 
+static MYSQL_THDVAR_BOOL(table_lock_on_full_scan, PLUGIN_VAR_OPCMDARG,
+  "When the SQL layer advises a full scan, acquire a single table lock "
+  "instead of locking each scanned row individually. This is faster, at the "
+  "cost of less granular (table-level instead of record-level) locking",
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_UINT(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
   "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout",
   NULL, NULL, 50, 0, 100000000, 0);
@@ -16407,6 +16413,33 @@ ha_innobase::extra(
 	return(0);
 }
 
+/** SQL layer calls this function (via init_table_full_scan_if_needed())
+with HA_EXTRA_FULL_SCAN when a statement reads a whole table or
+index with no WHERE condition. When innodb_table_lock_on_full_scan
+is enabled, flag the scan as covering the entire table.
+row_search_mvcc() takes a single table-level lock (LOCK_S/LOCK_X)
+instead of locking each scanned row individually. A bounded
+scan (arg < ULONG_MAX) keeps per-row locking, since it may stop early.
+Every other operation is forwarded unchanged to extra().
+@param  operation  hint to act on
+@param  arg        operation argument; for HA_EXTRA_FULL_SCAN the row
+                   limit, or ULONG_MAX when the scan is unbounded
+@return 0 on success, otherwise the error code returned by extra() */
+int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
+{
+  switch (operation)
+  {
+    case HA_EXTRA_FULL_SCAN:
+      if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
+          !m_prebuilt->skip_locked && arg == ULONG_MAX)
+        m_prebuilt->full_table_scan = true;
+      return 0;
+    default:/* Do nothing */
+      ;
+  }
+  return extra(operation);
+}
+
 /**
 MySQL calls this method at the end of each statement */
 int
@@ -16427,6 +16460,7 @@ ha_innobase::reset()
 	m_prebuilt->autoinc_last_value = 0;
 
 	m_prebuilt->skip_locked = false;
+	m_prebuilt->full_table_scan = false;
 	return(0);
 }
 
@@ -20554,6 +20588,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(lock_wait_timeout),
+  MYSQL_SYSVAR(table_lock_on_full_scan),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),

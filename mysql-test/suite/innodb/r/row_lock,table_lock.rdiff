@@ -1,0 +1,12 @@
+--- row_lock.result
++++ row_lock.reject
+@@ -11,8 +11,8 @@
+ UPDATE t4 SET d = 1 WHERE d in ( SELECT a FROM t1 ) ORDER BY c LIMIT 6;
+ connection con11;
+ UPDATE t4 SET d = 9;
+-connection con12;
+ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
++connection con12;
+ connection con11;
+ commit;
+ connection default;

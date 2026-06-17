@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/innodb_table_lock_on_full_scan.inc
 
 --echo #
 --echo # Bug #40113: Embedded SELECT inside UPDATE or DELETE can timeout 
@@ -199,7 +200,18 @@ connection con1;
 begin;
 --echo # Since there is another distinct record in the derived table
 --echo # the previous matching record in t1 -- (2,null) -- was unlocked.
-delete from t1;
+set @old_innodb_lock_wait_timeout=@@innodb_lock_wait_timeout;
+set innodb_lock_wait_timeout=1;
+if ($MTR_COMBINATION_ROW_LOCK) {
+  delete from t1;
+}
+if ($MTR_COMBINATION_TABLE_LOCK) {
+  --disable_result_log
+  --error ER_LOCK_WAIT_TIMEOUT
+  delete from t1;
+  --enable_result_log
+}
+set innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;
 --echo # We will need the contents of the table again.
 rollback;
 select * from t1;

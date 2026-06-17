@@ -1,0 +1,70 @@
+--- autoinc_debug.result
++++ autoinc_debug,table_lock.reject
+@@ -134,38 +134,46 @@
+ # T1: Wait for (T3) auto increment lock on t1 causing  T1 -> T3 -> T2 -> T1 deadlock
+ SET debug_dbug = '+d,innodb_deadlock_victim_self';
+ INSERT INTO t1(col2) VALUES(200);
+-ERROR HY000: Failed to read auto-increment value from storage engine
++ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ # Verify deadlock info is available in session warnings (MDEV-34686)
+ SHOW WARNINGS;
+ Level	Code	Message
+ Note	1213	TIMESTAMP 0xTHD
+ *** (1) TRANSACTION:
+-TRANSACTION TRX_ID, ACTIVE N sec inserting
++TRANSACTION (0xTHD), ACTIVE N sec starting index read
+ mysql tables in use 2, locked 2
+ LOCK WAIT N lock struct(s), heap size N, N row lock(s)
+ MariaDB thread id TID, OS thread handle TID, query id QID localhost root Sending data
+ INSERT INTO t1(col2) SELECT col2 from t1
+ *** WAITING FOR THIS LOCK TO BE GRANTED:
+-RECORD LOCKS space id ID page no N n bits N index PRIMARY of table `test`.`t1` trx id TRX_ID lock_mode X insert intention waiting
+-Record lock, heap no 1 PHYSICAL RECORD: n_fields N; compact format; info bits N
+- 0: len 8; hex HEX; asc DATA;;
++TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode S waiting
++*** CONFLICTING WITH:
++TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
++
++*** (2) TRANSACTION:
++TRANSACTION TRX_ID, ACTIVE N sec inserting
++mysql tables in use 1, locked 1
++LOCK WAIT N lock struct(s), heap size N, N row lock(s)
++MariaDB thread id TID, OS thread handle TID, query id QID localhost root Update
++INSERT INTO t2 values(100)
++*** WAITING FOR THIS LOCK TO BE GRANTED:
++RECORD LOCKS space id ID page no N n bits N index PRIMARY of table `test`.`t2` trx id TRX_ID lock mode S locks rec but not gap waiting
++Record lock, heap no 2 PHYSICAL RECORD: n_fields N; compact format; info bits N
++ 0: len 4; hex HEX; asc DATA;;
+ 
+ 
+ *** (3) TRANSACTION:
+-TRANSACTION TRX_ID, ACTIVE N sec setting auto-inc lock
++TRANSACTION TRX_ID, ACTIVE N sec inserting
+ mysql tables in use 1, locked 1
+ LOCK WAIT N lock struct(s), heap size N, N row lock(s), undo log entries N
+ MariaDB thread id TID, OS thread handle TID, query id QID localhost root Update
+ INSERT INTO t1(col2) VALUES(200)
+ *** WAITING FOR THIS LOCK TO BE GRANTED:
+-TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC waiting
++TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX waiting
+ *** CONFLICTING WITH:
+ TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
+-TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IS
+-TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC
+-TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
+-*** WE ROLL BACK TRANSACTION (3)
+-Error	1467	Failed to read auto-increment value from storage engine
++*** WE ROLL BACK TRANSACTION (1)
++Error	1213	Deadlock found when trying to get lock; try restarting transaction
+ # The transaction should have been rolled back
+ SELECT * FROM t1;
+ col1	col2
+@@ -185,7 +193,7 @@
+ SELECT * FROM t1;
+ col1	col2
+ 1	100
+-2	100
++3	100
+ DROP TABLE t1;
+ SELECT * FROM t2;
+ col1

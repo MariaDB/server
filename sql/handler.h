@@ -6025,6 +6025,7 @@ int get_select_field_pos(Alter_info *alter_info, bool versioned);
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+void init_table_full_scan_if_needed(TABLE *table, Item *cond, ha_rows limit);
 
 /* Struct with info about an event group to be binlogged by a storage engine. */
 struct handler_binlog_event_group_info {
