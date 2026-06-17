@@ -456,4 +456,11 @@ btr_pcur_open_on_user_rec(
   return btr_pcur_move_to_next_on_page(cursor) ? DB_SUCCESS : DB_CORRUPTION;
 }
 
+/** Set the persistent cursor manually.
+@param[in]      cursor      Page cursor where positioned.
+@param[in]        mode                    PAGE_CUR_L, ...
+@param[in]        latch_mode  BTR_SEARCH_LEAF or BTR_MODIFY_LEAF */
+void btr_pcur_open_on_user_rec(btr_pcur_t *pcur, const page_cur_t &cursor,
+                              page_cur_mode_t mode, btr_latch_mode latch_mode);
+
 #include "btr0pcur.inl"

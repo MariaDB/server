@@ -626,3 +626,15 @@ btr_pcur_move_to_prev(
 
 	return btr_pcur_move_to_prev_on_page(cursor) != nullptr;
 }
+
+/** Set the persistent cursor manually. */
+void btr_pcur_open_on_user_rec(btr_pcur_t *pcur, const page_cur_t &page_cursor,
+                               page_cur_mode_t mode, btr_latch_mode latch_mode)
+{
+  pcur->btr_cur.page_cur = page_cursor;
+  pcur->search_mode      = mode;
+  pcur->pos_state        = BTR_PCUR_IS_POSITIONED;
+  pcur->latch_mode       = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
+  pcur->trx_if_known     = nullptr;
+  pcur->old_rec          = nullptr;   // forget any stored position
+}
