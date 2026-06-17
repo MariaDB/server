@@ -15718,15 +15718,51 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
       min_res= next_min();
       if (min_res == 0)
         update_min_result();
+      else
+      {
+        /*
+          If next_min returns an unexpected handler error (HA_ERR_...),
+          then that error will be propagated to the caller of this
+          method by returning immediately here.
+        */
+        if (min_res != HA_ERR_END_OF_FILE && min_res != HA_ERR_KEY_NOT_FOUND)
+          DBUG_RETURN(min_res); // Unrecoverable error.
+      }
     }
     /* If there is no MIN in the group, there is no MAX either. */
     if ((have_max && !have_min) ||
         (have_max && have_min && (min_res == 0)))
     {
+      /*
+        next_min() and next_max() are not symmetrical with respect to
+        how they access the underlying table.  next_min() may read the
+        index when (key_infix_len > 0) but next_max() makes no such check.
+        Hence the lock wait timeout may be seen by next_max() but not by
+        next_min() because it reads blindly.
+       */
       max_res= next_max();
       if (max_res == 0)
         update_max_result();
-      /* If a MIN was found, a MAX must have been found as well. */
+      else
+      {
+        /*
+          If next_max returns an unexpected handler error (HA_ERR_...),
+          then that error will be propagated to the caller of this
+          method by returning immediately here.
+        */
+        if (max_res != HA_ERR_END_OF_FILE &&  max_res != HA_ERR_KEY_NOT_FOUND)
+          DBUG_RETURN(max_res); // Unrecoverable error.
+      }
+
+      /*
+        If we're computing both MIN and MAX (have_min && have_max) then:
+         - Since execution has reached here, we have a record with value for
+           MIN (min_res==0).
+         - This means we must also have a record for MAX (max_res==0). It can
+           be the same record that we've found for MIN, or a different one.
+        We could also have encountered an unrecoverable error while reading
+        the MAX record but that has been handled above.
+      */
       DBUG_ASSERT((have_max && !have_min) ||
                   (have_max && have_min && (max_res == 0)));
     }
@@ -15740,6 +15776,15 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
                                       make_prev_keypart_map(real_key_parts),
                                       HA_READ_KEY_EXACT);
 
+    /*
+      Set the result of checking this GROUP BY group.
+      1. If we're computing a MIN, take min_res. MAX was either not computed
+         at all or it has been computed successully. Fatal errors have
+         already been checked.
+      2. Otherwise, if we're computing a MAX only, take max_res.
+      3. Otherwise, we're just enumerating GROUP BY groups and the 'result'
+         variable already has the outcome of the check.
+    */
     result= have_min ? min_res : have_max ? max_res : result;
   } while (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE);
 
