@@ -16,6 +16,12 @@ MACRO(duckdb_setup_target _target)
   TARGET_COMPILE_OPTIONS(${_target} PRIVATE
     -U_GLIBCXX_DEBUG -U_GLIBCXX_ASSERTIONS
   )
+  # GCC 16+ warns about DuckDB's CompressionInfo in SFINAE contexts.
+  # Silence it — upstream DuckDB issue, not ours to fix.
+  MY_CHECK_CXX_COMPILER_FLAG("-Wsfinae-incomplete")
+  IF(have_CXX__Wsfinae_incomplete)
+    TARGET_COMPILE_OPTIONS(${_target} PRIVATE -Wno-sfinae-incomplete)
+  ENDIF()
   IF(DUCKDB_WERROR)
     TARGET_COMPILE_OPTIONS(${_target} PRIVATE -Werror)
   ENDIF()
