@@ -231,6 +231,35 @@ public:
   }
 };
 
+
+/*
+  Read a JSON object into a value of type T.
+
+  Object construction is done in reader_func, which is expected to
+  constcut object T and invoke json_read_object() for it.
+*/
+template <class T>
+class Read_object : public Read_value
+{
+  MEM_ROOT *mem_root;
+  T **ptr;
+  using reader_func_t= T* (*) (MEM_ROOT *mem_root,
+                               json_engine_t *je,
+                               String *err_buf);
+  reader_func_t reader_func;
+
+public:
+  Read_object(MEM_ROOT *mem_arg, T **ptr_arg, reader_func_t reader_arg) :
+    mem_root(mem_arg), ptr(ptr_arg), reader_func(reader_arg) {}
+  bool read_value(json_engine_t *je, const char *value_name,
+                  String *err_buf) override
+  {
+    *ptr = reader_func(mem_root, je, err_buf);
+    /* NULL return value means an error */
+    return (*ptr == NULL);
+  }
+};
+
 /*
   Extends the Read_value interface to read an array of elements.
 
@@ -239,7 +268,8 @@ public:
 */
 class Read_array : public Read_value
 {
-  int before_read(json_engine_t *je, const char *value_name, String *err_buf)
+  int read_array_start(json_engine_t *je, const char *value_name,
+                       String *err_buf)
   {
     if (json_scan_next(je) || je->state != JST_ARRAY_START)
     {
@@ -250,14 +280,14 @@ class Read_array : public Read_value
     }
     return 0;
   }
-
+   // here rc == -1 means we've caught array_end...
   int after_read(int rc) { return rc > 0; }
 
 public:
   bool read_value(json_engine_t *je, const char *value_name,
                   String *err_buf) override
   {
-    int rc= before_read(je, value_name, err_buf);
+    int rc= read_array_start(je, value_name, err_buf);
     if (rc <= 0)
       rc= read_container(je, value_name, err_buf);
     return after_read(rc);
@@ -266,8 +296,7 @@ public:
                              String *err_buf)= 0;
 };
 
-//
-// psergey-todo: why cannot this use Read_array_into_list ?
+
 class Read_array_of_strings : public Read_array
 {
   MEM_ROOT *mem_root;
@@ -295,6 +324,64 @@ public:
     }
 
     return 0;
+  }
+};
+
+
+/*
+  Parse a JSON array of objects info a List<T>.
+  The constructor accepts reader_func argument which reads one JSON object
+  into an object of type T.
+*/
+
+template <class T>
+class Read_object_array : public Read_array
+{
+  MEM_ROOT *mem_root;
+  List<T> *list_ctx;
+
+  /*
+    A function to read individual array element. It's an object of type T.
+  */
+  using reader_func_t= T* (*) (MEM_ROOT *mem_root,
+                               json_engine_t *je,
+                               String *err_buf);
+  reader_func_t reader_func;
+
+public:
+  Read_object_array(MEM_ROOT *mem_root_arg, List<T> *list_arg, reader_func_t reader_arg)
+      : mem_root(mem_root_arg), list_ctx(list_arg), reader_func(reader_arg)
+  {}
+
+  int read_container(json_engine_t *je, const char *name, String *err_buf)
+    override
+  {
+    DBUG_ASSERT(je->state == JST_ARRAY_START);
+    int rc= json_scan_next(je);
+
+    while (1)
+    {
+      if (je->state == JST_ARRAY_END)
+        return -1; // End of array
+
+      /* We get JST_VALUE state before each element. Check and consume it */
+      if (je->state != JST_VALUE)
+        return 1; // Error
+      if (json_scan_next(je))
+        return 1;
+
+      /* Read the element */
+      T *elem= reader_func(mem_root, je, err_buf);
+      if (!elem)
+        return 1; // Error
+      if (list_ctx->push_back(elem, mem_root))
+        return 1;
+
+      /* Consume JST_OBJ_END that is left after reading an object */
+      if (je->state == JST_OBJ_END && json_scan_next(je))
+        return 1;  // Error
+    }
+    return rc;
   }
 };
 
