@@ -5,6 +5,14 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/big_test.inc
+--source include/force_restart.inc
+
+# Remove if exists earlier log and start position, they might
+# be there if test using galera_wsrep_recover.inc failed
+--error 0,1,2
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_recover.log
+--error 0,1,2
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_start_position.log
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);

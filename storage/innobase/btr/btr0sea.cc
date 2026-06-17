@@ -82,6 +82,21 @@ inline ahi_node **btr_sea::hash_chain::search(UnaryPred u) noexcept
   return prev;
 }
 
+static void btr_ahi_inc_rows_added(const mtr_t &mtr, size_t count= 1)
+  noexcept
+{
+  mtr.trx->n_ahi_rows_added+= count;
+  if (ha_handler_stats *stats= mtr.trx->active_handler_stats)
+    stats->ahi_rows_added+= count;
+}
+
+static void btr_ahi_inc_pages_added(const mtr_t &mtr) noexcept
+{
+  mtr.trx->n_ahi_pages_added++;
+  if (ha_handler_stats *stats= mtr.trx->active_handler_stats)
+    stats->ahi_pages_added++;
+}
+
 inline void btr_sea::partition::init() noexcept
 {
   latch.SRW_LOCK_INIT(btr_search_latch_key);
@@ -138,6 +153,10 @@ inline bool btr_sea::partition::alloc(ulint hash_size) noexcept
   return table.create(hash_size);
 }
 
+#ifdef _MSC_VER
+  btr_sea::btr_sea()= default;
+#endif
+
 void btr_sea::create() noexcept
 {
   for (partition &part : parts)
@@ -146,7 +165,7 @@ void btr_sea::create() noexcept
 
 bool btr_sea::alloc(size_t hash_size) noexcept
 {
-  for (ulong i= 0; i < n_parts; ++i)
+  for (uint i= 0; i < n_parts; ++i)
     if (!parts[i].alloc(hash_size))
     {
       while (i--)
@@ -158,7 +177,7 @@ bool btr_sea::alloc(size_t hash_size) noexcept
 
 inline void btr_sea::clear() noexcept
 {
-  for (ulong i= 0; i < n_parts; ++i)
+  for (uint i= 0; i < n_parts; ++i)
     parts[i].clear();
 }
 
@@ -390,7 +409,7 @@ ATTRIBUTE_COLD ahi_status btr_sea::disable_and_lock() noexcept
 {
   dict_sys.freeze(SRW_LOCK_CALL);
 
-  for (ulong i= 0; i < n_parts; i++)
+  for (uint i= 0; i < n_parts; i++)
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
   const ahi_status was_enabled{enabled};
@@ -414,7 +433,7 @@ ATTRIBUTE_COLD ahi_status btr_sea::disable_and_lock() noexcept
 
 ATTRIBUTE_COLD void btr_sea::unlock() noexcept
 {
-  for (ulong i= 0; i < n_parts; i++)
+  for (uint i= 0; i < n_parts; i++)
     parts[i].latch.wr_unlock();
 }
 
@@ -439,7 +458,7 @@ ATTRIBUTE_COLD void btr_sea::enable(bool resize,
       return;
   }
 
-  for (ulong i= 0; i < n_parts; i++)
+  for (uint i= 0; i < n_parts; i++)
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
   if (!parts[0].table.array)
@@ -580,10 +599,12 @@ references. This function lazily fixes these imperfections in the hash
 index.
 @param cursor              B-tree cursor
 @param block               cursor block
-@param left_bytes_fields   AHI paramaters */
+@param left_bytes_fields   AHI paramaters
+@param mtr                 mini-transaction (to update trx AHI statistics)*/
 static void btr_search_update_hash_ref(const btr_cur_t &cursor,
                                        buf_block_t *block,
-                                       uint32_t left_bytes_fields) noexcept
+                                       uint32_t left_bytes_fields,
+                                       const mtr_t &mtr) noexcept
 {
   ut_ad(block == cursor.page_cur.block);
 #ifdef UNIV_SEARCH_PERF_STAT
@@ -632,7 +653,7 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
     }
 
     part.insert(fold, rec, block);
-    MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
+    btr_ahi_inc_rows_added(mtr);
   }
   else
   {
@@ -652,9 +673,11 @@ skip:
 
 /** Updates the search info of an index about hash successes.
 @param cursor   freshly positioned cursor
+@param mtr      mini-transaction (to update trx AHI statistics)
 @return AHI parameters
 @retval 0 if the adaptive hash index should not be rebuilt */
-static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
+static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor,
+                                            const mtr_t &mtr) noexcept
 {
   ut_ad(cursor.flag == BTR_CUR_HASH_FAIL ||
         cursor.flag == BTR_CUR_HASH_ABORT ||
@@ -819,7 +842,7 @@ func_exit:
     btr_search_drop_page_hash_index(block, nullptr);
   }
   else if (cursor.flag == BTR_CUR_HASH_FAIL)
-    btr_search_update_hash_ref(cursor, block, left_bytes_fields);
+    btr_search_update_hash_ref(cursor, block, left_bytes_fields, mtr);
 
   ut_ad(!ret || ((ret & mask) == (fixed & mask)));
   DBUG_EXECUTE_IF("index_ahi_option_debug_check",
@@ -1709,11 +1732,13 @@ has a hash index with different parameters, the old hash index is removed.
 @param index               B-tree index
 @param block               latched B-tree leaf page
 @param part                the adaptive search partition
-@param left_bytes_fields   hash parameters */
+@param left_bytes_fields   hash parameters
+@param mtr                 mini-transaction (to update trx AHI statistics)*/
 static void btr_search_build_page_hash_index(dict_index_t *index,
                                              buf_block_t *block,
                                              btr_sea::partition &part,
-                                             const uint32_t left_bytes_fields)
+                                             const uint32_t left_bytes_fields,
+                                             const mtr_t &mtr)
   noexcept
 {
   ut_ad(!index->table->is_temporary());
@@ -1869,7 +1894,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   part.latch.wr_rd_downgrade(SRW_LOCK_CALL);
 # endif
 
-  MONITOR_INC_VALUE(MONITOR_ADAPTIVE_HASH_ROW_ADDED, n_cached);
+  btr_ahi_inc_rows_added(mtr, n_cached);
 
   for (size_t i= 0; i < n_cached; i++)
   {
@@ -1904,21 +1929,22 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
     goto next_redundant;
   }
 
-  MONITOR_INC(MONITOR_ADAPTIVE_HASH_PAGE_ADDED);
+  btr_ahi_inc_pages_added(mtr);
   assert_block_ahi_valid(block);
   part.latch.rd_unlock();
 }
 
-void btr_cur_t::search_info_update() const noexcept
+void btr_cur_t::search_info_update(const mtr_t &mtr) const noexcept
 {
-  if (uint32_t left_bytes_fields= btr_search_info_update_hash(*this))
+  if (uint32_t left_bytes_fields= btr_search_info_update_hash(*this, mtr))
     btr_search_build_page_hash_index(index(), page_cur.block,
                                      btr_search.get_part(*index()),
-                                     left_bytes_fields);
+                                     left_bytes_fields, mtr);
 }
 
 void btr_search_move_or_delete_hash_entries(buf_block_t *new_block,
-                                            buf_block_t *block) noexcept
+                                            buf_block_t *block,
+                                            const mtr_t &mtr) noexcept
 {
   ut_ad(block->page.lock.have_x());
   ut_ad(new_block->page.lock.have_x());
@@ -1961,7 +1987,7 @@ drop_exit:
     ut_ad(left_bytes_fields & ~buf_block_t::LEFT_SIDE);
     part.latch.rd_unlock();
     btr_search_build_page_hash_index(index, new_block, part,
-                                     left_bytes_fields);
+                                     left_bytes_fields, mtr);
     return;
   }
 
@@ -2041,7 +2067,8 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
   }
 }
 
-void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
+void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg,
+                                      const mtr_t &mtr) noexcept
 {
   ut_ad(!cursor->index()->table->is_temporary());
   ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
@@ -2160,7 +2187,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
         goto unlock_exit;
       }
       part.insert(ins_fold, ins_rec, block);
-      MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
+      btr_ahi_inc_rows_added(mtr);
     }
   }
   else if (fold != ins_fold)
@@ -2175,7 +2202,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     if (left_bytes_fields & buf_block_t::LEFT_SIDE)
       fold= ins_fold, rec= ins_rec;
     part.insert(fold, rec, block);
-    MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
+    btr_ahi_inc_rows_added(mtr);
   }
 
   if (next_is_supremum)
@@ -2190,7 +2217,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
           goto rollback;
       }
       part.insert(ins_fold, ins_rec, block);
-      MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
+      btr_ahi_inc_rows_added(mtr);
     }
   }
   else if (ins_fold != next_fold)
@@ -2205,7 +2232,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     if (!(left_bytes_fields & ~buf_block_t::LEFT_SIDE))
       next_fold= ins_fold, next_rec= ins_rec;
     part.insert(next_fold, next_rec, block);
-    MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_ADDED);
+    btr_ahi_inc_rows_added(mtr);
   }
 
   ut_ad(!locked || index == block->index);
@@ -2252,14 +2279,14 @@ static bool ha_validate(const btr_sea::hash_table *table,
 /** Lock all search latches in exclusive mode. */
 static void btr_search_x_lock_all() noexcept
 {
-  for (ulong i= 0; i < btr_search.n_parts; i++)
+  for (uint i= 0; i < btr_search.n_parts; i++)
     btr_search.parts[i].latch.wr_lock(SRW_LOCK_CALL);
 }
 
 /** Unlock all search latches from exclusive mode. */
 static void btr_search_x_unlock_all() noexcept
 {
-  for (ulong i= 0; i < btr_search.n_parts; i++)
+  for (uint i= 0; i < btr_search.n_parts; i++)
     btr_search.parts[i].latch.wr_unlock();
 }
 
@@ -2433,7 +2460,7 @@ state_ok:
 @return true if ok */
 bool btr_search_validate(THD *thd) noexcept
 {
-  for (ulint i= 0; i < btr_search.n_parts; ++i)
+  for (uint i= 0; i < btr_search.n_parts; ++i)
     if (!btr_search_hash_table_validate(thd, i))
       return false;
   return true;

@@ -276,7 +276,8 @@ void grn_io_seg_map_(grn_ctx *ctx, grn_io *io, uint32_t segno, grn_io_mapinfo *i
 #define GRN_IO_SEG_UNREF(io,segno) do {\
   if (GRN_IO_EXPIRE_SEGMENT ==\
       (io->flags & (GRN_IO_EXPIRE_GTICK|GRN_IO_EXPIRE_SEGMENT))) {\
-    uint32_t nref, *pnref = &(io)->maps[segno].nref;\
+    uint32_t nref __attribute__((unused));             \
+    uint32_t *pnref = &(io)->maps[segno].nref;         \
     GRN_ATOMIC_ADD_EX(pnref, -1, nref);\
   }\
 } while (0)

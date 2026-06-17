@@ -270,7 +270,8 @@ DROP TABLE t1;
 --echo # Test case 10: Check that the HELP statement
 --echo # is supported by prepared statements
 # avoid existing articles that may get updated.
-INSERT INTO mysql.help_topic VALUES (0, 'Tamagotchi', 0, 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
+INSERT INTO mysql.help_topic (help_topic_id, help_category_id, name, description, example, url)
+VALUES (4294967295, 0, 'Tamagotchi', 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
 PREPARE stmt_1 FROM "HELP `Tamagotchi`";
 EXECUTE stmt_1;
 --echo # Execute the same prepared statement the second time to check that
@@ -278,7 +279,7 @@ EXECUTE stmt_1;
 --echo # were damaged.
 
 EXECUTE stmt_1;
-DELETE FROM mysql.help_topic WHERE help_topic_id = 0;
+DELETE FROM mysql.help_topic WHERE help_topic_id = 4294967295;
 
 --echo # Test case 11: Check that the 'CREATE PROCEDURE' statement
 --echo # is supported by prepared statements

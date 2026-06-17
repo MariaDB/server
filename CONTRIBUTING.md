@@ -17,7 +17,7 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 
 ### Help develop MariaDB
 ---
--   Fix bugs or develop new features
+-   Fix bugs or develop new features. See [COMMUNITY_CONTRIBUTIONS.md](COMMUNITY_CONTRIBUTIONS.md) for details.
 -   Review code contributions
 -   Test bug fixes and features
 -   Participate in packaging for different distributions

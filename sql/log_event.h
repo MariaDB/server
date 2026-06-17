@@ -608,6 +608,18 @@ class String;
 */
 #define HB_SUB_HEADER_LEN 8
 
+// Len of "fragment %u / %u"
+#define PARTIAL_ROWS_EVENT_BAD_FRAGMENT_ERRSTR_LEN                            \
+  (sizeof("fragment ") + 10 + sizeof(" / ") + 10 + 1)
+
+// Len of "row data size %" PRIu64
+#define PARTIAL_ROWS_EVENT_BAD_ORIG_SIZE_ERRSTR_LEN                           \
+  (sizeof("row data size ") + 20 + 1)
+
+// Len of "type %s" where %s is Log_event::get_type_str()
+constexpr size_t MAX_LOG_EVENT_TYPE_STR_LEN= 25; // Log_event::get_type_str()
+#define PARTIAL_ROWS_EVENT_BAD_EV_TYPE_ERRSTR_LEN                             \
+  (sizeof("type ") + MAX_LOG_EVENT_TYPE_STR_LEN + 1)
 
 /**
   @enum Log_event_type
@@ -5625,16 +5637,16 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   @class Partial_rows_log_event
 
   When any given instantiation of a Rows_log_event (e.g. Write_rows_log_event,
-  etc) is too large to be sent to a replica (i.e. larger than the value
-  slave_max_allowed_packet, as configured on a replica), then the rows event
+  etc) is too large to be sent to a slave (i.e. larger than the value
+  slave_max_allowed_packet, as configured on a slave), then the rows event
   must be fragmented into sub-events (i.e. Partial_rows_log_events) so the
-  event can be transmitted to the replica. The size of each event is configured
-  via the system variable binlog_row_event_fragment_threshold. The replica will
+  event can be transmitted to the slave. The size of each event is configured
+  via the system variable binlog_row_event_fragment_threshold. The slave will
   then take the content of each of these Partial_rows_log_events, and join them
   together into a large Rows_log_event to be executed as normal.
 
   Partial_rows_log_events are written to the binary log sequentially, and
-  the replica assembles the events in the order they are binlogged. Each
+  the slave assembles the events in the order they are binlogged. Each
   Partial_rows_log_event stores its sequence number (seq_no) in the overall
   series of fragments, the total number of fragments needed to re-assemble the
   Rows_log_event (total_fragments), a uchar for flags for embedding extra data,
@@ -5644,7 +5656,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   of the underlying Rows_log_event.
 
   The cached Rows_log_event data is fragmented into Partial_rows_log_events as
-  follows. The primary will still generate a Rows_log_event to write to the
+  follows. The master will still generate a Rows_log_event to write to the
   binlog; however, during the actual writing process, the raw data of the
   rows event is split into fragments, each covering some continuous section of
   the rows data. A Partial_rows_log_event is created for each continuous
@@ -6107,6 +6119,7 @@ public:
   */
   uint32_t last_fragment_seen;
 
+  rpl_group_info *rgi;
 
   /*
     Memory buffer, initialized to the maximum size of the Rows_log_event
@@ -6115,7 +6128,11 @@ public:
   */
   char *rows_ev_buf_builder_ptr;
 
-  rpl_group_info *rgi;
+  /*
+    Size of rows_ev_buf_builder_ptr (i.e. the original_event_size taken from
+    the first fragment in the group)
+  */
+  uint64_t rows_ev_buf_len;
 
   /*
     Total length of the Rows_log_event to construct
@@ -6138,8 +6155,9 @@ public:
   my_bool row_ev_created;
 
   Rows_log_event_assembler(rpl_group_info *rgi, uint32_t total_fragments)
-      : last_fragment_seen(0), rows_ev_buf_builder_ptr(NULL), rgi(rgi),
-        total_fragments(total_fragments), row_ev_created(false){};
+      : last_fragment_seen(0), rgi(rgi), rows_ev_buf_builder_ptr(NULL),
+        rows_ev_buf_len(0), ev_len(0), total_fragments(total_fragments),
+        row_ev_created(false){};
 
   ~Rows_log_event_assembler()
   {

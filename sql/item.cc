@@ -5573,6 +5573,75 @@ my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 }
 
 
+/****************************************************************************
+  Item_copy_real and its FLOAT and DOUBLE variants
+****************************************************************************/
+
+void Item_copy_real::copy()
+{
+  cached_value= item->val_real();
+  null_value= item->null_value;
+#ifndef DBUG_OFF
+  copied_in= 1;
+#endif
+}
+
+
+double Item_copy_real::val_real()
+{
+  DBUG_ASSERT(copied_in);
+  return null_value ? 0.0 : cached_value;
+}
+
+
+longlong Item_copy_real::val_int()
+{
+  DBUG_ASSERT(copied_in);
+  return null_value ? 0 :
+         Converter_double_to_longlong(cached_value, unsigned_flag).result();
+}
+
+
+my_decimal *Item_copy_real::val_decimal(my_decimal *decimal_value)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return NULL;
+  double2my_decimal(E_DEC_FATAL_ERROR, cached_value, decimal_value);
+  return decimal_value;
+}
+
+
+int Item_copy_real::save_in_field(Field *field, bool no_conversions)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return set_field_to_null(field);
+  field->set_notnull();
+  return field->store(cached_value);
+}
+
+
+String *Item_copy_float::val_str(String *str)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return NULL;
+  Float(cached_value).to_string(str, decimals);
+  return str;
+}
+
+
+String *Item_copy_double::val_str(String *str)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return NULL;
+  str->set_real(cached_value, decimals, &my_charset_numeric);
+  return str;
+}
+
+
 /*
   Functions to convert item to field (for send_result_set_metadata)
 */

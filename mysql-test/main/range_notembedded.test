@@ -104,13 +104,15 @@ drop table t1;
 --echo #
 --echo # MDEV-24739: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete
 --echo #
-SELECT *
-FROM mysql.help_relation
-WHERE NOT (help_topic_id != 8 AND help_keyword_id != 0 OR help_keyword_id = 2 OR help_topic_id < 1900);
 
-SELECT *
-FROM mysql.help_relation ignore index (help_topic_id)
-WHERE (help_topic_id = 8 OR help_keyword_id = 0) AND help_keyword_id != 2 AND help_topic_id >= 1900;
+CREATE TABLE r (t INT, k INT, PRIMARY KEY(k,t), KEY(t));
+INSERT INTO r VALUES (5,1), (5,2), (10,2), (16,2), (100,2), (400, 5), (300, 10), (600, 42) ;
+
+SELECT * FROM r WHERE NOT (t != 8 AND k != 0 OR k = 2 OR t < 1900);
+
+SELECT * FROM r ignore index (t) WHERE (t = 8 OR k = 0) AND k != 2 AND t >= 1900;
+
+DROP TABLE r;
 
 --echo #
 --echo # MDEV-24953: 10.5.9 crashes with large IN() list
@@ -149,11 +151,10 @@ drop table t1;
 --echo # MDEV-25069: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete #2
 --echo #
 
-SELECT *
-FROM mysql.help_relation
-WHERE
-  (help_topic_id < '2' OR help_topic_id != 8 OR help_topic_id < 1) AND
-  help_keyword_id = help_topic_id;
+CREATE TABLE r (t INT, k INT, PRIMARY KEY(k,t), KEY(t));
+INSERT INTO r VALUES (5,1), (5,2), (10,2), (16,2), (100,2), (400, 5), (300, 10), (600, 42) ;
+SELECT * FROM r WHERE (t < '2' OR t != 8 OR t < 1) AND k = t;
+DROP TABLE r;
 
 --echo #
 --echo # MDEV-29242: Assertion `computed_weight == weight' failed SEL_ARG::verify_weight

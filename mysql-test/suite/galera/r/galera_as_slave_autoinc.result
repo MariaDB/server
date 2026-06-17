@@ -96,6 +96,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 connection node_3;
 include/kill_binlog_dump_threads.inc
 RESET MASTER;

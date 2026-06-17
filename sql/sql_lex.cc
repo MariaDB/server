@@ -2484,7 +2484,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
               /*
                 Overwrite the version digits with spaces in the raw query
                 buffer so the binlog contains a non-versioned reversed
-                executable comment that the replica always executes.
+                executable comment that the slave always executes.
               */
               char *p= (char *) get_ptr();
               for (uint i= 0; i < length; i++)

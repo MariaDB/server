@@ -3492,15 +3492,35 @@ dberr_t fsp_traverse_extents(
 
     if (find_last_used_extent)
     {
-      ulint state= xdes_get_state(descr);
-      if (state == XDES_FREE)
-        *last_used_extent= cur_extent;
-      else if (state == XDES_FREE_FRAG &&
-               !(cur_extent & (srv_page_size - 1)) &&
-               xdes_get_n_used(descr) == 2)
-        /* Extent Descriptor Page */
-        *last_used_extent= cur_extent;
-      else return DB_SUCCESS;
+      /* A descriptor extent (one that starts with an extent
+      descriptor page) always keeps 2 pages permanently allocated:
+      1) Descriptor/header page
+      2) Change buffer bitmap page
+      In that case, we could consider this extent as empty.
+
+      Normal FSP_FREE_FRAG extent has no permanent pages, so its
+      empty case (n_used == 0). But between MDEV-13542 and
+      MDEV-31333, fsp_free_page() read xdes_get_n_used() before
+      clearing the freed page's XDES_FREE_BIT, so freeing the
+      last page of a fragment extent left an empty (n_used == 0)
+      FREE_FRAG extent behind. Such extents also can be reclaimable
+      just like XDES_FREE */
+      switch (xdes_get_state(descr)) {
+      case XDES_FREE:
+        break;
+      case XDES_FREE_FRAG:
+        {
+          const uint32_t n_used{xdes_get_n_used(descr)};
+          if (n_used == 0 || (n_used == 2 &&
+                              !(cur_extent & (srv_page_size - 1))))
+            /* Empty frag extent or descriptor extent */
+            break;
+        }
+        /* fall through */
+      default:
+        return DB_SUCCESS;
+      }
+      *last_used_extent= cur_extent;
     }
     else
     {

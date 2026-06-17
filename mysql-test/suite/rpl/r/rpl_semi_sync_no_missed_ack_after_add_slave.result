@@ -18,7 +18,7 @@ set @old_dbug= @@global.debug_dbug;
 set global rpl_semi_sync_slave_enabled= 1;
 set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
 include/start_slave.inc
-# Ensure primary recognizes both replicas are semi-sync
+# Ensure master recognizes both slaves are semi-sync
 connection server_1;
 connection default;
 create table t1 (a int);;

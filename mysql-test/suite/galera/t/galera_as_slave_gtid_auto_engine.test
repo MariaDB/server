@@ -10,5 +10,13 @@
 --source galera_as_slave_gtid.inc
 
 --connection node_2
-DROP TABLE mysql.gtid_slave_pos_InnoDB;
 CALL mtr.add_suppression("The automatically created table");
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+
+# The statements above write to node_2's binlog (DDL and the suppression
+# insert get Galera GTIDs in domain 0, server 2). Without resetting the
+# binlog state here, that leftover (e.g. 0-2-2) survives into the next
+# test iteration and breaks the gtid_binlog_state comparison in the .inc.
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;

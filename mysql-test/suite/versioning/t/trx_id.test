@@ -633,7 +633,7 @@ drop table t1;
 --echo # End of 10.4 tests
 
 --echo #
---echo # MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on primary or replica upon CREATE OR REPLACE for partitioned table
+--echo # MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on master or slave upon CREATE OR REPLACE for partitioned table
 --echo #
 create table t1 (
   a int,

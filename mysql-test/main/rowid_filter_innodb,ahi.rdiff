@@ -9,21 +9,53 @@
  DROP DATABASE IF EXISTS dbt3_s001;
  CREATE DATABASE dbt3_s001;
  use dbt3_s001;
-@@ -2059,7 +2059,7 @@
+@@ -2061,7 +2061,11 @@
            "r_table_time_ms": "REPLACED",
            "r_other_time_ms": "REPLACED",
            "r_engine_stats": {
 -            "pages_accessed": 90
-+            "pages_accessed": 51
++            "pages_accessed": 51,
++            "r_ahi_stats": {
++              "ahi_searches": 39,
++              "ahi_searches_btree": 3
++            }
            },
            "filtered": "REPLACED",
            "r_total_filtered": 2.43902439,
-@@ -2227,7 +2227,7 @@
+@@ -2093,7 +2097,10 @@
+           "r_table_time_ms": "REPLACED",
+           "r_other_time_ms": "REPLACED",
+           "r_engine_stats": {
+-            "pages_accessed": 4
++            "pages_accessed": 4,
++            "r_ahi_stats": {
++              "ahi_searches_btree": 1
++            }
+           },
+           "filtered": "REPLACED",
+           "r_total_filtered": 66.66666667,
+@@ -2229,7 +2236,11 @@
            "r_table_time_ms": "REPLACED",
            "r_other_time_ms": "REPLACED",
            "r_engine_stats": {
 -            "pages_accessed": 90
-+            "pages_accessed": 49
++            "pages_accessed": 49,
++            "r_ahi_stats": {
++              "ahi_searches": 41,
++              "ahi_searches_btree": 1
++            }
            },
            "filtered": "REPLACED",
            "r_total_filtered": 2.43902439,
+@@ -2261,7 +2272,10 @@
+           "r_table_time_ms": "REPLACED",
+           "r_other_time_ms": "REPLACED",
+           "r_engine_stats": {
+-            "pages_accessed": 4
++            "pages_accessed": 4,
++            "r_ahi_stats": {
++              "ahi_searches_btree": 1
++            }
+           },
+           "filtered": "REPLACED",
+           "r_total_filtered": 66.66666667,

@@ -15,3 +15,12 @@ Max_statement_time_exceeded	1
 SELECT @@MAX_STATEMENT_TIME;
 @@MAX_STATEMENT_TIME
 0.000000
+#
+# MDEV-31209 Queries with window functions do not obey KILL / max_statement_time
+#
+create table t (i int);
+insert into t values(1),(2),(3);
+set statement max_statement_time=0.03 for select max(sleep(0.1)) over( ) from t;
+ERROR 70100: Query was interrupted: execution time limit 0.03 sec exceeded
+drop table t;
+# End of 10.11 tests

@@ -27,7 +27,7 @@ must be 0
 connection default;
 drop table t1;
 #
-# MDEV-29056 Replica SQL thread stops with 1846 error on ALTER ONLINE after LOCK WRITE
+# MDEV-29056 Slave SQL thread stops with 1846 error on ALTER ONLINE after LOCK WRITE
 #
 create table t1 (c varchar(1), key (c)) engine=innodb;
 insert into t1 (c) values ('g') ;

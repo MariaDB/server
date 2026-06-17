@@ -25,6 +25,7 @@ Database monitor counter interfaces
 Created 12/9/2009 Jimmy Yang
 *******************************************************/
 
+#include "btr0sea.h"
 #include "buf0flu.h"
 #include "dict0mem.h"
 #include "lock0lock.h"
@@ -873,8 +874,9 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"adaptive_hash_pages_added", "adaptive_hash_index",
 	 "Number of index pages on which the Adaptive Hash Index is built",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_ADAPTIVE_HASH_PAGE_ADDED},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_PAGE_ADDED},
 
 	{"adaptive_hash_pages_removed", "adaptive_hash_index",
 	 "Number of index pages whose corresponding Adaptive Hash Index"
@@ -884,8 +886,9 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"adaptive_hash_rows_added", "adaptive_hash_index",
 	 "Number of Adaptive Hash Index rows added",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_ADAPTIVE_HASH_ROW_ADDED},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_ROW_ADDED},
 
 	{"adaptive_hash_rows_removed", "adaptive_hash_index",
 	 "Number of Adaptive Hash Index rows removed",
@@ -1520,11 +1523,19 @@ srv_mon_process_existing_counter(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH:
-		value = btr_cur_n_sea;
+		value = btr_search.hit_count;
 		break;
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
-		value = btr_cur_n_non_sea;
+		value = btr_search.miss_count;
+		break;
+
+	case MONITOR_OVLD_ADAPTIVE_HASH_ROW_ADDED:
+		value = btr_search.rows_added;
+		break;
+
+	case MONITOR_OVLD_ADAPTIVE_HASH_PAGE_ADDED:
+		value = btr_search.pages_added;
 		break;
 #endif /* BTR_CUR_HASH_ADAPT */
 

@@ -273,6 +273,11 @@ struct mtr_t {
     memo_push(lock, MTR_MEMO_S_LOCK);
   }
 
+#ifdef UNIV_DEBUG
+  /** Number of index latches acquired in exclusive mode by x_lock() */
+  static Atomic_counter<uint64_t> n_index_x_lock_calls;
+#endif
+
   /** Acquire an exclusive rw-latch. */
   void x_lock(
 #ifdef UNIV_PFS_RWLOCK
@@ -282,6 +287,7 @@ struct mtr_t {
   {
     lock->x_lock(SRW_LOCK_ARGS(file, line));
     memo_push(lock, MTR_MEMO_X_LOCK);
+    ut_d(++n_index_x_lock_calls);
   }
 
   /** Acquire an update latch. */
@@ -450,6 +456,10 @@ public:
   }
   /** @return whether the log and memo are empty */
   bool is_empty() const { return !get_savepoint() && m_log.empty(); }
+
+  /** @return whether no redo log has been written in this
+  mini-transaction */
+  bool has_no_log() const { return m_log.empty(); }
 
   /** Write an OPT_PAGE_CHECKSUM record. */
   inline void page_checksum(const buf_page_t &bpage);

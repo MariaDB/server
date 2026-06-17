@@ -8,7 +8,7 @@
 # survive re-binlogging through an intermediate server.
 #
 #  - Use ' ' instead of '!' in the conditional comments which are not applied on
-#  the source. So they become common comments and will not be applied on replica.
+#  the master. So they become common comments and will not be applied on slave.
 #
 #  - Example:
 #  'INSERT INTO t1 VALUES (1) /*!!10000, (2)*/ /*!!999999 ,(3)*/
@@ -106,7 +106,7 @@ select * from t1;
 --echo # Case 5:
 --echo # -----------------------------------------------------------------
 --echo # Delimiter change with reversed executable comment. A parse error
---echo # must not cause source/replica divergence.
+--echo # must not cause master/slave divergence.
 
 delimiter //;
 --error ER_PARSE_ERROR

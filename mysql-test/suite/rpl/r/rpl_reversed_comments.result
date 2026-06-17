@@ -105,7 +105,7 @@ connection server_1;
 # Case 5:
 # -----------------------------------------------------------------
 # Delimiter change with reversed executable comment. A parse error
-# must not cause source/replica divergence.
+# must not cause master/slave divergence.
 insert t1 values /*!! (100);insert t1 values */ (200) //
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'insert t1 values */ (200)' at line 1
 select * from t1;

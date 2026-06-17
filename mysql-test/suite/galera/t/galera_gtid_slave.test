@@ -9,6 +9,12 @@
 
 --source include/have_innodb.inc
 --source include/galera_cluster.inc
+# This test asserts exact gtid_binlog_state values (e.g. 1-1-2). The galera
+# wsrep GTID domain seqno is cluster-global state that "reset master" does not
+# reset, so it must start clean on every run (e.g. with --repeat). The
+# end-of-test cleanup below handles slave position and local binlogs, but only
+# a fresh cluster resets the wsrep domain seqno.
+--source include/force_restart.inc
 
 # As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
 # we open the node_3 connection here
@@ -79,6 +85,7 @@ DROP TABLE t1,t2;
 --connection node_2
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL wsrep_on=OFF;
 --source include/kill_binlog_dump_threads.inc
 reset master;

@@ -931,11 +931,29 @@ static MYSQL_THDVAR_STR(tmpdir,
 
 static size_t truncated_status_writes;
 
+#ifdef UNIV_DEBUG
+/** Expose an Atomic_counter<uint64_t> as a SHOW_ULONGLONG status variable.
+The server-internal enum_mysql_show_type only has SHOW_ATOMIC_COUNTER_UINT32_T,
+no 64-bit equivalent, so we materialize the value into the SHOW_VAR buffer
+ourselves. */
+template<Atomic_counter<uint64_t> *Counter>
+static int show_atomic_counter_u64(MYSQL_THD, SHOW_VAR *var, void *buff,
+                                   system_status_var *, enum enum_var_type)
+{
+  var->type= SHOW_ULONGLONG;
+  var->value= buff;
+  *static_cast<ulonglong*>(buff)= *Counter;
+  return 0;
+}
+#endif /* UNIV_DEBUG */
+
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
-  {"adaptive_hash_hash_searches", &export_vars.innodb_ahi_hit, SHOW_SIZE_T},
+  {"adaptive_hash_hash_searches", &btr_search.hit_count_nonatomic, SHOW_SIZE_T},
   {"adaptive_hash_non_hash_searches",
-  &export_vars.innodb_ahi_miss, SHOW_SIZE_T},
+  &btr_search.miss_count_nonatomic, SHOW_SIZE_T},
+  {"adaptive_hash_pages_added", &btr_search.pages_added_nonatomic, SHOW_SIZE_T},
+  {"adaptive_hash_rows_added", &btr_search.rows_added_nonatomic, SHOW_SIZE_T},
 #endif
   {"async_reads_pending",
   &export_vars.async_read_stats.pending_ops, SHOW_SIZE_T},
@@ -1112,6 +1130,37 @@ static SHOW_VAR innodb_status_variables[]= {
 
   /* InnoDB bulk operations */
   {"bulk_operations", &export_vars.innodb_bulk_operations, SHOW_SIZE_T},
+
+#ifdef UNIV_DEBUG
+  {"btr_cur_n_index_lock_upgrades",
+   (void*) &show_atomic_counter_u64<
+     &btr_cur_n_index_lock_upgrades>,
+   SHOW_SIMPLE_FUNC},
+  {"btr_cur_pessimistic_insert_calls",
+   (void*) &show_atomic_counter_u64<
+     &btr_cur_pessimistic_insert_calls>,
+   SHOW_SIMPLE_FUNC},
+  {"btr_cur_pessimistic_update_calls",
+   (void*) &show_atomic_counter_u64<
+     &btr_cur_pessimistic_update_calls>,
+   SHOW_SIMPLE_FUNC},
+  {"btr_cur_pessimistic_delete_calls",
+   (void*) &show_atomic_counter_u64<
+     &btr_cur_pessimistic_delete_calls>,
+   SHOW_SIMPLE_FUNC},
+  {"btr_cur_pessimistic_update_optim_err_underflows",
+   (void*) &show_atomic_counter_u64<
+     &btr_cur_pessimistic_update_optim_err_underflows>,
+   SHOW_SIMPLE_FUNC},
+  {"btr_cur_pessimistic_update_optim_err_overflows",
+   (void*) &show_atomic_counter_u64<
+     &btr_cur_pessimistic_update_optim_err_overflows>,
+   SHOW_SIMPLE_FUNC},
+  {"mtr_n_index_x_lock_calls",
+   (void*) &show_atomic_counter_u64<
+     &mtr_t::n_index_x_lock_calls>,
+   SHOW_SIMPLE_FUNC},
+#endif /* UNIV_DEBUG */
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -6037,7 +6086,7 @@ ha_innobase::open(const char* name, int, uint)
 			" defined columns in InnoDB, but " << n_fields
 			<< " columns in MariaDB. Please check"
 			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and"
-			" https://mariadb.com/kb/en/innodb-data-dictionary-troubleshooting/"
+			" https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-troubleshooting/innodb-data-dictionary-troubleshooting"
 			" for how to resolve the issue.";
 
 		/* Mark this table as corrupted, so the drop table
@@ -18915,6 +18964,8 @@ buffer_pool_load_abort(
 static void innodb_log_file_buffering_update(THD *, st_mysql_sys_var*,
                                              void *, const void *save)
 {
+  /* MDEV-36828 TODO: On failure, report which other setting
+  conflicted with the request */
   mysql_mutex_unlock(&LOCK_global_system_variables);
   log_sys.set_buffered(*static_cast<const my_bool*>(save));
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -18924,6 +18975,8 @@ static void innodb_log_file_buffering_update(THD *, st_mysql_sys_var*,
 static void innodb_log_file_write_through_update(THD *, st_mysql_sys_var*,
                                                  void *, const void *save)
 {
+  /* MDEV-36828 TODO: On failure, report which other setting
+  conflicted with the request */
   mysql_mutex_unlock(&LOCK_global_system_variables);
   log_sys.set_write_through(*static_cast<const my_bool*>(save));
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -19607,7 +19660,7 @@ static MYSQL_SYSVAR_ENUM(adaptive_hash_index,
                          NULL, innodb_adaptive_hash_index_update, false,
                          &innodb_ahi_typelib);
 
-static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_search.n_parts,
+static MYSQL_SYSVAR_UINT(adaptive_hash_index_parts, btr_search.n_parts,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Number of InnoDB Adaptive Hash Index Partitions (default 8)",
   NULL, NULL, 8, 1, array_elements(btr_search.parts), 0);
@@ -19906,6 +19959,8 @@ static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
 static void innodb_log_archive_update(THD *thd, st_mysql_sys_var*,
                                       void *, const void *save) noexcept
 {
+  /* MDEV-36828 TODO: On failure, report which other setting
+  conflicted with the request */
   log_sys.set_archive(*static_cast<const my_bool*>(save), thd);
 }
 
@@ -20165,6 +20220,14 @@ static MYSQL_SYSVAR_ENUM(default_row_format, innodb_default_row_format,
   " The ROW_FORMAT value COMPRESSED is not allowed",
   NULL, NULL, DEFAULT_ROW_FORMAT_DYNAMIC,
   &innodb_default_row_format_typelib);
+
+static MYSQL_SYSVAR_BOOL(index_shrink,
+  btr_cur_index_shrink, PLUGIN_VAR_OPCMDARG,
+  "Allow InnoDB to shrink a B-tree (merge or reorganize pages) on"
+  " record-growing UPDATEs. The default ON keeps the current behavior;"
+  " OFF favors a page split instead, reducing index tree latch upgrades"
+  " and the contention they cause, at the cost of slightly sparser pages",
+  NULL, NULL, TRUE);
 
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_UINT(limit_optimistic_insert_debug,
@@ -20462,6 +20525,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_failure_threshold_pct),
   MYSQL_SYSVAR(compression_pad_pct_max),
   MYSQL_SYSVAR(default_row_format),
+  MYSQL_SYSVAR(index_shrink),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
@@ -21375,11 +21439,11 @@ ib_errf(
 /* Keep the first 16 characters as-is, since the url is sometimes used
 as an offset from this.*/
 const char*	TROUBLESHOOTING_MSG =
-	"Please refer to https://mariadb.com/kb/en/innodb-troubleshooting/"
+	"Please refer to https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-troubleshooting"
 	" for how to resolve the issue.";
 
 const char*	TROUBLESHOOT_DATADICT_MSG =
-	"Please refer to https://mariadb.com/kb/en/innodb-data-dictionary-troubleshooting/"
+	"Please refer to https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-troubleshooting/innodb-data-dictionary-troubleshooting"
 	" for how to resolve the issue.";
 
 const char*	BUG_REPORT_MSG =
@@ -21387,22 +21451,22 @@ const char*	BUG_REPORT_MSG =
 
 const char*	FORCE_RECOVERY_MSG =
 	"Please refer to "
-	"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
+	"https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-troubleshooting/innodb-recovery-modes"
 	" for information about forcing recovery.";
 
 const char*	OPERATING_SYSTEM_ERROR_MSG =
 	"Some operating system error numbers are described at"
-	" https://mariadb.com/kb/en/library/operating-system-error-codes/";
+	" https://mariadb.com/docs/server/reference/error-codes/operating-system-error-codes";
 
 const char*	FOREIGN_KEY_CONSTRAINTS_MSG =
-	"Please refer to https://mariadb.com/kb/en/library/foreign-keys/"
+	"Please refer to https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/foreign-keys"
 	" for correct foreign key definition.";
 
 const char*	SET_TRANSACTION_MSG =
-	"Please refer to https://mariadb.com/kb/en/library/set-transaction/";
+	"Please refer to https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-transaction";
 
 const char*	INNODB_PARAMETERS_MSG =
-	"Please refer to https://mariadb.com/kb/en/library/innodb-system-variables/";
+	"Please refer to https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-system-variables";
 
 /**********************************************************************
 Converts an identifier from my_charset_filename to UTF-8 charset.
@@ -21593,7 +21657,7 @@ ib_push_frm_error(
 			" Have you mixed up "
 			".frm files from different "
 			"installations? See "
-			"https://mariadb.com/kb/en/innodb-troubleshooting/\n",
+			"https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-troubleshooting",
 			ib_table->name.m_name);
 
 		if (push_warning) {
@@ -21633,7 +21697,7 @@ ib_push_frm_error(
 			"indexes inside InnoDB, which "
 			"is different from the number of "
 			"indexes %u defined in the .frm file. See "
-			"https://mariadb.com/kb/en/innodb-troubleshooting/\n",
+			"https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-troubleshooting",
 			ib_table->name.m_name, n_keys,
 			table->s->keys);
 

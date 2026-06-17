@@ -1,0 +1,155 @@
+--source ../include/have_duckdb.inc
+
+
+--echo #
+--echo # decimal with high precision
+--echo # decimal precision more than 38 is not supported by DuckDB, use double by default
+--echo #
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS innodb_db;
+CREATE DATABASE IF NOT EXISTS duckdb_db;
+--enable_query_log
+
+--echo # Create tables
+USE innodb_db;
+create table t_decimal (id int primary key, a decimal(65, 30),b decimal(65, 15),c decimal(65, 0),d decimal(38,30),e decimal(38,18),f decimal(38,0),g decimal(9,9),h decimal(9,4),i decimal(9,0)) engine = innodb;
+
+USE duckdb_db;
+create table t_decimal (id int primary key, a decimal(65, 30),b decimal(65, 15),c decimal(65, 0),d decimal(38,30),e decimal(38,18),f decimal(38,0),g decimal(9,9),h decimal(9,4),i decimal(9,0)) engine = duckdb;
+
+--echo # display innodb table structure
+desc innodb_db.t_decimal;
+
+--echo # display duckdb table structure
+desc duckdb_db.t_decimal;
+
+--echo # Insert data into innodb
+USE innodb_db;
+insert into t_decimal values (1, 99999999999999999999999999999999999.999999999999999999999999999999,99999999999999999999999999999999999999999999999999.999999999999999,99999999999999999999999999999999999999999999999999999999999999999,99999999.999999999999999999999999999999,99999999999999999999.999999999999999999,99999999999999999999999999999999999999,0.99999999,99999.9999,999999999);
+
+--echo # Insert data into duckdb
+USE duckdb_db;
+SET GLOBAL duckdb_dml_in_batch = OFF;
+insert into t_decimal values (1, 99999999999999999999999999999999999.999999999999999999999999999999,99999999999999999999999999999999999999999999999999.999999999999999,99999999999999999999999999999999999999999999999999999999999999999,99999999.999999999999999999999999999999,99999999999999999999.999999999999999999,99999999999999999999999999999999999999,0.99999999,99999.9999,999999999);
+
+--echo # Compare results
+--disable_query_log
+USE innodb_db;
+--let $innodb_result=`select id, a, b, c, d, e, f, g, h, i from t_decimal`
+
+USE duckdb_db;
+--let $duckdb_result=`select id, a, b, c, d, e, f, g, h, i from t_decimal`
+--enable_query_log
+
+--echo innodb_result : $innodb_result
+--echo duckdb_result : $duckdb_result
+
+--echo # Note: precision differences are expected for columns with precision > 38
+
+--echo # cleanup
+--disable_query_log
+USE test;
+DROP DATABASE innodb_db;
+DROP DATABASE duckdb_db;
+--enable_query_log
+
+--echo #
+--echo # decimal(2): high precision(>38)  with low precision value(<=38) and duckdb_use_double_for_decimal=on
+--echo #
+set global duckdb_use_double_for_decimal=on;
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS innodb_db;
+CREATE DATABASE IF NOT EXISTS duckdb_db;
+
+USE innodb_db;
+CREATE TABLE t1(id int primary key, c1 decimal(40, 5), c2 decimal(40, 5), c3 decimal(40, 5)) engine = innodb;
+
+USE duckdb_db;
+CREATE TABLE t1(id int primary key, c1 decimal(40, 5), c2 decimal(40, 5), c3 decimal(40, 5)) engine = duckdb;
+--enable_query_log
+
+--echo # display innodb table structure
+desc innodb_db.t1;
+
+--echo # display duckdb table structure
+desc duckdb_db.t1;
+
+--echo # use double
+--disable_query_log
+USE innodb_db;
+INSERT INTO t1 values (4, 123456789012345678901234567890.12345, 0, 0000000.0000000);
+
+USE duckdb_db;
+SET GLOBAL duckdb_dml_in_batch = OFF;
+INSERT INTO t1 values (4, 123456789012345678901234567890.12345, 0, 0000000.0000000);
+
+USE innodb_db;
+--let $innodb_result=`select id, c1 from t1`
+
+USE duckdb_db;
+--let $duckdb_result=`select id, c1 from t1`
+--enable_query_log
+
+--echo innodb_result : $innodb_result
+--echo duckdb_result : $duckdb_result
+
+--disable_query_log
+USE test;
+DROP DATABASE innodb_db;
+DROP DATABASE duckdb_db;
+--enable_query_log
+
+set global duckdb_use_double_for_decimal=default;
+
+--echo #
+--echo # decimal(3): high precision(>38)  with high precision value(>38)  and duckdb_use_double_for_decimal=on
+--echo #
+set global duckdb_use_double_for_decimal=on;
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS innodb_db;
+CREATE DATABASE IF NOT EXISTS duckdb_db;
+
+USE innodb_db;
+CREATE TABLE t1(id int primary key, c1 decimal(40, 5),c2 decimal(40, 5), c3 decimal(40, 5)) engine = innodb;
+
+USE duckdb_db;
+CREATE TABLE t1(id int primary key, c1 decimal(40, 5),c2 decimal(40, 5), c3 decimal(40, 5)) engine = duckdb;
+--enable_query_log
+
+--echo # display innodb table structure
+desc innodb_db.t1;
+
+--echo # display duckdb table structure
+desc duckdb_db.t1;
+
+--echo # use double
+--disable_query_log
+USE innodb_db;
+INSERT INTO t1 values (4, 12345678901234567890123456789012345.12345, 0, 0000000.0000000);
+
+USE duckdb_db;
+SET GLOBAL duckdb_dml_in_batch = OFF;
+INSERT INTO t1 values (4, 12345678901234567890123456789012345.12345, 0, 0000000.0000000);
+
+USE innodb_db;
+--let $innodb_result=`select id, c1 from t1`
+
+USE duckdb_db;
+--let $duckdb_result=`select id, c1 from t1`
+--enable_query_log
+
+--echo innodb_result : $innodb_result
+--echo duckdb_result : $duckdb_result
+
+--disable_query_log
+USE test;
+DROP DATABASE innodb_db;
+DROP DATABASE duckdb_db;
+--enable_query_log
+
+set global duckdb_use_double_for_decimal=default;
+
+--source ../include/cleanup_duckdb.inc

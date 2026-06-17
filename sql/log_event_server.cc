@@ -5978,7 +5978,9 @@ bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
   if(flags2 & FL_ORIG_EVENT_SIZE)
   {
     DBUG_ASSERT(original_event_size && seq_no == 1);
-    int8store(buf + header_size, original_event_size);
+    int8store(buf + header_size, DBUG_IF("too_small_orig_event_size")
+                                     ? original_event_size - 256
+                                     : original_event_size);
     header_size+= 8;
   }
 
@@ -6204,21 +6206,21 @@ Rows_log_event_fragmenter::fragment()
 }
 
 #ifdef HAVE_REPLICATION
-// Len of "%u / %u"
-#define PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN (10 + 3 + 10 + 1)
 int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
 {
-  if ((partial_ev->total_fragments != this->total_fragments) ||
-      (partial_ev->seq_no != this->last_fragment_seen + 1))
+  if (unlikely((partial_ev->total_fragments != this->total_fragments) ||
+               (partial_ev->seq_no != this->last_fragment_seen + 1)))
   {
-    char buf[PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN];
-    buf[PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN - 1]= '\0';
-    my_snprintf(buf, sizeof(buf), "%u / %u", partial_ev->seq_no,
-                partial_ev->total_fragments);
+    char found_buf[PARTIAL_ROWS_EVENT_BAD_FRAGMENT_ERRSTR_LEN];
+    char expect_buf[PARTIAL_ROWS_EVENT_BAD_FRAGMENT_ERRSTR_LEN];
+    my_snprintf(found_buf, sizeof(found_buf), "fragment %u / %u",
+                partial_ev->seq_no, partial_ev->total_fragments);
+    my_snprintf(expect_buf, sizeof(expect_buf), "fragment %u / %u",
+                this->last_fragment_seen + 1, this->total_fragments);
     rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
                      rgi->gtid_info(),
                      ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
-                     buf, this->last_fragment_seen + 1, this->total_fragments);
+                     found_buf, expect_buf);
     return ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
   }
 
@@ -6228,15 +6230,34 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
                 partial_ev->flags2 &
                     Partial_rows_log_event::FL_ORIG_EVENT_SIZE &&
                 partial_ev->original_event_size);
+
+    if (unlikely((sizeof(size_t) < sizeof(uint64_t) &&
+                  partial_ev->original_event_size >
+                      static_cast<uint64_t>(SIZE_MAX)) ||
+                 DBUG_IF("mock_32_bit_slave")))
+    {
+      /*
+        The error isn't actually ER_OUTOFMEMORY, but the error itself is not
+        practical enough to justify a new error code; so just re-use
+        ER_OUTOFMEMORY with a clear error message.
+      */
+      rgi->rli->report(ERROR_LEVEL, ER_OUTOFMEMORY, rgi->gtid_info(),
+                       "Can't reconstruct original row event size of %" PRIu64
+                       " on 32-bit system",
+                       partial_ev->original_event_size);
+      return ER_OUTOFMEMORY;
+    }
+
     rows_ev_buf_builder_ptr=
         DBUG_IF("oom_reassembling_large_rows_ev_buf")
             ? NULL
             : (char *) my_malloc(PSI_INSTRUMENT_ME,
                                  partial_ev->original_event_size, MYF(MY_WME));
     DBUG_EXECUTE("oom_reassembling_large_rows_ev_buf", my_errno= ENOMEM;);
+    rows_ev_buf_len= partial_ev->original_event_size;
     ev_len= 0;
   }
-  if (!rows_ev_buf_builder_ptr)
+  if (unlikely(!rows_ev_buf_builder_ptr))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), total_fragments*partial_ev->get_rows_size());
     rgi->rli->report(
@@ -6247,6 +6268,23 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
         partial_ev->seq_no, partial_ev->total_fragments,
         rgi->thd->get_stmt_da()->message());
     return ER_OUTOFMEMORY;
+  }
+
+  if (unlikely(this->ev_len +
+                   static_cast<uint64_t>(partial_ev->get_rows_size()) >
+               this->rows_ev_buf_len))
+  {
+    char found_buf[PARTIAL_ROWS_EVENT_BAD_ORIG_SIZE_ERRSTR_LEN];
+    char expect_buf[PARTIAL_ROWS_EVENT_BAD_ORIG_SIZE_ERRSTR_LEN];
+    my_snprintf(found_buf, sizeof(found_buf), "row data size %" PRIu64,
+                this->ev_len + partial_ev->get_rows_size());
+    my_snprintf(expect_buf, sizeof(expect_buf), "row data size %" PRIu64,
+                this->rows_ev_buf_len);
+    rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+                     rgi->gtid_info(),
+                     ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
+                     found_buf, expect_buf);
+    return ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
   }
 
   memcpy(rows_ev_buf_builder_ptr + ev_len,

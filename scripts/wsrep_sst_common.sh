@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024 MariaDB
+# Copyright (C) 2017-2025 MariaDB
 # Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -198,6 +198,7 @@ WSREP_SST_OPT_BINLOG=""
 WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_LOG_BASENAME=""
 WSREP_SST_OPT_DATA=""
+WSREP_SST_OPT_TMP_DIR=""
 WSREP_SST_OPT_AUTH="${WSREP_SST_OPT_AUTH:-}"
 WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
@@ -315,6 +316,10 @@ case "$1" in
         readonly WSREP_SST_OPT_DATA=$(trim_dir "$2")
         shift
         ;;
+    '--sst-tmp-dir')
+	readonly WSREP_SST_OPT_TMP_DIR=$(trim_dir "$2")
+	shift
+	;;
     '--aria-log-dir-path')
         # Let's remove the trailing slash:
         readonly ARIA_LOG_DIR=$(trim_dir "$2")
@@ -657,6 +662,12 @@ case "$1" in
                        fi
                        skip_mysqld_arg=1
                        ;;
+		   '--sst-tmp-dir')
+		       if [ -z "$WSREP_SST_OPT_TMP_DIR" ]; then
+			   MYSQLD_OPT_SST_TMP_DIR=$(trim_dir "$value")
+		       fi
+		       skip_mysqld_arg=1
+		       ;;
                esac
                if [ $skip_mysqld_arg -eq 0 ]; then
                    original_cmd="$original_cmd '$1'"
@@ -735,6 +746,10 @@ fi
 if [ -n "${MYSQLD_OPT_LOG_BASENAME:-}" -a \
      -z "$WSREP_SST_OPT_LOG_BASENAME" ]; then
     readonly WSREP_SST_OPT_LOG_BASENAME="$MYSQLD_OPT_LOG_BASENAME"
+fi
+if [ -n "${MYSQLD_OPT_SST_TMP_DIR:-}" -a \
+     -z "$WSREP_SST_OPT_TMP_DIR" ]; then
+    readonly WSREP_SST_OPT_TMP_DIR="$MYSQLD_OPT_SST_TMP_DIR"
 fi
 
 # If the --log-bin option is present without a value, then

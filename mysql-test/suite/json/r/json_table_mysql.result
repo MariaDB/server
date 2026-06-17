@@ -106,6 +106,86 @@ id	jpath	json_path	jexst
 3	NULL	NULL	1
 select * from
 json_table(
+'[{"name":"Jeans","sizes":[32,34,36],"details":{"fit":"regular"},"flag":true,"jsnull":null},
+      {"name":"T-Shirt","sizes":["Medium","Large"],"details":{"fit":"loose"},"flag":false,"jsnull":null},
+      {"name":"Cellphone"}]',
+'$[*]' columns (name varchar(10) path '$.name',
+sizes varchar(100) format json path '$.sizes',
+details text format json path '$.details',
+flag varchar(10) format json path '$.flag',
+jsnull varchar(10) format json path '$.jsnull')
+) as jt;
+name	sizes	details	flag	jsnull
+Jeans	[32,34,36]	{"fit":"regular"}	true	null
+T-Shirt	["Medium","Large"]	{"fit":"loose"}	false	null
+Cellphone	NULL	NULL	NULL	NULL
+select * from
+json_table(
+'[{"doc":[1,2]},{"doc":{"k":"v"}},{"doc":null},{}]',
+'$[*]' columns (doc json format json path '$.doc' null on empty)
+) as jt;
+doc
+[1,2]
+{"k":"v"}
+null
+NULL
+SELECT HEX(doc) FROM
+json_table(
+'[{"doc":[1,2]},{}]',
+'$[*]' columns (doc blob format json path '$.doc' null on empty)
+) as jt;
+HEX(doc)
+5B312C325D
+NULL
+select * from
+json_table(
+'[{"name":"Jeans","sizes":[32,34,36]},{"name":"Cellphone"}]',
+'$[*]' columns (name varchar(10) path '$.name',
+sizes varchar(100) format json path '$.sizes'
+               default '[99]' on empty)
+) as jt;
+name	sizes
+Jeans	[32,34,36]
+Cellphone	[99]
+select * from
+json_table(
+'[{"a":[1]},{"a":[2]}]',
+'$' columns (a varchar(20) format json path '$[*].a' error on error)
+) as jt;
+ERROR HY000: Can't store multiple matches of the path in the column 'a' of JSON_TABLE 'jt'.
+select * from
+json_table(
+'[{"a":[1,2,3]}]',
+'$[*]' columns (a int format json path '$.a')
+) as jt;
+ERROR HY000: Incorrect usage of FORMAT JSON and non-string JSON_TABLE column
+create view v_fmt as
+select * from
+json_table(
+'[{"sizes":[1,2]}]',
+'$[*]' columns (sizes varchar(20) format json path '$.sizes')
+) as jt;
+select * from v_fmt;
+sizes
+[1,2]
+show create view v_fmt;
+View	Create View	character_set_client	collation_connection
+v_fmt	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_fmt` AS select `jt`.`sizes` AS `sizes` from JSON_TABLE('[{"sizes":[1,2]}]', '$[*]' COLUMNS (`sizes` varchar(20) FORMAT JSON PATH '$.sizes')) `jt`	latin1	latin1_swedish_ci
+drop view v_fmt;
+create view v_fmt_cs as
+select * from
+json_table(
+'[{"sizes":[1,2]}]',
+'$[*]' columns (
+sizes varchar(20) character set utf8mb4 collate utf8mb4_bin
+format json path '$.sizes')
+) as jt;
+show create view v_fmt_cs;
+View	Create View	character_set_client	collation_connection
+v_fmt_cs	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_fmt_cs` AS select `jt`.`sizes` AS `sizes` from JSON_TABLE('[{"sizes":[1,2]}]', '$[*]' COLUMNS (`sizes` varchar(20) CHARSET utf8mb4 COLLATE utf8mb4_bin FORMAT JSON PATH '$.sizes')) `jt`	latin1	latin1_swedish_ci
+drop view v_fmt_cs;
+select * from
+json_table(
 '[{"a":"3"},{"a":2},{"b":1},{"a":0}]',
 '$[*]' columns (id for ordinality,
 jpath varchar(100) path '$.a' error on empty,

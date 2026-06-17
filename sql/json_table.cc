@@ -418,7 +418,7 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
 }
 
 
-static int store_json_in_json(Field *f, json_engine_t *je)
+static int store_json_in_field_as_json(Field *f, json_engine_t *je)
 {
   const uchar *from= je->value_begin;
   const uchar *to;
@@ -617,7 +617,7 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
           {
             if (jc->m_format_json)
             {
-              if (!(error= store_json_in_json(*f, &je)))
+              if (!(error= store_json_in_field_as_json(*f, &je)))
                 error= er_handler.errors;
             }
             else if (!(error= !json_value_scalar(&je)))
@@ -931,6 +931,21 @@ TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table)
 }
 
 
+bool Json_table_column::enable_format_json()
+{
+  if (!m_field->type_handler()->is_general_purpose_string_type())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "FORMAT JSON",
+             "non-string JSON_TABLE column");
+    return true;
+  }
+
+  m_format_json= true;
+  m_explicit_format_json= true;
+  return false;
+}
+
+
 int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
                            CHARSET_INFO *cs)
 {
@@ -955,8 +970,11 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
   */
   m_path.s.c_str= (const uchar *) path.str;
 
-  if (ctype == PATH)
-    m_format_json= m_field->type_handler() == &type_handler_long_blob_json;
+  if (ctype == PATH &&
+      Type_handler_json_common::is_json_type_handler(m_field->type_handler()))
+  {
+    m_format_json= true;
+  }
 
   return 0;
 }
@@ -1018,10 +1036,13 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
   {
     static const LEX_CSTRING path= { STRING_WITH_LEN(" PATH ") };
     static const LEX_CSTRING exists_path= { STRING_WITH_LEN(" EXISTS PATH ") };
+    bool is_json_type=
+      Type_handler_json_common::is_json_type_handler(m_field->type_handler());
 
     (*f)->sql_type(column_type);
 
-    if ((m_format_json ? str->append(STRING_WITH_LEN(" JSON ")) : str->append(column_type)))
+    if (is_json_type ? str->append(STRING_WITH_LEN("JSON")) :
+                       str->append(column_type))
       return 1;
     if (((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
@@ -1029,6 +1050,8 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
           (Charset(m_explicit_cs).can_have_collate_clause() &&
            (str->append(STRING_WITH_LEN(" COLLATE ")) ||
             str->append(&m_explicit_cs->coll_name))))) ||
+        (m_explicit_format_json &&
+         str->append(STRING_WITH_LEN(" FORMAT JSON"))) ||
         str->append(m_column_type == PATH ? &path : &exists_path) ||
         print_path(str, &m_path))
       return 1;

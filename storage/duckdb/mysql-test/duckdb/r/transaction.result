@@ -1,0 +1,225 @@
+#
+# DuckDB transaction tests
+#
+# Suite 1: Basic transactions (binlog ON)
+# Test 1: Atomicity
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+id INT DEFAULT 1 PRIMARY KEY,
+name VARCHAR(10) DEFAULT 'NAME'
+) ENGINE = DuckDB;
+INSERT INTO t1 (id, name) VALUES (1, '1');
+BEGIN;
+INSERT INTO t1 (id, name) VALUES (2, '2');
+INSERT INTO t1 (id, name) VALUES (3, '3');
+ROLLBACK;
+SELECT * FROM t1;
+id	name
+1	1
+# Test 2: Durability after restart
+# restart
+SELECT * FROM t1;
+id	name
+1	1
+# Test 3: Restart rolls back uncommitted transaction
+BEGIN;
+INSERT INTO t1 (id, name) VALUES (4, '4');
+INSERT INTO t1 (id, name) VALUES (5, '5');
+# restart
+SELECT * FROM t1;
+id	name
+1	1
+# Test 4: Autocommit persists through restart
+SET autocommit = 1;
+INSERT INTO t1 (id, name) VALUES (3, '3');
+# restart
+SELECT * FROM t1;
+id	name
+1	1
+3	3
+# Test 5: Isolation
+connect  con1,localhost,root,,db_transaction;
+connect  con2,localhost,root,,db_transaction;
+connection con1;
+BEGIN;
+INSERT INTO t1 (id, name) VALUES (1, '1');
+connection con2;
+# Should be empty
+SELECT * FROM t1;
+id	name
+connection con1;
+COMMIT;
+connection con2;
+# Should show 1 row
+SELECT * FROM t1;
+id	name
+1	1
+# Test 6: Mixed InnoDB+DuckDB atomicity
+DROP TABLE IF EXISTS t_duck;
+DROP TABLE IF EXISTS t_inno;
+CREATE TABLE t_duck (
+id INT DEFAULT 1 PRIMARY KEY,
+name VARCHAR(10) DEFAULT 'NAME'
+) ENGINE = DuckDB;
+CREATE TABLE t_inno (
+id INT DEFAULT 1 PRIMARY KEY,
+name VARCHAR(10) DEFAULT 'NAME'
+) ENGINE = InnoDB;
+INSERT INTO t_duck (id, name) VALUES (1, '1');
+INSERT INTO t_inno (id, name) VALUES (1, '1');
+BEGIN;
+INSERT INTO t_duck (id, name) VALUES (2, '2');
+INSERT INTO t_inno (id, name) VALUES (2, '2');
+ROLLBACK;
+SELECT * FROM t_duck;
+id	name
+1	1
+SELECT * FROM t_inno;
+id	name
+1	1
+# Test 7: Mixed InnoDB+DuckDB isolation
+connection con1;
+BEGIN;
+INSERT INTO t_duck (id, name) VALUES (3, '3');
+INSERT INTO t_inno (id, name) VALUES (3, '3');
+connection con2;
+SELECT * FROM t_duck;
+id	name
+SELECT * FROM t_inno;
+id	name
+connection con1;
+COMMIT;
+connection con2;
+SELECT * FROM t_duck;
+id	name
+3	3
+SELECT * FROM t_inno;
+id	name
+3	3
+# Test 8: Mixed InnoDB+DuckDB durability
+connection default;
+INSERT INTO t_duck (id, name) VALUES (4, '4');
+INSERT INTO t_inno (id, name) VALUES (4, '4');
+disconnect con1;
+disconnect con2;
+# restart
+SELECT * FROM t_duck;
+id	name
+3	3
+4	4
+SELECT * FROM t_inno;
+id	name
+3	3
+4	4
+# Suite 2: Basic transactions (binlog OFF)
+# restart: --skip-log-bin
+# Test 1: Atomicity
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+id INT DEFAULT 1 PRIMARY KEY,
+name VARCHAR(10) DEFAULT 'NAME'
+) ENGINE = DuckDB;
+INSERT INTO t1 (id, name) VALUES (1, '1');
+BEGIN;
+INSERT INTO t1 (id, name) VALUES (2, '2');
+INSERT INTO t1 (id, name) VALUES (3, '3');
+ROLLBACK;
+SELECT * FROM t1;
+id	name
+1	1
+# Test 2: Durability after restart
+# restart: --skip-log-bin
+SELECT * FROM t1;
+id	name
+1	1
+# Test 3: Restart rolls back uncommitted transaction
+BEGIN;
+INSERT INTO t1 (id, name) VALUES (4, '4');
+INSERT INTO t1 (id, name) VALUES (5, '5');
+# restart: --skip-log-bin
+SELECT * FROM t1;
+id	name
+1	1
+# Test 4: Autocommit persists through restart
+SET autocommit = 1;
+INSERT INTO t1 (id, name) VALUES (3, '3');
+# restart: --skip-log-bin
+SELECT * FROM t1;
+id	name
+1	1
+3	3
+# Test 5: Isolation
+connect  con1,localhost,root,,db_transaction;
+connect  con2,localhost,root,,db_transaction;
+connection con1;
+BEGIN;
+INSERT INTO t1 (id, name) VALUES (1, '1');
+connection con2;
+# Should be empty
+SELECT * FROM t1;
+id	name
+connection con1;
+COMMIT;
+connection con2;
+# Should show 1 row
+SELECT * FROM t1;
+id	name
+1	1
+# Test 6: Mixed InnoDB+DuckDB atomicity
+DROP TABLE IF EXISTS t_duck;
+DROP TABLE IF EXISTS t_inno;
+CREATE TABLE t_duck (
+id INT DEFAULT 1 PRIMARY KEY,
+name VARCHAR(10) DEFAULT 'NAME'
+) ENGINE = DuckDB;
+CREATE TABLE t_inno (
+id INT DEFAULT 1 PRIMARY KEY,
+name VARCHAR(10) DEFAULT 'NAME'
+) ENGINE = InnoDB;
+INSERT INTO t_duck (id, name) VALUES (1, '1');
+INSERT INTO t_inno (id, name) VALUES (1, '1');
+BEGIN;
+INSERT INTO t_duck (id, name) VALUES (2, '2');
+INSERT INTO t_inno (id, name) VALUES (2, '2');
+ROLLBACK;
+SELECT * FROM t_duck;
+id	name
+1	1
+SELECT * FROM t_inno;
+id	name
+1	1
+# Test 7: Mixed InnoDB+DuckDB isolation
+connection con1;
+BEGIN;
+INSERT INTO t_duck (id, name) VALUES (3, '3');
+INSERT INTO t_inno (id, name) VALUES (3, '3');
+connection con2;
+SELECT * FROM t_duck;
+id	name
+SELECT * FROM t_inno;
+id	name
+connection con1;
+COMMIT;
+connection con2;
+SELECT * FROM t_duck;
+id	name
+3	3
+SELECT * FROM t_inno;
+id	name
+3	3
+# Test 8: Mixed InnoDB+DuckDB durability
+connection default;
+INSERT INTO t_duck (id, name) VALUES (4, '4');
+INSERT INTO t_inno (id, name) VALUES (4, '4');
+disconnect con1;
+disconnect con2;
+# restart: --skip-log-bin
+SELECT * FROM t_duck;
+id	name
+3	3
+4	4
+SELECT * FROM t_inno;
+id	name
+3	3
+4	4
+# restart

@@ -1,0 +1,128 @@
+--echo #
+--echo # DuckDB UPDATE operations test
+--echo #
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS db_dml_update CHARACTER SET utf8mb4;
+USE db_dml_update;
+SET GLOBAL duckdb_dml_in_batch = OFF;
+--enable_query_log
+
+# -----------------------------------------------------------------
+# Setup: create and populate test table
+# -----------------------------------------------------------------
+--echo # Setup
+
+DROP TABLE IF EXISTS t1;
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  val VARCHAR(50)
+) ENGINE = DuckDB;
+
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+INSERT INTO t1 VALUES (4, 'four');
+INSERT INTO t1 VALUES (5, 'five');
+
+# -----------------------------------------------------------------
+# Test 1: UPDATE single row by PK
+# -----------------------------------------------------------------
+--echo # Test 1: UPDATE single row by PK
+
+UPDATE t1 SET val = 'ONE' WHERE id = 1;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 2: UPDATE by non-PK condition
+# -----------------------------------------------------------------
+--echo # Test 2: UPDATE by non-PK condition
+
+UPDATE t1 SET val = 'THREE' WHERE val = 'three';
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 3: UPDATE with range condition
+# -----------------------------------------------------------------
+--echo # Test 3: UPDATE with range condition
+
+UPDATE t1 SET val = 'big' WHERE id >= 4;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 4: UPDATE multiple columns
+# -----------------------------------------------------------------
+--echo # Test 4: UPDATE multiple columns
+
+UPDATE t1 SET id = 10, val = 'ten' WHERE id = 5;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 5: UPDATE all rows
+# -----------------------------------------------------------------
+--echo # Test 5: UPDATE all rows
+
+UPDATE t1 SET val = 'reset';
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 6: UPDATE with expression
+# -----------------------------------------------------------------
+--echo # Test 6: UPDATE with expression
+
+UPDATE t1 SET val = CONCAT('id_', id);
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 7: UPDATE in transaction — COMMIT
+# -----------------------------------------------------------------
+--echo # Test 7: UPDATE in transaction — COMMIT
+
+--disable_query_log
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+--enable_query_log
+
+BEGIN;
+UPDATE t1 SET val = 'UPDATED' WHERE id = 2;
+SELECT * FROM t1 ORDER BY id;
+COMMIT;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 8: UPDATE in transaction — ROLLBACK
+# -----------------------------------------------------------------
+--echo # Test 8: UPDATE in transaction — ROLLBACK
+
+--disable_query_log
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+--enable_query_log
+
+BEGIN;
+UPDATE t1 SET val = 'UPDATED' WHERE id = 2;
+SELECT * FROM t1 ORDER BY id;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 9: UPDATE — no matching rows
+# -----------------------------------------------------------------
+--echo # Test 9: UPDATE — no matching rows
+
+UPDATE t1 SET val = 'ghost' WHERE id = 999;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Cleanup
+# -----------------------------------------------------------------
+--disable_query_log
+DROP TABLE t1;
+DROP DATABASE db_dml_update;
+USE test;
+--enable_query_log

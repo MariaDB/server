@@ -135,7 +135,9 @@ static size_t global_copied_lines=0, global_unsupported_lines= 0;
 static size_t global_mariadbd_additions= 0;
 
 static PSI_memory_key key_memory_upgrade_config;
+#ifdef HAVE_PSI_FILE_INTERFACE
 static PSI_file_key key_file_cnf;
+#endif
 static size_t global_update_count= 0;
 static my_bool give_error_for_missing_files= 0;
 static my_bool opt_mariadbd_testing;
@@ -2079,7 +2081,7 @@ static int process_defaults(const char *conf_file,
       fprintf(stderr,
               "Cannot execute '%s' to test if the new option files "
               "works (error %d)\n"
-              "Try specifiying the full path for the MariaDB server with "
+              "Try specifying the full path for the MariaDB server with "
               "--mariadbd=...\n",
               used_name, (int) errno);
       finish_updated_files(&ctx, 1);

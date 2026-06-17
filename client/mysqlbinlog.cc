@@ -1742,7 +1742,7 @@ static struct my_option my_options[] =
    "applies to the first binlog passed on the command line. In GTID mode, "
    "multiple GTIDs can be passed as a comma separated list, where each must "
    "have a unique domain id. The list represents the gtid binlog state that "
-   "the client (another \"replica\" server) is aware of. Therefore, each GTID "
+   "the client (another \"slave\" server) is aware of. Therefore, each GTID "
    "is exclusive; only events after a given sequence number will be printed to "
    "allow users to receive events after their current state.",
    &start_pos_str, &start_pos_str, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0,

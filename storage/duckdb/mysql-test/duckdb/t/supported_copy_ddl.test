@@ -1,0 +1,61 @@
+--source ../include/have_duckdb.inc
+# Test for DDL which are supported by DuckDB using COPY algorithm
+--echo #
+--echo # RENAME TABLE WITH DIFFERENT DATABASES
+--echo #
+CREATE DATABASE db1;
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE = DuckDB;
+--error ER_GET_ERRMSG
+ALTER TABLE t RENAME TO db1.t, ALGORITHM = INPLACE;
+ALTER TABLE t RENAME TO db1.t;
+
+SHOW CREATE TABLE db1.t;
+SELECT run_in_duckdb("SELECT table_schema, table_name, column_name, column_default, is_nullable, data_type FROM information_schema.columns WHERE table_name = 't'");
+SELECT run_in_duckdb("SELECT table_name, constraint_type, constraint_text FROM duckdb_constraints WHERE table_name = 't'");
+DROP DATABASE db1;
+
+
+--echo #
+--echo # ALTER COLUMN ORDER
+--echo #
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE = DuckDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t ADD COLUMN c INT FIRST, ALGORITHM = INPLACE;
+ALTER TABLE t ADD COLUMN c INT FIRST;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t ADD COLUMN d INT AFTER a, ALGORITHM = INPLACE;
+ALTER TABLE t ADD COLUMN d INT AFTER a;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t MODIFY COLUMN c INT AFTER a, ALGORITHM = INPLACE;
+ALTER TABLE t MODIFY COLUMN c INT AFTER a;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t MODIFY COLUMN d INT FIRST, ALGORITHM = INPLACE;
+ALTER TABLE t MODIFY COLUMN d INT FIRST;
+DROP TABLE t;
+
+
+--echo #
+--echo # BUGFIX: Interrupt fetch query when copy ddl from DuckDB to DuckDB.
+--echo #
+CREATE TABLE t1(id INT AUTO_INCREMENT KEY, a INT) ENGINE = InnoDB;
+--disable_query_log
+INSERT INTO t1(a) VALUES(1);
+--let $i = 15
+while ($i)
+{
+  INSERT INTO t1(a) SELECT a FROM t1;
+  --dec $i
+}
+--enable_query_log
+ALTER TABLE t1 ENGINE = DuckDB;
+SET GLOBAL duckdb_copy_ddl_in_batch = OFF;
+--let $value1 = query_get_value(SHOW GLOBAL STATUS LIKE "duckdb_rows_insert_in_batch", Value, 1)
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM = COPY;
+--let $value2 = query_get_value(SHOW GLOBAL STATUS LIKE "duckdb_rows_insert_in_batch", Value, 1)
+--let $assert_text = Insert data in batch
+--let $assert_cond = $value2 > $value1
+--source include/assert.inc
+SET GLOBAL duckdb_copy_ddl_in_batch = default;
+DROP TABLE t1;
+
+--source ../include/cleanup_duckdb.inc

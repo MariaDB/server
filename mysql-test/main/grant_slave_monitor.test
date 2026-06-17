@@ -43,7 +43,7 @@ SELECT * from information_schema.slave_status;
 
 --echo #
 --echo # Verify that having REPLICATION SLAVE ADMIN doesn't allow SHOW RELAYLOG EVENTS
---echo # Expected error: Access denied; you need (at least one of) the REPLICA MONITOR
+--echo # Expected error: Access denied; you need (at least one of) the SLAVE MONITOR
 --echo #                 privilege(s) for this operation
 --echo #
 --disable_ps_protocol

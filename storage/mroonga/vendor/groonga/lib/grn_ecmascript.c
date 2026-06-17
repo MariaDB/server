@@ -1474,40 +1474,40 @@ static void yy_reduce(
         break;
       case 4: /* query ::= query NEGATIVE query_element */
 {
-  int weight;
+  int weight __attribute__((unused));
   GRN_INT32_POP(&efsi->weight_stack, weight);
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_ADJUST, 2);
 }
         break;
       case 5: /* query_element ::= ADJUST query_element */
 {
-  int weight;
+  int weight __attribute__((unused));
   GRN_INT32_POP(&efsi->weight_stack, weight);
 }
         break;
       case 6: /* query_element ::= RELATIVE_OP query_element */
 {
-  int mode;
+  int mode __attribute__((unused));
   GRN_INT32_POP(&efsi->mode_stack, mode);
 }
         break;
       case 7: /* query_element ::= IDENTIFIER RELATIVE_OP query_element */
 {
   int mode;
-  grn_obj *c;
+  grn_obj *c __attribute__((unused));
   GRN_PTR_POP(&efsi->column_stack, c);
   GRN_INT32_POP(&efsi->mode_stack, mode);
   switch (mode) {
   case GRN_OP_NEAR :
   case GRN_OP_NEAR2 :
     {
-      int max_interval;
+      int max_interval __attribute__((unused));
       GRN_INT32_POP(&efsi->max_interval_stack, max_interval);
     }
     break;
   case GRN_OP_SIMILAR :
     {
-      int similarity_threshold;
+      int similarity_threshold __attribute__((unused));
       GRN_INT32_POP(&efsi->similarity_threshold_stack, similarity_threshold);
     }
     break;

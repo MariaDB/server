@@ -755,7 +755,7 @@ then
 does not exist or is not executable. Please cd to the mysql installation
 directory and restart this script from there as follows:
 ./bin/mysqld_safe&
-See https://mariadb.com/kb/en/mysqld_safe for more information"
+See https://mariadb.com/docs/server/clients-and-utilities/legacy-clients-and-utilities/mariadbd_safe for more information"
   exit 1
 fi
 

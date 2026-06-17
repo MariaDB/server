@@ -1,0 +1,132 @@
+--echo #
+--echo # Cross-engine join: DuckDB + InnoDB via _mdb_scan replacement scan
+--echo #
+
+--echo
+--echo # Setup: create tables in both engines
+--echo
+
+CREATE DATABASE IF NOT EXISTS cross_engine_join CHARACTER SET utf8mb4;
+USE cross_engine_join;
+
+CREATE TABLE t_duck (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, name VARCHAR(50)) ENGINE=InnoDB;
+
+INSERT INTO t_duck VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+INSERT INTO t_inno VALUES (1, 'Alice'), (2, 'Bob'), (4, 'Dave');
+
+--echo
+--echo # (1) Basic INNER JOIN
+--echo
+
+--sorted_result
+SELECT d.id, d.val, i.name
+  FROM t_duck d JOIN t_inno i ON d.id = i.id
+  ORDER BY d.id;
+
+--echo
+--echo # (2) LEFT JOIN — DuckDB left, InnoDB right
+--echo
+
+--sorted_result
+SELECT d.id, d.val, i.name
+  FROM t_duck d LEFT JOIN t_inno i ON d.id = i.id
+  ORDER BY d.id;
+
+--echo
+--echo # (3) RIGHT JOIN — InnoDB left, DuckDB right
+--echo
+
+--sorted_result
+SELECT d.id, d.val, i.name
+  FROM t_duck d RIGHT JOIN t_inno i ON d.id = i.id
+  ORDER BY i.id;
+
+--echo
+--echo # (4) Cross join (cartesian product)
+--echo
+
+--sorted_result
+SELECT d.id AS did, i.id AS iid
+  FROM t_duck d, t_inno i
+  ORDER BY did, iid;
+
+--echo
+--echo # (5) Aggregation over cross-engine join
+--echo
+
+--sorted_result
+SELECT COUNT(*), SUM(d.id)
+  FROM t_duck d JOIN t_inno i ON d.id = i.id;
+
+--echo
+--echo # (6) Subquery with InnoDB table in WHERE
+--echo
+
+--sorted_result
+SELECT d.id, d.val
+  FROM t_duck d
+  WHERE d.id IN (SELECT id FROM t_inno)
+  ORDER BY d.id;
+
+--echo
+--echo # (7) Multiple data types
+--echo
+
+CREATE TABLE t_duck_types (
+  id INT PRIMARY KEY,
+  ti TINYINT,
+  bi BIGINT,
+  f FLOAT,
+  d DOUBLE,
+  dc DECIMAL(10,2),
+  dt DATE,
+  ts TIMESTAMP,
+  txt VARCHAR(100)
+) ENGINE=DuckDB;
+
+CREATE TABLE t_inno_types (
+  id INT PRIMARY KEY,
+  ti TINYINT,
+  bi BIGINT,
+  f FLOAT,
+  d DOUBLE,
+  dc DECIMAL(10,2),
+  dt DATE,
+  ts TIMESTAMP,
+  txt VARCHAR(100)
+) ENGINE=InnoDB;
+
+INSERT INTO t_duck_types VALUES (1, 10, 1000000, 1.5, 2.5, 99.99, '2025-01-15', '2025-01-15 10:30:00', 'duck');
+INSERT INTO t_inno_types VALUES (1, 20, 2000000, 3.5, 4.5, 88.88, '2025-06-20', '2025-06-20 14:00:00', 'inno');
+
+--sorted_result
+SELECT d.id, d.ti, d.bi, d.f, d.dc, d.txt, i.ti, i.bi, i.f, i.dc, i.txt
+  FROM t_duck_types d JOIN t_inno_types i ON d.id = i.id;
+
+--echo
+--echo # (8) NULL handling across engines
+--echo
+
+CREATE TABLE t_duck_null (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno_null (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=InnoDB;
+
+INSERT INTO t_duck_null VALUES (1, 'a'), (2, NULL);
+INSERT INTO t_inno_null VALUES (1, NULL), (2, 'b');
+
+--sorted_result
+SELECT d.id, d.val AS dval, i.val AS ival
+  FROM t_duck_null d JOIN t_inno_null i ON d.id = i.id
+  ORDER BY d.id;
+
+--echo
+--echo # Cleanup
+--echo
+
+DROP TABLE t_duck;
+DROP TABLE t_inno;
+DROP TABLE t_duck_types;
+DROP TABLE t_inno_types;
+DROP TABLE t_duck_null;
+DROP TABLE t_inno_null;
+DROP DATABASE cross_engine_join;

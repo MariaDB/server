@@ -33,7 +33,7 @@ insert into t1 values (2, repeat("a",3104));
 include/save_master_gtid.inc
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=4253]
-Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found 2 / 4, expected Partial_rows_log_event 1 / 4'
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found fragment 2 / 4, expected fragment 1 / 4'
 connection master;
 set debug_dbug= @old_dbug;
 connection slave;
@@ -50,7 +50,7 @@ insert into t1 values (3, repeat("a",3104));
 include/save_master_gtid.inc
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=4253]
-Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found 3 / 4, expected Partial_rows_log_event 2 / 4'
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found fragment 3 / 4, expected fragment 2 / 4'
 connection master;
 set debug_dbug= @old_dbug;
 connection slave;
@@ -67,7 +67,7 @@ insert into t1 values (4, repeat("a",3104));
 include/save_master_gtid.inc
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=4253]
-Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found Xid, expected Partial_rows_log_event 4 / 4'
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found type Xid, expected fragment 4 / 4'
 connection master;
 set debug_dbug= @old_dbug;
 connection slave;
@@ -108,6 +108,44 @@ include/save_master_gtid.inc
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1594]
 Last_SQL_Error = 'Relay log read failure: Could not parse Rows_log_event re-assembled from Partial_rows_log_events. The possible reasons are: the master's binary log is corrupted (you can check this by running 'mysqlbinlog' on the binary log), the slave's relay log is corrupted (you can check this by running 'mysqlbinlog' on the relay log), a network problem, or a bug in the master's or slave's MariaDB code. If you want to check the master's binary log or slave's relay log, you will be able to know their names by issuing 'SHOW SLAVE STATUS' on this slave.'
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.debug_dbug= @old_dbug;
+include/start_slave.inc
+#
+#
+# Error Case 5) Corrupt original_event_size (smaller than actual row
+# data size)
+connection master;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,too_small_orig_event_size";
+insert into t1 values (7, repeat("a",1536));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=4253]
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found row data size 1572, expected row data size 1316'
+connection master;
+set debug_dbug= @old_dbug;
+connection slave;
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.gtid_slave_pos= "0-1-7";
+include/start_slave.inc
+#
+#
+# Error Case 6) Emulate a 32-bit slave that can't re-construct a > 4GB
+# event
+connection slave;
+include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,mock_32_bit_slave";
+include/start_slave.inc
+connection master;
+insert into t1 values (8, repeat("a",1536));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1037]
+Last_SQL_Error = 'Can't reconstruct original row event size of 1572 on 32-bit system'
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 set @@global.debug_dbug= @old_dbug;

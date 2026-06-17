@@ -2356,8 +2356,22 @@ pk
 3
 DROP TABLE t2_fed, t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
-DROP SERVER s;
 # End of 10.5 tests
+#
+# MDEV-28374 UBSAN signed integer overflow PROCEDURE ANALYSE
+#
+CREATE TABLE t (a BIGINT);
+INSERT INTO t VALUES ('-9223372036854775808');
+INSERT INTO t SELECT * FROM t;
+SELECT * FROM t PROCEDURE ANALYSE(2);
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.a	-9223372036854775808	-9223372036854775808	20	20	0	0	-9223372036854776000.0000	0.0000	BIGINT(20) NOT NULL
+CREATE TABLE t_fed ENGINE=FEDERATED CONNECTION='s/t';
+SELECT * FROM t_fed PROCEDURE ANALYSE(2);
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t_fed.a	-9223372036854775808	-9223372036854775808	20	20	0	0	-9223372036854776000.0000	0.0000	BIGINT(20) NOT NULL
+DROP TABLE t, t_fed;
+DROP SERVER s;
 #
 # MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
 #
@@ -2393,3 +2407,4 @@ DROP DATABASE IF EXISTS federated;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+# End of 10.11 tests

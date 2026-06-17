@@ -40,7 +40,7 @@
 */
 
 /* on merge conflict, bump to a higher version again */
-#define VER "10.19"
+#define VER "10.20"
 
 /**
   First mysql version supporting sequences.
@@ -1434,7 +1434,6 @@ static void DB_error(MYSQL *mysql_arg, const char *when)
 }
 
 
-
 /*
   Prints out an error message and kills the process.
 
@@ -1497,7 +1496,6 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
 }
 
 
-
 /*
   Sends a query to server, optionally reads result, prints error message if
   some.
@@ -1508,24 +1506,43 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
     res             if non zero, result will be put there with
                     mysql_store_result()
     query           query to send to server
+    no_parse_error  Do not print error message for parse errors
 
   RETURN VALUES
     0               query sending and (if res!=0) result reading went ok
     1               error
+    -1              Syntax/parse error (for retry code)
 */
 
 static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
-                                         const char *query)
+                                         const char *query,
+                                         bool no_parse_error = false)
 {
   DBUG_ASSERT(mysql_con);
   if (mysql_query(mysql_con, query) ||
       (res && !((*res)= mysql_store_result(mysql_con))))
   {
+    if (no_parse_error && mysql_errno(mysql_con) == ER_PARSE_ERROR)
+      return -1;
     maybe_die(EX_MYSQLERR, "Couldn't execute '%s': %s (%d)",
-            query, mysql_error(mysql_con), mysql_errno(mysql_con));
+              query, mysql_error(mysql_con), mysql_errno(mysql_con));
     return 1;
   }
   return 0;
+}
+
+
+/*
+  Sends a query to server. In case of parse error try another syntax
+*/
+
+static int mysql_query_with_retry(MYSQL *mysql_con, MYSQL_RES **res,
+                                  const char *query1, const char *query2)
+{
+  int error;
+  if ((error= mysql_query_with_error_report(mysql_con, res, query1, 1)) == -1)
+    error= mysql_query_with_error_report(mysql_con, res, query2, 0);
+  return error;
 }
 
 
@@ -6394,8 +6411,9 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   }
   else
   {
-    if (mysql_query_with_error_report(mysql_con, &master,
-                                      "SHOW MASTER STATUS"))
+    if (mysql_query_with_retry(mysql_con, &master,
+                               "SHOW MASTER STATUS",
+                               "SHOW BINARY LOG STATUS"))
       return 1;
 
     row= mysql_fetch_row(master);
@@ -6454,9 +6472,9 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   print_comment(md_result_file, 0,
                 "\n--\n-- Alternately, following is the position of the binary "
                 "logging from SHOW MASTER STATUS at point of backup."
-                "\n-- Use this when creating a replica of the primary server "
+                "\n-- Use this when creating a slave of the master server "
                 "where the backup was made."
-                "\n-- The new server will be connecting to the primary server "
+                "\n-- The new server will be connecting to the master server "
                 "where the backup was taken."
                 "\n--\n\n");
   fprintf(md_result_file,
@@ -6569,9 +6587,9 @@ static int do_show_slave_status(MYSQL *mysql_con,
       "taken from SHOW SLAVE STATUS at the time of backup.\n"
     "-- Use this position when creating a clone or replacement "
       "server from where the backup was taken."
-    "\n-- This new server will connects to the same primary server(s).\n--\n"
+    "\n-- This new server will connects to the same master server(s).\n--\n"
     // defer print similarly to do_show_master_status()
-      "-- The replica GTID position corresponding to the below "
+      "-- The slave GTID position corresponding to the below "
         "CHANGE-MASTER settings is printed later in the file.\n"
   );
   if (use_gtid)
@@ -6673,8 +6691,9 @@ static int get_bin_log_name(MYSQL *mysql_con,
   MYSQL_RES *res;
   MYSQL_ROW row;
 
-  if (mysql_query(mysql_con, "SHOW MASTER STATUS") ||
-      !(res= mysql_store_result(mysql)))
+  if (mysql_query_with_retry(mysql_con, &res,
+                             "SHOW MASTER STATUS",
+                             "SHOW BINARY LOG STATUS"))
     return 1;
 
   if (!(row= mysql_fetch_row(res)))

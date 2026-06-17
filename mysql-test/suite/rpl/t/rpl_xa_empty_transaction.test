@@ -19,7 +19,7 @@
 #   Create XA transactions with various combinations of erroring transactional
 # or non-transactional statements. The binary log is examined to ensure all
 # XA components are written. Chain replication is used, i.e.
-# (primary->replica->replica), to ensure replica binlogging is consistent with
+# (master->slave->slave), to ensure slave binlogging is consistent with
 # manual execution. The transactional and non-transactional tables use InnoDB
 # and MyISAM, respectively.
 #

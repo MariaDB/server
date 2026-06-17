@@ -1,39 +1,39 @@
 #
 # Purpose:
-#   This test ensures that a replica's default value for Using_Gtid is set
-# correctly. Specifically, it should default to 'Slave_Pos' unless the primary
+#   This test ensures that a slave's default value for Using_Gtid is set
+# correctly. Specifically, it should default to 'Slave_Pos' unless the master
 # server does not support GTIDs (if its version is less than 10), in which case
-# the replica should fall back to 'No'.
+# the slave should fall back to 'No'.
 #
 # Methodology:
-#   Validate the value of Using_Gtid on replica initialization and after
+#   Validate the value of Using_Gtid on slave initialization and after
 # RESET SLAVE commands. Specifically, we validate the following use cases:
 #
-#   Case 1) A replica will initialize with Slave_Pos if the primary supports
+#   Case 1) A slave will initialize with Slave_Pos if the master supports
 #           GTIDs
-#   Case 2) A replica configured with the Using_Gtid=Slave_Pos issued
+#   Case 2) A slave configured with the Using_Gtid=Slave_Pos issued
 #           RESET SLAVE will preserve Using_Gtid without any informational
 #           messages.
-#   Case 3) A replica configured with Using_Gtid=No against a master which
+#   Case 3) A slave configured with Using_Gtid=No against a master which
 #           supports GTIDs will revert to Using_Gtid=Slave_Pos after issued
 #           RESET SLAVE and provide an informational note
-#   Case 4) A fresh replica targeting a primary which does not support GTIDs
+#   Case 4) A fresh slave targeting a master which does not support GTIDs
 #           will fall back to Using_Gtid=No when starting. An informational
 #           message should be logged.
-#   Case 5) A replica connected to a primary which does not support GTIDs
+#   Case 5) A slave connected to a master which does not support GTIDs
 #           should preserve Using_Gtid=No when issued RESET SLAVE. No message
 #           should be provided to the user.
-#   Case 6) A replica configured with Using_Gtid=Current_Pos should revert
+#   Case 6) A slave configured with Using_Gtid=Current_Pos should revert
 #           to Slave_Pos when issued RESET SLAVE. An informational message
 #           should be provided to the user.
 #   Case 7) The MTR include file rpl_change_topology.inc should implicitly
 #           set MASTER_USE_GTID=NO when provided with $rpl_master_log_file
 #   Case 8) The MTR include file reset_slave.inc should keep/delete GTID state
 #           when reset_slave_keep_gtid_state is set, respectively.
-#   Case 9) A replica issued CHANGE MASTER TO specified with log coordinates
+#   Case 9) A slave issued CHANGE MASTER TO specified with log coordinates
 #           but not master_use_gtid=No should warn the user that Using_Gtid is
 #           being changed to No.
-#   Case 10) A replica issued CHANGE MASTER TO specified with log coordinates
+#   Case 10) A slave issued CHANGE MASTER TO specified with log coordinates
 #           and master_use_gtid=Slave_Pos should warn the user that the log
 #           coordinates will be ignored.
 #
@@ -100,7 +100,7 @@ set SQL_LOG_BIN=1;
 
 
 --echo #
---echo # If the primary does not support GTIDs (version < 10), the replica
+--echo # If the master does not support GTIDs (version < 10), the slave
 --echo # should fall back to Using_Gtid=No on slave start, and should not
 --echo # revert Using_Gtid to Slave_Pos after RESET SLAVE
 
@@ -110,10 +110,10 @@ RESET SLAVE ALL;
 --replace_result $MASTER_MYPORT MASTER_MYPORT
 --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=1
 SET @saved_dbug= @@GLOBAL.debug_dbug;
-set @@global.debug_dbug= "d,mock_mariadb_primary_v5_in_get_master_version";
+set @@global.debug_dbug= "d,mock_mariadb_master_v5_in_get_master_version";
 --source include/start_slave.inc
 
---echo # Replica should detect at start that the primary does not support GTIDs
+--echo # Slave should detect at start that the master does not support GTIDs
 --echo # and fall-back to Using_Gtid=No
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
 if ($using_gtid != 'No')
@@ -121,7 +121,7 @@ if ($using_gtid != 'No')
     --die Using_Gtid has wrong value of '$using_gtid' when it should be 'No'
 }
 
---echo # Replica should have an informational message stating it is falling
+--echo # Slave should have an informational message stating it is falling
 --echo # back to Using_Gtid=No
 let $log_error_= `SELECT @@GLOBAL.log_error`;
 if(!$log_error_)
@@ -137,7 +137,7 @@ if(!$log_error_)
 --source include/stop_slave.inc
 RESET SLAVE;
 
---echo # Replica should know that the primary does not support GTIDs and
+--echo # Slave should know that the master does not support GTIDs and
 --echo # preserve Using_Gtid=No
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
 if ($using_gtid != 'No')
@@ -266,7 +266,7 @@ eval set global gtid_slave_pos="$old_slave_pos";
 --source include/start_slave.inc
 
 --echo #
---echo # A replica issued CHANGE MASTER TO specified with log coordinates but
+--echo # A slave issued CHANGE MASTER TO specified with log coordinates but
 --echo # not master_use_gtid=no should warn the user that Using_Gtid is being
 --echo # changed to No.
 --echo #
@@ -283,7 +283,7 @@ eval set global gtid_slave_pos="$old_slave_pos";
 
 
 --echo #
---echo # A replica issued CHANGE MASTER TO specified with log coordinates and
+--echo # A slave issued CHANGE MASTER TO specified with log coordinates and
 --echo # master_use_gtid=Slave_Pos should warn the user that the log
 --echo # coordinates will be ignored.
 --echo #

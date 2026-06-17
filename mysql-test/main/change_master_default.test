@@ -96,7 +96,7 @@ CHANGE MASTER TO
 
 # Recreate 'unset' to see later that it saves `DEFAULT`, not the options' values
 --disable_warnings
-  RESET REPLICA 'unset' ALL;
+  RESET SLAVE 'unset' ALL;
 --enable_warnings
 CHANGE MASTER 'unset' TO master_host='127.0.1.3';
 
@@ -142,8 +142,8 @@ FROM information_schema.slave_status ORDER BY connection_name;
 
 DROP PROCEDURE show_defaultable_fields;
 
-RESET REPLICA 'unset' ALL;
-RESET REPLICA 'defaulted' ALL;
-RESET REPLICA ALL;
+RESET SLAVE 'unset' ALL;
+RESET SLAVE 'defaulted' ALL;
+RESET SLAVE ALL;
 
 --echo # End of main.change_master_default

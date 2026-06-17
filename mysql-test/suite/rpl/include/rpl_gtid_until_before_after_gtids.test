@@ -1,5 +1,5 @@
 #
-# Helper file to run through test cases to validate that the replica will stop
+# Helper file to run through test cases to validate that the slave will stop
 # at the correct place when running STOP SLAVE UNTIL with options
 # SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS.
 #
@@ -23,7 +23,7 @@ if (!$ssu_before_gtids)
 --echo #
 --echo # Test Setup ($ssu_opt)
 
---echo # Clean primary and replica states
+--echo # Clean master and slave states
 --connection master
 --source include/save_master_gtid.inc
 --connection slave
@@ -60,7 +60,7 @@ if (!$t1_ctr)
 
 --echo #
 --echo #  Test Case 1 ($ssu_opt): For a single-dimensional binlog state and a
---echo # STOP SLAVE UNTIL gtid position with one GTID, the replica should
+--echo # STOP SLAVE UNTIL gtid position with one GTID, the slave should
 if ($ssu_before_gtids)
 {
 --echo # execute events up until the GTID is encountered, and immediately stop
@@ -112,7 +112,7 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
     --die Expected stop gtid != actual stop gtid
 }
 
---echo # Clean replica state
+--echo # Clean slave state
 --connection master
 --source include/save_master_gtid.inc
 --connection slave
@@ -182,7 +182,7 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
 
 --echo #
 --echo #  Test Case 3 ($ssu_opt): For a multi-dimensional binlog state and a
---echo # STOP SLAVE UNTIL gtid position with one GTID, the replica should
+--echo # STOP SLAVE UNTIL gtid position with one GTID, the slave should
 --echo # execute events from only the specified domain until the provided GTID
 if ($ssu_before_gtids)
 {
@@ -261,7 +261,7 @@ if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
 
 --echo #
 --echo #  Test Case 4 ($ssu_opt): For a multi-dimensional binlog state and a
---echo # STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
+--echo # STOP SLAVE UNTIL gtid position with multiple GTIDs, the slave should
 if ($ssu_before_gtids)
 {
 --echo # for each domain, execute events only up until its provided GTID, and

@@ -86,26 +86,35 @@ operations by purge as the previous, when it seems to be growing huge.
 throughput clearly from about 100000. */
 #define BTR_CUR_FINE_HISTORY_LENGTH	100000
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** Number of searches down the B-tree in btr_cur_t::search_leaf(). */
-ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_non_sea;
-/** Old value of btr_cur_n_non_sea.  Copied by
-srv_refresh_innodb_monitor_stats().  Referenced by
-srv_printf_innodb_monitor(). */
-ulint	btr_cur_n_non_sea_old;
-/** Number of successful adaptive hash index lookups in
-btr_cur_t::search_leaf(). */
-ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_sea;
-/** Old value of btr_cur_n_sea.  Copied by
-srv_refresh_innodb_monitor_stats().  Referenced by
-srv_printf_innodb_monitor(). */
-ulint	btr_cur_n_sea_old;
-#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+Atomic_counter<uint64_t> btr_cur_n_index_lock_upgrades{0};
+/** Number of times btr_cur_pessimistic_insert() was called */
+Atomic_counter<uint64_t> btr_cur_pessimistic_insert_calls{0};
+/** Number of times btr_cur_pessimistic_update() was called */
+Atomic_counter<uint64_t> btr_cur_pessimistic_update_calls{0};
+/** Number of times btr_cur_pessimistic_delete() was called */
+Atomic_counter<uint64_t> btr_cur_pessimistic_delete_calls{0};
+/** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_underflows{0};
+/** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_overflows{0};
 #endif /* UNIV_DEBUG */
+
+/** innodb_index_shrink: whether InnoDB may shrink a B-tree by merging or
+reorganizing pages on a record-growing UPDATE. ON (the default) keeps the
+historical behavior. When OFF, btr_cur_optimistic_update() gates its
+DB_UNDERFLOW return behind actual record shrinkage (so a freshly split page is
+not re-merged just because an update grew a record), and
+btr_cur_pessimistic_update() skips btr_cur_insert_if_possible() on the
+DB_OVERFLOW fallback for a growing record when an uncompressed page cannot
+satisfy BTR_CUR_PAGE_REORGANIZE_LIMIT after a reorganize, falling through to a
+page split instead (only size-growing UPDATEs pay the cost of an early page
+split). */
+my_bool btr_cur_index_shrink;
 
 /** In the optimistic insert, if the insert does not fit, but this much space
 can be released by page reorganize, then it is reorganized */
@@ -1078,6 +1087,24 @@ static int btr_latch_prev(rw_lock_type_t rw_latch,
   return ret;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+/** Increment successful adaptive hash index lookups */
+static inline void btr_ahi_inc_searches(const mtr_t &mtr) noexcept
+{
+  mtr.trx->n_sea++;
+  if (ha_handler_stats *stats= mtr.trx->active_handler_stats)
+    stats->ahi_searches++;
+}
+
+/** Increment adaptive hash index misses (B-tree fallback) */
+static inline void btr_ahi_inc_searches_btree(const mtr_t &mtr) noexcept
+{
+  mtr.trx->n_non_sea++;
+  if (ha_handler_stats *stats= mtr.trx->active_handler_stats)
+    stats->ahi_searches_btree++;
+}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
                                btr_latch_mode latch_mode, mtr_t *mtr)
 {
@@ -1146,12 +1173,12 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
     ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
     DBUG_EXECUTE_IF("btr_cur_n_sea_delay", my_sleep(200000););
-    ++btr_cur_n_sea;
+    btr_ahi_inc_searches(*mtr);
 
     return DB_SUCCESS;
   }
   else
-    ++btr_cur_n_non_sea;
+    btr_ahi_inc_searches_btree(*mtr);
 # endif
 #endif
 
@@ -1430,7 +1457,7 @@ release_tree:
       ut_ad(!index()->table->is_temporary());
       if (!rec_is_metadata(page_cur.rec, *index()) &&
           index()->search_info.hash_analysis_useful())
-        search_info_update();
+        search_info_update(*mtr);
     }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -1600,6 +1627,7 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
   index_lock *lock= static_cast<index_lock*>(slot.object);
   lock->u_x_upgrade(SRW_LOCK_CALL);
   slot.type= MTR_MEMO_X_LOCK;
+  ut_d(++btr_cur_n_index_lock_upgrades);
 }
 
 /** Mark a non-leaf page "least recently used", but avoid invoking
@@ -1670,7 +1698,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
       else if (index()->table->is_temporary());
       else if (!rec_is_metadata(page_cur.rec, *index()) &&
                index()->search_info.hash_analysis_useful())
-        search_info_update();
+        search_info_update(*mtr);
 #endif /* BTR_CUR_HASH_ADAPT */
       err= DB_SUCCESS;
     }
@@ -2523,7 +2551,7 @@ fail_err:
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else if (!index->table->is_temporary()) {
-		btr_search_update_hash_on_insert(cursor, reorg);
+		btr_search_update_hash_on_insert(cursor, reorg, *mtr);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2573,6 +2601,8 @@ btr_cur_pessimistic_insert(
 	big_rec_t*	big_rec_vec	= NULL;
 	bool		inherit = false;
 	uint32_t	n_reserved	= 0;
+
+	ut_d(++btr_cur_pessimistic_insert_calls);
 
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
@@ -2696,7 +2726,7 @@ btr_cur_pessimistic_insert(
 			ut_ad(flags & BTR_NO_LOCKING_FLAG);
 			ut_ad(!(flags & BTR_CREATE_FLAG));
 		} else if (!index->table->is_temporary()) {
-			btr_search_update_hash_on_insert(cursor, false);
+			btr_search_update_hash_on_insert(cursor, false, *mtr);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 		if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
@@ -3606,9 +3636,15 @@ any_extern:
 	if (UNIV_UNLIKELY(page_get_data_size(page)
 			  - old_rec_size + new_rec_size
 			  < BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
-		/* The page would become too empty */
-		err = DB_UNDERFLOW;
-		goto func_exit;
+		/* The page would become too empty. When innodb_index_shrink
+		is OFF, only treat this as DB_UNDERFLOW if the record is
+		actually shrinking; otherwise a freshly split page would be
+		re-merged even though the update is growing the record. */
+		if (new_rec_size < old_rec_size
+		    || btr_cur_index_shrink) {
+			err = DB_UNDERFLOW;
+			goto func_exit;
+		}
 	}
 
 	/* We do not attempt to reorganize if the page is compressed.
@@ -3798,6 +3834,8 @@ btr_cur_pessimistic_update(
 	block = btr_cur_get_block(cursor);
 	index = cursor->index();
 
+	ut_d(++btr_cur_pessimistic_update_calls);
+
 	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK |
 					 MTR_MEMO_SX_LOCK));
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
@@ -3825,8 +3863,12 @@ btr_cur_pessimistic_update(
 
 	switch (err) {
 	case DB_ZIP_OVERFLOW:
+		break;
 	case DB_UNDERFLOW:
+		ut_d(++btr_cur_pessimistic_update_optim_err_underflows);
+		break;
 	case DB_OVERFLOW:
+		ut_d(++btr_cur_pessimistic_update_optim_err_overflows);
 		break;
 	default:
 	err_exit:
@@ -3993,8 +4035,35 @@ btr_cur_pessimistic_update(
 		goto return_after_reservations;
 	}
 
-	rec = btr_cur_insert_if_possible(cursor, new_entry,
-					 offsets, offsets_heap, n_ext, mtr);
+	/* Force a page split instead of the in-place reinsert below when
+	(cheapest checks first; the most expensive one last):
+	  - optimistic update returned DB_OVERFLOW (the fit problem this
+	    optimization addresses; DB_UNDERFLOW means the page is too sparse
+	    and the legacy compress path is the right answer);
+	  - innodb_index_shrink is OFF (the opt-in);
+	  - uncompressed page: the reorganize-fit check uses uncompressed-page
+	    accounting and is not meaningful for ROW_FORMAT=COMPRESSED;
+	  - page still has at least one record after the delete above (so
+	    the forced split would produce at least 1+1, not 0+1);
+	  - the page is too full to satisfy BTR_CUR_PAGE_REORGANIZE_LIMIT
+	    after a reorganize, so the legacy in-place retry would just churn;
+	  - the new record is strictly larger than the old one (only
+	    size-growing UPDATEs should pay the cost of an early split). This
+	    rec_get_converted_size() walks every field, so it is checked last.
+	rec=NULL falls through to the split path. */
+	if (optim_err == DB_OVERFLOW
+	    && !btr_cur_index_shrink
+	    && !buf_block_get_page_zip(block)
+	    && page_get_n_recs(block->page.frame) > 0
+	    && page_get_max_insert_size_after_reorganize(
+	        block->page.frame, 1) < BTR_CUR_PAGE_REORGANIZE_LIMIT
+	    && rec_get_converted_size(index, new_entry, n_ext)
+	       > rec_offs_size(*offsets)) {
+		rec = NULL;
+	} else {
+		rec = btr_cur_insert_if_possible(cursor, new_entry,
+						 offsets, offsets_heap, n_ext, mtr);
+	}
 
 	if (rec) {
 		page_cursor->rec = rec;
@@ -4509,6 +4578,8 @@ btr_cur_pessimistic_delete(
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	index = btr_cur_get_index(cursor);
+
+	ut_d(++btr_cur_pessimistic_delete_calls);
 
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
 	ut_ad(!dict_index_is_online_ddl(index)

@@ -59,7 +59,7 @@ set global binlog_row_image=MINIMAL;
 
 
 --echo #
---echo # MDEV-31755 Replica's DML event deadlocks wit online alter table
+--echo # MDEV-31755 Slave's DML event deadlocks wit online alter table
 --echo #
 --echo # Three threads for SA,U,CA
 
@@ -90,7 +90,7 @@ select * from t;
 --connection master
 drop table t;
 
---echo # MDEV-31838 Assertion fails on replica upon parallel
+--echo # MDEV-31838 Assertion fails on slave upon parallel
 --echo # replication with two-phase alter and MINIMAL row image
 create table t (id int, a int, primary key(id)) engine=aria;
 insert into t values (1,0);

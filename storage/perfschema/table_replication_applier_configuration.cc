@@ -58,7 +58,7 @@ table_replication_applier_configuration::m_share=
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_configuration("
   "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'Replication channel name.',"
-  "DESIRED_DELAY INTEGER not null comment 'Target number of seconds the replica should be delayed to the master.')") },
+  "DESIRED_DELAY INTEGER not null comment 'Target number of seconds the slave should be delayed to the master.')") },
   false, /* m_perpetual */
   false, /* m_optional */
   &m_share_state

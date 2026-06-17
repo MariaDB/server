@@ -9,6 +9,11 @@
 --source include/have_innodb.inc
 --source include/have_mariabackup.inc
 --source include/have_ssl_communication.inc
+# This test asserts that the initial cluster-bootstrap SST was SSL-encrypted by
+# grepping the donor's error log. That is a one-time event, so the cluster must
+# be freshly bootstrapped on every run (e.g. with --repeat) for node_2 to SST
+# again. Force a server restart before the test.
+--source include/force_restart.inc
 
 SELECT 1;
 

@@ -567,10 +567,6 @@ void srv_init_purge_tasks();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
-#ifdef BTR_CUR_HASH_ADAPT
-	ulint innodb_ahi_hit;
-	ulint innodb_ahi_miss;
-#endif /* BTR_CUR_HASH_ADAPT */
 	innodb_async_io_stats_t async_read_stats;
 	innodb_async_io_stats_t async_write_stats;
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */

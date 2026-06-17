@@ -30,7 +30,7 @@ set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 set alter_algorithm='DEFAULT';
 set use_stat_tables='NEVER';
-
+set path 'CURRENT_SCHEMA';
 
 --
 -- Upgrade mysql.column_stats table early because its quite noisy otherwise

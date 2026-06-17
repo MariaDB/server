@@ -174,6 +174,7 @@ extern PSI_memory_key	mem_key_other;
 extern PSI_memory_key	mem_key_row_log_buf;
 extern PSI_memory_key	mem_key_row_merge_sort;
 extern PSI_memory_key	mem_key_std;
+extern PSI_memory_key	mem_key_trx_sys_t_rw_trx_ids;
 
 /** Setup the internal objects needed for UT_NEW() to operate.
 This must be called before the first call to UT_NEW(). */

@@ -851,3 +851,24 @@ insert into t values (0, '');
 replace into t values (0, '123');
 drop table t;
 # End of 10.11 tests
+#
+# MDEV-39559: Assertion `b` failed in `my_strnncoll_xxxx_nopad_ci`
+#
+SET @old_trx_iso_level := @@session.transaction_isolation;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+CREATE TABLE t (x TEXT, UNIQUE(x))
+ENGINE=InnoDB
+CHARACTER SET utf8mb3 COLLATE utf8mb3_general_nopad_ci
+SELECT '' AS x;
+DROP TABLE t;
+SET @@session.transaction_isolation = @old_trx_iso_level;
+create table t1 (b text, key(b(10))) engine=myisam
+character set utf8mb3 collate utf8mb3_general_nopad_ci
+select '' as b union all select '0' as b union all select '1' as b;
+select * from t1 force index(b) where b >= '' and b < '2';
+b
+
+0
+1
+drop table t1;
+# End of 11.8 tests

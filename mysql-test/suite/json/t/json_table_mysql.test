@@ -84,6 +84,73 @@ select * from
 #eval $query;
 #eval explain  $query;
 
+select * from
+  json_table(
+    '[{"name":"Jeans","sizes":[32,34,36],"details":{"fit":"regular"},"flag":true,"jsnull":null},
+      {"name":"T-Shirt","sizes":["Medium","Large"],"details":{"fit":"loose"},"flag":false,"jsnull":null},
+      {"name":"Cellphone"}]',
+    '$[*]' columns (name varchar(10) path '$.name',
+             sizes varchar(100) format json path '$.sizes',
+             details text format json path '$.details',
+             flag varchar(10) format json path '$.flag',
+             jsnull varchar(10) format json path '$.jsnull')
+  ) as jt;
+
+select * from
+  json_table(
+    '[{"doc":[1,2]},{"doc":{"k":"v"}},{"doc":null},{}]',
+    '$[*]' columns (doc json format json path '$.doc' null on empty)
+  ) as jt;
+
+SELECT HEX(doc) FROM
+  json_table(
+    '[{"doc":[1,2]},{}]',
+    '$[*]' columns (doc blob format json path '$.doc' null on empty)
+  ) as jt;
+
+select * from
+  json_table(
+    '[{"name":"Jeans","sizes":[32,34,36]},{"name":"Cellphone"}]',
+    '$[*]' columns (name varchar(10) path '$.name',
+             sizes varchar(100) format json path '$.sizes'
+               default '[99]' on empty)
+  ) as jt;
+
+--error ER_JSON_TABLE_MULTIPLE_MATCHES
+select * from
+  json_table(
+    '[{"a":[1]},{"a":[2]}]',
+    '$' columns (a varchar(20) format json path '$[*].a' error on error)
+  ) as jt;
+
+--error ER_WRONG_USAGE
+select * from
+  json_table(
+    '[{"a":[1,2,3]}]',
+    '$[*]' columns (a int format json path '$.a')
+  ) as jt;
+
+create view v_fmt as
+select * from
+  json_table(
+    '[{"sizes":[1,2]}]',
+    '$[*]' columns (sizes varchar(20) format json path '$.sizes')
+  ) as jt;
+select * from v_fmt;
+show create view v_fmt;
+drop view v_fmt;
+
+create view v_fmt_cs as
+select * from
+  json_table(
+    '[{"sizes":[1,2]}]',
+    '$[*]' columns (
+      sizes varchar(20) character set utf8mb4 collate utf8mb4_bin
+        format json path '$.sizes')
+  ) as jt;
+show create view v_fmt_cs;
+drop view v_fmt_cs;
+
 --error ER_JSON_TABLE_ERROR_ON_FIELD
 select * from
   json_table(

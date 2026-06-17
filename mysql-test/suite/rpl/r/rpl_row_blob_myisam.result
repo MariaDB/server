@@ -161,7 +161,7 @@ DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 connection slave;
 #
-# MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+# MDEV-30985 Slave stops with error on ALTER ONLINE with Geometry Types
 #
 connection master;
 CREATE TABLE t(txt TEXT DEFAULT '111111111', blb LONGBLOB AS (txt));

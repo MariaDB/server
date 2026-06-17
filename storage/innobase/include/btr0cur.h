@@ -752,7 +752,9 @@ struct btr_cur_t {
                                   mtr_t &mtr);
 
 #ifdef BTR_CUR_HASH_ADAPT
-  void search_info_update() const noexcept;
+  /** Update adaptive hash index based on search pattern.
+  @param  mtr  mini-transaction (to update trx AHI statistics) */
+  void search_info_update(const mtr_t &mtr) const noexcept;
 
   /** Check if a guessed position for a tree cursor is correct.
   @param tuple  search key
@@ -814,26 +816,26 @@ earlier version of the row.  In rollback we are not allowed to free an
 inherited external field. */
 #define BTR_EXTERN_INHERITED_FLAG	64U
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** Number of searches down the B-tree in btr_cur_t::search_leaf(). */
-extern ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_non_sea;
-/** Old value of btr_cur_n_non_sea.  Copied by
-srv_refresh_innodb_monitor_stats().  Referenced by
-srv_printf_innodb_monitor(). */
-extern ulint	btr_cur_n_non_sea_old;
-/** Number of successful adaptive hash index lookups in
-btr_cur_t::search_leaf(). */
-extern ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_sea;
-/** Old value of btr_cur_n_sea.  Copied by
-srv_refresh_innodb_monitor_stats().  Referenced by
-srv_printf_innodb_monitor(). */
-extern ulint	btr_cur_n_sea_old;
-#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 extern uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+extern Atomic_counter<uint64_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_pessimistic_insert() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_insert_calls;
+/** Number of times btr_cur_pessimistic_update() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_calls;
+/** Number of times btr_cur_pessimistic_delete() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_delete_calls;
+/** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_underflows;
+/** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_overflows;
 #endif /* UNIV_DEBUG */
+
+/** innodb_index_shrink; see the comment in btr0cur.cc */
+extern my_bool btr_cur_index_shrink;
 
 #include "btr0cur.inl"
 

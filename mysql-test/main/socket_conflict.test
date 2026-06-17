@@ -1,5 +1,7 @@
 --source include/not_windows.inc
 --source include/not_embedded.inc
+# mysqld refuses to run as root normally.
+--source include/not_as_root.inc
 
 --echo #
 --echo # MDEV-5479: Prevent mysqld from unlinking a Unix socket

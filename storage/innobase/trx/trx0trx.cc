@@ -184,6 +184,7 @@ struct TrxFactory {
 		new(&trx->read_view) ReadView();
 
 		trx->rw_trx_hash_pins = 0;
+		ut_d(trx->rw_trx_ids_slot = std::numeric_limits<uint32_t>::max());
 		trx_init(trx);
 
 		trx->dict_operation_lock_mode = false;
@@ -376,11 +377,23 @@ void trx_t::free() noexcept
   autoinc_locks.make_undefined();
   ut_ad(!active_handler_stats);
 
-  if (size_t n_page_gets= pages_accessed)
-  {
-    pages_accessed= 0;
-    buf_pool.stat.n_page_gets+= n_page_gets;
-  }
+  if (pages_accessed)
+    buf_pool.stat.n_page_gets+= pages_accessed;
+#ifdef BTR_CUR_HASH_ADAPT
+  if (n_sea)
+    btr_search.hit_count+= n_sea;
+  if (n_non_sea)
+    btr_search.miss_count+= n_non_sea;
+  if (n_ahi_rows_added)
+    btr_search.rows_added+= n_ahi_rows_added;
+  if (n_ahi_pages_added)
+    btr_search.pages_added+= n_ahi_pages_added;
+  n_sea= 0;
+  n_non_sea= 0;
+  n_ahi_rows_added= 0;
+  n_ahi_pages_added= 0;
+#endif
+  pages_accessed= 0;
 
   ut_ad(!n_mysql_tables_in_use);
   ut_ad(!mysql_log_file_name);
@@ -406,6 +419,7 @@ void trx_t::free() noexcept
   MEM_NOACCESS(&skip_lock_inheritance_and_n_ref,
                sizeof skip_lock_inheritance_and_n_ref);
   /* do not poison mutex */
+  MEM_NOACCESS(&rw_trx_ids_slot, sizeof rw_trx_ids_slot);
   MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&max_inactive_id, sizeof id);
   MEM_NOACCESS(&state, sizeof state);
@@ -702,8 +716,7 @@ static dberr_t trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx->start_time_micro= start_time_micro;
   trx->dict_operation= undo->dict_operation;
 
-  trx_sys.rw_trx_hash.insert(trx);
-  trx_sys.rw_trx_hash.put_pins(trx);
+  trx_sys.resurrect_rw(trx);
   if (trx_state_eq(trx, TRX_STATE_ACTIVE))
     *rows_to_undo+= trx->undo_no;
   return trx_resurrect_table_locks(trx, *undo);
@@ -1143,6 +1156,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
   binlog_oob_context *binlog_ctx= nullptr;
   if (UNIV_LIKELY(undo != nullptr))
   {
+    trx_id_t end;
     MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
     /* We have to hold exclusive rseg->latch because undo log headers have
@@ -1169,8 +1183,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
       thread can also fetch redo log records from rseg with greater last commit
       number before rseg with lesser one. */
       purge_sys.queue_lock();
-      trx_sys.assign_new_trx_no(this);
-      const trx_id_t end{rw_trx_hash_element->no};
+      end= trx_sys.assign_new_trx_no(this);
       rseg->last_page_no= undo->hdr_page_no;
       /* end cannot be less than anything in rseg. User threads only
       produce events when a rollback segment is empty. */
@@ -1179,7 +1192,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
       purge_sys.queue_unlock();
     }
     else
-      trx_sys.assign_new_trx_no(this);
+      end= trx_sys.assign_new_trx_no(this);
 
     /* Include binlog data in the commit record, if any. */
     if (active_commit_ordered)
@@ -1189,7 +1202,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
     /* Change the undo log segment state from TRX_UNDO_ACTIVE, to
     define the transaction as committed in the file based domain,
     at mtr->commit_lsn() obtained in mtr->commit() below. */
-    trx_purge_add_undo_to_history(this, undo, mtr);
+    trx_purge_add_undo_to_history(this, undo, mtr, end);
   done:
     rseg->release();
     rseg->latch.wr_unlock();
@@ -1280,7 +1293,7 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
 
-  ut_ad(!trx->mysql_thd || !trx->mysql_thd->tx_read_only);
+  ut_ad(!trx->read_only);
 
   const bool flush= srv_flush_log_at_trx_commit & 1;
   if (!log_sys.is_mmap())
@@ -1539,11 +1552,24 @@ bool trx_t::commit_cleanup() noexcept
     for (auto &t : mod_tables)
       delete t.second.bulk_store;
 
-  if (size_t n_page_gets= pages_accessed)
-  {
-    pages_accessed= 0;
-    buf_pool.stat.n_page_gets+= n_page_gets;
-  }
+  if (pages_accessed)
+    buf_pool.stat.n_page_gets+= pages_accessed;
+#ifdef BTR_CUR_HASH_ADAPT
+  if (n_sea)
+    btr_search.hit_count+= n_sea;
+  if (n_non_sea)
+    btr_search.miss_count+= n_non_sea;
+  if (n_ahi_rows_added)
+    btr_search.rows_added+= n_ahi_rows_added;
+  if (n_ahi_pages_added)
+    btr_search.pages_added+= n_ahi_pages_added;
+  n_sea= 0;
+  n_non_sea= 0;
+  n_ahi_rows_added= 0;
+  n_ahi_pages_added= 0;
+#endif
+  pages_accessed= 0;
+
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   *detailed_error= '\0';

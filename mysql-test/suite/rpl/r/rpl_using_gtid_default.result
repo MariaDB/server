@@ -30,23 +30,23 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 include/start_slave.inc
 # Clear SHOW WARNINGS
 #
-# If the primary does not support GTIDs (version < 10), the replica
+# If the master does not support GTIDs (version < 10), the slave
 # should fall back to Using_Gtid=No on slave start, and should not
 # revert Using_Gtid to Slave_Pos after RESET SLAVE
 include/stop_slave.inc
 RESET SLAVE ALL;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=1;
 SET @saved_dbug= @@GLOBAL.debug_dbug;
-set @@global.debug_dbug= "d,mock_mariadb_primary_v5_in_get_master_version";
+set @@global.debug_dbug= "d,mock_mariadb_master_v5_in_get_master_version";
 include/start_slave.inc
-# Replica should detect at start that the primary does not support GTIDs
+# Slave should detect at start that the master does not support GTIDs
 # and fall-back to Using_Gtid=No
-# Replica should have an informational message stating it is falling
+# Slave should have an informational message stating it is falling
 # back to Using_Gtid=No
 FOUND 1 /Falling back to Using_Gtid=No because master does not support GTIDs/ in mysqld.2.err
 include/stop_slave.inc
 RESET SLAVE;
-# Replica should know that the primary does not support GTIDs and
+# Slave should know that the master does not support GTIDs and
 # preserve Using_Gtid=No
 # 'No' was not reverted and therefore no note should be added
 SHOW WARNINGS;
@@ -111,7 +111,7 @@ include/reset_slave.inc
 set global gtid_slave_pos="old_slave_pos";
 include/start_slave.inc
 #
-# A replica issued CHANGE MASTER TO specified with log coordinates but
+# A slave issued CHANGE MASTER TO specified with log coordinates but
 # not master_use_gtid=no should warn the user that Using_Gtid is being
 # changed to No.
 #
@@ -125,7 +125,7 @@ Warnings:
 Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
 include/start_slave.inc
 #
-# A replica issued CHANGE MASTER TO specified with log coordinates and
+# A slave issued CHANGE MASTER TO specified with log coordinates and
 # master_use_gtid=Slave_Pos should warn the user that the log
 # coordinates will be ignored.
 #

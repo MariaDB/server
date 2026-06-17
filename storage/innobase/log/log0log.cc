@@ -618,7 +618,8 @@ void log_t::set_buffered(bool buffered) noexcept
       high_level_read_only)
     return;
   log_resize_acquire();
-  if (!resize_in_progress() && is_opened() && bool(log_buffered) != buffered)
+  if (!resize_in_progress() && is_opened() && !resize_log.is_opened() &&
+      bool(log_buffered) != buffered)
   {
     if (const dberr_t err= log.close())
       log_close_failed(err);
@@ -640,7 +641,7 @@ void log_t::set_write_through(bool write_through)
   if (is_mmap() || high_level_read_only || recv_sys.rpo)
     return;
   log_resize_acquire();
-  if (!resize_in_progress() && is_opened() &&
+  if (!resize_in_progress() && is_opened() && !resize_log.is_opened() &&
       bool(log_write_through) != write_through)
   {
     os_file_close_func(log.m_file);
@@ -1544,13 +1545,14 @@ void log_t::persist(lsn_t lsn) noexcept
   ut_ad(!write_lock.is_owner());
   ut_ad(!flush_lock.is_owner());
   ut_ad(latch_have_wr());
-  ut_ad(is_opened() == archive);
 
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
   if (old > lsn)
     return;
 
+  ut_ad(is_mmap_writeable());
+  ut_ad(is_opened() == archive);
   const size_t start(calc_lsn_offset(old));
   const size_t end(calc_lsn_offset(lsn));
 

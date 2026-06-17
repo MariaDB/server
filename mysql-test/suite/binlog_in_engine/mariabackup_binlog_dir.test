@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_innodb_binlog.inc
+--source include/have_mariabackup_binary.inc
 
 --source include/reset_master.inc
 

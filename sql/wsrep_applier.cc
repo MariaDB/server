@@ -249,6 +249,7 @@ static int apply_events(THD*        thd,
     }
 
     typ= ev->get_type_code();
+    WSREP_DEBUG("applying event %d, type %d, buf_len %zu", event, typ, buf_len);
 
     switch (typ) {
     case FORMAT_DESCRIPTION_EVENT:

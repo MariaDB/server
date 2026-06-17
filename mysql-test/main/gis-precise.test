@@ -500,4 +500,6 @@ SELECT ST_CROSSES( ST_GEOMFROMTEXT('POLYGON ((59 18,67 18,67 13,59 13,59 18)) ')
 --echo # Gcalc_function::count_internal and Assertion `(0)' failed in
 --echo # Item_func_spatial_precise_rel::val_bool
 --echo #
-SELECT ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))'));
+SELECT ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))')) a;
+
+--echo # End of 12.3 tests

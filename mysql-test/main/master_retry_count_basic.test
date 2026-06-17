@@ -31,9 +31,9 @@ SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
 SELECT Connection_name, Master_Retry_Count
   FROM information_schema.SLAVE_STATUS;
 
---echo # Keep specified config on RESET REPLICA
-RESET REPLICA 'named';
-RESET REPLICA;
+--echo # Keep specified config on RESET SLAVE
+RESET SLAVE 'named';
+RESET SLAVE;
 SELECT Connection_name, Master_Retry_Count
   FROM information_schema.SLAVE_STATUS;
 
@@ -73,4 +73,4 @@ CHANGE MASTER TO master_retry_count='5';
 CHANGE MASTER 'named' TO master_retry_count='5';
 
 --echo # Cleanup
-RESET REPLICA 'named' ALL;
+RESET SLAVE 'named' ALL;

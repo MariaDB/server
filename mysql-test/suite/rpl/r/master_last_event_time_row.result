@@ -13,9 +13,9 @@ SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
 #
 # Test *_last_event_time is updated at proper place.
 # Master_last_event_time should be updated by the IO thread when reading
-# in a new transaction from the primary.
+# in a new transaction from the master.
 # Slave_last_event_time should be updated by the SQL thread
-#   1) immediately upon seeing the first transaction if the replica is
+#   1) immediately upon seeing the first transaction if the slave is
 #      starting fresh, or
 #   2) after committing a transaction.
 #
@@ -36,7 +36,7 @@ connection server_2;
 include/sync_io_with_master.inc
 # For the first event, at execution start, Slave_last_event_time should
 # be updated to be 1 second prior to the time that the first transaction
-# was binlogged on the primary. This is to represent that the slave is
+# was binlogged on the master. This is to represent that the slave is
 # otherwise up-to-date. Note the table is locked to prevent the
 # transaction from committing (and thereby progressing
 # Slave_last_event_time to represent commit-time).
@@ -44,7 +44,7 @@ connect  server_2_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
 lock tables t1 write;
 connection server_2;
 start slave sql_thread;
-# Waiting for replica to start executing the transaction (yet get stuck on the table lock)
+# Waiting for slave to start executing the transaction (yet get stuck on the table lock)
 connection server_2_2;
 unlock tables;
 connection server_2;

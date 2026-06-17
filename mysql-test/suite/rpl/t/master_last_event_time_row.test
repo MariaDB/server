@@ -23,9 +23,9 @@ SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
 --echo #
 --echo # Test *_last_event_time is updated at proper place.
 --echo # Master_last_event_time should be updated by the IO thread when reading
---echo # in a new transaction from the primary.
+--echo # in a new transaction from the master.
 --echo # Slave_last_event_time should be updated by the SQL thread
---echo #   1) immediately upon seeing the first transaction if the replica is
+--echo #   1) immediately upon seeing the first transaction if the slave is
 --echo #      starting fresh, or
 --echo #   2) after committing a transaction.
 --echo #
@@ -63,7 +63,7 @@ if (`SELECT ($mle_time_unix < $t1_time_begin)`)
 {
   --echo # Expected timestamp (master binlog time): $t1_time_begin
   --echo # Reported Master_last_event_time: $mle_time_unix ($mle_time)
-  --die Master_last_event_time did not correspond to time that the transaction was binlogged on primary
+  --die Master_last_event_time did not correspond to time that the transaction was binlogged on master
 }
 
 --let $slave_time= `select Slave_last_event_time from information_schema.slave_status`
@@ -83,7 +83,7 @@ if (`select strcmp("$time_diff", "NULL") != 0`)
 
 --echo # For the first event, at execution start, Slave_last_event_time should
 --echo # be updated to be 1 second prior to the time that the first transaction
---echo # was binlogged on the primary. This is to represent that the slave is
+--echo # was binlogged on the master. This is to represent that the slave is
 --echo # otherwise up-to-date. Note the table is locked to prevent the
 --echo # transaction from committing (and thereby progressing
 --echo # Slave_last_event_time to represent commit-time).
@@ -94,7 +94,7 @@ lock tables t1 write;
 --connection server_2
 start slave sql_thread;
 
---echo # Waiting for replica to start executing the transaction (yet get stuck on the table lock)
+--echo # Waiting for slave to start executing the transaction (yet get stuck on the table lock)
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
 --source include/wait_condition.inc
 

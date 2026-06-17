@@ -598,7 +598,7 @@ connection default;
 drop table t1;
 # End of 10.4 tests
 #
-# MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on primary or replica upon CREATE OR REPLACE for partitioned table
+# MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on master or slave upon CREATE OR REPLACE for partitioned table
 #
 create table t1 (
 a int,

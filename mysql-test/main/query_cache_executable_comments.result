@@ -25,7 +25,7 @@ INSERT INTO t1 VALUES (1),(2),(3);
 # Case 1: forward MySQL-compatible executable comment /*!NNNNNN ... */
 #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT /*!50300 c1 */ FROM t1;
 SELECT /*!50300 c1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
@@ -44,15 +44,15 @@ hits	statement_text
 # Case 2: forward MariaDB-only executable comment /*M!NNNNNN ... */
 #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT /*M!50300 c1 */ FROM t1;
 SELECT /*M!50300 c1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	2
+Qcache_inserts	1
 SHOW STATUS LIKE 'Qcache_hits';
 Variable_name	Value
-Qcache_hits	2
+Qcache_hits	1
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	1
@@ -65,15 +65,15 @@ hits	statement_text
 # marked not safe to cache and no entry is stored.
 #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT /*!!999999 c1 */ FROM t1;
 SELECT /*!!999999 c1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	2
+Qcache_inserts	0
 SHOW STATUS LIKE 'Qcache_hits';
 Variable_name	Value
-Qcache_hits	2
+Qcache_hits	0
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -84,15 +84,15 @@ hits	statement_text
 # Same buffer mutation as case 3; not cached.
 #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT /*M!!999999 c1 */ FROM t1;
 SELECT /*M!!999999 c1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	2
+Qcache_inserts	0
 SHOW STATUS LIKE 'Qcache_hits';
 Variable_name	Value
-Qcache_hits	2
+Qcache_hits	0
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -104,15 +104,15 @@ hits	statement_text
 # overwrites the leading '!' with a space; not cached.
 #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT c1 /*!999999 + 1 */ FROM t1;
 SELECT c1 /*!999999 + 1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	2
+Qcache_inserts	0
 SHOW STATUS LIKE 'Qcache_hits';
 Variable_name	Value
-Qcache_hits	2
+Qcache_hits	0
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -123,15 +123,15 @@ hits	statement_text
 # version is <= the server, so the body is SKIPPED; not cached.
 #
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT c1 /*!!100000 + 1 */ FROM t1;
 SELECT c1 /*!!100000 + 1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	2
+Qcache_inserts	0
 SHOW STATUS LIKE 'Qcache_hits';
 Variable_name	Value
-Qcache_hits	2
+Qcache_hits	0
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -142,7 +142,7 @@ hits	statement_text
 #
 SET LOCAL query_cache_strip_comments= ON;
 RESET QUERY CACHE;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT /*!50300 c1 */ FROM t1;
 SELECT /*!50300 c1 */ FROM t1;
 SELECT /*!!999999 c1 */ FROM t1;
@@ -153,10 +153,10 @@ SELECT c1 /*!!100000 + 1 */ FROM t1;
 SELECT c1 /*!!100000 + 1 */ FROM t1;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	6
+Qcache_inserts	4
 SHOW STATUS LIKE 'Qcache_hits';
 Variable_name	Value
-Qcache_hits	6
+Qcache_hits	4
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 Variable_name	Value
 Qcache_queries_in_cache	4

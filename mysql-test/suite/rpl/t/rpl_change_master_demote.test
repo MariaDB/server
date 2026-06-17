@@ -499,7 +499,7 @@ if (`SELECT strcmp("$gtid_binlog_pos","$gtid_slave_pos") != 0`)
 {
     --echo # ..failed
     --echo # Binlog pos: $gtid_binlog_pos
-    --echo # Replica pos: $gtid_slave_pos
+    --echo # Slave pos: $gtid_slave_pos
     die MASTER_DEMOTE_TO_REPLICA does not alias MASTER_DEMOTE_TO_SLAVE correctly;
 }
 --echo # ..success
@@ -508,7 +508,7 @@ DROP TABLE t_mdev_31768;
 RESET MASTER;
 --source include/reset_slave.inc
 
---echo # Clear primary binlog state to match replica
+--echo # Clear master binlog state to match slave
 --connection master
 --source include/kill_binlog_dump_threads.inc
 RESET MASTER;

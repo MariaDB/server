@@ -1671,7 +1671,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   }
   else
   {
-    DBUG_EXECUTE_IF("mock_mariadb_primary_v5_in_get_master_version",
+    DBUG_EXECUTE_IF("mock_mariadb_master_v5_in_get_master_version",
                     version= 5;);
 
     /*
@@ -3633,11 +3633,16 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     if (rgi->assembler && ev->get_type_code() != PARTIAL_ROW_DATA_EVENT &&
         !ev->is_artificial_event() && !ev->is_relay_log_event())
     {
-      rgi->rli->report(
-          ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM, rgi->gtid_info(),
-          ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
-          ev->get_type_str(), rgi->assembler->last_fragment_seen + 1,
-          rgi->assembler->total_fragments);
+      char found_buf[PARTIAL_ROWS_EVENT_BAD_EV_TYPE_ERRSTR_LEN];
+      char expect_buf[PARTIAL_ROWS_EVENT_BAD_FRAGMENT_ERRSTR_LEN];
+      my_snprintf(found_buf, sizeof(found_buf), "type %s", ev->get_type_str());
+      my_snprintf(expect_buf, sizeof(expect_buf), "fragment %u / %u",
+                  rgi->assembler->last_fragment_seen + 1,
+                  rgi->assembler->total_fragments);
+      rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+                       rgi->gtid_info(),
+                       ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
+                       found_buf, expect_buf);
       exec_res= ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
 
       rgi->assembler->~Rows_log_event_assembler();

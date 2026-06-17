@@ -9126,6 +9126,10 @@ int Field_blob::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
   size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
+  DBUG_ASSERT(blob1 || !a_len);
+  DBUG_ASSERT(blob2 || !b_len);
+  if (!blob1) { blob1= (uchar *) ""; a_len= 0; }
+  if (!blob2) { blob2= (uchar *) ""; b_len= 0; }
   return cmp(blob1, (uint32)a_len, blob2, (uint32)b_len);
 }
 
@@ -9205,9 +9209,12 @@ void Field_blob::set_key_image(const uchar *buff,uint length)
 
 int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
+  DBUG_ASSERT(key_ptr);
   uchar *blob1;
   size_t blob_length=get_length(ptr);
   memcpy(&blob1, ptr+packlength, sizeof(char*));
+  DBUG_ASSERT(blob1 || !blob_length);
+  if (!blob1) { blob1= (uchar *) ""; blob_length= 0; }
   CHARSET_INFO *cs= charset();
   size_t local_char_length= max_key_length / cs->mbmaxlen;
   local_char_length= cs->charpos(blob1, blob1+blob_length,

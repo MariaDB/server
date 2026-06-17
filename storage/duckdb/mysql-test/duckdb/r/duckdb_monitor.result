@@ -1,0 +1,82 @@
+# restart
+CREATE TABLE t1(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=duckdb;
+CREATE TABLE t2(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=duckdb;
+CREATE TABLE t3(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=innodb;
+#
+# 1) INSERT: rows_insert increments per row (dml_in_batch=OFF)
+#
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+Variable_name	Value
+Duckdb_rows_insert	0
+INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e');
+INSERT INTO t2 VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e');
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+Variable_name	Value
+Duckdb_rows_insert	10
+#
+# 2) DELETE: rows_delete increments via direct_delete_rows
+#
+SHOW STATUS LIKE 'Duckdb_rows_delete';
+Variable_name	Value
+Duckdb_rows_delete	0
+DELETE FROM t1 WHERE id IN (1,2);
+SHOW STATUS LIKE 'Duckdb_rows_delete';
+Variable_name	Value
+Duckdb_rows_delete	2
+#
+# 3) UPDATE: rows_update increments via direct_update_rows
+#
+SHOW STATUS LIKE 'Duckdb_rows_update';
+Variable_name	Value
+Duckdb_rows_update	0
+UPDATE t1 SET v = 'x' WHERE id IN (3,4);
+SHOW STATUS LIKE 'Duckdb_rows_update';
+Variable_name	Value
+Duckdb_rows_update	2
+#
+# 4) INSERT SELECT: rows_insert increments
+#
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+Variable_name	Value
+Duckdb_rows_insert	10
+INSERT INTO t1 SELECT * FROM t2;
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+Variable_name	Value
+Duckdb_rows_insert	11
+#
+# 5) Duckdb_commit increments on explicit COMMIT
+#
+@commits_before := 2
+2
+BEGIN;
+INSERT INTO t1 VALUES(6,'f');
+COMMIT;
+commit_delta
+1
+#
+# 6) Duckdb_rollback increments on explicit ROLLBACK
+#
+SHOW STATUS LIKE 'Duckdb_rollback';
+Variable_name	Value
+Duckdb_rollback	0
+BEGIN;
+INSERT INTO t1 VALUES(7,'g');
+ROLLBACK;
+SHOW STATUS LIKE 'Duckdb_rollback';
+Variable_name	Value
+Duckdb_rollback	1
+#
+# 7) Final state: batch counters should be 0 (dml_in_batch=OFF)
+#
+SHOW STATUS LIKE 'Duckdb_rows_insert_in_batch';
+Variable_name	Value
+Duckdb_rows_insert_in_batch	0
+SHOW STATUS LIKE 'Duckdb_rows_update_in_batch';
+Variable_name	Value
+Duckdb_rows_update_in_batch	0
+SHOW STATUS LIKE 'Duckdb_rows_delete_in_batch';
+Variable_name	Value
+Duckdb_rows_delete_in_batch	0
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;

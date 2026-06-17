@@ -1,0 +1,98 @@
+#
+# Test Galera as a slave to a MariaDB master using sequence table and GTID mode
+#
+# In the problematic execution scenario, seqence access marks GTID event as DDL
+# and applier makes implicit commit before the actual transaction is even applied.
+# Second commit attempt after the actual payload applying would then wait for
+# commit order eternally, causing total cluster hang
+#
+#
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/galera_cluster.inc
+
+#
+# node_1 = galera cluster replica node
+# node_2 = galera cluster node, operating as replication slave for node_3
+# node_3 = regular mariadb server operating as replication master
+#
+
+# enable parallel applying in galera cluster replica node
+--connection node_1
+SET global wsrep_slave_threads = 2;
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+--connection node_3
+CREATE SEQUENCE my_seq INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+insert into t1 values (0);
+
+BEGIN;
+# spend some sequence values
+select nextval(my_seq);
+select nextval(my_seq);
+select nextval(my_seq);
+
+# regular insert, which may cause duplicate commit in node_1
+insert into t1 values (1);
+COMMIT;
+
+# feed some more DML, which may cause hang in galera replication, node_1
+insert into t1 values (2);
+delete from t1;
+
+#
+# Scenario where seqeunce value is used in a SQL statement
+#
+DROP TABLE t1;
+CREATE TABLE t1(a int not null primary key default nextval(my_seq), b int) engine=innodb;
+
+BEGIN;
+INSERT INTO t1(b) VALUES(3);
+INSERT INTO t1(a,b) VALUES(10,4);
+COMMIT;
+
+delete from t1;
+
+# tear down the replication, force galera nodes to apply all remaining as single threaded
+--connection node_1
+SET global wsrep_slave_threads = DEFAULT;
+
+--connection node_3
+DROP SEQUENCE my_seq;
+DROP TABLE t1;
+
+# wait untill replication channel is flushed and all is applied in node_1
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'my_seq'
+--source include/wait_condition.inc
+
+--connection node_2
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
+
+--connection node_1
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+
+--connection node_2
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+
+--connection node_3
+reset master;

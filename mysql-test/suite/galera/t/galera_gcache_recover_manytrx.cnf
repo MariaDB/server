@@ -1,9 +1,11 @@
 !include ../galera_2nodes.cnf
 
 [mysqld.1]
-innodb_log_file_size=220M
-wsrep_provider_options='gcache.recover=yes;gcache.size=128M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;pc.wait_prim_timeout=PT60S'
+innodb_log_file_size=256M
+wsrep_provider_options='gcache.recover=yes;gcache.size=256M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;pc.wait_prim_timeout=PT60S'
+loose-galera-gcache-recover-manytrx=1
 
 [mysqld.2]
-innodb_log_file_size=220M
-wsrep_provider_options='gcache.recover=yes;gcache.size=128M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;pc.wait_prim_timeout=PT60S'
+innodb_log_file_size=256M
+wsrep_provider_options='gcache.recover=yes;gcache.size=256M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;pc.wait_prim_timeout=PT60S'
+loose-galera-gcache-recover-manytrx=1

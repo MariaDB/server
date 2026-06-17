@@ -1190,7 +1190,7 @@ static struct my_option innochecksum_options[] = {
   {"verbose", 'v', "Verbose (prints progress every 5 seconds).",
     &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
-  {"debug", '#', "Output debug log. See https://mariadb.com/kb/en/library/creating-a-trace-file/",
+  {"debug", '#', "Output debug log. See https://mariadb.com/docs/server/reference/product-development/mariadb-fault-finding",
     &dbug_setting, &dbug_setting, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* !DBUG_OFF */
   {"count", 'c', "Print the count of pages in the file and exits.",
@@ -1245,7 +1245,7 @@ static void usage(void)
 		"[-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] "
 		"[-S] [-D <page type dump>] "
 		"[-l <log>] [-l] [-m <merge pages>] <filename or [-]>\n", my_progname);
-	printf("See https://mariadb.com/kb/en/library/innochecksum/"
+	printf("See https://mariadb.com/docs/server/clients-and-utilities/administrative-tools/innochecksum"
 	       " for usage hints.\n");
 	my_print_help(innochecksum_options);
 	my_print_variables(innochecksum_options);

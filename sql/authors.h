@@ -36,7 +36,7 @@ struct show_table_authors_st {
 
   Names should be encoded using UTF-8.
 
-  See also https://mariadb.com/kb/en/log-of-mariadb-contributions/
+  See also https://mariadb.com/docs/general-resources/community/contributing-participating/log-of-mariadb-contributions
 */
 
 struct show_table_authors_st show_table_authors[]= {

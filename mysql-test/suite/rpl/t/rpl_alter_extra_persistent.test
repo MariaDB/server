@@ -262,7 +262,7 @@ select * from t;
 drop table t;
 
 --echo #
---echo # MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+--echo # MDEV-30985 Slave stops with error on ALTER ONLINE with Geometry Types
 --echo #
 create table t(geo geometrycollection default st_geomfromtext('point(1 1)'));
 insert into t () values (),(),();

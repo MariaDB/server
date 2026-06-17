@@ -3,7 +3,7 @@ include/master-slave.inc
 include/rpl_gtid_until_before_after_gtids.inc
 #
 # Test Setup (SQL_BEFORE_GTIDS)
-# Clean primary and replica states
+# Clean master and slave states
 connection master;
 connection slave;
 connection master;
@@ -16,7 +16,7 @@ create table t2 (a int);
 connection slave;
 #
 #  Test Case 1 (SQL_BEFORE_GTIDS): For a single-dimensional binlog state and a
-# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# STOP SLAVE UNTIL gtid position with one GTID, the slave should
 # execute events up until the GTID is encountered, and immediately stop
 connection slave;
 connection master;
@@ -27,7 +27,7 @@ INSERT INTO t1 VALUES (102);
 connection slave;
 START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-4";
 # Ensure the slave started
-# Clean replica state
+# Clean slave state
 connection master;
 connection slave;
 #
@@ -52,7 +52,7 @@ connection master;
 connection slave;
 #
 #  Test Case 3 (SQL_BEFORE_GTIDS): For a multi-dimensional binlog state and a
-# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# STOP SLAVE UNTIL gtid position with one GTID, the slave should
 # execute events from only the specified domain until the provided GTID
 # is encountered, and immediately stop
 connection slave;
@@ -75,7 +75,7 @@ connection master;
 connection slave;
 #
 #  Test Case 4 (SQL_BEFORE_GTIDS): For a multi-dimensional binlog state and a
-# STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
+# STOP SLAVE UNTIL gtid position with multiple GTIDs, the slave should
 # for each domain, execute events only up until its provided GTID, and
 # once all domains have hit their end point, immediately stop.
 connection slave;
@@ -115,7 +115,7 @@ connection slave;
 include/rpl_gtid_until_before_after_gtids.inc
 #
 # Test Setup (SQL_AFTER_GTIDS)
-# Clean primary and replica states
+# Clean master and slave states
 connection master;
 connection slave;
 connection master;
@@ -128,7 +128,7 @@ create table t2 (a int);
 connection slave;
 #
 #  Test Case 1 (SQL_AFTER_GTIDS): For a single-dimensional binlog state and a
-# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# STOP SLAVE UNTIL gtid position with one GTID, the slave should
 # execute events up until the GTID is encountered, finish replicating
 # that event group, and then stop
 connection slave;
@@ -140,7 +140,7 @@ INSERT INTO t1 VALUES (113);
 connection slave;
 START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-4";
 # Ensure the slave started
-# Clean replica state
+# Clean slave state
 connection master;
 connection slave;
 #
@@ -165,7 +165,7 @@ connection master;
 connection slave;
 #
 #  Test Case 3 (SQL_AFTER_GTIDS): For a multi-dimensional binlog state and a
-# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# STOP SLAVE UNTIL gtid position with one GTID, the slave should
 # execute events from only the specified domain until the provided GTID
 # is encountered, finish replicating that event group, and then stop
 connection slave;
@@ -188,7 +188,7 @@ connection master;
 connection slave;
 #
 #  Test Case 4 (SQL_AFTER_GTIDS): For a multi-dimensional binlog state and a
-# STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
+# STOP SLAVE UNTIL gtid position with multiple GTIDs, the slave should
 # stop executing events as soon as all listed GTIDs in the UNTIL list
 # have been executed.
 connection slave;

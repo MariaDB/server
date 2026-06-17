@@ -1140,7 +1140,7 @@ invalid:
 		}
 
 		const auto bulk_trx_id = index->table->bulk_trx_id;
-		if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (trx_sys.is_registered(nullptr, bulk_trx_id)) {
 			err= DB_SUCCESS_LOCKED_REC;
 			goto invalid;
 		}
@@ -1205,11 +1205,9 @@ dberr_t dict_stats_update_transient(trx_t *trx, dict_table_t *table) noexcept
 		return DB_SUCCESS;
 	}
 
-	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
-		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
-			dict_stats_empty_table(table);
-			return DB_SUCCESS_LOCKED_REC;
-		}
+	if (trx_sys.is_registered(nullptr, table->bulk_trx_id)) {
+		dict_stats_empty_table(table);
+		return DB_SUCCESS_LOCKED_REC;
 	}
 
 	for (; index != NULL; index = dict_table_get_next_index(index)) {
@@ -2330,7 +2328,7 @@ empty_index:
 	result.n_leaf_pages = size ? size : 1;
 
 	const auto bulk_trx_id = index->table->bulk_trx_id;
-	if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+	if (trx_sys.is_registered(nullptr, bulk_trx_id)) {
 		result.set_bulk_operation();
 		goto empty_index;
 	}
@@ -2599,11 +2597,9 @@ dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept
 
 	DEBUG_SYNC_C("dict_stats_update_persistent");
 
-	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
-		if (trx_sys.find(trx, bulk_trx_id, false)) {
-			dict_stats_empty_table(table);
-			return DB_SUCCESS_LOCKED_REC;
-		}
+	if (trx_sys.is_registered(nullptr, table->bulk_trx_id)) {
+		dict_stats_empty_table(table);
+		return DB_SUCCESS_LOCKED_REC;
 	}
 
 	/* analyze the clustered index first */

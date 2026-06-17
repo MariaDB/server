@@ -626,8 +626,8 @@ static void srv_refresh_innodb_monitor_stats(time_t current_time)
 	os_aio_refresh_stats();
 
 #ifdef BTR_CUR_HASH_ADAPT
-	btr_cur_n_sea_old = btr_cur_n_sea;
-	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
+	btr_search.hit_count_old= btr_search.hit_count;
+	btr_search.miss_count_old= btr_search.miss_count;
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	buf_refresh_io_stats();
@@ -743,7 +743,7 @@ srv_printf_innodb_monitor(
 		fputs("-------------------\n"
 		      "ADAPTIVE HASH INDEX\n"
 		      "-------------------\n", file);
-		for (ulong i = 0; i < btr_search.n_parts; ++i) {
+		for (uint i = 0; i < btr_search.n_parts; ++i) {
 			btr_sea::partition& part= btr_search.parts[i];
 			part.blocks_mutex.wr_lock();
 			fprintf(file, "Hash table size " ULINTPF
@@ -753,16 +753,18 @@ srv_printf_innodb_monitor(
 			part.blocks_mutex.wr_unlock();
 		}
 
-		const ulint with_ahi = btr_cur_n_sea;
-		const ulint without_ahi = btr_cur_n_non_sea;
+		const size_t with_ahi= btr_search.hit_count;
+		const size_t without_ahi= btr_search.miss_count;
+		const size_t with_ahi_old= btr_search.hit_count_old;
+		const size_t without_ahi_old= btr_search.miss_count_old;
+		btr_search.hit_count_old= with_ahi;
+		btr_search.miss_count_old= without_ahi;
 		fprintf(file,
 			"%.2f hash searches/s, %.2f non-hash searches/s\n",
-			static_cast<double>(with_ahi - btr_cur_n_sea_old)
+			static_cast<double>(with_ahi - with_ahi_old)
 			/ time_elapsed,
-			static_cast<double>(without_ahi - btr_cur_n_non_sea_old)
+			static_cast<double>(without_ahi - without_ahi_old)
 			/ time_elapsed);
-		btr_cur_n_sea_old = with_ahi;
-		btr_cur_n_non_sea_old = without_ahi;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -828,11 +830,8 @@ srv_export_innodb_status(void)
 		&export_vars.async_write_stats);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	export_vars.innodb_ahi_hit = btr_cur_n_sea;
-	export_vars.innodb_ahi_miss = btr_cur_n_non_sea;
-
 	ulint mem_adaptive_hash = 0;
-	for (ulong i = 0; i < btr_search.n_parts; i++) {
+	for (uint i = 0; i < btr_search.n_parts; i++) {
 		mem_adaptive_hash += btr_search.parts[i].get_blocks();
 	}
 	mem_adaptive_hash <<= srv_page_size_shift;

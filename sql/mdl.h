@@ -574,6 +574,10 @@ typedef void (*mdl_cached_object_release_hook)(void *);
 #define MDL_TRY_ACQUIRE_LOCK(NAMESPACE, DB, NAME, TYPE, DURATION, ERROR) \
   try_acquire_lock(NAMESPACE, DB, NAME, TYPE, DURATION, ERROR, __FILE__, __LINE__)
 
+#define MDL_REQUEST_LIST_ADD(LIST, MEM_ROOT, NAMESPACE, DB, NAME, TYPE, DURATION) \
+  mdl_request_list_add(LIST, MEM_ROOT, NAMESPACE, DB, NAME, TYPE, DURATION, \
+                       __FILE__, __LINE__)
+
 
 /**
   An abstract class for inspection of a connected
@@ -793,6 +797,22 @@ typedef I_P_List<MDL_request, I_P_List_adapter<MDL_request,
                  &MDL_request::prev_in_list>,
                  I_P_List_counter>
         MDL_request_list;
+
+inline bool mdl_request_list_add(MDL_request_list *list, MEM_ROOT *mem_root,
+                                 MDL_key::enum_mdl_namespace mdl_namespace,
+                                 const char *db, const char *name,
+                                 enum_mdl_type mdl_type,
+                                 enum_mdl_duration mdl_duration,
+                                 const char *src_file, uint src_line)
+{
+  MDL_request *r= new (mem_root) MDL_request;
+  if (!r)
+    return true;
+  r->init_with_source(mdl_namespace, db, name, mdl_type, mdl_duration,
+                      src_file, src_line);
+  list->push_front(r);
+  return false;
+}
 
 /**
   Context of the owner of metadata locks. I.e. each server

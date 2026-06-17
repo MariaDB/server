@@ -652,7 +652,7 @@ err_exit:
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block);
+	btr_search_move_or_delete_hash_entries(new_block, block, *mtr);
 
 	return(ret);
 }
@@ -834,7 +834,7 @@ zip_reorganize:
 		mem_heap_free(heap);
 	}
 
-	btr_search_move_or_delete_hash_entries(new_block, block);
+	btr_search_move_or_delete_hash_entries(new_block, block, *mtr);
 
 	*err = DB_SUCCESS;
 	return(ret);

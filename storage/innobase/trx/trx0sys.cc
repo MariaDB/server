@@ -168,6 +168,7 @@ void trx_sys_t::create()
   m_initialised= true;
   trx_list.create();
   rw_trx_hash.init();
+  rw_trx_ids.create();
   for (auto &rseg : temp_rsegs)
     rseg.init(nullptr, FIL_NULL);
   for (auto &rseg : rseg_array)
@@ -361,6 +362,7 @@ trx_sys_t::close()
 	}
 
 	rw_trx_hash.destroy();
+	rw_trx_ids.destroy();
 
 	/* There can't be any active transactions. */
 	for (auto& rseg : temp_rsegs) rseg.destroy();

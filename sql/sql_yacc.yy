@@ -961,6 +961,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  LOCKED_SYM
 %token  <kwd>  LOCKS_SYM
 %token  <kwd>  LOGS_SYM
+%token  <kwd>  LOG_SYM
 %token  <kwd>  MASTER_CONNECT_RETRY_SYM
 %token  <kwd>  MASTER_DELAY_SYM
 %token  <kwd>  MASTER_GTID_POS_SYM
@@ -12323,6 +12324,20 @@ json_table_column_type:
               MYSQL_YYABORT;
             }
           }
+        | json_table_field_type FORMAT_SYM JSON_SYM PATH_SYM json_text_literal
+            json_opt_on_empty_or_error
+          {
+            if (Lex->last_field->set_attributes(thd, $1,
+                                                COLUMN_DEFINITION_TABLE_FIELD))
+              MYSQL_YYABORT;
+            if (Lex->json_table->m_cur_json_table_column->enable_format_json() ||
+                Lex->json_table->m_cur_json_table_column->
+                  set(thd, Json_table_column::PATH, $5,
+                      $1.charset_collation_attrs()))
+            {
+              MYSQL_YYABORT;
+            }
+          }
         | json_table_field_type EXISTS PATH_SYM json_text_literal
           {
             if (Lex->last_field->set_attributes(thd, $1,
@@ -15004,6 +15019,10 @@ show_param:
           {
             Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
           }
+        | BINARY LOG_SYM STATUS_SYM
+          {
+            Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
+          }
         | ALL SLAVES STATUS_SYM
           {
             LEX *lex= Lex;
@@ -17008,6 +17027,7 @@ keyword_func_sp_var_and_label:
         | LIST_SYM
         | LOCKED_SYM
         | LOCKS_SYM
+        | LOG_SYM
         | LOGS_SYM
         | MAX_ROWS
         | MASTER_SYM

@@ -1952,6 +1952,20 @@ static void trace_engine_stats(handler *file, Json_writer *writer)
       writer->add_member("pages_prefetch_read_count").add_ull(hs->pages_prefetched);
     if (hs->undo_records_read)
       writer->add_member("old_rows_read").add_ull(hs->undo_records_read);
+    if (unlikely(hs->ahi_searches | hs->ahi_searches_btree |
+        hs->ahi_rows_added | hs->ahi_pages_added))
+    {
+      writer->add_member("r_ahi_stats").start_object();
+      if (hs->ahi_searches)
+        writer->add_member("ahi_searches").add_ull(hs->ahi_searches);
+      if (hs->ahi_searches_btree)
+        writer->add_member("ahi_searches_btree").add_ull(hs->ahi_searches_btree);
+      if (hs->ahi_rows_added)
+        writer->add_member("ahi_rows_added").add_ull(hs->ahi_rows_added);
+      if (hs->ahi_pages_added)
+        writer->add_member("ahi_pages_added").add_ull(hs->ahi_pages_added);
+      writer->end_object();
+    }
     writer->end_object();
   }
 }

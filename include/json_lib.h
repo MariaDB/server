@@ -2,6 +2,7 @@
 #define JSON_LIB_INCLUDED
 
 #include <my_sys.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -247,7 +248,7 @@ typedef struct st_json_engine_t
   /* Keeps the stack of nested JSON structures. */
   MEM_ROOT_DYNAMIC_ARRAY stack;
   int stack_p;                 /* The 'stack' pointer. */
-  volatile uchar *killed_ptr;
+  volatile const uint32_t *killed_ptr;
 } json_engine_t;
 
 

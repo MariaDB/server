@@ -1888,7 +1888,7 @@ btr_root_raise_and_insert(
 				page_get_infimum_rec(root->page.frame));
 		}
 
-		btr_search_move_or_delete_hash_entries(new_block, root);
+		btr_search_move_or_delete_hash_entries(new_block, root, *mtr);
 	}
 
 	constexpr uint16_t max_trx_id = PAGE_HEADER + PAGE_MAX_TRX_ID;
@@ -3064,7 +3064,7 @@ insert_empty:
 			}
 
 			btr_search_move_or_delete_hash_entries(
-				new_block, block);
+				new_block, block, *mtr);
 
 			/* Delete the records from the source page. */
 
@@ -3112,7 +3112,7 @@ insert_empty:
 			}
 
 			btr_search_move_or_delete_hash_entries(
-				new_block, block);
+				new_block, block, *mtr);
 
 			/* Delete the records from the source page. */
 
@@ -3460,7 +3460,7 @@ parent_corrupted:
 			lock_prdt_rec_move(father_block, block->page.id());
 		} else {
 			btr_search_move_or_delete_hash_entries(
-				father_block, block);
+				father_block, block, *mtr);
 		}
 	}
 

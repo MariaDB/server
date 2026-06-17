@@ -1,0 +1,78 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV 38305 : Expose adaptive hash index statistics in ANALYZE FORMAT=JSON
+--echo #
+
+# Test Plan:
+# When queries use secondary indexes, InnoDB must lookup clustered index records
+# using the primary key reference obtained from the secondary index. These
+# clustered index lookups accumulate and trigger AHI building when a threshold
+# is reached. This test verifies that AHI statistics are correctly reported in
+# ANALYZE FORMAT=JSON output across different scenarios:
+#
+# Test 1: Access 50 rows (col1=5, 50 matches) - insufficient to build AHI
+# Test 2: Access 200 rows (col2=3, 200 matches) - combined with Test 1 (250 total),
+#         this triggers AHI construction on the clustered index
+# Test 3: Access with heavy warmup (100 repetitions) - AHI fully utilized
+# Test 4: AHI disabled - verify statistics are zero regardless of access patterns
+
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index= ON;
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  col1 INT,
+  col2 INT,
+  col3 INT,
+  INDEX idx_1 (col1),
+  INDEX idx_2 (col2),
+  INDEX idx_3 (col3)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq, seq % 20, seq % 5, seq % 10 FROM seq_0_to_999;
+
+# Test 1: Insufficient accesses to build AHI
+# Query accesses 50 rows (col1=5 matches 50 out of 1000 rows: 5,25,45,...,985).
+# When using idx_1, InnoDB performs 50 clustered index lookups to retrieve the
+# full rows. This is insufficient to trigger AHI construction, so AHI statistics
+# should show minimal or no AHI activity.
+let $query = SELECT * FROM t1 FORCE INDEX(idx_1) WHERE col1 = 5;
+let $repeat = 0;
+--source suite/innodb/include/check_ahi_status.inc
+
+# Test 2: Accumulated accesses trigger AHI construction
+# Query accesses 200 rows (col2=3 matches 200 out of 1000 rows: 3,8,13,18,...,998).
+# Combined with Test 1's 50 clustered index lookups, the accumulated total of 250
+# clustered index searches crosses the threshold to build AHI. This test verifies
+# that AHI statistics reflect the construction and initial usage of the hash index.
+let $query = SELECT * FROM t1 FORCE INDEX(idx_2) WHERE col2 = 3;
+let $repeat = 0;
+--source suite/innodb/include/check_ahi_status.inc
+
+# Test 3: Verify AHI statistics with heavy warmup (AHI fully utilized)
+# Query accesses 100 rows (col3=5 matches 100 out of 1000 rows: 5,15,25,...,995).
+# With repeat=200, this executes the query 200 times before the ANALYZE, resulting
+# in 20,000 clustered index lookups. This heavy access pattern ensures the AHI is
+# fully built and actively serving lookups, allowing verification that AHI hit
+# statistics are properly reported when the hash index is effectively utilized.
+let $query = SELECT * FROM t1 FORCE INDEX(idx_3) WHERE col3 = 5;
+let $repeat = 200;
+--source suite/innodb/include/check_ahi_status.inc
+
+# Test 4: Verify AHI statistics when AHI is disabled
+# Query accesses 200 rows (col2=2 matches 200 out of 1000 rows: 2,7,12,...,997).
+# With repeat=100, this would normally trigger heavy AHI usage (20,000 clustered
+# index lookups). However, since innodb_adaptive_hash_index is turned OFF, the AHI
+# is not used and all AHI statistics should be zero regardless of query repetition.
+SET GLOBAL innodb_adaptive_hash_index = OFF;
+
+let $query = SELECT * FROM t1 FORCE INDEX(idx_2) WHERE col2 = 2;
+let $repeat = 100;
+--source suite/innodb/include/check_ahi_status.inc
+
+# Cleanup
+DROP TABLE t1;
+SET GLOBAL innodb_adaptive_hash_index= @start_global_value;

@@ -15,4 +15,4 @@ FOUND 1 matches in master_info_file.txt
 FOUND 1 matches in master_info_file-named.txt
 FOUND 1 matches in master_info_file-named.txt
 FOUND 1 matches in master_info_file-named.txt
-RESET REPLICA 'named' ALL;
+RESET SLAVE 'named' ALL;

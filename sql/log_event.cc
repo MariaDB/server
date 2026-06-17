@@ -2112,7 +2112,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   /*
     If the allocated GTID event packet header is longer than the size of the
     standard BEGIN query event's, then we need to fill in everything else with
-    "dummy" values. That is, old replicas won't recognize the meaning for the
+    "dummy" values. That is, old slaves won't recognize the meaning for the
     DUMMY value, and will skip the rest of the status vars section.
   */
   DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);

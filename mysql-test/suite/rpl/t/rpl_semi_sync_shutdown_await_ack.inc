@@ -1,17 +1,17 @@
 #
-# Helper file to ensure that a primary waits for all ACKS (or timeout) from its
-# replicas before shutting down.
+# Helper file to ensure that a master waits for all ACKS (or timeout) from its
+# slaves before shutting down.
 #
 # Parameters:
 #   server_2_dbug (string)          Debug setting to simulate delay or error on
-#                                   the first replica (server 2)
+#                                   the first slave (server 2)
 #   server_3_dbug (string)          Debug setting to simulate delay or error on
-#                                   the second replica (server 3)
+#                                   the second slave (server 3)
 #   semisync_timeout (int)          Rpl_semi_sync_master_timeout to use
 #   server_2_expect_row_count (int) The number of rows expected on the first
-#                                   replica after the shutdown
+#                                   slave after the shutdown
 #   server_3_expect_row_count (int) The number of rows expected on the second
-#                                   replica after the shutdown
+#                                   slave after the shutdown
 #   server_2_sync_slave_reply (bool) True if server_2_dbug is configured to use
 #                                    debug_sync to synchronize the slave reply
 #                                    (i.e. to pause before the reply)
@@ -160,15 +160,15 @@ if (`SELECT $server_3_sync_slave_reply AND NOT $server_3_expect_row_count`)
 
 if (`SELECT ($server_2_expect_row_count + $server_3_expect_row_count) < 2`)
 {
---echo #-- FIXME: workaround for MDEV-28141, preventing errored replicas from
+--echo #-- FIXME: workaround for MDEV-28141, preventing errored slaves from
 --echo # killing their semi-sync connections
-# I.e. we can't create a new kill connection to the primary if we know that the
-# primary is shutting down for risk of Packets out of order error. So we wait
+# I.e. we can't create a new kill connection to the master if we know that the
+# master is shutting down for risk of Packets out of order error. So we wait
 # to hit a debug_sync point before the creation of the new kill_connection, and
-# don't progress until the primary has been shutdown, so no new connection can
+# don't progress until the master has been shutdown, so no new connection can
 # be formed.
 # Note this is only needed in the error case (using corrupt_queue_event), as
-# the running io_thread will otherwise automatically detect that the primary
+# the running io_thread will otherwise automatically detect that the master
 # has shutdown before progressing to the cleanup of the io thread.
 }
 
@@ -196,7 +196,7 @@ if (!$server_3_expect_row_count)
 --echo #-- Stop slaves
 
 --connection server_2
-# If server_2_expect_row_count is 0, we are simulating an error on the replica
+# If server_2_expect_row_count is 0, we are simulating an error on the slave
 # and the IO thread will end with errno 1595.
 # Otherwise, we still expect error, because the master has shutdown at this
 # point, and the IO thread may or may not have realized the shutdown, and

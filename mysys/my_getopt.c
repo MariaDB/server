@@ -1576,6 +1576,21 @@ static uint print_comment(const char *comment,
     for (line_end= comment + endpos - curpos;
          line_end > comment && *line_end != ' ';
          line_end--);
+    if (line_end == comment)
+    {
+      /*
+        The next word is wider than the comment column, so there is no
+        space to break on.  Without this branch the loop cannot advance
+        past such a word and runs forever.  When the word is the last
+        one, stop wrapping and let it print after the loop, which also
+        keeps the output from ending on a blank, indented line.  In any
+        other position, print the word whole, accept a line wider than
+        the column, and keep wrapping the text that follows.
+      */
+      line_end= strcend(comment, ' ');
+      if (line_end == end)
+        break;
+    }
     for (; comment < line_end; comment++)
       putchar(*comment);
     while (*comment == ' ')

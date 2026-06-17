@@ -599,3 +599,21 @@ FLUSH TABLES mysql.user;
 FLUSH PRIVILEGES;
 SELECT CHARACTER_SET_CLIENT, COLLATION_CONNECTION FROM INFORMATION_SCHEMA.VIEWS
 WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+
+--echo # End of 11.4 tests
+
+--echo #
+--echo # MDEV-39675 mariadb_upgrade utility failed when path=nonexist
+--echo #
+
+set @old_path=@@global.path;
+set path 'non-existent';
+
+create or replace function sys.extract_schema_from_file_name()
+RETURNS TEXT RETURN "nothetruth";
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+show create function sys.extract_schema_from_file_name;
+set path @old_path;
+
+--echo # End of 12.3 tests

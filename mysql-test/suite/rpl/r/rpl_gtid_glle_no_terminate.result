@@ -11,19 +11,19 @@ SET @@session.server_id= 3;
 create table t2 (a int);
 include/save_master_gtid.inc
 #
-# Have the replica "reconnect" and the primary will send Gtid, Glle, DDL
+# Have the slave "reconnect" and the master will send Gtid, Glle, DDL
 connection slave;
 set global gtid_slave_pos="0-3-1";
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 #
-# Ensure that the replica did not error
+# Ensure that the slave did not error
 connection slave;
 include/sync_with_master_gtid.inc
 Last_SQL_Error = 
 Last_SQL_Errno = 0
 #
-# Ensure that the primary sent a Glle after a Gtid event
+# Ensure that the master sent a Glle after a Gtid event
 include/show_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000002	#	Rotate	#	#	master-bin.000001;pos=POS
@@ -33,10 +33,10 @@ slave-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
 slave-relay-bin.000002	#	Gtid_list	#	#	[#-#-#]
 slave-relay-bin.000002	#	Query	#	#	use `test`; create table t2 (a int)
 #
-# Ensure the DDL was executed on the replica
+# Ensure the DDL was executed on the slave
 #
 # Cleanup
-# t1 does not make it to the replica
+# t1 does not make it to the slave
 connection master;
 set sql_log_bin=0;
 DROP TABLE t1;

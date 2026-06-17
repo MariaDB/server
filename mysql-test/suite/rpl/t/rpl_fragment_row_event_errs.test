@@ -180,6 +180,61 @@ set @@global.debug_dbug= @old_dbug;
 --source include/start_slave.inc
 
 --echo #
+--echo #
+--echo # Error Case 5) Corrupt original_event_size (smaller than actual row
+--echo # data size)
+--connection master
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,too_small_orig_event_size";
+--eval insert into t1 values ($ins_num, repeat("a",1536))
+--inc $ins_num
+--source include/save_master_gtid.inc
+--let $broken_gtid= `SELECT @@global.gtid_binlog_pos`
+
+--connection slave
+--let $slave_sql_errno=4253
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+--connection master
+set debug_dbug= @old_dbug;
+
+--connection slave
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+--eval set @@global.gtid_slave_pos= "$broken_gtid"
+--source include/start_slave.inc
+
+--echo #
+--echo #
+--echo # Error Case 6) Emulate a 32-bit slave that can't re-construct a > 4GB
+--echo # event
+--connection slave
+--source include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,mock_32_bit_slave";
+--source include/start_slave.inc
+
+--connection master
+--eval insert into t1 values ($ins_num, repeat("a",1536))
+--inc $ins_num
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $slave_sql_errno=1037
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+set @@global.debug_dbug= @old_dbug;
+--source include/start_slave.inc
+
+--echo #
 --echo # Cleanup
 --connection master
 drop table t1;

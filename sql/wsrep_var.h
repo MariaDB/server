@@ -113,6 +113,8 @@ extern bool wsrep_gtid_domain_id_update      UPDATE_ARGS;
 
 extern bool wsrep_mode_check                 CHECK_ARGS;
 extern bool wsrep_forced_binlog_format_check CHECK_ARGS;
+
+extern void wsrep_sst_tmp_dir_check(void);
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

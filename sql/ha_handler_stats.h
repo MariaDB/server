@@ -41,6 +41,11 @@ public:
 
   ulonglong undo_records_read;
 
+  ulonglong ahi_searches;  /* Successful adaptive hash lookups */
+  ulonglong ahi_searches_btree;  /* B-tree searches (AHI miss) */
+  ulonglong ahi_rows_added;  /* Rows added to adaptive hash index */
+  ulonglong ahi_pages_added;  /* Pages added to adaptive hash index */
+
   /* Time spent in engine, in timer_tracker_frequency() units */
   ulonglong engine_time;
 

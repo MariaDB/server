@@ -252,19 +252,19 @@ static int join_ft_read_first(JOIN_TAB *tab);
 static int join_ft_read_next(READ_RECORD *info);
 int join_read_always_key_or_null(JOIN_TAB *tab);
 int join_read_next_same_or_null(READ_RECORD *info);
-static COND *make_cond_for_table(THD *thd, Item *cond,table_map table,
-                                 table_map used_table,
-                                 int join_tab_idx_arg,
-                                 bool exclude_expensive_cond,
-                                 bool retain_ref_cond);
-static COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
-                                           Item *cond,
-                                           table_map tables,
-                                           table_map used_table,
-                                           int join_tab_idx_arg,
-                                           bool exclude_expensive_cond,
-                                           bool retain_ref_cond,
-                                           bool is_top_and_level);
+COND *make_cond_for_table(THD *thd, Item *cond,table_map table,
+                         table_map used_table,
+                         int join_tab_idx_arg,
+                         bool exclude_expensive_cond,
+                         bool retain_ref_cond);
+COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
+                                    Item *cond,
+                                    table_map tables,
+                                    table_map used_table,
+                                    int join_tab_idx_arg,
+                                    bool exclude_expensive_cond,
+                                    bool retain_ref_cond,
+                                    bool is_top_and_level);
 
 static Item* part_of_refkey(TABLE *form,Field *field);
 static bool test_if_cheaper_ordering(bool in_join_optimizer,
@@ -26783,7 +26783,7 @@ bool test_if_ref(Item *root_cond, Item_field *left_item,Item *right_item)
      make_cond_for_info_schema() uses similar algorithm as well.
 */ 
 
-static Item *
+Item *
 make_cond_for_table(THD *thd, Item *cond, table_map tables,
                     table_map used_table,
                     int join_tab_idx_arg,
@@ -26797,7 +26797,7 @@ make_cond_for_table(THD *thd, Item *cond, table_map tables,
 }
 
 
-static Item *
+Item *
 make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                               table_map tables, table_map used_table,
                               int join_tab_idx_arg,
