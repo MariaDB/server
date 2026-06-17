@@ -13,6 +13,14 @@ IF(NOT (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
   return()
 ENDIF()
 
+# Catch -m32 / multilib builds (e.g. 32-bit build inside an x86_64 CI
+# container): CMAKE_SYSTEM_PROCESSOR still reports x86_64, but the target is
+# 32-bit. DuckDB (and its jemalloc extension) is 64-bit only.
+IF(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+  MESSAGE_ONCE(duckdb "DuckDB: not a 64-bit build, skipping")
+  return()
+ENDIF()
+
 # Check C++17 compiler support
 MY_CHECK_CXX_COMPILER_FLAG("-std=c++17")
 IF(NOT have_CXX__std_c__17)
