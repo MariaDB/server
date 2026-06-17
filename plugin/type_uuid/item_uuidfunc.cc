@@ -18,6 +18,7 @@
 #include "item_uuidfunc.h"
 #include <string>
 #include <cctype>
+#include "uuid_utils.h"
 
 String *Item_func_sys_guid::val_str(String *str)
 {
@@ -32,7 +33,7 @@ String *Item_func_sys_guid::val_str(String *str)
   return str;
 }
 
-static bool is_valid_uuid_format_any(const std::string &str)
+bool is_valid_uuid_format_any(const std::string &str)
 {
   if (str.size() != 36)
   {
@@ -51,7 +52,7 @@ static bool is_valid_uuid_format_any(const std::string &str)
     }
     else
     {
-      if (!isxdigit(str[i]))
+      if (!isxdigit(static_cast<unsigned char>(str[i])))
       {
         return false;
       }
@@ -92,6 +93,51 @@ static void my_error_incorrect_uuid_value(const std::string &str, int version,
                   MYF(0), version, variant, str.c_str());
 }
 
+version_and_variant return_version(const std::string &str)
+{
+  version_and_variant result;
+  result.error_code= 0;
+
+  if (!is_valid_uuid_format_any(str))
+  {
+    result.error_code= ER_TRUNCATED_WRONG_VALUE;
+    return result;
+  }
+
+  int version= hex_digit_value(static_cast<unsigned char>(str[14]));
+  int variant= uuid_variant(static_cast<unsigned char>(str[19]));
+  result.version= version;
+  result.variant= variant;
+
+  // Currently the only supported versions are below 9, as per RFC 9562.
+  // If the version is above 8, it's either not a valid UUID or it's a
+  // future version that we don't support. 0 is also not a valid version.
+  if (version < 1 || version > 8)
+  {
+    result.error_code= ER_INCORRECT_UUID_VALUE;
+    return result;
+  }
+
+  // For each valid version, we check the variant and reserved
+  // bits to ensure the UUID is well-formed according to the RFC.
+  int variant_octet= uuid_variant_octet(str);
+
+  if (version == 8 && variant == 0 && variant_octet != 0)
+  {
+    result.error_code= ER_INCORRECT_UUID_VARIANT;
+    return result;
+  }
+
+  // RFC 9562 variant must be 10xx, i.e. nibble 8, 9, a, or b.
+  if (variant != 2)
+  {
+    result.error_code= ER_TRUNCATED_WRONG_VALUE;
+    return result;
+  }
+
+  return result;
+}
+
 longlong Item_func_uuid_version::val_int()
 {
   String in_tmp;
@@ -103,6 +149,7 @@ longlong Item_func_uuid_version::val_int()
   }
 
   std::string in_str(uuid_arg->ptr(), uuid_arg->length());
+
   if (!is_valid_uuid_format_any(in_str))
   {
     my_printf_error(ER_TRUNCATED_WRONG_VALUE,
@@ -111,40 +158,22 @@ longlong Item_func_uuid_version::val_int()
     return 0;
   }
 
-  int version= hex_digit_value(static_cast<unsigned char>(in_str[14]));
-  int variant= uuid_variant(static_cast<unsigned char>(in_str[19]));
-
-  // Currently the only supported versions are below 9, as per RFC 9562.
-  // If the version is above 8, it's either not a valid UUID or it's a
-  // future version that we don't support. 0 is also not a valid version.
-  if (version < 1 || version > 8)
-  {
-    my_error_incorrect_uuid_value(in_str, version, variant);
-    null_value= true;
-    return 0;
-  }
-
-  // For each valid version, we check the variant and reserved
-  // bits to ensure the UUID is well-formed according to the RFC.
-  int variant_octet= uuid_variant_octet(in_str);
-
-  if (version == 8 && variant == 0 && variant_octet != 0)
-  {
-    my_error_incorrect_uuid_value(in_str, version, variant);
-    null_value= true;
-    return 0;
-  }
-
-  // RFC 9562 variant must be 10xx, i.e. nibble 8, 9, a, or b.
-  if (variant != 2)
+  version_and_variant result = return_version(in_str);
+  if (result.error_code == ER_TRUNCATED_WRONG_VALUE)
   {
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
-                        "Incorrect uuid value (variant check failed, "
+                        "Incorrect uuid value (version or variant check failed, "
                         "version: %d, variant: %d): '%-.128s'",
-                        version, variant, in_str.c_str());
+                        result.version, result.variant, in_str.c_str());
+  }
+  else if (result.error_code == ER_INCORRECT_UUID_VALUE  || result.error_code == ER_INCORRECT_UUID_VARIANT)
+  {
+    my_error_incorrect_uuid_value(in_str, result.version, result.variant);
+    null_value= true;
+    return 0;
   }
 
   null_value= false;
-  return version;
+  return result.version;
 }
