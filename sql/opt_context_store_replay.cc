@@ -123,6 +123,11 @@ public:
   ha_rows max_index_blocks;
   ha_rows max_row_blocks;
   ulong call_number;
+
+  static
+  Multi_range_read_const_call_record *parse(MEM_ROOT *mem_root,
+                                            json_engine_t *je,
+                                            String *err_buf);
 };
 
 /*
@@ -136,6 +141,10 @@ public:
   bool eq_ref;
   bool is_covering;
   ALL_READ_COST cost;
+
+  static
+  cost_index_read_call_record* parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                     String *err_buf);
 };
 
 /*
@@ -148,6 +157,11 @@ public:
   char *min_key;
   char *max_key;
   ha_rows records;
+
+  static
+  records_in_range_call_record* parse(MEM_ROOT *mem_root,
+                                      json_engine_t *je,
+                                      String *err_buf);
 };
 
 /*
@@ -187,24 +201,8 @@ ST_FIELD_INFO optimizer_context_capture_info[]= {
 static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf);
 static void append_base_table_name(const TABLE *table, String *buf);
 
-static int parse_check_obj_start_in_array(json_engine_t *je, String *err_buf,
-                                          const char *err_msg);
-static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
-                               String *err_buf,
-                               table_context_for_replay *table_ctx);
-static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
-                               String *err_buf,
-                               index_context_for_replay *index_ctx);
-static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *err_buf,
-                               Multi_range_read_const_call_record *range_ctx);
-static int parse_index_read_cost_context(MEM_ROOT*, json_engine_t *je,
-                                         String *err_buf,
-                                         cost_index_read_call_record *out);
 static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
                                       String *err_buf, Cost_estimate *cost);
-static int parse_records_in_range_context(MEM_ROOT *mem_root, json_engine_t *je,
-                                          String *err_buf,
-                                          records_in_range_call_record *rir_ctx);
 
 static char *strdup_root(MEM_ROOT *root, const String *str)
 {
@@ -1188,6 +1186,9 @@ public:
   index_context_for_replay() : rec_per_key(current_thd->mem_root) {}
   char *idx_name= NULL;
   Mem_root_dynamic_array<double> rec_per_key;
+  static index_context_for_replay *parse(MEM_ROOT *mem_root,
+                                         json_engine_t *je,
+                                         String *err_buf);
 };
 
 /*
@@ -1213,6 +1214,10 @@ public:
   List<Multi_range_read_const_call_record> ranges_list;
   List<cost_index_read_call_record> irc_list;
   List<records_in_range_call_record> rir_list;
+
+  static
+  table_context_for_replay *parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                  String *err_buf);
 };
 
 /*
@@ -1266,7 +1271,10 @@ public:
   }
 };
 
-// psergey: reads an array of doubles..
+/*
+  Read JSON array of double values.
+  We support the values being strings (in quotes) that store doubles.
+*/
 class Read_rec_per_key : public Read_array
 {
   MEM_ROOT *mem_root;
@@ -1295,99 +1303,6 @@ public:
   }
 };
 
-/*
-  Read an array of JSON objects representing object T.
-  Create instances of T and collect them in a List<T>
-*/
-template <typename T> class Read_array_into_list : public Read_array
-{
-  MEM_ROOT *mem_root;
-  List<T> *list_ctx;
-  int (*parse_context_fn)(MEM_ROOT *, json_engine_t *, String *, T *);
-
-public:
-  Read_array_into_list(MEM_ROOT *mem_root_arg, List<T> *list_ctx_arg,
-                       int (*parse_context_fn_arg)(MEM_ROOT *, json_engine_t *,
-                                                   String *, T *))
-      : mem_root(mem_root_arg), list_ctx(list_ctx_arg),
-        parse_context_fn(parse_context_fn_arg)
-  {
-  }
-  int read_container(json_engine_t *je, const char *name, String *err_buf)
-    override
-  {
-    int rc;
-
-    while (1)
-    {
-      T *ctx= new T();
-
-      if (unlikely(!ctx))
-        return 1; // OOM
-
-      if ((rc= parse_context_fn(mem_root, je, err_buf, ctx)))
-        break; // Parse error
-
-      if (list_ctx->push_back(ctx, mem_root))
-        return 1; // OOM
-    }
-    return rc;
-  }
-};
-
-
-/*
-  check if the next element being parsed is an object within an array.
-  fill the err_buf with err_msg if the parsing check fails.
-
-  @return
-    0  OK
-    1  Parse Error
-   -1  EOF
-*/
-static int parse_check_obj_start_in_array(json_engine_t *je, String *err_buf,
-                                          const char *err_msg)
-{
-  if (json_scan_next(je))
-    return 1;
-
-  if (je->state != JST_VALUE)
-  {
-    if (je->state == JST_ARRAY_END)
-      return -1; // EOF
-    else
-      return 1; // An error
-  }
-
-  if (json_scan_next(je) || je->state != JST_OBJ_START)
-  {
-    err_buf->append(err_msg, strlen(err_msg));
-    return 1;
-  }
-
-  return 0;
-}
-
-/*
-  parse a single context object from a json array of contexts.
-  The conext object should contain the elements that are
-  defined in the argument array
-
-  @return
-    0  OK
-    1  Parse Error
-   -1  EOF
-*/
-static int parse_context_obj_from_json_array(json_engine_t *je,
-                                             String *err_buf,
-                                             const char *err_msg,
-                                             Read_named_member *array)
-{
-  if (int rc= parse_check_obj_start_in_array(je, err_buf, err_msg))
-    return rc;
-
-  return json_read_object(je, array, err_buf);
-}
 
 /*
   Parses the table context of the JSON structure
@@ -1402,47 +1317,52 @@ static int parse_context_obj_from_json_array(json_engine_t *je,
     1  Parse Error
    -1  EOF
 */
-static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
-                               String *err_buf,
-                               table_context_for_replay *table_ctx)
+table_context_for_replay*
+table_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                String *err_buf)
 {
-  const char *err_msg= "Expected an object in the \"tables\" array";
+  auto *table_ctx= new (mem_root) table_context_for_replay;
 
-  Read_named_member array[]= {
-      {"name", Read_string(mem_root, &table_ctx->name), false},
-      {"file_stat_records",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
-       false},
-      {"data_file_length",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->data_file_length),
-       false},
-      {"index_file_length",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->index_file_length),
-       false},
-      {"mean_rec_length",
-       Read_non_neg_integer<ulong, ULONG_MAX>(&table_ctx->mean_rec_length),
-       false},
-      {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
-      {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
-      {"indexes",
-       Read_array_into_list<index_context_for_replay>(
-           mem_root, &table_ctx->index_list, parse_index_context),
-       true},
-      {"multi_range_read_info_const_calls",
-       Read_array_into_list<Multi_range_read_const_call_record>(
-           mem_root, &table_ctx->ranges_list, parse_range_context),
-       true},
-      {"cost_for_index_read_calls",
-       Read_array_into_list<cost_index_read_call_record>(
-           mem_root, &table_ctx->irc_list, parse_index_read_cost_context),
-       true},
-      {"records_in_range_calls",
-       Read_array_into_list<records_in_range_call_record>(
-           mem_root, &table_ctx->rir_list, parse_records_in_range_context),
-       true},
-      {NULL, Read_double(NULL), true}};
+  Read_named_member members[]=
+  {
+    {"name", Read_string(mem_root, &table_ctx->name), false},
+    {"file_stat_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->file_stat_records),
+     false},
+    {"data_file_length",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->data_file_length),
+     false},
+    {"index_file_length",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&table_ctx->index_file_length),
+     false},
+    {"mean_rec_length",
+     Read_non_neg_integer<ulong, ULONG_MAX>(&table_ctx->mean_rec_length),
+     false},
+    {"read_cost_io", Read_double(&table_ctx->read_cost_io), false},
+    {"read_cost_cpu", Read_double(&table_ctx->read_cost_cpu), false},
+    {"indexes",
+     Read_object_array<index_context_for_replay>(
+         mem_root, &table_ctx->index_list, index_context_for_replay::parse),
+     true},
+    {"multi_range_read_info_const_calls",
+     Read_object_array<Multi_range_read_const_call_record>(
+         mem_root, &table_ctx->ranges_list,
+         Multi_range_read_const_call_record::parse),
+     true},
+    {"cost_for_index_read_calls",
+     Read_object_array<cost_index_read_call_record>(
+         mem_root, &table_ctx->irc_list, cost_index_read_call_record::parse),
+     true},
+    {"records_in_range_calls",
+     Read_object_array<records_in_range_call_record>(
+         mem_root, &table_ctx->rir_list, records_in_range_call_record::parse),
+     true},
+    {NULL, Read_double(NULL), true}
+  };
 
-  return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
+  if (json_read_object(je, members, err_buf))
+    return NULL; // Error
+  return table_ctx;
 }
 
 /*
@@ -1458,19 +1378,25 @@ static int parse_table_context(MEM_ROOT *mem_root, json_engine_t *je,
     1  Parse Error
    -1  EOF
 */
-static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
-                               String *err_buf,
-                               index_context_for_replay *index_ctx)
-{
-  const char *err_msg= "Expected an object in the indexes array";
 
-  Read_named_member array[]= {
+index_context_for_replay*
+index_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                String *err_buf)
+{
+  auto index_ctx= new (mem_root) index_context_for_replay;
+  if (!index_ctx)
+    return NULL;
+
+  Read_named_member members[]= {
       {"index_name", Read_string(mem_root, &index_ctx->idx_name), false},
       {"rec_per_key", Read_rec_per_key(mem_root, &index_ctx->rec_per_key),
        false},
       {NULL, Read_double(NULL), true}};
 
-  return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
+  if (json_read_object(je, members, err_buf))
+    return NULL; // Error
+
+  return index_ctx;
 }
 
 /*
@@ -1486,30 +1412,37 @@ static int parse_index_context(MEM_ROOT *mem_root, json_engine_t *je,
     1  Parse Error
    -1  EOF
 */
-static int parse_range_context(MEM_ROOT *mem_root, json_engine_t *je, String *err_buf,
-                               Multi_range_read_const_call_record *out)
+Multi_range_read_const_call_record *
+Multi_range_read_const_call_record::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                          String *err_buf)
 {
-  const char *err_msg= "Expected an object in the multi_range_read_info_const_calls array";
+  auto out= new Multi_range_read_const_call_record;
+  if (!out)
+    return NULL;
 
-  Read_named_member array[]= {
-      {"index_name", Read_string(mem_root, &out->idx_name), false},
-      {"ranges", Read_array_of_strings(mem_root, &out->range_list), false},
-      {"num_rows", Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
-       false},
-      {"cost", Read_range_cost_estimate(mem_root, &out->cost), false},
-      {"mrr_mode", Read_non_neg_integer<uint, UINT_MAX>(&out->mrr_mode),
-       false},
-      {"max_index_blocks",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_index_blocks),
-       false},
-      {"max_row_blocks",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_row_blocks),
-       false},
-      {"call_number",
-       Read_non_neg_integer<ulong, ULONG_MAX>(&out->call_number), false},
-      {NULL, Read_double(NULL), true}};
+  Read_named_member members[]=
+  {
+    {"index_name", Read_string(mem_root, &out->idx_name), false},
+    {"ranges", Read_array_of_strings(mem_root, &out->range_list), false},
+    {"num_rows", Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->rows),
+     false},
+    {"cost", Read_range_cost_estimate(mem_root, &out->cost), false},
+    {"mrr_mode", Read_non_neg_integer<uint, UINT_MAX>(&out->mrr_mode),
+     false},
+    {"max_index_blocks",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_index_blocks),
+     false},
+    {"max_row_blocks",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->max_row_blocks),
+     false},
+    {"call_number",
+     Read_non_neg_integer<ulong, ULONG_MAX>(&out->call_number), false},
+    {NULL, Read_double(NULL), true}
+  };
 
-  return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
+  if (json_read_object(je, members, err_buf))
+    return NULL; // Error
+  return out;
 }
 
 /*
@@ -1562,33 +1495,40 @@ static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
     1  Parse Error
    -1  EOF
 */
-static int parse_index_read_cost_context(MEM_ROOT *mem_root, json_engine_t *je,
-                                         String *err_buf,
-                                         cost_index_read_call_record *out)
+cost_index_read_call_record*
+cost_index_read_call_record::parse(MEM_ROOT *mem_root, json_engine_t *je,
+                                   String *err_buf)
 {
-  const char *err_msg= "Expected an object in the index_read_costs array";
+  auto out= new (mem_root) cost_index_read_call_record;
+  if (!out)
+    return NULL;
 
-  Read_named_member array[]= {
-      {"index_name", Read_string(mem_root, &out->idx_name), false},
-      {"num_records",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
-      {"eq_ref", Read_non_neg_integer<bool, 1>(&out->eq_ref), false},
-      {"covering", Read_non_neg_integer<bool, 1>(&out->is_covering), false},
-      {"index_cost_io", Read_double(&out->cost.index_cost.io), false},
-      {"index_cost_cpu", Read_double(&out->cost.index_cost.cpu), false},
-      {"row_cost_io", Read_double(&out->cost.row_cost.io), false},
-      {"row_cost_cpu", Read_double(&out->cost.row_cost.cpu), false},
-      {"max_index_blocks",
-       Read_non_neg_integer<longlong, LONGLONG_MAX>(
-           &out->cost.max_index_blocks),
-       false},
-      {"max_row_blocks",
-       Read_non_neg_integer<longlong, LONGLONG_MAX>(&out->cost.max_row_blocks),
-       false},
-      {"copy_cost", Read_double(&out->cost.copy_cost), false},
-      {NULL, Read_double(NULL), true}};
+  Read_named_member members[]=
+  {
+    {"index_name", Read_string(mem_root, &out->idx_name), false},
+    {"num_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+    {"eq_ref", Read_non_neg_integer<bool, 1>(&out->eq_ref), false},
+    {"covering", Read_non_neg_integer<bool, 1>(&out->is_covering), false},
+    {"index_cost_io", Read_double(&out->cost.index_cost.io), false},
+    {"index_cost_cpu", Read_double(&out->cost.index_cost.cpu), false},
+    {"row_cost_io", Read_double(&out->cost.row_cost.io), false},
+    {"row_cost_cpu", Read_double(&out->cost.row_cost.cpu), false},
+    {"max_index_blocks",
+     Read_non_neg_integer<longlong, LONGLONG_MAX>(
+         &out->cost.max_index_blocks),
+     false},
+    {"max_row_blocks",
+     Read_non_neg_integer<longlong, LONGLONG_MAX>(&out->cost.max_row_blocks),
+     false},
+    {"copy_cost", Read_double(&out->cost.copy_cost), false},
+    {NULL, Read_double(NULL), true}
+  };
 
-  return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
+  if (json_read_object(je, members, err_buf))
+    return NULL; //error
+
+  return out;
 }
 
 /*
@@ -1604,23 +1544,27 @@ static int parse_index_read_cost_context(MEM_ROOT *mem_root, json_engine_t *je,
     1  Parse Error
    -1  EOF
 */
-static int parse_records_in_range_context(MEM_ROOT *mem_root,
-                                          json_engine_t *je,
-                                          String *err_buf,
-                                          records_in_range_call_record *out)
+records_in_range_call_record*
+records_in_range_call_record::parse(MEM_ROOT *mem_root,
+                                    json_engine_t *je,
+                                    String *err_buf)
 {
-  const char *err_msg= "Expected an object in the records_in_range array";
+  auto out= new (mem_root) records_in_range_call_record;
+  if (!out)
+    return NULL;
 
-  Read_named_member array[]= {
-      {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->keynr),
-       false},
-      {"min_key", Read_string(mem_root, &out->min_key), false},
-      {"max_key", Read_string(mem_root, &out->max_key), false},
-      {"num_records",
-       Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
-      {NULL, Read_double(NULL), true}};
-
-  return parse_context_obj_from_json_array(je, err_buf, err_msg, array);
+  Read_named_member members[]=
+  {
+    {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->keynr), false},
+    {"min_key", Read_string(mem_root, &out->min_key), false},
+    {"max_key", Read_string(mem_root, &out->max_key), false},
+    {"num_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+    {NULL, Read_double(NULL), true}
+  };
+  if (json_read_object(je, members, err_buf))
+    return NULL;
+  return out;
 }
 
 Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) : thd(thd_arg)
@@ -2056,11 +2000,15 @@ bool Optimizer_context_replay::parse()
   char *var_name= thd->variables.optimizer_replay_context;
   LEX_CSTRING varname= {var_name, strlen(var_name)};
 
-  Read_named_member array[]= {{"tables",
-                               Read_array_into_list<table_context_for_replay>(
-                                   thd->mem_root, &ctx_list, parse_table_context),
-                               false},
-                              {NULL, Read_double(NULL), true}};
+  Read_named_member members[]=
+  {
+    {"tables",
+      Read_object_array<table_context_for_replay>(thd->mem_root, &ctx_list,
+                                                 table_context_for_replay::parse),
+      false
+    },
+    {NULL, Read_double(NULL), true}
+  };
 
   DBUG_ENTER("Optimizer_context_replay::parse");
 
@@ -2096,7 +2044,7 @@ bool Optimizer_context_replay::parse()
     goto err;
   }
 
-  if (json_read_object(&je, array, &err_buf))
+  if (json_read_object(&je, members, &err_buf))
     goto err;
 
 #ifndef DBUG_OFF
