@@ -3205,7 +3205,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                 char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
-  my_bool    is_generated=0, is_vector=0;
+  my_bool    is_generated=0;
   my_ulonglong num_fields;
   char       *result_table, *opt_quoted_table;
   const char *insert_option;
@@ -3688,40 +3688,32 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       check_io(sql_file);
     }
 
+    if (write_data)
+    {
+      if (opt_replace_into)
+        dynstr_append_checked(&insert_pat, "REPLACE ");
+      else
+        dynstr_append_checked(&insert_pat, "INSERT ");
+      dynstr_append_checked(&insert_pat, insert_option);
+      dynstr_append_checked(&insert_pat, "INTO ");
+      dynstr_append_checked(&insert_pat, result_table);
+      if (complete_insert)
+        dynstr_append_checked(&insert_pat, " (");
+      else
+      {
+        dynstr_append_checked(&insert_pat, " VALUES ");
+        if (!extended_insert)
+          dynstr_append_checked(&insert_pat, "(");
+      }
+    }
+
     while ((row= mysql_fetch_row(result)))
     {
       ulong *lengths= mysql_fetch_lengths(result);
-      bool is_row_start= strstr(row[SHOW_EXTRA], "ROW START") != 0;
-      bool is_row_end= strstr(row[SHOW_EXTRA], "ROW END") != 0;
-      is_generated= 0;
-      is_vector= 0;
-
+      dynstr_append_mem_checked(&field_flags, "", 1);
       /* VECTOR doesn't have a type code yet, must be detected by name */
       if (strncmp(row[SHOW_TYPE], STRING_WITH_LEN("vector(")) == 0)
-        is_vector= 1;
-      else if (strstr(row[SHOW_EXTRA], "GENERATED") &&
-               !is_row_start && !is_row_end)
-        is_generated= 1;
-      if (strstr(row[SHOW_EXTRA], "INVISIBLE"))
-        complete_insert= 1;
-
-      /*
-        When complete_insert is enabled, skip generated columns entirely.
-        Otherwise, include them and mark them so DEFAULT is emitted.
-      */
-      if (is_generated && !path && !opt_dir && !opt_dump_history &&
-          complete_insert)
-        continue;
-
-      dynstr_append_mem_checked(&field_flags, "", 1);
-      if (is_generated)
-        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_GENERATED;
-      if (is_vector)
         field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VECTOR;
-      /* Mark system versioning columns */
-      if (is_row_start || is_row_end)
-        field_flags.str[field_flags.length-1]|= MYSQL_TYPE_VERS_COL;
-
       if (init)
       {
         if (!opt_xml && !opt_no_create_info)
@@ -3766,29 +3758,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
         check_io(sql_file);
       }
     }
-
-    if (write_data)
-    {
-      if (opt_replace_into)
-        dynstr_append_checked(&insert_pat, "REPLACE ");
-      else
-        dynstr_append_checked(&insert_pat, "INSERT ");
-      dynstr_append_checked(&insert_pat, insert_option);
-      dynstr_append_checked(&insert_pat, "INTO ");
-      dynstr_append_checked(&insert_pat, result_table);
-      if (complete_insert)
-        dynstr_append_checked(&insert_pat, " (");
-      else
-      {
-        dynstr_append_checked(&insert_pat, " VALUES ");
-        if (!extended_insert)
-          dynstr_append_checked(&insert_pat, "(");
-      }
-    }
-
     if (complete_insert)
       dynstr_append_checked(&insert_pat, select_field_names.str);
-    num_fields= field_flags.length;
+    num_fields= mysql_num_rows(result);
     mysql_free_result(result);
     if (!opt_no_create_info)
     {

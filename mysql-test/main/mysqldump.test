@@ -3382,9 +3382,10 @@ DROP DATABASE test1;
 --replace_result mariadb-dump.exe mariadb-dump
 --exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON perf% 2>&1
 
+--echo # End of 13.1 tests
+
 --echo #
---echo # MDEV-32362 Remove generated columns from INSERT statements in dump
---echo # Generated columns are omitted entirely from INSERT statements
+--echo # MDEV-32362 Omit generated column values from mariadb-dump dumps
 --echo #
 
 CREATE DATABASE dump_generated;
@@ -3458,19 +3459,28 @@ CREATE TABLE t3 (pk INTEGER, a INTEGER, b INTEGER,
 INSERT INTO t3(pk, a, b) VALUES (1, 11, 12), (2, 21, 22);
 SELECT pk, a, b, sum FROM t3;
 
+--echo # Table with invisible/generated mix
+CREATE TABLE t4 (pk INTEGER, a INTEGER,
+  b INTEGER GENERATED ALWAYS AS (a+1),
+  c INTEGER INVISIBLE, d INTEGER GENERATED ALWAYS AS (a+pk));
+INSERT INTO t4 (pk, a, c) VALUES (1,2,10),(4,5,20);
+
 --echo # Default (extended insert) - invisible forces complete_insert, generated columns omitted
---exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments dump_generated t3
+--exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments dump_generated t3 t4
 
 --echo # Without extended insert
---exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments --skip-extended-insert dump_generated t3
+--exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments --skip-extended-insert dump_generated t3 t4
 
 --echo # Dump/reload roundtrip
---exec $MYSQL_DUMP dump_generated t3 > $MYSQLTEST_VARDIR/tmp/t3.sql
+--exec $MYSQL_DUMP dump_generated t3 t4 > $MYSQLTEST_VARDIR/tmp/t34.sql
 DELETE FROM t3;
---exec $MYSQL dump_generated < $MYSQLTEST_VARDIR/tmp/t3.sql
+DELETE FROM t4;
+--exec $MYSQL dump_generated < $MYSQLTEST_VARDIR/tmp/t34.sql
 SELECT pk, a, b, sum FROM t3;
-DROP TABLE t3;
+SELECT pk, a, b, c, d FROM t4;
+DROP TABLE t3, t4;
 
 DROP DATABASE dump_generated;
 USE test;
 
+--echo # End of 13.2 tests
