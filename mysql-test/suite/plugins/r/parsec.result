@@ -85,13 +85,13 @@ Warnings:
 Warning	1292	Truncated incorrect parsec_iterations value: '2147483649'
 select @@global.parsec_iterations;
 @@global.parsec_iterations
-2147483648
+1073741824
 # Session variable access
 set session parsec_iterations = 1024;
 select @@session.parsec_iterations;
 @@session.parsec_iterations
 1024
-# parsec_iterations should should not get accidently mutated during user creation
+# parsec_iterations should not get accidently mutated during user creation
 set @iter_before_global := @@global.parsec_iterations;
 set @iter_before_session := @@session.parsec_iterations;
 create user t_iter@'%' identified via parsec using password('pwd');
@@ -127,4 +127,35 @@ left(json_value(Priv, '$.authentication_string'), 2)
 P9
 drop user t_iter@'%';
 set global parsec_iterations = @init_value;
+# connection test
+set session parsec_iterations = 65536;
+create user test1@'%' identified via parsec using password('pwd');
+show grants for test1@'%';
+Grants for test1@%
+GRANT USAGE ON *.* TO `test1`@`%` IDENTIFIED VIA parsec USING 'P6:salt:password'
+connect con1, localhost, test1, pwd;
+select 1, user(), current_user();
+1	user()	current_user()
+1	test1@localhost	test1@%
+disconnect con1;
+connection default;
+drop user test1@'%';
+select * from information_schema.system_variables where variable_name like 'parsec%';
+VARIABLE_NAME	PARSEC_ITERATIONS
+SESSION_VALUE	65536
+GLOBAL_VALUE	1024
+GLOBAL_VALUE_ORIGIN	SQL
+DEFAULT_VALUE	1024
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Number of iterations to be used when generating the key corresponding to the password. Will be rounded up to a power of two
+NUMERIC_MIN_VALUE	1024
+NUMERIC_MAX_VALUE	1073741824
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+GLOBAL_VALUE_PATH	NULL
+IS_DEPRECATED	NO
+DEPRECATED_REPLACEMENT	NULL
 # End of parsec.test

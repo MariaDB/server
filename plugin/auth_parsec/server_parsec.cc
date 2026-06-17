@@ -42,7 +42,7 @@ constexpr size_t CLIENT_RESPONSE_LENGTH= CHALLENGE_SCRAMBLE_LENGTH
 
 constexpr parsec_iterations_t ITER_FACTOR_BASE_VAL= 10u;
 constexpr parsec_iterations_t ITER_BASE_VAL= 1u << ITER_FACTOR_BASE_VAL;
-constexpr parsec_iterations_t PARSEC_ITERATIONS_MAX= 1u << 31;
+constexpr parsec_iterations_t PARSEC_ITERATIONS_MAX= 1u << 30;
 
 static inline uchar base62_to_uchar(char c) {
     if (c >= '0' && c <= '9') return c - '0';
@@ -65,7 +65,7 @@ static void update_parsec_iterations(MYSQL_THD thd,
   *static_cast<parsec_iterations_t*>(var_ptr)= iterations;
 }
 
-static MYSQL_THDVAR_UINT(iterations, PLUGIN_VAR_NOCMDOPT,
+static MYSQL_THDVAR_UINT(iterations, PLUGIN_VAR_RQCMDARG,
        "Number of iterations to be used when generating the key corresponding to the password. "
        "Will be rounded up to a power of two",
        NULL, update_parsec_iterations, ITER_BASE_VAL, ITER_BASE_VAL,
@@ -244,12 +244,11 @@ int digest_to_binary(const char *hash, size_t hash_length,
 {
   auto stored= (Passwd_as_stored*)hash;
   auto memory= (Passwd_in_memory*)out;
-  const uchar ITER_MAX_VAL= parsec_dig_vec_base62[my_bit_log2_uint32(PARSEC_ITERATIONS_MAX) - ITER_FACTOR_BASE_VAL];
-  assert(ITER_MAX_VAL == 'L');
+
+  memory->iterations= base62_to_uchar(stored->iterations);
 
   if (hash_length != sizeof (*stored) || *out_length < sizeof(*memory) ||
-      stored->algorithm != 'P' ||
-      stored->iterations < '0' || stored->iterations > ITER_MAX_VAL ||
+      stored->algorithm != 'P' || memory->iterations == 255 ||
       stored->colon != ':' || stored->colon2 != ':')
   {
     my_printf_error(ER_PASSWD_LENGTH, "Wrong ext-salt format", 0);
@@ -259,7 +258,6 @@ int digest_to_binary(const char *hash, size_t hash_length,
   *out_length = sizeof(*memory);
   memory->algorithm= stored->algorithm;
 
-  memory->iterations= base62_to_uchar(stored->iterations);
 
   static_assert(base64_length(CHALLENGE_SALT_LENGTH) == base64_length_raw(CHALLENGE_SALT_LENGTH),
                 "Salt is base64-aligned");

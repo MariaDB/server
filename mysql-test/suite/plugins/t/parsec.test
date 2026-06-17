@@ -97,7 +97,7 @@ select @@global.parsec_iterations;
 set session parsec_iterations = 1024;
 select @@session.parsec_iterations;
 
---echo # parsec_iterations should should not get accidently mutated during user creation
+--echo # parsec_iterations should not get accidently mutated during user creation
 set @iter_before_global := @@global.parsec_iterations;
 set @iter_before_session := @@session.parsec_iterations;
 create user t_iter@'%' identified via parsec using password('pwd');
@@ -125,5 +125,19 @@ select left(json_value(Priv, '$.authentication_string'), 2) from mysql.global_pr
 drop user t_iter@'%';
 
 set global parsec_iterations = @init_value;
+
+--echo # connection test
+set session parsec_iterations = 65536;
+create user test1@'%' identified via parsec using password('pwd');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
+show grants for test1@'%';
+connect con1, localhost, test1, pwd;
+select 1, user(), current_user();
+disconnect con1;
+connection default;
+source include/wait_until_count_sessions.inc;
+drop user test1@'%';
+
+query_vertical select * from information_schema.system_variables where variable_name like 'parsec%';
 
 --echo # End of parsec.test
