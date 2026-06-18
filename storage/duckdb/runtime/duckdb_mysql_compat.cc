@@ -54,6 +54,9 @@
 #include "duckdb/main/connection.hpp"
 
 #include "duckdb/common/types/string_type.hpp"
+#include "duckdb/execution/expression_executor.hpp"
+#include "duckdb/function/scalar/regexp.hpp"
+#include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "re2/re2.h"
 
 namespace myduck
@@ -983,6 +986,86 @@ static void locate_3arg_func(duckdb::DataChunk &args,
 }
 
 /* ================================================================
+   regexp_replace(VARCHAR, VARCHAR, VARCHAR) -> VARCHAR
+
+   MariaDB REGEXP_REPLACE replaces ALL matches (global), unlike DuckDB's
+   native 3-arg form which replaces only the first.  We reuse DuckDB's
+   native bind-data / local-state so a constant pattern is compiled once
+   at bind time (RegexInitLocalState) instead of per row.
+
+   Invalid-pattern behavior mirrors MariaDB:
+     - constant pattern  -> RegexLocalState ctor throws (query error);
+     - non-constant       -> per-row NULL.
+   ================================================================ */
+
+static duckdb::unique_ptr<duckdb::FunctionData>
+regexp_replace_bind(duckdb::ClientContext &context,
+                    duckdb::ScalarFunction &,
+                    duckdb::vector<duckdb::unique_ptr<duckdb::Expression>>
+                        &arguments)
+{
+  auto data= duckdb::make_uniq<duckdb::RegexpReplaceBindData>();
+  data->constant_pattern= duckdb::regexp_util::TryParseConstantPattern(
+      context, *arguments[1], data->constant_string);
+  data->global_replace= true;
+  data->options.set_log_errors(false);
+  return duckdb::unique_ptr<duckdb::FunctionData>(std::move(data));
+}
+
+static void regexp_replace_global_func(duckdb::DataChunk &args,
+                                       duckdb::ExpressionState &state,
+                                       duckdb::Vector &result)
+{
+  auto &func_expr= state.expr.Cast<duckdb::BoundFunctionExpression>();
+  auto &info= func_expr.bind_info->Cast<duckdb::RegexpReplaceBindData>();
+
+  auto &strings= args.data[0];
+  auto &patterns= args.data[1];
+  auto &replaces= args.data[2];
+
+  if (info.constant_pattern)
+  {
+    auto &lstate= duckdb::ExecuteFunctionState::GetFunctionState(state)
+                      ->Cast<duckdb::RegexLocalState>();
+    duckdb::BinaryExecutor::Execute<duckdb::string_t, duckdb::string_t,
+                                    duckdb::string_t>(
+        strings, replaces, result, args.size(),
+        [&](duckdb::string_t input, duckdb::string_t replace) {
+          std::string s= input.GetString();
+          duckdb_re2::RE2::GlobalReplace(
+              &s, lstate.constant_pattern,
+              duckdb_re2::StringPiece(replace.GetData(), replace.GetSize()));
+          return duckdb::StringVector::AddString(result, s);
+        });
+  }
+  else
+  {
+    duckdb::TernaryExecutor::ExecuteWithNulls<duckdb::string_t,
+                                              duckdb::string_t,
+                                              duckdb::string_t,
+                                              duckdb::string_t>(
+        strings, patterns, replaces, result, args.size(),
+        [&](duckdb::string_t input, duckdb::string_t pattern,
+            duckdb::string_t replace, duckdb::ValidityMask &mask,
+            duckdb::idx_t idx) -> duckdb::string_t {
+          duckdb_re2::RE2 re(
+              duckdb_re2::StringPiece(pattern.GetData(), pattern.GetSize()),
+              info.options);
+          if (!re.ok())
+          {
+            mask.SetInvalid(idx);
+            return duckdb::string_t();
+          }
+          std::string s= input.GetString();
+          duckdb_re2::RE2::GlobalReplace(
+              &s, re,
+              duckdb_re2::StringPiece(replace.GetData(), replace.GetSize()));
+          return duckdb::StringVector::AddString(result, s);
+        });
+  }
+}
+
+/* ================================================================
    Registration
    ================================================================ */
 
@@ -1207,32 +1290,15 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
   }
 
   /* regexp_replace(VARCHAR, VARCHAR, VARCHAR) → VARCHAR
-     Replaces all occurrences of pattern in expr with replacement. */
+     Global (replace-all) MariaDB semantics with bind-time pattern
+     compilation for constant patterns.  See regexp_replace_global_func. */
   {
     duckdb::ScalarFunctionSet set("regexp_replace");
     set.AddFunction(duckdb::ScalarFunction(
         {duckdb::LogicalType::VARCHAR, duckdb::LogicalType::VARCHAR,
          duckdb::LogicalType::VARCHAR},
-        duckdb::LogicalType::VARCHAR,
-        [](duckdb::DataChunk &args, duckdb::ExpressionState &,
-           duckdb::Vector &result) {
-          duckdb::TernaryExecutor::Execute<duckdb::string_t, duckdb::string_t,
-                                           duckdb::string_t,
-                                           duckdb::string_t>(
-              args.data[0], args.data[1], args.data[2], result, args.size(),
-              [&](duckdb::string_t expr, duckdb::string_t pat,
-                  duckdb::string_t repl) -> duckdb::string_t {
-                duckdb_re2::RE2 re(
-                    duckdb_re2::StringPiece(pat.GetData(), pat.GetSize()));
-                if (!re.ok())
-                  return expr;
-                std::string s(expr.GetData(), expr.GetSize());
-                duckdb_re2::RE2::GlobalReplace(
-                    &s,  re,
-                    duckdb_re2::StringPiece(repl.GetData(), repl.GetSize()));
-                return duckdb::StringVector::AddString(result, s);
-              });
-        }));
+        duckdb::LogicalType::VARCHAR, regexp_replace_global_func,
+        regexp_replace_bind, nullptr, nullptr, duckdb::RegexInitLocalState));
     duckdb::CreateScalarFunctionInfo info(std::move(set));
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
