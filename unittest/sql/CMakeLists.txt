@@ -38,5 +38,5 @@ MY_ADD_TEST(my_json_writer)
 # Json writer needs String which needs sql library
 ADD_EXECUTABLE(json_reader-t json_reader-t.cc dummy_builtins.cc)
 TARGET_LINK_LIBRARIES(json_reader-t sql mytap)
-MY_ADD_TEST(jons_reader)
+MY_ADD_TEST(json_reader)
 
