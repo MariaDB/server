@@ -68,6 +68,11 @@ ExternalProject_Add(duckdb_build
     -DBUILD_TPCE=OFF
     -DEXTENSION_STATIC_BUILD=1
     "-DDUCKDB_EXTENSION_CONFIGS=${CMAKE_CURRENT_SOURCE_DIR}/cmake/duckdb_extensions.cmake"
+    # Upstream sets DUCKDB_EXTENSION_JEMALLOC_LINKED via add_extension_definitions(),
+    # which runs in extension/ but NOT in src/, so allocator.cpp (in duckdb_static)
+    # compiles the glibc malloc() path even though libjemalloc_extension.a is linked.
+    # Define it globally + add the jemalloc header dir so the USE_JEMALLOC branch is active.
+    "-DCMAKE_CXX_FLAGS=-DDUCKDB_EXTENSION_JEMALLOC_LINKED=1 -I${DUCKDB_SUBMODULE_DIR}/extension/jemalloc/include"
     -DENABLE_SANITIZER=FALSE
     -DENABLE_UBSAN=OFF
     -DOVERRIDE_GIT_DESCRIBE=v1.5.2-0-g0000000000
