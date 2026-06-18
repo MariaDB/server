@@ -2642,7 +2642,17 @@ void Item_sum_any_value::clear()
   DBUG_VOID_RETURN;
 }
 
+
 void Item_sum_any_value::update_field() {}
+
+
+Item *Item_sum_any_value::copy_or_same(THD* thd)
+{
+  DBUG_ENTER("Item_sum_any_value::copy_or_same");
+  Item_sum_any_value *item= new (thd->mem_root) Item_sum_any_value(thd, this);
+  item->setup_hybrid(thd, args[0], value);
+  DBUG_RETURN(item);
+}
 
 
 /* bit_or and bit_and */

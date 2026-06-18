@@ -1264,7 +1264,7 @@ public:
   {
   }
   Item_sum_any_value(THD *thd, Item_sum_any_value *item)
-      : Item_sum_min_max(thd, item), has_value(FALSE)
+      : Item_sum_min_max(thd, item), has_value(item->has_value)
   {
   }
 
@@ -1278,6 +1278,7 @@ public:
     static LEX_CSTRING sum_name= {STRING_WITH_LEN("any_value(")};
     return sum_name;
   }
+  Item *copy_or_same(THD* thd) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
