@@ -27,7 +27,7 @@
 #include "key.h"
 #include <math.h>
 
-extern struct st_mysql_ftparser ft_default_parser; // XXX
+extern struct st_mysql_ftparser ft_default_parser; // XXX move it out of myisam
 
 constexpr double pivot= 0.0115;
 static inline double lws(double tf) { return log(tf) + 1; }
@@ -113,7 +113,7 @@ static int fts_collect_word(MYSQL_FTPARSER_PARAM *param,
 {
   auto *ctx= static_cast<fts_collect_ctx *>(param->ftparser_state);
   fts_word w;
-  w.ptr= (uchar *)memdup_root(ctx->mem_root, word, word_len); // XXX why?
+  w.ptr= (uchar *)memdup_root(ctx->mem_root, word, word_len);
   if (!w.ptr)
     return 1;
   w.len= (uint)word_len;
@@ -122,7 +122,6 @@ static int fts_collect_word(MYSQL_FTPARSER_PARAM *param,
 
 struct fts_docstat
 {
-  uint uniq;
   double sum;
 };
 
@@ -183,7 +182,6 @@ static int fts_mysql_parse(MYSQL_FTPARSER_PARAM *param,
 static int fts_sum_words(const fts_word &, element_count cnt, fts_docstat *stat)
 {
   stat->sum+= lws(cnt);
-  stat->uniq++; // XXX Isn't it tree->element_count ?
   return 0;
 }
 
@@ -216,7 +214,7 @@ int fts_index::insert_row(TABLE *tbl, KEY *keyinfo)
 
   struct st_mysql_ftparser *parser= keyinfo->parser
       ? plugin_data(keyinfo->parser, struct st_mysql_ftparser *)
-      : &ft_default_parser; // XXX move ft_default_parser out of myisam
+      : &ft_default_parser;
 
   tbl->file->position(tbl->record[0]);
 
@@ -235,11 +233,11 @@ int fts_index::insert_row(TABLE *tbl, KEY *keyinfo)
 
   if (!err)
   {
-    fts_docstat stat= { 0, 0.0 };
+    fts_docstat stat= { 0.0 };
     wtree.walk(fts_sum_words, &stat);
 
     fts_write_ctx wctx= { table, tbl->file->ref, tbl->file->ref_length,
-                          cs, stat.sum, stat.uniq, 0 };
+                          cs, stat.sum, wtree.elements(), 0 };
     wtree.walk(fts_write_word, &wctx);
     err= wctx.err;
   }
@@ -260,11 +258,10 @@ static int fts_search_word(const fts_word &word, element_count query_cnt,
 {
   StringBuffer<STRING_BUFFER_USUAL_SIZE> tbuf;
   TABLE *t= sctx->htable;
-  restore_record(t, s->default_values); // XXX create key directly
-  t->field[0]->store((char*)word.ptr, word.len, t->field[0]->charset());
   uint keylen= t->key_info[0].key_length;
   uchar *key= (uchar*)alloca(keylen);
-  key_copy(key, t->record[0], &t->key_info[0], keylen);
+  int2store(key, word.len);
+  memcpy(key + HA_KEY_BLOB_LENGTH, word.ptr, word.len);
 
   int err= t->file->ha_index_read_map(t->record[0], key,
                                       HA_WHOLE_KEY, HA_READ_KEY_EXACT);
