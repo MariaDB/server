@@ -2,6 +2,7 @@
 --source include/have_sequence.inc
 --source include/no_view_protocol.inc
 --echo #enable optimizer_record_context
+set optimizer_trace=0;
 set optimizer_record_context=ON;
 
 --disable_replay testfile Dont replay a replay test
@@ -320,6 +321,34 @@ set optimizer_replay_context='';
 set optimizer_replay_context='NO_SUCH_VARIABLE';
 explain select * from t1 where c < 3;
 
+set optimizer_replay_context='';
+drop table t1;
+
+--echo #
+--echo # MDEV-39360: "set statement optimizer_record_context=1 for query" isn't recording context
+--echo #
+set optimizer_record_context=0;
+create table t1 (a varchar(32));
+insert into t1 values ('aaaaaa'),('bbbbbb');
+
+--echo # Here context should be recorded as it is enabled for this query statement
+set statement optimizer_record_context=1 for explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+--echo # rerun above explain query. Here context shouldn't be recorded as it was disabled for the session
+explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+set optimizer_record_context=1;
+
+--echo # Here context shouldn't be recorded as it is disabled for this query statement,
+--echo # even though it is enabled for the session
+set statement optimizer_record_context=0 for explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
+
+--echo # Here context should be recorded as it was already enabled for the session
+explain select * from t1 where a >'foo' or a < 'bar';
+select context like '%bar%' from information_schema.optimizer_context;
 
 drop table t1;
 drop database db1;
