@@ -1472,7 +1472,10 @@ TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 
   purge_sys.clone_oldest_view(thd);
 
-  ut_d(if (srv_purge_view_update_only_debug) return 0);
+#ifdef UNIV_DEBUG
+  if (srv_purge_view_update_only_debug)
+    return purge_sys.reset_coordinator();
+#endif /* UNIV_DEBUG */
 
   /* Fetch the UNDO recs that need to be purged. */
   ulint n_work= 0;
