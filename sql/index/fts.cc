@@ -54,9 +54,12 @@ struct fts_hit
 struct fts_search_ctx
 {
   TABLE *htable;
+  ha_rows N;
   Hash_set<fts_hit> *hash;
   MEM_ROOT *mem_root;
+  DYNAMIC_ARRAY tmp;   /* to reuse, not allocate per-word */
   size_t elem_size;
+  uint ref_len;
   int err;
 };
 
@@ -252,48 +255,61 @@ static int cmp_hit_score_desc(const void *a_, const void *b_)
   return sb < sa ? -1 : sb > sa;
 }
 
-static int fts_search_word(const fts_word &word, element_count,
+static int fts_search_word(const fts_word &word, element_count query_cnt,
                            fts_search_ctx *sctx)
 {
   StringBuffer<STRING_BUFFER_USUAL_SIZE> tbuf;
   TABLE *t= sctx->htable;
   restore_record(t, s->default_values); // XXX create key directly
   t->field[0]->store((char*)word.ptr, word.len, t->field[0]->charset());
-  uchar *key= (uchar*)alloca(t->key_info[0].key_length);
-  key_copy(key, t->record[0], &t->key_info[0], t->key_info[0].key_length);
+  uint keylen= t->key_info[0].key_length;
+  uchar *key= (uchar*)alloca(keylen);
+  key_copy(key, t->record[0], &t->key_info[0], keylen);
 
   int err= t->file->ha_index_read_map(t->record[0], key,
                                       HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (err == HA_ERR_KEY_NOT_FOUND)
     return 0;
+
+  DYNAMIC_ARRAY *tmp= &sctx->tmp;
+  tmp->elements= 0;
+
+  fts_hit *scratch= (fts_hit*)alloca(sctx->elem_size);
   while (!err)
   {
-    String *tref= t->field[1]->val_str(&tbuf);
-    double weight= t->field[2]->val_real();
-    fts_hit *hit= sctx->hash->find(tref->ptr(), tref->length());
-    if (hit)
-      hit->score += weight; // XXX suspicious
-    else
+    String *tref_str= t->field[1]->val_str(&tbuf);
+    scratch->score= t->field[2]->val_real();
+    memcpy(scratch->tref, tref_str->ptr(), sctx->ref_len);
+    if (insert_dynamic(tmp, scratch))
+      return sctx->err= HA_ERR_OUT_OF_MEM;
+    err= t->file->ha_index_next_same(t->record[0], key, keylen);
+  }
+  if (err != HA_ERR_END_OF_FILE)
+    return sctx->err= err;
+
+  ha_rows N= sctx->N, df= (ha_rows)tmp->elements;
+  double gw= N > df ? query_cnt * log((double)(N - df) / df) : 0;
+
+  if (gw > 0)
+  {
+    for (uint i= 0; i < tmp->elements; i++)
     {
-      if (!((hit= (fts_hit*)alloc_root(sctx->mem_root, sctx->elem_size))))
+      fts_hit *src= dynamic_element(tmp, i, fts_hit*);
+      fts_hit *hit= sctx->hash->find(src->tref, sctx->ref_len);
+      if (hit)
+        hit->score += src->score * gw;
+      else
       {
-        sctx->err= HA_ERR_OUT_OF_MEM;
-        return 1;
-      }
-      hit->score= weight;
-      memcpy(hit->tref, tref->ptr(), tref->length());
-      if (sctx->hash->insert(hit))
-      {
-        sctx->err= HA_ERR_OUT_OF_MEM;
-        return 1;
+        if (!(hit= (fts_hit*)alloc_root(sctx->mem_root, sctx->elem_size)))
+          return sctx->err= HA_ERR_OUT_OF_MEM;
+        hit->score= src->score * gw;
+        memcpy(hit->tref, src->tref, sctx->ref_len);
+        if (sctx->hash->insert(hit))
+          return sctx->err= HA_ERR_OUT_OF_MEM;
       }
     }
-    err= t->file->ha_index_next_same(t->record[0], key,
-                                     t->key_info[0].key_length);
   }
-  if (err == HA_ERR_END_OF_FILE)
-    return 0;
-  return sctx->err= err;
+  return 0;
 }
 
 int fts_index::read_init(TABLE *tbl, KEY *keyinfo, Item *match, ulonglong limit)
@@ -336,15 +352,23 @@ int fts_index::read_init(TABLE *tbl, KEY *keyinfo, Item *match, ulonglong limit)
   if (int err= parser->parse(&param))
     return err;
 
+  tbl->file->info(HA_STATUS_VARIABLE);
+  ha_rows N= tbl->file->stats.records;
+
   Hash_set<fts_hit> hits(PSI_INSTRUMENT_MEM, &my_charset_bin, 64,
                          offsetof(fts_hit, tref), ref_len,
                          nullptr, nullptr, HASH_UNIQUE);
-  fts_search_ctx sctx= { table, &hits, &hmem, elem_size, 0 };
+  fts_search_ctx sctx= { table, N, &hits, &hmem, {}, elem_size, ref_len, 0 };
+
   if (int err= table->file->ha_index_init(0, 0))
     return err;
 
-  wtree.walk(fts_search_word, &sctx);
+  if (my_init_dynamic_array(PSI_INSTRUMENT_MEM, &sctx.tmp, elem_size, 8, 8, MYF(0)))
+    sctx.err= HA_ERR_OUT_OF_MEM;
+  else
+    wtree.walk(fts_search_word, &sctx);
   table->file->ha_index_end();
+  delete_dynamic(&sctx.tmp);
   free_root(&qmem, MYF(0));
   if (sctx.err)
     return sctx.err;
