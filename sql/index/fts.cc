@@ -80,8 +80,7 @@ public:
   int read_init(TABLE *tbl, KEY *keyinfo, Item *match, ulonglong limit) override;
   int read_next(TABLE *tbl) override;
   int read_end(TABLE *tbl) override;
-  int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) override
-    { return HA_ERR_WRONG_COMMAND; }
+  int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) override;
   int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) override
     { return HA_ERR_WRONG_COMMAND; }
   bool reading() override { return context; }
@@ -179,6 +178,42 @@ static int fts_mysql_parse(MYSQL_FTPARSER_PARAM *param,
   return 0;
 }
 
+struct fts_delete_ctx
+{
+  TABLE *table;
+  const uchar *tref;
+  uint tref_len;
+  int err;
+};
+
+static int fts_delete_word(const fts_word &word, element_count,
+                           fts_delete_ctx *ctx)
+{
+  TABLE *t= ctx->table;
+  uint keylen= t->key_info[0].key_length;
+  uchar *key= (uchar*)alloca(keylen);
+  int2store(key, word.len);
+  memcpy(key + HA_KEY_BLOB_LENGTH, word.ptr, word.len);
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tbuf;
+
+  int err= t->file->ha_index_read_map(t->record[0], key,
+                                      HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+  while (!err)
+  {
+    String *ts= t->field[1]->val_str(&tbuf);
+    if (ts->length() == ctx->tref_len &&
+        memcmp(ts->ptr(), ctx->tref, ctx->tref_len) == 0)
+    {
+      err= t->file->ha_delete_row(t->record[0]);
+      break;
+    }
+    err= t->file->ha_index_next_same(t->record[0], key, keylen);
+  }
+  if (err == HA_ERR_KEY_NOT_FOUND || err == HA_ERR_END_OF_FILE)
+    err= 0;
+  return ctx->err= err;
+}
+
 static int fts_sum_words(const fts_word &, element_count cnt, fts_docstat *stat)
 {
   stat->sum+= lws(cnt);
@@ -240,6 +275,68 @@ int fts_index::insert_row(TABLE *tbl, KEY *keyinfo)
                           cs, stat.sum, wtree.elements(), 0 };
     wtree.walk(fts_write_word, &wctx);
     err= wctx.err;
+  }
+
+  free_root(&mem_root, MYF(0));
+  dbug_tmp_restore_column_map(&tbl->read_set, old_map);
+  return err;
+}
+
+int fts_index::delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo)
+{
+  tbl->file->position(rec);
+
+  my_ptrdiff_t ptrdiff= rec - tbl->record[0];
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(tbl, &tbl->read_set);
+  CHARSET_INFO *cs= keyinfo->key_part[0].field->charset();
+
+  if (ptrdiff)
+    for (uint i= 0; i < keyinfo->user_defined_key_parts; i++)
+      keyinfo->key_part[i].field->move_field_offset(ptrdiff);
+
+  MEM_ROOT mem_root;
+  init_alloc_root(PSI_INSTRUMENT_MEM, &mem_root, 4096, 4096, MYF(0));
+  fts_word_tree wtree(cmpw, cs);
+  fts_collect_ctx cctx= { &wtree, &mem_root };
+  MYSQL_FTPARSER_PARAM param {};
+  param.mysql_parse=    fts_mysql_parse;
+  param.mysql_add_word= fts_collect_word;
+  param.ftparser_state= &cctx;
+  param.mode=           MYSQL_FTPARSER_SIMPLE_MODE;
+  param.cs=             cs;
+
+  struct st_mysql_ftparser *parser= keyinfo->parser
+      ? plugin_data(keyinfo->parser, struct st_mysql_ftparser *)
+      : &ft_default_parser;
+
+  int err= 0;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+  for (uint i= 0; i < keyinfo->user_defined_key_parts && !err; i++)
+  {
+    Field *field= keyinfo->key_part[i].field;
+    if (field->is_null())
+      continue;
+    String *val= field->val_str(&buf);
+    param.doc=    val->ptr();
+    param.length= val->length();
+    err= parser->parse(&param);
+  }
+
+  if (ptrdiff)
+    for (uint i= 0; i < keyinfo->user_defined_key_parts; i++)
+      keyinfo->key_part[i].field->move_field_offset(-ptrdiff);
+
+  if (!err)
+  {
+    if (int ierr= table->file->ha_index_init(0, 0))
+      err= ierr;
+    else
+    {
+      fts_delete_ctx dctx= { table, tbl->file->ref, tbl->file->ref_length, 0 };
+      wtree.walk(fts_delete_word, &dctx);
+      table->file->ha_index_end();
+      err= dctx.err;
+    }
   }
 
   free_root(&mem_root, MYF(0));
