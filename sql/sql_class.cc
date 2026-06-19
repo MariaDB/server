@@ -7569,6 +7569,18 @@ int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
 /**
    Remove from read_set spurious columns. The write_set has been
    handled before in table->mark_columns_needed_for_update.
+
+   Then remove any virtual columns, from both read_set and rpl_write_set.
+
+   Notes on unfortunate trickery:
+
+    - The bits for the row after-image come from rpl_write_set, which can be
+      separate from the normal table->write_set (table->def_read_set,
+      table->s->all_set), but need not be.
+
+    - The table->read_set has been saved by the caller, and will be restored
+      later, this function will point it to the table->tmp_set if any bits
+      need to change.
 */
 void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
 {
@@ -7621,6 +7633,40 @@ void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
     /* set the temporary read_set */
     table->column_bitmaps_set_no_signal(&table->tmp_set,
                                         table->write_set);
+  }
+
+  /*
+    Do not put virtual column values into the write_set, as they will be
+    re-computed anyway by the slave applier.
+  */
+  if (unlikely(table->vfield))
+  {
+#ifdef HAVE_REPLICATION
+    if (!table->s->online_alter_binlog)
+#endif
+    {
+      if (table->read_set != &table->tmp_set)
+      {
+        bitmap_copy(&table->tmp_set, table->read_set);
+        table->read_set= &table->tmp_set;
+      }
+      /*
+        rpl_write_set is used with pack_row() to define which fields should
+        be written to the binary log
+      */
+      if (table->rpl_write_set != &table->def_rpl_write_set)
+      {
+        bitmap_copy(&table->def_rpl_write_set, table->rpl_write_set);
+        table->rpl_write_set= &table->def_rpl_write_set;
+      }
+      Field **end_vf= table->vfield + table->s->virtual_fields;
+      for (Field **vf_ptr= table->vfield; vf_ptr < end_vf; ++vf_ptr)
+      {
+        Field *vf= *vf_ptr;
+        bitmap_clear_bit(table->read_set, vf->field_index);
+        bitmap_clear_bit(table->rpl_write_set, vf->field_index);
+      }
+    }
   }
 
   DBUG_PRINT_BITSET("debug", "table->read_set (after preparing): %s",
