@@ -3210,6 +3210,17 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
       DBUG_RETURN(TRUE);
     }
   }
+  /* Set NOT_NULL_FLAG for the columns which are part of a primary key. */
+  for (Key &key: alter_info->key_list)
+  {
+    if (key.type != Key::PRIMARY)
+      continue;
+    for (Key_part_spec &kp: key.columns)
+      for (Create_field &c: alter_info->create_list)
+        if (c.field_name.streq(kp.field_name) && !c.vcol_info)
+          c.flags|= NOT_NULL_FLAG;
+  }
+
   DBUG_RETURN(false);
 }
 
