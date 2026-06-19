@@ -37,6 +37,7 @@ public:
   virtual int read_next(TABLE *tbl) = 0;
   virtual int read_end(TABLE *tbl) = 0;
   virtual int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) = 0;
+// XXX why delete_row needs rec? insert doesn't
   virtual int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) = 0;
   virtual bool reading() = 0;
   virtual ~hlindex();
