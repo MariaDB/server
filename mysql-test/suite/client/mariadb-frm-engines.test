@@ -1,0 +1,170 @@
+--echo MariaDB frm parser test - Storage Engines
+--echo Testing various storage engines
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+CREATE TABLE t_myisam (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  data TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_name (name)
+) ENGINE=MyISAM;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_myisam.frm
+DROP TABLE t_myisam;
+
+# Test InnoDB engine
+--source include/have_innodb.inc
+CREATE TABLE t_innodb (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_email (email),
+  INDEX idx_name (name)
+) ENGINE=InnoDB;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_innodb.frm
+DROP TABLE t_innodb;
+
+# Test Aria engine (MariaDB's enhanced MyISAM)
+--source include/have_aria.inc
+CREATE TABLE t_aria (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  description TEXT,
+  status ENUM('active', 'inactive') DEFAULT 'active',
+  score DECIMAL(10,2),
+  INDEX idx_name (name),
+  INDEX idx_status (status)
+) ENGINE=Aria;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_aria.frm
+DROP TABLE t_aria;
+
+# Test MEMORY engine (HEAP)
+CREATE TABLE t_memory (
+  id INT PRIMARY KEY,
+  session_id VARCHAR(32),
+  data VARCHAR(255),
+  expires_at TIMESTAMP,
+  INDEX idx_session (session_id) USING HASH,
+  INDEX idx_expires (expires_at) USING BTREE
+) ENGINE=MEMORY;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_memory.frm
+DROP TABLE t_memory;
+
+# Test CSV engine
+CREATE TABLE t_csv (
+  id INT NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  created_date DATE NOT NULL
+) ENGINE=CSV;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_csv.frm
+DROP TABLE t_csv;
+
+#Test ARCHIVE engine
+--source include/have_archive.inc
+--let $frm_file= $MYSQL_TEST_DIR/std_data/frm/t_archive.frm
+--echo $frm_file
+--file_exists $frm_file
+--exec $MARIADB_FRM $frm_file
+
+# Test BLACKHOLE engine
+--source include/have_blackhole.inc
+CREATE TABLE t_blackhole (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=BLACKHOLE;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_blackhole.frm
+DROP TABLE t_blackhole;
+
+# Test FEDERATED engine (if available)
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME IN ('FEDERATED','FEDERATEDX') AND PLUGIN_STATUS='ACTIVE'`)
+{
+  # Create a source table first
+  CREATE TABLE t_federated_source (
+    id INT PRIMARY KEY,
+    name VARCHAR(100),
+    data TEXT
+  ) ENGINE=InnoDB;
+
+  # Create FEDERATED table that connects to the source table
+  --replace_result $MASTER_MYPORT MASTER_PORT
+  eval CREATE TABLE t_federated (
+    id INT PRIMARY KEY,
+    name VARCHAR(100),
+    data TEXT
+  ) ENGINE=FEDERATED CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t_federated_source';
+
+  # Test the FRM parsing
+  --exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_federated.frm
+
+  # Cleanup
+  DROP TABLE t_federated;
+  DROP TABLE t_federated_source;
+}
+
+# Test engine-specific options for InnoDB
+--source include/have_innodb.inc
+CREATE TABLE t_innodb_options (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  data JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB 
+  ROW_FORMAT=DYNAMIC;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_innodb_options.frm
+DROP TABLE t_innodb_options;
+
+# Test engine-specific options for MyISAM  
+CREATE TABLE t_myisam_options (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  data TEXT,
+  INDEX idx_name (name)
+) ENGINE=MyISAM 
+  MAX_ROWS=1000000 
+  AVG_ROW_LENGTH=100 
+  PACK_KEYS=1;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_myisam_options.frm
+DROP TABLE t_myisam_options;
+
+# Test engine-specific options for Aria
+--source include/have_aria.inc
+CREATE TABLE t_aria_options (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  data TEXT,
+  INDEX idx_name (name)
+) ENGINE=Aria 
+  ROW_FORMAT=PAGE 
+  TRANSACTIONAL=1
+  PAGE_CHECKSUM=1;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_aria_options.frm
+DROP TABLE t_aria_options;
+
+# Test MEMORY engine with specific options
+CREATE TABLE t_memory_options (
+  id INT PRIMARY KEY,
+  data VARCHAR(255),
+  INDEX idx_data (data) USING HASH
+) ENGINE=MEMORY 
+  MAX_ROWS=10000
+  AVG_ROW_LENGTH=50;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_memory_options.frm
+DROP TABLE t_memory_options;
+
+--echo Storage engines test completed

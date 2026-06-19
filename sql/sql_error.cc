@@ -797,6 +797,9 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
 }
 
 
+void (*push_warning_printf_hook)(THD *thd, Sql_condition::enum_warning_level level,
+                                 uint code, const char *format, va_list args) = nullptr;
+
 /*
   This is an overload of push_warning_printf() accepting va_list as a list
   of format arguments.
@@ -805,6 +808,11 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
 void push_warning_vprintf(THD *thd, Sql_condition::enum_warning_level level,
                           uint code, const char *format, va_list args)
 {
+  if (push_warning_printf_hook)
+  {
+    push_warning_printf_hook(thd, level, code, format, args);
+    return;
+  }
   char warning[MYSQL_ERRMSG_SIZE];
 
   DBUG_ASSERT(code != 0);

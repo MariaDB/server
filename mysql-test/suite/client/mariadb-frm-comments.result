@@ -1,0 +1,91 @@
+MariaDB frm parser test - Comments
+Testing field-level and table-level comments
+CREATE TABLE t_field_comments (
+id INT COMMENT 'Primary key identifier',
+name VARCHAR(100) COMMENT 'Full name of the user',
+email VARCHAR(255) COMMENT 'User email address (must be unique)',
+age INT COMMENT 'Age in years',
+salary DECIMAL(10,2) COMMENT 'Annual salary in USD',
+is_active BOOLEAN COMMENT 'Whether the user account is active',
+created_at TIMESTAMP COMMENT 'When the record was created'
+);
+CREATE TABLE `t_field_comments` (
+  `id` int(11) DEFAULT NULL COMMENT 'Primary key identifier',
+  `name` varchar(100) DEFAULT NULL COMMENT 'Full name of the user',
+  `email` varchar(255) DEFAULT NULL COMMENT 'User email address (must be unique)',
+  `age` int(11) DEFAULT NULL COMMENT 'Age in years',
+  `salary` decimal(10,2) DEFAULT NULL COMMENT 'Annual salary in USD',
+  `is_active` tinyint(1) DEFAULT NULL COMMENT 'Whether the user account is active',
+  `created_at` timestamp NULL DEFAULT NULL COMMENT 'When the record was created'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_field_comments;
+CREATE TABLE t_table_comment (
+id INT,
+data VARCHAR(50)
+) COMMENT = 'This is a sample table for testing table-level comments';
+CREATE TABLE `t_table_comment` (
+  `id` int(11) DEFAULT NULL,
+  `data` varchar(50) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='This is a sample table for testing table-level comments'
+DROP TABLE t_table_comment;
+CREATE TABLE t_mixed_comments (
+user_id INT COMMENT 'Unique identifier for each user',
+username VARCHAR(50) COMMENT 'Login username (alphanumeric only)',
+password_hash VARCHAR(255) COMMENT 'Hashed password using bcrypt',
+email VARCHAR(255) COMMENT 'Primary email address',
+phone VARCHAR(20) COMMENT 'Contact phone number',
+status ENUM('active', 'suspended', 'deleted') COMMENT 'Current account status',
+last_login DATETIME COMMENT 'Timestamp of last successful login',
+failed_attempts INT COMMENT 'Number of consecutive failed login attempts',
+created_by INT COMMENT 'User ID of the admin who created this account'
+) COMMENT = 'User accounts table - stores authentication and basic user information';
+CREATE TABLE `t_mixed_comments` (
+  `user_id` int(11) DEFAULT NULL COMMENT 'Unique identifier for each user',
+  `username` varchar(50) DEFAULT NULL COMMENT 'Login username (alphanumeric only)',
+  `password_hash` varchar(255) DEFAULT NULL COMMENT 'Hashed password using bcrypt',
+  `email` varchar(255) DEFAULT NULL COMMENT 'Primary email address',
+  `phone` varchar(20) DEFAULT NULL COMMENT 'Contact phone number',
+  `status` enum('active','suspended','deleted') DEFAULT NULL COMMENT 'Current account status',
+  `last_login` datetime DEFAULT NULL COMMENT 'Timestamp of last successful login',
+  `failed_attempts` int(11) DEFAULT NULL COMMENT 'Number of consecutive failed login attempts',
+  `created_by` int(11) DEFAULT NULL COMMENT 'User ID of the admin who created this account'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='User accounts table - stores authentication and basic user information'
+DROP TABLE t_mixed_comments;
+CREATE TABLE t_special_char_comments (
+id INT COMMENT 'ID with "quotes" and \'apostrophes\'',
+data TEXT COMMENT 'Data field with newlines\nand tabs\tand backslashes\\',
+json_field JSON COMMENT 'JSON data: {"key": "value", "number": 123}',
+unicode_field VARCHAR(100) COMMENT 'Unicode: café, naïve, résumé, 你好',
+emoji_field VARCHAR(200) COMMENT 'Emoji support: 😀 🎉 👍 ⭐ 🔥'
+) COMMENT = 'Table with special characters in comments: "quotes", \'apostrophes\', and 中文';
+CREATE TABLE `t_special_char_comments` (
+  `id` int(11) DEFAULT NULL COMMENT 'ID with "quotes" and ''apostrophes''',
+  `data` text DEFAULT NULL COMMENT 'Data field with newlines\nand tabs	and backslashes\\',
+  `json_field` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'JSON data: {"key": "value", "number": 123}' CHECK (json_valid(`json_field`)),
+  `unicode_field` varchar(100) DEFAULT NULL COMMENT 'Unicode: cafÃ©, naÃ¯ve, rÃ©sumÃ©, ä½ å¥½',
+  `emoji_field` varchar(200) DEFAULT NULL COMMENT 'Emoji support: ðŸ˜€ ðŸŽ‰ ðŸ‘ â­ ðŸ”¥'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='Table with special characters in comments: "quotes", ''apostrophes'', and ä¸­æ–‡'
+DROP TABLE t_special_char_comments;
+CREATE TABLE t_long_comments (
+id INT COMMENT 'This is a very long comment that exceeds the typical short comment length to test how the FRM parser handles extended comment text that might span multiple lines or exceed certain buffer limits in the parsing logic',
+description TEXT COMMENT 'Another long comment: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
+notes VARCHAR(500) COMMENT 'Even longer comment with detailed explanation: This field is used to store additional notes about the record. It can contain up to 500 characters and should be used for storing metadata, processing instructions, or other supplementary information that doesn\'t fit in other fields. Please ensure proper validation before storing data here.'
+) COMMENT = 'This table has exceptionally long comments to test the FRM parser\'s ability to handle extended comment text. The table is designed to store various types of textual data with comprehensive documentation for each field. This comment itself is quite lengthy to ensure proper parsing and display of table-level comments that exceed typical lengths.';
+CREATE TABLE `t_long_comments` (
+  `id` int(11) DEFAULT NULL COMMENT 'This is a very long comment that exceeds the typical short comment length to test how the FRM parser handles extended comment text that might span multiple lines or exceed certain buffer limits in the parsing logic',
+  `description` text DEFAULT NULL COMMENT 'Another long comment: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
+  `notes` varchar(500) DEFAULT NULL COMMENT 'Even longer comment with detailed explanation: This field is used to store additional notes about the record. It can contain up to 500 characters and should be used for storing metadata, processing instructions, or other supplementary information that doesn''t fit in other fields. Please ensure proper validation before storing data here.'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='This table has exceptionally long comments to test the FRM parser''s ability to handle extended comment text. The table is designed to store various types of textual data with comprehensive documentation for each field. This comment itself is quite lengthy to ensure proper parsing and display of table-level comments that exceed typical lengths.'
+DROP TABLE t_long_comments;
+CREATE TABLE t_empty_comments (
+id INT COMMENT '',
+name VARCHAR(50) COMMENT '',
+data TEXT
+) COMMENT = '';
+CREATE TABLE `t_empty_comments` (
+  `id` int(11) DEFAULT NULL,
+  `name` varchar(50) DEFAULT NULL,
+  `data` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_empty_comments;
+Comments test completed

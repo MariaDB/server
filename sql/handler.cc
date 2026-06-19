@@ -203,6 +203,11 @@ static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
 
 
+handlerton *(*ha_default_handlerton_hook)(THD *thd) = nullptr;
+plugin_ref (*ha_resolve_by_name_hook)(THD *thd, const LEX_CSTRING *name, bool is_temp_table) = nullptr;
+plugin_ref (*ha_lock_engine_hook)(THD *thd, const handlerton *hton) = nullptr;
+handler *(*get_new_handler_hook)(TABLE_SHARE *share, MEM_ROOT *alloc, handlerton *db_type) = nullptr;
+
 static plugin_ref ha_default_plugin(THD *thd)
 {
   if (thd->variables.table_plugin)
@@ -232,6 +237,8 @@ static plugin_ref ha_default_tmp_plugin(THD *thd)
 */
 handlerton *ha_default_handlerton(THD *thd)
 {
+  if (ha_default_handlerton_hook)
+    return ha_default_handlerton_hook(thd);
   plugin_ref plugin= ha_default_plugin(thd);
   DBUG_ASSERT(plugin);
   handlerton *hton= plugin_hton(plugin);
@@ -264,6 +271,8 @@ handlerton *ha_default_tmp_handlerton(THD *thd)
 plugin_ref ha_resolve_by_name(THD *thd, const LEX_CSTRING *name,
                               bool tmp_table)
 {
+  if (ha_resolve_by_name_hook)
+    return ha_resolve_by_name_hook(thd, name, tmp_table);
   plugin_ref plugin;
 
 redo:
@@ -337,6 +346,8 @@ Storage_engine_name::resolve_storage_engine_with_error(THD *thd,
 
 plugin_ref ha_lock_engine(THD *thd, const handlerton *hton)
 {
+  if (ha_lock_engine_hook)
+    return ha_lock_engine_hook(thd, hton);
   if (hton)
   {
     st_plugin_int *plugin= hton2plugin[hton->slot];
@@ -381,6 +392,8 @@ handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute)
 handler *get_new_handler(TABLE_SHARE *share, MEM_ROOT *alloc,
                          handlerton *db_type)
 {
+  if (get_new_handler_hook)
+    return get_new_handler_hook(share, alloc, db_type);
   handler *file;
   DBUG_ENTER("get_new_handler");
   DBUG_PRINT("enter", ("alloc: %p", alloc));

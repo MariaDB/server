@@ -1,0 +1,184 @@
+--echo MariaDB frm parser test - Advanced Features
+--echo Testing advanced MariaDB features and complex scenarios
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+# Test character sets and collations
+CREATE TABLE t_charsets (
+  id INT,
+  utf8_col VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci,
+  utf8mb4_col VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  latin1_col VARCHAR(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+  binary_col VARCHAR(100) CHARACTER SET binary
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_charsets.frm
+DROP TABLE t_charsets;
+
+# Test sequences (if supported)
+CREATE SEQUENCE s1 START WITH 1000 INCREMENT BY 10;
+CREATE TABLE t_sequence (
+  id INT DEFAULT NEXTVAL(s1),
+  name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_sequence.frm
+DROP TABLE t_sequence;
+DROP SEQUENCE s1;
+
+# Test foreign keys (InnoDB)
+--source include/have_innodb.inc
+CREATE TABLE t_parent (
+  id INT PRIMARY KEY,
+  name VARCHAR(100)
+) ENGINE=InnoDB;
+
+CREATE TABLE t_child (
+  id INT PRIMARY KEY,
+  parent_id INT,
+  data VARCHAR(255),
+  FOREIGN KEY fk_parent (parent_id) REFERENCES t_parent(id) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_child.frm
+DROP TABLE t_child;
+DROP TABLE t_parent;
+
+# Test check constraints (MariaDB 10.2+)
+CREATE TABLE t_check_constraints (
+  id INT,
+  age INT CHECK (age >= 0 AND age <= 150),
+  email VARCHAR(255) CHECK (email LIKE '%@%.%'),
+  score DECIMAL(5,2) CHECK (score BETWEEN 0.00 AND 100.00),
+  status VARCHAR(20) CHECK (status IN ('active', 'inactive', 'pending'))
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_check_constraints.frm
+DROP TABLE t_check_constraints;
+
+# Test invisible columns (MariaDB 10.3+)
+CREATE TABLE t_invisible_columns (
+  id INT,
+  name VARCHAR(100),
+  secret_data VARCHAR(255) INVISIBLE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP INVISIBLE,
+  visible_data TEXT
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_invisible_columns.frm
+DROP TABLE t_invisible_columns;
+
+# Test system versioning (MariaDB 10.3+)
+CREATE TABLE t_system_versioned (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  data TEXT
+) WITH SYSTEM VERSIONING;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_system_versioned.frm
+DROP TABLE t_system_versioned;
+
+# Test application-time periods (MariaDB 10.4+)
+CREATE TABLE t_application_time (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  valid_from DATE,
+  valid_to DATE,
+  PERIOD FOR application_time (valid_from, valid_to)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_application_time.frm
+DROP TABLE t_application_time;
+
+# Test complex triggers and procedures (should not crash)
+CREATE TABLE t_with_triggers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER t_with_triggers_before_update
+    BEFORE UPDATE ON t_with_triggers
+    FOR EACH ROW
+    SET NEW.updated_at = NOW();
+
+
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_with_triggers.frm
+DROP TRIGGER t_with_triggers_before_update;
+DROP TABLE t_with_triggers;
+
+# Test geometry data types (spatial extensions)
+CREATE TABLE t_geometry (
+  id INT PRIMARY KEY,
+  location POINT NOT NULL,
+  boundary POLYGON NOT NULL,
+  path LINESTRING NOT NULL,
+  region MULTIPOLYGON NOT NULL,
+  SPATIAL INDEX idx_location (location),
+  SPATIAL INDEX idx_boundary (boundary)
+) ENGINE=MyISAM;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_geometry.frm
+DROP TABLE t_geometry;
+
+# Test compressed tables (different row formats)
+--source include/have_innodb.inc
+CREATE TABLE t_compressed (
+  id INT PRIMARY KEY,
+  data LONGTEXT,
+  json_data JSON
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_compressed.frm
+DROP TABLE t_compressed;
+
+# Test table with many indexes (edge case)
+CREATE TABLE t_many_indexes (
+  id INT,
+  col1 VARCHAR(50),
+  col2 VARCHAR(50),
+  col3 VARCHAR(50),
+  col4 VARCHAR(50),
+  col5 VARCHAR(50),
+  col6 INT,
+  col7 INT,
+  col8 DATE,
+  col9 TIMESTAMP,
+  col10 DECIMAL(10,2),
+  INDEX idx1 (col1),
+  INDEX idx2 (col2),
+  INDEX idx3 (col3),
+  INDEX idx4 (col4),
+  INDEX idx5 (col5),
+  INDEX idx6 (col6),
+  INDEX idx7 (col7),
+  INDEX idx8 (col8),
+  INDEX idx9 (col9),
+  INDEX idx10 (col10),
+  INDEX idx_compound1 (col1, col2),
+  INDEX idx_compound2 (col3, col4, col5),
+  INDEX idx_compound3 (col6, col7, col8)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_many_indexes.frm
+DROP TABLE t_many_indexes;
+
+# Test very wide table (many columns)
+CREATE TABLE t_wide_table (
+  id INT PRIMARY KEY,
+  col001 VARCHAR(50), col002 VARCHAR(50), col003 VARCHAR(50), col004 VARCHAR(50), col005 VARCHAR(50),
+  col006 VARCHAR(50), col007 VARCHAR(50), col008 VARCHAR(50), col009 VARCHAR(50), col010 VARCHAR(50),
+  col011 INT, col012 INT, col013 INT, col014 INT, col015 INT,
+  col016 DATE, col017 DATE, col018 DATE, col019 DATE, col020 DATE,
+  col021 TIMESTAMP, col022 TIMESTAMP, col023 TIMESTAMP, col024 TIMESTAMP, col025 TIMESTAMP,
+  col026 DECIMAL(10,2), col027 DECIMAL(10,2), col028 DECIMAL(10,2), col029 DECIMAL(10,2), col030 DECIMAL(10,2)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_wide_table.frm
+DROP TABLE t_wide_table;
+
+--echo Advanced features test completed
