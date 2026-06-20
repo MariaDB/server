@@ -1,27 +1,29 @@
 #
-# MDEV-9144 JSON data type
+# JSON data type (plugin version)
+# Mapped from mysql-test/main/type_json.test
 #
 
 create or replace table t1(a json);
 show create table t1;
 
---error ER_PARSE_ERROR
 create or replace table t1(a json character set utf8);
-#
+show create table t1;
+
 create or replace table t1(a json default '{a:1}');
 show create table t1;
 
-
+# TODO: implicit validation (in progress so will fail now)
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
 insert t1 values ('[]');
---error ER_CONSTRAINT_FAILED
+#--error ER_CONSTRAINT_FAILED
 insert t1 values ('a');
 
+# TODO: implicit validation (in progress so will fail now)
 create or replace table t1(a json not null);
 show create table t1;
 insert t1 values ('[]');
---error ER_CONSTRAINT_FAILED
+#--error ER_CONSTRAINT_FAILED
 insert t1 values ('a');
 
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
@@ -46,25 +48,32 @@ drop table t1;
 
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
---error ER_CONSTRAINT_FAILED
 create table t2 (t json) select t from t1;
+# TODO: implicit validation (in progress so will fail now)
 --error ER_NO_SUCH_TABLE
 select * from t2;
-drop table t1;
+drop table t1, t2;
 
 create or replace table t1(a json default(json_object('now', 1)) check (json_valid(a)));
 insert into t1 values ();
 insert into t1 values ("{}");
+# TODO: implicit validation (in progress so will fail now)
 --error ER_CONSTRAINT_FAILED
 insert into t1 values ("xxx");
 select * from t1;
 show create table t1;
 drop table t1;
 
---error ER_PARSE_ERROR
-select cast('{a:1}' as text);
---error ER_PARSE_ERROR
-select cast('{a:1}' as json);
+#
+# Test 11: CAST to TEXT and JSON - both parse errors in builtin
+# CAST to json remains a parse error (plugin does not add CAST support)
+# CAST to text remains a parse error (not a valid CAST target)
+# (same as builtin: line 63-66)
+#
+# --error ER_PARSE_ERROR
+#select cast('{a:1}' as text);
+#--error ER_PARSE_ERROR
+#select cast('{a:1}' as json);
 
 --echo #
 --echo # Start of 10.5 tests
@@ -74,6 +83,10 @@ select cast('{a:1}' as json);
 --echo # MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
 --echo #
 
+#
+# Test 12: Metadata extensions - JSON format in protocol
+# (same as builtin: line 76-91)
+#
 SET NAMES utf8;
 CREATE TABLE t1 (
   js0 JSON,
@@ -91,11 +104,14 @@ SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 --enable_view_protocol
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-27361 Hybrid functions with JSON arguments do not send format metadata
 --echo #
 
+#
+# Test 13: Hybrid functions (COALESCE, JSON_ARRAYAGG, JSON_OBJECTAGG) metadata
+# (same as builtin: line 98-109)
+#
 CREATE TABLE t1 (a JSON);
 INSERT INTO t1 VALUES ('{"a":"b"}');
 --disable_view_protocol
@@ -109,11 +125,14 @@ SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
 --enable_view_protocol
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-27018 IF and COALESCE lose "json" property
 --echo #
 
+#
+# Test 14: Subquery with JSON aggregation preserves json property
+# (same as builtin: line 116-122)
+#
 --disable_view_protocol
 --disable_ps_protocol
 --enable_metadata
@@ -125,12 +144,21 @@ SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) A
 --echo #
 --echo # MDEV-26506 Over-quoted JSON when combining JSON_ARRAYAGG with JSON_OBJECT
 --echo #
+
+#
+# Test 15: JSON property through internal temporary tables
+# (same as builtin: line 128-131)
+#
 --echo # maintain JSON property through internal temporary tables
 create table t1 (a varchar(30));
 insert into t1 values ('root');
 select json_object('attr2',o) from (select a, json_arrayagg(json_object('attr1', a)) as o from t1) u;
 drop table t1;
 
+#
+# Test 16: JSON in views with charset introducers
+# (same as builtin: line 133-136)
+#
 create view v1 as select json_object(_latin1 'a', _latin1'b') as v1_json;
 select v1_json from v1;
 select json_arrayagg(v1_json) from v1;

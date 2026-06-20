@@ -6816,10 +6816,6 @@ field_type_lob:
           { $$.set(&type_handler_long_blob, $2); }
         | LONG_SYM opt_binary_and_compression
           { $$.set(&type_handler_medium_blob, $2); }
-        | JSON_SYM opt_compressed
-          {
-            $$.set(&type_handler_long_blob_json, &MY_CHARSET_UTF8MB4_BIN);
-          }
         ;
 
 field_type_misc:
@@ -17315,6 +17311,7 @@ reserved_keyword_udt_not_param_type:
         | IS
         | ITERATE_SYM
         | JOIN_SYM
+        | JSON_SYM
         | KEYS
         | KEY_SYM
         | KILL_SYM

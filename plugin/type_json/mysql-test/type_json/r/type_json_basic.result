@@ -1,0 +1,53 @@
+create or replace table t1(a json);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create or replace table t1(a json character set utf8);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create or replace table t1(a json default '{a:1}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '{a:1}'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set timestamp=unix_timestamp('2010:11:12 13:14:15');
+create or replace table t1(a json default(json_object('now', now())));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',current_timestamp())
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert t1 values ();
+select * from t1;
+a
+{"now": "2010-11-12 13:14:15"}
+drop table t1;
+create table t1 (t json) as select json_quote('foo') as t;
+create table t2 (a json) as select json_quote('foo') as t;
+create table t3 like t1;
+select * from t1;
+t
+"foo"
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `t` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `t` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1,t2,t3;
