@@ -27,10 +27,286 @@ INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
         ('Full-text search in MySQL', 'implements vector space model');
 SHOW INDEX FROM t1;
 
+# nl search
+
 select * from t1 where MATCH(a,b) AGAINST ("collections");
 explain extended select * from t1 where MATCH(a,b) AGAINST ("collections");
 select * from t1 where MATCH(a,b) AGAINST ("indexes");
 select * from t1 where MATCH(a,b) AGAINST ("indexes collections");
 select * from t1 where MATCH(a,b) AGAINST ("only");
 
+## query expansion
+#
+#select * from t1 where MATCH(a,b) AGAINST ("collections" WITH QUERY EXPANSION);
+#select * from t1 where MATCH(a,b) AGAINST ("indexes" WITH QUERY EXPANSION);
+#select * from t1 where MATCH(a,b) AGAINST ("indexes collections" WITH QUERY EXPANSION);
+
+## IN NATURAL LANGUAGE MODE
+#select * from t1 where MATCH(a,b) AGAINST ("indexes" IN NATURAL LANGUAGE MODE);
+#select * from t1 where MATCH(a,b) AGAINST ("indexes" IN NATURAL LANGUAGE MODE WITH QUERY EXPANSION);
+#--error 1064
+#select * from t1 where MATCH(a,b) AGAINST ("indexes" IN BOOLEAN MODE WITH QUERY EXPANSION);
+
+# add_ft_keys() tests
+
+explain select * from t1 where MATCH(a,b) AGAINST ("collections");
+explain select * from t1 where MATCH(a,b) AGAINST ("collections")>0;
+explain select * from t1 where MATCH(a,b) AGAINST ("collections")>1;
+explain select * from t1 where MATCH(a,b) AGAINST ("collections")>=0;
+explain select * from t1 where MATCH(a,b) AGAINST ("collections")>=1;
+explain select * from t1 where 0<MATCH(a,b) AGAINST ("collections");
+explain select * from t1 where 1<MATCH(a,b) AGAINST ("collections");
+explain select * from t1 where 0<=MATCH(a,b) AGAINST ("collections");
+explain select * from t1 where 1<=MATCH(a,b) AGAINST ("collections");
+explain select * from t1 where MATCH(a,b) AGAINST ("collections")>0 and a like '%ll%';
+
+## boolean search
+#
+#select * from t1 where MATCH(a,b) AGAINST("support -collections" IN BOOLEAN MODE);
+#explain extended select * from t1 where MATCH(a,b) AGAINST("support -collections" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("support  collections" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("support +collections" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("sear*" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("+support +collections" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("+search" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("+search +(support vector)" IN BOOLEAN MODE);
+#select * from t1 where MATCH(a,b) AGAINST("+search -(support vector)" IN BOOLEAN MODE);
+#select *, MATCH(a,b) AGAINST("support collections" IN BOOLEAN MODE) as x from t1;
+#select *, MATCH(a,b) AGAINST("collections support" IN BOOLEAN MODE) as x from t1;
+#
+#select * from t1 where MATCH a,b AGAINST ("+call* +coll*" IN BOOLEAN MODE);
+#
+#select * from t1 where MATCH a,b AGAINST ('"support now"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"Now sUPPort"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"now   support"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"text search"  "now support"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"text search" -"now support"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"text search" +"now support"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"text i"' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('"xt indexes"' IN BOOLEAN MODE);
+#
+#select * from t1 where MATCH a,b AGAINST ('+(support collections) +foobar*' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('+(+(support collections)) +foobar*' IN BOOLEAN MODE);
+#select * from t1 where MATCH a,b AGAINST ('+collections -supp* -foobar*' IN BOOLEAN MODE);
+#
+## bug#2708, bug#3870 crash
+#
+#select * from t1 where MATCH a,b AGAINST('"space model' IN BOOLEAN MODE);
+# 
+## boolean w/o index:
+#
+#select * from t1 where MATCH a AGAINST ("search" IN BOOLEAN MODE);
+#select * from t1 where MATCH b AGAINST ("sear*" IN BOOLEAN MODE);
+
+# UNION of fulltext's
+select * from t1 where MATCH(a,b) AGAINST ("collections") UNION ALL select * from t1 where MATCH(a,b) AGAINST ("indexes");
+
+#update/delete with fulltext index
+
+delete from t1 where a like "MySQL%";
+update t1 set a='some test foobar' where MATCH a,b AGAINST ('model');
+delete from t1 where MATCH(a,b) AGAINST ("indexes");
+select * from t1;
 drop table t1;
+
+##
+## why to scan strings for trunc*
+##
+#create table t1 (a varchar(200) not null, fulltext (a));
+#insert t1 values ("aaa10 bbb20"), ("aaa20 bbb15"), ("aaa30 bbb10");
+#select * from t1 where match a against ("+aaa* +bbb*" in boolean mode);
+#select * from t1 where match a against ("+aaa* +bbb1*" in boolean mode);
+#select * from t1 where match a against ("+aaa* +ccc*" in boolean mode);
+#select * from t1 where match a against ("+aaa10 +(bbb*)" in boolean mode);
+#select * from t1 where match a against ("+(+aaa* +bbb1*)" in boolean mode);
+#select * from t1 where match a against ("(+aaa* +bbb1*)" in boolean mode);
+#drop table t1;
+
+#
+# Check bug reported by Matthias Urlichs
+#
+
+CREATE TABLE t1 (
+  id int(11),
+  ticket int(11),
+  KEY ti (id),
+  KEY tit (ticket)
+);
+INSERT INTO t1 VALUES (2,3),(1,2);
+
+CREATE TABLE t2 (
+  ticket int(11),
+  inhalt text,
+  KEY tig (ticket),
+  fulltext index tix (inhalt)
+);
+INSERT INTO t2 VALUES (1,'foo'),(2,'bar'),(3,'foobar');
+
+select t1.id FROM t2 as ttxt,t1,t1 as ticket2
+WHERE ticket2.id = ttxt.ticket AND t1.id = ticket2.ticket and
+match(ttxt.inhalt) against ('foobar');
+
+# In the following query MySQL didn't use the fulltext index
+select ticket2.id FROM t2 as ttxt,t2 INNER JOIN t1 as ticket2 ON
+ticket2.id = t2.ticket
+WHERE ticket2.id = ticket2.ticket and match(ttxt.inhalt) against ('foobar');
+
+INSERT INTO t1 VALUES (3,3);
+select ticket2.id FROM t2 as ttxt,t2
+INNER JOIN t1 as ticket2 ON ticket2.id = t2.ticket
+WHERE ticket2.id = ticket2.ticket and
+      match(ttxt.inhalt) against ('foobar');
+
+# Check that we get 'fulltext' index in SHOW CREATE
+
+show keys from t2;
+show create table t2;
+
+# check for bug reported by Stephan Skusa
+
+select * from t2 where MATCH inhalt AGAINST (NULL);
+
+# MATCH in HAVING (pretty useless, but still it should work)
+
+select * from t2 where  MATCH inhalt AGAINST ('foobar');
+select * from t2 having MATCH inhalt AGAINST ('foobar');
+
+#
+# check of fulltext errors
+#
+
+--error 1283
+CREATE TABLE t3 (t int(11),i text,fulltext tix (t,i));
+--error 1283
+CREATE TABLE t3 (t int(11),i text,
+                 j varchar(200) CHARACTER SET latin2,
+                 fulltext tix (i,j));
+
+CREATE TABLE t3 (
+  ticket int(11),
+  inhalt text,
+  KEY tig (ticket),
+  fulltext index tix (inhalt)
+);
+
+--error 1210
+select * from t2 where MATCH inhalt AGAINST (t2.inhalt);
+--error 1191
+select * from t2 where MATCH ticket AGAINST ('foobar');
+--error 1210
+select * from t2,t3 where MATCH (t2.inhalt,t3.inhalt) AGAINST ('foobar');
+
+drop table t1,t2,t3;
+
+#
+# three more bugtests
+#
+
+CREATE TABLE t1 (
+  id int(11)  auto_increment,
+  title varchar(100)  default '',
+  PRIMARY KEY  (id),
+  KEY ind5 (title)
+) ENGINE=MyISAM;
+
+CREATE FULLTEXT INDEX ft1 ON t1(title);
+insert into t1 (title) values ('this is a test');
+#select * from t1 where match title against ('test' in boolean mode);
+update t1 set title='this is A test' where id=1;
+check table t1;
+update t1 set title='this test once revealed a bug' where id=1;
+select * from t1;
+update t1 set title=NULL where id=1;
+
+drop table t1;
+
+# one more bug - const_table related
+
+CREATE TABLE t1 (a int(11), b text, FULLTEXT KEY (b)) ENGINE=MyISAM;
+insert into t1 values (1,"I wonder why the fulltext index doesnt work?");
+SELECT * from t1 where MATCH (b) AGAINST ('apples');
+
+insert into t1 values (2,"fullaaa fullzzz");
+#select * from t1 where match b against ('full*' in boolean mode);
+
+drop table t1;
+CREATE TABLE t1 ( id int(11) NOT NULL auto_increment primary key, mytext text NOT NULL, FULLTEXT KEY mytext (mytext)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'my small mouse'),(2,'la-la-la'),(3,'It is so funny'),(4,'MySQL Tutorial');
+select 8 from t1;
+drop table t1;
+
+#
+# Check bug reported by Julian Ladisch
+# ERROR 1030: Got error 127 from table handler
+#
+
+create table t1 (a text, fulltext key (a));
+insert into t1 values ('aaaa');
+repair table t1;
+select * from t1 where match (a) against ('aaaa');
+drop table t1;
+
+#
+# bug #283 by jocelyn fournier <joc@presence-pc.com>
+# FULLTEXT index on a TEXT filed converted to a CHAR field doesn't work anymore
+# 
+
+create table t1 ( ref_mag text not null, fulltext (ref_mag));
+insert into t1 values ('test');
+#select ref_mag from t1 where match ref_mag against ('+test' in boolean mode);
+alter table t1 change ref_mag ref_mag char (255) not null;
+#select ref_mag from t1 where match ref_mag against ('+test' in boolean mode);
+drop table t1;
+
+#
+# bug #942: JOIN
+#
+
+create table t1 (t1_id int(11) primary key, name varchar(32));
+insert into t1 values (1, 'data1');
+insert into t1 values (2, 'data2');
+create table t2 (t2_id int(11) primary key, t1_id int(11), name varchar(32));
+insert into t2 values (1, 1, 'xxfoo');
+insert into t2 values (2, 1, 'xxbar');
+insert into t2 values (3, 1, 'xxbuz');
+#select * from t1 join t2 using(`t1_id`) where match (t1.name, t2.name) against('xxfoo' in boolean mode);
+
+#
+# Bug #7858: bug with many short (< ft_min_word_len) words in boolean search
+#
+#select * from t2 where match name against ('*a*b*c*d*e*f*' in boolean mode);
+drop table t1,t2;
+
+#
+# bug with repair-by-sort and incorrect records estimation
+#
+
+create table t1 (a text, fulltext key (a));
+insert into t1 select "xxxx yyyy zzzz";
+drop table t1;
+
+#
+# UTF8
+#
+--disable_service_connection
+SET NAMES latin1;
+CREATE TABLE t1 (t text character set utf8 not null, fulltext(t));
+INSERT t1 VALUES ('Mit freundlichem Grüß'), ('aus Osnabrück');
+SET NAMES koi8r;
+INSERT t1 VALUES ("üÔÏ ÍÙ - ÏÐÉÌËÉ"),("ïÔÌÅÚØ, ÇÎÉÄÁ!"),
+                ("îÅ ×ÌÅÚÁÊ, ÕÂØÅÔ!"),("É ÂÕÄÅÔ ÐÒÁ×!");
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ïðéìëé');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ðÒá*' IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH t AGAINST ('ÜÔÏ' IN BOOLEAN MODE);
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrück');
+SET NAMES latin1;
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrück');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
+SELECT t, collation(t),FORMAT(MATCH t AGAINST ('Osnabruck'),6) FROM t1 WHERE MATCH t AGAINST ('Osnabruck');
+#alter table t1 modify t text character set latin1 collate latin1_german2_ci not null;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrück');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
+DROP TABLE t1;
+--enable_service_connection
