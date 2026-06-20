@@ -85,3 +85,12 @@ x	y	ANY_VALUE(z)
 2	NULL	5
 NULL	NULL	1
 DROP TABLE t0,t1,t2,t3,t4,t5;
+CREATE TABLE t (a CHAR CHARACTER SET latin2);
+INSERT INTO t VALUES ('a'),('b');
+SELECT charset(ANY_VALUE(a)), collation(ANY_VALUE(a)) FROM t;
+charset(ANY_VALUE(a))	collation(ANY_VALUE(a))
+latin2	latin2_general_ci
+SELECT coercibility(ANY_VALUE(a)), coercibility(ANY_VALUE('x')) FROM t;
+coercibility(ANY_VALUE(a))	coercibility(ANY_VALUE('x'))
+2	6
+DROP TABLE t;
