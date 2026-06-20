@@ -57,3 +57,17 @@ SELECT y, ANY_VALUE(z) FROM t3 GROUP BY y HAVING ANY_VALUE(z) = 20;
 SELECT x, y, ANY_VALUE(z) FROM t5 GROUP BY x, y WITH ROLLUP;
 
 DROP TABLE t0,t1,t2,t3,t4,t5;
+
+#
+# Charset/Collation/Coercibility Tests
+#
+
+CREATE TABLE t (a CHAR CHARACTER SET latin2);
+INSERT INTO t VALUES ('a'),('b');
+
+# Charset/Collation preserved
+
+SELECT charset(ANY_VALUE(a)), collation(ANY_VALUE(a)) FROM t;
+SELECT coercibility(ANY_VALUE(a)), coercibility(ANY_VALUE('x')) FROM t;
+
+DROP TABLE t;
