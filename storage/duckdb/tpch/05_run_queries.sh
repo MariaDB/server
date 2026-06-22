@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run the 22 TPC-H queries from $TPCH_SQL against $SCHEMA via run_in_duckdb,
-# timing each (wall clock, one client invocation). Writes a TSV of timings.
-# Queries get the raw MariaDB-dialect text (no pushdown rewrites): any query
-# using MariaDB-only syntax is reported as ERR.
+# Run the 22 TPC-H queries from $TPCH_SQL against database $SCHEMA directly
+# through the mariadb client (no run_in_duckdb), timing each (wall clock, one
+# client invocation). Writes a TSV of timings. Any query that errors out
+# (e.g. unsupported syntax) is reported as ERR.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/config.sh"
@@ -21,11 +21,9 @@ for i in $(seq 1 22); do
   n=$(printf "%02d" "$i")
   f="$MQ/q$n.sql"
   [ -f "$f" ] || continue
-  combined="SET schema '$SCHEMA'; $(cat "$f")"
-  esc=$(printf '%s' "$combined" | sed "s/'/''/g")
 
   start=$(date +%s.%N)
-  out=$("$MARIADB" -N -e "SELECT run_in_duckdb('$esc')" 2>&1)
+  out=$("$MARIADB" --default-character-set="$CHARSET" -N -D "$SCHEMA" < "$f" 2>&1)
   end=$(date +%s.%N)
 
   if printf '%s' "$out" | grep -qiE 'error'; then
