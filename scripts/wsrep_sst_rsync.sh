@@ -192,14 +192,11 @@ SSTCAP="$tcap"
 SSLMODE=$(parse_cnf "$encgroups" 'ssl-mode' | tr '[[:lower:]]' '[[:upper:]]')
 
 if [ -z "$SSLMODE" ]; then
-    # Implicit verification if CA is set and the SSL mode
-    # is not specified by user:
+    # ssl-mode not set: derive it from the SSL config. Set it even when
+    # stunnel is absent, so the check below aborts instead of silently
+    # falling back to an unencrypted transfer.
     if [ -n "$SSTCA$SSTCAP" ]; then
-        STUNNEL_BIN=$(commandex 'stunnel')
-        if [ -n "$STUNNEL_BIN" ]; then
-            SSLMODE='VERIFY_CA'
-        fi
-    # Require SSL by default if SSL key and cert are present:
+        SSLMODE='VERIFY_CA'
     elif [ -n "$SSTKEY" -a -n "$SSTCERT" ]; then
         SSLMODE='REQUIRED'
     fi
@@ -267,10 +264,22 @@ if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ]; then
     if [ -z "${STUNNEL_BIN+x}" ]; then
         STUNNEL_BIN=$(commandex 'stunnel')
     fi
+    # MTR test hook: simulate a missing stunnel binary.
+    if [ -n "${MTR_SST_SIMULATE_NO_STUNNEL:-}" ]; then
+        STUNNEL_BIN=""
+    fi
     if [ -n "$STUNNEL_BIN" ]; then
         wsrep_log_info "Using stunnel for SSL encryption: CA: '$SSTCA'," \
                        "CAPATH='$SSTCAP', ssl-mode='$SSLMODE'"
         STUNNEL="$STUNNEL_BIN $STUNNEL_CONF"
+    else
+        # Encryption required but stunnel missing: abort instead of
+        # silently falling back to an unencrypted transfer.
+        wsrep_log_error "ssl-mode is set to '$SSLMODE', but the 'stunnel'" \
+                        "binary was not found in the path. Cannot perform" \
+                        "an encrypted transfer. Please install stunnel or" \
+                        "set ssl-mode to DISABLED."
+        exit 2 # ENOENT
     fi
 fi
 
