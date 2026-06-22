@@ -18,13 +18,12 @@
 #ifndef RPL_INFO_FILE_H
 #define RPL_INFO_FILE_H
 
-#include <cstdint> // uintN_t
-#include <string_view>
-#include <utility> // std::pair (Info_file::KV)
-#include <optional> // Base of Info_file::Value
+#include <cstdint> // uintN_t & UINTn_MAX
+#include <utility> // Explicit markers std::move & std::forward
 // Interface type of Master_info_file::master_heartbeat_period
 #include "my_decimal.h"
 #include <my_sys.h> // IO_CACHE, FN_REFLEN, ...
+#include <my_getopt.h> // autoset_my_option for master_heartbeat_period_str
 #include "sql_const.h" // MAX_PASSWORD_LENGTH
 
 
@@ -33,7 +32,7 @@
   sort_dynamic() and bsearch() on ID_array_value::array.
   @return -1 if first argument is less, 0 if it equal to, or 1 if it is greater
   than the second
-  @deprecated Use a sorted set, such as @ref std::set,
+  @deprecated Use a sorted set, such as `TREE` from `include/my_tree.h`,
   to save on explicitly calling those functions.
 */
 int change_master_id_cmp(const void *arg1, const void *arg2);
@@ -68,10 +67,7 @@ class Uint32_3
   uint32_t value;
 public:
 
-  /**
-      @return std::numeric_limits<uint32_t>::max() / 1000.0
-      as a constant '\0'-terminated string
-  */
+  /// @return ((1<<32) - 1) / 1000.0 as a constant '\0'-terminated string
   static constexpr char MAX_STR[]= "4294967.295";
   Uint32_3() {}
   Uint32_3(uint32_t value): value(value) {}
@@ -86,10 +82,10 @@ public:
   // Also used by the server option master_heartbeat_period
   /**
     @param delimiter
-      This method also returns @ref conversion_status::FAILED if the
-      exclusive end of the decimal (which may be `str.end()`!) is this char.
+      This method also returns @ref conversion_status::FAILED if the exclusive
+      end of the decimal (which may be `str.str[str.length]`!) is this char.
   */
-  conversion_status from_chars(const std::string_view &str, char delimiter= '\0');
+  conversion_status from_chars(const LEX_CSTRING &str, char delimiter= '\0');
 };
 
 
@@ -100,7 +96,9 @@ public:
 /// Computes the `DEFAULT` value of @ref master_heartbeat_period
 extern uint slave_net_timeout;
 inline uint32_t master_connect_retry= 60;
-inline std::optional<Uint32_3> master_heartbeat_period= std::nullopt;
+// Options do not reset to default if the default is `nullptr`, so use `auto`.
+inline char *master_heartbeat_period_str= autoset_my_option;
+inline Uint32_3 master_heartbeat_period= {false};
 inline bool master_ssl= true;
 inline const char *master_ssl_ca     = "";
 inline const char *master_ssl_capath = "";
@@ -166,38 +164,44 @@ struct Info_file
   */
   template<typename T> struct Value: Value_interface
   {
+    /** TODO:
+      Instead of accessing directly,
+      finish migrating @ref Master_info & @ref Relay_log_info
+    */
+    T value;
   protected:
-    std::optional<T> optional= std::nullopt;
+    bool _is_default= true;
   public:
     static constexpr size_t MAX_CHARS10=
       std::numeric_limits<T>::digits10 + // Fully-utilized decimal digits
       1 + // The partially-utilized digit (e.g., the 2's place in "2147483647")
-      std::numeric_limits<T>::is_signed; // The sign, if signed (:
+      std::numeric_limits<T>::is_signed; // for specializing
     const T *const default_value= nullptr;
 
-    Value(T value): optional(std::move(value)) {}
+    Value(T value): value(std::move(value)), _is_default(false) {}
     Value(const T *default_value): default_value(default_value) {}
 
-    ///@pre @ref optional and @ref default_value are not both null.
-    virtual operator T() { return is_default() ? get_default() : *optional; }
-    /// Fowards to @ref optional perfectly
+    /** @pre
+      If is_default(), @ref default_value is not null;
+      otherwise, @ref value is initialized.
+    */
+    virtual operator T() { return is_default() ? get_default() : value; }
+    /// Fowards to @ref value perfectly
     template<typename O> auto &operator=(O&& other)
     {
-      optional= std::forward<O>(other);
+      value= std::forward<O>(other);
+      _is_default= false;
       return *this;
     }
-    /** Direct reference
-      @deprecated TODO: finish migrating @ref Master_info & @ref Relay_log_info
-    */
-    T &value() { return *optional; }
 
     virtual T get_default() { return *default_value; }
-    bool is_default() override { return !optional.has_value(); }
+    bool is_default() override { return _is_default; }
     bool set_default() override
     {
       if (default_value)
       {
-        optional.reset();
+        value.~T();
+        _is_default= true;
         return false;
       }
       return Value_interface::set_default();
@@ -238,10 +242,16 @@ struct Info_file
 
 
 protected:
-  using KV= std::pair<const std::string_view, Value_interface *>;
+  struct KV
+  {
+    LEX_CSTRING key;
+    Value_interface *value;
+    static const uchar *my_hash_get_key(
+      const void *ptr, size_t *r_size, [[maybe_unused]] my_bool);
+  };
   using get_values_impl= bool (
-    std::initializer_list<Value_interface *> mysql_lines,
-    std::initializer_list<KV> key_values);
+    Value_interface **mysql_lines, size_t n_mysql_lines,
+    KV *key_values, size_t n_key_values);
 
   /**
     Call `implementation` on `this` with
@@ -310,7 +320,7 @@ template<> void Info_file::Value<const char *>::save_to(IO_CACHE *);
   /// @pre @ref array is initialized
   template<>
   inline Info_file::Value<DYNAMIC_ARRAY *>::Value(DYNAMIC_ARRAY *array):
-    optional(array) { DBUG_ASSERT(array); }
+    value(array), _is_default(false) { DBUG_ASSERT(array); }
 
   template<> bool Info_file::Value<DYNAMIC_ARRAY *>::load_from(IO_CACHE *);
   template<> void Info_file::Value<DYNAMIC_ARRAY *>::save_to  (IO_CACHE *);
@@ -396,8 +406,11 @@ struct Master_info_file: Info_file
   struct Heartbeat_period_value: Value<Uint32_3>
   {
     Heartbeat_period_value(): Value<Uint32_3>(
-      // Substitute since can't use directly at the moment
-      reinterpret_cast<const Uint32_3 *>(&::master_heartbeat_period)
+      /*
+        Substitute only; confirm @ref master_heartbeat_period_str !=
+        @ref autoset_my_option before use
+      */
+      &::master_heartbeat_period
     ) {}
     using Value<Uint32_3>::operator Uint32_3;
     operator uint32_t() { return operator Uint32_3(); }

@@ -212,7 +212,7 @@ public:
     belongs_to_client()).
   */
   char (&group_relay_log_name)[FN_REFLEN]= relay_log_file.buf;
-  my_off_t &group_relay_log_pos= relay_log_pos.value();
+  my_off_t &group_relay_log_pos= relay_log_pos.value;
   char event_relay_log_name[FN_REFLEN];
   ulonglong event_relay_log_pos;
   ulonglong future_event_relay_log_pos;
@@ -234,7 +234,7 @@ public:
     belongs_to_client()).
   */
   char (&group_master_log_name)[FN_REFLEN]= read_master_log_file.buf;
-  my_off_t &group_master_log_pos= read_master_log_pos.value();
+  my_off_t &group_master_log_pos= read_master_log_pos.value;
 
   /*
     Handling of the relay_log_space_limit optional constraint.
@@ -589,7 +589,7 @@ private:
     slave SQL thread is running, since the SQL thread reads it without
     a lock when executing Relay_log_info::flush().
   */
-  uint32_t &sql_delay= Relay_log_info_file::sql_delay.value();
+  uint32_t &sql_delay= Relay_log_info_file::sql_delay.value;
 
   /**
     During a delay, specifies the point in time when the delay ends.

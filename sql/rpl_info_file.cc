@@ -109,7 +109,7 @@ bool Info_file::String_value::load_from(IO_CACHE *file)
   size_t strlen= my_b_gets(file, str, length);
   if (!strlen) // EOF
     return true;
-  Value<const char *>::operator=(str); // replace @ref std::nullopt
+  Value<const char *>::operator=(str); // unflag @ref is_default
   /// If we stopped on a newline, kill it.
   char &last_char= str[strlen-1];
   if (last_char == '\n')
@@ -135,7 +135,7 @@ Info_file::String_value &Info_file::String_value::operator=(const char *other)
   if (other)
   {
     strmake(str, other, length-1);
-    Value<const char *>::operator=(str); // replace @ref std::nullopt
+    Value<const char *>::operator=(str); // unflag @ref is_default
   }
   else
     set_default();
@@ -196,7 +196,7 @@ template<> bool Info_file::Value<DYNAMIC_ARRAY *>::load_from(IO_CACHE *file)
 
   char *end= str2int(buf, 10, 1, INT32_MAX, &count);
   // Reserve enough elements ahead of time.
-  if (!end || allocate_dynamic(*optional, count))
+  if (!end || allocate_dynamic(value, count))
     return true;
   while (count--)
   {
@@ -226,7 +226,7 @@ template<> bool Info_file::Value<DYNAMIC_ARRAY *>::load_from(IO_CACHE *file)
     if (!end)
       return true;
     ulong id= value;
-    bool oom= insert_dynamic(*optional, (uchar *)&id);
+    bool oom= insert_dynamic(this->value, (uchar *)&id);
     /*
       This should not err because enough
       memory was already allocate_dynamic()-ed.
@@ -238,7 +238,7 @@ template<> bool Info_file::Value<DYNAMIC_ARRAY *>::load_from(IO_CACHE *file)
   // Check that the last number ended with a `\n`, not ` ` or anything else.
   if (*end != '\n')
     return true;
-  sort_dynamic(*optional, change_master_id_cmp); // to be safe
+  sort_dynamic(value, change_master_id_cmp); // to be safe
   return false;
 }
 
@@ -297,12 +297,11 @@ template<> void Info_file::Value<enum_master_use_gtid>::save_to(IO_CACHE *file)
 
 Uint32_3 Master_info_file::Heartbeat_period_value::get_default()
 {
-  if (::master_heartbeat_period.has_value())
-    return *::master_heartbeat_period;
+  if (::master_heartbeat_period_str != autoset_my_option)
+    return ::master_heartbeat_period;
   uint64_t frequency_2= slave_net_timeout;
   frequency_2 *= 1000 / 2;
-  return static_cast<uint32_t>(
-    MY_MIN(frequency_2, std::numeric_limits<uint32_t>::max()));
+  return static_cast<uint32_t>(MY_MIN(frequency_2, UINT32_MAX));
 }
 
 Uint32_3::conversion_status Uint32_3::from_decimal(const decimal_t &decimal)
@@ -345,12 +344,12 @@ Uint32_3::conversion_status Uint32_3::from_decimal(const decimal_t &decimal)
 }
 
 Uint32_3::conversion_status
-Uint32_3::from_chars(const std::string_view &str, char delimiter)
+Uint32_3::from_chars(const LEX_CSTRING &str, char delimiter)
 {
   my_decimal decimal;
-  const char *str_end= &(str.data()[str.size()]);
+  const char *str_end= &(str.str[str.length]);
   return (str2my_decimal(
-    E_DEC_ERROR, str.data(), &decimal, const_cast<char **>(&str_end)
+    E_DEC_ERROR, str.str, &decimal, const_cast<char **>(&str_end)
   ) || *str_end != delimiter) ? FAILED : from_decimal(decimal);
 }
 
@@ -383,86 +382,96 @@ template<> void Info_file::Value<Uint32_3>::save_to(IO_CACHE *file)
 }
 
 
-using namespace std::string_view_literals;
 /**
   Guard agaist extra left-overs at the end of file in case a later update
   causes the effective content to shrink compared to earlier contents
 */
-static constexpr std::string_view END_MARKER= "END_MARKER"sv;
+static constexpr LEX_CSTRING END_MARKER= "END_MARKER"_LEX_CSTRING;
 
 bool Master_info_file::get_values(get_values_impl Info_file::*implementation)
-{ return (this->*implementation)({
-  &master_log_file,
-  &master_log_pos,
-  &master_host,
-  &master_user,
-  &master_password,
-  &master_port,
-  &master_connect_retry,
-  &master_ssl,
-  &master_ssl_ca,
-  &master_ssl_capath,
-  &master_ssl_cert,
-  &master_ssl_cipher,
-  &master_ssl_key,
-  &master_ssl_verify_server_cert,
-  &master_heartbeat_period,
-  nullptr, // &master_bind, // MDEV-19248
-  &ignore_server_ids,
-  nullptr, // MySQL `master_uuid`, which MariaDB ignores.
-  &master_retry_count,
-  &master_ssl_crl,
-  &master_ssl_crlpath,
-  /*
-    Reserve extra (ignored) MySQL lines for interoperability with MySQL;
-    MariaDB before 12.3 also only recognizes the
-    key-value section if the line count is at least 33.
-  */
-  nullptr, // master_auto_position
-  nullptr, // FOR CHANNEL
-  nullptr, // master_tls_version
-  nullptr, // master_public_key_path
-  nullptr, // get_master_public_key
-  nullptr, // network_namespace
-  nullptr, // master_compression_algorithms
-  nullptr, // master_zstd_compression_level
-  nullptr, // master_tls_ciphersuites
-  nullptr, // source_connection_auto_failover
-  nullptr, // gtid_only
-  nullptr // the 33rd line, for MariaDB pre-12.3
-}, {
-  /*
-    These are here to annotate whether they are `DEFAULT`.
-    They are repeated from @ref VALUE_LIST to enable bidirectional
-    compatibility with MySQL and earlier versions of MariaDB
-    (where unrecognized keys, such as those from the future, are ignored).
-  */
-  {"connect_retry"sv, &master_connect_retry},
-  {"ssl"sv, &master_ssl},
-  {"ssl_ca"sv, &master_ssl_ca},
-  {"ssl_capath"sv, &master_ssl_capath},
-  {"ssl_cert"sv, &master_ssl_cert},
-  {"ssl_cipher"sv, &master_ssl_cipher},
-  {"ssl_key"sv, &master_ssl_key},
-  {"ssl_crl"sv, &master_ssl_crl},
-  {"ssl_crlpath"sv, &master_ssl_crlpath},
-  {"ssl_verify_server_cert"sv, &master_ssl_verify_server_cert},
-  {"heartbeat_period"sv, &master_heartbeat_period},
-  {"retry_count"sv, &master_retry_count},
-  // These are the ones new in MariaDB.
-  {"using_gtid"sv, &master_use_gtid},
-  {"do_domain_ids"sv, &do_domain_ids},
-  {"ignore_domain_ids"sv, &ignore_domain_ids},
-}); }
+{
+  Value_interface *mysql_lines[
+    /*
+      Reserve extra (ignored) MySQL lines for interoperability with MySQL;
+      MariaDB before 12.3 also only recognizes the
+      key-value section if the line count is at least 33.
+    */
+    33
+  ]= {
+    &master_log_file,
+    &master_log_pos,
+    &master_host,
+    &master_user,
+    &master_password,
+    &master_port,
+    &master_connect_retry,
+    &master_ssl,
+    &master_ssl_ca,
+    &master_ssl_capath,
+    &master_ssl_cert,
+    &master_ssl_cipher,
+    &master_ssl_key,
+    &master_ssl_verify_server_cert,
+    &master_heartbeat_period,
+    nullptr, // &master_bind, // MDEV-19248
+    &ignore_server_ids,
+    nullptr, // MySQL `master_uuid`, which MariaDB ignores.
+    &master_retry_count,
+    &master_ssl_crl,
+    &master_ssl_crlpath
+    // master_auto_position
+    // FOR CHANNEL
+    // master_tls_version
+    // master_public_key_path
+    // get_master_public_key
+    // network_namespace
+    // master_compression_algorithms
+    // master_zstd_compression_level
+    // master_tls_ciphersuites
+    // source_connection_auto_failover
+    // gtid_only
+  };
+
+  KV key_values[]= {
+    /*
+      These are here to annotate whether they are `DEFAULT`.
+      They are repeated from @ref VALUE_LIST to enable bidirectional
+      compatibility with MySQL and earlier versions of MariaDB
+      (where unrecognized keys, such as those from the future, are ignored).
+    */
+    {"connect_retry"_LEX_CSTRING, &master_connect_retry},
+    {"ssl"_LEX_CSTRING, &master_ssl},
+    {"ssl_ca"_LEX_CSTRING, &master_ssl_ca},
+    {"ssl_capath"_LEX_CSTRING, &master_ssl_capath},
+    {"ssl_cert"_LEX_CSTRING, &master_ssl_cert},
+    {"ssl_cipher"_LEX_CSTRING, &master_ssl_cipher},
+    {"ssl_key"_LEX_CSTRING, &master_ssl_key},
+    {"ssl_crl"_LEX_CSTRING, &master_ssl_crl},
+    {"ssl_crlpath"_LEX_CSTRING, &master_ssl_crlpath},
+    {"ssl_verify_server_cert"_LEX_CSTRING, &master_ssl_verify_server_cert},
+    {"heartbeat_period"_LEX_CSTRING, &master_heartbeat_period},
+    {"retry_count"_LEX_CSTRING, &master_retry_count},
+    // These are the ones new in MariaDB.
+    {"using_gtid"_LEX_CSTRING, &master_use_gtid},
+    {"do_domain_ids"_LEX_CSTRING, &do_domain_ids},
+    {"ignore_domain_ids"_LEX_CSTRING, &ignore_domain_ids},
+  };
+  return (this->*implementation)(mysql_lines, array_elements(mysql_lines),
+    key_values, array_elements(key_values));
+}
 
 bool Relay_log_info_file::get_values(get_values_impl Info_file::*implementation)
-{ return (this->*implementation)({
-  &relay_log_file,
-  &relay_log_pos,
-  &read_master_log_file,
-  &read_master_log_pos,
-  &sql_delay
-}, {/* none */}); }
+{
+  Value_interface *mysql_lines[]= {
+    &relay_log_file,
+    &relay_log_pos,
+    &read_master_log_file,
+    &read_master_log_pos,
+    &sql_delay
+  };
+  return (this->*implementation)(mysql_lines, array_elements(mysql_lines),
+    /* none */ nullptr, 0);
+}
 
 
 Master_info_file::Master_info_file(
@@ -474,9 +483,17 @@ Master_info_file::Master_info_file(
 {}
 
 
+const uchar *Info_file::KV::my_hash_get_key(
+  const void *ptr, size_t *r_size, [[maybe_unused]] my_bool)
+{
+  const LEX_CSTRING &key= static_cast<const KV *>(ptr)->key;
+  *r_size= key.length;
+  return reinterpret_cast<const uchar *>(key.str);
+}
+
 bool Info_file::load_from_file_impl(
-  std::initializer_list<Value_interface *> mysql_lines,
-  std::initializer_list<KV> key_values)
+  Value_interface **mysql_lines, size_t n_mysql_lines,
+  KV *key_values, size_t n_key_values)
 {
   Value<uint32_t> line_count_value= 1;
   if (line_count_value.load_from(&file))
@@ -486,9 +503,9 @@ bool Info_file::load_from_file_impl(
   {
 
     int c;
-    if (i < mysql_lines.size()) // line known in the `value_list`
+    if (i < n_mysql_lines) // line known in the `value_list`
     {
-      if (Value_interface *value= mysql_lines.begin()[i])
+      if (Value_interface *value= mysql_lines[i])
       {
         if (value->load_from(&file))
           return true;
@@ -524,18 +541,12 @@ bool Info_file::load_from_file_impl(
       is designed for string contents in a specified charset.
   */
   // C++ default allocator to match that `mysql_execute_command()` uses `new`
-  auto map= Hash_set<KV>(PSI_INSTRUMENT_ME,
-    [] (const void *ptr, size_t *r_size, [[maybe_unused]] my_bool)
-    {
-      const std::string_view &key= static_cast<const KV *>(ptr)->first;
-      *r_size= key.size();
-      return reinterpret_cast<const uchar *>(key.data());
-    });
+  auto map= Hash_set<KV>(PSI_INSTRUMENT_ME, KV::my_hash_get_key);
   constexpr KV END_MARK= {END_MARKER, nullptr};
   if (map.insert(&END_MARK))
     return true;
-  for (const KV &kv: key_values)
-    if (map.insert(&kv))
+  while (n_key_values--)
+    if (map.insert(&(key_values[n_key_values])))
       return true;
   while (true)
   {
@@ -564,7 +575,7 @@ bool Info_file::load_from_file_impl(
         if (kv) // found
         {
           // Compare the underlying string directly, no need to do char-by-char.
-          if (kv->first.data() == END_MARKER.data())
+          if (kv->key.str == END_MARKER.str)
             return false;
           /*
             MariaDB 10.0 does not have the `END_MARKER` before any left-overs at
@@ -572,7 +583,7 @@ bool Info_file::load_from_file_impl(
           */
           [[maybe_unused]] bool not_found= map.remove(kv);
           DBUG_ASSERT(!not_found);
-          if (Value_interface *value= kv->second)
+          if (Value_interface *value= kv->value)
           {
             if (found_equal ? value->load_from(&file) : value->set_default())
               return true;
@@ -591,8 +602,8 @@ break_for:;
 
 
 bool Info_file::save_to_file_impl(
-  std::initializer_list<Value_interface *> mysql_lines,
-  std::initializer_list<KV> key_values)
+  Value_interface **mysql_lines, size_t n_mysql_lines,
+  KV *key_values, size_t n_key_values)
 {
   my_b_seek(&file, 0);
 
@@ -602,25 +613,26 @@ bool Info_file::save_to_file_impl(
     But these garbage don't matter thanks to the number
     of effective lines in the first line of the file.
   */
-  Value<size_t>(mysql_lines.size()).save_to(&file);
+  Value<size_t>(n_mysql_lines).save_to(&file);
   my_b_write_byte(&file, '\n');
-  for (Value_interface *value: mysql_lines)
+  for (size_t i= 0; i < n_mysql_lines; ++i)
   {
-    if (value)
+    if (Value_interface *value= mysql_lines[i])
       value->save_to(&file);
     my_b_write_byte(&file, '\n');
   }
 
   /* Write MariaDB `key=value` lines:
     The "value" can then be written individually after generating the`key=`.
+    (Note that there is no strict requirement to follow a certain order.)
   */
-  for (const KV *it= key_values.begin();
-        it != key_values.end(); ++it)
+  for (size_t i= 0; i < n_key_values; ++i)
   {
-    if (Value_interface *value= it->second)
+    KV &kv= key_values[i];
+    if (Value_interface *value= kv.value)
     {
       my_b_write(&file,
-                  reinterpret_cast<const uchar *>(it->first.data()), it->first.size());
+                  reinterpret_cast<const uchar *>(kv.key.str), kv.key.length);
       if (!value->is_default())
       {
         my_b_write_byte(&file, '=');
@@ -629,8 +641,8 @@ bool Info_file::save_to_file_impl(
       my_b_write_byte(&file, '\n');
     }
   }
-  my_b_write(&file, reinterpret_cast<const uchar *>(END_MARKER.data()),
-              END_MARKER.size());
+  my_b_write(&file, reinterpret_cast<const uchar *>(END_MARKER.str),
+              END_MARKER.length);
   my_b_write_byte(&file, '\n');
 
   return false;

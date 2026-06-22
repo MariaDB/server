@@ -201,7 +201,7 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
   LEX_CSTRING connection_name; 		/* User supplied connection name */
   LEX_CSTRING cmp_connection_name;	/* Connection name in lower case */
 
-  my_off_t &master_log_pos= Master_info_file::master_log_pos.value();
+  my_off_t &master_log_pos= Master_info_file::master_log_pos.value;
   File fd; // we keep the file open, so we need to remember the file pointer
 
   mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
@@ -211,7 +211,7 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
   uint32 file_id;				/* for 3.23 load data infile */
   uint mysql_version;
   Relay_log_info rli;
-  uint32_t &port= master_port.value();
+  uint32_t &port= master_port.value;
   Rpl_filter* rpl_filter;      /* Each replication can set its filter rule*/
   /*
     to hold checksum alg in use until IO thread has received FD.

@@ -796,8 +796,6 @@ File_parser_dummy_hook file_parser_dummy_hook;
 /* replication parameters */
 uint report_port= 0;
 char *master_info_file;
-// Options do not reset to default if the default is `nullptr`, so use `auto`.
-char *master_heartbeat_period_str= autoset_my_option;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
@@ -8740,12 +8738,11 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     break;
   }
   case OPT_MASTER_HEARTBEAT_PERIOD:
-    if (master_heartbeat_period_str == autoset_my_option)
-      master_heartbeat_period.reset();
-    else
+    if (master_heartbeat_period_str != autoset_my_option)
     {
-      Uint32_3 milliseconds;
-      switch (milliseconds.from_chars(master_heartbeat_period_str)) {
+      Uint32_3::conversion_status status= master_heartbeat_period.from_chars(
+        {master_heartbeat_period_str, strlen(master_heartbeat_period_str)});
+      switch (status) {
       case Uint32_3::FAILED:
         sql_print_error(
           "Bad value for master-heartbeat-period; "
@@ -8754,14 +8751,13 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
         );
         return true;
       case Uint32_3::ROUNDED:
-        if (unlikely(!milliseconds))
+        if (unlikely(!master_heartbeat_period))
           sql_print_warning(
             "master-heartbeat-period rounded to 0, "
             "meaning that heartbeating will effectively be disabled."
           );
         [[fallthrough]];
-      case Uint32_3::OK:
-        master_heartbeat_period= std::move(milliseconds);
+      case Uint32_3::OK:;
       }
     }
     break;

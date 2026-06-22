@@ -4626,7 +4626,11 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   }
 
   {
-    std::pair<Item_basic_constant *, Info_file::String_value &> path_opts[]= {
+    struct Path_opt
+    {
+      Item_basic_constant *lex_arg;
+      Info_file::String_value &mi_opt;
+    } path_opts[]= {
       {lex_mi->ssl_ca, mi->master_ssl_ca},
       {lex_mi->ssl_capath, mi->master_ssl_capath},
       {lex_mi->ssl_cert, mi->master_ssl_cert},
@@ -4635,13 +4639,13 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       {lex_mi->ssl_crl, mi->master_ssl_crl},
       {lex_mi->ssl_crlpath, mi->master_ssl_crlpath},
     };
-    for (auto [lex_arg, mi_opt]: path_opts)
-      if (lex_arg)
+    for (Path_opt &path_opt: path_opts)
+      if (path_opt.lex_arg)
       {
-        if (lex_arg->is_null())
-          mi_opt.set_default();
+        if (path_opt.lex_arg->is_null())
+          path_opt.mi_opt.set_default();
         else
-          mi_opt= lex_arg->val_str(nullptr)->c_ptr();
+          path_opt.mi_opt= path_opt.lex_arg->val_str(nullptr)->c_ptr();
       }
   }
 
