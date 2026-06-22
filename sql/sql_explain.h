@@ -53,6 +53,8 @@ it into the slow query log.
 #ifndef SQL_EXPLAIN_INCLUDED
 #define SQL_EXPLAIN_INCLUDED
 
+#include "opt_range.h"
+
 class String_list: public List<char>
 {
 public:
@@ -524,6 +526,7 @@ public:
 
   void query_plan_ready();
   void notify_tables_are_closed();
+  bool is_query_plan_ready();
 
   MEM_ROOT *mem_root;
 
