@@ -2112,7 +2112,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   /*
     If the allocated GTID event packet header is longer than the size of the
     standard BEGIN query event's, then we need to fill in everything else with
-    "dummy" values. That is, old replicas won't recognize the meaning for the
+    "dummy" values. That is, old slaves won't recognize the meaning for the
     DUMMY value, and will skip the rest of the status vars section.
   */
   DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
@@ -2445,7 +2445,7 @@ void Format_description_log_event::deduct_options_written_to_bin_log()
 {
   options_written_to_bin_log= OPTION_AUTO_IS_NULL | OPTION_NOT_AUTOCOMMIT |
               OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_RELAXED_UNIQUE_CHECKS |
-              OPTION_INSERT_HISTORY;
+              OPTION_INSERT_HISTORY | OPTION_NO_CHECK_CONSTRAINT_CHECKS;
   if (!server_version_split.version_is_valid() ||
       server_version_split.kind == master_version_split::KIND_MYSQL ||
       server_version_split < Version(10,5,2))
@@ -2631,8 +2631,10 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
     buf+= 2;
 
     long data_length= xid.bqual_length + xid.gtrid_length;
-    if (event_len < static_cast<uint>(buf - buf_0) + data_length)
+    if (event_len < static_cast<uint>(buf - buf_0) + data_length ||
+        xid.gtrid_length > MAXGTRIDSIZE || xid.bqual_length > MAXBQUALSIZE)
     {
+      xid.formatID= -1;
       seq_no= 0;
       return;
     }

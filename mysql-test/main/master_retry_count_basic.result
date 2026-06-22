@@ -26,9 +26,9 @@ FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
 	10
 named	11
-# Keep specified config on RESET REPLICA
-RESET REPLICA 'named';
-RESET REPLICA;
+# Keep specified config on RESET SLAVE
+RESET SLAVE 'named';
+RESET SLAVE;
 SELECT Connection_name, Master_Retry_Count
 FROM information_schema.SLAVE_STATUS;
 Connection_name	Master_Retry_Count
@@ -77,4 +77,4 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CHANGE MASTER 'named' TO master_retry_count='5';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''5'' at line 1
 # Cleanup
-RESET REPLICA 'named' ALL;
+RESET SLAVE 'named' ALL;

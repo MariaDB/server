@@ -2285,7 +2285,7 @@ redraw_prompt (t)
 void
 _rl_redisplay_after_sigwinch ()
 {
-  char *t;
+  const char *t;
 
   /* Clear the current line and put the cursor at column 0.  Make sure
      the right thing happens if we have wrapped to a new screen line. */

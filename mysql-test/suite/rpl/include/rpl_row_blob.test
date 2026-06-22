@@ -175,7 +175,7 @@ DROP TABLE IF EXISTS test.t2;
 --sync_slave_with_master
 
 --echo #
---echo # MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+--echo # MDEV-30985 Slave stops with error on ALTER ONLINE with Geometry Types
 --echo #
 --connection master
 CREATE TABLE t(txt TEXT DEFAULT '111111111', blb LONGBLOB AS (txt));

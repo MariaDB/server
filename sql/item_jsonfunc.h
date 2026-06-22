@@ -342,6 +342,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   longlong val_int() override;
+  bool val_bool() override;
   double val_real() override;
   my_decimal *val_decimal(my_decimal *) override;
   uint get_n_paths() const override { return arg_count - 1; }
@@ -906,6 +907,8 @@ public:
   longlong val_int() override { return 0; }
   my_decimal *val_decimal(my_decimal *decimal_value) override
   {
+    if (null_value)
+      return 0;
     my_decimal_set_zero(decimal_value);
     return decimal_value;
   }
@@ -1014,7 +1017,7 @@ protected:
   bool item_hash_inited, seen_hash_inited, hash_root_inited;
   HASH items, seen;
   MEM_ROOT hash_root;
-  bool parse_for_each_row;
+  bool parse_for_each_row, is_array;;
   json_engine_t je1, je2, res_je, temp_je;
   MEM_ROOT_DYNAMIC_ARRAY stack;
 
@@ -1023,7 +1026,7 @@ public:
     Item_str_func(thd, a, b)
     {
       item_hash_inited= seen_hash_inited= hash_root_inited=
-        parse_for_each_row= false;
+        parse_for_each_row= is_array= false;
     }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;

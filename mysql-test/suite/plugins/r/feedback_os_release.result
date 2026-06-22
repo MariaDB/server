@@ -1,0 +1,5 @@
+#
+# MDEV-39126: Feedback plugin to use /etc/os-release
+#
+Uname_distribution matches /etc/os-release
+# End of 10.11 tests

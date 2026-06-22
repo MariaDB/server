@@ -753,9 +753,6 @@ create table t1(a double not null);
 insert into t1 values (2),(1);
 select 1 from t1 where json_extract(a,'$','$[81]');
 1
-Warnings:
-Warning	1292	Truncated incorrect BOOLEAN value: '[2]'
-Warning	1292	Truncated incorrect BOOLEAN value: '[1]'
 drop table t1;
 select json_extract('{"test":8.437e-5}','$.test');
 json_extract('{"test":8.437e-5}','$.test')
@@ -1785,6 +1782,27 @@ null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
 1
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+#
+# MDEV-39213: json range syntax crash
+#
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as ex;
+ex
+NULL
+#
+# MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+# (aka 'struct st_json_path_step_t[32]')
+#
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+JSON_EXTRACT('{a:true}','$.a')=TRUE
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 2
+SELECT JSON_EXTRACT('0E+0','$');
+JSON_EXTRACT('0E+0','$')
+0E+0
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as je;
+je
+NULL
 # End of 10.6 tests
 SELECT json_extract(t.j, '$')
 FROM (SELECT json_extract('["a",1]', '$') AS j) AS t;
@@ -2821,8 +2839,8 @@ Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to functi
 #
 # MDEV-37640: Crash at String::append with json_normalize
 #
-SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) );
-( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) )
+SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) ) x;
+x
 -1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0-1.0E0
 #
 # MDEV-37640: Crash in JSON_KEYS
@@ -2889,6 +2907,24 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' a
 SELECT JSON_VALID('{ "A": [0,] }');
 JSON_VALID('{ "A": [0,] }')
 0
+#
+# MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+# (aka 'struct st_json_path_step_t[32]')
+#
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+JSON_EXTRACT('{a:true}','$.a')=TRUE
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 2
+SELECT JSON_EXTRACT('0E+0','$');
+JSON_EXTRACT('0E+0','$')
+0E+0
+#
+# MDEV-26814: UBSAN: offset to nullptr in JSON_ARRAY_INSERT
+#
+SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
+j
+NULL
 # End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
@@ -5360,7 +5396,7 @@ SET @obj1= '[1, 2, 3, 3, 3.0, "abc", true, true, {"key1":"val1" ]';
 SET @obj2= '[3.0, 3, 5, "abc", "abc", true, {"key2":"val2"}, {"key1":"val1"}, {"key1":"val2"}]';
 select json_array_intersect(@obj1, @obj2);
 json_array_intersect(@obj1, @obj2)
-NULL
+[3.0, 3, "abc", true]
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 53
 # Checking incorrect type for input
@@ -5517,7 +5553,39 @@ ERROR HY000: Invalid value for keyword properties
 select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'))
 0
+#
+# MDEV-36808 json_array_intersect incorrect results after returning NULL in table scan
+#
+CREATE TABLE t1 (full text, overlap text);
+INSERT INTO t1 VALUES ('["2"]', '["2"]'), ('["2"]', '["0"]'),  ('["2"]', '["2"]');
+SELECT full, overlap, json_array_intersect(full, overlap) as jai from t1;
+full	overlap	jai
+["2"]	["2"]	["2"]
+["2"]	["0"]	NULL
+["2"]	["2"]	["2"]
+DROP TABLE t1;
 # End of 11.4 Test
+#
+# MDEV-38702 Behaviour of IF() with boolean JSON_EXTRACT as expression is wrong
+#
+SELECT JSON_TYPE(JSON_EXTRACT(x.val, '$.booleanValue')) AS json_type,
+JSON_EXTRACT(x.val, '$.booleanValue') AS value,
+IF(JSON_EXTRACT(x.val, '$.booleanValue'), 1, 0) AS value_if,
+JSON_EXTRACT(x.val, '$.booleanValue') = true AS value_eq
+FROM (SELECT '{"booleanValue": true}' AS val UNION ALL SELECT '{"booleanValue": false}' AS val ) AS x;
+json_type	value	value_if	value_eq
+BOOLEAN	true	1	1
+BOOLEAN	false	0	0
+#
+# MDEV-39135 JSON_OBJECTAGG(NULL) in decimal context
+#
+create table t0(c0 boolean);
+insert t0 values (false);
+select 1 ^ json_objectagg(NULL, 'a') from t0;
+1 ^ json_objectagg(NULL, 'a')
+NULL
+drop table t0;
+# End of 11.8 Test
 # Beginning of 12.3 Test
 #
 # MDEV-37072: Implement IS JSON predicate

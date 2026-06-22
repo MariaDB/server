@@ -8,7 +8,7 @@ RESET MASTER;
 # MDEV-30010 merely adds is a Read-Committed version MDEV-30225 test
 # solely to prove the RC isolation yields ROW binlog format as it is
 # supposed to:
-# https://mariadb.com/kb/en/unsafe-statements-for-statement-based-replication/#isolation-levels.
+# https://mariadb.com/docs/server/ha-and-performance/standard-replication/unsafe-statements-for-statement-based-replication
 # The original MDEV-30225 test is adapted to the RC to create
 # a similar sophisticated scenario which does not lead to any deadlock though.
 

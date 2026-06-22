@@ -2,7 +2,7 @@ MariaDB and MySQL have identical install methods. In this document we
 describe how to install MariaDB.
 
 The full documentation for installing MariaDB can be found at
-https://mariadb.com/kb/en/library/binary-packages/
+https://mariadb.com/docs/server/server-management/install-and-upgrade-mariadb/installing-mariadb/binary-packages
 However most documentation at www.mysql.com also applies.
 
 2.2. Installing MariaDB from Generic Binaries on Unix/Linux
@@ -36,7 +36,7 @@ However most documentation at www.mysql.com also applies.
    please report them to: https://mariadb.org/jira
 
    See the instructions at
-   https://mariadb.com/kb/en/mariadb-community-bug-reporting
+   https://mariadb.com/docs/general-resources/community/community/bug-tracking/reporting-bugs
 
    The basic commands that you must execute to install and use a
    MariaDB binary distribution are:
@@ -83,7 +83,7 @@ shell> useradd -g mysql mysql
 shell> cd /usr/local
 
     3. Obtain a distribution file using the instructions at
-       https://mariadb.com/kb/en/library/where-to-download-mariadb/
+       https://mariadb.com/docs/server/clients-and-utilities/server-client-software/download/where-to-download-mariadb
        The description below describes how to install a MariaDB tar file.
 
     4. Unpack the distribution, which creates the installation
@@ -152,7 +152,7 @@ shell> chown -R mysql data
        location where your system has its startup files. More
        information can be found in the support-files/mysql.server
        script itself and at
-       https://mariadb.com/kb/en/starting-and-stopping-mariadb-automatically.
+       https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/starting-and-stopping-mariadb-automatically
    10. You can set up new accounts using the bin/mysql_setpermission
        script if you install the DBI and DBD::MariaDB Perl modules. See
        Section 4.6.14, "mysql_setpermission --- Interactively Set
@@ -184,7 +184,7 @@ shell> bin/mysqld_safe --user=mysql &
    directory.
 
    More information about mysqld_safe can be found at
-   https://mariadb.com/kb/en/mysqld_safe
+   https://mariadb.com/docs/server/clients-and-utilities/legacy-clients-and-utilities/mariadbd_safe
 
 Note
 

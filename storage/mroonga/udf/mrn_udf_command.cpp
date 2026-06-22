@@ -122,6 +122,7 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *init, UDF_ARGS *args,
   }
   init->maybe_null = 1;
   init->const_item = 0;
+  init->max_length = 640;
 
   info = (CommandInfo *)mrn_my_malloc(sizeof(CommandInfo),
                                       MYF(MY_WME | MY_ZEROFILL));

@@ -1637,6 +1637,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+SET sql_mode=@save_sql_mode;
 
 use test;
 
@@ -1667,17 +1668,41 @@ drop database test_db;
 --echo # End of 11.3 tests
 
 --echo #
+--echo # MDEV-39288 SHOW CREATE ROUTINE does not apply to roles
+--echo #
+create user u@localhost;
+create role r;
+create procedure p1() select 10 as ten;
+grant execute on procedure test.p1 to u@localhost;
+grant execute on procedure test.p1 to r;
+grant r to u@localhost;
+
+connect u, localhost, u;
+call p1();
+query_vertical show create procedure p1;
+set role r;
+query_vertical Show create procedure p1;
+disconnect u;
+
+connection default;
+drop role r;
+drop user u@localhost;
+drop procedure p1;
+
+--echo # End of 11.4 tests
+
+--echo #
 --echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
 --echo #
 
 DELIMITER //;
-CREATE PROCEDURE proc(a INT DEFAULT 1, b INT DEFAULT (a+1), c INT DEFAULT POW(2,b)) AS
+CREATE PROCEDURE proc(a INT DEFAULT 1, b INT DEFAULT (a+1), c INT DEFAULT POW(2,b))
 BEGIN
   SELECT a, b, c FROM DUAL;
 END;
 //
 
-CREATE FUNCTION func(a INT DEFAULT 8, b INT DEFAULT LOG2(a)) RETURN INT AS
+CREATE FUNCTION func(a INT DEFAULT 8, b INT DEFAULT LOG2(a)) RETURNS INT
 BEGIN
   RETURN b;
 END;

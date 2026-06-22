@@ -463,7 +463,7 @@ fseg_free_page(
 @retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
 dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
   noexcept
-  MY_ATTRIBUTE((nonnull, warn_unused_result));
+  MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Frees part of a segment. This function can be used to free

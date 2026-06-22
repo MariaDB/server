@@ -80,7 +80,7 @@ public:
 
   uint max_supported_key_part_length() const override;
 
-  void column_bitmaps_signal() override;
+  void column_bitmaps_signal(bool mark_for_update) override;
 
   int open(const char *name, int mode, uint test_if_locked) override;
 
@@ -496,7 +496,7 @@ uint ha_videx::max_supported_key_part_length() const
   return (3072);
 }
 
-void ha_videx::column_bitmaps_signal()
+void ha_videx::column_bitmaps_signal(bool mark_for_update)
 {
   DBUG_ENTER("ha_videx::column_bitmaps_signal");
   // TODO: handle indexed virtual columns for VIDEX engine

@@ -1833,7 +1833,7 @@ static Sys_var_ulong Sys_max_allowed_packet(
        "max_allowed_packet",
        "Max packet length to send to or receive from the server",
        SESSION_VAR(max_allowed_packet), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, 1024*1024*1024), DEFAULT(16*1024*1024),
+       VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_max_allowed_packet));
 
@@ -5412,7 +5412,8 @@ static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, MAX_MAX_ALLOWED_PACKET), DEFAULT(1024*1024),
+       BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
@@ -6141,18 +6142,20 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd) const
+get_master_info_ulonglong_value(THD *thd, bool with_lock) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value
-  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (with_lock)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
   if ((mi= get_master_info(&thd->variables.default_master_connection,
                            Sql_condition::WARN_LEVEL_WARN)))
   {
     res= (mi->*mi_accessor_func)();
     mi->release();
   }
-  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (with_lock)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   return res;
 }
   

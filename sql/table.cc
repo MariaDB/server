@@ -6140,7 +6140,7 @@ TABLE_LIST::TABLE_LIST(THD *thd,
 
   SYNOPSIS
     TABLE_LIST::calc_md5()
-    buffer	buffer for md5 writing
+    buffer	buffer for md5 writing, must be at least MD5_BUFF_LENGTH bytes
 */
 
 void  TABLE_LIST::calc_md5(char *buffer)
@@ -6148,12 +6148,12 @@ void  TABLE_LIST::calc_md5(char *buffer)
   uchar digest[16];
   compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
-  sprintf(buffer,
-	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-	    digest[0], digest[1], digest[2], digest[3],
-	    digest[4], digest[5], digest[6], digest[7],
-	    digest[8], digest[9], digest[10], digest[11],
-	    digest[12], digest[13], digest[14], digest[15]);
+  snprintf(buffer, MD5_BUFF_LENGTH,
+	   "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+	   digest[0], digest[1], digest[2], digest[3],
+	   digest[4], digest[5], digest[6], digest[7],
+	   digest[8], digest[9], digest[10], digest[11],
+	   digest[12], digest[13], digest[14], digest[15]);
 }
 
 
@@ -7766,7 +7766,7 @@ void TABLE::prepare_for_position()
   {
     mark_index_columns_for_read(s->primary_key);
     /* signal change */
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   }
   DBUG_VOID_RETURN;
 }
@@ -7816,7 +7816,7 @@ void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
   file->ha_end_keyread();
   read_set= backup;
-  file->column_bitmaps_signal();
+  file->column_bitmaps_signal(false);
   DBUG_VOID_RETURN;
 }
 
@@ -7875,7 +7875,7 @@ void TABLE::mark_auto_increment_column(bool is_insert)
     bitmap_set_bit(write_set, found_next_number_field->field_index);
   if (s->next_number_keypart)
     mark_index_columns_for_read(s->next_number_index);
-  file->column_bitmaps_signal();
+  file->column_bitmaps_signal(false);
 }
 
 
@@ -7950,7 +7950,7 @@ void TABLE::mark_columns_needed_for_delete()
 #endif
 
   if (need_signal)
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
 }
 
 
@@ -8067,7 +8067,7 @@ void TABLE::mark_columns_needed_for_update()
   }
   mark_columns_per_binlog_row_image();
   if (need_signal)
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(true);
   DBUG_VOID_RETURN;
 }
 
@@ -8255,13 +8255,13 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   }
   else
   {
     /* If not using row format */
     rpl_write_set= write_set;
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   }
 
   DBUG_VOID_RETURN;
@@ -8339,7 +8339,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
     }
   }
   if (bitmap_updated)
-    file->column_bitmaps_signal();
+    file->column_bitmaps_signal(false);
   DBUG_RETURN(bitmap_updated);
 }
 
@@ -8746,7 +8746,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   uint i;
   bool key_start= TRUE;
 
-  keyinfo->name.length= sprintf(buf, "key%i", key);
+  keyinfo->name.length= snprintf(buf, sizeof(buf), "key%i", key);
 
   if (!multi_alloc_root(&mem_root,
                         &key_part_info, sizeof(KEY_PART_INFO)*key_parts,

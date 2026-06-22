@@ -70,18 +70,18 @@ MULTIPOINT(0 0,0 0)
 MULTIPOINT(0 0,1 0)
 MULTIPOINT(1 0,2 0)
 MULTIPOINT(2 0,3 0)
-MULTIPOINT(3 0,0 -0)
-MULTIPOINT(0 -0)
-MULTIPOINT(0 -0)
-MULTIPOINT(0 -0)
+MULTIPOINT(3 0,0 0)
+MULTIPOINT(0 0)
+MULTIPOINT(0 0)
+MULTIPOINT(0 0)
 NULL
 Excercising multiple code paths.
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(running_number)
 OVER()  FROM table_simple_aggregation GROUP BY running_number;
 geo	SUM(running_number)
 OVER()
-MULTIPOINT(0 -0)	55
-MULTIPOINT(0 -0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(1 0)	55
@@ -96,20 +96,20 @@ OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
 grouping_condition;
 geo	SUM(grouping_condition)
 OVER()	grouping_condition
-MULTIPOINT(0 -0)	1	NULL
+MULTIPOINT(0 0)	1	NULL
 MULTIPOINT(0 0,1 0,3 0)	1	0
 MULTIPOINT(0 0,2 0)	1	1
 SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(grouping_condition) OVER(),
 grouping_condition FROM table_simple_aggregation GROUP BY grouping_condition;
 geo	SUM(grouping_condition) OVER()	grouping_condition
-MULTIPOINT(0 -0,0 -0)	1	NULL
+MULTIPOINT(0 0,0 0)	1	NULL
 MULTIPOINT(0 0,1 0,3 0)	1	0
 MULTIPOINT(0 0,2 0)	1	1
 SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(running_number) OVER()  FROM
 table_simple_aggregation GROUP BY running_number;
 geo	SUM(running_number) OVER()
-MULTIPOINT(0 -0)	55
-MULTIPOINT(0 -0)	55
+MULTIPOINT(0 0)	55
+MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(0 0)	55
 MULTIPOINT(1 0)	55

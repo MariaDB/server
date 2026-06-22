@@ -998,8 +998,8 @@ public:
 };
 
 Field_pair *get_corresponding_field_pair(Item *item,
-                                         List<Field_pair> pair_list);
-Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
+                                         List<Field_pair> &pair_list);
+Field_pair *find_matching_field_pair(Item *item, List<Field_pair> & pair_list);
 
 
 #define TOUCHED_SEL_COND 1/* WHERE/HAVING/ON should be reinited before use */
@@ -1970,7 +1970,7 @@ public:
 
     /**
        INSERT .. SELECT ... SKIP LOCKED is unlikely to have the same
-       rows locked on the replica.
+       rows locked on the slave.
        primary key.
     */
     BINLOG_STMT_UNSAFE_SKIP_LOCKED,
@@ -3477,6 +3477,8 @@ public:
     not support subqueries which comes standard with this rule, like
     KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
     clause name to get an error.
+
+    Note: see also table_or_sp_used().
   */
   const char *clause_that_disallows_subselect;
 
@@ -4920,7 +4922,7 @@ public:
 
     Table_period_info &info= create_info.period_info;
 
-    if (check_exists && info.name.streq(name))
+    if (check_exists && info.name.streq_safe(name))
       return 0;
 
     if (info.is_set())

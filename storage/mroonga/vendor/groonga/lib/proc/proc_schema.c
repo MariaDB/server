@@ -1205,6 +1205,7 @@ command_schema_output_tables(grn_ctx *ctx, grn_schema_data *data)
 
 PRAGMA_REENABLE_CHECK_STACK_FRAME
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 static grn_obj *
 command_schema(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
 {
@@ -1223,6 +1224,7 @@ command_schema(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data
 
   return NULL;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void
 grn_proc_init_schema(grn_ctx *ctx)

@@ -4078,7 +4078,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
               key->type != Key::FOREIGN_KEY)
             continue;
 
-          if (check->name.streq(key->name))
+          if (check->name.streq_safe(key->name))
           {
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
@@ -6475,7 +6475,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(Lex_ident(drop->name)))
+        if (table->s->period.name.streq_safe(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -6786,7 +6786,7 @@ remove_key:
            c < share->table_check_constraints ; c++)
       {
         Virtual_column_info *dup= table->check_constraints[c];
-        if (check->name.streq(dup->name))
+        if (check->name.streq_safe(dup->name))
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_DUP_CONSTRAINT_NAME, ER_THD(thd, ER_DUP_CONSTRAINT_NAME),
@@ -7386,7 +7386,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
          new_key < new_key_end;
          new_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7436,7 +7436,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -7468,7 +7468,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
         continue;
       }
 
-      DBUG_ASSERT(!old_key->name.streq(new_key->name));
+      DBUG_ASSERT(cmp(&old_key->name, &new_key->name));
 
       ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
       ha_alter_info->rename_keys.push_back(
@@ -7754,7 +7754,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7794,7 +7794,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (table_key= table->s->key_info; table_key < table_key_end; table_key++)
     {
-      if (table_key->name.streq(new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -9509,7 +9509,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      if (share->period.constr_name.streq(check->name))
+      if (share->period.constr_name.streq_safe(check->name))
       {
         if (!drop_period && !keep)
         {
@@ -12850,7 +12850,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (from_row_end)
     bitmap_set_bit(from->read_set, from_row_end->field_index);
 
-  from->file->column_bitmaps_signal();
+  from->file->column_bitmaps_signal(false);
 
   to->file->prepare_for_modify(true, false);
   DBUG_ASSERT(to->file->inited == handler::NONE);

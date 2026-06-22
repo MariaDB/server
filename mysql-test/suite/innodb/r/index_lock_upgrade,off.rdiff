@@ -1,0 +1,289 @@
+--- index_lock_upgrade.result
++++ index_lock_upgrade,off.reject
+@@ -64,37 +64,37 @@
+ CALL show_index_stats(CONCAT('t1', '_update_null_to_notnull'));
+ 
+ n_index_lock_upgrades_t1_update_null_to_notnull
+-414
++6
+ 
+ pessimistic_insert_calls_t1_update_null_to_notnull
+-5
++6
+ 
+ pessimistic_delete_calls_t1_update_null_to_notnull
+ 0
+ 
+ pessimistic_update_calls_t1_update_null_to_notnull
+-414
++6
+ 
+ pessimistic_update_optim_err_underflows_t1_update_null_to_notnull
+-300
++0
+ 
+ pessimistic_update_optim_err_overflows_t1_update_null_to_notnull
+-114
++6
+ 
+ index_x_lock_calls_t1_update_null_to_notnull
+ 0
+ 
+ index_page_splits_t1_update_null_to_notnull
+-5
++6
+ 
+ index_page_merge_attempts_t1_update_null_to_notnull
+-300
++0
+ 
+ index_page_merge_successful_t1_update_null_to_notnull
+ 0
+ 
+ index_page_reorg_successful_t1_update_null_to_notnull
+-98
++40
+ 
+ index_page_discards_t1_update_null_to_notnull
+ 0
+@@ -146,22 +146,22 @@
+ CALL show_index_stats(CONCAT('t1', '_update_notnull_to_null'));
+ 
+ n_index_lock_upgrades_t1_update_notnull_to_null
+-380
++422
+ 
+ pessimistic_insert_calls_t1_update_notnull_to_null
+ 0
+ 
+ pessimistic_delete_calls_t1_update_notnull_to_null
+-5
++6
+ 
+ pessimistic_update_calls_t1_update_notnull_to_null
+-380
++422
+ 
+ pessimistic_update_optim_err_underflows_t1_update_notnull_to_null
+-311
++342
+ 
+ pessimistic_update_optim_err_overflows_t1_update_notnull_to_null
+-69
++80
+ 
+ index_x_lock_calls_t1_update_notnull_to_null
+ 0
+@@ -170,13 +170,13 @@
+ 0
+ 
+ index_page_merge_attempts_t1_update_notnull_to_null
+-311
++342
+ 
+ index_page_merge_successful_t1_update_notnull_to_null
+-5
++6
+ 
+ index_page_reorg_successful_t1_update_notnull_to_null
+-5
++6
+ 
+ index_page_discards_t1_update_notnull_to_null
+ 0
+@@ -191,13 +191,13 @@
+ CALL show_index_stats(CONCAT('t1', '_delete_upper_half'));
+ 
+ n_index_lock_upgrades_t1_delete_upper_half
+-183
++186
+ 
+ pessimistic_insert_calls_t1_delete_upper_half
+ 0
+ 
+ pessimistic_delete_calls_t1_delete_upper_half
+-186
++189
+ 
+ pessimistic_update_calls_t1_delete_upper_half
+ 0
+@@ -215,7 +215,7 @@
+ 0
+ 
+ index_page_merge_attempts_t1_delete_upper_half
+-183
++186
+ 
+ index_page_merge_successful_t1_delete_upper_half
+ 3
+@@ -379,37 +379,37 @@
+ CALL show_index_stats(CONCAT('t2', '_update_null_to_notnull'));
+ 
+ n_index_lock_upgrades_t2_update_null_to_notnull
+-1016
++608
+ 
+ pessimistic_insert_calls_t2_update_null_to_notnull
+-9
++10
+ 
+ pessimistic_delete_calls_t2_update_null_to_notnull
+ 601
+ 
+ pessimistic_update_calls_t2_update_null_to_notnull
+-414
++6
+ 
+ pessimistic_update_optim_err_underflows_t2_update_null_to_notnull
+-300
++0
+ 
+ pessimistic_update_optim_err_overflows_t2_update_null_to_notnull
+-114
++6
+ 
+ index_x_lock_calls_t2_update_null_to_notnull
+ 0
+ 
+ index_page_splits_t2_update_null_to_notnull
+-9
++10
+ 
+ index_page_merge_attempts_t2_update_null_to_notnull
+-895
++595
+ 
+ index_page_merge_successful_t2_update_null_to_notnull
+ 0
+ 
+ index_page_reorg_successful_t2_update_null_to_notnull
+-98
++40
+ 
+ index_page_discards_t2_update_null_to_notnull
+ 3
+@@ -461,22 +461,22 @@
+ CALL show_index_stats(CONCAT('t2', '_update_notnull_to_null'));
+ 
+ n_index_lock_upgrades_t2_update_notnull_to_null
+-583
++625
+ 
+ pessimistic_insert_calls_t2_update_notnull_to_null
+ 3
+ 
+ pessimistic_delete_calls_t2_update_notnull_to_null
+-209
++210
+ 
+ pessimistic_update_calls_t2_update_notnull_to_null
+-380
++422
+ 
+ pessimistic_update_optim_err_underflows_t2_update_notnull_to_null
+-311
++342
+ 
+ pessimistic_update_optim_err_overflows_t2_update_notnull_to_null
+-69
++80
+ 
+ index_x_lock_calls_t2_update_notnull_to_null
+ 0
+@@ -485,13 +485,13 @@
+ 3
+ 
+ index_page_merge_attempts_t2_update_notnull_to_null
+-511
++542
+ 
+ index_page_merge_successful_t2_update_notnull_to_null
+-9
++10
+ 
+ index_page_reorg_successful_t2_update_notnull_to_null
+-10
++11
+ 
+ index_page_discards_t2_update_notnull_to_null
+ 0
+@@ -506,13 +506,13 @@
+ CALL show_index_stats(CONCAT('t2', '_delete_upper_half'));
+ 
+ n_index_lock_upgrades_t2_delete_upper_half
+-340
++343
+ 
+ pessimistic_insert_calls_t2_delete_upper_half
+ 0
+ 
+ pessimistic_delete_calls_t2_delete_upper_half
+-344
++347
+ 
+ pessimistic_update_calls_t2_delete_upper_half
+ 0
+@@ -530,7 +530,7 @@
+ 0
+ 
+ index_page_merge_attempts_t2_delete_upper_half
+-340
++343
+ 
+ index_page_merge_successful_t2_delete_upper_half
+ 4
+@@ -694,19 +694,19 @@
+ CALL show_index_stats(CONCAT('t3', '_update_null_to_notnull'));
+ 
+ n_index_lock_upgrades_t3_update_null_to_notnull
+-1602
++610
+ 
+ pessimistic_insert_calls_t3_update_null_to_notnull
+ 12
+ 
+ pessimistic_delete_calls_t3_update_null_to_notnull
+-602
++601
+ 
+ pessimistic_update_calls_t3_update_null_to_notnull
+-1000
++8
+ 
+ pessimistic_update_optim_err_underflows_t3_update_null_to_notnull
+-992
++0
+ 
+ pessimistic_update_optim_err_overflows_t3_update_null_to_notnull
+ 0
+@@ -718,10 +718,10 @@
+ 12
+ 
+ index_page_merge_attempts_t3_update_null_to_notnull
+-1587
++595
+ 
+ index_page_merge_successful_t3_update_null_to_notnull
+-1
++0
+ 
+ index_page_reorg_successful_t3_update_null_to_notnull
+ 0
+@@ -782,7 +782,7 @@
+ 3
+ 
+ pessimistic_delete_calls_t3_update_notnull_to_null
+-212
++213
+ 
+ pessimistic_update_calls_t3_update_notnull_to_null
+ 1000
+@@ -803,7 +803,7 @@
+ 1200
+ 
+ index_page_merge_successful_t3_update_notnull_to_null
+-12
++13
+ 
+ index_page_reorg_successful_t3_update_notnull_to_null
+ 0

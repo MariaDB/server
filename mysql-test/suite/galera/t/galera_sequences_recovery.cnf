@@ -1,9 +1,14 @@
 !include ../galera_2nodes.cnf
 
 [mysqld.1]
+wsrep-auto-increment-control=OFF
 auto-increment-increment=2
 auto-increment-offset=1
+wsrep_provider_options='pc.weight=2;pc.ignore_sb=true'
+wsrep-sync-wait=15
 
 [mysqld.2]
+wsrep-auto-increment-control=OFF
 auto-increment-increment=2
 auto-increment-offset=2
+wsrep-sync-wait=15

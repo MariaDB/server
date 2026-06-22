@@ -71,19 +71,19 @@ main(int argc __attribute__((unused)),char *argv[])
       diag("       --------- src ---------   --------- dst ---------");
       for (k= 0; k<src_len; k+=8)
       {
-        sprintf(buf, "%.4x   ", (uint) k);
+        snprintf(buf, sizeof(buf), "%.4x   ", (uint) k);
         for (l=0; l<8 && k+l<src_len; l++)
         {
           unsigned char c= src[k+l];
-          sprintf(buf, "%.2x ", (unsigned)c);
+          snprintf(buf, sizeof(buf), "%.2x ", (unsigned)c);
         }
 
-        sprintf(buf, "  ");
+        snprintf(buf, sizeof(buf), "  ");
 
         for (l=0; l<8 && k+l<dst_len; l++)
         {
           unsigned char c= dst[k+l];
-          sprintf(buf, "%.2x ", (unsigned)c);
+          snprintf(buf, sizeof(buf), "%.2x ", (unsigned)c);
         }
         diag("%s", buf);
       }

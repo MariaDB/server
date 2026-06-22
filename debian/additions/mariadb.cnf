@@ -13,7 +13,7 @@
 # Run program with --help to get a list of available options and with
 # --print-defaults to see which it would actually understand and use.
 #
-# If you are new to MariaDB, check out https://mariadb.com/kb/en/basic-mariadb-articles/
+# If you are new to MariaDB, check out https://mariadb.com/docs/server/server-usage/basics
 
 #
 # This group is read both by the client and the server

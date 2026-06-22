@@ -51,6 +51,24 @@ ALTER online TABLE t1 MODIFY COLUMN `f4`  VARCHAR(500) , ALGORITHM=INSTANT, LOCK
 drop table t1;
 # End of 10.5 tests
 #
+# MDEV-34951: InnoDB index corruption when renaming key name with same letter to upper case.
+#
+# Tests on partitioned tables
+# partitioned table with index 'idx' (lowercase)
+CREATE TABLE t_part (a INT, KEY idx(a)) ENGINE=InnoDB
+PARTITION BY HASH(a) PARTITIONS 1;
+# non-partitioned table with index 'IDX' (uppercase)
+CREATE TABLE t_nonpart (a INT, KEY IDX(a)) ENGINE=InnoDB;
+INSERT INTO t_part VALUES (1);
+# Exchange partition
+# ALTER TABLE should fail. Without fix, ALTER TABLE succeeds, SELECT fails.
+ALTER TABLE t_part EXCHANGE PARTITION p0 WITH TABLE t_nonpart;
+ERROR HY000: Tables have different definitions
+SELECT * FROM t_nonpart;
+a
+DROP TABLE t_part, t_nonpart;
+# End of 10.6 tests
+#
 # MDEV-22165 CONVERT PARTITION: move in partition from existing table
 #
 create or replace table tp1 (a int);
@@ -311,14 +329,14 @@ drop prepare stmt;
 # Privileges
 create user alan;
 grant usage on *.* to alan;
-grant create, insert, drop on test.* to alan;
+grant create, insert on test.* to alan;
 connect alan,localhost,alan,,test;
 show grants for current_user;
 Grants for alan@%
 GRANT USAGE ON *.* TO `alan`@`%`
-GRANT INSERT, CREATE, DROP ON `test`.* TO `alan`@`%`
+GRANT INSERT, CREATE ON `test`.* TO `alan`@`%`
 alter table t1 convert partition p1 to table tp1;
-ERROR 42000: ALTER command denied to user 'alan'@'localhost' for table `test`.`t1`
+ERROR 42000: DROP command denied to user 'alan'@'localhost' for table `test`.`t1`
 connection default;
 revoke all on test.* from alan;
 grant create, insert, alter on test.* to alan;

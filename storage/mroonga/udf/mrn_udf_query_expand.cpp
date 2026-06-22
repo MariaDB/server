@@ -85,9 +85,9 @@ MRN_API my_bool mroonga_query_expand_init(UDF_INIT *init,
   }
 
   if (args->arg_count != 4) {
-    sprintf(message,
-            "mroonga_query_expand(): wrong number of arguments: %u for 4",
-            args->arg_count);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "mroonga_query_expand(): wrong number of arguments: %u for 4",
+             args->arg_count);
     goto error;
   }
   if (args->arg_type[0] != STRING_RESULT) {

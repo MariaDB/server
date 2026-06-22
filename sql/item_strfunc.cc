@@ -3798,8 +3798,10 @@ String *Item_func_rpad::val_str(String *str)
   }
 
   if (count <= (res_char_length= res->numchars()))
-  {						// String to pad is big enough
-    res->length(res->charpos((int) count));	// Shorten result if longer
+  {                                             // String to pad is big enough
+    int len= res->charpos((int) count);
+    res= copy_if_not_alloced(str, res, len);
+    res->length(len);                           // Shorten result if longer
     return (res);
   }
 
@@ -3894,7 +3896,9 @@ String *Item_func_lpad::val_str(String *str)
 
   if (count <= res_char_length)
   {
-    res->length(res->charpos((int) count));
+    int len= res->charpos((int) count);
+    res= copy_if_not_alloced(str, res, len);
+    res->length(len);
     return res;
   }
 
@@ -4600,7 +4604,7 @@ String *Item_func_quote::val_str(String *str)
   ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
   char *from, *to, *end, *start;
   String *arg= args[0]->val_str(&tmp_value);
-  uint arg_length, new_length;
+  size_t arg_length, new_length;
   if (!arg)					// Null argument
   {
     /* Return the string 'NULL' */
@@ -5245,9 +5249,9 @@ String *Item_func_dyncol_json::val_str(String *str)
   if ((rc= mariadb_dyncol_json(&col, &json)))
   {
     dynamic_column_error_message(rc);
+    dynstr_free(&json);
     goto null;
   }
-  bzero(&col, sizeof(col));
   {
     /* Move result from DYNAMIC_COLUMN to str */
     char *ptr;
@@ -5260,7 +5264,6 @@ String *Item_func_dyncol_json::val_str(String *str)
   return str;
 
 null:
-  bzero(&col, sizeof(col));
   null_value= TRUE;
   return NULL;
 }

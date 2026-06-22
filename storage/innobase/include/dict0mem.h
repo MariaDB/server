@@ -2538,7 +2538,7 @@ public:
   /** @return number of unique columns in FTS_DOC_ID index */
   uint16_t fts_n_uniq() const { return versioned() ? 2 : 1; }
 
-  /** @return the index for that starts with a specific column */
+  /** @return the index that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;
 
   /** @return whether the statistics are initialized */
@@ -2590,6 +2590,17 @@ public:
       if (i->is_spatial())
         return true;
     return false;
+  }
+
+  /** @return whether the table has any indexed virtual column */
+  bool has_virtual_index() const noexcept
+  {
+    if (UNIV_UNLIKELY(n_v_cols != 0))
+      for (dict_index_t *index = indexes.start;
+           index; index = UT_LIST_GET_NEXT(indexes, index))
+        if (index->has_virtual())
+          return true;
+   return false;
   }
 };
 

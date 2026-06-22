@@ -1,8 +1,8 @@
 #
 # Purpose:
-#   This test ensures that issuing a CHANGE MASTER will not put a replica into
+#   This test ensures that issuing a CHANGE MASTER will not put a slave into
 # an inconsistent state if the slave cannot find the log files (i.e. the call to
-# find_log_pos in reset_logs fails). More specifically, right before a replica
+# find_log_pos in reset_logs fails). More specifically, right before a slave
 # purges the relay logs (part of the `CHANGE MASTER TO` logic), the relay log is
 # temporarily closed with state LOG_TO_BE_OPENED. If the server is issued a
 # CHANGE MASTER and it errors in-between the temporary log closure and purge,
@@ -59,7 +59,7 @@ insert into t1 values (1);
 --connection slave
 if ($master_checksum != `CHECKSUM TABLE t1`)
 {
-    die("Replica failed to pull data from primary after failed CHANGE MASTER TO");
+    die("Slave failed to pull data from master after failed CHANGE MASTER TO");
 }
 
 

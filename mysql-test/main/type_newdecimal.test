@@ -2084,3 +2084,25 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-30255 0 changed to 0.0 caused by DISTINCT and UNION ALL
+--echo #
+
+# original test case
+create table t (c1 double);
+insert into t values (0.1);
+(select (c1 div 1)*0.1 from t) union all (select '1');
+drop table t;
+
+# multiplication bugs
+select 12345678.00000000000000000000000000000000000000000000000000000000000000000000000 * 987.654 as 'tail of zeros';
+select 12345678 * 987.654 as 'exact result';
+
+select 12345678.000000000000000000000000000000000001 * 987.000000000000000000000000000000000002 as 'first tail is smaller';
+select 987.000000000000000000000000000000000002 * 12345678.000000000000000000000000000000000001 as 'second tail is smaller';
+select 12345678 * 987.000000000000000000000000000000000002 as 'truncate 1';
+select 12345678.000000000000000000000000000000000001 * 987 as 'truncate 2';
+select '12185184186.000000000000000000000000000024692343000000000000000000000000000000000002' as 'exact result';
+
+--echo # End of 10.11 tests

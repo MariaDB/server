@@ -1226,6 +1226,22 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 
 select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
 
+--echo #
+--echo # MDEV-39213: json range syntax crash
+--echo #
+
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as ex;
+
+--echo #
+--echo # MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+--echo # (aka 'struct st_json_path_step_t[32]')
+--echo #
+
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+SELECT JSON_EXTRACT('0E+0','$');
+
+SELECT JSON_EXISTS(CONCAT('[', REPEAT('[', 4000), 'Y', REPEAT(']', 4000), ', 1]'), '$[100]') as je;
+
 --echo # End of 10.6 tests
 
 SELECT json_extract(t.j, '$')
@@ -2037,7 +2053,7 @@ SELECT JSON_VALUE('{"a":[1,2]}', '$.a[*]');
 --echo # MDEV-37640: Crash at String::append with json_normalize
 --echo #
 
-SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) );
+SELECT ( WITH x AS ( WITH x AS ( SELECT 1.000000 ) SELECT ( REPEAT ( ( json_normalize ( ' 	-1' ) ) , 357 ) ) x ) SELECT x FROM x WHERE x IN ( x , x ) ) x;
 
 --echo #
 --echo # MDEV-37640: Crash in JSON_KEYS
@@ -2068,6 +2084,20 @@ SELECT JSON_VALUE('{ "A": [5,] }', '$.A[-2]');
 SELECT JSON_VALUE('{ "A": [5] }', '$.A[-2]');
 SELECT JSON_LENGTH('{ "A": [0,] }', '$.A');
 SELECT JSON_VALID('{ "A": [0,] }');
+
+--echo #
+--echo # MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
+--echo # (aka 'struct st_json_path_step_t[32]')
+--echo #
+
+SELECT JSON_EXTRACT('{a:true}','$.a')=TRUE;
+SELECT JSON_EXTRACT('0E+0','$');
+
+--echo #
+--echo # MDEV-26814: UBSAN: offset to nullptr in JSON_ARRAY_INSERT
+--echo #
+
+SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
 
 --echo # End of 10.11 Test
 
@@ -4293,7 +4323,37 @@ SELECT JSON_SCHEMA_VALID('{"properties": "a_string": {"pattern": "^[5-9]$"}}}', 
 --echo #
 select json_schema_valid('{"enum":[0]}', sformat('"{:#>200}"','0'));
 
+--echo #
+--echo # MDEV-36808 json_array_intersect incorrect results after returning NULL in table scan
+--echo #
+
+CREATE TABLE t1 (full text, overlap text);
+INSERT INTO t1 VALUES ('["2"]', '["2"]'), ('["2"]', '["0"]'),  ('["2"]', '["2"]');
+
+SELECT full, overlap, json_array_intersect(full, overlap) as jai from t1;
+
+DROP TABLE t1;
+
 --echo # End of 11.4 Test
+
+--echo #
+--echo # MDEV-38702 Behaviour of IF() with boolean JSON_EXTRACT as expression is wrong
+--echo #
+SELECT JSON_TYPE(JSON_EXTRACT(x.val, '$.booleanValue')) AS json_type,
+       JSON_EXTRACT(x.val, '$.booleanValue') AS value,
+       IF(JSON_EXTRACT(x.val, '$.booleanValue'), 1, 0) AS value_if,
+       JSON_EXTRACT(x.val, '$.booleanValue') = true AS value_eq
+FROM (SELECT '{"booleanValue": true}' AS val UNION ALL SELECT '{"booleanValue": false}' AS val ) AS x;
+
+--echo #
+--echo # MDEV-39135 JSON_OBJECTAGG(NULL) in decimal context
+--echo #
+create table t0(c0 boolean);
+insert t0 values (false);
+select 1 ^ json_objectagg(NULL, 'a') from t0;
+drop table t0;
+
+--echo # End of 11.8 Test
 
 --echo # Beginning of 12.3 Test
 

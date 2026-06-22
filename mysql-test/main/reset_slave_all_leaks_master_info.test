@@ -4,7 +4,7 @@
 --echo # MDEV-38497 RESET SLAVE ALL doesn't remove all slave related configurations
 --echo #
 
-# Test replica should clear ALL master connection info
+# Test slave should clear ALL master connection info
 
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 eval CHANGE MASTER TO

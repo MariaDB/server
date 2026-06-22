@@ -39,6 +39,8 @@
 
 THR_LOCK table_events_waits_current::m_table_lock;
 
+#define OBJECT_INSTANCE_BEGIN(X) (((intptr)X) - ((intptr) &pfs_truncatable_acl))
+
 PFS_engine_table_share_state
 table_events_waits_current::m_share_state = {
   false /* m_checked */
@@ -253,7 +255,7 @@ int table_events_waits_common::make_table_object_columns(PFS_events_waits *wait)
     m_row.m_index_name_length= 0;
   }
 
-  m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+  m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
   return 0;
 }
 
@@ -268,7 +270,7 @@ int table_events_waits_common::make_file_object_columns(PFS_events_waits *wait)
   m_row.m_object_type= "FILE";
   m_row.m_object_type_length= 4;
   m_row.m_object_schema_length= 0;
-  m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+  m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
 
   if (safe_file->get_version() == wait->m_weak_version)
   {
@@ -300,7 +302,7 @@ int table_events_waits_common::make_socket_object_columns(PFS_events_waits *wait
   m_row.m_object_type= "SOCKET";
   m_row.m_object_type_length= 6;
   m_row.m_object_schema_length= 0;
-  m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+  m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
 
   if (safe_socket->get_version() == wait->m_weak_version)
   {
@@ -434,7 +436,7 @@ int table_events_waits_common::make_metadata_lock_object_columns(PFS_events_wait
     if (m_row.m_object_name_length > 0)
       memcpy(m_row.m_object_name, mdl->name(), m_row.m_object_name_length);
 
-    m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+    m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
   }
   else
   {
@@ -501,17 +503,17 @@ void table_events_waits_common::make_row(PFS_events_waits *wait)
     break;
   case WAIT_CLASS_MUTEX:
     clear_object_columns();
-    m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+    m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
     safe_class= sanitize_mutex_class((PFS_mutex_class*) wait->m_class);
     break;
   case WAIT_CLASS_RWLOCK:
     clear_object_columns();
-    m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+    m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
     safe_class= sanitize_rwlock_class((PFS_rwlock_class*) wait->m_class);
     break;
   case WAIT_CLASS_COND:
     clear_object_columns();
-    m_row.m_object_instance_addr= (intptr) wait->m_object_instance_addr;
+    m_row.m_object_instance_addr= OBJECT_INSTANCE_BEGIN(wait->m_object_instance_addr);
     safe_class= sanitize_cond_class((PFS_cond_class*) wait->m_class);
     break;
   case WAIT_CLASS_TABLE:

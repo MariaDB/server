@@ -37,8 +37,8 @@ struct passwd *my_check_user(const char *user, myf MyFlags)
     if (MyFlags & MY_FAE)
     {
       my_errno= EINVAL;
-      my_printf_error(my_errno, "Please consult the Knowledge Base to find "
-                      "out how to run mysqld as root!", MYF(ME_ERROR_LOG));
+      my_printf_error(my_errno, "Please consult the MariaDB Documentation to find "
+                      "out how to run mariadbd as root!", MYF(ME_ERROR_LOG));
     }
     DBUG_RETURN(NULL);
   }

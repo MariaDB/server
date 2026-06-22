@@ -902,10 +902,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (37, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 4 rows  Slave: 3 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (37, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 5 rows  Slave: 3 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -941,10 +943,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (38, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 6 rows  Slave: 5 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (38, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 19 rows  Slave: 17 rows
+# Error: Data mismatch in nt_5:  Master: 10 rows  Slave: 9 rows
+# Error: Data mismatch in nt_1:  Master: 6 rows  Slave: 5 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -984,12 +990,16 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (39, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 7 rows  Slave: 6 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (39, 4);
 fc_i_tt_5_suc (39, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 23 rows  Slave: 19 rows
+# Error: Data mismatch in nt_5:  Master: 12 rows  Slave: 10 rows
+# Error: Data mismatch in nt_1:  Master: 7 rows  Slave: 6 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1033,10 +1043,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (40, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 8 rows  Slave: 7 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (40, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 27 rows  Slave: 23 rows
+# Error: Data mismatch in nt_5:  Master: 14 rows  Slave: 12 rows
+# Error: Data mismatch in nt_1:  Master: 8 rows  Slave: 7 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1086,10 +1100,15 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (41, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 29 rows  Slave: 27 rows
+# Error: Data mismatch in nt_5:  Master: 15 rows  Slave: 14 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (41, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 29 rows  Slave: 27 rows
+# Error: Data mismatch in nt_5:  Master: 15 rows  Slave: 14 rows
+# Error: Data mismatch in nt_1:  Master: 9 rows  Slave: 8 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1129,10 +1148,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (42, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 31 rows  Slave: 29 rows
+# Error: Data mismatch in nt_5:  Master: 16 rows  Slave: 15 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (42, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 33 rows  Slave: 29 rows
+# Error: Data mismatch in nt_5:  Master: 17 rows  Slave: 15 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1176,12 +1199,16 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (43, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 35 rows  Slave: 33 rows
+# Error: Data mismatch in nt_5:  Master: 18 rows  Slave: 17 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (43, 4);
 fc_i_tt_5_suc (43, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 39 rows  Slave: 33 rows
+# Error: Data mismatch in nt_5:  Master: 20 rows  Slave: 17 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1229,10 +1256,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (44, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 41 rows  Slave: 39 rows
+# Error: Data mismatch in nt_5:  Master: 21 rows  Slave: 20 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (44, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 45 rows  Slave: 39 rows
+# Error: Data mismatch in nt_5:  Master: 23 rows  Slave: 20 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1288,10 +1319,15 @@ SELECT fc_i_tt_5_suc (45, 2);
 fc_i_tt_5_suc (45, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 49 rows  Slave: 45 rows
+# Error: Data mismatch in nt_5:  Master: 25 rows  Slave: 23 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (45, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 49 rows  Slave: 45 rows
+# Error: Data mismatch in nt_5:  Master: 25 rows  Slave: 23 rows
+# Error: Data mismatch in nt_1:  Master: 10 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1337,10 +1373,14 @@ SELECT fc_i_tt_5_suc (46, 2);
 fc_i_tt_5_suc (46, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 53 rows  Slave: 49 rows
+# Error: Data mismatch in nt_5:  Master: 27 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (46, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 55 rows  Slave: 49 rows
+# Error: Data mismatch in nt_5:  Master: 28 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1390,12 +1430,16 @@ SELECT fc_i_tt_5_suc (47, 2);
 fc_i_tt_5_suc (47, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 59 rows  Slave: 55 rows
+# Error: Data mismatch in nt_5:  Master: 30 rows  Slave: 28 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (47, 4);
 fc_i_tt_5_suc (47, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 63 rows  Slave: 55 rows
+# Error: Data mismatch in nt_5:  Master: 32 rows  Slave: 28 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1449,10 +1493,14 @@ SELECT fc_i_tt_5_suc (48, 2);
 fc_i_tt_5_suc (48, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 67 rows  Slave: 63 rows
+# Error: Data mismatch in nt_5:  Master: 34 rows  Slave: 32 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (48, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 71 rows  Slave: 63 rows
+# Error: Data mismatch in nt_5:  Master: 36 rows  Slave: 32 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1510,10 +1558,15 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (49, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 75 rows  Slave: 71 rows
+# Error: Data mismatch in nt_5:  Master: 38 rows  Slave: 36 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (49, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 75 rows  Slave: 71 rows
+# Error: Data mismatch in nt_5:  Master: 38 rows  Slave: 36 rows
+# Error: Data mismatch in nt_1:  Master: 11 rows  Slave: 10 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1563,10 +1616,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (50, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 79 rows  Slave: 75 rows
+# Error: Data mismatch in nt_5:  Master: 40 rows  Slave: 38 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (50, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 81 rows  Slave: 75 rows
+# Error: Data mismatch in nt_5:  Master: 41 rows  Slave: 38 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1620,12 +1677,16 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (51, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 85 rows  Slave: 81 rows
+# Error: Data mismatch in nt_5:  Master: 43 rows  Slave: 41 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (51, 4);
 fc_i_tt_5_suc (51, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 89 rows  Slave: 81 rows
+# Error: Data mismatch in nt_5:  Master: 45 rows  Slave: 41 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1683,10 +1744,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (52, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 93 rows  Slave: 89 rows
+# Error: Data mismatch in nt_5:  Master: 47 rows  Slave: 45 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (52, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 97 rows  Slave: 89 rows
+# Error: Data mismatch in nt_5:  Master: 49 rows  Slave: 45 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1760,11 +1825,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (53, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 12 rows  Slave: 11 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> eT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (53, 2);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 12 rows  Slave: 11 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> eT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1794,11 +1861,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (54, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 13 rows  Slave: 12 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Te << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (54, 4), (54, 2);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 13 rows  Slave: 12 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Te << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1828,11 +1897,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (55, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 14 rows  Slave: 13 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Te-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (55, 4), (52, 5);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 14 rows  Slave: 13 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Te-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1862,11 +1933,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (56, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 15 rows  Slave: 14 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Te-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) VALUES (56, 4, ''), (56, 2, fc_i_tt_5_suc (56, 4));
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 15 rows  Slave: 14 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Te-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1901,6 +1974,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (57, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 16 rows  Slave: 15 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1935,6 +2009,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (58, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 17 rows  Slave: 16 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -1969,6 +2044,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (59, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 18 rows  Slave: 17 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -2003,6 +2079,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (60, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 19 rows  Slave: 18 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -2042,10 +2119,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (61, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (61, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 21 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2063,10 +2142,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (62, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (62, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2084,12 +2167,16 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (63, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (63, 4);
 fc_i_tt_5_suc (63, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2107,10 +2194,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (64, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (64, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2128,10 +2219,15 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (65, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (65, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2149,10 +2245,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (66, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (66, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2170,12 +2270,16 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (67, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (67, 4);
 fc_i_tt_5_suc (67, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 103 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 52 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2193,10 +2297,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (68, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (68, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 103 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 52 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2216,10 +2324,15 @@ SELECT fc_i_tt_5_suc (69, 2);
 fc_i_tt_5_suc (69, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (69, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2239,10 +2352,14 @@ SELECT fc_i_tt_5_suc (70, 2);
 fc_i_tt_5_suc (70, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (70, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 103 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 52 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2262,12 +2379,16 @@ SELECT fc_i_tt_5_suc (71, 2);
 fc_i_tt_5_suc (71, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (71, 4);
 fc_i_tt_5_suc (71, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 105 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 53 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2287,10 +2408,14 @@ SELECT fc_i_tt_5_suc (72, 2);
 fc_i_tt_5_suc (72, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (72, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 105 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 53 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2308,10 +2433,15 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (73, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (73, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2329,10 +2459,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (74, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (74, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 103 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 52 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2350,12 +2484,16 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (75, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_tt_5_suc (75, 4);
 fc_i_tt_5_suc (75, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 105 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 53 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2373,10 +2511,14 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (76, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (76, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 105 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 53 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2404,11 +2546,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (77, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> eT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (77, 2);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> eT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2426,11 +2570,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (78, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Te << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (78, 4), (78, 2);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Te << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2448,11 +2594,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (79, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Te-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (79, 4), (52, 5);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Te-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2470,11 +2618,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (80, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Te-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) VALUES (80, 4, ''), (80, 2, fc_i_tt_5_suc (80, 4));
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Te-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2497,6 +2647,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (81, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2519,6 +2670,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (82, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2541,6 +2693,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (83, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -2563,6 +2716,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (84, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -5338,6 +5492,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (133, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (133, 4);
@@ -5348,6 +5503,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 20 rows  Slave: 19 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5382,6 +5538,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (134, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 21 rows  Slave: 20 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (134, 4);
@@ -5394,6 +5551,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 21 rows  Slave: 20 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5430,6 +5588,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (135, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 22 rows  Slave: 21 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (135, 4);
@@ -5446,6 +5605,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 22 rows  Slave: 21 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5484,6 +5644,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (136, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 23 rows  Slave: 22 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (136, 4);
@@ -5503,6 +5664,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 23 rows  Slave: 22 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5546,6 +5708,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (137, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (137, 4);
@@ -5556,6 +5720,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 99 rows  Slave: 97 rows
+# Error: Data mismatch in nt_5:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5594,6 +5760,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (138, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 99 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 50 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (138, 4);
@@ -5606,6 +5774,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 101 rows  Slave: 99 rows
+# Error: Data mismatch in nt_5:  Master: 51 rows  Slave: 50 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5646,6 +5816,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (139, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 103 rows  Slave: 101 rows
+# Error: Data mismatch in nt_5:  Master: 52 rows  Slave: 51 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (139, 4);
@@ -5662,6 +5834,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 103 rows  Slave: 101 rows
+# Error: Data mismatch in nt_5:  Master: 52 rows  Slave: 51 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5704,6 +5878,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (140, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 105 rows  Slave: 103 rows
+# Error: Data mismatch in nt_5:  Master: 53 rows  Slave: 52 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (140, 4);
@@ -5723,6 +5899,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 105 rows  Slave: 103 rows
+# Error: Data mismatch in nt_5:  Master: 53 rows  Slave: 52 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5772,6 +5950,8 @@ SELECT fc_i_tt_5_suc (141, 2);
 fc_i_tt_5_suc (141, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 109 rows  Slave: 105 rows
+# Error: Data mismatch in nt_5:  Master: 55 rows  Slave: 53 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (141, 4);
@@ -5782,6 +5962,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 109 rows  Slave: 105 rows
+# Error: Data mismatch in nt_5:  Master: 55 rows  Slave: 53 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5826,6 +6008,8 @@ SELECT fc_i_tt_5_suc (142, 2);
 fc_i_tt_5_suc (142, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 113 rows  Slave: 109 rows
+# Error: Data mismatch in nt_5:  Master: 57 rows  Slave: 55 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (142, 4);
@@ -5838,6 +6022,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 113 rows  Slave: 109 rows
+# Error: Data mismatch in nt_5:  Master: 57 rows  Slave: 55 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5884,6 +6070,8 @@ SELECT fc_i_tt_5_suc (143, 2);
 fc_i_tt_5_suc (143, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 117 rows  Slave: 113 rows
+# Error: Data mismatch in nt_5:  Master: 59 rows  Slave: 57 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (143, 4);
@@ -5900,6 +6088,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 117 rows  Slave: 113 rows
+# Error: Data mismatch in nt_5:  Master: 59 rows  Slave: 57 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -5948,6 +6138,8 @@ SELECT fc_i_tt_5_suc (144, 2);
 fc_i_tt_5_suc (144, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 121 rows  Slave: 117 rows
+# Error: Data mismatch in nt_5:  Master: 61 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (144, 4);
@@ -5967,6 +6159,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 121 rows  Slave: 117 rows
+# Error: Data mismatch in nt_5:  Master: 61 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6018,6 +6212,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (145, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 125 rows  Slave: 121 rows
+# Error: Data mismatch in nt_5:  Master: 63 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (145, 4);
@@ -6028,6 +6224,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 125 rows  Slave: 121 rows
+# Error: Data mismatch in nt_5:  Master: 63 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6076,6 +6274,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (146, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 129 rows  Slave: 125 rows
+# Error: Data mismatch in nt_5:  Master: 65 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (146, 4);
@@ -6088,6 +6288,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 129 rows  Slave: 125 rows
+# Error: Data mismatch in nt_5:  Master: 65 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6138,6 +6340,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (147, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 133 rows  Slave: 129 rows
+# Error: Data mismatch in nt_5:  Master: 67 rows  Slave: 65 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (147, 4);
@@ -6154,6 +6358,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 133 rows  Slave: 129 rows
+# Error: Data mismatch in nt_5:  Master: 67 rows  Slave: 65 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6206,6 +6412,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (148, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 137 rows  Slave: 133 rows
+# Error: Data mismatch in nt_5:  Master: 69 rows  Slave: 67 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (148, 4);
@@ -6225,6 +6433,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 137 rows  Slave: 133 rows
+# Error: Data mismatch in nt_5:  Master: 69 rows  Slave: 67 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6364,11 +6574,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (151, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 24 rows  Slave: 23 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> eN << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (150, 4);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 24 rows  Slave: 23 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> eN << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6398,6 +6610,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (152, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 25 rows  Slave: 24 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Ne << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (152, 4), (150, 4);
@@ -6409,6 +6622,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 25 rows  Slave: 24 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Ne << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -6453,6 +6667,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (153, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (153, 4);
@@ -6463,6 +6678,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6488,6 +6704,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (154, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (154, 4);
@@ -6500,6 +6717,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6527,6 +6745,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (155, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (155, 4);
@@ -6543,6 +6762,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6572,6 +6792,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (156, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (156, 4);
@@ -6591,6 +6812,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6625,6 +6847,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (157, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (157, 4);
@@ -6635,6 +6859,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6660,6 +6886,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (158, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (158, 4);
@@ -6672,6 +6900,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6699,6 +6929,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (159, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (159, 4);
@@ -6715,6 +6947,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6744,6 +6978,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (160, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (160, 4);
@@ -6763,6 +6999,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6799,6 +7037,8 @@ SELECT fc_i_tt_5_suc (161, 2);
 fc_i_tt_5_suc (161, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (161, 4);
@@ -6809,6 +7049,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6836,6 +7078,8 @@ SELECT fc_i_tt_5_suc (162, 2);
 fc_i_tt_5_suc (162, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (162, 4);
@@ -6848,6 +7092,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6877,6 +7123,8 @@ SELECT fc_i_tt_5_suc (163, 2);
 fc_i_tt_5_suc (163, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (163, 4);
@@ -6893,6 +7141,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6924,6 +7174,8 @@ SELECT fc_i_tt_5_suc (164, 2);
 fc_i_tt_5_suc (164, 2)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (164, 4);
@@ -6943,6 +7195,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -6977,6 +7231,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (165, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (165, 4);
@@ -6987,6 +7243,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -7012,6 +7270,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (166, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id) VALUES (166, 4);
@@ -7024,6 +7284,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -7051,6 +7313,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (167, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-func << -b-b-b-b-b-b-b-b-b-b-b-
 SELECT fc_i_nt_5_suc (167, 4);
@@ -7067,6 +7331,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -7096,6 +7362,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (168, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_nt_5_suc (168, 4);
@@ -7115,6 +7383,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 141 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 71 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -7235,11 +7505,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (171, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> eN << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (170, 4);
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> eN << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -7257,6 +7529,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (172, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Ne << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (172, 4), (170, 4);
@@ -7268,6 +7541,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Ne << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -7313,6 +7587,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (173, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 26 rows  Slave: 25 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7357,6 +7632,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (174, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 139 rows  Slave: 137 rows
+# Error: Data mismatch in nt_5:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7407,6 +7684,8 @@ SELECT fc_i_tt_5_suc (175, 4);
 fc_i_tt_5_suc (175, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 143 rows  Slave: 139 rows
+# Error: Data mismatch in nt_5:  Master: 72 rows  Slave: 70 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7459,6 +7738,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (176, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 147 rows  Slave: 143 rows
+# Error: Data mismatch in nt_5:  Master: 74 rows  Slave: 72 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7519,6 +7800,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (177, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 27 rows  Slave: 26 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7567,6 +7849,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (178, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 149 rows  Slave: 147 rows
+# Error: Data mismatch in nt_5:  Master: 75 rows  Slave: 74 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7621,6 +7905,8 @@ SELECT fc_i_tt_5_suc (179, 4);
 fc_i_tt_5_suc (179, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 153 rows  Slave: 149 rows
+# Error: Data mismatch in nt_5:  Master: 77 rows  Slave: 75 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7677,6 +7963,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (180, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 157 rows  Slave: 153 rows
+# Error: Data mismatch in nt_5:  Master: 79 rows  Slave: 77 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7743,6 +8031,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (181, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 28 rows  Slave: 27 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7797,6 +8086,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (182, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 159 rows  Slave: 157 rows
+# Error: Data mismatch in nt_5:  Master: 80 rows  Slave: 79 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7857,6 +8148,8 @@ SELECT fc_i_tt_5_suc (183, 4);
 fc_i_tt_5_suc (183, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 163 rows  Slave: 159 rows
+# Error: Data mismatch in nt_5:  Master: 82 rows  Slave: 80 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7919,6 +8212,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (184, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 167 rows  Slave: 163 rows
+# Error: Data mismatch in nt_5:  Master: 84 rows  Slave: 82 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -7990,6 +8285,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (185, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 29 rows  Slave: 28 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -8052,6 +8348,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (186, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 169 rows  Slave: 167 rows
+# Error: Data mismatch in nt_5:  Master: 85 rows  Slave: 84 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -8120,6 +8418,8 @@ SELECT fc_i_tt_5_suc (187, 4);
 fc_i_tt_5_suc (187, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 173 rows  Slave: 169 rows
+# Error: Data mismatch in nt_5:  Master: 87 rows  Slave: 85 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -8190,6 +8490,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (188, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 177 rows  Slave: 173 rows
+# Error: Data mismatch in nt_5:  Master: 89 rows  Slave: 87 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -8267,6 +8569,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (189, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 30 rows  Slave: 29 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8302,6 +8605,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (190, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8337,6 +8642,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (191, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 179 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8374,6 +8681,8 @@ SELECT fc_i_tt_5_suc (192, 4);
 fc_i_tt_5_suc (192, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8411,6 +8720,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (193, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 30 rows  Slave: 29 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8450,6 +8760,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (194, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 179 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8491,6 +8803,8 @@ SELECT fc_i_tt_5_suc (195, 4);
 fc_i_tt_5_suc (195, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8530,6 +8844,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (196, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8573,6 +8889,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (197, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 30 rows  Slave: 29 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8618,6 +8935,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (198, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 179 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8665,6 +8984,8 @@ SELECT fc_i_tt_5_suc (199, 4);
 fc_i_tt_5_suc (199, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8710,6 +9031,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (200, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8758,6 +9081,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (201, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 30 rows  Slave: 29 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8811,6 +9135,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-proc << -b-b-b-b-b-b-b-b-b-b-b-
 CALL pc_i_tt_5_suc (202, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-proc << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8864,6 +9190,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id) VALUES (203, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 179 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8919,6 +9247,8 @@ SELECT fc_i_tt_5_suc (204, 4);
 fc_i_tt_5_suc (204, 4)
 fc_i_tt_5_suc
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -8974,6 +9304,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (205, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 30 rows  Slave: 29 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9008,10 +9339,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 206, 2, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 31 rows  Slave: 30 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (206, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 32 rows  Slave: 30 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9057,6 +9390,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (207, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 33 rows  Slave: 32 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9101,10 +9435,13 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 5 rows  Slave: 3 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (208, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_4:  Master: 5 rows  Slave: 3 rows
+# Error: Data mismatch in nt_1:  Master: 34 rows  Slave: 33 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9151,10 +9488,15 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (209, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 181 rows  Slave: 177 rows
+# Error: Data mismatch in nt_5:  Master: 91 rows  Slave: 89 rows
+# Error: Data mismatch in nt_1:  Master: 35 rows  Slave: 34 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9213,6 +9555,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (210, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 36 rows  Slave: 35 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9257,10 +9600,13 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 3 rows  Slave: 2 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (211, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_3:  Master: 3 rows  Slave: 2 rows
+# Error: Data mismatch in nt_1:  Master: 37 rows  Slave: 36 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9309,10 +9655,15 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 183 rows  Slave: 181 rows
+# Error: Data mismatch in nt_5:  Master: 92 rows  Slave: 91 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (212, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 183 rows  Slave: 181 rows
+# Error: Data mismatch in nt_5:  Master: 92 rows  Slave: 91 rows
+# Error: Data mismatch in nt_1:  Master: 38 rows  Slave: 37 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9381,6 +9732,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (213, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 39 rows  Slave: 38 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9420,6 +9772,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (214, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 40 rows  Slave: 39 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9460,6 +9813,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (215, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 41 rows  Slave: 40 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9507,6 +9861,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (216, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 42 rows  Slave: 41 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9554,6 +9909,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (217, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 43 rows  Slave: 42 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9603,6 +9959,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (218, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 44 rows  Slave: 43 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -9662,6 +10019,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (219, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9687,10 +10045,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 220, 2, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (220, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 46 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9718,6 +10078,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (221, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9749,10 +10110,13 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 7 rows  Slave: 5 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (222, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_4:  Master: 7 rows  Slave: 5 rows
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9786,10 +10150,15 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 187 rows  Slave: 183 rows
+# Error: Data mismatch in nt_5:  Master: 94 rows  Slave: 92 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (223, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 187 rows  Slave: 183 rows
+# Error: Data mismatch in nt_5:  Master: 94 rows  Slave: 92 rows
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9827,6 +10196,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (224, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9858,10 +10228,13 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 4 rows  Slave: 3 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (225, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_3:  Master: 4 rows  Slave: 3 rows
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9897,10 +10270,15 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 185 rows  Slave: 183 rows
+# Error: Data mismatch in nt_5:  Master: 93 rows  Slave: 92 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (226, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 185 rows  Slave: 183 rows
+# Error: Data mismatch in nt_5:  Master: 93 rows  Slave: 92 rows
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9952,6 +10330,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (227, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -9982,6 +10361,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (228, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10010,6 +10390,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (229, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10048,6 +10429,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (230, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10086,6 +10468,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (231, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10126,6 +10509,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (232, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10165,6 +10549,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (233, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> tN << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 233, 4, COUNT(*) FROM tt_1;
@@ -10175,6 +10560,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) 
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 45 rows  Slave: 44 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> tN << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10209,10 +10595,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (234, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 46 rows  Slave: 45 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 234, 4, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 47 rows  Slave: 45 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10248,6 +10636,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (235, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 48 rows  Slave: 47 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NT << -b-b-b-b-b-b-b-b-b-b-b-
 UPDATE nt_3, tt_3 SET nt_3.info= "new text 235 --> 4", tt_3.info= "new text 235 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1;
@@ -10258,6 +10647,7 @@ master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 48 rows  Slave: 47 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10296,6 +10686,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (236, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 49 rows  Slave: 48 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NT-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_4(trans_id, stmt_id) VALUES (236, 4);
@@ -10306,6 +10697,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 7 rows  Slave: 5 rows
+# Error: Data mismatch in nt_1:  Master: 49 rows  Slave: 48 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10344,6 +10737,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (237, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NT-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (237, 4, fc_i_tt_5_suc(237, 4));
@@ -10356,6 +10750,9 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 187 rows  Slave: 183 rows
+# Error: Data mismatch in nt_5:  Master: 94 rows  Slave: 92 rows
+# Error: Data mismatch in nt_1:  Master: 50 rows  Slave: 49 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10404,6 +10801,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (238, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 51 rows  Slave: 50 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TN << -b-b-b-b-b-b-b-b-b-b-b-
 UPDATE tt_4, nt_4 SET tt_4.info= "new text 238 --> 4", nt_4.info= "new text 238 --> 4" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1;
@@ -10414,6 +10812,7 @@ master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 51 rows  Slave: 50 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10452,6 +10851,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (239, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 52 rows  Slave: 51 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TN-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_3(trans_id, stmt_id) VALUES (239, 4);
@@ -10462,6 +10862,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 4 rows  Slave: 3 rows
+# Error: Data mismatch in nt_1:  Master: 52 rows  Slave: 51 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10500,6 +10902,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (240, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 53 rows  Slave: 52 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TN-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id, info) VALUES (240, 4, fc_i_nt_5_suc(240, 4));
@@ -10514,6 +10917,9 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 189 rows  Slave: 187 rows
+# Error: Data mismatch in nt_5:  Master: 95 rows  Slave: 94 rows
+# Error: Data mismatch in nt_1:  Master: 53 rows  Slave: 52 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10570,6 +10976,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (241, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 54 rows  Slave: 53 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> tNe << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 241, 4, COUNT(*) FROM tt_1 UNION SELECT 233, 4, COUNT(*) FROM tt_1;
@@ -10581,6 +10988,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) 
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 54 rows  Slave: 53 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> tNe << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10615,11 +11023,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (242, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 55 rows  Slave: 54 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> nTe << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 242, 4, COUNT(*) FROM nt_1 UNION SELECT 242, 2, COUNT(*) FROM nt_1;
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 55 rows  Slave: 54 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nTe << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10649,6 +11059,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (243, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 56 rows  Slave: 55 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NeT-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_4(trans_id, stmt_id) VALUES (243, 4), (236, 4);
@@ -10660,6 +11071,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 56 rows  Slave: 55 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NeT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10694,6 +11106,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (244, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 57 rows  Slave: 56 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NeT-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (244, 4, ''), (240, 2, fc_i_tt_5_suc (244, 4));
@@ -10707,6 +11120,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 57 rows  Slave: 56 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NeT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10743,6 +11157,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (245, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 58 rows  Slave: 57 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TeN-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_3(trans_id, stmt_id) VALUES (245, 4), (239, 4);
@@ -10754,6 +11169,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 58 rows  Slave: 57 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TeN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10788,6 +11204,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (246, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 59 rows  Slave: 58 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TeN-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id, info) VALUES (246, 4, ''), (240, 4, fc_i_nt_5_suc (246, 4));
@@ -10803,6 +11220,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 59 rows  Slave: 58 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TeN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -10851,6 +11269,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (247, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> tN << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 247, 4, COUNT(*) FROM tt_1;
@@ -10861,6 +11280,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) 
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> tN << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10886,10 +11306,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (248, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 248, 4, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 61 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10907,6 +11329,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (249, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NT << -b-b-b-b-b-b-b-b-b-b-b-
 UPDATE nt_3, tt_3 SET nt_3.info= "new text 249 --> 4", tt_3.info= "new text 249 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1;
@@ -10917,6 +11340,7 @@ master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10942,6 +11366,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (250, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NT-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_4(trans_id, stmt_id) VALUES (250, 4);
@@ -10952,6 +11377,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 9 rows  Slave: 7 rows
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -10977,6 +11404,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (251, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NT-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (251, 4, fc_i_tt_5_suc(251, 4));
@@ -10989,6 +11417,9 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 193 rows  Slave: 189 rows
+# Error: Data mismatch in nt_5:  Master: 97 rows  Slave: 95 rows
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11016,6 +11447,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (252, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TN << -b-b-b-b-b-b-b-b-b-b-b-
 UPDATE tt_4, nt_4 SET tt_4.info= "new text 252 --> 4", nt_4.info= "new text 252 --> 4" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1;
@@ -11026,6 +11458,7 @@ master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11051,6 +11484,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (253, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TN-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_3(trans_id, stmt_id) VALUES (253, 4);
@@ -11061,6 +11495,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 5 rows  Slave: 4 rows
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11086,6 +11522,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (254, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TN-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id, info) VALUES (254, 4, fc_i_nt_5_suc(254, 4));
@@ -11100,6 +11537,9 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 191 rows  Slave: 189 rows
+# Error: Data mismatch in nt_5:  Master: 96 rows  Slave: 95 rows
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11139,6 +11579,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (255, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> tNe << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 255, 4, COUNT(*) FROM tt_1 UNION SELECT 247, 4, COUNT(*) FROM tt_1;
@@ -11150,6 +11591,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) 
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> tNe << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11175,11 +11617,13 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (256, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> nTe << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 256, 4, COUNT(*) FROM nt_1 UNION SELECT 256, 2, COUNT(*) FROM nt_1;
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nTe << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11197,6 +11641,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (257, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NeT-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_4(trans_id, stmt_id) VALUES (257, 4), (250, 4);
@@ -11208,6 +11653,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NeT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11233,6 +11679,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (258, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> NeT-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (258, 4, ''), (254, 2, fc_i_tt_5_suc (258, 4));
@@ -11246,6 +11693,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NeT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11273,6 +11721,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (259, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TeN-trig << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_3(trans_id, stmt_id) VALUES (259, 4), (239, 4);
@@ -11284,6 +11733,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TeN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11309,6 +11759,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (260, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> TeN-func << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_5(trans_id, stmt_id, info) VALUES (260, 4, ''), (240, 4, fc_i_nt_5_suc (260, 4));
@@ -11324,6 +11775,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TeN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -11409,6 +11861,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 262, 2, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (262, 4);
@@ -11419,6 +11872,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 60 rows  Slave: 59 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -11512,6 +11966,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 9 rows  Slave: 7 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (264, 4);
@@ -11522,6 +11977,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 9 rows  Slave: 7 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -11567,6 +12023,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 193 rows  Slave: 189 rows
+# Error: Data mismatch in nt_5:  Master: 97 rows  Slave: 95 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (265, 4);
@@ -11577,6 +12035,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 193 rows  Slave: 189 rows
+# Error: Data mismatch in nt_5:  Master: 97 rows  Slave: 95 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -11683,6 +12143,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 5 rows  Slave: 4 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (267, 4);
@@ -11693,6 +12154,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 5 rows  Slave: 4 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -11740,6 +12202,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 195 rows  Slave: 193 rows
+# Error: Data mismatch in nt_5:  Master: 98 rows  Slave: 97 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (268, 4);
@@ -11750,6 +12214,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 195 rows  Slave: 193 rows
+# Error: Data mismatch in nt_5:  Master: 98 rows  Slave: 97 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -12136,6 +12602,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 276, 2, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 61 rows  Slave: 60 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (276, 4);
@@ -12146,6 +12613,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 61 rows  Slave: 60 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -12223,6 +12691,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 11 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (278, 4);
@@ -12233,6 +12702,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 11 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -12271,6 +12741,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 199 rows  Slave: 195 rows
+# Error: Data mismatch in nt_5:  Master: 100 rows  Slave: 98 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (279, 4);
@@ -12281,6 +12753,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 199 rows  Slave: 195 rows
+# Error: Data mismatch in nt_5:  Master: 100 rows  Slave: 98 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -12365,6 +12839,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 6 rows  Slave: 5 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (281, 4);
@@ -12375,6 +12850,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 6 rows  Slave: 5 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -12415,6 +12891,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 197 rows  Slave: 195 rows
+# Error: Data mismatch in nt_5:  Master: 99 rows  Slave: 98 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (282, 4);
@@ -12425,6 +12903,8 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 197 rows  Slave: 195 rows
+# Error: Data mismatch in nt_5:  Master: 99 rows  Slave: 98 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -12819,6 +13299,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 290, 4, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 61 rows  Slave: 60 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -12922,6 +13403,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 11 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -12977,6 +13459,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 199 rows  Slave: 195 rows
+# Error: Data mismatch in nt_5:  Master: 100 rows  Slave: 98 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -13093,6 +13577,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 6 rows  Slave: 5 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -13150,6 +13635,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 201 rows  Slave: 199 rows
+# Error: Data mismatch in nt_5:  Master: 101 rows  Slave: 100 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -13544,6 +14031,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> nT << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 304, 4, COUNT(*) FROM nt_1;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 62 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> nT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -13631,6 +14119,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_4:  Master: 13 rows  Slave: 11 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -13679,6 +14168,8 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 205 rows  Slave: 201 rows
+# Error: Data mismatch in nt_5:  Master: 103 rows  Slave: 101 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> NT-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -13773,6 +14264,7 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 7 rows  Slave: 6 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-trig << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -13823,6 +14315,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 203 rows  Slave: 201 rows
+# Error: Data mismatch in nt_5:  Master: 102 rows  Slave: 101 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> TN-func << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -14154,18 +14648,22 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (317, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 62 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Sn << -b-b-b-b-b-b-b-b-b-b-b-
 SAVEPOINT S_0;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 62 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Sn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (317, 5);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 63 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Rn << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK TO S_0;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 62 rows  Slave: 61 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Rn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14207,20 +14705,24 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (318, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 63 rows  Slave: 62 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Sn << -b-b-b-b-b-b-b-b-b-b-b-
 SAVEPOINT S_0;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 63 rows  Slave: 62 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Sn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (318, 7);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 64 rows  Slave: 62 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Rn << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK TO S_0;
 Warnings:
 Warning	#	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 63 rows  Slave: 62 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Rn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14265,6 +14767,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (319, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 64 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (319, 4);
@@ -14275,20 +14778,24 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 64 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Sn << -b-b-b-b-b-b-b-b-b-b-b-
 SAVEPOINT S_0;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 64 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Sn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (319, 7);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 65 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Rn << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK TO S_0;
 Warnings:
 Warning	#	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 64 rows  Slave: 63 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Rn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14333,10 +14840,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (320, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 65 rows  Slave: 64 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Sn << -b-b-b-b-b-b-b-b-b-b-b-
 SAVEPOINT S_0;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 65 rows  Slave: 64 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Sn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_1(trans_id, stmt_id) VALUES (320, 5);
@@ -14347,16 +14856,19 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id) VALUES
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 65 rows  Slave: 64 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (320, 7);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 66 rows  Slave: 64 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Rn << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK TO S_0;
 Warnings:
 Warning	#	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 65 rows  Slave: 64 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Rn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14729,14 +15241,17 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (328, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 66 rows  Slave: 65 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> IS-T<-N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_xx_7(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1;;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 66 rows  Slave: 65 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-T<-N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (328, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 67 rows  Slave: 65 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14787,15 +15302,18 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (329, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 68 rows  Slave: 67 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> ISe-T<-N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_xx_7(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM nt_1;;
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 68 rows  Slave: 67 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> ISe-T<-N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (329, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 69 rows  Slave: 67 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14844,6 +15362,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (330, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 70 rows  Slave: 69 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14893,6 +15412,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (331, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 71 rows  Slave: 70 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -14979,14 +15499,17 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (334, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 72 rows  Slave: 71 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> IS-T<-T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_xx_8(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1;;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 72 rows  Slave: 71 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-T<-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (334, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 73 rows  Slave: 71 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15037,15 +15560,18 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (335, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 74 rows  Slave: 73 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> ISe-T<-T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_xx_8(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM tt_1;;
 Got one of the listed errors
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 74 rows  Slave: 73 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> ISe-T<-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (335, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 75 rows  Slave: 73 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15094,6 +15620,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (336, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 76 rows  Slave: 75 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15143,6 +15670,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (337, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 77 rows  Slave: 76 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15229,6 +15757,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (340, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 78 rows  Slave: 77 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> IS-N<-T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1;;
@@ -15239,10 +15768,12 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, inf
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 78 rows  Slave: 77 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-N<-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (340, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 79 rows  Slave: 77 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15292,6 +15823,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (341, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 80 rows  Slave: 79 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> ISe-N<-T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM tt_1;;
@@ -15303,10 +15835,12 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, inf
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 80 rows  Slave: 79 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> ISe-N<-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (341, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 81 rows  Slave: 79 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15366,6 +15900,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (342, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 82 rows  Slave: 81 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15420,6 +15955,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (343, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 83 rows  Slave: 82 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15511,6 +16047,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (346, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 84 rows  Slave: 83 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> IS-N<-N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1;;
@@ -15521,10 +16058,12 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, in
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 84 rows  Slave: 83 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-N<-N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (346, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 85 rows  Slave: 83 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15574,6 +16113,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (347, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 86 rows  Slave: 85 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> ISe-N<-N << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM nt_1;;
@@ -15585,10 +16125,12 @@ master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, in
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_1:  Master: 86 rows  Slave: 85 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> ISe-N<-N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (347, 6);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 87 rows  Slave: 85 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15648,6 +16190,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (348, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 88 rows  Slave: 87 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15702,6 +16245,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (349, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 89 rows  Slave: 88 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -15756,10 +16300,12 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (351, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> CT << -b-b-b-b-b-b-b-b-b-b-b-
 CREATE TEMPORARY TABLE tt_xx_11 (a int) engine=Innodb;;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -15798,24 +16344,29 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (353, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Sn << -b-b-b-b-b-b-b-b-b-b-b-
 SAVEPOINT S_0;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Sn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (353, 5);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> CT << -b-b-b-b-b-b-b-b-b-b-b-
 CREATE TEMPORARY TABLE tt_xx_12 (a int) engine=Innodb;;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> Rn << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK TO S_0;
 Warnings:
 Warning	#	Some non-transactional changed tables couldn't be rolled back
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> Rn << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -15864,14 +16415,17 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (355, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> CT << -b-b-b-b-b-b-b-b-b-b-b-
 CREATE TEMPORARY TABLE tt_xx_13 (a int) engine=Innodb;;
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> CT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (355, 5);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 91 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -15930,6 +16484,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (357, 5);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -15979,6 +16534,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (359, 3);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -16031,6 +16587,7 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> T << -b-b-b-b-b-b-b-b-b-b-b-
 INSERT INTO tt_1(trans_id, stmt_id) VALUES (361, 5);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_1:  Master: 90 rows  Slave: 89 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -16178,6 +16735,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(366, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 209 rows  Slave: 205 rows
+# Error: Data mismatch in nt_5:  Master: 105 rows  Slave: 103 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -16224,6 +16783,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(367, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 213 rows  Slave: 209 rows
+# Error: Data mismatch in nt_5:  Master: 107 rows  Slave: 105 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> set-N << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_nt_5_suc(367, 4);
@@ -16238,6 +16799,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 213 rows  Slave: 209 rows
+# Error: Data mismatch in nt_5:  Master: 107 rows  Slave: 105 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -16298,6 +16861,8 @@ master-bin.000001	#	Query	#	#	COMMIT
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(368, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 217 rows  Slave: 213 rows
+# Error: Data mismatch in nt_5:  Master: 109 rows  Slave: 107 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -16327,6 +16892,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(369, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 217 rows  Slave: 213 rows
+# Error: Data mismatch in nt_5:  Master: 109 rows  Slave: 107 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> set-N << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_nt_5_suc(369, 4);
@@ -16341,6 +16908,8 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 217 rows  Slave: 213 rows
+# Error: Data mismatch in nt_5:  Master: 109 rows  Slave: 107 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-N << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -16377,10 +16946,14 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 8 rows  Slave: 7 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-NT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(370, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 217 rows  Slave: 213 rows
+# Error: Data mismatch in nt_5:  Master: 109 rows  Slave: 107 rows
+# Error: Data mismatch in nt_3:  Master: 8 rows  Slave: 7 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -16428,6 +17001,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(371, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 221 rows  Slave: 217 rows
+# Error: Data mismatch in nt_5:  Master: 111 rows  Slave: 109 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> set-NT << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_nt_3_tt_3_suc(371, 4);
@@ -16439,6 +17014,9 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 221 rows  Slave: 217 rows
+# Error: Data mismatch in nt_5:  Master: 111 rows  Slave: 109 rows
+# Error: Data mismatch in nt_3:  Master: 9 rows  Slave: 8 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-NT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> C << -b-b-b-b-b-b-b-b-b-b-b-
 COMMIT;
@@ -16493,10 +17071,14 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_3:  Master: 10 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-NT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(372, 4);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 225 rows  Slave: 221 rows
+# Error: Data mismatch in nt_5:  Master: 113 rows  Slave: 111 rows
+# Error: Data mismatch in nt_3:  Master: 10 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;
@@ -16523,6 +17105,8 @@ include/show_binlog_events.inc
 -b-b-b-b-b-b-b-b-b-b-b- >> set-T << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_tt_5_suc(373, 2);
 include/show_binlog_events.inc
+# Error: Data mismatch in nt_6:  Master: 225 rows  Slave: 221 rows
+# Error: Data mismatch in nt_5:  Master: 113 rows  Slave: 111 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-T << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> set-NT << -b-b-b-b-b-b-b-b-b-b-b-
 SET @var= fc_i_nt_3_tt_3_suc(373, 4);
@@ -16534,6 +17118,9 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
+# Error: Data mismatch in nt_6:  Master: 225 rows  Slave: 221 rows
+# Error: Data mismatch in nt_5:  Master: 113 rows  Slave: 111 rows
+# Error: Data mismatch in nt_3:  Master: 10 rows  Slave: 9 rows
 -e-e-e-e-e-e-e-e-e-e-e- >> set-NT << -e-e-e-e-e-e-e-e-e-e-e-
 -b-b-b-b-b-b-b-b-b-b-b- >> R << -b-b-b-b-b-b-b-b-b-b-b-
 ROLLBACK;

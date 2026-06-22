@@ -85,6 +85,12 @@ extern size_t sql_functions_length;
 
 extern Native_func_registry_array native_func_registry_array;
 
+/*
+  This is needed for gcc 15.1.1 as it also count static structures in
+  the limits
+*/
+PRAGMA_DISABLE_CHECK_STACK_FRAME;
+
 enum enum_i_s_events_fields
 {
   ISE_EVENT_CATALOG= 0,
@@ -2616,7 +2622,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
     {
       Virtual_column_info *check= table->check_constraints[i];
       // period constraint is implicit
-      if (share->period.constr_name.streq(check->name))
+      if (share->period.constr_name.streq_safe(check->name))
         continue;
 
       str.set_buffer_if_not_allocated(&my_charset_utf8mb4_general_ci);
@@ -6101,6 +6107,17 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       {
         file->print_error(info_error, MYF(0));
         goto err;
+      }
+
+      if (show_table->s->hlindexes())
+      {
+          // make sure hlindex is opened
+          if (show_table->hlindex || !show_table->hlindex_open(show_table->s->keys))
+          {
+              handler *hi= show_table->hlindex->file;
+              if (!hi->info(HA_STATUS_VARIABLE))
+                  file->stats.index_file_length+= hi->stats.data_file_length;
+          }
       }
 
       enum row_type row_type = file->get_row_type();

@@ -37,13 +37,6 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "zlib.h"
 #include "fts0opt.h"
 #include "fts0vlc.h"
-#include "wsrep.h"
-
-#ifdef WITH_WSREP
-extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
-#else
-constexpr bool wsrep_sst_disable_writes= false;
-#endif
 
 /** The FTS optimize thread's work queue. */
 ib_wqueue_t* fts_optimize_wq;
@@ -52,7 +45,7 @@ static void timer_callback(void*);
 static tpool::timer* timer;
 
 static tpool::task_group task_group(1);
-static tpool::task task(fts_optimize_callback,0, &task_group);
+static tpool::waitable_task task(fts_optimize_callback,0, &task_group);
 
 /** FTS optimize thread, for MDL acquisition */
 static THD *fts_opt_thd;
@@ -227,7 +220,7 @@ struct fts_msg_t {
 ulong	fts_num_word_optimize;
 
 /** ZLib compressed block size.*/
-static ulint FTS_ZIP_BLOCK_SIZE	= 1024;
+static constexpr ulint FTS_ZIP_BLOCK_SIZE = 1024;
 
 /** The amount of time optimizing in a single pass, in seconds. */
 static ulint fts_optimize_time_limit;
@@ -2656,6 +2649,10 @@ static void fts_optimize_callback(void *)
 	static ulint		n_tables = ib_vector_size(fts_slots);
 
 	while (!done && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
+#ifdef WITH_WSREP
+		ut_d(extern Atomic_relaxed<bool> wsrep_sst_disable_writes);
+		ut_ad(!wsrep_sst_disable_writes);
+#endif
 		/* If there is no message in the queue and we have tables
 		to optimize then optimize the tables. */
 
@@ -2666,17 +2663,6 @@ static void fts_optimize_callback(void *)
 
 			/* The queue is empty but we have tables
 			to optimize. */
-			if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
-retry_later:
-				if (fts_is_sync_needed()) {
-					fts_need_sync = true;
-				}
-				if (n_tables) {
-					timer->set_time(5000, 0);
-				}
-				return;
-			}
-
 			fts_slot_t* slot = static_cast<fts_slot_t*>(
 				ib_vector_get(fts_slots, current));
 
@@ -2697,7 +2683,13 @@ retry_later:
 				(ib_wqueue_nowait(fts_optimize_wq));
 			/* Timeout ? */
 			if (!msg) {
-				goto retry_later;
+				if (fts_is_sync_needed()) {
+					fts_need_sync = true;
+				}
+				if (n_tables) {
+					timer->set_time(5000, 0);
+				}
+				return;
 			}
 
 			switch (msg->type) {
@@ -2723,11 +2715,6 @@ retry_later:
 				break;
 
 			case FTS_MSG_SYNC_TABLE:
-				if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
-					add_msg(msg);
-					goto retry_later;
-				}
-
 				DBUG_EXECUTE_IF(
 					"fts_instrument_msg_sync_sleep",
 					std::this_thread::sleep_for(
@@ -2770,11 +2757,8 @@ retry_later:
 	ib::info() << "FTS optimize thread exiting.";
 }
 
-/**********************************************************************//**
-Startup the optimize thread and create the work queue. */
-void
-fts_optimize_init(void)
-/*===================*/
+/** Startup the optimize task and create the work queue. */
+void fts_optimize_init()
 {
 	mem_heap_t*	heap;
 	ib_alloc_t*     heap_alloc;
@@ -2818,9 +2802,8 @@ fts_optimize_init(void)
 	last_check_sync_time = time(NULL);
 }
 
-/** Shutdown fts optimize thread. */
-void
-fts_optimize_shutdown()
+/** Shut down the fts optimize thread. */
+void fts_optimize_shutdown()
 {
 	ut_ad(!srv_read_only_mode);
 
@@ -2829,7 +2812,7 @@ fts_optimize_shutdown()
 	dict_sys.freeze(SRW_LOCK_CALL);
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	/* Tells FTS optimizer system that we are exiting from
-	optimizer thread, message send their after will not be
+	optimizer thread, messages sent thereafter will not be
 	processed */
 	fts_opt_start_shutdown = true;
 	dict_sys.unfreeze();
@@ -2858,6 +2841,26 @@ fts_optimize_shutdown()
 	delete timer;
 	timer = NULL;
 }
+
+#ifdef WITH_WSREP
+/** Pause the optimize subsystem. */
+void fts_optimize_pause()
+{
+  ut_ad(!srv_read_only_mode);
+  /* Prevent fts_optimize_callback() from being scheduled. */
+  timer->disarm();
+  /* Wait for any current fts_optimize_callback() to finish. */
+  task.wait();
+}
+
+/** Resume after fts_optimize_stop() */
+void fts_optimize_resume()
+{
+  /* Schedule fts_optimize_callback() immediately.
+  It will reschedule itself via the timer when needed. */
+  srv_thread_pool->submit_task(&task);
+}
+#endif
 
 /** Sync the table during commit phase
 @param[in]	table	table to be synced */

@@ -205,11 +205,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   ulonglong ulonglong_number;
   longlong longlong_number;
   uint sp_instr_addr;
-  /*
-    Longlong_hybrid does not have a default constructor, hence the
-    default value below.
-  */
-  Longlong_hybrid longlong_hybrid_number= Longlong_hybrid(0, false);
 
   /* structs */
   /**
@@ -264,6 +259,11 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     bool with_unique_keys;
     ulong type_constraint;
   } json_predicate;
+  struct
+  {
+    longlong num;
+    bool is_unsigned;
+  } longlong_hybrid_number;
 
   /* pointers */
   Lex_ident_sys *ident_sys_ptr;
@@ -961,6 +961,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  LOCKED_SYM
 %token  <kwd>  LOCKS_SYM
 %token  <kwd>  LOGS_SYM
+%token  <kwd>  LOG_SYM
 %token  <kwd>  MASTER_CONNECT_RETRY_SYM
 %token  <kwd>  MASTER_DELAY_SYM
 %token  <kwd>  MASTER_GTID_POS_SYM
@@ -2900,7 +2901,7 @@ sequence_def:
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_min_value))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
-            seq->min_value_from_parser= $3;
+            seq->min_value_from_parser= Longlong_hybrid($3.num, $3.is_unsigned);
             seq->used_fields|=
               seq_field_used_min_value;
             seq->used_fields|=
@@ -2925,7 +2926,7 @@ sequence_def:
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_max_value))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
-            seq->max_value_from_parser= $3;
+            seq->max_value_from_parser= Longlong_hybrid($3.num, $3.is_unsigned);
             seq->used_fields|= seq_field_used_max_value;
             seq->used_fields|= seq_field_specified_max_value;
           }
@@ -2948,7 +2949,7 @@ sequence_def:
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_start))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "START"));
-            seq->start_from_parser= $3;
+            seq->start_from_parser= Longlong_hybrid($3.num, $3.is_unsigned);
             seq->used_fields|= seq_field_used_start;
           }
         | INCREMENT_SYM opt_by sequence_value_num
@@ -3013,7 +3014,7 @@ sequence_def:
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_restart))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "RESTART"));
-            seq->restart_from_parser= $3;
+            seq->restart_from_parser= Longlong_hybrid($3.num, $3.is_unsigned);
             seq->used_fields|=
               seq_field_used_restart | seq_field_used_restart_value;
           }
@@ -10580,21 +10581,27 @@ column_default_non_parenthesized_expr:
           }
         | SETVAL_SYM '(' table_ident ',' sequence_value_hybrid_num ')'
           {
-            if (unlikely(!($$= Lex->create_item_func_setval(thd, $3, $5, 0,
-                                                            1))))
+            if (unlikely(!($$= Lex->create_item_func_setval(
+                                      thd, $3,
+                                      Longlong_hybrid($5.num, $5.is_unsigned),
+                                      0, 1))))
               MYSQL_YYABORT;
           }
         | SETVAL_SYM '(' table_ident ',' sequence_value_hybrid_num ',' bool ')'
           {
-            if (unlikely(!($$= Lex->create_item_func_setval(thd, $3, $5, 0,
-                                                            $7))))
+            if (unlikely(!($$= Lex->create_item_func_setval(
+                                      thd, $3,
+                                      Longlong_hybrid($5.num, $5.is_unsigned),
+                                      0, $7))))
               MYSQL_YYABORT;
           }
         | SETVAL_SYM '(' table_ident ',' sequence_value_hybrid_num ',' bool ','
           ulonglong_num ')'
           {
-            if (unlikely(!($$= Lex->create_item_func_setval(thd, $3, $5, $9,
-                                                            $7))))
+            if (unlikely(!($$= Lex->create_item_func_setval(
+                                      thd, $3,
+                                      Longlong_hybrid($5.num, $5.is_unsigned),
+                                      $9, $7))))
               MYSQL_YYABORT;
           }
         | TO_DATE '(' expr ',' expr opt_nls_param')'
@@ -13525,39 +13532,42 @@ sequence_value_hybrid_num:
           opt_plus NUM
           {
             int error;
-            $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | opt_plus LONG_NUM
           {
             int error;
-            $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | opt_plus ULONGLONG_NUM
           {
             int error;
-            $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error),
-                                true);
+            $$.num= my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= true;
           }
         | '-' NUM
           {
             int error;
-            $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= - my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | '-' LONG_NUM
           {
             int error;
-            $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= - my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | '-' ULONGLONG_NUM
           {
             int error;
             const ulonglong abs= my_strtoll10($2.str, (char**) 0, &error);
             if (abs == 1 + (ulonglong) LONGLONG_MAX)
-              $$= Longlong_hybrid(LONGLONG_MIN, false);
+            {
+              $$.num= LONGLONG_MIN;
+              $$.is_unsigned= false;
+            }
             else
               thd->parse_error(ER_DATA_OUT_OF_RANGE);
           }
@@ -13571,36 +13581,48 @@ sequence_truncated_value_hybrid_num:
           opt_plus NUM
           {
             int error;
-            $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | opt_plus LONG_NUM
           {
             int error;
-            $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | opt_plus ULONGLONG_NUM
           {
             int error;
-            $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error),
-                                true);
+            $$.num= my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= true;
           }
-        | opt_plus DECIMAL_NUM { $$= Longlong_hybrid(ULONGLONG_MAX, true); }
+        | opt_plus DECIMAL_NUM
+          {
+            $$.num= ULONGLONG_MAX;
+            $$.is_unsigned= true;
+          }
         | '-' NUM
           {
             int error;
-            $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= - my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
         | '-' LONG_NUM
           {
             int error;
-            $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error),
-                                false);
+            $$.num= - my_strtoll10($2.str, (char**) 0, &error);
+            $$.is_unsigned= false;
           }
-        | '-' ULONGLONG_NUM { $$= Longlong_hybrid(LONGLONG_MIN, false); }
-        | '-' DECIMAL_NUM { $$= Longlong_hybrid(LONGLONG_MIN, false); }
+        | '-' ULONGLONG_NUM
+          {
+            $$.num= LONGLONG_MIN;
+            $$.is_unsigned= false;
+          }
+        | '-' DECIMAL_NUM
+          {
+            $$.num= LONGLONG_MIN;
+            $$.is_unsigned= false;
+          }
         ;
 
 ulonglong_num:
@@ -14956,6 +14978,10 @@ show_param:
             Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
           }
         | MASTER_SYM STATUS_SYM
+          {
+            Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
+          }
+        | BINARY LOG_SYM STATUS_SYM
           {
             Lex->sql_command = SQLCOM_SHOW_BINLOG_STAT;
           }
@@ -16965,6 +16991,7 @@ keyword_func_sp_var_and_label:
         | LIST_SYM
         | LOCKED_SYM
         | LOCKS_SYM
+        | LOG_SYM
         | LOGS_SYM
         | MAX_ROWS
         | MASTER_SYM

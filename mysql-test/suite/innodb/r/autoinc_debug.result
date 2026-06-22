@@ -164,7 +164,7 @@ TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
 TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IS
 TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode AUTO-INC
 TABLE LOCK table `test`.`t1` trx id TRX_ID lock mode IX
-*** WE ROLL BACK TRANSACTION (1)
+*** WE ROLL BACK TRANSACTION (3)
 Error	1467	Failed to read auto-increment value from storage engine
 # The transaction should have been rolled back
 SELECT * FROM t1;

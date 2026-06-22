@@ -1026,3 +1026,21 @@ select c1,column_json(d1) as not_crashing from t1 order by c1;
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-36929: COLUMN_JSON() does not free an internal dynamic string
+--echo #
+--error ER_DYN_COL_WRONG_FORMAT
+SELECT COLUMN_JSON(1000);
+
+
+--echo #
+--echo # MDEV-39581 dynamic column header missing sanity checks
+--echo #
+--error ER_DYN_COL_WRONG_FORMAT
+SELECT COLUMN_LIST(0x040100FFFF00000300666F6F21626172);
+
+--error ER_DYN_COL_WRONG_FORMAT
+SELECT COLUMN_JSON(CONCAT(0x040200020001000000000000004241, REPEAT('D', 512)));
+
+--echo # End of 10.6 tests

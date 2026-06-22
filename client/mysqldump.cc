@@ -40,7 +40,7 @@
 */
 
 /* on merge conflict, bump to a higher version again */
-#define VER "10.19"
+#define VER "10.20"
 
 /**
   First mysql version supporting sequences.
@@ -134,6 +134,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0, opt_update_history= 0,
                 opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0;
+static my_bool opt_galera_info= 0;
+
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -626,6 +628,9 @@ static struct my_option my_long_options[] =
   {"default_auth", 0, "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"galera-info", 0, "Include galera info at the end of dump.",
+   &opt_galera_info, &opt_galera_info, 0, GET_BOOL,
+   NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -679,6 +684,7 @@ static inline int cmp_table(const char *a, const char *b)
   return my_strcasecmp_latin1(a, b);
 }
 
+static int dump_galera_info(MYSQL *mysql_con);
 
 /*
   Print the supplied message if in verbose mode
@@ -878,7 +884,7 @@ static void write_footer(FILE *sql_file)
     if (opt_dump_date)
     {
       char time_str[20];
-      get_date(time_str, GETDATE_DATE_TIME, 0);
+      get_date(time_str, sizeof(time_str), GETDATE_DATE_TIME, 0);
       print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
     }
     else
@@ -1429,7 +1435,6 @@ static void DB_error(MYSQL *mysql_arg, const char *when)
 }
 
 
-
 /*
   Prints out an error message and kills the process.
 
@@ -1492,7 +1497,6 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
 }
 
 
-
 /*
   Sends a query to server, optionally reads result, prints error message if
   some.
@@ -1503,24 +1507,61 @@ static void maybe_die(int error_num, const char* fmt_reason, ...)
     res             if non zero, result will be put there with
                     mysql_store_result()
     query           query to send to server
+    no_parse_error  Do not print error message for parse errors
 
   RETURN VALUES
     0               query sending and (if res!=0) result reading went ok
     1               error
+    -1              Syntax/parse error (for retry code)
 */
 
 static int mysql_query_with_error_report(MYSQL *mysql_con, MYSQL_RES **res,
-                                         const char *query)
+                                         const char *query,
+                                         bool no_parse_error = false)
 {
   DBUG_ASSERT(mysql_con);
   if (mysql_query(mysql_con, query) ||
       (res && !((*res)= mysql_store_result(mysql_con))))
   {
+    if (no_parse_error && mysql_errno(mysql_con) == ER_PARSE_ERROR)
+      return -1;
     maybe_die(EX_MYSQLERR, "Couldn't execute '%s': %s (%d)",
-            query, mysql_error(mysql_con), mysql_errno(mysql_con));
+              query, mysql_error(mysql_con), mysql_errno(mysql_con));
     return 1;
   }
   return 0;
+}
+
+
+/*
+  Sends a query to server. In case of parse error try another syntax
+*/
+
+static int mysql_query_with_retry(MYSQL *mysql_con, MYSQL_RES **res,
+                                  const char *query1, const char *query2)
+{
+  int error;
+  if ((error= mysql_query_with_error_report(mysql_con, res, query1, 1)) == -1)
+    error= mysql_query_with_error_report(mysql_con, res, query2, 0);
+  return error;
+}
+
+/*
+ Get slave status from server.
+
+ Note that MySQL server does not support 'SHOW ALL' and
+ multi_source should thus not be set when dumping from MySQL
+*/
+
+static int show_slave_status(MYSQL *mysql_con, MYSQL_RES **res)
+{
+  return (mysql_query_with_retry(mysql_con, res,
+                                 (multi_source ?
+                                  "SHOW ALL REPLICAS STATUS" :
+                                  "SHOW REPLICA STATUS"),
+                                 (multi_source ?
+                                  "SHOW ALL SLAVES STATUS" :
+                                  "SHOW SLAVE STATUS")));
 }
 
 
@@ -6365,7 +6406,8 @@ const char fmt_gtid_pos[]= "%sSET GLOBAL gtid_slave_pos='%s';\n";
 
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                                  int have_mariadb_gtid, int use_gtid,
-                                 char *set_gtid_pos, size_t set_gtid_pos_size)
+                                 char *set_gtid_pos,
+                                 size_t set_gtid_pos_size)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
@@ -6388,8 +6430,9 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   }
   else
   {
-    if (mysql_query_with_error_report(mysql_con, &master,
-                                      "SHOW MASTER STATUS"))
+    if (mysql_query_with_retry(mysql_con, &master,
+                               "SHOW MASTER STATUS",
+                               "SHOW BINARY LOG STATUS"))
       return 1;
 
     row= mysql_fetch_row(master);
@@ -6441,16 +6484,16 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
                     "later in the file.\n");
     }
     snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
-            (!use_gtid ? "-- " : comment_prefix), gtid_pos);
+             (!use_gtid ? "-- " : comment_prefix), gtid_pos);
   }
 
   /* SHOW MASTER STATUS reports file and position */
   print_comment(md_result_file, 0,
                 "\n--\n-- Alternately, following is the position of the binary "
                 "logging from SHOW MASTER STATUS at point of backup."
-                "\n-- Use this when creating a replica of the primary server "
+                "\n-- Use this when creating a slave of the master server "
                 "where the backup was made."
-                "\n-- The new server will be connecting to the primary server "
+                "\n-- The new server will be connecting to the master server "
                 "where the backup was taken."
                 "\n--\n\n");
   fprintf(md_result_file,
@@ -6476,10 +6519,7 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
     !slave_status_res // do_stop_slave_sql() should only be called once
   );
 
-  if (mysql_query_with_error_report(mysql_con, &slave_status_res,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
+  if (show_slave_status(mysql_con, &slave_status_res))
     return(1);
 
   /* Loop over all slaves */
@@ -6492,7 +6532,8 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          snprintf(query, sizeof(query), "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query), "STOP SLAVE '%.80s' SQL_THREAD",
+                   row[0]);
         else
           strmov(query, "STOP SLAVE SQL_THREAD");
 
@@ -6531,7 +6572,7 @@ static int add_slave_statements(void)
 }
 
 static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
-                                int use_gtid, char* set_gtid_pos,
+                                int use_gtid, char *set_gtid_pos,
                                 size_t set_gtid_pos_size)
 {
   MYSQL_RES *UNINIT_VAR(slave);
@@ -6541,10 +6582,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
 
-  if (mysql_query_with_error_report(mysql_con, &slave,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
+  if (show_slave_status(mysql_con, &slave))
   {
     if (!ignore_errors)
     {
@@ -6560,7 +6598,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                 "taken from SHOW SLAVE STATUS at the time of backup.\n"
                 "-- Use this position when creating a clone of, or replacement "
                 "server, from where the backup was taken."
-                "\n-- This new server will connects to the same primary "
+                "\n-- This new server will connects to the same master "
                 "server%s.\n--\n",
                 multi_source ? "(s)" : "");
 
@@ -6577,8 +6615,8 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                   "\n-- A corresponding to the below dump-slave "
                   "CHANGE-MASTER settings to the slave gtid state is printed "
                   "later in the file.\n");
-    snprintf(set_gtid_pos, set_gtid_pos_size,
-             fmt_gtid_pos, gtid_comment_prefix, gtid_pos);
+    snprintf(set_gtid_pos, set_gtid_pos_size, fmt_gtid_pos,
+             gtid_comment_prefix, gtid_pos);
   }
   if (use_gtid)
     print_comment(md_result_file, 0,
@@ -6654,8 +6692,7 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          snprintf(query, sizeof(query),
-                   "START SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query), "START SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "START SLAVE SQL_THREAD");
 
@@ -6705,8 +6742,9 @@ static int get_bin_log_name(MYSQL *mysql_con,
   MYSQL_RES *res;
   MYSQL_ROW row;
 
-  if (mysql_query(mysql_con, "SHOW MASTER STATUS") ||
-      !(res= mysql_store_result(mysql)))
+  if (mysql_query_with_retry(mysql_con, &res,
+                             "SHOW MASTER STATUS",
+                             "SHOW BINARY LOG STATUS"))
     return 1;
 
   if (!(row= mysql_fetch_row(res)))
@@ -7754,12 +7792,14 @@ int main(int argc, char **argv)
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
                                                have_mariadb_gtid,
-                                               opt_use_gtid, master_set_gtid_pos,
+                                               opt_use_gtid,
+                                               master_set_gtid_pos,
                                                sizeof(master_set_gtid_pos)))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql,
                                              have_mariadb_gtid,
-                                             opt_use_gtid, slave_set_gtid_pos,
+                                             opt_use_gtid,
+                                             slave_set_gtid_pos,
                                              sizeof(slave_set_gtid_pos)))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
@@ -7848,6 +7888,8 @@ int main(int argc, char **argv)
   if (opt_slave_data && slave_set_gtid_pos[0])
     do_print_set_gtid_slave_pos(slave_set_gtid_pos, FALSE);
 
+  if (opt_galera_info && dump_galera_info(mysql)) goto err;
+
   /* add 'START SLAVE' to end of dump */
   if (opt_slave_apply && add_slave_statements())
     goto err;
@@ -7887,3 +7929,46 @@ err:
 
   return(first_error);
 } /* main */
+
+static int dump_galera_info(MYSQL *mysql_con)
+{
+  MYSQL_RES *wsrep_on_res;
+  MYSQL_ROW wsrep_on_row;
+  my_bool wsrep_on = FALSE;
+  char *wsrep_on_val = NULL;
+
+  // Galera information exists only if this node is part of cluster
+  if (mysql_query_with_error_report(mysql_con, &wsrep_on_res,
+                                    "SHOW VARIABLES LIKE 'wsrep_on'"))
+    return 1;
+
+  wsrep_on_row = mysql_fetch_row(wsrep_on_res);
+  wsrep_on_val = wsrep_on_row ? (char *)wsrep_on_row[1] : NULL;
+  wsrep_on = (wsrep_on_val && strcmp(wsrep_on_val, "OFF")) ? TRUE : FALSE;
+  mysql_free_result(wsrep_on_res);
+
+  if (wsrep_on)
+  {
+    MYSQL_RES *wsrep_checkpoint_res;
+    MYSQL_ROW wsrep_checkpoint_row;
+    char *wsrep_checkpoint_val = NULL;
+
+    if (mysql_query_with_error_report(mysql_con, &wsrep_checkpoint_res,
+                                      "SHOW STATUS LIKE 'wsrep_checkpoint_position'"))
+      return 1;
+
+    wsrep_checkpoint_row = mysql_fetch_row(wsrep_checkpoint_res);
+    wsrep_checkpoint_val = wsrep_checkpoint_row ? (char *)wsrep_checkpoint_row[1] : NULL;
+
+    if (wsrep_checkpoint_val)
+    {
+      fprintf(md_result_file,
+              "SET GLOBAL wsrep_start_position = '%s';\n",
+              wsrep_checkpoint_val);
+
+    }
+    mysql_free_result(wsrep_checkpoint_res);
+  }
+
+  return 0;
+}

@@ -242,7 +242,8 @@ DEALLOCATE PREPARE stmt_4;
 DROP TABLE t1;
 # Test case 10: Check that the HELP statement
 # is supported by prepared statements
-INSERT INTO mysql.help_topic VALUES (0, 'Tamagotchi', 0, 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
+INSERT INTO mysql.help_topic (help_topic_id, help_category_id, name, description, example, url)
+VALUES (4294967295, 0, 'Tamagotchi', 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
 PREPARE stmt_1 FROM "HELP `Tamagotchi`";
 EXECUTE stmt_1;
 name	description	example
@@ -253,7 +254,7 @@ Tamagotchi	This digital pet is not a KB article	no example
 EXECUTE stmt_1;
 name	description	example
 Tamagotchi	This digital pet is not a KB article	no example
-DELETE FROM mysql.help_topic WHERE help_topic_id = 0;
+DELETE FROM mysql.help_topic WHERE help_topic_id = 4294967295;
 # Test case 11: Check that the 'CREATE PROCEDURE' statement
 # is supported by prepared statements
 PREPARE stmt_1 FROM 'CREATE PROCEDURE p1() SET @a=1';

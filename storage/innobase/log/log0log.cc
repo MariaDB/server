@@ -1250,7 +1250,9 @@ void log_t::clear_mmap() noexcept
   {
     ut_d(latch.wr_lock());
     ut_ad(!resize_in_progress());
-    ut_ad(get_lsn() == get_flushed_lsn(std::memory_order_relaxed));
+    ut_d(extern bool ibuf_upgrade_was_needed;)
+    ut_ad(get_lsn() == get_flushed_lsn(std::memory_order_relaxed) ||
+          ibuf_upgrade_was_needed);
     ut_d(latch.wr_unlock());
     return;
   }

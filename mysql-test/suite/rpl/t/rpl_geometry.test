@@ -25,7 +25,7 @@ connection master;
 drop table t1, t2;
 
 --echo #
---echo # MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+--echo # MDEV-30985 Slave stops with error on ALTER ONLINE with Geometry Types
 --echo #
 create table t(geo geometrycollection default st_geomfromtext('point(1 1)'),
 	       vc point as (geo));

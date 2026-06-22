@@ -1532,13 +1532,18 @@ public:
   TPOOL_SUPPRESS_TSAN void add_flush_list_requests(size_t size)
   { flush_list_requests+= size; }
 private:
-  static constexpr unsigned PAGE_CLEANER_IDLE= 1;
-  static constexpr unsigned FLUSH_LIST_ACTIVE= 2;
-  static constexpr unsigned LRU_FLUSH= 4;
+  static constexpr unsigned FLUSH_LIST_ACTIVE= 1;
+  static constexpr unsigned LRU_FLUSH= 2;
 
-  /** Number of pending LRU flush * LRU_FLUSH +
-  PAGE_CLEANER_IDLE + FLUSH_LIST_ACTIVE flags */
+  /** Number of pending LRU flush * LRU_FLUSH + FLUSH_LIST_ACTIVE flag.
+  Protected by flush_list_mutex. */
   unsigned page_cleaner_status;
+
+  /** Whether the page cleaner is sleeping due to being idle.
+  Writes occur under flush_list_mutex; reads are lock-free (used by
+  the early-return in buf_flush_ahead() on a busy cleaner). */
+  Atomic_relaxed<bool> page_cleaner_idle_flag;
+
   /** track server activity count for signaling idle flushing */
   ulint last_activity_count;
 public:
@@ -1580,19 +1585,19 @@ public:
     page_cleaner_status-= FLUSH_LIST_ACTIVE;
   }
 
-  /** @return whether the page cleaner must sleep due to being idle */
+  /** @return whether the page cleaner must sleep due to being idle.
+  Lock-free read of page_cleaner_idle_flag; safe to call without
+  flush_list_mutex (used by the early-return in buf_flush_ahead()). */
   bool page_cleaner_idle() const noexcept
   {
-    mysql_mutex_assert_owner(&flush_list_mutex);
-    return page_cleaner_status & PAGE_CLEANER_IDLE;
+    return page_cleaner_idle_flag;
   }
 
   /** @return whether the page cleaner may be initiating writes */
   bool page_cleaner_active() const noexcept
   {
     mysql_mutex_assert_owner(&flush_list_mutex);
-    static_assert(PAGE_CLEANER_IDLE == 1, "efficiency");
-    return page_cleaner_status > PAGE_CLEANER_IDLE;
+    return page_cleaner_status != 0;
   }
 
   /** Wake up the page cleaner if needed.
@@ -1603,8 +1608,7 @@ public:
   void page_cleaner_set_idle(bool deep_sleep) noexcept
   {
     mysql_mutex_assert_owner(&flush_list_mutex);
-    page_cleaner_status= (page_cleaner_status & ~PAGE_CLEANER_IDLE) |
-      (PAGE_CLEANER_IDLE * deep_sleep);
+    page_cleaner_idle_flag= deep_sleep;
   }
 
   /** Update server last activity count */

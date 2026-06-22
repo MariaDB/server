@@ -20,7 +20,7 @@
   Tool used for executing a .test file
 
   See the "MySQL Test framework manual" for more information
-  https://mariadb.com/kb/en/library/mysqltest/
+  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 
   Please keep the test framework tools identical in all versions!
 
@@ -1544,12 +1544,12 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
       }
       else
       {
-	if (!(v= var_get(p, &p, 0, 0)))
+        if (!(v= var_get(p, &p, 0, 0)) || !v->str_val)
         {
           report_or_die( "Bad variable in eval");
           DBUG_VOID_RETURN;
         }
-	dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
+        dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
       }
       break;
     case '\\':
@@ -2158,15 +2158,16 @@ void log_msg(const char *fmt, ...)
   SYNOPSIS
   cat_file
   ds - pointer to dynamic string where to add the files content
-  filename - name of the file to read
-
+  filename  - name of the file to read
+  max_lines - number of lines to print. 0 == all
 */
 
-int cat_file(DYNAMIC_STRING* ds, const char* filename)
+int cat_file(DYNAMIC_STRING* ds, const char* filename, uint max_lines)
 {
   int fd;
   size_t len;
   char *buff;
+  uint line= 0;                             // Enough for mtr
 
   if ((fd= my_open(filename, O_RDONLY, MYF(0))) < 0)
     return 1;
@@ -2183,28 +2184,35 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
   len= my_read(fd, (uchar*)buff, len, MYF(0));
   my_close(fd, MYF(0));
 
+  if (!max_lines)
+    max_lines= 10000;                           // Enough for mtr
+
+  char *p= buff, *start= buff, *end=buff+len;
+  while (p < end && line < max_lines)
   {
-    char *p= buff, *start= buff,*end=buff+len;
-    while (p < end)
+    /* Convert cr/lf to lf */
+    if (*p == '\r' && p+1 < end && *(p+1)== '\n')
     {
-      /* Convert cr/lf to lf */
-      if (*p == '\r' && p+1 < end && *(p+1)== '\n')
-      {
-        /* Add fake newline instead of cr and output the line */
-        *p= '\n';
-        p++; /* Step past the "fake" newline */
-        *p= 0;
-        replace_dynstr_append_mem(ds, start, p-start);
-        p++; /* Step past the "fake" newline */
-        start= p;
-      }
-      else
-        p++;
+      /* Add fake newline instead of cr and output the line */
+      *p= '\n';
+      p++; /* Step past the "fake" newline */
+      *p= 0;
+      replace_dynstr_append_mem(ds, start, p-start);
+      p++; /* Step past the "fake" newline */
+      start= p;
+      line++;
     }
-    /* Output any chars that migh be left */
-    *p= 0;
-    replace_dynstr_append_mem(ds, start, p-start);
+    else
+    {
+      if (*p == '\n')
+        line++;
+      p++;
+    }
   }
+  /* Output any chars that migh be left */
+  *p= 0;
+  replace_dynstr_append_mem(ds, start, p-start);
+
   my_free(buff);
   return 0;
 }
@@ -2451,11 +2459,11 @@ void show_diff(DYNAMIC_STRING* ds,
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" --- "));
     dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
-    cat_file(&ds_tmp, filename1);
+    cat_file(&ds_tmp, filename1, 0);
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<\n --- "));
     dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
-    cat_file(&ds_tmp, filename2);
+    cat_file(&ds_tmp, filename2, 0);
     dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<<\n"));
   }
 
@@ -2921,7 +2929,7 @@ VAR* var_get(const char *var_name, const char **var_name_end, my_bool raw,
 
   if (!raw && v->int_dirty)
   {
-    sprintf(v->str_val, "%d", v->int_val);
+    snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
     v->int_dirty= false;
     v->str_val_len = strlen(v->str_val);
   }
@@ -2983,7 +2991,7 @@ void var_set(const char *var_name, const char *var_name_end,
   {
     if (v->int_dirty)
     {
-      sprintf(v->str_val, "%d", v->int_val);
+      snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
       v->int_dirty=false;
       v->str_val_len= strlen(v->str_val);
     }
@@ -4859,9 +4867,11 @@ void do_append_file(struct st_command *command)
 void do_cat_file(struct st_command *command)
 {
   int error;
-  static DYNAMIC_STRING ds_filename;
+  static DYNAMIC_STRING ds_filename, ds_lines;
+  uint lines= 0;
   const struct command_arg cat_file_args[] = {
-    { "filename", ARG_STRING, TRUE, &ds_filename, "File to read from" }
+    { "filename", ARG_STRING, TRUE, &ds_filename, "File to read from" },
+    { "lines", ARG_STRING, FALSE, &ds_lines, "Number of lines to print"}
   };
   DBUG_ENTER("do_cat_file");
 
@@ -4873,9 +4883,13 @@ void do_cat_file(struct st_command *command)
 
   DBUG_PRINT("info", ("Reading from, file: %s", ds_filename.str));
 
-  error= cat_file(&ds_res, ds_filename.str);
+  if (ds_lines.length)
+    lines= atoi(ds_lines.str);
+
+  error= cat_file(&ds_res, ds_filename.str, lines);
   handle_command_error(command, error, my_errno);
   dynstr_free(&ds_filename);
+  dynstr_free(&ds_lines);
   DBUG_VOID_RETURN;
 }
 
@@ -5289,7 +5303,8 @@ void do_sync_with_master2(struct st_command *command, long offset,
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+  snprintf(query_buf, sizeof(query_buf),
+          "select master_pos_wait('%s', %ld, %d, '%s')",
           master_pos.file, master_pos.pos + offset, timeout,
           connection_name);
 
@@ -6198,9 +6213,9 @@ static int cmp_decimal(const My_string &a, const My_string &b)
   size_t b_len= b.length();
 
   // Skip leading whitespace
-  while (a_len > 0 && isspace(*a_ptr))
+  while (a_len > 0 && my_isspace(charset_info, *a_ptr))
     a_ptr++, a_len--;
-  while (b_len > 0 && isspace(*b_ptr))
+  while (b_len > 0 && my_isspace(charset_info, *b_ptr))
     b_ptr++, b_len--;
 
   // Handle empty strings (treat as 0)
@@ -6222,8 +6237,8 @@ static int cmp_decimal(const My_string &a, const My_string &b)
 
   // Find actual numeric length (digits only)
   size_t a_digits= 0, b_digits= 0;
-  for (size_t i= 0; i < a_len && isdigit(a_ptr[i]); i++) a_digits++;
-  for (size_t i= 0; i < b_len && isdigit(b_ptr[i]); i++) b_digits++;
+  for (size_t i= 0; i < a_len && my_isdigit(charset_info, a_ptr[i]); i++) a_digits++;
+  for (size_t i= 0; i < b_len && my_isdigit(charset_info, b_ptr[i]); i++) b_digits++;
 
   // Handle zero cases after removing leading zeros
   bool a_is_zero= (a_digits == 0);
@@ -9324,8 +9339,9 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
   /* Parse and evaluate test expression */
   expr_start= strchr(p, '(');
-  if (!expr_start++)
+  if (!expr_start)
     die("missing '(' in %s", cmd_name);
+  expr_start++;
 
   while (my_isspace(charset_info, *expr_start))
     expr_start++;
@@ -10935,7 +10951,7 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
   char buf[40], buff2[21];
-  size_t len= sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
+  size_t len= snprintf(buf, sizeof(buf), "affected rows: %s\n", llstr(affected_rows, buff2));
   dynstr_append_mem(ds, buf, len);
   if (info)
   {
@@ -13343,7 +13359,7 @@ int main(int argc, char **argv)
       case Q_DIFF_FILES: do_diff_files(command); break;
       case Q_SEND_QUIT: do_send_quit(command); break;
       case Q_CHANGE_USER: do_change_user(command); break;
-      case Q_CAT_FILE: do_cat_file(command); break;
+      case Q_CAT_FILE: do_cat_file(command); command_executed++; break;
       case Q_COPY_FILE: do_copy_file(command); break;
       case Q_MOVE_FILE: do_move_file(command); break;
       case Q_CHMOD_FILE: do_chmod_file(command); break;

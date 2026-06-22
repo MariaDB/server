@@ -70,6 +70,7 @@ static bool			stats_initialised;
 
 static THD *dict_stats_thd;
 
+void reset_thd(MYSQL_THD thd);
 /*****************************************************************//**
 Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
@@ -377,7 +378,7 @@ static void dict_stats_func(void*)
 
   while (dict_stats_process_entry_from_recalc_pool(dict_stats_thd)) {}
 
-  innobase_reset_background_thd(dict_stats_thd);
+  reset_thd(dict_stats_thd);
   set_current_thd(nullptr);
   if (!is_recalc_pool_empty())
     dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);

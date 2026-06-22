@@ -1,4 +1,5 @@
 --source include/have_innodb_binlog.inc
+--source include/have_mariabackup_binary.inc
 # Test does a lot of queries that take a lot of CPU under Valgrind.
 --source include/not_valgrind.inc
 

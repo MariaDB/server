@@ -902,7 +902,7 @@ int TYPVAL<double>::ShowValue(char *buf, int len)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetCharString(char *p)
 {
-  sprintf(p, Fmt, Tval);
+  snprintf(p, 32, Fmt, Tval);
   return p;
 } // end of GetCharString
 
@@ -921,7 +921,7 @@ char *TYPVAL<double>::GetCharString(char *p)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetShortString(char *p, int n)
 {
-  sprintf(p, "%*hd", n, (short)Tval);
+  snprintf(p, 32, "%*hd", n, (short)Tval);
   return p;
 } // end of GetShortString
 
@@ -931,7 +931,7 @@ char *TYPVAL<TYPE>::GetShortString(char *p, int n)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetIntString(char *p, int n)
 {
-  sprintf(p, "%*d", n, (int)Tval);
+  snprintf(p, 32, "%*d", n, (int)Tval);
   return p;
 } // end of GetIntString
 
@@ -941,7 +941,7 @@ char *TYPVAL<TYPE>::GetIntString(char *p, int n)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
 {
-  sprintf(p, "%*lld", n, (longlong)Tval);
+  snprintf(p, 32, "%*lld", n, (longlong)Tval);
   return p;
 } // end of GetBigintString
 
@@ -951,7 +951,7 @@ char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
 {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
+  snprintf(p, 32, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
   return p;
 } // end of GetFloatString
 
@@ -961,7 +961,7 @@ char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetTinyString(char *p, int n)
 {
-  sprintf(p, "%*d", n, (int)(char)Tval);
+  snprintf(p, 32, "%*d", n, (int)(char)Tval);
   return p;
 } // end of GetIntString
 #endif // 0
@@ -1210,7 +1210,7 @@ bool TYPVAL<TYPE>::FormatValue(PVAL vp, PCSZ fmt)
 	// This function is wrong and should never be called
 	assert(false);
   char *buf = (char*)vp->GetTo_Val();        // Not big enough
-  int   n = sprintf(buf, fmt, Tval);
+  int   n = snprintf(buf, vp->GetValLen() + 1, fmt, Tval);
 
   return (n > vp->GetValLen());
 } // end of FormatValue
@@ -1224,7 +1224,7 @@ bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   char c[32];
 
   fmt.Type[0] = *GetFormatType(Type);
-  fmt.Length = sprintf(c, Fmt, Tval);
+  fmt.Length = snprintf(c, sizeof(c), Fmt, Tval);
   fmt.Prec = Prec;
   return false;
 } // end of SetConstFormat
@@ -1434,7 +1434,7 @@ void TYPVAL<PSZ>::SetValue(int n)
 {
   char     buf[16];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%d", n);
+  int      k = snprintf(buf, sizeof(buf), "%d", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1452,7 +1452,7 @@ void TYPVAL<PSZ>::SetValue(uint n)
 {
   char     buf[16];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%u", n);
+  int      k = snprintf(buf, sizeof(buf), "%u", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1488,7 +1488,7 @@ void TYPVAL<PSZ>::SetValue(longlong n)
 {
   char     buf[24];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%lld", n);
+  int      k = snprintf(buf, sizeof(buf), "%lld", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1506,7 +1506,7 @@ void TYPVAL<PSZ>::SetValue(ulonglong n)
 {
   char     buf[24];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%llu", n);
+  int      k = snprintf(buf, sizeof(buf), "%llu", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1524,7 +1524,7 @@ void TYPVAL<PSZ>::SetValue(double f)
 {
   char    *p, buf[64];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%lf", f);
+  int      k = snprintf(buf, sizeof(buf), "%lf", f);
 
   for (p = buf + k - 1; p >= buf; p--)
     if (*p == '0') {
@@ -1719,7 +1719,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 bool TYPVAL<PSZ>::FormatValue(PVAL vp, PCSZ fmt)
 {
   char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Strp);
+  int   n = snprintf(buf, vp->GetValLen() + 1, fmt, Strp);
 
   return (n > vp->GetValLen());
 } // end of FormatValue
@@ -2297,7 +2297,7 @@ char *BINVAL::GetCharString(char *)
   if (!Chrp)
     Chrp = (char*)PlugSubAlloc(Global, NULL, Clen * 2 + 1);
 
-  sprintf(Chrp, GetXfmt(), Len, Binp); 
+  snprintf(Chrp, Clen * 2 + 1, GetXfmt(), Len, Binp);
   return Chrp;
 } // end of GetCharString
 
@@ -2333,7 +2333,7 @@ bool BINVAL::IsEqual(PVAL vp, bool chktype)
 bool BINVAL::FormatValue(PVAL vp, PCSZ fmt)
 {
   char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Len, Binp);
+  int   n = snprintf(buf, vp->GetValLen() + 1, fmt, Len, Binp);
 
   return (n > vp->GetValLen());
 } // end of FormatValue
@@ -2775,7 +2775,7 @@ char *DTVAL::GetCharString(char *p)
 
     return Sdate;
   } else
-    sprintf(p, "%lld", (longlong) Tval);
+    snprintf(p, 32, "%lld", (longlong) Tval);
 
 //Null = false;                      ??????????????
   return p;

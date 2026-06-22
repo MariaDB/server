@@ -130,7 +130,7 @@ link_to_help()
 {
   echo
   echo "The latest information about mariadb-install-db is available at"
-  echo "https://mariadb.com/kb/en/installing-system-tables-mysql_install_db"
+  echo "https://mariadb.com/docs/server/clients-and-utilities/deployment-tools/mariadb-install-db"
 }
 
 parse_arg()
@@ -681,7 +681,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb"
+  echo "See the MariaDB Documentation at https://mariadb.com/docs"
 
   if test "$in_rpm" -eq 0
   then

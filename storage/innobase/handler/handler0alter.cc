@@ -11862,7 +11862,8 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(ctx->need_rebuild());
 
-			alter_stats_rebuild(ctx->new_table, m_prebuilt->trx);
+			alter_stats_rebuild(ctx->new_table, m_prebuilt->trx,
+					    false);
 		}
 	} else {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;

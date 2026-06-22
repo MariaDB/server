@@ -303,3 +303,23 @@ IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE')
 GOOD
 alter table t1 drop column va;
 drop table t1;
+#
+#  MDEV-39081 InnoDB: tried to purge non-delete-marked record,
+#   assertion fails in row_purge_del_mark_error
+#
+CREATE TABLE t1(
+pk INT AUTO_INCREMENT,
+f1 INT DEFAULT 0,
+f2 INT as (1 + 1) VIRTUAL,
+KEY (f1), PRIMARY KEY (pk), UNIQUE (f2)) ENGINE=InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+CONNECT con1,localhost,root,,;
+INSERT INTO t1 (pk) VALUES(1);
+DELETE FROM t1;
+INSERT INTO t1 (pk) VALUES(1);
+UPDATE t1 set f1 = 2;
+disconnect con1;
+connection default;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;

@@ -889,7 +889,11 @@ protected:
     if (length == 0)
       return make_empty_result(&tmp_value);
 
-    tmp_value.set(*res, offset, length);
+    if (tmp_value.copy(res->ptr() + offset, length, res->charset()))
+    {
+      my_error(ER_OUTOFMEMORY, length);
+      return NULL;
+    }
     /*
       Make sure to return correct charset and collation:
       TRIM(0x000000 FROM _ucs2 0x0061)
@@ -2061,6 +2065,7 @@ public:
     return name;
   }
   String *val_str(String *) override;
+  table_map not_null_tables() const override { return 0; }
   bool fix_length_and_dec(THD *thd) override
   {
     collation.set(args[0]->collation);

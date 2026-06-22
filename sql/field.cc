@@ -4851,6 +4851,10 @@ int Field_float::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_float::store(double nr)
 {
+  if (nr == 0.0)
+  {
+    nr= 0.0; // correct negative zero
+  }
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
@@ -4995,6 +4999,10 @@ int Field_double::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_double::store(double nr)
 {
+  if (nr == 0.0)
+  {
+    nr= 0.0; // correct negative zero
+  }
   DBUG_ASSERT(marked_for_write_or_computed());
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
@@ -6754,11 +6762,15 @@ longlong Field_year::val_int(void)
 String *Field_year::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
-  DBUG_ASSERT(field_length < 5);
-  val_buffer->alloc(5);
+  /* "YYYY" + NUL terminator */
+  static const size_t YEAR_STR_BUFF_LEN= 5;
+  DBUG_ASSERT(field_length < YEAR_STR_BUFF_LEN);
+  val_buffer->alloc(YEAR_STR_BUFF_LEN);
   val_buffer->length(field_length);
   char *to=(char*) val_buffer->ptr();
-  sprintf(to,field_length == 2 ? "%02d" : "%04d",(int) Field_year::val_int());
+  snprintf(to, YEAR_STR_BUFF_LEN,
+           field_length == 2 ? "%02d" : "%04d",
+           (int) Field_year::val_int());
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
 }
@@ -8923,7 +8935,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= table->in_use->variables.group_concat_max_len;
+    copy_length= table->in_use->gconcat_max_len();
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,
@@ -9080,6 +9092,10 @@ int Field_blob::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
   size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
+  DBUG_ASSERT(blob1 || !a_len);
+  DBUG_ASSERT(blob2 || !b_len);
+  if (!blob1) { blob1= (uchar *) ""; a_len= 0; }
+  if (!blob2) { blob2= (uchar *) ""; b_len= 0; }
   return cmp(blob1, (uint32)a_len, blob2, (uint32)b_len);
 }
 
@@ -9159,9 +9175,12 @@ void Field_blob::set_key_image(const uchar *buff,uint length)
 
 int Field_blob::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
+  DBUG_ASSERT(key_ptr);
   uchar *blob1;
   size_t blob_length=get_length(ptr);
   memcpy(&blob1, ptr+packlength, sizeof(char*));
+  DBUG_ASSERT(blob1 || !blob_length);
+  if (!blob1) { blob1= (uchar *) ""; blob_length= 0; }
   CHARSET_INFO *cs= charset();
   size_t local_char_length= max_key_length / cs->mbmaxlen;
   local_char_length= cs->charpos(blob1, blob1+blob_length,
@@ -9559,7 +9578,7 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
       /* This is for reading numbers with LOAD DATA INFILE */
       char *end;
       tmp=(uint) cs->strntoul(from,length,10,&end,&err);
-      if (err || end != from + length || tmp > m_typelib->count)
+      if (err || end != from + length || !tmp || tmp > m_typelib->count)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);

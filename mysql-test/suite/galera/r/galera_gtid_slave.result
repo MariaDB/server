@@ -32,6 +32,7 @@ connection node_1;
 connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL wsrep_on=OFF;
 include/kill_binlog_dump_threads.inc
 reset master;

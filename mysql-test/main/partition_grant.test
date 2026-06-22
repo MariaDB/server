@@ -46,7 +46,6 @@ connection default;
 revoke alter on mysqltest_1.* from mysqltest_1@localhost;
 
 connect (conn3,localhost,mysqltest_1,,mysqltest_1);
---error ER_TABLEACCESS_DENIED_ERROR
 alter table t1 drop partition p3;
 disconnect conn3;
 
@@ -80,3 +79,86 @@ drop user mysqltest_1@localhost;
 drop schema mysqltest_1;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # MDEV-39028: DROP PARTITION should only require DROP privilege
+--echo #
+
+create database mysqltest_2;
+use mysqltest_2;
+
+create table t1 (a int)
+partition by list (a) (
+  partition p0 values in (0),
+  partition p1 values in (1),
+  partition p2 values in (2));
+insert into t1 values (0), (1), (2);
+
+--echo # No privileges (must fail)
+create user foo;
+grant select on mysqltest_2.* to foo;
+--connect conn,localhost,foo,,mysqltest_2
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 drop partition p1;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p1 to table tp1;
+--disconnect conn
+
+--echo # Only ALTER privilege (must fail)
+--connection default
+grant alter on mysqltest_2.* to foo;
+--connect conn,localhost,foo,,mysqltest_2
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 drop partition p1;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p1 to table tp1;
+--disconnect conn
+
+--echo # Only DROP privilege (DROP must succeed, CONVERT OUT must fail)
+--connection default
+revoke alter on mysqltest_2.* from foo;
+grant drop on mysqltest_2.* to foo@;
+--connect conn,localhost,foo,,mysqltest_2
+show grants for current_user;
+alter table t1 drop partition p1;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p2 to table tp2;
+--disconnect conn
+
+--echo # CREATE and INSERT privileges (CONVERT OUT must fail)
+--connection default
+revoke drop on mysqltest_2.* from foo;
+grant insert, create on mysqltest_2.* to foo@;
+--connect conn,localhost,foo,,mysqltest_2
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p2 to table tp2;
+--disconnect conn
+
+--echo # DROP and INSERT privileges (CONVERT OUT must fail)
+--connection default
+revoke create on mysqltest_2.* from foo;
+grant drop on mysqltest_2.* to foo@;
+--connect conn,localhost,foo,,mysqltest_2
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p2 to table tp2;
+--disconnect conn
+
+--echo # CREATE, DROP and INSERT privileges (CONVERT OUT must succeed)
+--connection default
+grant create on mysqltest_2.* to foo@;
+--connect conn,localhost,foo,,mysqltest_2
+show grants for current_user;
+alter table t1 convert partition p2 to table tp2;
+--disconnect conn
+
+--connection default
+drop table t1;
+drop user foo;
+drop database mysqltest_2;
+use test;
+
+--echo # End of 11.4 tests

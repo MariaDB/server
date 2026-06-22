@@ -74,3 +74,45 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;
+
+--echo #
+--echo # MDEV-38412 System tablespace fails to shrink due to legacy tables
+--echo #
+let bugdir= $MYSQLTEST_VARDIR/tmp/old_datadir;
+--mkdir $bugdir
+let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb_undo_directory=$bugdir;
+# Create a new data directory
+let $restart_parameters=$dirs --debug_dbug=d,create_sys_tablespaces;
+--source include/restart_mysqld.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE SPACE= 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME LIKE 'DUMMY_IND%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE NAME LIKE 'DUMMY_ID%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'DUMMY_ID%';
+
+# Drop the unknown table during slow shutdown
+let $restart_parameters=$dirs --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink --innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE SPACE= 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME LIKE 'DUMMY_IND%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE NAME LIKE 'DUMMY_ID%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'DUMMY_ID%';
+
+let SEARCH_PATTERN=InnoDB: Found an unknown table SYS_TABLESPACES;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN=InnoDB: Found orphaned index for table_id .*;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN=InnoDB: Dropping 2 orphaned table;
+--source include/search_pattern_in_file.inc
+
+# Shrink the system tablespace further
+let $restart_parameters=$dirs --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink;
+--source include/restart_mysqld.inc
+
+# Cleanup
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+rmdir $bugdir;

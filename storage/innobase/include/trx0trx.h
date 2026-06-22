@@ -220,20 +220,10 @@ trx_print_low(
 			/*!< in: mem_heap_get_size(trx->lock.lock_heap) */
 
 /**********************************************************************//**
-Prints info about a transaction.
-When possible, use trx_print() instead. */
+Prints info about a transaction. */
 void
 trx_print_latched(
 /*==============*/
-	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx);		/*!< in: transaction */
-
-/**********************************************************************//**
-Prints info about a transaction.
-Acquires and releases lock_sys.latch. */
-void
-trx_print(
-/*======*/
 	FILE*		f,		/*!< in: output stream */
 	const trx_t*	trx);		/*!< in: transaction */
 
@@ -629,6 +619,8 @@ private:
 
 
 public:
+  /** trx_sys.rw_trx_ids index, protected by trx_sys.rw_trx_ids.latch */
+  uint32_t rw_trx_ids_slot;
   /** Transaction identifier (0 if no locks were acquired).
   Set by trx_sys_t::register_rw() or trx_resurrect() before
   the transaction is added to trx_sys.rw_trx_hash.

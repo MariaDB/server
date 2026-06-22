@@ -1265,9 +1265,8 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     update_nullability_post_fix_fields();
-    if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
-      return TRUE;
-    if (fix_attributes(args, arg_count))
+    if (aggregate_for_result(func_name_cstring(), args, arg_count, true) ||
+        fix_attributes(args, arg_count))
       return TRUE;
     return FALSE;
   }
@@ -1301,9 +1300,9 @@ class Item_func_case_abbreviation2 :public Item_func_case_expression
 protected:
   bool fix_length_and_dec2(Item **items)
   {
-    if (aggregate_for_result(func_name_cstring(), items, 2, true))
+    if (aggregate_for_result(func_name_cstring(), items, 2, true) ||
+        fix_attributes(items, 2))
       return TRUE;
-    fix_attributes(items, 2);
     return FALSE;
   }
 
@@ -2952,16 +2951,18 @@ public:
   /* Optimize case of not_null_column IS NULL */
   void update_used_tables() override
   {
+    args[0]->update_used_tables();
+    used_tables_cache= args[0]->used_tables();
+    const_item_cache= args[0]->const_item();
+
     if (!args[0]->maybe_null() && !arg_is_datetime_notnull_field())
     {
-      used_tables_cache= 0;			/* is always false */
+      /*
+        The result is always false.
+        But do NOT set used_tables_cache=0 as that will confuse derived
+        condition pushdown.
+      */
       const_item_cache= 1;
-    }
-    else
-    {
-      args[0]->update_used_tables();
-      used_tables_cache= args[0]->used_tables();
-      const_item_cache= args[0]->const_item();
     }
   }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,

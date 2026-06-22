@@ -1210,11 +1210,12 @@ static bool make_date_time(THD *thd, const String *format,
 	str->append(hours_i < 12 ? "AM" : "PM",2);
 	break;
       case 'r':
-	length= sprintf(intbuff, ((l_time->hour % 24) < 12) ?
-                    "%02d:%02d:%02d AM" : "%02d:%02d:%02d PM",
-		    (l_time->hour+11)%12+1,
-		    l_time->minute,
-		    l_time->second);
+	length= snprintf(intbuff, sizeof(intbuff),
+                     ((l_time->hour % 24) < 12) ?
+                     "%02d:%02d:%02d AM" : "%02d:%02d:%02d PM",
+		     (l_time->hour+11)%12+1,
+		     l_time->minute,
+		     l_time->second);
 	str->append(intbuff, length);
 	break;
       case 'S':
@@ -1222,8 +1223,8 @@ static bool make_date_time(THD *thd, const String *format,
 	str->append_zerofill(l_time->second, 2);
 	break;
       case 'T':
-	length= sprintf(intbuff, "%02d:%02d:%02d",
-		    l_time->hour, l_time->minute, l_time->second);
+	length= snprintf(intbuff, sizeof(intbuff), "%02d:%02d:%02d",
+		     l_time->hour, l_time->minute, l_time->second);
 	str->append(intbuff, length);
 	break;
       case 'U':
@@ -4413,8 +4414,9 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
     check_time_range(ltime, decimals, &unused);
     char buf[28];
     char *ptr= longlong10_to_str(hour.value(), buf, hour.is_unsigned() ? 10 : -10);
-    int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u",
-                                         (uint) minute, (uint) sec.sec());
+    int len = (int)(ptr - buf) + snprintf(ptr, buf + sizeof(buf) - ptr,
+                                          ":%02u:%02u",
+                                          (uint) minute, (uint) sec.sec());
     ErrConvString err(buf, len, &my_charset_bin);
     thd->push_warning_truncated_wrong_value("time", err.ptr());
   }

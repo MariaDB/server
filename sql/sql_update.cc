@@ -293,7 +293,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   /* Add all fields used by unique index to read_set. */
   bitmap_union(table->read_set, &unique_map);
   /* Tell the engine about the new set. */
-  table->file->column_bitmaps_signal();
+  table->file->column_bitmaps_signal(false);
 
   if ((error= table->file->ha_index_or_rnd_end()) ||
       (error= table->file->ha_rnd_init(0)))
@@ -1795,8 +1795,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 }
 
 
-multi_update::multi_update(THD *thd_arg,
-                           TABLE_LIST *table_list,
+multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
                            List<TABLE_LIST> *leaves_list,
                            List<Item> *field_list,
                            List<Item> *value_list,

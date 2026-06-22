@@ -7857,6 +7857,8 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     m_part_spec.end_part : m_part_spec.start_part;
   DBUG_ENTER("ha_partition::handle_unordered_next");
 
+  if (i == NO_CURRENT_PART_ID)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
   if (i >= m_tot_parts)
   {
     /* Should never happen! */
@@ -7914,6 +7916,8 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     if (m_part_spec.start_part <= m_part_spec.end_part &&
         m_part_spec.end_part < m_tot_parts)
       error= handle_unordered_scan_next_partition(buf, FALSE);
+    else
+      m_part_spec.start_part= NO_CURRENT_PART_ID;
   }
   DBUG_RETURN(error);
 }
@@ -7976,6 +7980,8 @@ int ha_partition::handle_unordered_prev(uchar *buf)
     if (m_part_spec.start_part <= m_part_spec.end_part &&
         m_part_spec.end_part < m_tot_parts)
       error= handle_unordered_scan_next_partition(buf, TRUE);
+    else
+      m_part_spec.start_part= NO_CURRENT_PART_ID;
   }
   DBUG_RETURN(error);
 }

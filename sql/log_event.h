@@ -556,7 +556,7 @@ class String;
 #define OPTIONS_WRITTEN_TO_BIN_LOG (OPTION_EXPLICIT_DEF_TIMESTAMP |\
    OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
    OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS |\
-   OPTION_INSERT_HISTORY)
+   OPTION_INSERT_HISTORY | OPTION_NO_CHECK_CONSTRAINT_CHECKS)
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**
@@ -2982,7 +2982,7 @@ private:
   @return  the value of the buffer pointer
 */
 
-inline char *serialize_xid(char *buf, size_t sizeof_buf, long fmt, long gln,
+inline char *serialize_xid(char *buf, size_t bufsize, long fmt, long gln,
                            long bln, const char *dat)
 {
   int i;
@@ -3015,7 +3015,7 @@ inline char *serialize_xid(char *buf, size_t sizeof_buf, long fmt, long gln,
     c+= 2;
   }
   c[0]= '\'';
-  snprintf(c+1, sizeof_buf - (c+1 - buf), ",%lu", fmt);
+  snprintf(c + 1, bufsize - (size_t)(c + 1 - buf), ",%lu", fmt);
 
  return buf;
 }
@@ -3048,7 +3048,7 @@ struct event_xid_t : XID
 
   char *serialize(char *buf_arg, size_t sizeof_buf_arg)
   {
-    return serialize_xid(buf_arg, sizeof_buf_arg, formatID, gtrid_length,
+    return serialize_xid(buf_arg, ser_buf_size, formatID, gtrid_length,
                          bqual_length, data);
   }
   char *serialize()
@@ -3102,8 +3102,8 @@ private:
   const char* get_query() override
   {
     snprintf(query, sizeof(query),
-            (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
-            m_xid.serialize());
+             (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
+             m_xid.serialize());
     return query;
   }
 #endif
@@ -5637,16 +5637,16 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   @class Partial_rows_log_event
 
   When any given instantiation of a Rows_log_event (e.g. Write_rows_log_event,
-  etc) is too large to be sent to a replica (i.e. larger than the value
-  slave_max_allowed_packet, as configured on a replica), then the rows event
+  etc) is too large to be sent to a slave (i.e. larger than the value
+  slave_max_allowed_packet, as configured on a slave), then the rows event
   must be fragmented into sub-events (i.e. Partial_rows_log_events) so the
-  event can be transmitted to the replica. The size of each event is configured
-  via the system variable binlog_row_event_fragment_threshold. The replica will
+  event can be transmitted to the slave. The size of each event is configured
+  via the system variable binlog_row_event_fragment_threshold. The slave will
   then take the content of each of these Partial_rows_log_events, and join them
   together into a large Rows_log_event to be executed as normal.
 
   Partial_rows_log_events are written to the binary log sequentially, and
-  the replica assembles the events in the order they are binlogged. Each
+  the slave assembles the events in the order they are binlogged. Each
   Partial_rows_log_event stores its sequence number (seq_no) in the overall
   series of fragments, the total number of fragments needed to re-assemble the
   Rows_log_event (total_fragments), a uchar for flags for embedding extra data,
@@ -5656,7 +5656,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   of the underlying Rows_log_event.
 
   The cached Rows_log_event data is fragmented into Partial_rows_log_events as
-  follows. The primary will still generate a Rows_log_event to write to the
+  follows. The master will still generate a Rows_log_event to write to the
   binlog; however, during the actual writing process, the raw data of the
   rows event is split into fragments, each covering some continuous section of
   the rows data. A Partial_rows_log_event is created for each continuous

@@ -1,5 +1,5 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
-   Copyright (c) 2008, 2022, MariaDB
+/* Copyright (C) 2008, 2025 Codership Oy <http://www.codership.com>
+   Copyright (c) 2008, 2026, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -192,12 +192,24 @@ static bool filename_char(int const c)
   return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
 }
 
+/* return true if string is comma seprated list */
+static bool comma_char(int const c)
+{
+  return (c == ',');
+}
+
 /* return true if character can be a part of an address string */
 static bool address_char(int const c)
 {
   return filename_char(c) ||
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
 }
+
+/* return true if character can be a part of an address string list */
+static bool names_list(int const c)
+{
+  return address_char(c) || comma_char(c);
+}  
 
 static bool check_request_str(const char* const str,
                               bool (*check) (int c),
@@ -270,8 +282,19 @@ static void make_wsrep_defaults_file()
 
 bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  /* Allow empty value */
+  if (!var->save_result.string_value.str || var->save_result.string_value.length == 0)
+    return 0;
+
+  /* Check length */
+  if ((var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  {
+    goto err;
+  }
+
+  /* check also that address contains only accepted characters  */
+  if (check_request_str(var->save_result.string_value.str,
+                        address_char, false))
   {
     goto err;
   }
@@ -337,16 +360,29 @@ bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 {
-  if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN -1))) // safety
+  /* Check length */
+  if (!var->save_result.string_value.str ||
+      var->save_result.string_value.length > FN_REFLEN-1) // safety
+    goto err;
+
+  /* Allow empty value */
+  if (var->save_result.string_value.length == 0)
+    return 0;
+
+  /* check also that donor string contains only accepted characters  */
+  if (check_request_str(var->save_result.string_value.str,
+                        names_list, false))
   {
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
-             var->save_result.string_value.str ?
-             var->save_result.string_value.str : "NULL");
-    return 1;
+    goto err;
   }
 
   return 0;
+
+err:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+           var->save_result.string_value.str ?
+           var->save_result.string_value.str : "NULL");
+  return 1;
 }
 
 bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
@@ -1975,9 +2011,9 @@ static int sst_flush_tables(THD* thd)
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
     char *real_name= (char*) my_malloc(key_memory_WSREP, full_len, 0);
-    sprintf(real_name, "%s/%s", mysql_real_data_home, base_name);
+    snprintf(real_name, full_len, "%s/%s", mysql_real_data_home, base_name);
     char *tmp_name= (char*) my_malloc(key_memory_WSREP, full_len + 4, 0);
-    sprintf(tmp_name, "%s.tmp", real_name);
+    snprintf(tmp_name, full_len + 4, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
     if (0 == file)

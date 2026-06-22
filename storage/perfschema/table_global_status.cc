@@ -53,7 +53,7 @@ table_global_status::m_share=
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE global_status("
   "VARIABLE_NAME VARCHAR(64) not null comment 'The global status variable name.',"
-  "VARIABLE_VALUE VARCHAR(1024) comment 'The global status variable value.')") },
+  "VARIABLE_VALUE VARCHAR(4096) comment 'The global status variable value.')") },
   true, /* m_perpetual */
   false, /* m_optional */
   &m_share_state

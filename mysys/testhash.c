@@ -81,7 +81,7 @@ static int do_test()
   {
     n1=rnd(1000); n2=rnd(100); n3=rnd(MY_MIN(recant*5,MAX_RECORDS));
     record= (char*) my_malloc(reclength,MYF(MY_FAE));
-    sprintf(record,"%6d:%4d:%8d:Pos: %4d      ",n1,n2,n3,write_count);
+    snprintf(record, reclength, "%6d:%4d:%8d:Pos: %4d      ",n1,n2,n3,write_count);
     if (my_hash_insert(&hash,record))
     {
       printf("Error: %d in write at record: %d\n",my_errno,i);
@@ -102,7 +102,7 @@ static int do_test()
     for (j=rnd(1000) ; j>0 && key1[j] == 0 ; j--) ;
     if (j != 0)
     {
-      sprintf(key,"%6d",j);
+      snprintf(key, sizeof(key), "%6d",j);
       if (!(recpos=hash_search(&hash,key,0)))
       {
 	printf("can't find key1: \"%s\"\n",key);
@@ -137,7 +137,7 @@ static int do_test()
     for (j=rnd(1000) ; j>0 && key1[j] == 0 ; j--) ;
     if (j)
     {
-      sprintf(key,"%6d",j);
+      snprintf(key, sizeof(key), "%6d",j);
       if (!(recpos=hash_search(&hash,key,0)))
       {
 	printf("can't find key1: \"%s\"\n",key);
@@ -146,7 +146,7 @@ static int do_test()
       key1[atoi(recpos)]--;
       key_check=key_check-atoi(recpos)+n1;
       key1[n1]++;
-      sprintf(recpos,"%6d:%4d:%8d:XXX: %4d      ",n1,n2,n3,update);
+      snprintf(recpos, reclength, "%6d:%4d:%8d:XXX: %4d      ",n1,n2,n3,update);
       update++;
       if (hash_update(&hash,recpos,key,0))
       {
@@ -175,7 +175,7 @@ static int do_test()
   {
     HASH_SEARCH_STATE state;
     printf("- Testing identical read\n");
-    sprintf(key,"%6d",j);
+    snprintf(key, sizeof(key), "%6d",j);
     pos=1;
     if (!(recpos= hash_first(&hash, key, 0, &state)))
     {

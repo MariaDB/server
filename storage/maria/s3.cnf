@@ -6,7 +6,7 @@
 
 #
 # Uncomment to configure the S3 engine
-# See all options at https://mariadb.com/kb/en/s3-storage-engine/
+# See all options at https://mariadb.com/docs/server/server-usage/storage-engines/s3-storage-engine
 #
 #s3-host-name = s3.amazonaws.com
 #s3-protocol-version = Amazon

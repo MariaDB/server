@@ -26,6 +26,7 @@ MY_ADD_TESTS(
   my_malloc
   my_rdtsc
   my_tzinfo
+  my_symlink
   queues
   stack_allocation
   stacktrace

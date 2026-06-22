@@ -1,5 +1,5 @@
 /* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2025, MariaDB
+   Copyright (c) 2020, 2026, MariaDB
    Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
@@ -1860,14 +1860,30 @@ bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
       FOREIGN_KEY_INFO *f_key_info;
       List<FOREIGN_KEY_INFO> f_key_list;
 
-      table->table->file->get_foreign_key_list(thd, &f_key_list);
-      List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-      while ((f_key_info= it++))
+      /* find FK parents */
       {
-        WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
-        keys->push_back(wsrep_prepare_key_for_toi(
+        table->table->file->get_foreign_key_list(thd, &f_key_list);
+        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+        while ((f_key_info= it++))
+        {
+          WSREP_DEBUG("appended parent FK key %s", f_key_info->referenced_table->str);
+          keys->push_back(wsrep_prepare_key_for_toi(
             f_key_info->referenced_db->str, f_key_info->referenced_table->str,
             wsrep::key::shared));
+        }
+      }
+
+      /* find FK children */
+      {
+        table->table->file->get_parent_foreign_key_list(thd, &f_key_list);
+        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+        while ((f_key_info= it++))
+        {
+          WSREP_DEBUG("appended child FK key %s", f_key_info->foreign_table->str);
+          keys->push_back(wsrep_prepare_key_for_toi(
+            f_key_info->foreign_db->str, f_key_info->foreign_table->str,
+            wsrep::key::shared));
+        }
       }
     }
   }
@@ -4430,4 +4446,27 @@ void wsrep_report_query_interrupted(const THD *thd, const char *file, const int 
                         wsrep::provider::to_string(status).c_str(),
                         thd->killed);
   }
+}
+
+const std::string wsrep_get_server_uuid()
+{
+  std::string server_uuid;
+  const wsrep::gtid& gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+  std::ostringstream uuid_oss;
+  uuid_oss <<  gtid.id();
+  server_uuid= uuid_oss.str();
+  return server_uuid;
+}
+
+const std::string wsrep_get_checkpoint()
+{
+  const Wsrep_server_state& server_state= Wsrep_server_state::instance();
+  const wsrep::gtid& gtid= server_state.provider().last_committed_gtid();
+  std::ostringstream gtid_oss;
+  gtid_oss << gtid;
+
+  // Build checkpoint using wsrep_start_posistion format
+  std::string wsrep_checkpoint= gtid_oss.str();
+
+  return wsrep_checkpoint;
 }

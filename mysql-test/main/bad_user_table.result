@@ -1,0 +1,30 @@
+#
+# MDEV-4462 mysqld gets SIGFPE when mysql.user table is empty
+#
+create table t1 as select * from mysql.global_priv;
+truncate table mysql.global_priv;
+flush privileges;
+connect(localhost,u1,,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail,localhost,u1;
+Got one of the listed errors
+insert mysql.global_priv select * from t1;
+drop table t1;
+flush privileges;
+# switching from mysql.global_priv to mysql.user
+truncate table mysql.user;
+flush privileges;
+connect(localhost,u1,,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail,localhost,u1;
+Got one of the listed errors
+# switching back from mysql.user to mysql.global_priv
+#
+# MDEV-39266 Stack Overflow via alloca() in Privilege Table JSON Parser
+#
+INSERT INTO mysql.global_priv (Host, User, Priv) VALUES
+('localhost', 'MDEV-39266', CONCAT(
+'{"access":0,"plugin":"mysql_native_password","authentication_string":"',
+REPEAT('X', 400000),
+'","password_last_changed":0}'));
+FLUSH PRIVILEGES;
+DROP USER `MDEV-39266`@localhost;
+# End if 10.6 tests

@@ -24,20 +24,19 @@ SET @@global.wsrep_sst_receive_address=default;
 SELECT @@global.wsrep_sst_receive_address;
 SET @@global.wsrep_sst_receive_address='192.168.2.254';
 SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address=NULL;
+SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address='';
+SELECT @@global.wsrep_sst_receive_address;
 
 --echo
 --echo # invalid values
-SELECT @@global.wsrep_sst_receive_address;
---error ER_WRONG_VALUE_FOR_VAR
-SET @@global.wsrep_sst_receive_address=NULL;
 SELECT @@global.wsrep_sst_receive_address;
 # Currently there is no strict checking performed for wsrep_sst_receive_address
 # so following values just pass through.
 SET @@global.wsrep_sst_receive_address='OFF';
 SELECT @@global.wsrep_sst_receive_address;
 SET @@global.wsrep_sst_receive_address=ON;
-SELECT @@global.wsrep_sst_receive_address;
-SET @@global.wsrep_sst_receive_address='';
 SELECT @@global.wsrep_sst_receive_address;
 SET @@global.wsrep_sst_receive_address='junk';
 SELECT @@global.wsrep_sst_receive_address;

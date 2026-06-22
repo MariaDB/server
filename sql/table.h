@@ -95,6 +95,7 @@ class Opt_hints_table;
 typedef ulonglong nested_join_map;
 
 #define VIEW_MD5_LEN 32
+#define MD5_BUFF_LENGTH (VIEW_MD5_LEN + 1) /* hex digest + NUL */
 
 
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
@@ -1734,7 +1735,7 @@ public:
   {
     read_set= read_set_arg;
     if (file)
-      file->column_bitmaps_signal();
+      file->column_bitmaps_signal(false);
   }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
@@ -1742,7 +1743,7 @@ public:
     read_set= read_set_arg;
     write_set= write_set_arg;
     if (file)
-      file->column_bitmaps_signal();
+      file->column_bitmaps_signal(false);
   }
   inline void column_bitmaps_set_no_signal(MY_BITMAP *read_set_arg,
                                            MY_BITMAP *write_set_arg)
@@ -3051,6 +3052,7 @@ struct TABLE_LIST
   /* Hints for query block of this table. */
   Opt_hints_qb *opt_hints_qb;
 
+  /* buffer must be at least MD5_BUFF_LENGTH bytes long */
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
@@ -3672,12 +3674,14 @@ extern Lex_ident_table MYSQL_PROC_NAME;
 
 inline bool is_infoschema_db(const LEX_CSTRING *name)
 {
-  return INFORMATION_SCHEMA_NAME.streq(*name);
+  DBUG_ASSERT(name->str || !name->length);
+  return name->length && INFORMATION_SCHEMA_NAME.streq(*name);
 }
 
 inline bool is_perfschema_db(const LEX_CSTRING *name)
 {
-  return PERFORMANCE_SCHEMA_DB_NAME.streq(*name);
+  DBUG_ASSERT(name->str || !name->length);
+  return name->length && PERFORMANCE_SCHEMA_DB_NAME.streq(*name);
 }
 
 inline void mark_as_null_row(TABLE *table)

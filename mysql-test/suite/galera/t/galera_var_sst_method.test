@@ -1,0 +1,36 @@
+#
+# Check the handling of @@wsrep_sst_method
+#
+--source include/galera_cluster.inc
+
+--connection node_1
+SET @sst_method_orig=@@GLOBAL.wsrep_sst_method;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_method='mariabackup;';
+select @@wsrep_sst_method;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_method='mariabackup\'';
+select @@wsrep_sst_method;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_method='mariabackup&';
+select @@wsrep_sst_method;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_method='mariabackup|';
+select @@wsrep_sst_method;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_method=NULL;
+select @@wsrep_sst_method;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_method='';
+select @@wsrep_sst_method;
+
+set global wsrep_sst_method='mariabackup';
+select @@wsrep_sst_method;
+set global wsrep_sst_method='rsync';
+select @@wsrep_sst_method;
+
+--disable_query_log
+SET GLOBAL wsrep_sst_method = @sst_method_orig;
+--enable_query_log
+
+--source include/galera_end.inc

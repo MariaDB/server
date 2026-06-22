@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
     for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
     if (j != 0)
     {
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (heap_rkey(file,record,0,key,6, HA_READ_KEY_EXACT))
       {
 	printf("can't find key1: \"%s\"\n",(char*) key);
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
       for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
       if (!key1[j])
 	continue;
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (heap_rkey(file,record,0,key,6, HA_READ_KEY_EXACT))
       {
 	printf("can't find key1: \"%s\"\n",(char*) key);
@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
   for (i=999, dupp_keys=found_key=0 ; i>0 ; i--)
   {
     if (key1[i] > dupp_keys) { dupp_keys=key1[i]; found_key=i; }
-    sprintf((char*) key,"%6d",found_key);
+    snprintf((char*) key, sizeof(key), "%6d",found_key);
   }
 
   if (dupp_keys > 3)
@@ -461,7 +461,7 @@ int main(int argc, char *argv[])
   for (i=999, dupp_keys=found_key=0 ; i>0 ; i--)
   {
     if (key1[i] > dupp_keys) { dupp_keys=key1[i]; found_key=i; }
-    sprintf((char*) key,"%6d",found_key);
+    snprintf((char*) key, sizeof(key), "%6d",found_key);
   }
   printf("- Read through all keys with first-next-last-prev\n");
   ant=0;
@@ -636,8 +636,8 @@ static void make_record(uchar *record, uint n1, uint n2, uint n3,
 			const char *mark, uint count)
 {
   bfill(record,reclength,' ');
-  sprintf((char*) record,"%6d:%4d:%8d:%3.3s: %4d",
-	  n1,n2,n3,mark,count);
+  snprintf((char*) record, reclength, "%6d:%4d:%8d:%3.3s: %4d",
+	   n1,n2,n3,mark,count);
   record[37]='A';				/* Store A in null key */
   record[38]=1;					/* set as null */
 }

@@ -2226,7 +2226,7 @@ rpl_binlog_state::append_state(String *str)
 const char*
 rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
                               rpl_binlog_state_base *init_state,
-                              char* errbuf)
+                              char* errbuf, size_t errbuf_size)
 {
   DYNAMIC_ARRAY domain_unique; // sequence (unsorted) of unique element*:s
   rpl_binlog_state::element* domain_unique_buffer[16];
@@ -2259,24 +2259,24 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
   */
 
   errbuf[0]= 0;
-  init_state->iterate([this, errbuf](const rpl_gtid *gtid) {
+  init_state->iterate([this, errbuf, errbuf_size](const rpl_gtid *gtid) {
     rpl_gtid* rb_state_gtid= find_nolock(gtid->domain_id, gtid->server_id);
     if (!rb_state_gtid)
-      sprintf(errbuf,
-              "missing gtids from the '%u-%u' domain-server pair which is "
-              "referred to in the gtid list describing an earlier state. Ignore "
-              "if the domain ('%u') was already explicitly deleted",
-              gtid->domain_id, gtid->server_id,
-              gtid->domain_id);
+      snprintf(errbuf, errbuf_size,
+               "missing gtids from the '%u-%u' domain-server pair which is "
+               "referred to in the gtid list describing an earlier state. Ignore "
+               "if the domain ('%u') was already explicitly deleted",
+               gtid->domain_id, gtid->server_id,
+               gtid->domain_id);
     else if (rb_state_gtid->seq_no < gtid->seq_no)
-      sprintf(errbuf,
-              "having a gtid '%u-%u-%llu' which is less than "
-              "the '%u-%u-%llu' of the gtid list describing an earlier state. "
-              "The state may have been affected by manually injecting "
-              "a lower sequence number gtid or via replication",
-              rb_state_gtid->domain_id, rb_state_gtid->server_id,
-              rb_state_gtid->seq_no, gtid->domain_id,
-              gtid->server_id, gtid->seq_no);
+      snprintf(errbuf, errbuf_size,
+               "having a gtid '%u-%u-%llu' which is less than "
+               "the '%u-%u-%llu' of the gtid list describing an earlier state. "
+               "The state may have been affected by manually injecting "
+               "a lower sequence number gtid or via replication",
+               rb_state_gtid->domain_id, rb_state_gtid->server_id,
+               rb_state_gtid->seq_no, gtid->domain_id,
+               gtid->server_id, gtid->seq_no);
     if (strlen(errbuf)) // use strlen() as cheap flag
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BINLOG_CANT_DELETE_GTID_DOMAIN,
@@ -2318,9 +2318,10 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
         init_state->find_nolock(d_gtid->domain_id, d_gtid->server_id);
       if (!state_gtid || state_gtid->seq_no != d_gtid->seq_no)
       {
-        sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
-                "being deleted. Make sure to first purge those files",
-                *ptr_domain_id);
+        snprintf(errbuf, errbuf_size,
+                 "binlog files may contain gtids from the domain ('%u') "
+                 "being deleted. Make sure to first purge those files",
+                 *ptr_domain_id);
         errmsg= errbuf;
         goto end;
       }

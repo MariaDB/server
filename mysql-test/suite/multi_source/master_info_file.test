@@ -33,4 +33,4 @@
 --let SEARCH_PATTERN= \\n$SERVER_MYPORT_2\\n
 --source include/search_pattern_in_file.inc
 
-RESET REPLICA 'named' ALL;
+RESET SLAVE 'named' ALL;

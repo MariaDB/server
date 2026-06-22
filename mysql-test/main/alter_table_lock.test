@@ -33,7 +33,7 @@ unlock tables;
 drop table t1;
 
 --echo #
---echo # MDEV-29056 Replica SQL thread stops with 1846 error on ALTER ONLINE after LOCK WRITE
+--echo # MDEV-29056 Slave SQL thread stops with 1846 error on ALTER ONLINE after LOCK WRITE
 --echo #
 create table t1 (c varchar(1), key (c)) engine=innodb;
 insert into t1 (c) values ('g') ;

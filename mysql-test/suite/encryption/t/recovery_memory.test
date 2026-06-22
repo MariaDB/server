@@ -1,6 +1,7 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/have_mariabackup_binary.inc
 --source filekeys_plugin.inc
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;

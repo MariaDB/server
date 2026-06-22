@@ -213,7 +213,7 @@ ANALYZE
             "r_filtered": 60
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "1KiB",
           "join_type": "BNL",
           "r_loops": 20,
           "r_filtered": 100,
@@ -275,7 +275,7 @@ ANALYZE
             "r_filtered": 60
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "1KiB",
           "join_type": "BNL",
           "attached_condition": "tbl1.c > tbl2.c",
           "r_loops": 20,
@@ -1247,7 +1247,7 @@ ANALYZE
             "r_filtered": 70
           },
           "buffer_type": "flat",
-          "buffer_size": "1Kb",
+          "buffer_size": "1KiB",
           "join_type": "BNL",
           "attached_condition": "t10.b = t11.b",
           "r_loops": 100,
@@ -1319,7 +1319,7 @@ ANALYZE
             "r_filtered": 70
           },
           "buffer_type": "flat",
-          "buffer_size": "3Kb",
+          "buffer_size": "3KiB",
           "join_type": "BNLH",
           "attached_condition": "t10.b = t11.b",
           "r_loops": 100,

@@ -25,7 +25,7 @@
 #  Tool used for executing a suite of .test files
 #
 #  See the "MySQL Test framework manual" for more information
-#  https://mariadb.com/kb/en/library/mysqltest/
+#  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 #
 #
 ##############################################################################
@@ -1648,6 +1648,7 @@ sub command_line_setup {
 
   # Add leak suppressions
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
+     . ($ENV{LSAN_OPTIONS} ? ":$ENV{LSAN_OPTIONS}" : "")
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
@@ -2284,6 +2285,14 @@ sub environment_setup {
     mtr_exe_exists("$bindir/extra$multiconfig/my_print_defaults",
 		   "$path_client_bindir/my_print_defaults");
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
+
+  # ----------------------------------------------------
+  # mariadb-migrate-config-file
+  # ----------------------------------------------------
+  my $exe_mariadb_migrate_config_file=
+    mtr_exe_maybe_exists("$bindir/extra$multiconfig/mariadb-migrate-config-file",
+		   "$path_client_bindir/mariadb-migrate-config-file");
+  $ENV{'MARIADB_MIGRATE_CONFIG_FILE'}= native_path($exe_mariadb_migrate_config_file) if $exe_mariadb_migrate_config_file;
 
   # ----------------------------------------------------
   # myisam tools
@@ -3128,6 +3137,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--loose-innodb-log-file-size=10M");
   mtr_add_arg($args, "--loose-innodb-fast-shutdown=0");
   mtr_add_arg($args, "--disable-sync-frm");
+  mtr_add_arg($args, "--debug-no-sync");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");

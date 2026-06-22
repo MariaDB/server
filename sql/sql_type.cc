@@ -4680,6 +4680,20 @@ Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
   return new (thd->mem_root) Item_copy_timestamp(thd, item);
 }
 
+
+Item_copy *
+Type_handler_float::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_float(thd, item);
+}
+
+
+Item_copy *
+Type_handler_double::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_double(thd, item);
+}
+
 /*************************************************************************/
 
 /*

@@ -136,6 +136,11 @@ SET DEBUG_SYNC = "RESET";
 --connection node_2a
 STOP SLAVE;
 RESET SLAVE;
+# RESET SLAVE does not clear gtid_slave_pos. node_3 resets its binlog
+# (RESET MASTER) below, so without clearing the slave position here node_2
+# would skip the next run's events (e.g. with --repeat) and time out waiting
+# for the replicated table.
+SET GLOBAL gtid_slave_pos = "";
 
 DROP TABLE t1;
 

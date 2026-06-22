@@ -1,0 +1,13 @@
+#
+# MDEV-33170 ASAN errors upon CONVERT TABLE TO PARTITION with query cache
+#
+SET @qcache= @@global.query_cache_type;
+SET GLOBAL query_cache_type= 1;
+CREATE TABLE t (a INT) PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1));
+CREATE TABLE t1 (a INT);
+ALTER TABLE t CONVERT TABLE t1 TO PARTITION pn VALUES IN (2);
+DROP TABLE IF EXISTS t1, t;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+SET GLOBAL query_cache_type= @qcache;
+# End of 10.11 tests

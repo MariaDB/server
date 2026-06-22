@@ -54,3 +54,42 @@ InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption
 SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;
 NAME	FILE_SIZE
 innodb_system	3145728
+#
+# MDEV-38412 System tablespace fails to shrink due to legacy tables
+#
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/old_datadir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/old_datadir --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/old_datadir --debug_dbug=d,create_sys_tablespaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE SPACE= 0;
+NAME
+SYS_FOREIGN
+SYS_FOREIGN_COLS
+SYS_TABLESPACES
+SYS_VIRTUAL
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME LIKE 'DUMMY_IND%';
+NAME
+DUMMY_IND
+DUMMY_IND_1
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE NAME LIKE 'DUMMY_ID%';
+NAME
+DUMMY_ID
+DUMMY_ID_1
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'DUMMY_ID%';
+NAME
+DUMMY_ID
+DUMMY_ID_1
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/old_datadir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/old_datadir --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/old_datadir --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink --innodb_fast_shutdown=0
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE SPACE= 0;
+NAME
+SYS_FOREIGN
+SYS_FOREIGN_COLS
+SYS_VIRTUAL
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME LIKE 'DUMMY_IND%';
+NAME
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE NAME LIKE 'DUMMY_ID%';
+NAME
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'DUMMY_ID%';
+NAME
+FOUND 1 /InnoDB: Found an unknown table SYS_TABLESPACES/ in mysqld.1.err
+FOUND 1 /InnoDB: Found orphaned index for table_id .*/ in mysqld.1.err
+FOUND 1 /InnoDB: Dropping 2 orphaned table/ in mysqld.1.err
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/old_datadir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/old_datadir --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/old_datadir --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink
+# restart

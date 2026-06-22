@@ -158,7 +158,7 @@ Note	1003	select coalesce(1) AS `COALESCE(1)`,coalesce(1.0) AS `COALESCE(1.0)`,c
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(1)` int(1) NOT NULL,
+  `COALESCE(1)` int(2) NOT NULL,
   `COALESCE(1.0)` decimal(2,1) NOT NULL,
   `COALESCE('a')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `COALESCE(1,1.0)` decimal(2,1) NOT NULL,
@@ -589,6 +589,42 @@ case 'X' when 1/0 then 1 when 'X' then 2 else 3 end
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'X'
 Warning	1365	Division by 0
+#
+# MDEV-23278: Incorrect Calculation with AVG() Function
+#
+create table avg_calc_test (
+id int(11) not null auto_increment,
+name varchar(255) default null,
+primary key (id)
+) auto_increment=1 default charset=latin1;
+insert into avg_calc_test (name) values ('orange'), ('blue'), ('black'), ('orange'), ('black');
+select * from (
+select
+avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+from avg_calc_test
+) t;
+metric_val
+2.0000
+create table t1 as
+select
+avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+from avg_calc_test;
+select * from t1;
+metric_val
+2.0000
+create or replace table t1 as
+select
+avg(least(1,2)) as metric_val
+from avg_calc_test;
+select * from t1;
+metric_val
+1.0000
+create or replace table t1 as
+select avg(coalesce(1,2)) as metric_val from avg_calc_test;
+select * from t1;
+metric_val
+1.0000
+drop table avg_calc_test, t1;
 # End of 10.11 test
 #
 # MDEV-36716 A case expression with ROW arguments in THEN crashes

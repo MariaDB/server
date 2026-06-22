@@ -230,11 +230,11 @@ int collect_longlong(void *element, element_count count, void *info);
 class field_longlong: public field_info
 {
   longlong min_arg, max_arg;
-  longlong sum, sum_sqr;
+  double sum, sum_sqr;
 
 public:
   field_longlong(Item* a, analyse* b) :field_info(a,b), 
-    min_arg(0), max_arg(0), sum(0), sum_sqr(0)
+    min_arg(0), max_arg(0), sum(0), sum_sqr(0.0)
   {
     init_tree(&tree, 0, 0, sizeof(longlong), compare_longlong2, NULL, NULL,
               MYF(MY_THREAD_SPECIFIC));
@@ -259,9 +259,9 @@ public:
       s->set_real((double) 0.0, 1,my_thd_charset);
     else
     {
-      double tmp2 = ((sum_sqr - sum * sum / (tmp - nulls)) /
-		    (tmp - nulls));
-      s->set_real(((double) tmp2 <= 0.0 ? 0.0 : sqrt(tmp2)), DEC_IN_AVG,my_thd_charset);
+      double tmp2 = (sum_sqr - sum * sum / (tmp - nulls)) /
+		    (tmp - nulls);
+      s->set_real(tmp2 <= 0.0 ? 0.0 : sqrt(tmp2), DEC_IN_AVG,my_thd_charset);
     }
     return s;
   }
@@ -276,7 +276,7 @@ int collect_ulonglong(void *element, element_count count, void *info);
 class field_ulonglong: public field_info
 {
   ulonglong min_arg, max_arg;
-  ulonglong sum, sum_sqr;
+  double sum, sum_sqr;
 
 public:
   field_ulonglong(Item* a, analyse * b) :field_info(a,b),
@@ -294,8 +294,8 @@ public:
     if (!(rows - nulls))
       s->set_real((double) 0.0, 1,my_thd_charset);
     else
-      s->set_real((ulonglong2double(sum) / ulonglong2double(rows - nulls)),
-	     DEC_IN_AVG,my_thd_charset);
+      s->set_real(sum / ulonglong2double(rows - nulls),
+                  DEC_IN_AVG, my_thd_charset);
     return s;
   }
   String *std(String *s, ha_rows rows) override
@@ -305,10 +305,10 @@ public:
       s->set_real((double) 0.0, 1,my_thd_charset);
     else
     {
-      double tmp2 = ((ulonglong2double(sum_sqr) - 
-		     ulonglong2double(sum * sum) / (tmp - nulls)) /
-		     (tmp - nulls));
-      s->set_real(((double) tmp2 <= 0.0 ? 0.0 : sqrt(tmp2)), DEC_IN_AVG,my_thd_charset);
+      double tmp2 = (sum_sqr -
+		    (sum * sum) / (tmp - nulls)) /
+		    (tmp - nulls);
+      s->set_real(tmp2 <= 0.0 ? 0.0 : sqrt(tmp2), DEC_IN_AVG,my_thd_charset);
     }
     return s;
   }

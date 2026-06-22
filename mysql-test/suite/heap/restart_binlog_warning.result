@@ -1,0 +1,16 @@
+CREATE TABLE t ENGINE=memory AS SELECT 1;
+CHANGE MASTER TO master_host='127.0.0.1';
+# restart: --read-only=TRUE --skip-slave-start
+SELECT * FROM t;
+1
+FOUND 1 /\[Warning\] .+?memory table.+?TRUNCATE/ in mysqld.1.err
+RESET SLAVE ALL;
+CHANGE MASTER 'pseudo-upstream' TO master_host='127.0.0.1';
+# restart: --read-only=TRUE --skip-slave-start
+SELECT * FROM t;
+1
+FOUND 2 /\[Warning\] .+?memory table.+?TRUNCATE/ in mysqld.1.err
+SET @@GLOBAL.read_only= FALSE;
+RESET SLAVE 'pseudo-upstream' ALL;
+DROP TABLE t;
+CALL mtr.add_suppression("\[Warning\] .+?memory table.+?TRUNCATE");

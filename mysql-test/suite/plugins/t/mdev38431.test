@@ -14,7 +14,6 @@
 --echo #
 --echo # Setup
 --echo #
-eval INSTALL PLUGIN IF NOT EXISTS cleartext_plugin_server SONAME '$PLUGIN_AUTH';
 CREATE DATABASE mdev38431_db;
 
 --echo #
@@ -58,4 +57,3 @@ GRANT ALL ON *.* TO verylonguser;
 --source include/wait_until_count_sessions.inc
 DROP USER shortuser, longuser, verylonguser;
 DROP DATABASE mdev38431_db;
-# Note: Do not uninstall cleartext_plugin_server as it was pre-loaded by MTR

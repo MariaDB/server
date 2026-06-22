@@ -6,12 +6,12 @@
 
 create table t1 (`a` blob);
 insert into t1 values("hello world"),("Hello mars"),(NULL);
-select * into outfile "../../tmp/outfile-test.1" from t1;
-select load_file('../../tmp/outfile-test.1');
-select * into dumpfile "../../tmp/outfile-test.2" from t1 limit 1;
-select load_file('../../tmp/outfile-test.2');
-select * into dumpfile "../../tmp/outfile-test.3" from t1 where a is null;
-select load_file('../../tmp/outfile-test.3');
+eval select * into outfile "../../tmp/outfile-test.1" from t1;
+select load_file(concat(@tmpdir,"/outfile-test.1"));
+eval select * into dumpfile "../../tmp/outfile-test.2" from t1 limit 1;
+select load_file(concat(@tmpdir,"/outfile-test.2"));
+eval select * into dumpfile "../../tmp/outfile-test.3" from t1 where a is null;
+select hex(load_file(concat(@tmpdir,"/outfile-test.3")));
 
 # the following should give errors
 
@@ -83,8 +83,8 @@ create user user_1@localhost;
 grant all on mysqltest.* to user_1@localhost;
 connect (con28181_1,localhost,user_1,,mysqltest);
 
---error ER_ACCESS_DENIED_ERROR
-select schema_name
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+eval select schema_name
 into outfile "../../tmp/outfile-test.4"
 fields terminated by ',' optionally enclosed by '"'
  lines terminated by '\n'
@@ -110,3 +110,24 @@ use test;
 revoke all privileges on *.* from user_1@localhost;
 drop user user_1@localhost;
 drop database mysqltest;
+
+--echo #
+--echo # MDEV-39493 FILE privilege isn't checked for derived
+--echo #
+
+create user u@localhost;
+grant select on *.* to u@localhost;
+connect u,localhost,u;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select 'hello' into outfile '$MYSQLTEST_VARDIR/tmp/3701920.out';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select 'hello' into dumpfile '$MYSQLTEST_VARDIR/tmp/3701920.dump';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select * into outfile '$MYSQLTEST_VARDIR/tmp/3701920.out' from (select 'hello') t;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select * into dumpfile '$MYSQLTEST_VARDIR/tmp/3701920.dump' from (select 'hello') t;
+disconnect u;
+connection default;
+drop user u@localhost;
+
+--echo # End of 10.6 tests

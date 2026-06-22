@@ -1,0 +1,63 @@
+CREATE TABLE t1 (id INT PRIMARY KEY, col1 VARCHAR(100)) ENGINE=DuckDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, col1 BLOB) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1, 'A'), (2, x'41'), (3, b'01000001');
+INSERT INTO t2 VALUES (1, 'A'), (2, x'41'), (3, b'01000001'), (4, 0xFF), (5, x'FF'), (6, b'11111111');
+SELECT * FROM t1 WHERE col1 = 'A';
+id	col1
+1	A
+2	A
+3	A
+SELECT * FROM t1 WHERE col1 = x'41';
+id	col1
+1	A
+2	A
+3	A
+SELECT * FROM t1 WHERE col1 = b'01000001';
+id	col1
+1	A
+2	A
+3	A
+SELECT * FROM t2 WHERE col1 = 'A';
+id	col1
+1	A
+2	A
+3	A
+SELECT * FROM t2 WHERE col1 = x'41';
+id	col1
+1	A
+2	A
+3	A
+SELECT * FROM t2 WHERE col1 = b'01000001';
+id	col1
+1	A
+2	A
+3	A
+SELECT id, hex(col1) FROM t2 WHERE col1 = 0xFF;
+ERROR HY000: [DuckDB] Parser Error: syntax error at or near "xFF"
+
+LINE 1: SELECT id, hex(col1) FROM t2 WHERE col1 = 0xFF
+                                                   ^.
+SELECT id, hex(col1) FROM t2 WHERE col1 = x'FF';
+id	hex(col1)
+4	FF
+5	FF
+6	FF
+SELECT id, hex(col1) FROM t2 WHERE col1 = b'11111111';
+id	hex(col1)
+4	FF
+5	FF
+6	FF
+DELETE FROM t1 WHERE col1 = x'41';
+SELECT * FROM t1;
+id	col1
+DELETE FROM t2 WHERE col1 = x'41';
+SELECT id, hex(col1) FROM t2;
+id	hex(col1)
+4	FF
+5	FF
+6	FF
+DELETE FROM t2 WHERE col1 = x'FF';
+SELECT id, hex(col1) FROM t2;
+id	hex(col1)
+DROP TABLE t1;
+DROP TABLE t2;

@@ -3980,15 +3980,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       lex->exchange != NULL implies SELECT .. INTO OUTFILE and this
       requires FILE_ACL access.
     */
-    privilege_t privileges_requested= lex->exchange ? SELECT_ACL | FILE_ACL :
-                                                      SELECT_ACL;
+    if (lex->exchange && (res= check_global_access(thd, FILE_ACL, false)))
+      break;
 
     if (all_tables)
-      res= check_table_access(thd,
-                              privileges_requested,
-                              all_tables, FALSE, UINT_MAX, FALSE);
+      res= check_table_access(thd, SELECT_ACL, all_tables, 0, UINT_MAX, 0);
     else
-      res= check_access(thd, privileges_requested, any_db.str, NULL,NULL,0,0);
+      res= check_access(thd, SELECT_ACL, any_db.str, NULL,NULL, 0, 0);
 
     if (!res)
       res= execute_sqlcom_select(thd, all_tables);
@@ -8062,6 +8060,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))
     DBUG_RETURN(1);
+  order->in_field_list= false;
   list.insert(order, &order->next);
   DBUG_RETURN(0);
 }

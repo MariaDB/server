@@ -1000,7 +1000,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   if (sort_cond)
     sort_cond->walk(&Item::register_field_in_read_map,
                     sort_form, WALK_SUBQUERY);
-  sort_form->file->column_bitmaps_signal();
+  sort_form->file->column_bitmaps_signal(false);
 
   if (quick_select)
   {

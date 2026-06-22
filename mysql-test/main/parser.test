@@ -2064,14 +2064,21 @@ DELIMITER ;$$
 
 --disable_prepare_warnings
 
---echo #
 --echo # End of 10.6 tests
---echo #
-
 
 --echo #
---echo # Start of 11.7 tests
+--echo # MDEV-39654 schema-qualified unquoted table name starting with digit fails to parse
 --echo #
+
+create table 1a (1b int);
+create table `select` (1c int);
+
+select 1b from test.1a;
+select select.1c from test.select;
+
+drop table 1a, `select`;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
@@ -2111,6 +2118,4 @@ END;
 $$
 DELIMITER ;$$
 
---echo #
 --echo # End of 11.7 tests
---echo #

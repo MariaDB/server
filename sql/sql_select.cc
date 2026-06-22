@@ -252,19 +252,19 @@ static int join_ft_read_first(JOIN_TAB *tab);
 static int join_ft_read_next(READ_RECORD *info);
 int join_read_always_key_or_null(JOIN_TAB *tab);
 int join_read_next_same_or_null(READ_RECORD *info);
-static COND *make_cond_for_table(THD *thd, Item *cond,table_map table,
-                                 table_map used_table,
-                                 int join_tab_idx_arg,
-                                 bool exclude_expensive_cond,
-                                 bool retain_ref_cond);
-static COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
-                                           Item *cond,
-                                           table_map tables,
-                                           table_map used_table,
-                                           int join_tab_idx_arg,
-                                           bool exclude_expensive_cond,
-                                           bool retain_ref_cond,
-                                           bool is_top_and_level);
+COND *make_cond_for_table(THD *thd, Item *cond,table_map table,
+                         table_map used_table,
+                         int join_tab_idx_arg,
+                         bool exclude_expensive_cond,
+                         bool retain_ref_cond);
+COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
+                                    Item *cond,
+                                    table_map tables,
+                                    table_map used_table,
+                                    int join_tab_idx_arg,
+                                    bool exclude_expensive_cond,
+                                    bool retain_ref_cond,
+                                    bool is_top_and_level);
 
 static Item* part_of_refkey(TABLE *form,Field *field);
 static bool test_if_cheaper_ordering(bool in_join_optimizer,
@@ -1172,7 +1172,7 @@ int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
     if (!table->table)
       continue;
     vers_select_conds_t &conds= table->period_conditions;
-    if (!table->table->s->period.name.streq(conds.name))
+    if (!table->table->s->period.name.streq_safe(conds.name))
     {
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
       if (arena)
@@ -7718,7 +7718,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
 {
   uint	and_level,i;
   KEY_FIELD *key_fields, *end, *field;
-  uint sz;
+  size_t sz;
   uint m= MY_MAX(select_lex->max_equal_elems,1);
   DBUG_ENTER("update_ref_and_keys");
   DBUG_PRINT("enter", ("normal_tables: %llx", normal_tables));
@@ -14402,15 +14402,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         {
           Json_writer_object trace_const_cond(thd);
           trace_const_cond.add("condition_on_constant_tables", const_cond);
-          if (const_cond->is_expensive())
+          if (const_cond->can_eval_in_optimize())
           {
-            if (unlikely(trace_const_cond.trace_started()))
-              trace_const_cond.
-                add("evalualted", "false").
-                add("cause", "expensive cond");
-          }
-          else
-          {
+
             bool const_cond_result;
             {
               Json_writer_array a(thd, "computing_condition");
@@ -14426,6 +14420,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
+          }
+          else
+          {
+            trace_const_cond.add("evaluated", "false")
+                            .add("cause", "expensive cond");
           }
           join->exec_const_cond= const_cond;
         }
@@ -22076,8 +22075,8 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = temp_pool_set_next();
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
-            current_pid, m_temp_pool_slot);
+    snprintf(path, sizeof(path), "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
+             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
@@ -22618,7 +22617,7 @@ bool Create_tmp_table::finalize(THD *thd,
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
-      else
+      else if (orig_field->default_value == NULL)
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
@@ -26641,7 +26640,7 @@ bool test_if_ref(Item *root_cond, Item_field *left_item,Item *right_item)
      make_cond_for_info_schema() uses similar algorithm as well.
 */ 
 
-static Item *
+Item *
 make_cond_for_table(THD *thd, Item *cond, table_map tables,
                     table_map used_table,
                     int join_tab_idx_arg,
@@ -26655,7 +26654,7 @@ make_cond_for_table(THD *thd, Item *cond, table_map tables,
 }
 
 
-static Item *
+Item *
 make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                               table_map tables, table_map used_table,
                               int join_tab_idx_arg,

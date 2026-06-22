@@ -2301,6 +2301,20 @@ void free_underlaid_joins(THD *thd, SELECT_LEX *select);
 bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
                          select_result *result);
 
+COND *make_cond_for_table(THD *thd, Item *cond, table_map tables,
+                          table_map used_table,
+                          int join_tab_idx_arg,
+                          bool exclude_expensive_cond,
+                          bool retain_ref_cond);
+COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
+                                    Item *cond,
+                                    table_map tables,
+                                    table_map used_table,
+                                    int join_tab_idx_arg,
+                                    bool exclude_expensive_cond,
+                                    bool retain_ref_cond,
+                                    bool is_top_and_level);
+
 /*
   General routine to change field->ptr of a NULL-terminated array of Field
   objects. Useful when needed to call val_int, val_str or similar and the

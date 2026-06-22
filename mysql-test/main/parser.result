@@ -2261,12 +2261,18 @@ LEAVE sysdate;
 END WHILE ;
 END;
 $$
-#
 # End of 10.6 tests
 #
+# MDEV-39654 schema-qualified unquoted table name starting with digit fails to parse
 #
-# Start of 11.7 tests
-#
+create table 1a (1b int);
+create table `select` (1c int);
+select 1b from test.1a;
+1b
+select select.1c from test.select;
+1c
+drop table 1a, `select`;
+# End of 10.11 tests
 #
 # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
 #
@@ -2312,6 +2318,4 @@ END;
 $$
 nocopy
 1
-#
 # End of 11.7 tests
-#

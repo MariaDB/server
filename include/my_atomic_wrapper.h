@@ -63,6 +63,10 @@ public:
                                std::memory_order o1= std::memory_order_relaxed,
                                std::memory_order o2= std::memory_order_relaxed)
   { return m.compare_exchange_strong(i1, i2, o1, o2); }
+  bool compare_exchange_weak(Type& i1, const Type i2,
+                             std::memory_order o1= std::memory_order_relaxed,
+                             std::memory_order o2= std::memory_order_relaxed)
+  { return m.compare_exchange_weak(i1, i2, o1, o2); }
   Type exchange(const Type i, std::memory_order o= std::memory_order_relaxed)
   { return m.exchange(i, o); }
 };

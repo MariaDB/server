@@ -55,6 +55,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   char *tmp;
   port= MYSQL_PORT;
   host[0] = 0; user[0] = 0; password[0] = 0;
+  master_log_pos = 0;
+  master_log_name[0] = 0;
 
   /*
     Store connection name and lower case connection name
@@ -1557,17 +1559,17 @@ static size_t store_ids(DYNAMIC_ARRAY *ids, char *buff, size_t buff_len)
     ulong id, len;
     char dbuff[FN_REFLEN];
     get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
+    len= snprintf(dbuff, sizeof(dbuff), (i == 0 ? "%lu" : ", %lu"), id);
     if (cur_len + len + 4 > buff_len)
     {
       /*
         break the loop whenever remained space could not fit
         ellipses on the next cycle
       */
-      cur_len+= sprintf(dbuff + cur_len, "...");
+      cur_len+= snprintf(dbuff + cur_len, sizeof(dbuff) - cur_len, "...");
       break;
     }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+    cur_len+= snprintf(buff + cur_len, sizeof(dbuff) - cur_len, "%s", dbuff);
   }
   return cur_len;
 }

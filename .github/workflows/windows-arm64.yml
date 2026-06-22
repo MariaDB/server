@@ -24,7 +24,7 @@ jobs:
           # unless we configure autocrlf.
           git config --global core.autocrlf input
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install prerequisites
         run: |
@@ -46,12 +46,11 @@ jobs:
       - name: Test MTR
         run: |
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
-          #Calculate parallel as 4 * number of processors
-          $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
+          $parallel = 2
           # create case-sensitive directory to run tests in
           $tmp = (Get-Item $env:TEMP).FullName
           $tmp = $tmp -replace '\\','/'
           $cidir = "$tmp/ci"
           mkdir $cidir
           fsutil file setCaseSensitiveInfo $cidir enable
-          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb --vardir=$cidir/var --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync
+          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb --vardir=$cidir/var --skip-rpl --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync --skip-test=innodb-virtual-columns

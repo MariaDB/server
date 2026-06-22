@@ -45,6 +45,11 @@ void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,lsn_t>);
 
 std::pair<lsn_t,lsn_t> (*mtr_t::finisher)(mtr_t *, size_t);
 
+#ifdef UNIV_DEBUG
+/** Number of times an index latch was acquired in exclusive mode */
+Atomic_counter<uint64_t> mtr_t::n_index_x_lock_calls{0};
+#endif
+
 void mtr_t::finisher_update()
 {
   ut_ad(log_sys.latch_have_wr());

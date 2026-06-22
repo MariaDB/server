@@ -2,6 +2,10 @@
 
 [mysqld.1]
 wsrep_provider_options='gcache.recover=yes;gcache.size=128M;pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;pc.wait_prim_timeout=PT60S'
+loose-galera-gcache-recover=1
+innodb_log_file_size=256M
 
 [mysqld.2]
 wsrep_provider_options='gcache.recover=yes;gcache.size=128M;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;pc.wait_prim_timeout=PT60S'
+loose-galera-gcache-recover=1
+innodb_log_file_size=256M

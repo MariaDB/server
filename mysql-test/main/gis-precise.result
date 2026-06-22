@@ -886,6 +886,7 @@ NULL
 # Gcalc_function::count_internal and Assertion `(0)' failed in
 # Item_func_spatial_precise_rel::val_bool
 #
-SELECT ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))'));
-ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))'))
+SELECT ST_COVEREDBY (ST_GEOMFROMTEXT ('POINT(0 0)'),ST_GEOMFROMTEXT ('POLYGON ((0 0,0 0,0 0,0 0,0 0))')) a;
+a
 0
+# End of 12.3 tests

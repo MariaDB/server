@@ -1614,7 +1614,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
                     " This redo log was created before MariaDB 10.2.2,"
                     " and we did not find a valid checkpoint."
                     " Please follow the instructions at"
-                    " https://mariadb.com/kb/en/library/upgrading/", uag);
+                    " https://mariadb.com/docs/server/server-management/install-and-upgrade-mariadb/upgrading", uag);
     return DB_ERROR;
   }
 

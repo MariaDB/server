@@ -789,9 +789,6 @@ echo $1;
 let $1=1;
 let $2=$1;
 echo $2;
-let $5=$6;
-echo $5;
-echo $6;
 
 let $where=a long variable content;
 echo $where;
@@ -2274,6 +2271,9 @@ EOF
 }
 
 cat_file $MYSQLTEST_VARDIR/tmp/app_while.tmp;
+echo ===;
+cat_file $MYSQLTEST_VARDIR/tmp/app_while.tmp 2; # feature sneaked inside MDEV-32745
+echo ===;
 remove_file $MYSQLTEST_VARDIR/tmp/app_while.tmp;
 
 # ----------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 #
-#   Ensure that Seconds_Behind_Master works correctly on the parallel replica.
+#   Ensure that Seconds_Behind_Master works correctly on the parallel slave.
 #
 --source include/have_log_bin.inc
 --source include/have_debug.inc
@@ -7,7 +7,7 @@
 --source include/master-slave.inc
 
 --echo #
---echo # MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Replicas
+--echo # MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Slaves
 --echo #
 
 #   This test ensures that after a delayed parallel slave has idled, i.e.
@@ -81,7 +81,7 @@ if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
 if (`SELECT $mle_time_trx1_arrive_unix < ($ts_trx_before_ins - 1)`)
 {
     --echo # Master_last_event_time: $mle_time_trx1_arrive_unix ($mle_time_trx1_arrive)
-    --die Master_last_event_time was not updated for delayed replica at event arrival time
+    --die Master_last_event_time was not updated for delayed slave at event arrival time
 }
 --echo # ..done
 
@@ -132,7 +132,7 @@ LOCK TABLES t1 WRITE;
 --let $slave_sync_method= none
 --source include/sync_with_master_sql_delay_debug_sync.inc
 
---echo # Waiting for replica to get blocked by the table lock
+--echo # Waiting for slave to get blocked by the table lock
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
 --source include/wait_condition.inc
 
@@ -247,12 +247,12 @@ set @@GLOBAL.debug_dbug= "-d,sql_delay_by_debug_sync";
 #   This test ensures that a parallel slave will not update
 # Seconds_Behind_Master after the SQL Thread has idled if the worker threads
 # are still executing events. To test this, two events are executed on the
-# primary with $sleep seconds in-between them. Once the second event begins
-# execution on the replica, Seconds_Behind_Master is queried to ensure it
+# master with $sleep seconds in-between them. Once the second event begins
+# execution on the slave, Seconds_Behind_Master is queried to ensure it
 # reflects the value of the first transaction, rather than the second.
 
 --connection slave
---echo # Ensure the replica is fully idle before starting transactions
+--echo # Ensure the slave is fully idle before starting transactions
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Slave has read all relay log%';
 --source include/wait_condition.inc
 --let $wait_condition= SELECT count(*)=2 FROM information_schema.processlist WHERE state LIKE 'Waiting for work from SQL thread';

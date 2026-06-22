@@ -33,7 +33,7 @@ set global slave_parallel_mode= optimistic;
 set global binlog_row_image=MINIMAL;
 connection master;
 #
-# MDEV-31755 Replica's DML event deadlocks wit online alter table
+# MDEV-31755 Slave's DML event deadlocks wit online alter table
 #
 # Three threads for SA,U,CA
 create table t (id int, a int, primary key (id)) engine=innodb;
@@ -56,7 +56,7 @@ id	c	a
 2	qqq	1
 connection master;
 drop table t;
-# MDEV-31838 Assertion fails on replica upon parallel
+# MDEV-31838 Assertion fails on slave upon parallel
 # replication with two-phase alter and MINIMAL row image
 create table t (id int, a int, primary key(id)) engine=aria;
 insert into t values (1,0);

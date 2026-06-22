@@ -833,7 +833,22 @@ extern ulint	btr_cur_n_sea_old;
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 extern uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+extern Atomic_counter<uint64_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_pessimistic_insert() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_insert_calls;
+/** Number of times btr_cur_pessimistic_update() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_calls;
+/** Number of times btr_cur_pessimistic_delete() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_delete_calls;
+/** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_underflows;
+/** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_overflows;
 #endif /* UNIV_DEBUG */
+
+/** innodb_index_shrink; see the comment in btr0cur.cc */
+extern my_bool btr_cur_index_shrink;
 
 #include "btr0cur.inl"
 
