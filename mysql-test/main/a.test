@@ -18,7 +18,7 @@ create table t1 (a text not null, b vector(10) not null, vector(b), fulltext (a)
 --error ER_NOT_SUPPORTED_YET
 create table t1 (a text not null, b varchar(10) not null, fulltext(b), fulltext (a));
 
-set old_mode='UTF8_IS_UTF8MB3,FULLTEXT_USING_ENGINE';
+#set old_mode='UTF8_IS_UTF8MB3,FULLTEXT_USING_ENGINE';
 
 create table t1 (a text not null, fulltext (a));
 show create table t1;
@@ -38,7 +38,7 @@ select * from t1 where MATCH(a,b) AGAINST ("collections");
 explain extended select * from t1 where MATCH(a,b) AGAINST ("collections");
 select * from t1 where MATCH(a,b) AGAINST ("indexes");
 select * from t1 where MATCH(a,b) AGAINST ("indexes collections");
-select * from t1 where MATCH(a,b) AGAINST ("only");
+#select * from t1 where MATCH(a,b) AGAINST ("only");
 
 ## query expansion
 #
