@@ -14,13 +14,14 @@ t1	CREATE TABLE `t1` (
   FULLTEXT KEY `a` (`a`) USING TABLE
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
-set old_mode='';
+set old_mode='UTF8_IS_UTF8MB3';
 create table t1 (a text not null, b vector(10) not null, fulltext (a), vector(b));
 ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR/FULLTEXT indexes'
 create table t1 (a text not null, b vector(10) not null, vector(b), fulltext (a));
 ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR/FULLTEXT indexes'
 create table t1 (a text not null, b varchar(10) not null, fulltext(b), fulltext (a));
 ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR/FULLTEXT indexes'
+set old_mode='UTF8_IS_UTF8MB3,FULLTEXT_USING_ENGINE';
 create table t1 (a text not null, fulltext (a));
 show create table t1;
 Table	Create Table
@@ -31,7 +32,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
-('Full-text indexes', 'are called collections'),
+('Full-text indexes', 'are historically called collections'),
 ('Only MyISAM tables','support collections'),
 ('Function MATCH ... AGAINST()','is used to do a search'),
 ('Full-text search in MySQL', 'implements vector space model');
@@ -42,7 +43,7 @@ t1	1	a	2	b	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
 select * from t1 where MATCH(a,b) AGAINST ("collections");
 a	b
 Only MyISAM tables	support collections
-Full-text indexes	are called collections
+Full-text indexes	are historically called collections
 explain extended select * from t1 where MATCH(a,b) AGAINST ("collections");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	fulltext	a	a	0		1	100.00	Using where
@@ -50,14 +51,13 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where (match `test`.`t1`.`a`,`test`.`t1`.`b` against ('collections'))
 select * from t1 where MATCH(a,b) AGAINST ("indexes");
 a	b
-Full-text indexes	are called collections
+Full-text indexes	are historically called collections
 select * from t1 where MATCH(a,b) AGAINST ("indexes collections");
 a	b
-Full-text indexes	are called collections
+Full-text indexes	are historically called collections
 Only MyISAM tables	support collections
 select * from t1 where MATCH(a,b) AGAINST ("only");
 a	b
-Only MyISAM tables	support collections
 explain select * from t1 where MATCH(a,b) AGAINST ("collections");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	fulltext	a	a	0		1	Using where
@@ -90,9 +90,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	fulltext	a	a	0		1	Using where
 select * from t1 where MATCH(a,b) AGAINST ("collections") UNION ALL select * from t1 where MATCH(a,b) AGAINST ("indexes");
 a	b
-Full-text indexes	are called collections
 Only MyISAM tables	support collections
-Full-text indexes	are called collections
+Full-text indexes	are historically called collections
+Full-text indexes	are historically called collections
 delete from t1 where a like "MySQL%";
 update t1 set a='some test foobar' where MATCH a,b AGAINST ('model');
 delete from t1 where MATCH(a,b) AGAINST ("indexes");
@@ -228,29 +228,29 @@ insert into t1 select "xxxx yyyy zzzz";
 drop table t1;
 SET NAMES latin1;
 CREATE TABLE t1 (t text character set utf8 not null, fulltext(t));
-INSERT t1 VALUES ('Mit freundlichem Gr√º√ü'), ('aus Osnabr√ºck');
+INSERT t1 VALUES ('Mit freundlichem Gr¸ﬂ'), ('aus Osnabr¸ck');
 SET NAMES koi8r;
-INSERT t1 VALUES ("√º√î√è √ç√ô - √è√ê√â√å√ã√â"),("√Ø√î√å√Ö√ö√ò, √á√é√â√Ñ√Å!"),
-("√Æ√Ö √ó√å√Ö√ö√Å√ä, √ï√Ç√ò√Ö√î!"),("√â √Ç√ï√Ñ√Ö√î √ê√í√Å√ó!");
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('√Ø√∞√©√¨√´√©');
+INSERT t1 VALUES ("¸‘œ ÕŸ - œ–…ÃÀ…"),("Ô‘Ã≈⁄ÿ, «Œ…ƒ¡!"),
+("Ó≈ ◊Ã≈⁄¡ , ’¬ÿ≈‘!"),("… ¬’ƒ≈‘ –“¡◊!");
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ÔÈÏÎÈ');
 t	collation(t)
-√º√î√è √ç√ô - √è√ê√â√å√ã√â	utf8mb3_uca1400_ai_ci
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('√∞√í√°*' IN BOOLEAN MODE);
+¸‘œ ÕŸ - œ–…ÃÀ…	utf8mb3_uca1400_ai_ci
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('“·*' IN BOOLEAN MODE);
 t	collation(t)
-√â √Ç√ï√Ñ√Ö√î √ê√í√Å√ó!	utf8mb3_uca1400_ai_ci
-SELECT * FROM t1 WHERE MATCH t AGAINST ('√ú√î√è' IN BOOLEAN MODE);
+… ¬’ƒ≈‘ –“¡◊!	utf8mb3_uca1400_ai_ci
+SELECT * FROM t1 WHERE MATCH t AGAINST ('‹‘œ' IN BOOLEAN MODE);
 t
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr√ºck');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr¸ck');
 t	collation(t)
 SET NAMES latin1;
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr√ºck');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr¸ck');
 t	collation(t)
-aus Osnabr√ºck	utf8mb3_uca1400_ai_ci
+aus Osnabr¸ck	utf8mb3_uca1400_ai_ci
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 t	collation(t)
 SELECT t, collation(t),FORMAT(MATCH t AGAINST ('Osnabruck'),6) FROM t1 WHERE MATCH t AGAINST ('Osnabruck');
 t	collation(t)	FORMAT(MATCH t AGAINST ('Osnabruck'),6)
-aus Osnabr√ºck	utf8mb3_uca1400_ai_ci	1.591140
+aus Osnabr¸ck	utf8mb3_uca1400_ai_ci	1.591140
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
 Warnings:
@@ -258,9 +258,10 @@ Warning	1366	Incorrect string value: '\xD0\xAD\xD1\x82\xD0\xBE...' for column `t
 Warning	1366	Incorrect string value: '\xD0\x9E\xD1\x82\xD0\xBB...' for column `test`.`t1`.`t` at row 4
 Warning	1366	Incorrect string value: '\xD0\x9D\xD0\xB5 \xD0...' for column `test`.`t1`.`t` at row 5
 Warning	1366	Incorrect string value: '\xD0\xB8 \xD0\xB1\xD1...' for column `test`.`t1`.`t` at row 6
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr√ºck');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr¸ck');
 t	collation(t)
-aus Osnabr√ºck	latin1_german2_ci
+aus Osnabr¸ck	latin1_german2_ci
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 t	collation(t)
+aus Osnabr¸ck	latin1_german2_ci
 DROP TABLE t1;
