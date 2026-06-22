@@ -83,7 +83,15 @@ sub skip_combinations {
             unless which("qpress");
   $skip{'../encryption/include/have_file_key_management_plugin.combinations'} = [ 'ctr' ]
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.1";
+      and $1 ge "1.1.1";
+
+  # SSL is complicated
+  my $ssl_lib= $::mysqld_variables{'version-ssl-library'};
+  my $openssl_ver= $ssl_lib =~ /OpenSSL (\S+)/ ? $1 : "";
+
+  $skip{'t/galera_sst_cn_injection.test'} = 'does not work with OpenSSL <= 1.1.1'
+    unless $openssl_ver ge "3.0.0";
+
   %skip;
 }
 

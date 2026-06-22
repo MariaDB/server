@@ -9,6 +9,7 @@
 --source include/have_innodb.inc
 --source include/have_mariabackup.inc
 --source include/have_ssl_communication.inc
+--source include/have_openssl.inc
 
 SELECT 1;
 
