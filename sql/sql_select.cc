@@ -15840,6 +15840,37 @@ bool TABLE_REF::is_access_triggered()
 }
 
 
+static bool
+able_to_fully_clean(THD *thd, SELECT_LEX *select_lex)
+{
+  /*
+    Optimization: if not EXPLAIN and we are done with the JOIN, free
+    all tables.
+  */
+  bool full= !(select_lex->uncacheable) && !(thd->lex->describe);
+
+  /*
+    A UNION whose unit is uncacheable executes every query in the UNION
+    on each subsequent execution, even branches where the SELECT_LEX is
+    not marked uncacheable (the uncacheable flag propagates up to the
+    unit but not down to sibling branches).  A full cleanup here would
+    free state that the next execution still needs.
+
+    Walk up the chain of enclosing units so queries anywhere underneath
+    an uncacheable unit are only partially cleaned between executions.
+  */
+  for (SELECT_LEX_UNIT *u= select_lex->master_unit();
+       full && u;
+       u= u->outer_select() ? u->outer_select()->master_unit() : nullptr)
+  {
+    if (u->uncacheable)
+      full= false;
+  }
+
+  return full;
+}
+
+
 /**
   Partially cleanup JOIN after it has executed: close index or rnd read
   (table cursors), free quick selects.
@@ -15887,14 +15918,10 @@ void JOIN::join_free()
 {
   SELECT_LEX_UNIT *tmp_unit;
   SELECT_LEX *sl;
-  /*
-    Optimization: if not EXPLAIN and we are done with the JOIN,
-    free all tables.
-  */
-  bool full= !(select_lex->uncacheable) &&  !(thd->lex->describe);
-  bool can_unlock= full;
   DBUG_ENTER("JOIN::join_free");
 
+  const bool full= able_to_fully_clean(thd, select_lex);
+  bool can_unlock= full;
   cleanup(full);
 
   for (tmp_unit= select_lex->first_inner_unit();

@@ -6153,4 +6153,29 @@ y
 2
 2
 4
+#
+# MDEV-32290 Server crashes in sub_select_cache
+#
+# This query should result in an error but not crash.
+SELECT (
+WITH RECURSIVE x(x) AS (
+SELECT 1
+EXCEPT
+SELECT x+1 FROM (
+SELECT 1.000000 x FROM (
+SELECT 1.000000 FROM x
+UNION
+SELECT x FROM (
+WITH x AS (
+WITH x(x) AS (SELECT 1.000000 EXCEPT SELECT (1))
+SELECT x FROM x WHERE 1 IN (SELECT x FROM x)
+)
+SELECT * FROM x
+) x
+) x
+) x
+)
+SELECT x FROM x
+);
+ERROR 21000: Subquery returns more than 1 row
 # End of 10.11 tests
