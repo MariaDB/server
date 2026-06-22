@@ -6,7 +6,10 @@ create table t1 (a text, fulltext (a) using table);
 show create table t1;
 drop table t1;
 
-set old_mode='';
+let collation=utf8mb3_unicode_ci;
+--source include/have_collation.inc
+
+set old_mode='UTF8_IS_UTF8MB3';
 
 --error ER_NOT_SUPPORTED_YET
 create table t1 (a text not null, b vector(10) not null, fulltext (a), vector(b));
@@ -15,13 +18,15 @@ create table t1 (a text not null, b vector(10) not null, vector(b), fulltext (a)
 --error ER_NOT_SUPPORTED_YET
 create table t1 (a text not null, b varchar(10) not null, fulltext(b), fulltext (a));
 
+set old_mode='UTF8_IS_UTF8MB3,FULLTEXT_USING_ENGINE';
+
 create table t1 (a text not null, fulltext (a));
 show create table t1;
 drop table t1;
 
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
-                       ('Full-text indexes', 'are called collections'),
+          ('Full-text indexes', 'are historically called collections'),
                           ('Only MyISAM tables','support collections'),
              ('Function MATCH ... AGAINST()','is used to do a search'),
         ('Full-text search in MySQL', 'implements vector space model');
@@ -291,22 +296,22 @@ drop table t1;
 --disable_service_connection
 SET NAMES latin1;
 CREATE TABLE t1 (t text character set utf8 not null, fulltext(t));
-INSERT t1 VALUES ('Mit freundlichem Gr√º√ü'), ('aus Osnabr√ºck');
+INSERT t1 VALUES ('Mit freundlichem Gr¸ﬂ'), ('aus Osnabr¸ck');
 SET NAMES koi8r;
-INSERT t1 VALUES ("√º√î√è √ç√ô - √è√ê√â√å√ã√â"),("√Ø√î√å√Ö√ö√ò, √á√é√â√Ñ√Å!"),
-                ("√Æ√Ö √ó√å√Ö√ö√Å√ä, √ï√Ç√ò√Ö√î!"),("√â √Ç√ï√Ñ√Ö√î √ê√í√Å√ó!");
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('√Ø√∞√©√¨√´√©');
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('√∞√í√°*' IN BOOLEAN MODE);
-SELECT * FROM t1 WHERE MATCH t AGAINST ('√ú√î√è' IN BOOLEAN MODE);
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr√ºck');
+INSERT t1 VALUES ("¸‘œ ÕŸ - œ–…ÃÀ…"),("Ô‘Ã≈⁄ÿ, «Œ…ƒ¡!"),
+                ("Ó≈ ◊Ã≈⁄¡ , ’¬ÿ≈‘!"),("… ¬’ƒ≈‘ –“¡◊!");
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ÔÈÏÎÈ');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('“·*' IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH t AGAINST ('‹‘œ' IN BOOLEAN MODE);
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr¸ck');
 SET NAMES latin1;
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr√ºck');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr¸ck');
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 SELECT t, collation(t),FORMAT(MATCH t AGAINST ('Osnabruck'),6) FROM t1 WHERE MATCH t AGAINST ('Osnabruck');
 #alter table t1 modify t text character set latin1 collate latin1_german2_ci not null;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
-SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr√ºck');
+SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabr¸ck');
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 DROP TABLE t1;
 --enable_service_connection
