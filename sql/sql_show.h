@@ -234,7 +234,10 @@ typedef struct st_lookup_field_values
 class IS_table_read_plan : public Sql_alloc
 {
 public:
-  IS_table_read_plan() : no_rows(false), trivial_show_command(FALSE) {}
+  IS_table_read_plan() : no_rows(false), trivial_show_command(FALSE),
+                         is_optimized_query(false), is_single_row(false),
+                         abort_scan(false), fp_state(FP_INACTIVE),
+                         projection_fields(NULL) {}
 
   bool no_rows;
   /*
@@ -245,6 +248,16 @@ public:
     data, we set trivial_show_command=true.
   */
   bool trivial_show_command;
+  /* Flags for I_S fast-path optimization */
+  bool is_optimized_query;  /* Can this query bypass temp table? */
+  bool is_single_row;       /* Does it only need 1 row? */
+  bool abort_scan;          /* Signal to stop I_S scan early */
+  enum fp_state_t {
+    FP_INACTIVE=0,   /* fast path not engaged           */
+    FP_ACTIVE,       /* fast path on, metadata pending  */
+    FP_STREAMING     /* fast path on, metadata sent     */
+  } fp_state;
+  List<Item> *projection_fields; /* join->fields for fast-path send */
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
   Item *partial_cond;

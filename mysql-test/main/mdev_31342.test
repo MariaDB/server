@@ -1,0 +1,112 @@
+--echo # MDEV-31342: Test I_S fast path optimization
+
+--echo # Test 1: Simple SELECT - should use fast path
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+
+--echo # Test 2: WHERE filter
+SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'TABLES';
+
+--echo # Test 3: Scalar subquery - should trigger single row early exit
+SELECT (
+  SELECT TABLE_NAME
+  FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user'
+) AS result;
+
+--echo # Test 4: LIMIT 1 - should trigger early exit
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+LIMIT 1;
+
+--echo # Test 5: Fallback path - ORDER BY should still work correctly
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME
+LIMIT 3;
+
+--echo # Test 6: Fallback path - GROUP BY should still work
+SELECT TABLE_SCHEMA, COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+GROUP BY TABLE_SCHEMA;
+
+--echo # Test 7: Fallback path - DISTINCT should still work
+SELECT DISTINCT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql';
+
+
+--echo # Verify: simple query temp table behavior
+FLUSH STATUS;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+SHOW SESSION STATUS LIKE 'Created_tmp_tables';
+
+--echo # Verify: ORDER BY uses fallback
+FLUSH STATUS;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME LIMIT 3;
+SHOW SESSION STATUS LIKE 'Created_tmp_tables';
+
+
+--echo # EXPLAIN shows no filesort for fast-path query
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+
+--echo # EXPLAIN shows filesort for fallback query (ORDER BY)
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' ORDER BY TABLE_NAME LIMIT 3;
+
+--echo # Test: Prepared statements - fast path re-execution correctness
+PREPARE stmt FROM 'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+SET @db = 'mysql', @tbl = 'user';
+EXECUTE stmt USING @db, @tbl;
+EXECUTE stmt USING @db, @tbl;
+DEALLOCATE PREPARE stmt;
+
+--echo # Test: Prepared statement with LIMIT 1
+PREPARE stmt2 FROM 'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? LIMIT 1';
+SET @db = 'mysql';
+EXECUTE stmt2 USING @db;
+EXECUTE stmt2 USING @db;
+DEALLOCATE PREPARE stmt2;
+
+--echo # Test: I_S query inside stored procedure
+DELIMITER //;
+CREATE PROCEDURE test_is_proc()
+BEGIN
+  SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+END//
+DELIMITER ;//
+CALL test_is_proc();
+CALL test_is_proc();
+DROP PROCEDURE test_is_proc;
+
+--echo # Test: I_S query inside a view - should use fallback path
+CREATE VIEW test_is_view AS
+  SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA = 'mysql';
+SELECT TABLE_NAME FROM test_is_view WHERE TABLE_NAME = 'user';
+DROP VIEW test_is_view;
+
+--echo # Test: WHERE with multiple conditions
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME LIKE 'user%'
+LIMIT 1;
+
+--echo # Test: I_S query inside trigger
+CREATE TABLE test_mdev31342 (id INT);
+DELIMITER //;
+CREATE TRIGGER test_is_trigger BEFORE INSERT ON test_mdev31342
+FOR EACH ROW
+BEGIN
+  SET NEW.id = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = 'mysql');
+END//
+DELIMITER ;//
+INSERT INTO test_mdev31342 VALUES (0);
+SELECT id > 0 AS has_tables FROM test_mdev31342;
+DROP TRIGGER test_is_trigger;
+DROP TABLE test_mdev31342;

@@ -536,6 +536,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   have_query_plan= QEP_NOT_PRESENT_YET;
   initialized= 0;
   cleaned= 0;
+  in_exec_inner= false;
   cond_equal= 0;
   having_equal= 0;
   exec_const_cond= 0;
@@ -4736,6 +4737,7 @@ JOIN::reinit()
   first_record= false;
   group_sent= false;
   cleaned= false;
+  in_exec_inner= false;
   accepted_rows= 0;
 
   if (aggr_tables)
@@ -4927,6 +4929,7 @@ int JOIN::exec_inner()
 {
   List<Item> *columns_list= &fields_list;
   DBUG_ENTER("JOIN::exec_inner");
+  in_exec_inner= true;
   DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
 
   THD_STAGE_INFO(thd, stage_executing);

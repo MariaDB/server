@@ -1857,6 +1857,8 @@ public:
   bool hidden_group_fields;
   /* TRUE if there was full cleanup of the JOIN */
   bool cleaned;
+  /* TRUE when executing in exec_inner, not prepare_result */
+  bool in_exec_inner;
   DYNAMIC_ARRAY keyuse;
   Item::cond_result cond_value, having_value;
   /**
