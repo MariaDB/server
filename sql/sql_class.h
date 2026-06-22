@@ -5471,7 +5471,7 @@ public:
       1) Non-leader threads use COND_wakeup_ready to wait for the leader thread
          to complete binlog commit.
       2) The leader thread uses COND_wakeup_ready to await ACKs from the
-         replica before signalling the non-leader threads to wake up.
+         slave before signalling the non-leader threads to wake up.
 
     With wait_point=AFTER_COMMIT, there is no overlap as binlogging has
     finished, so COND_wakeup_ready is safe to re-use.
@@ -5945,6 +5945,9 @@ public:
     cursor result set materialization.
   */
   bool is_cursor_execution() const;
+
+  uint gconcat_max_len()
+  { return (uint) MY_MIN(variables.group_concat_max_len, variables.max_allowed_packet); }
 };
 
 

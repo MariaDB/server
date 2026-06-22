@@ -614,7 +614,7 @@ class Repl_semi_sync_master
    * Inputs:
    *   trans_thd  Thread of the transaction which is executing the
    *              transaction.
-   *   waiter_thd Thread that will wait for the ACK from the replica,
+   *   waiter_thd Thread that will wait for the ACK from the slave,
    *              which depends on the semi-sync wait point. If AFTER_SYNC,
    *              and also using binlog group commit, this will be the leader
    *              thread of the binlog commit. Otherwise, it is the thread that

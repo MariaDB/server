@@ -653,13 +653,13 @@ void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
                                               table_map *dep_map)
 {
   st_unit_ctxt_elem unit_ctxt_elem= {ctxt, unit};
+  in_subq |= unit->item != NULL;
   if (unit->with_clause)
   {
     (void) unit->with_clause->check_dependencies();
     check_dependencies_in_with_clause(unit->with_clause, &unit_ctxt_elem,
                                       in_subq, dep_map);
   }
-  in_subq |= unit->item != NULL;
   st_select_lex *sl= unit->first_select();
   for (; sl; sl= sl->next_select())
   {

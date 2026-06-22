@@ -4413,7 +4413,7 @@ String *Item_func_quote::val_str(String *str)
   ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
   char *from, *to, *end, *start;
   String *arg= args[0]->val_str(&tmp_value);
-  uint arg_length, new_length;
+  size_t arg_length, new_length;
   if (!arg)					// Null argument
   {
     /* Return the string 'NULL' */

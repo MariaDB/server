@@ -825,9 +825,6 @@ public:
     mysql_mutex_unlock(&mutex);
   }
 
-  void freeze() const { mysql_mutex_lock(&mutex); }
-  void unfreeze() const { mysql_mutex_unlock(&mutex); }
-
 private:
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable mysql_mutex_t mutex;
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) ilist<trx_t> trx_list;

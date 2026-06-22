@@ -129,11 +129,15 @@ static int parse_v2_header(uchar *hdr, size_t len,proxy_peer_info *peer_info)
   switch (fam)
   {
     case 0x11:  /* TCPv4 */
+      if (len < 25)
+        return -1;
       sin->sin_family= AF_INET;
       memcpy(&(sin->sin_addr), hdr + 16, 4);
       peer_info->port= (hdr[24] << 8) + hdr[25];
       break;
     case 0x21:  /* TCPv6 */
+      if (len < 49)
+        return -1;
       sin6->sin6_family= AF_INET6;
       memcpy(&(sin6->sin6_addr), hdr + 16, 16);
       peer_info->port= (hdr[48] << 8) + hdr[49];
@@ -218,7 +222,7 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
     if (len < 0)
       return -1;
     // 2 last bytes are the length in network byte order of the part following header
-    ushort trail_len= ((ushort)hdr[PROXY_V2_HEADER_LEN-2] >> 8) + hdr[PROXY_V2_HEADER_LEN-1];
+    ushort trail_len= ((ushort)hdr[PROXY_V2_HEADER_LEN-2] << 8) + hdr[PROXY_V2_HEADER_LEN-1];
     if (trail_len > sizeof(hdr) - PROXY_V2_HEADER_LEN)
       return -1;
     if (trail_len > 0)
@@ -304,6 +308,8 @@ static int parse_subnet(char *addr_str, struct subnet *subnet)
     subnet->bits= 0;
     return 0;
   }
+  else
+    return -1;
 
   char *pmask= strchr(addr_str, '/');
   if (!pmask)
@@ -364,7 +370,7 @@ static int parse_networks(const char *subnets_str, subnet **out_subnets, size_t 
     goto end;
   }
 
-  max_subnets= MY_MAX(3,strlen(subnets_str)/2);
+  max_subnets= MY_MAX(3,strlen(subnets_str)/3+1);
   subnets= (subnet *)my_malloc(PSI_INSTRUMENT_ME,
                                max_subnets * sizeof(subnet), MY_ZEROFILL);
 

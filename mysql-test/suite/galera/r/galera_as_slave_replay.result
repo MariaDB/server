@@ -64,6 +64,7 @@ SET DEBUG_SYNC = "RESET";
 connection node_2a;
 STOP SLAVE;
 RESET SLAVE;
+SET GLOBAL gtid_slave_pos = "";
 DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;

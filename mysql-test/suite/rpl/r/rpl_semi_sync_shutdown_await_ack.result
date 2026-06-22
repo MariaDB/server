@@ -5,7 +5,7 @@
 # Note: Simulated master shutdown delay is hardcoded to 500 milliseconds
 include/rpl_init.inc [topology=1->2, 1->3]
 connection server_1;
-# Slaves which simulate an error will produce a timeout on the primary
+# Slaves which simulate an error will produce a timeout on the master
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
@@ -33,8 +33,8 @@ connect server_1_con2, localhost, root,,;
 # Test cases
 #############################
 #
-# Test Case 1) If both replicas simulate a delay that is within the
-# allowed timeout, the primary should delay killing the Ack_thread
+# Test Case 1) If both slaves simulate a delay that is within the
+# allowed timeout, the master should delay killing the Ack_thread
 # until an ACK is received.
 #
 connection server_1;
@@ -148,8 +148,8 @@ SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
 #
-# Test Case 2) If both replicas simulate an error before sending an ACK,
-# the primary should delay killing the Ack_thread until the
+# Test Case 2) If both slaves simulate an error before sending an ACK,
+# the master should delay killing the Ack_thread until the
 # timeout is reached.
 #
 connection server_1;
@@ -221,7 +221,7 @@ count(*)=0
 1
 #
 #-- Re-synchronize slaves with master and disable semi-sync
-#-- FIXME: workaround for MDEV-28141, preventing errored replicas from
+#-- FIXME: workaround for MDEV-28141, preventing errored slaves from
 # killing their semi-sync connections
 connection server_2;
 set debug_sync= "now wait_for at_semisync_kill_connection";
@@ -267,9 +267,9 @@ SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
 #
-# Test Case 3) If one replica simulates a delay within the allowed
+# Test Case 3) If one slave simulates a delay within the allowed
 # timeout and the other simulates an error before sending an ACK, the
-# primary should delay killing the Ack_thread until it receives an
+# master should delay killing the Ack_thread until it receives an
 # ACK from the delayed slave.
 #
 connection server_1;
@@ -345,7 +345,7 @@ count(*)=1
 1
 #
 #-- Re-synchronize slaves with master and disable semi-sync
-#-- FIXME: workaround for MDEV-28141, preventing errored replicas from
+#-- FIXME: workaround for MDEV-28141, preventing errored slaves from
 # killing their semi-sync connections
 connection server_2;
 set debug_sync= "now wait_for at_semisync_kill_connection";
@@ -386,13 +386,13 @@ SELECT COUNT(*)=0 from t1;
 COUNT(*)=0
 1
 #
-# Test Case 4) If a replica errors before sending an ACK, it will cause
+# Test Case 4) If a slave errors before sending an ACK, it will cause
 # the IO thread to stop and handle the error. During error handling, if
-# semi-sync is active, the replica will form a new connection with the
-# primary to kill the active connection. However, if the primary is
+# semi-sync is active, the slave will form a new connection with the
+# master to kill the active connection. However, if the master is
 # shutting down, it may kill the new connection, thereby leaving the
 # active semi-sync connection in-tact. The slave should notice this, and
-# not issue a `QUIT` command to the primary, which would otherwise be
+# not issue a `QUIT` command to the master, which would otherwise be
 # sent to kill an active connection. This test case validates that the
 # slave does not send a `QUIT` in this case.
 #
@@ -469,7 +469,7 @@ count(*)=1
 1
 #
 #-- Re-synchronize slaves with master and disable semi-sync
-#-- FIXME: workaround for MDEV-28141, preventing errored replicas from
+#-- FIXME: workaround for MDEV-28141, preventing errored slaves from
 # killing their semi-sync connections
 connection server_2;
 set debug_sync= "now wait_for at_semisync_kill_connection";
@@ -511,8 +511,8 @@ COUNT(*)=0
 1
 #
 # Test Case 5) If a waiting-for-ACK user thread is killed (disconnected)
-# during SHUTDOWN WAIT FOR ALL SLAVES, ensure the primary will still
-# await the ACK from the replica before killing the Ack_receiver thread
+# during SHUTDOWN WAIT FOR ALL SLAVES, ensure the master will still
+# await the ACK from the slave before killing the Ack_receiver thread
 #
 connection server_1;
 insert into t1 values (1);

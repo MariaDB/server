@@ -1538,3 +1538,21 @@ DROP VIEW v1;
 DROP TABLE t1;
 SET NAMES latin1;
 # End of 10.5 tests
+#
+# MDEV-39673 group_concat ignores max_allowed_packet
+#
+connect u,localhost,root;
+set group_concat_max_len=2*1024*1024*1024;
+Warnings:
+Warning	1292	Truncated incorrect group_concat_max_len value: '2147483648'
+select @@group_concat_max_len;
+@@group_concat_max_len
+1073741824
+select length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1))) from dual;
+length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1)))
+16777216
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+disconnect u;
+connection default;
+# End of 10.6 tests

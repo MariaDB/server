@@ -49,6 +49,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 #include "mysys_priv.h"
 #include <share.h>
 #include <sys/stat.h>
+#include <winternl.h>
+
+extern "C" {
 
 /* Associates a file descriptor with an existing operating-system file handle.*/
 File my_open_osfhandle(HANDLE handle, int oflag)
@@ -709,12 +712,35 @@ int my_win_stat( const char *path, struct _stati64 *buf)
   DBUG_RETURN(-1);
 }
 
+/* Dynamically load NtFlushBuffersFileEx, used in my_win_fsync_internal */
 
+typedef NTSTATUS(WINAPI *pNtFlushBuffersFileEx)(
+    HANDLE FileHandle, ULONG Flags, PVOID Parameters, ULONG ParametersSize,
+    PIO_STATUS_BLOCK IoStatusBlock);
+
+
+static int my_win_fsync_internal(HANDLE h)
+{
+  static const pNtFlushBuffersFileEx my_NtFlushBuffersFileEx=
+      (pNtFlushBuffersFileEx) GetProcAddress(GetModuleHandle("ntdll"),
+                                             "NtFlushBuffersFileEx");
+  if (my_NtFlushBuffersFileEx)
+  {
+    IO_STATUS_BLOCK iosb{};
+    NTSTATUS status= my_NtFlushBuffersFileEx(h,
+                     FLUSH_FLAGS_FILE_DATA_SYNC_ONLY, NULL, 0, &iosb);
+    if (!status)
+      return 0;
+  }
+  if (FlushFileBuffers(h))
+    return 0;
+  return -1;
+}
 
 int my_win_fsync(File fd)
 {
   DBUG_ENTER("my_win_fsync");
-  if(FlushFileBuffers(my_get_osfhandle(fd)))
+  if (!my_win_fsync_internal(my_get_osfhandle(fd)))
     DBUG_RETURN(0);
   my_osmaperr(GetLastError());
   DBUG_RETURN(-1);
@@ -734,5 +760,7 @@ int my_win_dup(File fd)
   my_osmaperr(GetLastError());
   DBUG_RETURN(-1);
 }
+
+} /* extern "C" */
 
 #endif /*_WIN32*/

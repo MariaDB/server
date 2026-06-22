@@ -2,9 +2,9 @@
 #   This test verifies that semi-sync setups configured to use SSL can kill
 # the replication connection when the IO thread is stopped (e.g. from
 # STOP SLAVE). The way it should happen, is that the IO thread creates a new
-# connection to the primary which issues KILL on the connection id of the
+# connection to the master which issues KILL on the connection id of the
 # replication connection. MDEV-36663 reported an issue where this new
-# kill-oriented connection could not connect to a primary when it requires
+# kill-oriented connection could not connect to a master when it requires
 # connections to use SSL.
 #
 #   This test sets up a semi-sync SSL master-slave topology, and stops the
@@ -14,7 +14,7 @@
 # reports as 0.
 #
 # References:
-#   MDEV-36663: Semi-sync Replica Can't Kill Dump Thread When Using SSL
+#   MDEV-36663: Semi-sync Slave Can't Kill Dump Thread When Using SSL
 #
 --source include/have_binlog_format_mixed.inc # format-agnostic
 --source include/have_ssl_communication.inc

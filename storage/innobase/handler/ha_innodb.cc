@@ -2868,7 +2868,7 @@ static int innobase_close_connection(handlerton *, THD *thd) noexcept
     case TRX_STATE_PREPARED:
       if (trx->has_logged_persistent())
       {
-        trx_disconnect_prepared(trx);
+        trx->disconnect_prepared();
         return 0;
       }
       /* fall through */
@@ -17745,7 +17745,9 @@ func_exit:
 					   [FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
-	log_write_up_to(mtr.commit_lsn(), true);
+	if (lsn_t lsn = mtr.commit_lsn()) {
+		log_write_up_to(lsn, true);
+	}
 	goto func_exit;
 }
 #endif // UNIV_DEBUG

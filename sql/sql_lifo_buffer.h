@@ -174,7 +174,7 @@ public:
   uchar *end_of_space() override { return pos; }
   bool have_space_for(size_t bytes) override
   {
-    return (pos + bytes < end);
+    return (size_t) (end - pos) > bytes;
   }
 
   void write() override

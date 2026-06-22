@@ -16,6 +16,11 @@
 
 INSTALL_MYSQL_TEST("." "")
 
+IF (NOT CMAKE_REAL_SOURCE_DIR)
+  get_filename_component(CMAKE_REAL_SOURCE_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
+  get_filename_component(CMAKE_REAL_BINARY_DIR "${CMAKE_BINARY_DIR}" REALPATH)
+ENDIF()
+
 IF(NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   # Enable running mtr from build directory
   CONFIGURE_FILE(

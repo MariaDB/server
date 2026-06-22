@@ -916,7 +916,7 @@ const char *Geometry::get_mbr_for_points(MBR *mbr, const char *data,
 
 uint32 Gis_point::get_data_size() const
 {
-  return POINT_DATA_SIZE;
+  return no_data(m_data, POINT_DATA_SIZE) ? GET_SIZE_ERROR : POINT_DATA_SIZE;
 }
 
 

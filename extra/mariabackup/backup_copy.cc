@@ -1942,6 +1942,14 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 
 		msg(thread_n,"%s\n", message.str().c_str());
 
+                /* all valid *.qp files are table-name-safe */
+                for (const char *s=filepath; *s; s++)
+                  if (!isalnum(*s) && !strchr("-.@/_#", *s))
+                  {
+                    msg(thread_n,"Error: invalid file name\n");
+                    return(false);
+                  }
+
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);
 	 	}

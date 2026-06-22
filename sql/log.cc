@@ -8832,7 +8832,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       {
 #ifdef HAVE_REPLICATION
         /*
-          The thread which will await the ACK from the replica can change
+          The thread which will await the ACK from the slave can change
           depending on the wait-point. If AFTER_COMMIT, then the user thread
           will perform the wait. If AFTER_SYNC, the binlog group commit leader
           will perform the wait on behalf of the user thread.

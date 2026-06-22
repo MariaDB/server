@@ -1117,7 +1117,8 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Using '$itmpdir' as mariadb-backup working directory"
 
         if [ -n "$WSREP_SST_OPT_USER" ]; then
-           INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
+           WSREP_SST_OPT_USER_SAFE="$(safe WSREP_SST_OPT_USER)"
+           INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER_SAFE'"
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then

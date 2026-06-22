@@ -1,0 +1,26 @@
+#
+# Check the handling of @@wsrep_sst_receive_address
+#
+
+--source include/galera_cluster.inc
+
+--connection node_1
+SET @sst_receive_address_orig=@@GLOBAL.wsrep_sst_receive_address;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_receive_address='127.0.0.1;';
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_receive_address='127.0.0.1\'';
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_receive_address='127.0.0.1&';
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_receive_address='127.0.0.1|';
+
+set global wsrep_sst_receive_address=NULL;
+set global wsrep_sst_receive_address='';
+set global wsrep_sst_receive_address='127.0.0.1:19000';
+
+--disable_query_log
+SET GLOBAL wsrep_sst_receive_address = @sst_receive_address_orig;
+--enable_query_log
+
+--source include/galera_end.inc

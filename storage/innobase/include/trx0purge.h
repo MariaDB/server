@@ -506,6 +506,14 @@ public:
 
   /** Reset the state of a purge_worker_task at the end of a batch */
   inline void reset_worker_thd(THD *thd) const noexcept;
+
+#ifdef UNIV_DEBUG
+  int reset_coordinator() noexcept
+  {
+    coordinator_thd= nullptr;
+    return 0;
+  }
+#endif /* UNIV_DEBUG */
 };
 
 /** The global data structure coordinating a purge */

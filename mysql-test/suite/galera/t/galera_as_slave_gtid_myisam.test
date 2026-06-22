@@ -73,6 +73,7 @@ RESET MASTER;
 --connection node_1
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL WSREP_ON=OFF;
 reset master;
 SET GLOBAL WSREP_ON=ON;

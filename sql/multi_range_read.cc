@@ -1193,7 +1193,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
       buf_manager.reset_buffer_sizes= reset_buffer_sizes;
       buf_manager.redistribute_buffer_space= redistribute_buffer_space;
     }
-    else
+    else if (full_buf)
     {
       /* index strategy doesn't need buffer, give all space to rowids*/
       rowid_buffer.set_buffer_space(full_buf, full_buf_end);
@@ -1201,6 +1201,8 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
                                        (int)is_mrr_assoc * sizeof(range_id_t)))
         goto use_default_impl;
     }
+    else
+        goto use_default_impl;
 
     // setup_two_handlers() will call dsmrr_close() will clears the filter.
     // Save its value and restore afterwards.

@@ -535,23 +535,19 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 }
 
 
-/**
-  Disconnect a prepared transaction from MySQL
-  @param[in,out] trx transaction
-*/
-void trx_disconnect_prepared(trx_t *trx)
+void trx_t::disconnect_prepared() noexcept
 {
-  ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-  ut_ad(trx->mysql_thd);
-  ut_ad(!trx->mysql_log_file_name);
-  trx->read_view.close();
-  trx_sys.trx_list.freeze();
-  trx->is_recovered= true;
-  trx->mysql_thd= NULL;
-  trx_sys.trx_list.unfreeze();
+  ut_ad(trx_state_eq(this, TRX_STATE_PREPARED));
+  ut_ad(mysql_thd);
+  ut_ad(!mysql_log_file_name);
+  read_view.close();
+  mutex_lock();
+  is_recovered= true;
+  mysql_thd= nullptr;
+  mutex_unlock();
   /* todo/fixme: suggest to do it at innodb prepare */
-  trx->will_lock= false;
-  trx_sys.rw_trx_hash.put_pins(trx);
+  will_lock= false;
+  trx_sys.rw_trx_hash.put_pins(this);
 }
 
 MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -1864,8 +1860,7 @@ state_ok:
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys.latch.
-When possible, use trx_print() instead. */
+The caller must hold lock_sys.latch. */
 void
 trx_print_latched(
 /*==============*/
@@ -1878,27 +1873,6 @@ trx_print_latched(
 		      trx->lock.n_rec_locks,
 		      UT_LIST_GET_LEN(trx->lock.trx_locks),
 		      mem_heap_get_size(trx->lock.lock_heap));
-}
-
-/**********************************************************************//**
-Prints info about a transaction.
-Acquires and releases lock_sys.latch. */
-TRANSACTIONAL_TARGET
-void
-trx_print(
-/*======*/
-	FILE*		f,		/*!< in: output stream */
-	const trx_t*	trx)		/*!< in: transaction */
-{
-  ulint n_rec_locks, n_trx_locks, heap_size;
-  {
-    TMLockMutexGuard g{SRW_LOCK_CALL};
-    n_rec_locks= trx->lock.n_rec_locks;
-    n_trx_locks= UT_LIST_GET_LEN(trx->lock.trx_locks);
-    heap_size= mem_heap_get_size(trx->lock.lock_heap);
-  }
-
-  trx_print_low(f, trx, n_rec_locks, n_trx_locks, heap_size);
 }
 
 /** Prepare a transaction.

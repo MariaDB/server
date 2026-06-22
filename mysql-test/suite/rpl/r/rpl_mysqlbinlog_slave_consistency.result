@@ -12,7 +12,7 @@ connection slave;
 include/start_slave.inc
 #
 #
-#  Test Case 1: Base case to ensure that mariadb-binlog and replica
+#  Test Case 1: Base case to ensure that mariadb-binlog and slave
 #  are consistent without any filtering
 #
 include/mysqlbinlog_slave_consistency.inc
@@ -71,7 +71,7 @@ connection master;
 #
 #
 #  Test Case 2: Ensure filtering by a single id in --do-domain-ids is
-#  consistent between mariadb-binlog and replica
+#  consistent between mariadb-binlog and slave
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -122,7 +122,7 @@ connection master;
 #
 #
 #  Test Case 3: Ensure filtering by multiple ids in --do-domain-ids is
-#  consistent between mariadb-binlog and replica
+#  consistent between mariadb-binlog and slave
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -178,7 +178,7 @@ connection slave;
 connection master;
 #
 #  Test Case 4: Ensure filtering by a single id in --ignore-domain-ids
-#  is consistent between mariadb-binlog and replica
+#  is consistent between mariadb-binlog and slave
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -232,7 +232,7 @@ connection master;
 #
 #
 #  Test Case 5: Ensure filtering by multiple ids in --ignore-domain-ids
-#  is consistent between mariadb-binlog and replica
+#  is consistent between mariadb-binlog and slave
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -279,7 +279,7 @@ connection slave;
 connection master;
 #
 #  Test Case 6: Ensure filtering by a single id in --ignore-server-ids
-#  is consistent between mariadb-binlog and replica
+#  is consistent between mariadb-binlog and slave
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;
@@ -330,7 +330,7 @@ connection master;
 #
 #
 #  Test Case 7: Ensure filtering by multiple ids in --ignore-server-ids
-#  is consistent between mariadb-binlog and replica
+#  is consistent between mariadb-binlog and slave
 #
 include/mysqlbinlog_slave_consistency.inc
 connection slave;

@@ -2025,7 +2025,7 @@ public:
 
     /**
        INSERT .. SELECT ... SKIP LOCKED is unlikely to have the same
-       rows locked on the replica.
+       rows locked on the slave.
        primary key.
     */
     BINLOG_STMT_UNSAFE_SKIP_LOCKED,

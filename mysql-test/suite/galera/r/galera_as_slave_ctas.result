@@ -29,6 +29,7 @@ call mtr.add_suppression("WSREP: Failed to apply write set: gtid:");
 connection node_1;
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 call mtr.add_suppression("WSREP: unexpected async replication event: 0");
 connection node_3;
 RESET MASTER;

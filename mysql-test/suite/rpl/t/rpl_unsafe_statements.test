@@ -199,11 +199,11 @@ SELECT * FROM t3 ORDER BY i;
 # Step-5.5: Sync slave with master
 --sync_slave_with_master
 
-# Step-5.6: Diff master-replica tables insert statements are in sync
+# Step-5.6: Diff master-slave tables insert statements are in sync
 --let $diff_tables=master:t2, slave:t2
 --source include/diff_tables.inc
 
-# Step-5.7: Diff master-replica tables create select table is in sync
+# Step-5.7: Diff master-slave tables create select table is in sync
 --let $diff_tables=master:t3, slave:t3
 --source include/diff_tables.inc
 

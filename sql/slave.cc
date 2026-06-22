@@ -1958,7 +1958,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   }
   else
   {
-    DBUG_EXECUTE_IF("mock_mariadb_primary_v5_in_get_master_version",
+    DBUG_EXECUTE_IF("mock_mariadb_master_v5_in_get_master_version",
                     version= 5;);
 
     /*

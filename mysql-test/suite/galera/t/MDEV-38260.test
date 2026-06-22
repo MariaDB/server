@@ -82,6 +82,7 @@ DROP TABLE t1;
 --connection node_2
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 
 --connection node_1
 set global wsrep_on=OFF;

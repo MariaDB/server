@@ -70,7 +70,7 @@ bind-address            = 127.0.0.1
 #log_slow_min_examined_row_limit = 1000
 
 # The following can be used as easy to replay backup logs or for replication.
-# note: if you are setting up a replica, see README.Debian about other
+# note: if you are setting up a replication slave, see README.Debian about other
 #       settings you may need to change.
 #server-id              = 1
 #log_bin                = /var/log/mysql/mysql-bin.log

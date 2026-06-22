@@ -5979,7 +5979,7 @@ ERROR 42S22: Unknown column 'x' in 'SELECT'
 # MDEV-32299 Segfault when preparing unreferenced select in recursive CTE
 #
 SELECT ( WITH RECURSIVE x AS ( SELECT * FROM ( SELECT UTC_TIMESTAMP FROM ( SELECT ( WITH x AS ( WITH x AS ( SELECT * FROM x ) SELECT 1 ) SELECT 1 ) ) x ) x UNION SELECT NULL ) ( SELECT x FROM x ) ) ;
-ERROR 42S22: Unknown column 'x' in 'SELECT'
+ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'x'
 select (
 with recursive x as (
 select * from (
@@ -6001,7 +6001,7 @@ select null
 )
 (select x from x)
 );
-ERROR 42S22: Unknown column 'x' in 'SELECT'
+ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'x'
 select (
 with recursive r as (
 select * from (
@@ -6153,4 +6153,13 @@ y
 2
 2
 4
+#
+# MDEV-32326: Recursive reference in scalar subquery should be rejected
+#
+WITH RECURSIVE x AS (
+SELECT 1
+UNION
+SELECT  1 > ( WITH cte AS ( SELECT 1 FROM x )  SELECT 1 FROM cte ) )
+SELECT 1 FROM x;
+ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'x'
 # End of 10.11 tests

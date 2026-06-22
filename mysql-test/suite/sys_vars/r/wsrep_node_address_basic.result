@@ -31,6 +31,26 @@ ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of 'NULL'
 SELECT @@global.wsrep_node_address;
 @@global.wsrep_node_address
 
+SET @@global.wsrep_node_address="127.0.0.1'ps";
+ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of '127.0.0.1'ps'
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+SET @@global.wsrep_node_address="127.0.0.1 ps";
+ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of '127.0.0.1 ps'
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+SET @@global.wsrep_node_address="127.0.0.1`ps";
+ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of '127.0.0.1`ps'
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+SET @@global.wsrep_node_address="127.0.0.1$ps";
+ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of '127.0.0.1$ps'
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
 SET @@global.wsrep_node_address=ON;
 SELECT @@global.wsrep_node_address;
 @@global.wsrep_node_address

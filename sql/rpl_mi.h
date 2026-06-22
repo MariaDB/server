@@ -393,7 +393,7 @@ class Master_info : public Slave_reporting_capability
   bool is_shutdown= false;
 
   /*
-    A replica will default to Slave_Pos for using Using_Gtid; however, we
+    A slave will default to Slave_Pos for using Using_Gtid; however, we
     first need to test if the master supports GTIDs. If not, fall back to 'No'.
     Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
   */

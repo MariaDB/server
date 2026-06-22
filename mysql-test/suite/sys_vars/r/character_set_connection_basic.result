@@ -495,7 +495,7 @@ WHERE VARIABLE_NAME='character_set_connection') AS res;
 res
 1
 #
-# MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+# MDEV-31018 Slave of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
 #
 SET character_set_connection=2/*latin2_czech_cs*/;
 ERROR 42000: Unknown character set: '2'

@@ -6887,6 +6887,64 @@ protected:
 };
 
 
+/*
+  Caches a real number as a double, the same representation Item_cache_real
+  uses.  The generic Item_copy_string stores a copied value through its text
+  form, but a FLOAT keeps only FLT_DIG significant digits as text and that is
+  too few to reproduce its 24 bit mantissa.  The value read back then differs
+  from the original, which gave a wrong result when a FLOAT expression was
+  copied through an aggregation temporary table.
+*/
+class Item_copy_real : public Item_copy
+{
+protected:
+  double cached_value;
+public:
+  Item_copy_real(THD *thd, Item *item_arg)
+   :Item_copy(thd, item_arg), cached_value(0) {}
+  double val_real() override;
+  longlong val_int() override;
+  my_decimal *val_decimal(my_decimal *) override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    DBUG_ASSERT(copied_in);
+    return get_date_from_real(thd, ltime, fuzzydate);
+  }
+  void copy() override;
+  int save_in_field(Field *field, bool no_conversions) override;
+};
+
+
+/*
+  FLOAT and DOUBLE keep the same cached double and differ only in the text
+  conversion, the same split made by Item_cache_float and Item_cache_double.
+*/
+class Item_copy_float : public Item_copy_real
+{
+public:
+  Item_copy_float(THD *thd, Item *item_arg): Item_copy_real(thd, item_arg) {}
+  String *val_str(String *str) override;
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_copy_float>(thd, this); }
+  Item *deep_copy(THD *thd) const override
+  { return shallow_copy_with_checks(thd); }
+};
+
+
+class Item_copy_double : public Item_copy_real
+{
+public:
+  Item_copy_double(THD *thd, Item *item_arg): Item_copy_real(thd, item_arg) {}
+  String *val_str(String *str) override;
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_copy_double>(thd, this); }
+  Item *deep_copy(THD *thd) const override
+  { return shallow_copy_with_checks(thd); }
+};
+
+
 /**
   We need a separate class Item_copy_timestamp because
   TIMESTAMP->string->TIMESTAMP conversion is not round trip safe

@@ -20572,12 +20572,12 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   MYSQL_RES *result;
   int family = (strchr(ipaddr,':') == NULL)?AF_INET:AF_INET6;
   char query[256];
-  char text_header[256];
+  char text_header[256], bad_text_header[256];
   char addr_bin[16];
-  v2_proxy_header v2_header;
-  void *header_data[2];
-  size_t header_lengths[2];
-  int i;
+  v2_proxy_header v2_header, bad_v2_header;
+  void *header_data[4];
+  size_t header_lengths[4];
+  size_t i;
 
   // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
   const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
@@ -20615,9 +20615,19 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
 
   header_data[0]= text_header;
   header_data[1]= &v2_header;
+  header_data[2]= bad_text_header;
+  header_data[3]= &bad_v2_header;
 
   header_lengths[0]= strlen(text_header);
   header_lengths[1]= family == AF_INET ? 28 : 52;
+  header_lengths[2]= sizeof(text_header)-4;
+  header_lengths[3]= header_lengths[1];
+
+  memset(bad_text_header, ' ', sizeof(bad_text_header));
+  memcpy(bad_text_header, text_header, header_lengths[1]-6);
+
+  bad_v2_header= v2_header;
+  bad_v2_header.len= 0;
 
   for (i = 0; i < 2; i++)
   {
@@ -20628,9 +20638,8 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     DIE_UNLESS(m);
     mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header_data[i], header_lengths[i]);
     if (!mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, opt_unix_socket, 0))
-    {
-       DIE_UNLESS(0);
-    }
+      DIE(0);
+
     rc= mysql_query(m, "select host from information_schema.processlist WHERE ID = connection_id()");
     myquery(rc);
     /* get the result */
@@ -20647,6 +20656,21 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
      /* do "dirty" close, to get aborted message in error log.*/
       mariadb_cancel(m);
     }
+
+    mysql_close(m);
+  }
+  for (; i < array_elements(header_data); i++)
+  {
+    MYSQL *m;
+    m = mysql_client_init(NULL);
+    DIE_UNLESS(m);
+    mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header_data[i], header_lengths[i]);
+    if (mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, opt_unix_socket, 0))
+      DIE(0);
+    printf("pass %zu error %i - %s\n", i, mysql_errno(m),
+           mysql_error(m));
+    DIE_IF(i == 2 && mysql_errno(m) != ER_UNKNOWN_ERROR);
+    DIE_IF(i == 3 && mysql_errno(m) != ER_UNKNOWN_ERROR);
     mysql_close(m);
   }
   snprintf(query, sizeof(query), "DROP USER 'u'@'%s'",normalized_addr);
@@ -20753,6 +20777,84 @@ static void test_proxy_header_limits()
 }
 
 
+/*
+  MDEV-37556 memory leak in proxy protocol for non-loopback
+  connections.
+
+  Uses debug_dbug variable to set vio_peer_addr_fake_ipv6 etc
+  to emulate a remote connection
+*/
+static void test_proxy_header_dbug_remote_connection()
+{
+#ifndef DBUG_OFF
+  int rc;
+  MYSQL *m;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  v2_proxy_header v2_header;
+  char addr_bin[16];
+  const char *proxy_ipv6 = "2001:db8::6:6";
+  int protocol= MYSQL_PROTOCOL_TCP;
+
+  myheader("test_proxy_header_dbug_remote_connection");
+
+  /* Save and override debug_dbug so name resolution does not hit real DNS. */
+  rc= mysql_query(mysql,
+    "SET @save_debug_dbug = @@GLOBAL.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+    "SET GLOBAL debug_dbug='+d,vio_peer_addr_fake_ipv6"
+    ",getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6'");
+  myquery(rc);
+
+  /* Create a user identified by the hostname that the debug points will produce. */
+  rc= mysql_query(mysql,
+    "CREATE USER 'u'@'santa.claus.ipv6.example.com' IDENTIFIED BY 'password'");
+  myquery(rc);
+
+  /* Build a v2 proxy header announcing proxy_ipv6 as the client address. */
+  memset(&v2_header, 0, sizeof(v2_header));
+  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
+  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* PROXY command */
+  v2_header.fam     = 0x21;              /* TCPv6 */
+  v2_header.len     = htons(36);
+  inet_pton(AF_INET6, proxy_ipv6, addr_bin);
+  memcpy(v2_header.addr.ip6.src_addr, addr_bin, 16);
+  memcpy(v2_header.addr.ip6.dst_addr, addr_bin, 16);
+  v2_header.addr.ip6.src_port = htons(2222);
+  v2_header.addr.ip6.dst_port = htons(3306);
+
+  m = mysql_client_init(NULL);
+  DIE_UNLESS(m != NULL);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header, (size_t)52);
+  mysql_optionsv(m, MYSQL_OPT_PROTOCOL, &protocol);
+
+  if (!mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, NULL, 0))
+    DIE(0);
+
+  /* Verify that the server sees the proxied port, and fake hostname. */
+  rc= mysql_query(m,
+    "SELECT host FROM information_schema.processlist"
+    " WHERE ID = connection_id()");
+  DIE_UNLESS(!rc);
+  result= mysql_store_result(m);
+  DIE_UNLESS(result);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "santa.claus.ipv6.example.com:2222") == 0);
+  mysql_free_result(result);
+
+  mysql_close(m);
+
+  rc= mysql_query(mysql, "DROP USER 'u'@'santa.claus.ipv6.example.com'");
+  myquery(rc);
+
+  /* Restore debug_dbug to whatever it was before this test. */
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug = @save_debug_dbug");
+  myquery(rc);
+#endif /* !DBUG_OFF */
+}
+
+
 static void test_proxy_header()
 {
   myheader("test_proxy_header");
@@ -20762,6 +20864,7 @@ static void test_proxy_header()
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
+  test_proxy_header_dbug_remote_connection();
 }
 
 

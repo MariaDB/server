@@ -2,12 +2,12 @@
 # Test multi-source dynamically setting of replication filter
 # "replicate_rewrite_db"
 #
-# This test ensures that setting a replica's replicate_rewrite_db works on a
-# per-master basis. To ensure this, this test connects a replica to two
-# different primary server instances. Each primary uses the same database
+# This test ensures that setting a slave's replicate_rewrite_db works on a
+# per-master basis. To ensure this, this test connects a slave to two
+# different master server instances. Each master uses the same database
 # name and table name. To ensure the data operations don't interfere with one
-# another on the replica, it sets replicate_rewrite_db individually per
-# connection to apply the events from each primary into a database specific to
+# another on the slave, it sets replicate_rewrite_db individually per
+# connection to apply the events from each master into a database specific to
 # that connection.
 #
 

@@ -1,0 +1,27 @@
+#
+# Check the handling of @@wsrep_sst_donor
+#
+--source include/galera_cluster.inc
+
+--connection node_1
+SET @sst_donor_orig=@@GLOBAL.wsrep_sst_donor;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_donor='127.0.0.1;';
+select @@wsrep_sst_donor;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_donor='node1\'';
+select @@wsrep_sst_donor;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_donor='node_2&';
+select @@wsrep_sst_donor;
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_sst_donor='127.0.0.1|';
+select @@wsrep_sst_donor;
+set global wsrep_sst_donor='node2';
+select @@wsrep_sst_donor;
+
+--disable_query_log
+SET GLOBAL wsrep_sst_donor = @sst_donor_orig;
+--enable_query_log
+
+--source include/galera_end.inc

@@ -1979,4 +1979,11 @@ drop table t1;
 #
 SELECT COLUMN_JSON(1000);
 ERROR HY000: Encountered illegal format of dynamic column string
+#
+# MDEV-39581 dynamic column header missing sanity checks
+#
+SELECT COLUMN_LIST(0x040100FFFF00000300666F6F21626172);
+ERROR HY000: Encountered illegal format of dynamic column string
+SELECT COLUMN_JSON(CONCAT(0x040200020001000000000000004241, REPEAT('D', 512)));
+ERROR HY000: Encountered illegal format of dynamic column string
 # End of 10.6 tests

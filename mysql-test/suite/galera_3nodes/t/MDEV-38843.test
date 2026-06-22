@@ -1,0 +1,94 @@
+#
+# MDEV-38843: BF applier failed on a node causing complete Cluster lockup
+#
+# On a 3-node cluster, make node 2's applier fail to apply a write set:
+# a local (wsrep_on=OFF) DELETE removes a row, then an UPDATE of that row
+# from node 1 cannot be applied on node 2. The DBUG injection
+# simulate_rollback_failure_in_applier additionally forces the applier's
+# transaction rollback to fail, exercising the apply-error path.
+#
+# Verify that node 2 loses the inconsistency vote and disconnects instead
+# of hanging, that the surviving nodes 1 and 3 keep committing, and that
+# node 2 can restart and rejoin the cluster.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0),(2, 0),(3, 0),(4, 0);
+
+--connection node_2
+# Wait until node 2 has applied the rows before creating the local
+# inconsistency.
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+
+# Introduce inconsistency so the applier will fail on the next UPDATE.
+SET SESSION wsrep_on=OFF;
+DELETE FROM t1 WHERE f1 = 2;
+SET SESSION wsrep_on=ON;
+
+# Force the applier's transaction rollback to return non-zero on apply error.
+# Pre-fix, this would skip the call that passes the apply error to the
+# Galera provider, leaving the seqno stuck in commit order and the cluster
+# hanging. Post-fix the call always runs and the vote completes.
+SET @@global.debug_dbug='+d,simulate_rollback_failure_in_applier';
+
+--connection node_1
+UPDATE t1 SET f2 = 1 WHERE f1 = 2;
+
+--connection node_2
+# Node 2 lost the consensus vote — it must disconnect from the cluster
+# rather than silently hang. Without the fix, this step times out.
+--source include/wsrep_wait_disconnect.inc
+--let $members=0
+--source include/wsrep_wait_membership.inc
+
+--connection node_1
+# Survivors form a 2-member primary component.
+--let $members=2
+--source include/wsrep_wait_membership.inc
+--source include/wait_until_ready.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+# The cluster keeps making progress after the eviction.
+INSERT INTO t1 VALUES (5, 0);
+SELECT * FROM t1 ORDER BY f1;
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*)=5 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY f1;
+
+--connection node_2
+# Restart the evicted node so it rejoins via IST/SST.
+SET SESSION wsrep_on=OFF;
+--source include/shutdown_mysqld.inc
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+
+--connection node_1
+DROP TABLE t1;
+
+# Suppressions for the expected log noise on node_2.
+--connection node_2
+CALL mtr.add_suppression("Can't find record in 't1'");
+CALL mtr.add_suppression("Update_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus on");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
+CALL mtr.add_suppression("Wsrep_high_priority_service::rollback: trans_rollback returned");
+CALL mtr.add_suppression("last left .* greater than drain seqno");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -9,7 +9,7 @@ connect u,localhost,root;
 --echo #
 --echo # MDEV-24909 JSON functions don't respect KILL QUERY / max_statement_time limit
 --echo #
-set group_concat_max_len= 4294967295;
+set group_concat_max_len= 1000000000;
 
 set @obj=concat_ws('','{', repeat('"a":"b",', 1250000/2), '"c":"d"}');
 set @arr=concat_ws('','[', repeat('1234567,', 1250000/2), '2345678]');

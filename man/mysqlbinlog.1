@@ -1012,7 +1012,7 @@ applies to the first binlog passed on the command line, and the first event
 that has a position equal to or greater than \fIN\fR is printed\&. In GTID mode,
 multiple GTIDs can be passed as a comma separated list, where each must have a
 unique domain id\&. The list represents the gtid binlog state that the client
-(another "replica" server) is aware of\&. Therefore, each GTID is exclusive; only
+(another "slave" server) is aware of\&. Therefore, each GTID is exclusive; only
 events after a given sequence number will be printed to allow users to receive
 events after their current state\&.
 .sp

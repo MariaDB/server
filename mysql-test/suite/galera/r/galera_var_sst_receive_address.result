@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET @sst_receive_address_orig=@@GLOBAL.wsrep_sst_receive_address;
+set global wsrep_sst_receive_address='127.0.0.1;';
+ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of '127.0.0.1;'
+set global wsrep_sst_receive_address='127.0.0.1\'';
+ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of '127.0.0.1''
+set global wsrep_sst_receive_address='127.0.0.1&';
+ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of '127.0.0.1&'
+set global wsrep_sst_receive_address='127.0.0.1|';
+ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of '127.0.0.1|'
+set global wsrep_sst_receive_address=NULL;
+set global wsrep_sst_receive_address='';
+set global wsrep_sst_receive_address='127.0.0.1:19000';
+disconnect node_2;
+disconnect node_1;

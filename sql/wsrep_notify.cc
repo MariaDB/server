@@ -14,10 +14,38 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
+#include <ctype.h>
 #include <mysqld.h>
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
 #include "wsrep_status.h"
+
+/* Allow only alnum and -_. */
+static bool is_valid_node_name(const char* s)
+{
+  if (!s) return true;
+  for (; *s; ++s)
+  {
+    unsigned char c= (unsigned char) *s;
+    if (!isalnum(c) && c != '-' && c != '_' && c != '.')
+      return false;
+  }
+  return true;
+}
+
+/* Allow alnum and -_.:[]/ (host:port and [ipv6] forms). */
+static bool is_valid_node_addr(const char* s)
+{
+  if (!s) return true;
+  for (; *s; ++s)
+  {
+    unsigned char c= (unsigned char) *s;
+    if (!isalnum(c) && c != '-' && c != '_' && c != '.' &&
+        c != ':' && c != '[' && c != ']' && c != '/')
+      return false;
+  }
+  return true;
+}
 
 void wsrep_notify_status(enum wsrep::server_state::state status,
                          const wsrep::view* view)
@@ -71,13 +99,22 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
 
       for (unsigned int i= 0; i < members.size(); i++)
       {
+        const char* name=     members[i].name().c_str();
+        const char* incoming= members[i].incoming().c_str();
+        if (!is_valid_node_name(name) || !is_valid_node_addr(incoming))
+        {
+          WSREP_ERROR("Unsafe characters in cluster member %u "
+                      "wsrep_node_name or wsrep_node_incoming_address, "
+                      "aborting notification.", i);
+          my_free(cmd_ptr);
+          return;
+        }
         std::ostringstream id;
         id << members[i].id();
         cmd_off += snprintf(cmd_ptr + cmd_off, cmd_len - cmd_off,
                             "%c%s/%s/%s", i > 0 ? ',' : ' ',
                             id.str().c_str(),
-                            members[i].name().c_str(),
-                            members[i].incoming().c_str());
+                            name, incoming);
       }
     }
   }

@@ -5,8 +5,8 @@
 # a Glle would terminate the event and upon reconnect, the DDL would be lost.
 #
 # Methodology:
-#   Force the primary to send a fake GLLE event after a GTID on a "reconnect"
-# and ensure that both 1) the replica does not error, and 2) the original
+#   Force the master to send a fake GLLE event after a GTID on a "reconnect"
+# and ensure that both 1) the slave does not error, and 2) the original
 # command within the GTID is executed.
 #
 # References:
@@ -30,14 +30,14 @@ create table t2 (a int);
 --source include/save_master_gtid.inc
 
 --echo #
---echo # Have the replica "reconnect" and the primary will send Gtid, Glle, DDL
+--echo # Have the slave "reconnect" and the master will send Gtid, Glle, DDL
 --connection slave
 eval set global gtid_slave_pos="0-3-1";
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 
 --echo #
---echo # Ensure that the replica did not error
+--echo # Ensure that the slave did not error
 connection slave;
 --source include/sync_with_master_gtid.inc
 let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
@@ -46,14 +46,14 @@ let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1);
 --echo Last_SQL_Errno = $errno
 
 --echo #
---echo # Ensure that the primary sent a Glle after a Gtid event
+--echo # Ensure that the master sent a Glle after a Gtid event
 let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
 let $binlog_start= $relaylog_start;
 let $binlog_limit=0,10;
 --source include/show_relaylog_events.inc
 
 --echo #
---echo # Ensure the DDL was executed on the replica
+--echo # Ensure the DDL was executed on the slave
 if (!`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2'`)
 {
     die "t2 should exist on slave";
@@ -62,7 +62,7 @@ if (!`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test'
 --echo #
 --echo # Cleanup
 
---echo # t1 does not make it to the replica
+--echo # t1 does not make it to the slave
 --connection master
 set sql_log_bin=0;
 DROP TABLE t1;

@@ -4462,9 +4462,10 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= (uint32)(thd->variables.group_concat_max_len
-              / collation.collation->mbminlen
-              * collation.collation->mbmaxlen);
+  max_length= (uint32) MY_MIN((ulonglong) thd->gconcat_max_len()
+                               / collation.collation->mbminlen
+                               * collation.collation->mbmaxlen, UINT_MAX32);
+
 
   if (check_sum_func(thd, ref))
     return TRUE;

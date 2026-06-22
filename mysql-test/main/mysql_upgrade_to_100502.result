@@ -73,13 +73,13 @@ GRANT SUPER, REPLICATION SLAVE, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, REA
 # MDEV-23610: Slave user can't run "SHOW SLAVE STATUS" anymore after upgrade to 10.5, mysql_upgrade should take of that
 #
 #
-# Should automatically get BINLOG MONITOR and REPLICA MONITOR
+# Should automatically get BINLOG MONITOR and SLAVE MONITOR
 #
 SHOW GRANTS FOR user_replclient@localhost;
 Grants for user_replclient@localhost
 GRANT BINLOG MONITOR, SLAVE MONITOR ON *.* TO `user_replclient`@`localhost`
 #
-# Should automatically get REPLICA MONITOR
+# Should automatically get SLAVE MONITOR
 #
 SHOW GRANTS FOR user_replslave@localhost;
 Grants for user_replslave@localhost

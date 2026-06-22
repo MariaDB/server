@@ -2,6 +2,11 @@
 # MDEV-27806 GTIDs diverge after CTAS
 #
 --source include/galera_cluster.inc
+# This test reads binlog events at absolute offsets from the LAST binlog and
+# hardcodes the binlog file names, which only hold on a freshly started
+# cluster. Force a restart so each test run (e.g. with --repeat) starts from
+# the same clean binlog state instead of accumulating events.
+--source include/force_restart.inc
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);

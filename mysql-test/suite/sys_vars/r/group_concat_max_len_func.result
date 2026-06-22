@@ -118,29 +118,11 @@ SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
 nested
 bar,foo
 SET group_concat_max_len = 1073741825;
+Warnings:
+Warning	1292	Truncated incorrect group_concat_max_len value: '1073741825'
 SHOW VARIABLES LIKE 'group_concat_max_len';
 Variable_name	Value
-group_concat_max_len	1073741825
-SELECT GROUP_CONCAT(val) AS simple FROM t1;
-simple
-bar,foo
-SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
-nested
-bar,foo
-SET group_concat_max_len = 1073741826;
-SHOW VARIABLES LIKE 'group_concat_max_len';
-Variable_name	Value
-group_concat_max_len	1073741826
-SELECT GROUP_CONCAT(val) AS simple FROM t1;
-simple
-bar,foo
-SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
-nested
-bar,foo
-SET group_concat_max_len = 2147483649;
-SHOW VARIABLES LIKE 'group_concat_max_len';
-Variable_name	Value
-group_concat_max_len	2147483649
+group_concat_max_len	1073741824
 SELECT GROUP_CONCAT(val) AS simple FROM t1;
 simple
 bar,foo

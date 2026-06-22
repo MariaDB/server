@@ -1687,7 +1687,7 @@ static Sys_var_ulong Sys_max_allowed_packet(
        "max_allowed_packet",
        "Max packet length to send to or receive from the server",
        SESSION_VAR(max_allowed_packet), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, 1024*1024*1024), DEFAULT(16*1024*1024),
+       VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_max_allowed_packet));
 
@@ -5087,7 +5087,8 @@ static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, MAX_MAX_ALLOWED_PACKET), DEFAULT(1024*1024),
+       BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(

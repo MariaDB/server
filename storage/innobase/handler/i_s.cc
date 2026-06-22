@@ -187,11 +187,7 @@ static bool trx_i_s_common_fill_table(THD *thd, TABLE_LIST *tables)
   RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
   /* update the cache */
-  trx_i_s_cache_start_write(trx_i_s_cache);
-  trx_i_s_possibly_fetch_data_into_cache(trx_i_s_cache);
-  trx_i_s_cache_end_write(trx_i_s_cache);
-
-  if (trx_i_s_cache_is_truncated(trx_i_s_cache))
+  if (trx_i_s_possibly_fetch_data_into_cache())
     sql_print_warning("InnoDB: Data in %.*s truncated due to memory limit"
                       " of %u bytes",
                       int(tables->schema_table_name.length),
@@ -380,22 +376,20 @@ static int fill_innodb_trx_from_cache(THD *thd, TABLE_LIST *tables, Item*)
 
 	struct cache
 	{
-		cache() { trx_i_s_cache_start_read(trx_i_s_cache); }
-		~cache() { trx_i_s_cache_end_read(trx_i_s_cache); }
+		cache() { trx_i_s_cache_start_read(); }
+		~cache() { trx_i_s_cache_end_read(); }
 	} c;
 
 	Field** fields = tables->table->field;
 
-	rows_num = trx_i_s_cache_get_rows_used(trx_i_s_cache,
-					       I_S_INNODB_TRX);
+	rows_num = trx_i_s_cache_get_rows_used(I_S_INNODB_TRX);
 
 	for (i = 0; i < rows_num; i++) {
 
 		i_s_trx_row_t*	row;
 
 		row = (i_s_trx_row_t*)
-			trx_i_s_cache_get_nth_row(
-				trx_i_s_cache, I_S_INNODB_TRX, i);
+			trx_i_s_cache_get_nth_row(I_S_INNODB_TRX, i);
 
 		/* trx_id */
 		OK(fields[IDX_TRX_ID]->store(row->trx_id, true));
@@ -661,14 +655,13 @@ fill_innodb_locks_from_cache(
 
 	struct cache
 	{
-		cache() { trx_i_s_cache_start_read(trx_i_s_cache); }
-		~cache() { trx_i_s_cache_end_read(trx_i_s_cache); }
+		cache() { trx_i_s_cache_start_read(); }
+		~cache() { trx_i_s_cache_end_read(); }
 	} c;
 
 	Field** fields = tables->table->field;
 
-	rows_num = trx_i_s_cache_get_rows_used(trx_i_s_cache,
-					       I_S_INNODB_LOCKS);
+	rows_num = trx_i_s_cache_get_rows_used(I_S_INNODB_LOCKS);
 
 	for (i = 0; i < rows_num; i++) {
 
@@ -677,8 +670,7 @@ fill_innodb_locks_from_cache(
 		const char*		bufend;
 
 		row = (i_s_locks_row_t*)
-			trx_i_s_cache_get_nth_row(
-				trx_i_s_cache, I_S_INNODB_LOCKS, i);
+			trx_i_s_cache_get_nth_row(I_S_INNODB_LOCKS, i);
 
 		/* lock_id */
 		trx_i_s_create_lock_id(row, lock_id, sizeof(lock_id));
@@ -836,22 +828,20 @@ fill_innodb_lock_waits_from_cache(
 
 	struct cache
 	{
-		cache() { trx_i_s_cache_start_read(trx_i_s_cache); }
-		~cache() { trx_i_s_cache_end_read(trx_i_s_cache); }
+		cache() { trx_i_s_cache_start_read(); }
+		~cache() { trx_i_s_cache_end_read(); }
 	} c;
 
 	Field** fields = tables->table->field;
 
-	rows_num = trx_i_s_cache_get_rows_used(trx_i_s_cache,
-					       I_S_INNODB_LOCK_WAITS);
+	rows_num = trx_i_s_cache_get_rows_used(I_S_INNODB_LOCK_WAITS);
 
 	for (i = 0; i < rows_num; i++) {
 
 		i_s_lock_waits_row_t*	row;
 
 		row = (i_s_lock_waits_row_t*)
-			trx_i_s_cache_get_nth_row(
-				trx_i_s_cache, I_S_INNODB_LOCK_WAITS, i);
+			trx_i_s_cache_get_nth_row(I_S_INNODB_LOCK_WAITS, i);
 
 		/* requesting_trx_id */
 		OK(fields[IDX_REQUESTING_TRX_ID]->store(

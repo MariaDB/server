@@ -56,6 +56,7 @@ BINLOG_POSITIONS_MATCH
 1
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
 connection node_1;
 set global wsrep_on=OFF;

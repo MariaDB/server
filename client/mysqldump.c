@@ -6255,9 +6255,9 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   print_comment(md_result_file, 0,
                 "\n--\n-- Alternately, following is the position of the binary "
                 "logging from SHOW MASTER STATUS at point of backup."
-                "\n-- Use this when creating a replica of the primary server "
+                "\n-- Use this when creating a slave of the master server "
                 "where the backup was made."
-                "\n-- The new server will be connecting to the primary server "
+                "\n-- The new server will be connecting to the master server "
                 "where the backup was taken."
                 "\n--\n\n");
   fprintf(md_result_file,
@@ -6367,7 +6367,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
                 "taken from SHOW SLAVE STATUS at the time of backup.\n"
                 "-- Use this position when creating a clone of, or replacement "
                 "server, from where the backup was taken."
-                "\n-- This new server will connects to the same primary "
+                "\n-- This new server will connects to the same master "
                 "server%s.\n--\n",
                 multi_source ? "(s)" : "");
 
