@@ -2155,3 +2155,48 @@ SELECT SIGN(-'00');
 SELECT SIGN(-' 0 ');
 
 --echo # End of 13 tests
+
+--echo #
+--echo # MDEV-35715: UBSAN runtime error in Field_bit::store on INSERT
+--echo #
+
+--echo # BIT(1) tests
+CREATE TABLE t1 (c BIT(1));
+INSERT INTO t1 VALUES (0.0), (0.1), (0.9), (1.0), (1.5);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+--echo # BIT(8) tests
+CREATE TABLE t1 (c BIT(8));
+INSERT INTO t1 VALUES (0.0), (1.5), (255.0);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+--echo # BIT(64) tests
+CREATE TABLE t1 (c BIT(64));
+INSERT INTO t1 VALUES (18446744073709551615.0);
+SELECT HEX(c) FROM t1;
+
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES (2e+19);
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (2e+19);
+SELECT HEX(c) FROM t1;
+
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES (1e+40);
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (1e+40);
+SELECT HEX(c) FROM t1;
+
+--error ER_WARN_DATA_OUT_OF_RANGE
+INSERT INTO t1 VALUES (-1.0);
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (-1.0);
+SELECT HEX(c) FROM t1;
+
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES (-1e+30);
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (-1e+30);
+SELECT HEX(c) FROM t1;
+
+DROP TABLE t1;
+
+--echo # end of 10.11 tests

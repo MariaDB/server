@@ -9489,7 +9489,34 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 
 int Field_enum::store(double nr)
 {
-  return Field_enum::store((longlong) nr, FALSE);
+  DBUG_ASSERT(marked_for_write_or_computed());
+  /*
+    NOTE: grooverdan and gkodinov suggested different approaches
+    (copy-and-adapt vs Converter_double_to_longlong). Using copy-and-adapt
+    per grooverdan pending reviewer alignment.
+  */
+  int error= 0;
+  ulonglong safe_val= 0;
+
+  if (nr >= 1.0 && nr <= (double) typelib->count)
+  {
+    /* In-range: safe to cast — nr is a positive double within [1, count] */
+    safe_val= (ulonglong) nr;
+  }
+  else
+  {
+    /*
+      Out of range (includes negatives, zero, fractions < 1, and values
+      above typelib->count). Store as index 0 (empty enum value) with
+      a truncation warning. No nested condition needed — any out-of-range
+      double that reaches here unconditionally sets error.
+    */
+    set_warning(WARN_DATA_TRUNCATED, 1);
+    error= 1;
+    /* safe_val stays 0 */
+  }
+  store_type((ulonglong)(uint) safe_val);
+  return error;
 }
 
 
@@ -9661,6 +9688,53 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
     set_warning(WARN_DATA_TRUNCATED, 1);
   store_type(tmp);
   return err;
+}
+
+
+  /*
+    NOTE: grooverdan and gkodinov have suggested different implementation
+    approaches (copy-and-adapt vs Converter_double_to_longlong). This uses
+    the copy-and-adapt approach per grooverdan's guidance pending reviewer
+    alignment.
+  */
+int Field_set::store(double nr)
+{
+  DBUG_ASSERT(marked_for_write_or_computed());
+  int error= 0;
+  ulonglong max_nr;
+
+  if (sizeof(ulonglong) * 8 <= typelib->count)
+    max_nr= ULLONG_MAX;
+  else
+    max_nr= (1ULL << typelib->count) - 1;
+
+  ulonglong nrl;
+
+  if (nr < 0.0)
+  {
+    /*
+      Negative doubles have no meaningful bitmap representation for SET.
+      Casting a negative double directly to ulonglong is undefined behavior
+      in C++. Clamp to 0 and warn, consistent with invalid input handling.
+    */
+    nrl= 0;
+    set_warning(WARN_DATA_TRUNCATED, 1);
+    error= 1;
+  }
+  else if (nr > (double) max_nr)
+  {
+    /* Overflow: clamp to max valid bitmask — do NOT use bitwise AND */
+    nrl= max_nr;
+    set_warning(WARN_DATA_TRUNCATED, 1);
+    error= 1;
+  }
+  else
+  {
+    /* In range: safe to cast — nr is a non-negative double <= max_nr */
+    nrl= (ulonglong) nr;
+  }
+  store_type(nrl);
+  return error;
 }
 
 
@@ -10117,7 +10191,28 @@ int Field_bit::store(const char *from, size_t length, CHARSET_INFO *cs)
 
 int Field_bit::store(double nr)
 {
-  return Field_bit::store((longlong) nr, FALSE);
+  ulonglong val;
+
+  if (nr < 0.0)
+  {
+    val= 0;
+    goto err;
+  }
+  else if (nr > (double)ULLONG_MAX)
+  {
+    val= ULLONG_MAX;
+    goto err;
+  }
+  val= (ulonglong) nr;
+  return Field_bit::store((longlong) val, TRUE);
+
+err:
+  if (get_thd()->really_abort_on_warning())
+    set_warning(Sql_condition::WARN_LEVEL_WARN, ER_DATA_TOO_LONG, 1);
+  else
+    set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
+  Field_bit::store((longlong) val, TRUE);
+  return 1;
 }
 
 
