@@ -67,6 +67,7 @@ let $expensive_calls= `$get_expensive_calls`;
 let $res= `select $expensive_calls - $expensive_calls_begin`;
 echo $res;
 
+# svoj: this is an outdated description, changed after rebase, embedding is not recomputed anymore
 # This should call the expensive function
 # This happens because:
 #   doc is a stored vcol, but not expensive -> it gets recomputed in every update

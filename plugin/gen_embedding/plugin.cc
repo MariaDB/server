@@ -69,6 +69,9 @@ class Item_func_gen_embedding: public Item_str_func
 {
   String tmp_js, api_response, tmp_str, post_fields;
   json_path_with_flags *json_path;
+  json_engine_t je;
+  json_path_t p;
+  MEM_ROOT_DYNAMIC_ARRAY json_depth_array;
   std::unordered_map<std::string, int> model_dimensions= {
     {"text-embedding-3-small", 1536},
     {"text-embedding-ada-002", 1536},
@@ -212,7 +215,7 @@ cleanup:
   }
 
   
-  int parse_vector(String *buf, json_engine_t je, CHARSET_INFO *cs, const uchar *start, const uchar *end);
+  int parse_vector(String *buf, CHARSET_INFO *cs, const uchar *start, const uchar *end);
   String *read_json(String *str, json_value_types *type, char **out_val);
 
   
@@ -246,6 +249,18 @@ public:
     // We want to store max_dimensions floats, each 4 bytes 
     fix_length_and_charset(max_dimensions * 4, &my_charset_bin);
     set_maybe_null();
+    mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                                &json_depth_array, sizeof(int), NULL,
+                                JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+    mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                                &json_path->p.steps, sizeof(json_path_step_t), NULL,
+                                JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+    mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                                &je.stack, sizeof(int), NULL,
+                                JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+    mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                                &p.steps, sizeof(json_path_step_t), NULL,
+                                JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
     return false;
   }
   
@@ -295,12 +310,9 @@ String *Item_func_gen_embedding::read_json(String *str,
                                           char **out_val)
 {
   String *js= &api_response;
-  json_engine_t je;
-  json_path_t p;
   const uchar *value;
   int not_first_value= 0, count_path= 0;
   size_t v_len;
-  int array_size_counter[JSON_DEPTH_LIMIT];
   
   if ((null_value= args[0]->null_value))
     return 0;
@@ -324,7 +336,7 @@ String *Item_func_gen_embedding::read_json(String *str,
   {
 
     if (!(count_path= path_exact(json_path, arg_count-1, &p, je.value_type,
-                                 array_size_counter)))
+                                 &json_depth_array)))
       continue;
 
     value= je.value_begin;
@@ -348,7 +360,7 @@ String *Item_func_gen_embedding::read_json(String *str,
     if ((not_first_value && str->append(", ", 2)))
       goto error;
     // The path is found, starting at position value, with length v_len
-    if (parse_vector(str, je, js->charset(), value, value + v_len))
+    if (parse_vector(str, js->charset(), value, value + v_len))
       goto error;
     return str;
   }
@@ -369,7 +381,7 @@ return_null:
   return 0;
 }
 
-int Item_func_gen_embedding::parse_vector(String *buf, json_engine_t je, CHARSET_INFO *cs, const uchar *start, const uchar *end)
+int Item_func_gen_embedding::parse_vector(String *buf, CHARSET_INFO *cs, const uchar *start, const uchar *end)
 {
   /* 
     This function is used to parse the vector from the JSON response

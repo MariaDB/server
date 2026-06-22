@@ -61,6 +61,7 @@ let $expensive_calls= `$get_expensive_calls`;
 let $res= `select $expensive_calls - $expensive_calls_begin`;
 echo $res;
 
+# svoj: this is an outdated description, changed after rebase, embedding is not recomputed anymore
 # Should call the expensive function
 update expensive_test set idx = 2;
 select idx, a, b from expensive_test;

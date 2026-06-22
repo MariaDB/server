@@ -38,5 +38,5 @@ update expensive_test set idx = 2;
 select idx, a, b, doc from expensive_test;
 idx	a	b	doc
 2	a	bc	abc
-6
+5
 drop table expensive_test;
