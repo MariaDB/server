@@ -38,6 +38,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "dict0mem.h"
 #include "trx0purge.h"
 #include "trx0sys.h"
+#include "trx0undo.h"
 #include "ut0vec.h"
 #include "btr0cur.h"
 #include "row0sel.h"
@@ -1525,6 +1526,7 @@ lock_rec_create(
 	}
 
 	lock->trx = trx;
+	lock->irb_row = nullptr;
 	lock->type_mode = type_mode;
 	lock->index = index;
 	lock->un_member.rec_lock.page_id = page_id;
@@ -1562,7 +1564,12 @@ lock_rec_create(
 		}
 		trx->lock.wait_lock = lock;
 	}
-	UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
+	if (irb_row) {
+		lock->irb_row = irb_row;
+		UT_LIST_ADD_LAST(irb_row->trx_locks, lock);
+	} else {
+		UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
+	}
 	if (!holds_trx_mutex) {
 		trx->mutex_unlock();
 	}
@@ -2561,7 +2568,10 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 	hash_cell_t &cell = *lock_hash.cell_get(rec_fold);
 	lock_sys.assert_locked(cell);
 	cell.remove(*in_lock, &lock_t::hash);
-	UT_LIST_REMOVE(in_lock->trx->lock.trx_locks, in_lock);
+    if (in_lock->irb_row)
+      UT_LIST_REMOVE(in_lock->irb_row->trx_locks, in_lock);
+    else
+      UT_LIST_REMOVE(in_lock->trx->lock.trx_locks, in_lock);
 
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_RECLOCK);
@@ -2632,7 +2642,10 @@ void lock_rec_discard(lock_t *in_lock, hash_cell_t &cell) noexcept
     TMTrxGuard tg{*trx};
     ut_d(old_locks=)
     in_lock->index->table->n_rec_locks--;
-    UT_LIST_REMOVE(trx->lock.trx_locks, in_lock);
+    if (in_lock->irb_row)
+      UT_LIST_REMOVE(in_lock->irb_row->trx_locks, in_lock);
+    else
+      UT_LIST_REMOVE(trx->lock.trx_locks, in_lock);
   }
   ut_ad(old_locks);
   MONITOR_INC(MONITOR_RECLOCK_REMOVED);
@@ -3871,6 +3884,7 @@ lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
 allocated:
 	lock->type_mode = ib_uint32_t(type_mode | LOCK_TABLE);
 	lock->trx = trx;
+	lock->irb_row = nullptr;
 
 	lock->un_member.tab_lock.table = table;
 
@@ -4676,6 +4690,51 @@ released:
         dict_sys.remove(table, true);
   dict_sys.unlock();
 #endif
+}
+
+static void lock_release_record_locks_from_list(trx_t *trx,
+                                                trx_lock_list_t &locks)
+{
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  trx->mutex_lock();
+
+  ulint count= UT_LIST_GET_LEN(locks);
+  for (lock_t *prev, *lock= UT_LIST_GET_LAST(locks);
+       lock && count--; lock= prev)
+  {
+    ut_ad(lock->trx == trx);
+    prev= UT_LIST_GET_PREV(trx_locks, lock);
+
+    if (!lock->is_table())
+      lock_rec_dequeue_from_page(lock, false);
+  }
+
+  lock_sys.wr_unlock();
+  trx->mutex_unlock();
+
+  if (UNIV_UNLIKELY(Deadlock::to_be_checked))
+  {
+    mysql_mutex_lock(&lock_sys.wait_mutex);
+    lock_sys.deadlock_check();
+    mysql_mutex_unlock(&lock_sys.wait_mutex);
+  }
+}
+
+void lock_release_record_locks(trx_t *trx)
+{
+  lock_release_record_locks_from_list(trx, trx->lock.trx_locks);
+  trx->lock.n_rec_locks= 0;
+  trx->lock.set_nth_bit_calls= 0;
+}
+
+void lock_release_irb_locks(trx_t *trx, trx_lock_list_t &locks)
+{
+  if (UT_LIST_GET_LEN(locks))
+  {
+    lock_release_record_locks_from_list(trx, locks);
+    trx->lock.n_rec_locks= 0;
+    trx->lock.set_nth_bit_calls= 0;
+  }
 }
 
 /** Release the explicit locks of a committing transaction while

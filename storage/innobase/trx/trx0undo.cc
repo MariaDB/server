@@ -31,10 +31,111 @@ Created 3/26/1996 Heikki Tuuri
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
+#include "lock0lock.h"
 #include "trx0purge.h"
 #include "trx0rec.h"
 #include "trx0rseg.h"
 #include "log.h"
+
+my_bool srv_instant_rollback = false;
+longlong srv_instant_rollback_threshold = 0;
+undo_no_t n_undo_recs_recovered = 0;
+bool instant_rollback_recovered_enabled = false;
+thread_local irb_row_t *irb_row = nullptr;
+
+static bool consider_instant_rollback(const trx_t *trx)
+{
+  if (!trx->undo_no)
+    return false;
+
+  ut_ad(!trx->is_recovered || trx->roll_limit == 0);
+  ut_ad(trx->is_recovered || !trx->instant_rollback_enabled);
+
+  return srv_instant_rollback && trx->roll_limit == 0
+    && !trx->dict_operation;
+}
+
+void consider_instant_rollback_normal_trxs(trx_t *trx)
+{
+  if (trx->is_recovered || !consider_instant_rollback(trx))
+    return;
+
+  const undo_no_t n_undo_recs= trx->undo_no;
+
+  if (n_undo_recs < static_cast<undo_no_t>(srv_instant_rollback_threshold))
+  {
+    DBUG_PRINT("ib_trx", ("instant rollback disabled for " TRX_ID_FMT
+                          " because " TRX_ID_FMT
+                          " undo records do not exceed the threshold %lld",
+                          trx->id, n_undo_recs,
+                          srv_instant_rollback_threshold));
+    return;
+  }
+
+  lock_release_record_locks(trx);
+
+  ut_a(!trx->instant_rollback_enabled);
+  trx->instant_rollback_enabled= true;
+}
+
+void cal_instant_rollback_recovered_undos(trx_t *trx)
+{
+  ut_ad(trx->is_recovered);
+
+  if (consider_instant_rollback(trx))
+    n_undo_recs_recovered+= trx->undo_no;
+}
+
+void consider_instant_rollback_recovered_trxs()
+{
+  if (!srv_instant_rollback)
+  {
+    ut_ad(n_undo_recs_recovered == 0);
+    return;
+  }
+
+  if (n_undo_recs_recovered
+      >= static_cast<undo_no_t>(srv_instant_rollback_threshold))
+  {
+    instant_rollback_recovered_enabled= true;
+    n_undo_recs_recovered= 0;
+    return;
+  }
+
+  ib::info() << "[IRB] Instant rollback of recovered transactions is "
+                "disabled because the number of recovered transaction undo "
+                "records is "
+             << n_undo_recs_recovered << ", not exceeding the threshold "
+             << srv_instant_rollback_threshold << ".";
+  instant_rollback_recovered_enabled= false;
+  n_undo_recs_recovered= 0;
+}
+
+bool check_instant_rollback(trx_t *trx)
+{
+  if (trx->instant_rollback_enabled)
+    return true;
+
+  if (instant_rollback_recovered_enabled && trx->is_recovered)
+  {
+    trx->instant_rollback_enabled= true;
+    return true;
+  }
+
+  return false;
+}
+
+void irb_row_t::release_collected_locks()
+{
+  lock_release_irb_locks(m_trx, trx_locks);
+}
+
+void irb_row_t::reset()
+{
+  ut_ad(UT_LIST_GET_LEN(trx_locks) == 0);
+  if (heap)
+    mem_heap_empty(heap);
+}
 
 /* How should the old versions in the history list be managed?
    ----------------------------------------------------------

@@ -920,6 +920,8 @@ public:
 					a partial rollback; 0 otherwise */
 	bool		in_rollback;	/*!< true when the transaction is
 					executing a partial or full rollback */
+	bool		instant_rollback_enabled;
+					/*!< true when instant rollback is used */
 	ulint		pages_undone;	/*!< number of undo log pages undone
 					since the last undo log truncation */
 	/*------------------------------*/
