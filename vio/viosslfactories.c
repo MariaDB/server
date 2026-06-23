@@ -439,7 +439,9 @@ static struct st_VioSSLFd *
 new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
              const char *ca_path, const char *cipher, my_bool is_client_method,
              enum enum_ssl_init_error *error, const char *crl_file,
-             const char *crl_path, ulonglong tls_version, const char *passphrase)
+             const char *crl_path, ulonglong tls_version, const char *passphrase,
+             const char **alt_key_files, const char **alt_cert_files,
+             uint alt_cert_count)
 {
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
@@ -562,6 +564,51 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
     goto err2;
   }
 
+  /* Load additional certificates (e.g. ECDSA alongside RSA) into the same context */
+#ifndef HAVE_WOLFSSL
+  {
+    uint i;
+    for (i= 0; i < alt_cert_count; i++)
+    {
+      const char *acert= alt_cert_files[i];
+      const char *akey= alt_key_files[i];
+      if (SSL_CTX_use_certificate_chain_file(ssl_fd->ssl_context, acert) <= 0)
+      {
+        *error= SSL_INITERR_CERT;
+        fprintf(stderr, "SSL error: %s from '%s'\n",
+                sslGetErrString(*error), acert);
+        fflush(stderr);
+        goto err2;
+      }
+      if (SSL_CTX_use_PrivateKey_file(ssl_fd->ssl_context, akey,
+                                      SSL_FILETYPE_PEM) <= 0)
+      {
+        *error= SSL_INITERR_KEY;
+        fprintf(stderr, "SSL error: %s from '%s'\n",
+                sslGetErrString(*error), akey);
+        fflush(stderr);
+        goto err2;
+      }
+      if (!SSL_CTX_check_private_key(ssl_fd->ssl_context))
+      {
+        *error= SSL_INITERR_NOMATCH;
+        fprintf(stderr, "SSL error: %s (cert '%s')\n",
+                sslGetErrString(*error), acert);
+        fflush(stderr);
+        goto err2;
+      }
+    }
+  }
+#else
+  if (alt_cert_count > 0)
+  {
+    *error= SSL_INITERR_CERT;
+    fprintf(stderr, "SSL error: multiple certificates not supported with WolfSSL\n");
+    fflush(stderr);
+    goto err2;
+  }
+#endif
+
 #ifndef HAVE_WOLFSSL
   /* DH stuff */
   if (!is_client_method)
@@ -621,7 +668,8 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 
   /* Init the VioSSLFd as a "connector" ie. the client side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             TRUE, error, crl_file, crl_path, 0, NULL)))
+                             TRUE, error, crl_file, crl_path, 0, NULL,
+                             NULL, NULL, 0)))
   {
     return 0;
   }
@@ -637,14 +685,17 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 		     const char *ca_file, const char *ca_path,
 		     const char *cipher, enum enum_ssl_init_error* error,
                      const char *crl_file, const char *crl_path,
-                     ulonglong tls_version, const char *passphrase)
+                     ulonglong tls_version, const char *passphrase,
+                     const char **alt_key_files, const char **alt_cert_files,
+                     uint alt_cert_count)
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
 
   /* Init the the VioSSLFd as a "acceptor" ie. the server side */
   if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             FALSE, error, crl_file, crl_path, tls_version, passphrase)))
+                             FALSE, error, crl_file, crl_path, tls_version, passphrase,
+                             alt_key_files, alt_cert_files, alt_cert_count)))
   {
     return 0;
   }

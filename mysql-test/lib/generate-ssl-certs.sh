@@ -68,6 +68,18 @@ cp -v client-cert.crl crldir/`openssl x509 -in client-cert.pem -noout -issuer_ha
 
 rm -rf demoCA
 
+# ECDSA server certificate signed by test CA
+openssl ecparam -genkey -name prime256v1 -out server-ecdsa-key.pem
+openssl req -new -key server-ecdsa-key.pem -out server-ecdsa.csr -subj '/CN=localhost' -batch
+openssl x509 -req -in server-ecdsa.csr -CA cacert.pem -CAkey cakey.pem -CAcreateserial -out server-ecdsa-cert.pem -days 7300
+rm -f server-ecdsa.csr
+
+# EdDSA (Ed25519) server certificate signed by test CA
+openssl genpkey -algorithm Ed25519 -out server-eddsa-key.pem
+openssl req -new -key server-eddsa-key.pem -out server-eddsa.csr -subj '/CN=localhost' -batch
+openssl x509 -req -in server-eddsa.csr -CA cacert.pem -CAkey cakey.pem -CAcreateserial -out server-eddsa-cert.pem -days 7300
+rm -f server-eddsa.csr cacert.srl
+
 # --- Certificate Chain ---
 # These tests are inspired from the following commit from MySQL Server
 # https://github.com/mysql/mysql-server/commit/969afef933f1872c5f38ea93047ef05c4509c335

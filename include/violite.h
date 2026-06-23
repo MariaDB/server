@@ -186,7 +186,9 @@ struct st_VioSSLFd
 		      const char *ca_file,const char *ca_path,
 		      const char *cipher, enum enum_ssl_init_error *error,
 		      const char *crl_file, const char *crl_path,
-		      ulonglong tls_version, const char *passphrase);
+		      ulonglong tls_version, const char *passphrase,
+		      const char **alt_key_files, const char **alt_cert_files,
+		      uint alt_cert_count);
 void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 #endif /* HAVE_OPENSSL */
 

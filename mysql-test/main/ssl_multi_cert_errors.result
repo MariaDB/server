@@ -1,0 +1,87 @@
+#
+# Test 1: --ssl-cert-add with invalid file
+#
+FOUND 1 /\[ERROR\] SSL error: Unable to get certificate/ in ssl_multi_cert_errors.err
+#
+# Test 2: --ssl-key-add with invalid file
+#
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in ssl_multi_cert_errors.err
+#
+# Test 3: --ssl-cert-add without --ssl-key-add (count mismatch)
+#
+FOUND 1 /Mismatched --ssl-cert-add/--ssl-key-add/ in ssl_multi_cert_errors.err
+#
+# Test 4: --ssl-key-add without --ssl-cert-add (count mismatch)
+#
+FOUND 1 /Mismatched --ssl-cert-add/--ssl-key-add/ in ssl_multi_cert_errors.err
+#
+# Test 5: same cert type added twice (OpenSSL replaces, last wins)
+#
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-key.pem
+SELECT 1;
+1
+1
+# Kill the server
+#
+# Test 6: one valid cert-add + one invalid cert-add (invalid /etc/hosts)
+#
+FOUND 1 /\[ERROR\] SSL error: Unable to get certificate/ in ssl_multi_cert_errors.err
+#
+# Test 7: add second pair (RSA + ECDSA), verify Ssl_server_cert_types
+#
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem
+Ssl_server_cert_types contains RSA and ECDSA: OK
+#
+# Test 8: FLUSH SSL reloads alt certs correctly
+#
+FLUSH SSL;
+After FLUSH SSL, Ssl_server_cert_types still contains RSA and ECDSA: OK
+#
+# Test 9: --ssl-cert override + --ssl-cert-add (no interference)
+#
+# Kill the server
+# restart: --ssl-cert=MYSQL_TEST_DIR/std_data/server-cert.pem --ssl-key=MYSQL_TEST_DIR/std_data/server-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem
+--ssl-cert override + --ssl-cert-add: OK
+# Kill the server
+#
+# Test 10: --ssl-cert-add then --ssl-cert resets alt certs
+# (like --plugin-load resets --plugin-load-add)
+#
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert=MYSQL_TEST_DIR/std_data/server-cert.pem --ssl-key=MYSQL_TEST_DIR/std_data/server-key.pem
+--ssl-cert-add then --ssl-cert resets alt certs: OK
+# Kill the server
+#
+# Test 11: --ssl-cert-add alongside my.cnf default (appends to existing)
+#
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem
+--ssl-cert-add alongside my.cnf default: OK
+# Kill the server
+#
+# Test 12: --ssl-cert-add as sole cert (--ssl-cert= clears, first add becomes primary)
+#
+# restart: --ssl-cert= --ssl-key= --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem
+--ssl-cert-add as sole cert (first add becomes primary): OK
+# Kill the server
+#
+# Test 13: cert-adds before key-adds (order independent)
+# --ssl-cert-add --ssl-cert-add --ssl-key-add --ssl-key-add
+#
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-new-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-new-key.pem
+cert-adds before key-adds (order independent): OK
+# Kill the server
+#
+# Test 14: --ssl-key override resets alt keys independently
+#
+# restart: --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key=MYSQL_TEST_DIR/std_data/server-key.pem --ssl-cert=MYSQL_TEST_DIR/std_data/server-cert.pem
+--ssl-key override resets alt keys: OK
+# Kill the server
+#
+# Test 15: --ssl-key-add as sole key (--ssl-key= clears, first add becomes primary)
+#
+# restart: --ssl-cert= --ssl-key= --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem
+--ssl-key-add as sole key (first add becomes primary): OK
+# Kill the server
+#
+# Cleanup
+#
+# restart

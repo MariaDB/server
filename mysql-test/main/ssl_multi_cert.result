@@ -1,0 +1,66 @@
+#
+# Restart server with RSA (primary), ECDSA and EdDSA certs
+#
+# Kill the server
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-eddsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-eddsa-key.pem --tls-version=TLSv1.2
+#
+# Verify Ssl_server_cert_types global status shows all three types
+#
+SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
+Variable_name	Value
+Ssl_server_cert_types	RSA, ECDSA, EdDSA
+#
+# Test 1: Connect with RSA cipher - should get RSA cert
+#
+connect  rsa_con,localhost,root,,,,,SSL-CIPHER=ECDHE-RSA-AES128-GCM-SHA256;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	ECDHE-RSA-AES128-GCM-SHA256
+SHOW STATUS LIKE 'Ssl_server_cert_type';
+Variable_name	Value
+Ssl_server_cert_type	RSA
+disconnect rsa_con;
+#
+# Test 2: Connect with ECDSA cipher - should get ECDSA cert
+#
+connection default;
+connect  ecdsa_con,localhost,root,,,,,SSL-CIPHER=ECDHE-ECDSA-AES128-GCM-SHA256;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	ECDHE-ECDSA-AES128-GCM-SHA256
+SHOW STATUS LIKE 'Ssl_server_cert_type';
+Variable_name	Value
+Ssl_server_cert_type	ECDSA
+disconnect ecdsa_con;
+#
+# Test 3: Connect with default ciphers - should succeed
+#
+connection default;
+connect  default_con,localhost,root,,,,,SSL;
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
+disconnect default_con;
+connection default;
+#
+# Test 4: TLS 1.3 with all three cert types (EdDSA requires TLS 1.3)
+#
+connection default;
+# Kill the server
+# restart: --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-eddsa-cert.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-eddsa-key.pem --tls-version=TLSv1.3
+SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
+Variable_name	Value
+Ssl_server_cert_types	RSA, ECDSA, EdDSA
+connect  tls13_con,localhost,root,,,,,SSL;
+# TLS 1.3 connection should use one of the loaded cert types
+Ssl_server_cert_type is valid: OK
+SHOW STATUS LIKE 'Ssl_version';
+Variable_name	Value
+Ssl_version	TLSv1.3
+disconnect tls13_con;
+connection default;
+#
+# Cleanup
+#
+# Kill the server
+# restart
