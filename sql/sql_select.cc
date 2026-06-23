@@ -71,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "item_windowfunc.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -229,6 +230,8 @@ static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
+static enum_nested_loop_state
+end_compute_win_func(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 static int join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos);
 static int join_read_system(JOIN_TAB *tab);
@@ -1511,7 +1514,8 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   */
   mixed_implicit_grouping= false;
   if ((~thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY) &&
-      select_lex->with_sum_func && !group_list)
+      (select_lex->n_sum_items > select_lex->window_funcs.elements) &&
+      !group_list)
   {
     if (check_list_for_field(&fields_list)  ||
         check_list_for_field(order))
@@ -3126,9 +3130,8 @@ int JOIN::optimize_stage2()
       !tmp_table_param.sum_func_count &&
       (!join_tab[const_tables].select ||
        !join_tab[const_tables].select->quick ||
-       join_tab[const_tables].select->quick->get_type() != 
-       QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX) &&
-      !select_lex->have_window_funcs())
+       join_tab[const_tables].select->quick->get_type() !=
+           QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX))
   {
     if (group && rollup.state == ROLLUP::STATE_NONE &&
        list_contains_unique_index(join_tab[const_tables].table,
@@ -3331,16 +3334,38 @@ int JOIN::optimize_stage2()
     }
   }
 
+  if (table_count - const_tables == 1)
+  {
+    check_window_order_uniqueness(select_lex->window_funcs,
+                                  join_tab[const_tables].table);
+  }
+
+  /*
+    Checks streamability of window functions, which will be used to choose the
+    streaming path if a temp table is not needed for other reasons
+  */
+  if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
+      !only_const_tables() &&
+      have_streaming_window_funcs(
+          thd, select_lex->window_funcs, win_func_longest_order, order,
+          group_list, streaming_wf_order_is_longer,
+          join_tab[const_tables].table->map, const_table_map))
+    streamable_window_funcs= true;
+
   need_tmp= test_if_need_tmp_table();
 
   /*
-    If window functions are present then we can't have simple_order set to
-    TRUE as the window function needs a temp table for computation.
-    ORDER BY is computed after the window function computation is done, so
-    the sort will be done on the temp table.
+    If window functions are present and not streamable, then we can't have
+    simple_order set to TRUE as the window function needs a temp table for
+    computation. In this case, ORDER BY is computed after the window function
+    computation is done, so the sort will be done on the temp table.
   */
-  if (select_lex->have_window_funcs())
+  if (select_lex->have_window_funcs() && !streamable_window_funcs)
     simple_order= FALSE;
+
+  if (!need_tmp && simple_order && streamable_window_funcs &&
+      streaming_wf_order_is_longer)
+    order= win_func_longest_order;
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
@@ -3576,6 +3601,23 @@ int JOIN::optimize_stage2()
 
   if (make_aggr_tables_info())
     DBUG_RETURN(1);
+
+  if (streamable_window_funcs && !need_tmp)
+  {
+    JOIN_TAB *last_real_tab= join_tab + exec_join_tab_cnt() - 1;
+    DBUG_ASSERT(last_real_tab->next_select == end_send);
+
+    if (!(last_real_tab->window_funcs_streaming_step=
+              new Window_funcs_sort_streaming(thd)))
+      DBUG_RETURN(true);
+    if (last_real_tab->window_funcs_streaming_step->setup(
+            select_lex->window_funcs))
+      DBUG_RETURN(true);
+
+    last_real_tab->next_select= end_compute_win_func;
+    /* Count that we're using window functions. */
+    status_var_increment(thd->status_var.feature_window_functions);
+  }
 
   init_join_cache_and_keyread();
 
@@ -4328,7 +4370,7 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  if (select_lex->window_funcs.elements)
+  if (select_lex->window_funcs.elements && need_tmp)
   {
     curr_tab= join_tab + total_join_tab_cnt();
     if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
@@ -16814,6 +16856,11 @@ void JOIN_TAB::cleanup()
     cache->free();
     cache= 0;
   }
+  if (window_funcs_streaming_step)
+  {
+    window_funcs_streaming_step->cleanup();
+    window_funcs_streaming_step= NULL;
+  }
   limit= 0;
   // Free select that was created for filesort outside of create_sort_index
   if (filesort && filesort->select && !filesort->own_select)
@@ -26108,20 +26155,24 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
   }
 
-  if (join->table_count &&
-      join->join_tab->is_using_loose_index_scan())
+  // If a window streaming step exists, then this was applied earlier already
+  // in end_compute_win_func()
+  if (!(join_tab && (join_tab - 1)->window_funcs_streaming_step != NULL))
   {
-    /* Copy non-aggregated fields when loose index scan is used. */
-    copy_fields(&join->tmp_table_param);
-  }
-  if (join->having && join->having->val_bool() == 0)
-  {
-    /*
+    if (join->table_count && join->join_tab->is_using_loose_index_scan())
+    {
+      /* Copy non-aggregated fields when loose index scan is used. */
+      copy_fields(&join->tmp_table_param);
+    }
+    if (join->having && join->having->val_bool() == 0)
+    {
+      /*
       If we have HAVING clause and it is not satisfied, we don't send
       the row to the client, but rownum should be incremented.
-    */
-    join->accepted_rows++;
-    DBUG_RETURN(NESTED_LOOP_OK);               // Didn't match having
+      */
+      join->accepted_rows++;
+      DBUG_RETURN(NESTED_LOOP_OK); // Didn't match having
+    }
   }
   if (join->procedure)
   {
@@ -26232,6 +26283,46 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
+/*
+  @brief
+    Compute streaming window functions and call end_send to send the row to the
+  client.
+
+  @detail
+    This is attached to the last real table instead of end_send, given that:
+    - Window functions are streamable (see have_streaming_window_funcs)
+    - No temp table is needed for any other reason
+    - The query would have attached end_send to the last real table anyway
+      (incoming rows from the join loop need no further accumulation)
+*/
+enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
+                                            bool end_of_records)
+{
+  DBUG_ENTER("end_compute_win_func");
+
+  if (!end_of_records)
+  {
+    /*
+      If a loose index scan is used (the only case for group by + streaming),
+      then a HAVING that was not pushed down should be applied before the
+      window functions process the rows.
+    */
+    if (join->table_count && join->join_tab->is_using_loose_index_scan())
+    {
+      copy_fields(&join->tmp_table_param);
+    }
+    if (join->having && join->having->val_bool() == 0)
+    {
+      join->accepted_rows++;
+      DBUG_RETURN(NESTED_LOOP_OK);
+    }
+
+    if ((join_tab - 1)->window_funcs_streaming_step->process_row())
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+  }
+
+  DBUG_RETURN(end_send(join, join_tab, end_of_records));
+}
 
 /*
   @brief
@@ -27529,6 +27620,11 @@ list_contains_unique_index(TABLE *table,
   return 0;
 }
 
+bool order_contains_unique_index(TABLE *table, ORDER *order)
+{
+  return list_contains_unique_index(table, find_field_in_order_list,
+                                    (void *) order);
+}
 
 /**
   Helper function for list_contains_unique_index.
