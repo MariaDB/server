@@ -1618,6 +1618,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   // this needs to decide compatibility with main query sorting if exists
   // but the actual setting of which is set before test_if_need_tmp_table()
   if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
+      select_lex->group_list.elements == 0 &&
       have_streaming_window_funcs(thd, select_lex->window_funcs,
                                   win_func_longest_order, order,
                                   streaming_wf_order_is_longer))
