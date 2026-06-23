@@ -418,6 +418,7 @@ public:
   Item_sum(THD *thd, Item_sum *item);
   enum Type type() const override { return SUM_FUNC_ITEM; }
   virtual enum Sumfunctype sum_func () const=0;
+  virtual inline bool is_streamable() const { return false; }
   bool is_aggr_sum_func()
   {
     switch (sum_func()) {

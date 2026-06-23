@@ -15,14 +15,19 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "mariadb.h"
+#include "mysql/plugin.h"
 #include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_list.h"
 #include "item_windowfunc.h"
 #include "filesort.h"
 #include "sql_base.h"
+#include "item.h"
+#include <cstddef>
 #include "sql_window.h"
 
+static ORDER *concat_order_lists(MEM_ROOT *mem_root, ORDER *list1,
+                                 ORDER *list2);
 
 bool
 Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
@@ -537,6 +542,55 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
   return CMP_EQ;
 }
 
+/*
+  Overloaded to take ORDER* objects instead of SQL_I_List<ORDER>* (the longest
+  wf order list, and the main query order list).
+  Note that we use -1 for the spec_number of the main query order list, as
+  window spec numbers start from 0.
+  Returns CMP_EQ if the lists are equal or NULL, CMP_LT_C if the first list is
+  NULL or a prefix of the second list, CMP_GT_C if the second list is NULL or
+  a prefix of the first list, and CMP_LT or CMP_GT otherwise.
+*/
+static int compare_order_lists(ORDER *list1, int spec_number1, ORDER *list2,
+                               int spec_number2)
+{
+  if (!list1 && !list2)
+    return CMP_EQ;
+  if (!list1)
+    return CMP_LT_C;
+  if (!list2)
+    return CMP_GT_C;
+  ORDER *elem1= list1;
+  ORDER *elem2= list2;
+  for (; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
+  {
+    int cmp;
+    // remove all constants as we don't need them for comparision
+    while (elem1 && ((*elem1->item)->real_item())->const_item())
+    {
+      elem1= elem1->next;
+      continue;
+    }
+
+    while (elem2 && ((*elem2->item)->real_item())->const_item())
+    {
+      elem2= elem2->next;
+      continue;
+    }
+
+    if (!elem1 || !elem2)
+      break;
+
+    if ((cmp=
+             compare_order_elements(elem1, spec_number1, elem2, spec_number2)))
+      return cmp;
+  }
+  if (elem1)
+    return CMP_GT_C;
+  if (elem2)
+    return CMP_LT_C;
+  return CMP_EQ;
+}
 
 static
 int compare_window_frame_bounds(Window_frame_bound *win_frame_bound1,
@@ -731,12 +785,17 @@ typedef int (*Item_window_func_cmp)(Item_window_func *f1,
     The changes between the groups are marked by setting item_window_func->marker.
 */
 
-static
-void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
+// I think i can move this to preparation
+// run this in preparation, along with other criteria and set some
+// is_streamable variable on JOIN
+// then test_if_need_tmp_table would check it too.
+// Returns true if only one sort exists, false if none or more
+static bool
+order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 {
   if (win_func_list->elements == 0)
-    return;
-
+    return false;
+  bool more_than_one_sort= false;
   bubble_sort<Item_window_func>(win_func_list,
                                 compare_window_funcs_by_window_specs,
                                 NULL);
@@ -768,6 +827,7 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
         curr->marker= (MARKER_SORTORDER_CHANGE |
                        MARKER_PARTITION_CHANGE |
                        MARKER_FRAME_CHANGE);
+        more_than_one_sort= true;
       }
       else if (win_spec_prev->partition_list != win_spec_curr->partition_list)
       {
@@ -779,8 +839,95 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 
     prev= curr;
   }
+  return !more_than_one_sort;
 }
 
+static inline bool frame_is_current_row(Window_spec *win_spec)
+{
+  // null is default, range between unbounded preceding and current row
+  return win_spec->window_frame == NULL ||
+         (win_spec->window_frame->top_bound->precedence_type ==
+              Window_frame_bound::CURRENT &&
+          win_spec->window_frame->bottom_bound->precedence_type ==
+              Window_frame_bound::CURRENT);
+}
+
+static inline bool check_argument_list_aggregation(Window_spec *win_spec)
+{
+  for (ORDER *o= win_spec->partition_list->first; o; o= o->next)
+    if ((*o->item)->with_sum_func())
+      return true;
+
+  for (ORDER *o= win_spec->order_list->first; o; o= o->next)
+    if ((*o->item)->with_sum_func())
+      return true;
+
+  return false;
+}
+
+// now I know number 1 is bad (side effect, but i need it for criteria, why run
+// two times?)
+// 1. Runs order_window_funcs_by_window_specs(), so now we sort in preparation
+// 2. We check each fucntion from our subset or no (let it be rank and
+// row_number for now)
+// 3. frame only current row (normal), or unbounded preceding (for sum
+// functions and stuff like that, can be skipped now)
+// 4. Longest order is compatible with main query order (if exists) or not.
+bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
+                                 ORDER *&longest_wf_order,
+                                 ORDER *main_query_order,
+                                 bool &streaming_wf_order_is_longer)
+{
+  // This checks if more than one SORTORDER_MARKER_CHANGE exists.
+  // Calling order early here has a problem with one of the existing tests. Not
+  // sure why.
+  if (win_funcs.elements == 0 ||
+      !order_window_funcs_by_window_specs(&win_funcs))
+    return false;
+  List_iterator_fast<Item_window_func> it(win_funcs);
+  Item_window_func *win_func;
+  Item_window_func *win_func_with_longest_order= NULL;
+  int longest_order_elements= -1;
+  int cmp;
+
+  while ((win_func= it++))
+  {
+    Window_spec *spec= win_func->window_spec;
+    if (check_argument_list_aggregation(spec))
+      return false;
+
+    int win_func_order_elements=
+        spec->partition_list->elements + spec->order_list->elements;
+    if (win_func_order_elements > longest_order_elements)
+    {
+      longest_order_elements= win_func_order_elements;
+      win_func_with_longest_order= win_func;
+    }
+
+    if (!(win_func->window_func()->is_streamable() &&
+          frame_is_current_row(win_func->window_spec)))
+      return false;
+  }
+
+  longest_wf_order= concat_order_lists(
+      thd->mem_root,
+      win_func_with_longest_order->window_spec->partition_list->first,
+      win_func_with_longest_order->window_spec->order_list->first);
+
+  // check compatibility of both
+  cmp= compare_order_lists(
+      longest_wf_order,
+      win_func_with_longest_order->window_spec->win_spec_number,
+      main_query_order, -1);
+
+  if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
+    return false;
+  if (cmp == CMP_GT_C)
+    streaming_wf_order_is_longer= true;
+  else
+    streaming_wf_order_is_longer= false;
+  return true;
+}
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1258,7 +1405,28 @@ private:
   List<Frame_cursor> cursors;
 };
 
+// // I think the only need for the object is to hold the group_bound_trackers,
+// we
+// // don't even need the functions list
+// class Window_funcs_sort_streaming : public Sql_alloc
+// {
+// public:
+//   bool setup(THD *thd, List<Item_window_func> &win_funcs);
+//   bool process_row(); // this object is attached to the JOIN, and
+//                       // process_row() is called for a method attached on
+//                       // takes the window funcs and the current row by
+//                       // end_compute_win_funcs() and calls the appropriate
+//                       // cursors to update the aggregate functions
 
+// private:
+//   int row_num= 0; // acts like internal state for process row
+//   List<Item_window_func> win_funcs;
+//   // these correspond to the window functions in the SELECT_LEX (all
+//   functions
+//   // are streamable)
+//   List<Cursor_manager> cursor_managers;
+//   List<Group_bound_tracker> partition_trackers;
+// };
 
 //////////////////////////////////////////////////////////////////////////////
 // RANGE-type frames
@@ -2699,6 +2867,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
    If the window functions share the same frame specification,
    those window functions will be registered to the same cursor.
 */
+// i can reuse this for streaming, it just creates a Cursor Manager for each
+// window function
 bool get_window_functions_required_cursors(
     THD *thd,
     List<Item_window_func>& window_functions,
@@ -2908,7 +3078,8 @@ bool compute_window_func(THD *thd,
     tracker->init();
     partition_trackers.push_back(tracker);
   }
-
+  // the frame cursor thing i think would not need much change if we assume
+  // current frame = current row
   List_iterator_fast<Group_bound_tracker> iter_part_trackers(partition_trackers);
   ha_rows rownum= 0;
   uchar *rowid_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, tbl->file->ref_length, MYF(0));
@@ -2926,7 +3097,8 @@ bool compute_window_func(THD *thd,
     iter_win_funcs.rewind();
     iter_part_trackers.rewind();
     iter_cursor_managers.rewind();
-
+    // we can use a similar appraoch for streaming, where a row is passed over
+    // all window functions before another is fetched (single pass)
     Group_bound_tracker *tracker;
     while ((win_func= iter_win_funcs++) &&
            (tracker= iter_part_trackers++) &&
@@ -2963,6 +3135,8 @@ bool compute_window_func(THD *thd,
 
     /* We now have computed values for each window function. They can now
        be saved in the current row. */
+    // i need to save to current row field, but might not need all that for
+    // streaming
     if (save_window_function_values(window_functions, tbl, rowid_buf))
     {
       ret= true;
@@ -3065,6 +3239,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
   Item_window_func *win_func;
   while ((win_func= it++))
   {
+    // i need this so it reads live not from result_field
     win_func->set_phase_to_computation();
     // TODO(cvicentiu) Setting the aggregator should probably be done during
     // setup of Window_funcs_sort.
@@ -3073,6 +3248,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
   }
   it.rewind();
 
+  // i would skip this now
   List<Cursor_manager> cursor_managers;
   if (get_window_functions_required_cursors(thd, window_functions,
                                             &cursor_managers))
@@ -3085,6 +3261,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
                                      tbl, filesort_result);
   while ((win_func= it++))
   {
+    // we do not want this at all in streaming
     win_func->set_phase_to_retrieval();
   }
 
@@ -3123,7 +3300,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
                               JOIN_TAB *join_tab)
 {
   Window_spec *spec;
-  Item_window_func *win_func= it.peek();  
+  Item_window_func *win_func= it.peek();
+  // reuse this
   Item_window_func *win_func_with_longest_order= NULL;
   int longest_order_elements= -1;
 
@@ -3153,6 +3331,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     in a way that the result is valid for all window functions belonging to
     this Window_funcs_sort.
   */
+  // all this i should have done earlier for streaming (on base table, or
+  // reusing the main query order (for later))
   spec= win_func_with_longest_order->window_spec;
 
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
@@ -3204,6 +3384,11 @@ bool Window_funcs_computation::setup(THD *thd,
      filtering conditions when we perform sorting for window function
      computation.
   */
+  // sel holds filtering conditions (where, HAVING), those happen already
+  // before the window function computation, when a window function is computed
+  // over some window, we have to respect those filters, and not operate over
+  // the whole window (it's needed, the temp table does have invalid rows,
+  // checked with gdb test main.win (does not respect having)).
   if (tab->filesort && tab->filesort->select)
   {
     sel= tab->filesort->select;
@@ -3234,6 +3419,7 @@ bool Window_funcs_computation::exec(JOIN *join, bool keep_last_filesort_result)
   while ((srt = it++))
   {
     counter++;
+    // hmm?
     bool keep_filesort_result= keep_last_filesort_result &&
                                counter == win_func_sorts.elements;
     if (srt->exec(join, keep_filesort_result))
@@ -3254,6 +3440,73 @@ void Window_funcs_computation::cleanup()
   }
 }
 
+// assume now all windows are valid
+// setup cursor managers for handling partitions and computations.
+bool Window_funcs_sort_streaming::setup(THD *thd,
+                                        List<Item_window_func> &window_funcs)
+{
+  // note that this would be called before as it is criteria for streaming
+  // we are expected to have one valid window, that is, we do not care about
+  // the internal markers this function sets (MARKER_SORTORDER_CHANGE, etc)
+  // even the longest order would have been already applied to the table at
+  // this point, we should not care about this here
+  order_window_funcs_by_window_specs(&window_funcs);
+
+  List_iterator_fast<Item_window_func> it(window_funcs);
+  Item_window_func *win_func;
+  get_window_functions_required_cursors(thd, window_funcs, &cursor_managers);
+  // we need partition trackers too, should be here in setup
+  while ((win_func= it++))
+  {
+    Group_bound_tracker *tracker=
+        new Group_bound_tracker(thd, win_func->window_spec->partition_list);
+    tracker->init();
+    partition_trackers.push_back(tracker);
+    win_func->set_phase_to_computation();
+
+    // sets peer tracker inside rank()
+    Item_sum *sum_func= win_func->window_func();
+    sum_func->setup_window_func(thd, win_func->window_spec);
+  }
+  this->win_funcs= window_funcs; // internal variable points to the list
+  return false;
+}
+
+// called as a callback for each row in the join loop last table, directly
+// before end_send()
+bool Window_funcs_sort_streaming::process_row()
+{
+  List_iterator_fast<Item_window_func> iter_win_funcs(win_funcs);
+  List_iterator_fast<Group_bound_tracker> iter_part_trackers(
+      partition_trackers);
+  List_iterator_fast<Cursor_manager> iter_cursor_managers(cursor_managers);
+  Item_window_func *win_func;
+  Cursor_manager *cursor_manager;
+  Group_bound_tracker *tracker;
+  // i copied this for now from compute_window_func
+  while ((win_func= iter_win_funcs++) && (tracker= iter_part_trackers++) &&
+         (cursor_manager= iter_cursor_managers++))
+  {
+    if (tracker->check_if_next_group() || (rownum == 0))
+    {
+      /* TODO(cvicentiu)
+         Clearing window functions should happen through cursors. */
+      win_func->window_func()->clear();
+      cursor_manager->notify_cursors_partition_changed(rownum);
+    }
+    else
+    {
+      cursor_manager->notify_cursors_next_row();
+    }
+
+    /* Check if we found any error in the window function while adding values
+       through cursors. */
+    if (unlikely(current_thd->is_error() || current_thd->is_killed()))
+      return true;
+  }
+  rownum++;
+  return false;
+}
 
 Explain_aggr_window_funcs*
 Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root, 
