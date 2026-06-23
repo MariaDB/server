@@ -70,13 +70,20 @@ After FLUSH SSL, Ssl_server_cert_types still contains RSA and ECDSA: OK
 cert-adds before key-adds (order independent): OK
 # Kill the server
 #
-# Test 14: --ssl-key override resets alt keys independently
+# Test 14: key-adds before cert-adds (order independent)
+# --ssl-key-add --ssl-key-add --ssl-cert-add --ssl-cert-add
+#
+# restart: --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-key-add=MYSQL_TEST_DIR/std_data/server-new-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-new-cert.pem
+key-adds before cert-adds (order independent): OK
+# Kill the server
+#
+# Test 15: --ssl-key override resets alt keys independently
 #
 # restart: --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key=MYSQL_TEST_DIR/std_data/server-key.pem --ssl-cert=MYSQL_TEST_DIR/std_data/server-cert.pem
 --ssl-key override resets alt keys: OK
 # Kill the server
 #
-# Test 15: --ssl-key-add as sole key (--ssl-key= clears, first add becomes primary)
+# Test 16: --ssl-key-add as sole key (--ssl-key= clears, first add becomes primary)
 #
 # restart: --ssl-cert= --ssl-key= --ssl-key-add=MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem
 --ssl-key-add as sole key (first add becomes primary): OK

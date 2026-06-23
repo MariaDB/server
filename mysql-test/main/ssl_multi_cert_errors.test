@@ -172,7 +172,21 @@ if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`)
 --source include/kill_mysqld.inc
 
 --echo #
---echo # Test 14: --ssl-key override resets alt keys independently
+--echo # Test 14: key-adds before cert-adds (order independent)
+--echo # --ssl-key-add --ssl-key-add --ssl-cert-add --ssl-cert-add
+--echo #
+--let $restart_parameters=--ssl-key-add=$ecdsa_key --ssl-key-add=$rsa2_key --ssl-cert-add=$ecdsa_cert --ssl-cert-add=$rsa2_cert
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected RSA and ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain RSA and ECDSA
+}
+--echo key-adds before cert-adds (order independent): OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 15: --ssl-key override resets alt keys independently
 --echo #
 --let $restart_parameters=--ssl-key-add=$ecdsa_key --ssl-cert-add=$ecdsa_cert --ssl-key=$rsa_key --ssl-cert=$rsa_cert
 --source include/start_mysqld.inc
@@ -185,7 +199,7 @@ if (`SELECT '$cert_types' LIKE '%ECDSA%'`) {
 --source include/kill_mysqld.inc
 
 --echo #
---echo # Test 15: --ssl-key-add as sole key (--ssl-key= clears, first add becomes primary)
+--echo # Test 16: --ssl-key-add as sole key (--ssl-key= clears, first add becomes primary)
 --echo #
 --let $restart_parameters=--ssl-cert= --ssl-key= --ssl-key-add=$ecdsa_key --ssl-cert-add=$ecdsa_cert
 --source include/start_mysqld.inc

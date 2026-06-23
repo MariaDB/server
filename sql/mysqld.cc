@@ -7390,13 +7390,15 @@ struct my_option my_long_options[]=
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   {"ssl-cert-add", OPT_SSL_CERT_ADD,
-   "Additional X509 cert in PEM format for multi-certificate support"
-   " (implies --ssl)",
+   "Additional X509 cert in PEM format for multi-certificate support."
+   " Each --ssl-cert-add must be positionally matched with a"
+   " corresponding --ssl-key-add (implies --ssl)",
    0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ssl-key-add", OPT_SSL_KEY_ADD,
-   "Additional X509 key in PEM format for multi-certificate support"
-   " (implies --ssl)",
+   "Additional X509 key in PEM format for multi-certificate support."
+   " Each --ssl-key-add must be positionally matched with a"
+   " corresponding --ssl-cert-add (implies --ssl)",
    0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
