@@ -200,6 +200,8 @@ enum join_type { JT_UNKNOWN,JT_SYSTEM,JT_CONST,JT_EQ_REF,JT_REF,JT_MAYBE_REF,
 
 class JOIN;
 
+class Window_funcs_sort_streaming;
+
 enum enum_nested_loop_state
 {
   NESTED_LOOP_KILLED= -2, NESTED_LOOP_ERROR= -1,
@@ -532,6 +534,12 @@ typedef struct st_join_table {
     before reading.
   */
   Window_funcs_computation* window_funcs_step;
+
+  /*
+    Non-NULL value means this join_tab (last real table) must do stream window
+    function computation before sending
+  */
+  Window_funcs_sort_streaming *window_funcs_streaming_step;
 
   /**
     List of topmost expressions in the select list. The *next* JOIN_TAB
@@ -1753,9 +1761,20 @@ public:
   */
   Sql_cmd_dml *sql_cmd_dml;
 
+  /*
+    True if the query has window functions passing the streaming criteria,
+    defined by have_streaming_window_funcs()
+    Note: this does not guarantee they will be streamed, if the query requires
+    a temp table for any other reason, the window functions follow the
+    materialization path.
+  */
+  bool streamable_window_funcs= false;
+  ORDER *win_func_longest_order= NULL;
+  bool streaming_wf_order_is_longer= false;
+
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
-    :fields_list(fields_arg)
+      : fields_list(fields_arg)
   {
     init(thd_arg, fields_arg, select_options_arg, result_arg);
   }
@@ -1905,11 +1924,12 @@ public:
   bool test_if_need_tmp_table()
   {
     return ((const_tables != table_count &&
-	    ((select_distinct || !simple_order || !simple_group) ||
-	     (group_list && order) ||
-             MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
+             ((select_distinct || !simple_order || !simple_group) ||
+              (group_list && order) ||
+              MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
             (rollup.state != ROLLUP::STATE_NONE && select_distinct) ||
-            select_lex->have_window_funcs());
+            (select_lex->have_window_funcs() &&
+             (!streamable_window_funcs || only_const_tables())));
   }
   bool choose_subquery_plan(table_map join_tables);
   void get_partial_cost_and_fanout(int end_tab_idx,

@@ -26,6 +26,7 @@
 */
 
 #include "mariadb.h"
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -70,6 +71,9 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+
+#include "sql_window.h"
+#include "item_windowfunc.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -228,6 +232,8 @@ static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
+static enum_nested_loop_state
+end_compute_win_func(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 static int join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos);
 static int join_read_system(JOIN_TAB *tab);
@@ -1600,6 +1606,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     DBUG_RETURN(-1);
   thd->lex->current_select->context_analysis_place= save_place;
 
+  // this sets window functions up
   if (setup_without_group(thd, ref_ptrs, tables_list,
                           select_lex->leaf_tables, fields_list,
                           all_fields, &conds, order, group_list,
@@ -1607,6 +1614,14 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                           select_lex->window_funcs,
                           &hidden_group_fields))
     DBUG_RETURN(-1);
+
+  // this needs to decide compatibility with main query sorting if exists
+  // but the actual setting of which is set before test_if_need_tmp_table()
+  if (select_lex->n_sum_items == select_lex->window_funcs.elements &&
+      have_streaming_window_funcs(thd, select_lex->window_funcs,
+                                  win_func_longest_order, order,
+                                  streaming_wf_order_is_longer))
+    streamable_window_funcs= true;
 
   /*
     Permanently remove redundant parts from the query if
@@ -3338,8 +3353,14 @@ int JOIN::optimize_stage2()
     ORDER BY is computed after the window function computation is done, so
     the sort will be done on the temp table.
   */
-  if (select_lex->have_window_funcs())
+  if (select_lex->have_window_funcs() && !streamable_window_funcs)
     simple_order= FALSE;
+  // this means the order by should be done in a temp table (it's real purpose
+  // is checking if order by references only the first non-const table in JOIN)
+
+  // i'm not very sure of this, simple_order might change later??
+  if (!need_tmp && simple_order && streaming_wf_order_is_longer)
+    order= win_func_longest_order;
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
@@ -3575,6 +3596,27 @@ int JOIN::optimize_stage2()
 
   if (make_aggr_tables_info())
     DBUG_RETURN(1);
+
+  if (streamable_window_funcs && !need_tmp)
+  {
+    JOIN_TAB *last_real_tab= &join_tab[exec_join_tab_cnt() - 1];
+    // here i would attach the new streamable class (same interface ?)
+    if (!(last_real_tab->window_funcs_streaming_step=
+              new Window_funcs_sort_streaming))
+      DBUG_RETURN(true);
+    // this sets up the list, and the partition and group tracking
+    // I think we would have called order_window_funcs_by_window_specs() once
+    // in preparation already to decide on streaming or not?
+    if (last_real_tab->window_funcs_streaming_step->setup(
+            thd, select_lex->window_funcs))
+      DBUG_RETURN(true);
+    // i need to make SURE THAT END_SEND is not assigned to last table after
+    // this, this is very important
+    last_real_tab->next_select=
+        end_compute_win_func; // calls process_row and end_send
+    /* Count that we're using window functions. */
+    status_var_increment(thd->status_var.feature_window_functions);
+  }
 
   init_join_cache_and_keyread();
 
@@ -4327,7 +4369,7 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  if (select_lex->window_funcs.elements)
+  if (select_lex->window_funcs.elements && need_tmp)
   {
     curr_tab= join_tab + total_join_tab_cnt();
     if (!(curr_tab->window_funcs_step= new Window_funcs_computation))
@@ -24949,6 +24991,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     {
       enum enum_nested_loop_state rc;
       /* A match from join_tab is found for the current partial join. */
+      // this is the loop
       rc= (*join_tab->next_select)(join, join_tab+1, 0);
       join->thd->get_stmt_da()->inc_current_row_for_warning();
       if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
@@ -26162,6 +26205,20 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
+enum_nested_loop_state end_compute_win_func(JOIN *join, JOIN_TAB *join_tab,
+                                            bool end_of_records)
+{
+  // this show call process_row with the current row, and the list of window
+  // functions, process row runs cursors for wfs on the current row (will
+  // partition trackers work?)
+  // Then end_send would call the window_func()->val_*() so we need phase
+  // computation to read the live value
+  // we don't even need to pass the row to the window function, because the
+  // add() functions read from the TABLE::record[0] directly, as we did
+  // NOT call split_sum_func(), so we still point to base table
+  (join_tab - 1)->window_funcs_streaming_step->process_row();
+  return end_send(join, join_tab, end_of_records);
+}
 
 /*
   @brief
