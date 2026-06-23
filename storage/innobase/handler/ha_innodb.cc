@@ -9188,14 +9188,11 @@ ha_innobase::index_read(
 		DBUG_RETURN(HA_ERR_ROLLBACK);
 	}
 
-	/* For R-Tree index, we will always place the page lock to
-	pages being searched */
-	if (index->is_spatial() && !m_prebuilt->trx->will_lock) {
-		if (trx_state != TRX_STATE_NOT_STARTED) {
-			DBUG_RETURN(HA_ERR_READ_ONLY_TRANSACTION);
-		} else {
-			m_prebuilt->trx->will_lock = true;
-		}
+	/* will_lock is normally already set by external_lock()'s
+	has_spatial_index() check; this is just a pre-start fallback. */
+	if (index->is_spatial() && !m_prebuilt->trx->will_lock
+	    && trx_state == TRX_STATE_NOT_STARTED) {
+		m_prebuilt->trx->will_lock = true;
 	}
 
 	/* Note that if the index for which the search template is built is not
@@ -16715,7 +16712,11 @@ set_lock:
 
 		if (not_started
 		    && (m_prebuilt->select_lock_type != LOCK_NONE
-			|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
+			|| m_prebuilt->stored_select_lock_type != LOCK_NONE
+			/* R-Tree search needs a page lock, so a table
+			with a spatial index must not start as a
+			non-locking transaction. */
+			|| m_prebuilt->table->has_spatial_index())) {
 
 			trx->will_lock = true;
 		}
