@@ -4804,8 +4804,6 @@ struct SSL_ACCEPTOR_STATS
     cert_types[0]= 0;
     {
 #ifndef HAVE_WOLFSSL
-      SSL *tmp_ssl= SSL_new(ctx);
-      if (tmp_ssl)
       {
         int pos= 0;
         SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_FIRST);
@@ -4832,7 +4830,6 @@ struct SSL_ACCEPTOR_STATS
           }
         } while (SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_NEXT));
         cert_types[pos]= 0;
-        SSL_free(tmp_ssl);
       }
 #else
       X509 *c= SSL_CTX_get0_certificate(ctx);
