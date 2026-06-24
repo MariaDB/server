@@ -71,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "partial_result_cache.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -236,7 +237,7 @@ static int join_read_const(JOIN_TAB *tab);
 static int join_read_key(JOIN_TAB *tab);
 static void join_read_key_unlock_row(st_join_table *tab);
 static void join_const_unlock_row(JOIN_TAB *tab);
-static int join_read_always_key(JOIN_TAB *tab);
+int join_read_always_key(JOIN_TAB *tab);
 static int join_read_last_key(JOIN_TAB *tab);
 static int join_no_more_records(READ_RECORD *info);
 static int join_read_next(READ_RECORD *info);
@@ -245,7 +246,7 @@ static int join_init_quick_read_record(JOIN_TAB *tab);
 static quick_select_return test_if_quick_select(JOIN_TAB *tab);
 static int test_if_use_dynamic_range_scan(JOIN_TAB *join_tab);
 static int join_read_first(JOIN_TAB *tab);
-static int join_read_next_same(READ_RECORD *info);
+int join_read_next_same(READ_RECORD *info);
 static int join_read_last(JOIN_TAB *tab);
 static int join_read_prev_same(READ_RECORD *info);
 static int join_read_prev(READ_RECORD *info);
@@ -16691,6 +16692,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     }
     table->status=STATUS_NO_RECORD;
     pick_table_access_method (tab);
+    if (setup_partial_result_cache(tab, first_tab, jcl))
+      return TRUE;
 
     if (jcl)
        tab[-1].next_select=sub_select_cache;
@@ -17036,6 +17039,8 @@ void JOIN_TAB::cleanup()
     cache->free();
     cache= 0;
   }
+  free_partial_result_cache(partial_result_cache);
+  partial_result_cache= NULL;
   limit= 0;
   // Free select that was created for filesort outside of create_sort_index
   if (filesort && filesort->select && !filesort->own_select)
@@ -25760,7 +25765,7 @@ join_const_unlock_row(JOIN_TAB *tab)
     1  - Error
 */
 
-static int
+int
 join_read_always_key(JOIN_TAB *tab)
 {
   int error;
@@ -25862,7 +25867,7 @@ join_no_more_records(READ_RECORD *info __attribute__((unused)))
 }
 
 
-static int
+int
 join_read_next_same(READ_RECORD *info)
 {
   int error;
@@ -31832,6 +31837,16 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       eta->push_extra(ET_USING_JOIN_BUFFER);
       if (cache->save_explain_data(&eta->bka_type))
         return 1;
+    }
+    if (partial_result_cache_eligible)
+    {
+      eta->push_extra(ET_USING_PARTIAL_RESULT_CACHE);
+      eta->partial_result_cache_estimated_hit_ratio=
+        partial_result_cache_estimated_hit_ratio;
+      eta->partial_result_cache_estimated_saved_cost=
+        partial_result_cache_estimated_saved_cost;
+      set_partial_result_cache_stats(partial_result_cache,
+                                     &eta->partial_result_cache_stats);
     }
   }
 

@@ -105,6 +105,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
     break;
 
   case 8:
+    if ("PRC_JOIN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_PRC_JOIN;
     if ("SEMIJOIN"_Lex_ident_column.streq(str))
       return TokenID::keyword_SEMIJOIN;
     if ("SUBQUERY"_Lex_ident_column.streq(str))
@@ -132,6 +134,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
     break;
 
   case 11:
+    if ("NO_PRC_JOIN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_PRC_JOIN;
     if ("NO_SEMIJOIN"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_SEMIJOIN;
     if ("DUPSWEEDOUT"_Lex_ident_column.streq(str))
@@ -360,6 +364,14 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     break;
   case TokenID::keyword_NO_SPLIT_MATERIALIZED:
     hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_PRC_JOIN:
+    hint_type= PRC_JOIN_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_PRC_JOIN:
+    hint_type= PRC_JOIN_HINT_ENUM;
     hint_state= false;
     break;
   default:

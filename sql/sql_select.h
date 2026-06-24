@@ -438,6 +438,7 @@ enum join_type
 };
 
 class JOIN;
+class Partial_result_cache;
 
 enum enum_nested_loop_state
 {
@@ -683,6 +684,15 @@ typedef struct st_join_table {
   */
   bool          idx_cond_fact_out;
   bool          use_join_cache;
+  // True when setup_partial_result_cache() replaced this tab's ref reader.
+  bool          partial_result_cache_eligible;
+  // Optimizer trace reason for choosing or rejecting PTRC on this tab.
+  const char   *partial_result_cache_cause;
+  // Costing values copied into EXPLAIN when PTRC is chosen.
+  double        partial_result_cache_estimated_hit_ratio;
+  double        partial_result_cache_estimated_saved_cost;
+  // Per-execution PTRC state, owned by this JOIN_TAB.
+  Partial_result_cache *partial_result_cache;
   /* TRUE <=> it is prohibited to join this table using join buffer */
   bool          no_forced_join_cache;
   uint          used_join_cache_level;
@@ -2517,6 +2527,8 @@ bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
+int join_read_always_key(JOIN_TAB *tab);
+int join_read_next_same(READ_RECORD *info);
 int get_quick_record(SQL_SELECT *select);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                 List<Item> &fields, List <Item> &all_fields, ORDER *order,

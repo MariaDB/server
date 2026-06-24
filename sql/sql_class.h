@@ -763,6 +763,7 @@ typedef struct system_variables
   ulonglong optimizer_switch;
   ulonglong optimizer_trace;
   ulonglong optimizer_join_limit_pref_ratio;
+  ulonglong partial_result_cache_max_mem_size;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
   sql_mode_t new_behavior; ///< which new SQL behaviour should be enabled
@@ -790,6 +791,8 @@ typedef struct system_variables
   ulonglong max_tmp_space_usage;
 
   double optimizer_where_cost, optimizer_scan_setup_cost;
+  double partial_result_cache_cost_threshold;
+  double partial_result_cache_min_hit_ratio;
   double log_slow_query_time_double, max_statement_time_double;
   double log_slow_always_query_time_double;
   double sample_percentage;
@@ -896,6 +899,7 @@ typedef struct system_variables
   uint idle_transaction_timeout;
   uint idle_readonly_transaction_timeout;
   uint idle_write_transaction_timeout;
+  uint partial_result_cache_hit_ratio_frequency;
   uint column_compression_threshold;
   uint column_compression_zlib_level;
   uint in_subquery_conversion_threshold;

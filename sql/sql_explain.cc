@@ -1838,8 +1838,17 @@ void Explain_table_access::tag_to_json(Json_writer *writer,
       break;
     case ET_RANGE_CHECKED_FOR_EACH_RECORD:
       /* Handled as range_checked_fer */
+      break;
     case ET_USING_JOIN_BUFFER:
       /* Do nothing. Join buffer is handled differently */
+      break;
+    case ET_USING_PARTIAL_RESULT_CACHE:
+      writer->add_member("using_partial_result_cache").add_bool(true);
+      writer->add_member("partial_result_cache_estimated_hit_ratio").
+        add_double(partial_result_cache_estimated_hit_ratio);
+      writer->add_member("partial_result_cache_estimated_saved_cost").
+        add_double(partial_result_cache_estimated_saved_cost);
+      break;
     case ET_START_TEMPORARY:
     case ET_END_TEMPORARY:
       /* Handled as "duplicates_removal: { ... } */
@@ -2287,9 +2296,29 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       writer->add_null();
   }
 
+  bool using_partial_result_cache= false;
   for (int i=0; i < (int)extra_tags.elements(); i++)
   {
-    tag_to_json(writer, extra_tags.at(i));
+    enum explain_extra_tag tag= extra_tags.at(i);
+    if (tag == ET_USING_PARTIAL_RESULT_CACHE)
+      using_partial_result_cache= true;
+    tag_to_json(writer, tag);
+  }
+
+  if (is_analyze && using_partial_result_cache)
+  {
+    writer->add_member("r_partial_result_cache_hits").
+      add_ull(partial_result_cache_stats.hit);
+    writer->add_member("r_partial_result_cache_misses").
+      add_ull(partial_result_cache_stats.miss);
+    writer->add_member("r_partial_result_cache_rows_cached").
+      add_ull(partial_result_cache_stats.rows_cached);
+    writer->add_member("r_partial_result_cache_rows_replayed").
+      add_ull(partial_result_cache_stats.rows_replayed);
+    writer->add_member("r_partial_result_cache_bypass").
+      add_ull(partial_result_cache_stats.bypass);
+    writer->add_member("r_partial_result_cache_mem_used").
+      add_ull(partial_result_cache_stats.mem_used);
   }
   
   if (full_scan_on_null_key)
@@ -2431,6 +2460,7 @@ const LEX_CSTRING extra_tag_text[]=
   { STRING_WITH_LEN("FirstMatch") },               // special handling
 
   { STRING_WITH_LEN("Using join buffer") },        // special handling
+  { STRING_WITH_LEN("Using partial result cache") },
 
   { STRING_WITH_LEN("Const row not found") },
   { STRING_WITH_LEN("Unique row not found") },
@@ -3185,4 +3215,3 @@ void Subq_materialization_tracker::print_json_members(Json_writer *writer) const
     writer->end_array();
   }
 }
-

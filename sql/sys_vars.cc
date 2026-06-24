@@ -3117,6 +3117,7 @@ export const char *optimizer_switch_names[]=
   "cset_narrowing",
   "sargable_casefold",
   "reorder_outer_joins",
+  "partial_result_cache",
   "default",
   NullS
 };
@@ -3154,6 +3155,36 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     "Maximum allowed size of an optimizer trace",
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_ulonglong Sys_partial_result_cache_max_mem_size(
+       "rds_partial_result_cache_max_mem_size",
+       "Maximum memory in bytes available to the experimental per-statement "
+       "partial result cache",
+       SESSION_VAR(partial_result_cache_max_mem_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(16 * 1024 * 1024),
+       BLOCK_SIZE(1));
+
+static Sys_var_double Sys_partial_result_cache_cost_threshold(
+       "rds_partial_result_cache_cost_threshold",
+       "Minimum estimated duplicate-key ratio for choosing the experimental "
+       "partial result cache unless forced",
+       SESSION_VAR(partial_result_cache_cost_threshold), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1), DEFAULT(0.5));
+
+static Sys_var_double Sys_partial_result_cache_min_hit_ratio(
+       "rds_partial_result_cache_min_hit_ratio",
+       "Minimum runtime hit ratio before the experimental partial result "
+       "cache switches to bypass mode",
+       SESSION_VAR(partial_result_cache_min_hit_ratio), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1), DEFAULT(0.2));
+
+static Sys_var_uint Sys_partial_result_cache_hit_ratio_frequency(
+       "rds_partial_result_cache_hit_ratio_frequency",
+       "Miss-count interval for checking the experimental partial result "
+       "cache runtime hit ratio",
+       SESSION_VAR(partial_result_cache_hit_ratio_frequency),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(1, UINT_MAX), DEFAULT(200),
+       BLOCK_SIZE(1));
 
 static Sys_var_mybool
     Sys_optimizer_record_context("optimizer_record_context",

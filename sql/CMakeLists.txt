@@ -124,6 +124,7 @@ SET (SQL_SOURCE
                opt_sum.cc
                opt_vcol_substitution.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
+               partial_result_cache.cc partial_result_cache.h
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
                sql_path.cc

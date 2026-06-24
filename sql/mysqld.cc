@@ -50,6 +50,7 @@
 #include "derror.h"       // init_errmessage
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
+#include "partial_result_cache.h" // partial_result_cache_* status
 #include "sys_vars_shared.h"
 #include "ddl_log.h"
 #include "optimizer_defaults.h"
@@ -8181,6 +8182,16 @@ SHOW_VAR status_vars[]= {
     Expression cache used only for caching subqueries now, so its statistic
     variables we call subquery_cache*.
   */
+  {"Partial_result_cache_bypass",
+    (char*) &partial_result_cache_bypass, SHOW_LONG},
+  {"Partial_result_cache_hit",
+    (char*) &partial_result_cache_hit, SHOW_LONG},
+  {"Partial_result_cache_miss",
+    (char*) &partial_result_cache_miss, SHOW_LONG},
+  {"Partial_result_cache_rows_cached",
+    (char*) &partial_result_cache_rows_cached, SHOW_LONG},
+  {"Partial_result_cache_rows_replayed",
+    (char*) &partial_result_cache_rows_replayed, SHOW_LONG},
   {"Subquery_cache_hit",       (char*) &subquery_cache_hit,     SHOW_LONG},
   {"Subquery_cache_miss",      (char*) &subquery_cache_miss,    SHOW_LONG},
   {"Table_locks_immediate",    (char*) &locks_immediate,        SHOW_LONG},
@@ -8404,6 +8415,9 @@ static int mysql_init_variables(void)
   aborted_threads= aborted_connects= aborted_connects_preauth= 0;
   malloc_calls= 0;
   subquery_cache_miss= subquery_cache_hit= 0;
+  partial_result_cache_hit= partial_result_cache_miss= 0;
+  partial_result_cache_rows_cached= partial_result_cache_rows_replayed= 0;
+  partial_result_cache_bypass= 0;
   delayed_insert_threads= delayed_insert_writes= delayed_rows_in_use= 0;
   delayed_insert_errors= thread_created= 0;
   specialflag= 0;

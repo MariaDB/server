@@ -100,6 +100,8 @@ public:
     keyword_NO_MERGE,
     keyword_SPLIT_MATERIALIZED,
     keyword_NO_SPLIT_MATERIALIZED,
+    keyword_PRC_JOIN,
+    keyword_NO_PRC_JOIN,
     keyword_INDEX,
     keyword_NO_INDEX,
     keyword_JOIN_INDEX,
@@ -346,7 +348,9 @@ private:
              id == TokenID::keyword_MERGE ||
              id == TokenID::keyword_NO_MERGE ||
              id == TokenID::keyword_SPLIT_MATERIALIZED ||
-             id == TokenID::keyword_NO_SPLIT_MATERIALIZED;
+             id == TokenID::keyword_NO_SPLIT_MATERIALIZED ||
+             id == TokenID::keyword_PRC_JOIN ||
+             id == TokenID::keyword_NO_PRC_JOIN;
     }
   };
   class Table_level_hint_type: public TokenChoice<Parser,

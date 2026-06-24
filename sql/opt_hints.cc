@@ -51,6 +51,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false,       false},
   {{STRING_WITH_LEN("MERGE")},                 true,      false,        false},
   {{STRING_WITH_LEN("SPLIT_MATERIALIZED")},    false,     false,        false},
+  {{STRING_WITH_LEN("PRC_JOIN")},              true,      false,        false},
   {{STRING_WITH_LEN("INDEX")},                 false,     true,         false},
   {{STRING_WITH_LEN("JOIN_INDEX")},            false,     true,         false},
   {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},

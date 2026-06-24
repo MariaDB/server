@@ -63,6 +63,25 @@ public:
 
 class Json_writer;
 
+struct Partial_result_cache_stats
+{
+  Partial_result_cache_stats()
+   : hit(0),
+     miss(0),
+     rows_cached(0),
+     rows_replayed(0),
+     bypass(0),
+     mem_used(0)
+  {}
+
+  ulong hit;
+  ulong miss;
+  ulong rows_cached;
+  ulong rows_replayed;
+  ulong bypass;
+  size_t mem_used;
+};
+
 /**************************************************************************************
  
   Data structures for producing EXPLAIN outputs.
@@ -599,6 +618,7 @@ enum explain_extra_tag
   ET_FIRST_MATCH,
   
   ET_USING_JOIN_BUFFER,
+  ET_USING_PARTIAL_RESULT_CACHE,
 
   ET_CONST_ROW_NOT_FOUND,
   ET_UNIQUE_ROW_NOT_FOUND,
@@ -771,6 +791,8 @@ public:
   Explain_table_access(MEM_ROOT *root, bool timed) :
     derived_select_number(0),
     non_merged_sjm_number(0),
+    partial_result_cache_estimated_hit_ratio(0.0),
+    partial_result_cache_estimated_saved_cost(0.0),
     cost(0.0),
     loops(0.0),
     extra_tags(root),
@@ -820,6 +842,10 @@ public:
   bool filtered_set; /* not set means 'NULL' should be printed */
   // Valid if ET_USING_INDEX_FOR_GROUP_BY is present
   bool loose_scan_is_scanning;
+  // Valid if ET_USING_PARTIAL_RESULT_CACHE is present
+  double partial_result_cache_estimated_hit_ratio;
+  double partial_result_cache_estimated_saved_cost;
+  Partial_result_cache_stats partial_result_cache_stats;
   
   /*
     Index use: key name and length.
@@ -852,12 +878,12 @@ public:
   */
   Dynamic_array<enum explain_extra_tag> extra_tags;
 
-  // Valid if ET_USING tag is present
-  Explain_quick_select *quick_info;
-  
   /* Non-NULL value means this tab uses "range checked for each record" */
   Explain_range_checked_fer *range_checked_fer;
  
+  // Valid if ET_USING tag is present
+  Explain_quick_select *quick_info;
+  
   bool full_scan_on_null_key;
 
   // valid with ET_USING_JOIN_BUFFER
