@@ -6947,7 +6947,10 @@ bool Table_map_log_event::init_charset_field(
     for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
     {
       if (include_type(binlog_type_info_array, m_table->field[i]))
-        store_compressed_length(buf, binlog_type_info_array[i].m_cs->number);
+        store_compressed_length(
+            buf,
+            DBUG_EVALUATE_IF("corrupt_table_map_column_charset_length",
+                (1 << 10), binlog_type_info_array[i].m_cs->number));
     }
     return write_tlv_field(m_metadata_buf, column_charset_type, buf);
   }
@@ -6977,7 +6980,10 @@ bool Table_map_log_event::init_charset_field(
         DBUG_ASSERT(cs);
         if (cs->number != default_collation)
         {
-          store_compressed_length(buf, char_column_index);
+          store_compressed_length(
+              buf,
+              DBUG_EVALUATE_IF("corrupt_table_map_default_charset_length",
+                  (1 << 10), char_column_index));
           store_compressed_length(buf, cs->number);
         }
         char_column_index++;
@@ -6995,7 +7001,10 @@ bool Table_map_log_event::init_column_name_field()
   {
     size_t len= m_table->field[i]->field_name.length;
 
-    store_compressed_length(buf, len);
+    store_compressed_length(
+        buf,
+        DBUG_EVALUATE_IF("corrupt_table_map_column_name_length",
+            (1 << 10), len));
     buf.append(m_table->field[i]->field_name.str, len);
   }
   return write_tlv_field(m_metadata_buf, COLUMN_NAME, buf);
@@ -7018,7 +7027,10 @@ bool Table_map_log_event::init_set_str_value_field()
   {
     if ((typelib= binlog_type_info_array[i].m_set_typelib))
     {
-      store_compressed_length(buf, typelib->count);
+      store_compressed_length(
+          buf,
+          DBUG_EVALUATE_IF("corrupt_table_map_set_str_value_length",
+              (1 << 10), typelib->count));
       for (unsigned int i= 0; i < typelib->count; i++)
       {
         store_compressed_length(buf, typelib->type_lengths[i]);
@@ -7067,7 +7079,10 @@ bool Table_map_log_event::init_geometry_type_field()
     {
       geom_type= binlog_type_info_array[i].m_geom_type;
       DBUG_EXECUTE_IF("inject_invalid_geometry_type", geom_type= 100;);
-      store_compressed_length(buf, geom_type);
+      store_compressed_length(
+          buf,
+          DBUG_EVALUATE_IF("corrupt_table_map_geometry_type_length",
+              (1 << 10), geom_type));
     }
   }
 
@@ -7108,7 +7123,10 @@ bool Table_map_log_event::init_primary_key_field()
     for (uint i= 0; i < pk->user_defined_key_parts; i++)
     {
       KEY_PART_INFO *key_part= pk->key_part+i;
-      store_compressed_length(buf, key_part->fieldnr-1);
+      store_compressed_length(
+          buf,
+          DBUG_EVALUATE_IF("corrupt_table_map_simple_pk_length",
+              (1 << 10), key_part->fieldnr-1));
     }
     return write_tlv_field(m_metadata_buf, SIMPLE_PRIMARY_KEY, buf);
   }
@@ -7120,7 +7138,10 @@ bool Table_map_log_event::init_primary_key_field()
       KEY_PART_INFO *key_part= pk->key_part+i;
       size_t prefix= 0;
 
-      store_compressed_length(buf, key_part->fieldnr-1);
+      store_compressed_length(
+          buf,
+          DBUG_EVALUATE_IF("corrupt_table_map_pk_prefix_length",
+              (1 << 10), key_part->fieldnr-1));
 
       // Store character length but not octet length
       if (key_part->length != m_table->field[key_part->fieldnr-1]->key_length())
