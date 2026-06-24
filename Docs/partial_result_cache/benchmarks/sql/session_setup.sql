@@ -1,0 +1,6 @@
+SET query_cache_type=OFF;
+SET join_cache_level=0;
+SET rds_partial_result_cache_max_mem_size=1073741824;
+SET rds_partial_result_cache_cost_threshold=0;
+SET rds_partial_result_cache_min_hit_ratio=0;
+SET rds_partial_result_cache_hit_ratio_frequency=200;
