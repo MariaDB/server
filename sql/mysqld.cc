@@ -4820,12 +4820,9 @@ struct SSL_ACCEPTOR_STATS
                 cert_types[pos++]= ',';
                 cert_types[pos++]= ' ';
               }
-              size_t nlen= strlen(name);
-              if (pos + nlen < sizeof(cert_types))
-              {
-                memcpy(cert_types + pos, name, nlen);
-                pos+= (int) nlen;
-              }
+              pos+= (int)(strmake(cert_types + pos, name,
+                                  sizeof(cert_types) - pos - 1) -
+                          (cert_types + pos));
             }
           }
         } while (SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_NEXT));
