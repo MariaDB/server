@@ -1,0 +1,24 @@
+--echo # partial result cache configuration
+
+SELECT @@optimizer_switch LIKE '%partial_result_cache=off%';
+SET optimizer_switch='partial_result_cache=on';
+SELECT @@optimizer_switch LIKE '%partial_result_cache=on%';
+SET optimizer_switch='partial_result_cache=off';
+SELECT @@optimizer_switch LIKE '%partial_result_cache=off%';
+
+SELECT @@rds_partial_result_cache_max_mem_size;
+SELECT @@rds_partial_result_cache_cost_threshold;
+SELECT @@rds_partial_result_cache_min_hit_ratio;
+SELECT @@rds_partial_result_cache_hit_ratio_frequency;
+
+SET @@session.rds_partial_result_cache_max_mem_size=1048576;
+SET @@session.rds_partial_result_cache_cost_threshold=0.75;
+SET @@session.rds_partial_result_cache_min_hit_ratio=0.25;
+SET @@session.rds_partial_result_cache_hit_ratio_frequency=50;
+
+SELECT @@rds_partial_result_cache_max_mem_size;
+SELECT @@rds_partial_result_cache_cost_threshold;
+SELECT @@rds_partial_result_cache_min_hit_ratio;
+SELECT @@rds_partial_result_cache_hit_ratio_frequency;
+
+SET optimizer_switch=default;

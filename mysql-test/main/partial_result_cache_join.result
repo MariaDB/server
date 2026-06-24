@@ -1,0 +1,315 @@
+# partial result cache ref join execution
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, KEY(a));
+CREATE TABLE t2 (
+a INT NOT NULL,
+c INT NOT NULL,
+v VARCHAR(10),
+d INT,
+KEY(a)
+);
+INSERT INTO t1 VALUES (1,10),(1,11),(2,20),(3,30),(1,12),(3,31);
+INSERT INTO t2 VALUES
+(1,100,'aa',NULL),(1,101,'bb',7),(2,200,'cc',NULL),(4,400,'dd',9);
+SET join_cache_level=0;
+SET optimizer_switch='partial_result_cache=off';
+SELECT STRAIGHT_JOIN t1.a, t1.b, t2.c, t2.v, t2.d
+FROM t1 JOIN t2 ON t2.a=t1.a
+ORDER BY t1.b, t2.c, t2.v;
+a	b	c	v	d
+1	10	100	aa	NULL
+1	10	101	bb	7
+1	11	100	aa	NULL
+1	11	101	bb	7
+1	12	100	aa	NULL
+1	12	101	bb	7
+2	20	200	cc	NULL
+FLUSH STATUS;
+SET optimizer_switch='partial_result_cache=on';
+SET rds_partial_result_cache_cost_threshold=0;
+EXPLAIN SELECT STRAIGHT_JOIN t1.a, t1.b, t2.c, t2.v, t2.d
+FROM t1 JOIN t2 ON t2.a=t1.a
+ORDER BY t1.b, t2.c, t2.v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	Using partial result cache
+EXPLAIN FORMAT=JSON SELECT STRAIGHT_JOIN t1.a, t1.b, t2.c, t2.v, t2.d
+FROM t1 JOIN t2 ON t2.a=t1.a
+ORDER BY t1.b, t2.c, t2.v;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.022096496,
+    "filesort": {
+      "sort_key": "t1.b, t2.c, t2.v",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "possible_keys": ["a"],
+              "loops": 1,
+              "rows": 6,
+              "cost": 0.01097403,
+              "filtered": 100
+            }
+          },
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ref",
+              "possible_keys": ["a"],
+              "key": "a",
+              "key_length": "4",
+              "used_key_parts": ["a"],
+              "ref": ["test.t1.a"],
+              "loops": 6,
+              "rows": 1,
+              "cost": 0.011122466,
+              "filtered": 100,
+              "using_partial_result_cache": true,
+              "partial_result_cache_estimated_hit_ratio": 0.833333333,
+              "partial_result_cache_estimated_saved_cost": 0.009268722
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT STRAIGHT_JOIN t1.a, t1.b, t2.c, t2.v, t2.d
+FROM t1 JOIN t2 ON t2.a=t1.a
+ORDER BY t1.b, t2.c, t2.v;
+a	b	c	v	d
+1	10	100	aa	NULL
+1	10	101	bb	7
+1	11	100	aa	NULL
+1	11	101	bb	7
+1	12	100	aa	NULL
+1	12	101	bb	7
+2	20	200	cc	NULL
+SHOW STATUS LIKE 'Partial_result_cache%';
+Variable_name	Value
+Partial_result_cache_bypass	0
+Partial_result_cache_hit	3
+Partial_result_cache_miss	3
+Partial_result_cache_rows_cached	3
+Partial_result_cache_rows_replayed	4
+# ANALYZE FORMAT=JSON should expose PTRC runtime counters.
+SET @js='$out';
+SET @out=(SELECT JSON_EXTRACT(@js, '$**.r_partial_result_cache_hits'));
+SELECT CAST(JSON_EXTRACT(@out, '$[0]') AS UNSIGNED) AS ptrc_analyze_hits;
+ptrc_analyze_hits
+3
+SET @out=(SELECT JSON_EXTRACT(@js, '$**.r_partial_result_cache_misses'));
+SELECT CAST(JSON_EXTRACT(@out, '$[0]') AS UNSIGNED) AS ptrc_analyze_misses;
+ptrc_analyze_misses
+3
+SET @out=(SELECT JSON_EXTRACT(@js, '$**.r_partial_result_cache_rows_cached'));
+SELECT CAST(JSON_EXTRACT(@out, '$[0]') AS UNSIGNED)
+AS ptrc_analyze_rows_cached;
+ptrc_analyze_rows_cached
+3
+SET @out=(SELECT JSON_EXTRACT(@js, '$**.r_partial_result_cache_rows_replayed'));
+SELECT CAST(JSON_EXTRACT(@out, '$[0]') AS UNSIGNED)
+AS ptrc_analyze_rows_replayed;
+ptrc_analyze_rows_replayed
+4
+SET @out=(SELECT JSON_EXTRACT(@js, '$**.r_partial_result_cache_bypass'));
+SELECT CAST(JSON_EXTRACT(@out, '$[0]') AS UNSIGNED) AS ptrc_analyze_bypass;
+ptrc_analyze_bypass
+0
+SET @out=(SELECT JSON_EXTRACT(@js, '$**.r_partial_result_cache_mem_used'));
+SELECT CAST(JSON_EXTRACT(@out, '$[0]') AS UNSIGNED) > 0
+AS ptrc_analyze_mem_used;
+ptrc_analyze_mem_used
+1
+SET optimizer_trace='enabled=on';
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"chosen": true%' AS ptrc_trace_chosen;
+ptrc_trace_chosen
+1
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "chosen by cost"%' AS ptrc_trace_cause;
+ptrc_trace_cause
+1
+SET optimizer_trace='enabled=off';
+# PRC_JOIN should allow targeted review of one nested-loop ref table.
+FLUSH STATUS;
+SET optimizer_switch='partial_result_cache=off';
+SET optimizer_trace='enabled=on';
+EXPLAIN SELECT /*+ PRC_JOIN(t2) */ STRAIGHT_JOIN t1.a, t2.c
+FROM t1 JOIN t2 ON t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	a	a	4	NULL	6	Using index
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	Using partial result cache
+SELECT /*+ PRC_JOIN(t2) */ COUNT(*)
+FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "chosen by PRC_JOIN hint"%' AS ptrc_trace_hint_forced;
+ptrc_trace_hint_forced
+1
+SHOW STATUS LIKE 'Partial_result_cache%';
+Variable_name	Value
+Partial_result_cache_bypass	0
+Partial_result_cache_hit	12
+Partial_result_cache_miss	12
+Partial_result_cache_rows_cached	12
+Partial_result_cache_rows_replayed	16
+SET optimizer_trace='enabled=off';
+FLUSH STATUS;
+SET optimizer_switch='partial_result_cache=on';
+SET optimizer_trace='enabled=on';
+EXPLAIN SELECT /*+ NO_PRC_JOIN(t2) */ STRAIGHT_JOIN t1.a, t2.c
+FROM t1 JOIN t2 ON t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	a	a	4	NULL	6	Using index
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	
+SELECT /*+ NO_PRC_JOIN(t2) */ COUNT(*)
+FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "disabled by NO_PRC_JOIN hint"%'
+       AS ptrc_trace_hint_disabled;
+ptrc_trace_hint_disabled
+1
+SHOW STATUS LIKE 'Partial_result_cache%';
+Variable_name	Value
+Partial_result_cache_bypass	0
+Partial_result_cache_hit	12
+Partial_result_cache_miss	12
+Partial_result_cache_rows_cached	12
+Partial_result_cache_rows_replayed	16
+SET optimizer_trace='enabled=off';
+SET rds_partial_result_cache_cost_threshold=1;
+EXPLAIN SELECT STRAIGHT_JOIN t1.a, t1.b, t2.c, t2.v, t2.d
+FROM t1 JOIN t2 ON t2.a=t1.a
+ORDER BY t1.b, t2.c, t2.v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	
+SET optimizer_trace='enabled=on';
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"chosen": false%' AS ptrc_trace_rejected;
+ptrc_trace_rejected
+1
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "cost below threshold"%' AS ptrc_trace_reject_cause;
+ptrc_trace_reject_cause
+1
+SET optimizer_trace='enabled=off';
+# PRC_JOIN may override the cost threshold, but not safety checks.
+SET optimizer_trace='enabled=on';
+EXPLAIN SELECT /*+ PRC_JOIN() */ STRAIGHT_JOIN t1.a, t2.c
+FROM t1 JOIN t2 ON t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	a	a	4	NULL	6	Using index
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	Using partial result cache
+SELECT /*+ PRC_JOIN() */ COUNT(*)
+FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "chosen by PRC_JOIN hint"%'
+       AS ptrc_trace_hint_bypasses_cost;
+ptrc_trace_hint_bypasses_cost
+1
+SET optimizer_trace='enabled=off';
+SET rds_partial_result_cache_cost_threshold=0;
+# PTRC should reject execution shapes that Phase 1 does not support.
+SET rds_partial_result_cache_max_mem_size=0;
+SET optimizer_trace='enabled=on';
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "memory limit is zero"%' AS ptrc_trace_memory_limit;
+ptrc_trace_memory_limit
+1
+SET optimizer_trace='enabled=off';
+SET rds_partial_result_cache_max_mem_size=default;
+CREATE TABLE t_blob (a INT NOT NULL, payload BLOB, KEY(a));
+INSERT INTO t_blob VALUES (1,'a'),(1,'b'),(2,'c');
+SET optimizer_trace='enabled=on';
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t_blob ON t_blob.a=t1.a;
+COUNT(*)
+7
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "BLOB row is not supported"%' AS ptrc_trace_blob_reject;
+ptrc_trace_blob_reject
+1
+SET optimizer_trace='enabled=off';
+SET optimizer_trace='enabled=on';
+SELECT COUNT(*) FROM t1 LEFT JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+9
+SET @trace=(SELECT trace FROM information_schema.optimizer_trace);
+SELECT JSON_EXTRACT(@trace, '$**.partial_result_cache') LIKE
+'%"cause": "outer join inner table is not supported"%'
+       AS ptrc_trace_outer_join_reject;
+ptrc_trace_outer_join_reject
+1
+SET optimizer_trace='enabled=off';
+# Repeated missing ref keys should reuse a negative cache entry.
+CREATE TABLE t_neg_outer (a INT NOT NULL, KEY(a));
+CREATE TABLE t_neg_inner (a INT NOT NULL, KEY(a));
+INSERT INTO t_neg_outer VALUES (9),(9),(9);
+INSERT INTO t_neg_inner VALUES (1);
+FLUSH STATUS;
+SELECT COUNT(*) FROM t_neg_outer STRAIGHT_JOIN t_neg_inner
+ON t_neg_inner.a=t_neg_outer.a;
+COUNT(*)
+0
+SHOW STATUS LIKE 'Partial_result_cache%';
+Variable_name	Value
+Partial_result_cache_bypass	0
+Partial_result_cache_hit	17
+Partial_result_cache_miss	16
+Partial_result_cache_rows_cached	15
+Partial_result_cache_rows_replayed	20
+# PTRC should disable itself if row caching exceeds the memory cap.
+SET rds_partial_result_cache_max_mem_size=8250;
+FLUSH STATUS;
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t2 ON t2.a=t1.a;
+COUNT(*)
+7
+SHOW STATUS LIKE 'Partial_result_cache_bypass';
+Variable_name	Value
+Partial_result_cache_bypass	1
+SET rds_partial_result_cache_max_mem_size=default;
+# PTRC should bypass cache maintenance after a low runtime hit ratio.
+CREATE TABLE t_low_outer (a INT NOT NULL, b INT NOT NULL, KEY(a));
+CREATE TABLE t_low_inner (a INT NOT NULL, c INT NOT NULL, KEY(a));
+INSERT INTO t_low_outer VALUES (10,10),(11,11),(12,12),(13,13);
+INSERT INTO t_low_inner VALUES (10,100),(11,110),(12,120),(13,130);
+SET rds_partial_result_cache_min_hit_ratio=0.9;
+SET rds_partial_result_cache_hit_ratio_frequency=2;
+SELECT COUNT(*) FROM t_low_outer STRAIGHT_JOIN t_low_inner
+ON t_low_inner.a=t_low_outer.a;
+COUNT(*)
+4
+SHOW STATUS LIKE 'Partial_result_cache_bypass';
+Variable_name	Value
+Partial_result_cache_bypass	2
+SET rds_partial_result_cache_min_hit_ratio=default;
+SET rds_partial_result_cache_hit_ratio_frequency=default;
+SET optimizer_switch=default;
+SET rds_partial_result_cache_cost_threshold=default;
+DROP TABLE t_low_inner,t_low_outer,t_neg_inner,t_neg_outer,t_blob,t1,t2;
