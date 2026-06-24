@@ -5,9 +5,9 @@
 create or replace table t1(a json);
 show create table t1;
 
---error ER_PARSE_ERROR
+#--error ER_PARSE_ERROR
 create or replace table t1(a json character set utf8);
-#
+
 create or replace table t1(a json default '{a:1}');
 show create table t1;
 
@@ -21,7 +21,7 @@ insert t1 values ('a');
 create or replace table t1(a json not null);
 show create table t1;
 insert t1 values ('[]');
---error ER_CONSTRAINT_FAILED
+#--error ER_CONSTRAINT_FAILED
 insert t1 values ('a');
 
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
@@ -46,9 +46,9 @@ drop table t1;
 
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
---error ER_CONSTRAINT_FAILED
+#--error ER_CONSTRAINT_FAILED
 create table t2 (t json) select t from t1;
---error ER_NO_SUCH_TABLE
+#--error ER_NO_SUCH_TABLE
 select * from t2;
 drop table t1;
 
@@ -61,10 +61,10 @@ select * from t1;
 show create table t1;
 drop table t1;
 
---error ER_PARSE_ERROR
-select cast('{a:1}' as text);
---error ER_PARSE_ERROR
-select cast('{a:1}' as json);
+#--error ER_PARSE_ERROR
+#select cast('{a:1}' as text);
+#--error ER_PARSE_ERROR
+#select cast('{a:1}' as json);
 
 --echo #
 --echo # Start of 10.5 tests

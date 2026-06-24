@@ -103,8 +103,10 @@ void Field_json::sql_type(String &res) const
 int Field_json::report_wrong_value(const ErrConv &val)
 {
   get_thd()->push_warning_truncated_value_for_field(
-      Sql_condition::WARN_LEVEL_WARN, "json", val.ptr(), table->s->db.str,
-      table->s->table_name.str, field_name.str);
+      Sql_condition::WARN_LEVEL_WARN, "json", val.ptr(),
+      table ? table->s->db.str : nullptr,
+      table ? table->s->table_name.str : nullptr,
+      field_name.str);
   reset();
   return 1;
 }
