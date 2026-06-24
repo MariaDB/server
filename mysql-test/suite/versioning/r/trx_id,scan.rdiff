@@ -1,0 +1,123 @@
+--- trx_id.result
++++ trx_id,scan.reject
+@@ -134,30 +134,78 @@
+ 1
+ 2
+ 3
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of timestamp @ts1;
+ x
+ 100
+ 3
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of transaction @trx_id2;
+ x
+ 100
+ 2
+ 3
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of timestamp @ts2;
+ x
+ 100
+ 2
+ 3
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of transaction @trx_id3;
+ x
+ 100
+ 3
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of timestamp @ts3;
+ x
+ 100
+ 1
+ 2
+ 3
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ #
+ # MDEV-15427 IB: TRX_ID based operations inside transaction generate history
+ #
+@@ -264,6 +312,9 @@
+ delete from t1;
+ select * from t1 for system_time as of timestamp'1990-1-1 00:00';
+ x
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of NULL;
+ x
+ # MDEV-16024 transaction_registry.begin_timestamp is wrong for explicit transactions
+@@ -419,6 +470,10 @@
+ #
+ SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+ x
++1
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+ x
+ DROP TABLE t1, t2;
+@@ -642,8 +697,20 @@
+ select * from t1 for system_time as of '2000-01-01 00:00:09';
+ x
+ 1
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ select * from t1 for system_time as of '2000-01-01 00:00:10';
+ x
++Warnings:
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
++Warning	1105	Incorrect definition of table mysql.transaction_registry: indexes are missing
+ # Timestamp result
+ select * from t2 for system_time all;
+ x
