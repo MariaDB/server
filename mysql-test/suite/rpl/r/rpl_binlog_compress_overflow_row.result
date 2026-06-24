@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master");
+call mtr.add_suppression("Error reading packet from server");
+call mtr.add_suppression("Slave I/O thread.*exiting");
+call mtr.add_suppression("Uncompressed data size too large");
+connection master;
+SET GLOBAL binlog_checksum = NONE;
+SET GLOBAL log_bin_compress = 1;
+CREATE TABLE t1 (a VARCHAR(300));
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=PROXY_PORT, MASTER_USER='root', MASTER_PASSWORD='', MASTER_LOG_FILE='', MASTER_LOG_POS=4, MASTER_USE_GTID=NO;
+START SLAVE IO_THREAD;
+connection master;
+INSERT INTO t1 VALUES (REPEAT('x', 256));
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+Last_IO_Error = 'Relay log write failure: could not queue event from master'
+include/assert_grep.inc [Uncompressed data size too large]
+connection slave;
+STOP SLAVE;
+Warnings:
+Note	1255	Slave already has been stopped
+RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_PASSWORD='', MASTER_USE_GTID=SLAVE_POS;
+connection master;
+connection slave;
+SET GLOBAL gtid_slave_pos='0-1-2';
+include/start_slave.inc
+connection master;
+SET GLOBAL log_bin_compress = 0;
+SET GLOBAL binlog_checksum = CRC32;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

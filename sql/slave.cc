@@ -7321,13 +7321,14 @@ dbug_gtid_accept:
   */
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
-    if (query_event_uncompress(rli->relay_log.description_event_for_queue,
+    if (int uncompress_rc = query_event_uncompress(rli->relay_log.description_event_for_queue,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                buf, event_len, new_buf_arr, sizeof(new_buf_arr),
                                &is_malloc, &new_buf, &event_len))
     {
       char  llbuf[22];
-      error = ER_BINLOG_UNCOMPRESS_ERROR;
+      error= (uncompress_rc == 2) ? ER_TOO_BIG_FOR_UNCOMPRESS
+                                    : ER_BINLOG_UNCOMPRESS_ERROR;
       error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
       llstr(mi->master_log_pos, llbuf);
       error_msg.append(llbuf, strlen(llbuf));
@@ -7345,14 +7346,15 @@ dbug_gtid_accept:
   case DELETE_ROWS_COMPRESSED_EVENT_V1:
     inc_pos = event_len;
     {
-      if (row_log_event_uncompress(rli->relay_log.description_event_for_queue,
+      if (int uncompress_rc = row_log_event_uncompress(rli->relay_log.description_event_for_queue,
                                    checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                    buf, event_len, new_buf_arr,
                                    sizeof(new_buf_arr),
                                    &is_malloc, &new_buf, &event_len))
       {
         char  llbuf[22];
-        error = ER_BINLOG_UNCOMPRESS_ERROR;
+        error= (uncompress_rc == 2) ? ER_TOO_BIG_FOR_UNCOMPRESS
+                                    : ER_BINLOG_UNCOMPRESS_ERROR;
         error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
         llstr(mi->master_log_pos, llbuf);
         error_msg.append(llbuf, strlen(llbuf));

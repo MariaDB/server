@@ -1,0 +1,94 @@
+#
+# MDEV-39762: query_event_uncompress() stack overflow via oversized un_len
+#
+# Regression test: the IO thread must reject a QUERY_COMPRESSED_EVENT
+# whose un_len field exceeds MAX_MAX_ALLOWED_PACKET (1 GB) and stop
+# cleanly rather than overflowing the stack or crashing.
+#
+# Approach
+# --------
+# A QUERY_COMPRESSED_EVENT with un_len > 1 GB cannot be produced by any
+# legitimate server.  This test uses a man-in-the-middle proxy script
+# (rpl_binlog_compress_overflow_proxy.pl) that sits between the real master and the replica
+# IO thread.  The proxy forwards all replication traffic transparently
+# except when it sees a QUERY_COMPRESSED_EVENT, at which point it patches
+# the un_len field to 0xFFFFFFFC before forwarding it to the replica.
+#
+# The replica IO thread must detect the invalid un_len and stop with
+# ER_SLAVE_RELAY_LOG_WRITE_FAILURE (1595) rather than crashing.
+#
+# Debug output: grep for PROXY_DEBUG in test logs.
+#
+
+--source include/have_binlog_format_statement.inc
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master");
+call mtr.add_suppression("Error reading packet from server");
+call mtr.add_suppression("Slave I/O thread.*exiting");
+call mtr.add_suppression("Uncompressed data size too large");
+
+--connection master
+SET GLOBAL binlog_checksum = NONE;
+SET GLOBAL log_bin_compress = 1;
+SET GLOBAL log_bin_compress_min_len = 10;
+
+CREATE TABLE t1 (a VARCHAR(300));
+
+# Start the proxy.
+
+let $proxy_port = `SELECT @@port + 2`;
+
+--exec perl $MYSQL_TEST_DIR/suite/rpl/t/rpl_binlog_compress_overflow_proxy.pl $proxy_port 127.0.0.1 $MASTER_MYPORT
+
+# Point the replica IO thread at the proxy and start it.
+
+--connection slave
+--source include/stop_slave.inc
+
+--replace_result $proxy_port PROXY_PORT
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$proxy_port, MASTER_USER='root', MASTER_PASSWORD='', MASTER_LOG_FILE='', MASTER_LOG_POS=4, MASTER_USE_GTID=NO
+
+START SLAVE IO_THREAD;
+
+--connection master
+INSERT INTO t1 VALUES ('test');
+
+# The IO thread must stop with error 1595
+
+--connection slave
+--let $slave_io_errno= 1595
+--let $show_slave_io_error= 1
+--source include/wait_for_slave_io_error.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_text= Uncompressed data size too large
+--let $assert_select= Uncompressed data size too large
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--connection slave
+STOP SLAVE;
+RESET SLAVE ALL;
+
+# Reconnect to real master and reset GTID position so rpl_end can sync
+--replace_result $MASTER_MYPORT MASTER_PORT
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_PASSWORD='', MASTER_USE_GTID=SLAVE_POS
+
+# Reset slave GTID to match master so we can sync
+--connection master
+let $master_gtid= `SELECT @@gtid_binlog_pos`;
+--connection slave
+--eval SET GLOBAL gtid_slave_pos='$master_gtid'
+--source include/start_slave.inc
+
+--connection master
+SET GLOBAL log_bin_compress = 0;
+SET GLOBAL log_bin_compress_min_len = DEFAULT;
+SET GLOBAL binlog_checksum = CRC32;
+DROP TABLE t1;
+
+--sync_slave_with_master
+--source include/rpl_end.inc

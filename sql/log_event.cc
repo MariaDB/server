@@ -407,11 +407,14 @@ query_event_uncompress(const Format_description_log_event *description_event,
   if (comp_len < 0 || un_len == 0)
     return 1;
 
+  // bad event
+  if (unlikely(un_len > MAX_MAX_ALLOWED_PACKET))
+    return 2;
   *newlen= (ulong)(tmp - src) + un_len;
   if (contain_checksum)
     *newlen+= BINLOG_CHECKSUM_LEN;
   
-  uint32 alloc_size= (uint32)ALIGN_SIZE(*newlen);
+  size_t alloc_size= ALIGN_SIZE(*newlen);
   
   if (alloc_size <= buf_size) 
     new_dst= buf;
@@ -513,6 +516,8 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   if (un_len == 0)
     return 1;                                   //bad event
 
+  if (unlikely(un_len > MAX_MAX_ALLOWED_PACKET))
+    return 2;                                   //bad event
   int32 comp_len= (int32)(len - (tmp - src) -
                           (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
   if (comp_len <=0)
@@ -1840,6 +1845,12 @@ Query_compressed_log_event::Query_compressed_log_event(const uchar *buf,
     uint32 un_len= binlog_get_uncompress_len((uchar*) query);
     if (!un_len)
     {
+      query= 0;
+      return;
+    }
+    if (unlikely(un_len > MAX_MAX_ALLOWED_PACKET))
+    {
+      my_error(ER_TOO_BIG_FOR_UNCOMPRESS, MYF(0), MAX_MAX_ALLOWED_PACKET);
       query= 0;
       return;
     }
@@ -3542,6 +3553,11 @@ void Rows_log_event::uncompress_buf()
   if (!un_len)
     return;
 
+  if (unlikely(un_len > MAX_MAX_ALLOWED_PACKET))
+  {
+    my_error(ER_TOO_BIG_FOR_UNCOMPRESS, MYF(0), MAX_MAX_ALLOWED_PACKET);
+    return;
+  }
   uchar *new_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, ALIGN_SIZE(un_len),
                                      MYF(MY_WME));
   if (new_buf)
