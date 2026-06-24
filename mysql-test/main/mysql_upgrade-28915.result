@@ -321,6 +321,7 @@ SELECT name, body_utf8, body FROM mysql.event;
 name	body_utf8	body
 ev1	INSERT INTO t1 VALUES (1, 'abc')	INSERT INTO t1 VALUES (1, 'abc')
 # mysql_upgrade changes columns from utf8mb4 to utf8mb3
+SET GLOBAL event_scheduler=OFF;
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -541,7 +542,6 @@ Create Table	CREATE TABLE `event` (
   `body_utf8` longblob DEFAULT NULL,
   PRIMARY KEY (`db`,`name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
-SET GLOBAL event_scheduler=OFF;
 DROP EVENT ev1;
 DROP PROCEDURE sp1;
 DROP TABLE t1;
