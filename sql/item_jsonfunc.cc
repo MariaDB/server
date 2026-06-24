@@ -6591,3 +6591,26 @@ void Item_func_is_json::print(String *str, enum_query_type query_type)
   if (with_unique_keys)
     str->append(STRING_WITH_LEN(" WITH UNIQUE KEYS"));
 }
+
+
+bool Item_func_member_of::val_bool()
+{
+  null_value= args[0]->null_value || args[1]->null_value;
+  return false;
+}
+
+bool Item_func_member_of::fix_length_and_dec(THD *thd)
+{
+  max_length= 1;
+  set_maybe_null();
+  return false;
+}
+
+void Item_func_member_of::print(String *str, enum_query_type query_type)
+{
+  args[0]->print_parenthesised(str, query_type, precedence());
+  str->append(STRING_WITH_LEN(" member of ("));
+  args[1]->print(str, query_type);
+  str->append(')');
+}
+

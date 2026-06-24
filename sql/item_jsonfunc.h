@@ -1130,4 +1130,24 @@ public:
 };
 
 
+class Item_func_member_of : public Item_bool_func
+{
+public:
+  Item_func_member_of(THD *thd, Item *a, Item *b):
+    Item_bool_func(thd, a, b)
+    {}
+  bool val_bool() override;
+  bool fix_length_and_dec(THD *thd) override;
+  void print(String *str, enum_query_type query_type) override;
+  enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("member_of") };
+    return name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_member_of>(thd, this); }
+};
+
+
 #endif /* ITEM_JSONFUNC_INCLUDED */
