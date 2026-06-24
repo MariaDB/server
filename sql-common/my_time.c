@@ -98,6 +98,7 @@ my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
   DBUG_ASSERT(C_FLAGS_OK(flags));
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
     return FALSE;
+  DBUG_ASSERT(ltime->month <=12);
   if (not_zero_date)
   {
     if (((flags & C_TIME_NO_ZERO_IN_DATE) &&
