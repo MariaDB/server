@@ -300,6 +300,46 @@ t1	CREATE TABLE `t1` (
   `json_quote('foo')` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+select json_quote(17);
+json_quote(17)
+17
+select json_quote(3.14);
+json_quote(3.14)
+3.14
+select json_quote(1.5e2);
+json_quote(1.5e2)
+150
+select json_quote(NULL);
+json_quote(NULL)
+null
+select isnull(json_quote(NULL));
+isnull(json_quote(NULL))
+0
+select json_quote('hello');
+json_quote('hello')
+"hello"
+select json_quote('"already_quoted"');
+json_quote('"already_quoted"')
+"\"already_quoted\""
+select json_contains(json_quote(NULL), 'null');
+json_contains(json_quote(NULL), 'null')
+1
+create table t1 (a int);
+insert into t1 values (NULL), (5);
+select json_quote(a) from t1 order by a;
+json_quote(a)
+null
+5
+drop table t1;
+select json_quote(NULL) is NULL;
+json_quote(NULL) is NULL
+0
+select json_quote(NULL) = 'null';
+json_quote(NULL) = 'null'
+1
+select coalesce(json_quote(NULL), 'fallback');
+coalesce(json_quote(NULL), 'fallback')
+null
 select json_merge('string');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
 select json_merge('string', 123);
