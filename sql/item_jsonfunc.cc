@@ -983,13 +983,18 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
-    Odd but realistic worst case is when all characters
-    of the argument turn into '\uXXXX\uXXXX', which is 12.
-    For NULL input we return the 4-character literal "null",
-    for numeric input we return the unquoted text, so the
-    function never returns SQL NULL — do not set maybe_null.
+    Item 2 (maybe_null & view-protocol fix): Worst-case output length: each
+    input character can expand to '\uXXXX\uXXXX' (12 bytes) plus the two
+    surrounding quotes (+2).
+
+    For NULL input, val_str() returns the 4-character unquoted string "null".
+    When args[0]->max_char_length() is 0 (e.g. for literal NULL), the formula
+    (0 * 12 + 2 = 2) would under-declare max_char_length as 2, causing "null"
+    to be truncated to "nu" under --view-protocol.  We enforce a minimum of 4
+    characters using MY_MAX(..., 4ULL) to ensure "null" is never truncated.
   */
-  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
+  fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length() * 12 + 2, 4ULL));
+  set_maybe_null();
   return FALSE;
 }
 
@@ -1021,10 +1026,28 @@ String *Item_func_json_quote::val_str(String *str)
     return str;
   }
 
-  switch (args[0]->result_type())
+  /*
+    Items 4 & 5: Guard against a null String pointer once, before the
+    switch, rather than duplicating it inside every case.  After this
+    point every code path below is guaranteed s != NULL.
+  */
+  if (!s)
+  {
+    null_value= 1;
+    return NULL;
+  }
+
+  /*
+    Item 6: Use a labelled switch so ROW_RESULT can re-enter via goto after
+    unwrapping a single-column row item.
+  */
+  Item_result t= args[0]->result_type();
+
+eval:
+  switch (t)
   {
   case STRING_RESULT:
-    /* String input: quote and escape exactly as before. */
+    /* String input: quote and escape. */
     if (str->append('"') ||
         st_append_escaped(str, s) ||
         str->append('"'))
@@ -1042,7 +1065,7 @@ String *Item_func_json_quote::val_str(String *str)
       Numeric input: the text representation is already valid JSON —
       copy it unquoted and unescaped.
     */
-    if (!s || str->append(s->ptr(), s->length(), &my_charset_utf8mb4_bin))
+    if (str->append(tmp_s))
     {
       null_value= 1;
       return 0;
@@ -1050,8 +1073,48 @@ String *Item_func_json_quote::val_str(String *str)
     null_value= 0;
     return str;
 
+  case TIME_RESULT:
+    /*
+      Item 6: Times are already well-formatted text (e.g. '2025-01-01 12:00:00')
+      and require no JSON escaping beyond surrounding quotes.
+    */
+    if (str->append('"') ||
+        str->append(tmp_s) ||
+        str->append('"'))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+
+  case ROW_RESULT:
+    /*
+      Item 6: Single-column ROW_RESULT unwrapping logic (goto eval).
+      Stored function calls (Item_func_sp) can report ROW_RESULT with cols() == 1
+      at the point val_str() inspects args[0]->result_type(). The inner return
+      element type is extracted via element_index(0)->result_type() and the
+      switch is re-entered via goto eval.
+
+      NOTE: When a stored function returning VARCHAR(30) (e.g. JSON_OBJECT text)
+      is unwrapped here, its element type is STRING_RESULT. In val_str(),
+      STRING_RESULT inputs are quoted and escaped (e.g. producing '"{\"key\":...}"').
+      This double-quoting is standard SQL/JSON behavior for VARCHAR return types.
+    */
+    if (args[0]->cols() == 1)
+    {
+      t= args[0]->element_index(0)->result_type();
+      if (t != ROW_RESULT)
+        goto eval;
+    }
+    /* fallthrough */
   default:
-    /* Unknown result type (e.g. ROW_RESULT): preserve original NULL behaviour. */
+    /*
+      Item 6: Unknown or multi-column ROW_RESULT — emit a real diagnostic
+      instead of silently returning NULL.  Under MEMBER OF this will surface
+      as a warning mentioning json_quote internally.
+    */
+    my_error(ER_WRONG_ARGUMENTS, MYF(ME_WARNING), func_name());
     null_value= 1;
     return 0;
   }
@@ -6721,3 +6784,178 @@ void Item_func_is_json::print(String *str, enum_query_type query_type)
   if (with_unique_keys)
     str->append(STRING_WITH_LEN(" WITH UNIQUE KEYS"));
 }
+
+
+bool Item_func_member_of::val_bool()
+{
+  DBUG_ASSERT(fixed());
+
+  bool res= json_contains_item->val_bool();
+  /*
+    Note: MariaDB intentionally diverges from MySQL's documented behavior
+    ("If value is NULL, returns NULL"). MariaDB evaluates SELECT NULL MEMBER OF
+    ('[null]') as 1 and SELECT NULL MEMBER OF ('[1,2,3]') as 0. When args[0] is
+    SQL NULL, json_quote_item returns the string "null" (per MDEV-13645), which
+    json_contains_item matches against JSON null in the array. Container NULL
+    (args[1] IS NULL) still propagates SQL NULL via json_contains_item->null_value.
+  */
+  if (json_contains_item->null_value)
+  {
+    null_value= 1;
+    return false;
+  }
+  null_value= 0;
+  return negated ? !res : res;
+}
+
+bool Item_func_member_of::fix_length_and_dec(THD *thd)
+{
+  /*
+    Item 7: Call through the explicit immediate parent (Item_func_opt_neg).
+    Item_func_opt_neg does not itself override fix_length_and_dec — the call
+    resolves through Item_bool_func::fix_length_and_dec — but naming the
+    direct parent makes the inheritance intent explicit and consistent with
+    the walk() and transform() overrides below.
+  */
+  if (Item_func_opt_neg::fix_length_and_dec(thd))
+    return true;
+
+  set_maybe_null();
+
+  List<Item> contains_args;
+  if (contains_args.push_back(args[1], thd->mem_root))
+    return true;
+
+  if (is_json_type(args[0]))
+  {
+    json_quote_item= NULL;
+    if (contains_args.push_back(args[0], thd->mem_root))
+      return true;
+  }
+  else
+  {
+    Item_func_json_quote *jq= new (thd->mem_root) Item_func_json_quote(thd, args[0]);
+    if (!jq)
+      return true;
+    if (jq->fix_length_and_dec(thd))
+      return true;
+    /*
+      Item 1 (root-cause fix): Item_func_json_quote was just constructed and
+      only fix_length_and_dec() was called — fix_fields() was deliberately
+      skipped because the item lives outside the normal item tree.  The
+      Used_tables_and_const_cache constructor sets const_item_cache = true by
+      default, so jq->const_item() incorrectly returns true at this point.
+
+      Item_func_json_contains::fix_length_and_dec() reads
+        a2_constant = args[1]->const_item()   (args[1] is jq)
+      If that read happens while jq->const_item() is still true, a2_constant
+      becomes true and the needle value is cached after the first row —
+      producing wrong results for every subsequent row (NULL candidate
+      appearing as 1, non-member values appearing as 1, etc.).
+
+      Calling jq->update_used_tables() here propagates used_tables_cache and
+      const_item_cache from args[0] (the candidate column) so that
+      jq->const_item() correctly returns false BEFORE jc->fix_length_and_dec
+      reads it.  The same call must also follow for jc itself for symmetry.
+    */
+    jq->update_used_tables();
+    json_quote_item= jq;
+    if (contains_args.push_back(json_quote_item, thd->mem_root))
+      return true;
+  }
+
+  Item_func_json_contains *jc= new (thd->mem_root) Item_func_json_contains(thd, contains_args);
+  if (!jc)
+    return true;
+  if (jc->fix_length_and_dec(thd))
+    return true;
+  /* Propagate used-tables/const state from the freshly fixed arguments. */
+  jc->update_used_tables();
+  json_contains_item= jc;
+
+  return false;
+}
+
+
+bool Item_func_member_of::walk(Item_processor processor, void *arg, item_walk_flags flags)
+{
+  /*
+    Item 9: Explicitly walk json_contains_item (and transitively json_quote_item
+    which lives inside it) because these internal helper items are NOT in the
+    args[] array that Item_func_or_sum::walk() iterates via walk_args().
+    Item_func_member_of::args[] contains only {args[0]=candidate, args[1]=container};
+    the helper items are hidden children that would be completely skipped without
+    this explicit call.  Removing it causes processors such as used_tables and
+    equal-field propagation to miss those items.
+
+    Call through Item_func_opt_neg (immediate parent) instead of Item_bool_func
+    for the same reason as fix_length_and_dec and transform.
+  */
+  if (json_contains_item && json_contains_item->walk(processor, arg, flags))
+    return true;
+  return Item_func_opt_neg::walk(processor, arg, flags);
+}
+
+Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uchar *arg)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+  if (transform_args(thd, transformer, arg))
+    return 0;
+
+  if (json_contains_item)
+  {
+    Item *new_item= json_contains_item->transform(thd, transformer, arg);
+    if (!new_item)
+      return 0;
+    if (json_contains_item != new_item)
+      thd->change_item_tree((Item**)&json_contains_item, new_item);
+  }
+
+  /*
+    Item 3 note: The reviewer requested calling Item_func_opt_neg::transform
+    explicitly here, but Item_func_opt_neg does not override transform().
+    Calling Item_func_opt_neg::transform(thd, transformer, arg) would resolve
+    to Item_func::transform() which calls transform_args() AGAIN (double
+    transform) then the transformer.  Since transform_args() was already called
+    above, we keep the direct invocation of the transformer function pointer to
+    avoid transforming outer args[] twice.  This correctly applies the
+    transformer to 'this' as the parent's transform() would do after its own
+    transform_args() run.
+  */
+  return (this->*transformer)(thd, arg);
+}
+
+
+
+void Item_func_member_of::update_used_tables()
+{
+  Item_func_opt_neg::update_used_tables();
+  if (json_quote_item)
+  {
+    if (json_quote_item->type() == Item::FUNC_ITEM)
+      static_cast<Item_func*>(json_quote_item)->arguments()[0]= args[0];
+    json_quote_item->update_used_tables();
+  }
+  if (json_contains_item)
+  {
+    if (json_contains_item->type() == Item::FUNC_ITEM)
+    {
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item ? json_quote_item : args[0];
+    }
+    json_contains_item->update_used_tables();
+  }
+}
+
+
+void Item_func_member_of::print(String *str, enum_query_type query_type)
+{
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
+  if (negated)
+    str->append(STRING_WITH_LEN(" not"));
+  str->append(STRING_WITH_LEN(" member of ("));
+  args[1]->print(str, query_type);
+  str->append(')');
+}
+
+
