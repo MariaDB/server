@@ -1,0 +1,32 @@
+#
+# MDEV-38591: Optimizer trace test for condition processing
+#
+CREATE TABLE t (id INT PRIMARY KEY, x INT, j JSON);
+INSERT INTO t VALUES (1, 10, '[10, 20]'), (2, 20, '[10, 20]'), (3, 30, '[30, 40]');
+SET STATEMENT optimizer_trace='enabled=on' FOR SELECT * FROM t WHERE x=10 AND x MEMBER OF (j);
+id	x	j
+1	10	[10, 20]
+SELECT JSON_DETAILED(JSON_EXTRACT(TRACE, '$**.condition_processing')) AS t FROM information_schema.OPTIMIZER_TRACE;
+t
+[
+    {
+        "condition": "WHERE",
+        "original_condition": "t.x = 10 and t.x member of (t.j)",
+        "steps": 
+        [
+            {
+                "transformation": "equality_propagation",
+                "resulting_condition": "10 member of (t.j) and multiple equal(10, t.x)"
+            },
+            {
+                "transformation": "constant_propagation",
+                "resulting_condition": "10 member of (t.j) and multiple equal(10, t.x)"
+            },
+            {
+                "transformation": "trivial_condition_removal",
+                "resulting_condition": "10 member of (t.j) and multiple equal(10, t.x)"
+            }
+        ]
+    }
+]
+DROP TABLE t;
