@@ -387,10 +387,20 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   We should not introduce any further shift/reduce conflicts.
 */
 
+/*
+  %expect bumped by 1 for MEMBER_SYM: a new shift/reduce conflict
+  identical in category to the existing SOUNDS_SYM conflict in this
+  same state (both are non-reserved keywords that begin a binary
+  predicate operator: SOUNDS LIKE / MEMBER OF). Resolved by Bison's
+  default shift, which is correct here. MEMBER is kept non-reserved
+  to match MySQL 8.0.19+ semantics (MDEV-38591) — reserving it would
+  itself be a compatibility regression for users migrating schemas
+  with existing `member` columns/tables.
+*/
 %ifdef MARIADB
-%expect 72
-%else
 %expect 73
+%else
+%expect 74
 %endif
 
 /*
@@ -998,6 +1008,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MAX_STATEMENT_TIME_SYM
 %token  <kwd>  MAX_USER_CONNECTIONS_SYM
 %token  <kwd>  MEDIUM_SYM
+%token  <kwd>  MEMBER_SYM
 %token  <kwd>  MEMORY_SYM
 %token  <kwd>  MERGE_SYM                     /* SQL-2003-R */
 %token  <kwd>  MESSAGE_TEXT_SYM              /* SQL-2003-N */
@@ -1236,7 +1247,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
-%left   LIKE SOUNDS_SYM REGEXP IN_SYM
+%left   LIKE SOUNDS_SYM REGEXP IN_SYM MEMBER_SYM
 %left   '|'
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
@@ -10241,6 +10252,20 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | predicate MEMBER_SYM OF_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_member_of(thd, $1, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | predicate not MEMBER_SYM OF_SYM '(' expr ')' %prec MEMBER_SYM
+          {
+            Item_func_member_of *item=
+              new (thd->mem_root) Item_func_member_of(thd, $1, $6);
+            if (unlikely(item == NULL))
+              MYSQL_YYABORT;
+            $$= item->neg_transformer(thd);
+          }
         | predicate LIKE predicate
           {
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, escape(thd), false);
@@ -17384,6 +17409,7 @@ keyword_sp_var_and_label:
         | ID_SYM
         | LAST_VALUE
         | LASTVAL_SYM
+        | MEMBER_SYM
         | MINUTE_SYM
         | MONTH_SYM
         | NEXTVAL_SYM
