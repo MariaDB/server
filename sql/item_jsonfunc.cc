@@ -985,6 +985,9 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
   /*
     Odd but realistic worst case is when all characters
     of the argument turn into '\uXXXX\uXXXX', which is 12.
+    For NULL input we return the 4-character literal "null",
+    for numeric input we return the unquoted text, so the
+    function never returns SQL NULL — do not set maybe_null.
   */
   fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
   return FALSE;
@@ -993,25 +996,65 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 
 String *Item_func_json_quote::val_str(String *str)
 {
+  /*
+    Evaluate the argument. For STRING_RESULT we need the returned pointer
+    (which may differ from &tmp_s for const-item optimisations).
+    For numeric types the text lives in tmp_s; val_str() still fills it.
+  */
   String *s= args[0]->val_str(&tmp_s);
-
-  if ((null_value= (args[0]->null_value ||
-                    args[0]->result_type() != STRING_RESULT)))
-    return NULL;
 
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->append('"') ||
-      st_append_escaped(str, s) ||
-      str->append('"'))
+  if (args[0]->null_value)
   {
-    /* Report an error. */
+    /*
+      SQL NULL input maps to the JSON null literal — return the
+      4-character string "null" as a non-NULL result.
+    */
+    null_value= 0;
+    if (str->append(STRING_WITH_LEN("null")))
+    {
+      null_value= 1;
+      return 0;
+    }
+    return str;
+  }
+
+  switch (args[0]->result_type())
+  {
+  case STRING_RESULT:
+    /* String input: quote and escape exactly as before. */
+    if (str->append('"') ||
+        st_append_escaped(str, s) ||
+        str->append('"'))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+
+  case INT_RESULT:
+  case REAL_RESULT:
+  case DECIMAL_RESULT:
+    /*
+      Numeric input: the text representation is already valid JSON —
+      copy it unquoted and unescaped.
+    */
+    if (!s || str->append(s->ptr(), s->length(), &my_charset_utf8mb4_bin))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+
+  default:
+    /* Unknown result type (e.g. ROW_RESULT): preserve original NULL behaviour. */
     null_value= 1;
     return 0;
   }
-
-  return str;
 }
 
 
