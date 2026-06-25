@@ -3444,8 +3444,7 @@ void Window_funcs_computation::cleanup()
   }
 }
 
-bool Window_funcs_sort_streaming::setup(THD *thd,
-                                        List<Item_window_func> &window_funcs)
+bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
 {
   order_window_funcs_by_window_specs(&window_funcs);
 

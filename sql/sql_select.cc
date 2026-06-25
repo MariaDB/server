@@ -3603,13 +3603,11 @@ int JOIN::optimize_stage2()
     JOIN_TAB *last_real_tab= &join_tab[exec_join_tab_cnt() - 1];
     // here i would attach the new streamable class (same interface ?)
     if (!(last_real_tab->window_funcs_streaming_step=
-              new Window_funcs_sort_streaming))
+              new Window_funcs_sort_streaming(thd)))
       DBUG_RETURN(true);
     // this sets up the list, and the partition and group tracking
-    // I think we would have called order_window_funcs_by_window_specs() once
-    // in preparation already to decide on streaming or not?
     if (last_real_tab->window_funcs_streaming_step->setup(
-            thd, select_lex->window_funcs))
+            select_lex->window_funcs))
       DBUG_RETURN(true);
     // i need to make SURE THAT END_SEND is not assigned to last table after
     // this, this is very important

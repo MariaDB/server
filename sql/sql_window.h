@@ -268,7 +268,8 @@ public:
 class Window_funcs_sort_streaming : public Sql_alloc
 {
 public:
-  bool setup(THD *thd, List<Item_window_func> &win_funcs);
+  Window_funcs_sort_streaming(THD *thd) : thd(thd) {}
+  bool setup(List<Item_window_func> &win_funcs);
   bool process_row(); // this object is attached to the JOIN, and
                       // process_row() is called for a method attached on
                       // takes the window funcs and the current row by
@@ -276,7 +277,8 @@ public:
                       // cursors to update the aggregate functions
 
 private:
-  int rownum= 0; // acts like internal state for process row
+  int rownum= 0; // internal state for process row
+  THD *thd= NULL;
   List<Item_window_func> win_funcs;
   // these correspond to the window functions in the SELECT_LEX (all functions
   // are streamable)

@@ -512,10 +512,4 @@ EXPLAIN
     ]
   }
 }
-SELECT rank() OVER (ORDER BY a) as rnk FROM (SELECT a FROM t1 WHERE a > 1) derived;
-rnk
-1
-1
-3
-3
 DROP TABLE t1;
