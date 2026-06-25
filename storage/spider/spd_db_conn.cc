@@ -2191,13 +2191,69 @@ int spider_db_fetch_for_item_sum_func(
         row->next();
       }
       break;
+    case Item_sum::SUM_BIT_FUNC:
+      {
+        Item_sum_bit *item_sum_bit = (Item_sum_bit *) item_sum;
+        if (row->is_null())
+        {
+          if (item_sum_bit->result_type() == STRING_RESULT)
+            item_sum_bit->direct_add((const String *) NULL, TRUE);
+          else
+            item_sum_bit->direct_add((ulonglong) 0, TRUE);
+        }
+        else
+        {
+          char buf[MAX_FIELD_WIDTH];
+          spider_string tmp_str(buf, MAX_FIELD_WIDTH, share->access_charset);
+          tmp_str.init_calc_mem(SPD_MID_DB_FETCH_FOR_ITEM_SUM_FUNC_3);
+          tmp_str.length(0);
+          if ((error_num= row->append_to_str(&tmp_str)))
+            DBUG_RETURN(error_num);
+
+          if (item_sum_bit->result_type() == STRING_RESULT)
+          {
+            item_sum_bit->direct_add(tmp_str.get_str(), FALSE);
+          }
+          else
+          {
+            /* Parse the full 64-bit unsigned value from the remote result.
+             * strntoull10rnd handles the full ulonglong range safely
+             * and takes a length to avoid out-of-bounds reads. */
+            int conv_error= 0;
+            const char *endptr;
+            ulonglong bits= system_charset_info->strntoull10rnd(
+                              tmp_str.ptr(), tmp_str.length(),
+                              1, (char **) &endptr, &conv_error);
+            if (conv_error != 0 && conv_error != MY_ERRNO_ERANGE)
+            {
+              /* Non-numeric or parse error - treat as 0 with warning */
+              push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_TRUNCATED_WRONG_VALUE,
+                                  ER_THD(current_thd, ER_TRUNCATED_WRONG_VALUE),
+                                  "INTEGER", tmp_str.ptr());
+              bits= 0;
+            }
+            else if (endptr != tmp_str.ptr() + tmp_str.length())
+            {
+              /* Trailing non-numeric data - treat as 0 with warning */
+              push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_TRUNCATED_WRONG_VALUE,
+                                  ER_THD(current_thd, ER_TRUNCATED_WRONG_VALUE),
+                                  "INTEGER", tmp_str.ptr());
+              bits= 0;
+            }
+            item_sum_bit->direct_add(bits, FALSE);
+          }
+        }
+        row->next();
+      }
+      break;
     case Item_sum::COUNT_DISTINCT_FUNC:
     case Item_sum::SUM_DISTINCT_FUNC:
     case Item_sum::AVG_FUNC:
     case Item_sum::AVG_DISTINCT_FUNC:
     case Item_sum::STD_FUNC:
     case Item_sum::VARIANCE_FUNC:
-    case Item_sum::SUM_BIT_FUNC:
     case Item_sum::UDF_SUM_FUNC:
     case Item_sum::GROUP_CONCAT_FUNC:
     default:

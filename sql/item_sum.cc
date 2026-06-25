@@ -2679,7 +2679,7 @@ Item_sum_bit::Item_sum_bit(THD *thd, Item_sum_bit *item):
   {
     if (item->m_binary_bit_counters)
     {
-      m_binary_bit_counters= thd->alloc<uint32>(m_binary_length * 8);
+      m_binary_bit_counters= (uint32*) thd->alloc(m_binary_length * 8 * sizeof(uint32));
       if (m_binary_bit_counters)
         memcpy(m_binary_bit_counters, item->m_binary_bit_counters,
                m_binary_length * 8 * sizeof(uint32));
@@ -2710,6 +2710,7 @@ void Item_sum_bit::direct_add(const String *add_str, bool is_null)
   direct_sum_is_null= is_null;
   direct_added= true;
 }
+
 
 
 void Item_sum_bit::clear()
@@ -2745,7 +2746,7 @@ void Item_sum_bit::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   if (m_binary_mode)
   {
-    m_binary_bit_counters= thd->calloc<uint32>(m_binary_length * 8);
+    m_binary_bit_counters= (uint32*) thd->calloc(m_binary_length * 8 * sizeof(uint32));
     if (!m_binary_bit_counters)
       return;
   }
