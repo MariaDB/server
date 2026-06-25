@@ -436,15 +436,16 @@ static int ssl_external_passwd_cb(char *buf, int size, int rw, void *userdata)
 
 /************************ VioSSLFd **********************************/
 static struct st_VioSSLFd *
-new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
+new_VioSSLFd(const char **key_files, const char **cert_files, uint cert_count,
+             const char *ca_file,
              const char *ca_path, const char *cipher, my_bool is_client_method,
              enum enum_ssl_init_error *error, const char *crl_file,
-             const char *crl_path, ulonglong tls_version, const char *passphrase,
-             const char **alt_key_files, const char **alt_cert_files,
-             uint alt_cert_count)
+             const char *crl_path, ulonglong tls_version, const char *passphrase)
 {
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
+  const char *key_file= cert_count > 0 ? key_files[0] : NULL;
+  const char *cert_file= cert_count > 0 ? cert_files[0] : NULL;
   DBUG_ENTER("new_VioSSLFd");
 
   fix_value(key_file);
@@ -568,10 +569,10 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
 #ifndef HAVE_WOLFSSL
   {
     uint i;
-    for (i= 0; i < alt_cert_count; i++)
+    for (i= 1; i < cert_count; i++)
     {
-      const char *acert= alt_cert_files[i];
-      const char *akey= alt_key_files[i];
+      const char *acert= cert_files[i];
+      const char *akey= key_files[i];
       if (SSL_CTX_use_certificate_chain_file(ssl_fd->ssl_context, acert) <= 0)
       {
         *error= SSL_INITERR_CERT;
@@ -600,7 +601,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
     }
   }
 #else
-  if (alt_cert_count > 0)
+  if (cert_count > 1)
   {
     *error= SSL_INITERR_CERT;
     fprintf(stderr, "SSL error: multiple certificates not supported with WolfSSL\n");
@@ -667,11 +668,16 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
     cb= always_ok;
 
   /* Init the VioSSLFd as a "connector" ie. the client side */
-  if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             TRUE, error, crl_file, crl_path, 0, NULL,
-                             NULL, NULL, 0)))
   {
-    return 0;
+    const char *key_files[]= { key_file };
+    const char *cert_files[]= { cert_file };
+    uint cert_count= (cert_file || key_file) ? 1 : 0;
+    if (!(ssl_fd= new_VioSSLFd(key_files, cert_files, cert_count,
+                               ca_file, ca_path, cipher,
+                               TRUE, error, crl_file, crl_path, 0, NULL)))
+    {
+      return 0;
+    }
   }
 
   SSL_CTX_set_verify(ssl_fd->ssl_context, SSL_VERIFY_PEER, cb);
@@ -681,21 +687,21 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 
 /************************ VioSSLAcceptorFd **********************************/
 struct st_VioSSLFd *
-new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
+new_VioSSLAcceptorFd(const char **key_files, const char **cert_files,
+		     uint cert_count,
 		     const char *ca_file, const char *ca_path,
 		     const char *cipher, enum enum_ssl_init_error* error,
                      const char *crl_file, const char *crl_path,
-                     ulonglong tls_version, const char *passphrase,
-                     const char **alt_key_files, const char **alt_cert_files,
-                     uint alt_cert_count)
+                     ulonglong tls_version, const char *passphrase)
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE;
 
   /* Init the the VioSSLFd as a "acceptor" ie. the server side */
-  if (!(ssl_fd= new_VioSSLFd(key_file, cert_file, ca_file, ca_path, cipher,
-                             FALSE, error, crl_file, crl_path, tls_version, passphrase,
-                             alt_key_files, alt_cert_files, alt_cert_count)))
+  if (!(ssl_fd= new_VioSSLFd(key_files, cert_files, cert_count,
+                             ca_file, ca_path, cipher,
+                             FALSE, error, crl_file, crl_path, tls_version,
+                             passphrase)))
   {
     return 0;
   }

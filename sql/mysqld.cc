@@ -4888,14 +4888,27 @@ static void init_ssl()
 
     enum enum_ssl_init_error error= SSL_INITERR_NOERROR;
 
+    /* Build combined cert/key arrays: primary at [0], alt certs after */
+    const char *ssl_key_files[SSL_MAX_ALT_CERTS + 1];
+    const char *ssl_cert_files[SSL_MAX_ALT_CERTS + 1];
+    uint ssl_cert_count= 0;
+    ssl_cert_files[ssl_cert_count]= opt_ssl_cert;
+    ssl_key_files[ssl_cert_count]= opt_ssl_key;
+    ssl_cert_count++;
+    for (uint i= 0; i < ssl_alt_cert_count; i++)
+    {
+      ssl_cert_files[ssl_cert_count]= opt_ssl_alt_certs[i];
+      ssl_key_files[ssl_cert_count]= opt_ssl_alt_keys[i];
+      ssl_cert_count++;
+    }
+
     /* having ssl_acceptor_fd != 0 signals the use of SSL */
-    ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
+    ssl_acceptor_fd= new_VioSSLAcceptorFd(ssl_key_files, ssl_cert_files,
+                                          ssl_cert_count,
                                           opt_ssl_ca, opt_ssl_capath,
                                           opt_ssl_cipher, &error,
                                           opt_ssl_crl, opt_ssl_crlpath,
-                                          tls_version, get_ssl_passphrase(),
-                                          opt_ssl_alt_keys, opt_ssl_alt_certs,
-                                          ssl_alt_cert_count);
+                                          tls_version, get_ssl_passphrase());
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -4938,10 +4951,24 @@ int reinit_ssl()
     return 0;
 
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
-  st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
+
+  const char *ssl_key_files[SSL_MAX_ALT_CERTS + 1];
+  const char *ssl_cert_files[SSL_MAX_ALT_CERTS + 1];
+  uint ssl_cert_count= 0;
+  ssl_cert_files[ssl_cert_count]= opt_ssl_cert;
+  ssl_key_files[ssl_cert_count]= opt_ssl_key;
+  ssl_cert_count++;
+  for (uint i= 0; i < ssl_alt_cert_count; i++)
+  {
+    ssl_cert_files[ssl_cert_count]= opt_ssl_alt_certs[i];
+    ssl_key_files[ssl_cert_count]= opt_ssl_alt_keys[i];
+    ssl_cert_count++;
+  }
+
+  st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(ssl_key_files, ssl_cert_files,
+    ssl_cert_count,
     opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl,
-    opt_ssl_crlpath, tls_version, get_ssl_passphrase(),
-    opt_ssl_alt_keys, opt_ssl_alt_certs, ssl_alt_cert_count);
+    opt_ssl_crlpath, tls_version, get_ssl_passphrase());
 
   if (!new_fd)
   {
