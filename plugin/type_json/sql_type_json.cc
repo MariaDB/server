@@ -110,3 +110,20 @@ int Field_json::report_wrong_value(const ErrConv &val)
   reset();
   return 1;
 }
+
+int Field_json::store(const char *from, size_t length, CHARSET_INFO *cs)
+{
+  if (get_thd()->count_cuted_fields != CHECK_FIELD_IGNORE)
+  {
+    json_engine_t je;
+    int stack_buf[JSON_DEPTH_LIMIT];
+    initJsonArray(NULL, &je.stack, sizeof(int), stack_buf, 0);
+
+    if (!json_valid(from, length, cs, &je))
+    {
+      return report_wrong_value(ErrConvString(from, length, cs));
+    }
+  }
+
+  return Field_blob::store(from, length, cs);
+}

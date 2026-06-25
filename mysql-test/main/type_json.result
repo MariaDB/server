@@ -5,11 +5,11 @@ t1	CREATE TABLE `t1` (
   `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json character set utf8);
-create or replace table t1(a json default '{a:1}');
+create or replace table t1(a json default '{"a":1}');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '{a:1}'
+  `a` json CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '{"a":1}'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
@@ -19,7 +19,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 22007: Incorrect json value: 'a' for column `test`.`t1`.`a` at row 1
 create or replace table t1(a json not null);
 show create table t1;
 Table	Create Table
@@ -28,6 +28,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
+ERROR 22007: Incorrect json value: 'a' for column `test`.`t1`.`a` at row 1
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
 create or replace table t1(a json default(json_object('now', now())));
 show create table t1;
@@ -73,16 +74,25 @@ drop table t1;
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
 create table t2 (t json) select t from t1;
+Warnings:
+Warning	1292	Incorrect json value: '' for column `test`.`t2`.`t` at row 2
 select * from t2;
 t
 {}
 
+drop table t1, t2;
+create table t1 (t text) engine=myisam;
+insert into t1 values (""),("{}");
+create table t2 (t json) select t from t1;
+ERROR 22007: Incorrect json value: '' for column `test`.`t2`.`t` at row 1
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
 create or replace table t1(a json default(json_object('now', 1)) check (json_valid(a)));
 insert into t1 values ();
 insert into t1 values ("{}");
 insert into t1 values ("xxx");
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 22007: Incorrect json value: 'xxx' for column `test`.`t1`.`a` at row 1
 select * from t1;
 a
 {"now": 1}
@@ -171,6 +181,16 @@ select json_arrayagg(v1_json) from v1;
 json_arrayagg(v1_json)
 [{"a": "b"}]
 drop view v1;
+create table t1 (a json);
+insert into t1 values (777);
+insert into t1 values (123.45);
+insert into t1 values (true);
+select * from t1;
+a
+777
+123.45
+1
+drop table t1;
 #
 # End of 10.5 tests
 #

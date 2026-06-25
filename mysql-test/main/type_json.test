@@ -5,23 +5,22 @@
 create or replace table t1(a json);
 show create table t1;
 
-#--error ER_PARSE_ERROR
 create or replace table t1(a json character set utf8);
 
-create or replace table t1(a json default '{a:1}');
+create or replace table t1(a json default '{"a":1}');
 show create table t1;
 
 
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
 insert t1 values ('[]');
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE
 insert t1 values ('a');
 
 create or replace table t1(a json not null);
 show create table t1;
 insert t1 values ('[]');
-#--error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE
 insert t1 values ('a');
 
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
@@ -46,16 +45,22 @@ drop table t1;
 
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
-#--error ER_CONSTRAINT_FAILED
 create table t2 (t json) select t from t1;
-#--error ER_NO_SUCH_TABLE
+select * from t2;
+drop table t1, t2;
+
+create table t1 (t text) engine=myisam;
+insert into t1 values (""),("{}");
+--error ER_TRUNCATED_WRONG_VALUE
+create table t2 (t json) select t from t1;
+--error ER_NO_SUCH_TABLE
 select * from t2;
 drop table t1;
 
 create or replace table t1(a json default(json_object('now', 1)) check (json_valid(a)));
 insert into t1 values ();
 insert into t1 values ("{}");
---error ER_CONSTRAINT_FAILED
+--error ER_TRUNCATED_WRONG_VALUE
 insert into t1 values ("xxx");
 select * from t1;
 show create table t1;
@@ -135,6 +140,13 @@ create view v1 as select json_object(_latin1 'a', _latin1'b') as v1_json;
 select v1_json from v1;
 select json_arrayagg(v1_json) from v1;
 drop view v1;
+
+create table t1 (a json);
+insert into t1 values (777);
+insert into t1 values (123.45);
+insert into t1 values (true);
+select * from t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.5 tests

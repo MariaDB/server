@@ -14,6 +14,10 @@ public:
     static const LEX_CSTRING fmt= {STRING_WITH_LEN("json")};
     return to->set_format_name(fmt);
   }
+  const Type_handler *type_handler_base() const override
+  {
+    return &type_handler_long_blob;
+  }
   const Type_collection *type_collection() const override;
   uint get_column_attributes() const override { return ATTR_CHARSET; }
   bool Column_definition_prepare_stage1(THD *thd,
@@ -95,7 +99,8 @@ public:
   {
     return &type_handler_json;
   }
-
+  using Field_blob::store;
+  int store(const char *to, size_t length, CHARSET_INFO *charset) override;
   void sql_type(String &str) const override;
 
   uint size_of() const override { return sizeof(*this); }
