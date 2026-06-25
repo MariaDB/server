@@ -91,7 +91,7 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
-2	SUBQUERY	t2	index_subquery	i1,i2	i2	5	const	10	0.92	Using where
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` having 0
 DROP TABLE t1,t2;
