@@ -1,0 +1,5 @@
+[direct_agg]
+--loose_spider_direct_aggregate=1
+
+[no_direct_agg]
+--loose_spider_direct_aggregate=0

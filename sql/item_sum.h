@@ -1260,8 +1260,10 @@ class Item_sum_bit :public Item_sum_int
 public:
   Item_sum_bit(THD *thd, Item *item_par, ulonglong reset_arg):
     Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg),
-    num_values_added(0), as_window_function(FALSE), m_binary_mode(FALSE),
-    m_binary_bit_counters(nullptr), m_binary_length(0) {}
+    num_values_added(0), direct_bits(0), m_binary_bit_counters(nullptr),
+    m_binary_length(0), as_window_function(FALSE), m_binary_mode(FALSE),
+    direct_added(FALSE), direct_reseted_field(FALSE),
+    direct_sum_is_null(FALSE) {}
   Item_sum_bit(THD *thd, Item_sum_bit *item);
   enum Sumfunctype sum_func () const override { return SUM_BIT_FUNC;}
   void clear() override;
@@ -1285,6 +1287,8 @@ public:
     m_binary_bit_counters= nullptr;
     if (as_window_function)
       clear_as_window();
+    direct_added= FALSE;
+    direct_reseted_field= FALSE;
     Item_sum_int::cleanup();
   }
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
@@ -1311,6 +1315,8 @@ public:
   {
     return true;
   }
+  void direct_add(ulonglong add_bits, bool is_null);
+  void direct_add(const String *add_str, bool is_null);
 
 protected:
   enum bit_counters { NUM_BIT_COUNTERS= 64 };
@@ -1320,6 +1326,11 @@ protected:
   ulonglong num_values_added;
   ulonglong bit_counters[NUM_BIT_COUNTERS];
   ulonglong direct_bits;
+  uint32 *m_binary_bit_counters;
+  uint m_binary_length;  // byte length of binary operand
+
+  String m_str_value;    // binary accumulator
+  String direct_str_value;
 
   /*
     Marks whether the function is to be computed as a window function.
@@ -1329,12 +1340,6 @@ protected:
   bool direct_added;
   bool direct_reseted_field;
   bool direct_sum_is_null;
-
-  uint32 *m_binary_bit_counters;
-  uint m_binary_length;  // byte length of binary operand
-
-  String m_str_value;    // binary accumulator
-  String direct_str_value;
 
   bool add_as_window(ulonglong value);
   bool remove_as_window(ulonglong value);

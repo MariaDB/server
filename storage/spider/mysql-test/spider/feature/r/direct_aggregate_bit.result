@@ -1,0 +1,74 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test', user 'root');
+#
+# MDEV-10526: Spider pushdown for binary bitwise aggregate functions
+#
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+val_int BIGINT UNSIGNED,
+val_bin VARBINARY(4)
+) ENGINE=InnoDB;
+CREATE TABLE t1_s (
+id INT PRIMARY KEY,
+val_int BIGINT UNSIGNED,
+val_bin VARBINARY(4)
+) ENGINE=SPIDER REMOTE_SERVER='srv' REMOTE_TABLE='t1';
+INSERT INTO t1 VALUES
+(1, 0xF000000000000000, x'F0000000'),
+(2, 0x0F00000000000000, x'0F0F0F0F'),
+(3, 0x00FF000000000000, x'00FF0000'),
+(4, 0x0000FF0000000000, x'0000FF00'),
+(5, 0x000000FF000000FF, x'000000FF');
+# Binary mode
+SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin)) FROM t1_s;
+HEX(BIT_OR(val_bin))	HEX(BIT_AND(val_bin))	HEX(BIT_XOR(val_bin))
+FFFFFFFF	00000000	FFF0F0F0
+# Integer mode
+SELECT BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int) FROM t1_s;
+BIT_OR(val_int)	BIT_AND(val_int)	BIT_XOR(val_int)
+18446744069414584575	0	18446744069414584575
+# NULL handling - BIT_AND/OR/XOR must skip NULL rows
+INSERT INTO t1 VALUES (6, NULL, NULL);
+SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin)) FROM t1_s;
+HEX(BIT_OR(val_bin))	HEX(BIT_AND(val_bin))	HEX(BIT_XOR(val_bin))
+FFFFFFFF	00000000	FFF0F0F0
+SELECT BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int) FROM t1_s;
+BIT_OR(val_int)	BIT_AND(val_int)	BIT_XOR(val_int)
+18446744069414584575	0	18446744069414584575
+# GROUP BY - triggers reset_field/update_field direct paths
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+grp INT,
+val_bin VARBINARY(4),
+val_int BIGINT UNSIGNED
+) ENGINE=InnoDB;
+CREATE TABLE t2_s (
+id INT PRIMARY KEY,
+grp INT,
+val_bin VARBINARY(4),
+val_int BIGINT UNSIGNED
+) ENGINE=SPIDER REMOTE_SERVER='srv' REMOTE_TABLE='t2';
+INSERT INTO t2 VALUES
+(1, 1, x'FF000000', 0xFF00000000000000),
+(2, 1, x'0F0F0F0F', 0x0F0F0F0F00000000),
+(3, 2, x'00FF0000', 0x00FF000000000000),
+(4, 2, x'000000FF', 0x000000FF00000000);
+SELECT grp,
+HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin)),
+BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int)
+FROM t2_s GROUP BY grp;
+grp	HEX(BIT_OR(val_bin))	HEX(BIT_AND(val_bin))	HEX(BIT_XOR(val_bin))	BIT_OR(val_int)	BIT_AND(val_int)	BIT_XOR(val_int)
+1	FF0F0F0F	0F000000	F00F0F0F	18378925161421209600	1080863910568919040	17298061250852290560
+2	00FF00FF	00000000	00FF00FF	71777214277877760	0	71777214277877760
+DROP TABLE t2_s, t2;
+DROP TABLE t1_s, t1;
+DROP SERVER srv;
+for master_1
+for child2
+for child3
+# End of 13.1 tests
