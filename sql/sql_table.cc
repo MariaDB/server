@@ -12663,16 +12663,19 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
+
   if (!to->s->long_unique_table)
   {
-      to->file->ha_start_bulk_insert(from->file->stats.records,
-              ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-      bulk_insert_started= 1;
-
       if (to->s->hlindexes())
       {
           if (to->hlindexes_bulk_insert_begin(from->file->stats.records) == 0)
               hlindex_bulk_started= 1;
+      }
+      if (!to->s->hlindexes() || hlindex_bulk_started)
+      {
+          to->file->ha_start_bulk_insert(from->file->stats.records,
+                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+          bulk_insert_started= 1;
       }
   }
   mysql_stage_set_work_estimated(thd->m_stage_progress_psi, from->file->stats.records);

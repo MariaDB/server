@@ -25,6 +25,7 @@
 #include "bloom_filters.h"
 #include <thread>
 #include <atomic>
+#include <algorithm>
 
 // distance can be a little bit < 0 because of fast math
 static constexpr float NEAREST = -1.0f;
@@ -395,9 +396,11 @@ struct Neighborhood: public Sql_alloc
 {
   FVectorNode **links;
   size_t num;
+  Atomic_relaxed<size_t> num_bulk;
   FVectorNode **init(FVectorNode **ptr, size_t n)
   {
     num= 0;
+    num_bulk.store(0, std::memory_order_relaxed);
     links= ptr;
     n= MY_ALIGN(n, 8);
     bzero(ptr, n*sizeof(*ptr));
@@ -482,7 +485,7 @@ public:
 class MHNSW_Share : public Sql_alloc
 {
   mysql_mutex_t cache_lock;     // for node_cache and stats
-  mysql_mutex_t node_lock[32];
+  mysql_mutex_t node_lock[32];  // XXX how to choose what's the best value here?
 
   void cache_internal(FVectorNode *node)
   {
@@ -669,13 +672,7 @@ public:
     mysql_mutex_unlock(&cache_lock);
   }
 
-  void update_start_parallel(FVectorNode *node)
-  {
-    mysql_mutex_lock(&cache_lock);
-    if (!start || node->max_layer > start->max_layer)
-      start= node;
-    mysql_mutex_unlock(&cache_lock);
-  }
+
 };
 
 /*
@@ -1058,8 +1055,9 @@ void FVectorNode::push_neighbor(size_t layer, FVectorNode *other)
   DBUG_ASSERT(neighbors[layer].num < ctx->max_neighbors(layer));
   size_t cur_num= neighbors[layer].num;
   neighbors[layer].links[cur_num]= other;
-  std::atomic_thread_fence(std::memory_order_release);
   neighbors[layer].num= cur_num + 1;
+  if (ctx->bulk_active)
+    neighbors[layer].num_bulk.store(cur_num + 1, std::memory_order_release);
 }
 
 size_t FVectorNode::tref_len() const { return ctx->tref_len; }
@@ -1216,8 +1214,9 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   for (size_t i= 0; i < temp_num; i++)
     neighbors.links[i]= temp_links[i];
 
-  std::atomic_thread_fence(std::memory_order_release);
   neighbors.num= temp_num;
+  if (p->ctx->bulk_active)
+    neighbors.num_bulk.store(temp_num, std::memory_order_release);
 
   my_safe_afree(temp_links, sizeof(FVectorNode*) * max_neighbor_connections);
   my_safe_afree(discarded, sizeof(Visited**)*max_neighbor_connections);
@@ -1375,8 +1374,11 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
     visited.flush();
 
     Neighborhood &neighbors= cur.node->neighbors[p->layer];
-    std::atomic_thread_fence(std::memory_order_acquire);
-    FVectorNode **links= neighbors.links, **end= links + neighbors.num;
+    FVectorNode **links= neighbors.links;
+    size_t cur_num= p->ctx->bulk_active
+                  ? neighbors.num_bulk.load(std::memory_order_acquire)
+                  : neighbors.num;
+    FVectorNode **end= links + cur_num;
     for (; links < end; links+= 8)
     {
       uint8_t res= visited.seen(links);
@@ -1541,8 +1543,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
 
 struct MHNSW_Bulk_context : public Sql_alloc {
-    MHNSW_Share *ctx;       
-    DYNAMIC_ARRAY nodes;    
+    MHNSW_Share *ctx;
+    DYNAMIC_ARRAY nodes;
+    uint start_node_idx;
     uint8_t current_max_layer;
 };
 
@@ -1565,6 +1568,12 @@ static void *bulk_build_thread(void *param)
   BulkBuildThreadArg *arg= (BulkBuildThreadArg*) param;
   MHNSW_Bulk_context *bulk= arg->bulk;
   MHNSW_Share *ctx= bulk->ctx;
+  // Sort this thread's chunk by descending layer
+  FVectorNode **chunk_start= dynamic_element(&bulk->nodes, arg->start_idx, FVectorNode**);
+  FVectorNode **chunk_end= dynamic_element(&bulk->nodes, arg->end_idx, FVectorNode**);
+  std::sort(chunk_start, chunk_end, [](const FVectorNode *a, const FVectorNode *b) {
+    return a->max_layer > b->max_layer;
+  });
 
   MEM_ROOT thread_root;
   init_alloc_root(PSI_INSTRUMENT_MEM, &thread_root, 256*1024, 0, MYF(0));
@@ -1607,10 +1616,6 @@ static void *bulk_build_thread(void *param)
         return nullptr;
     }
 
-    if (target_layer > max_layer)
-    {
-      ctx->update_start_parallel(target);
-    }
 
     free_root(&thread_root, MYF(MY_MARK_BLOCKS_FREE));
   }
@@ -1667,6 +1672,11 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
     ctx->release(table);
     return 0;
   }
+  if (rows < N * 100)
+  {
+    ctx->release(table);
+    return 0;
+  }
 
   MHNSW_Bulk_context *bulk= new (table->in_use->mem_root) MHNSW_Bulk_context();
   if (!bulk)
@@ -1688,6 +1698,7 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   bulk->ctx->bulk_active= 1;
   DBUG_ASSERT(!bulk->ctx->start);
   bulk->current_max_layer= 0;
+  bulk->start_node_idx= 0;
   table->hlindex->context= bulk;
   return 0;
 }
@@ -1698,6 +1709,9 @@ int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
   MHNSW_Bulk_context *bulk= (MHNSW_Bulk_context*)graph->context;
   MHNSW_Share *ctx= bulk->ctx;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+  SCOPE_EXIT([table, old_map]() {
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
+  });
 
   DBUG_ASSERT(graph);
   DBUG_ASSERT(bulk);
@@ -1730,7 +1744,10 @@ int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
     target_layer= 0;
 
   if (target_layer > bulk->current_max_layer)
+  {
     bulk->current_max_layer= target_layer;
+    bulk->start_node_idx= bulk->nodes.elements;
+  }
 
   FVectorNode *node= new (ctx->alloc_node())
     FVectorNode(ctx, table->file->ref, target_layer, res->ptr());
@@ -1738,7 +1755,6 @@ int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
   if (insert_dynamic(&bulk->nodes, (uchar*)&node))
     return HA_ERR_OUT_OF_MEM;
 
-  dbug_tmp_restore_column_map(&table->read_set, old_map);
   return 0;
 }
 
@@ -1763,10 +1779,16 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
 
   if (bulk->nodes.elements == 0)
     return 0;
+     
+  // Swap the start node (highest layer) to index 0
+  if (bulk->start_node_idx != 0)
+  {
+    FVectorNode **arr= (FVectorNode**)bulk->nodes.buffer;
+    std::swap(arr[0], arr[bulk->start_node_idx]);
+  }
+  ctx->start= *dynamic_element(&bulk->nodes, 0, FVectorNode**);
 
-  FVectorNode *first_target= *(FVectorNode**)dynamic_element(&bulk->nodes, 0, FVectorNode**);
-  ctx->start= first_target;
-
+  // XXX how many threads to use?
   uint N= std::thread::hardware_concurrency();
   uint total_nodes= bulk->nodes.elements - 1;
   uint workers= std::min(N, total_nodes);
@@ -1802,7 +1824,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
     {
       for (uint j= 0; j < workers_spawned; j++)
         pthread_join(threads[j], nullptr);
-      return err;
+      return HA_ERR_OUT_OF_MEM;
     }
     workers_spawned++;
   }
