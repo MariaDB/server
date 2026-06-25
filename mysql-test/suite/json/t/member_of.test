@@ -1,0 +1,84 @@
+--echo #
+--echo # MDEV-38591: MEMBER OF operator
+--echo #
+
+--echo # 1. Simple member checks (should succeed)
+SELECT 1 MEMBER OF ('[1,2,3]');
+SELECT 2 MEMBER OF ('[1,2,3]');
+
+--echo # 2. Non-member checks (should return 0)
+SELECT 4 MEMBER OF ('[1,2,3]');
+
+--echo # 3. Type-strict checks (string "2" must NOT match number 2, should return 0)
+SELECT '2' MEMBER OF ('[1,2,3]');
+SELECT 2 MEMBER OF ('["1","2","3"]');
+
+--echo # 4. SQL NULL propagation checks
+SELECT NULL MEMBER OF ('[1,2,3]');
+SELECT NULL MEMBER OF ('[1,2,3]') IS NULL;
+SELECT 1 MEMBER OF (NULL);
+SELECT 1 MEMBER OF (NULL) IS NULL;
+
+--echo # 5. Error/Warning handling for malformed JSON
+SELECT 1 MEMBER OF ('[1,2');
+SHOW WARNINGS;
+
+--echo # 6. Nested array and object checks using JSON_COMPACT() vs uncast strings
+SELECT JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]');
+SELECT '[1,2]' MEMBER OF ('[[1,2],[3,4]]');
+SELECT JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
+SELECT '{"name":"John"}' MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
+
+--echo # 7. MEMBER OF with scalar/object as container (acting as 1-element array)
+SELECT 2 MEMBER OF ('2');
+SELECT 2 MEMBER OF ('3');
+SELECT 2 MEMBER OF ('"2"');
+
+--echo # 8. Test using table columns and row evaluations
+CREATE TABLE t1 (id INT, val JSON);
+INSERT INTO t1 VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]'), (3, NULL);
+
+SELECT id, val, 2 MEMBER OF (val) FROM t1;
+SELECT id, val, NULL MEMBER OF (val) FROM t1;
+
+CREATE TABLE t2 (candidate INT);
+INSERT INTO t2 VALUES (2), (4), (NULL);
+
+SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
+
+DROP TABLE t1, t2;
+
+--echo # 9. Prepared Statements twice execution test
+PREPARE stmt1 FROM 'SELECT ? MEMBER OF (?)';
+SET @candidate = 2;
+SET @container = '[1,2,3]';
+EXECUTE stmt1 USING @candidate, @container;
+SET @candidate = 4;
+SET @container = '[1,2,3]';
+EXECUTE stmt1 USING @candidate, @container;
+DEALLOCATE PREPARE stmt1;
+
+--echo # 10. Prepared Statements with JSON_COMPACT
+PREPARE stmt2 FROM 'SELECT JSON_COMPACT(?) MEMBER OF (?)';
+SET @candidate_json = '[1,2]';
+SET @container_nested = '[[1,2],[3,4]]';
+EXECUTE stmt2 USING @candidate_json, @container_nested;
+EXECUTE stmt2 USING @candidate_json, @container_nested;
+DEALLOCATE PREPARE stmt2;
+
+--echo # 11. Malformed JSON-typed candidate test (using CHECK constraints bypass)
+CREATE TABLE t3 (val JSON);
+SET check_constraint_checks=0;
+INSERT INTO t3 VALUES ('[1,2');
+SELECT val MEMBER OF ('[1,2,3]') FROM t3;
+SHOW WARNINGS;
+DROP TABLE t3;
+SET check_constraint_checks=1;
+
+--echo # 12. JSON scalar candidate test (type-strictness in passthrough branch)
+CREATE TABLE t4 (val JSON);
+INSERT INTO t4 VALUES ('2'), ('"2"');
+SELECT val, val MEMBER OF ('[1,2,3]') FROM t4;
+DROP TABLE t4;
+
+

@@ -6638,16 +6638,202 @@ void Item_func_is_json::print(String *str, enum_query_type query_type)
 
 bool Item_func_member_of::val_bool()
 {
-  null_value= args[0]->null_value || args[1]->null_value;
-  return false;
+  DBUG_ASSERT(fixed());
+
+  // 1. Evaluate args[1] (the JSON document/array) to check if it is SQL NULL
+  String *js_doc= args[1]->val_json(&tmp_js_doc);
+  if (args[1]->null_value || !js_doc)
+  {
+    null_value= 1;
+    return false;
+  }
+
+  // 2. Validate args[1] (the JSON document/array) is well-formed JSON.
+  // This prevents the composed JSON_CONTAINS item from raising its own warning.
+  // je_val.stack is pre-wired via mem_root_dynamic_array_init() in fix_length_and_dec();
+  // json_scan_start() resets all other engine state itself, so je_val is safe to reuse.
+  json_scan_start(&je_val, js_doc->charset(), (const uchar *) js_doc->ptr(),
+                  (const uchar *) js_doc->ptr() + js_doc->length());
+  while (json_scan_next(&je_val) == 0) /* no-op */ ;
+  if (je_val.s.error)
+  {
+    report_json_error_ex(js_doc->ptr(), &je_val, "member of", 1, Sql_condition::WARN_LEVEL_WARN);
+    null_value= 1;
+    return false;
+  }
+
+  // 3. Evaluate args[0] (the candidate value) to check if it is SQL NULL.
+  if (is_json_type(args[0]))
+  {
+    String *js_cand= args[0]->val_json(&tmp_candidate);
+    if (args[0]->null_value || !js_cand)
+    {
+      null_value= 1;
+      return false;
+    }
+    json_scan_start(&je_val, js_cand->charset(), (const uchar *) js_cand->ptr(),
+                    (const uchar *) js_cand->ptr() + js_cand->length());
+    while (json_scan_next(&je_val) == 0) /* no-op */ ;
+    if (je_val.s.error)
+    {
+      report_json_error_ex(js_cand->ptr(), &je_val, "member of", 0, Sql_condition::WARN_LEVEL_WARN);
+      null_value= 1;
+      return false;
+    }
+  }
+  else
+  {
+    (void) args[0]->val_str(&tmp_candidate);
+    if (args[0]->null_value)
+    {
+      null_value= 1;
+      return false;
+    }
+  }
+
+  // 4. Delegate the containment check to the composed JSON_CONTAINS item
+  bool res= json_contains_item->val_bool();
+  null_value= json_contains_item->null_value;
+  return res;
 }
 
 bool Item_func_member_of::fix_length_and_dec(THD *thd)
 {
   max_length= 1;
   set_maybe_null();
+
+  /*
+    Wire je_val.stack once per statement lifetime so that json_scan_start()
+    in val_bool() has a properly backed DYNAMIC_ARRAY.  Mirrors exactly the
+    je.stack init done by Item_func_json_contains::fix_length_and_dec().
+  */
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &je_val.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+
+  List<Item> contains_args;
+  if (contains_args.push_back(args[1], thd->mem_root))
+    return true;
+
+  if (is_json_type(args[0]))
+  {
+    json_quote_item= NULL;
+    if (contains_args.push_back(args[0], thd->mem_root))
+      return true;
+  }
+  else
+  {
+    json_quote_item= new (thd->mem_root) Item_func_json_quote(thd, args[0]);
+    if (!json_quote_item)
+      return true;
+    if (json_quote_item->fix_fields_if_needed(thd, (Item **)&json_quote_item))
+      return true;
+    if (contains_args.push_back(json_quote_item, thd->mem_root))
+      return true;
+  }
+
+  json_contains_item= new (thd->mem_root) Item_func_json_contains(thd, contains_args);
+  if (!json_contains_item)
+    return true;
+  if (json_contains_item->fix_fields_if_needed(thd, (Item **)&json_contains_item))
+    return true;
+
   return false;
 }
+
+
+bool Item_func_member_of::walk(Item_processor processor, void *arg, item_walk_flags flags)
+{
+  if (json_quote_item && json_quote_item->walk(processor, arg, flags))
+    return true;
+  if (json_contains_item && json_contains_item->walk(processor, arg, flags))
+    return true;
+  return Item_bool_func::walk(processor, arg, flags);
+}
+
+Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uchar *arg)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+  if (transform_args(thd, transformer, arg))
+    return 0;
+
+  if (json_quote_item)
+  {
+    Item *new_item= json_quote_item->transform(thd, transformer, arg);
+    if (!new_item)
+      return 0;
+    if (json_quote_item != new_item)
+      thd->change_item_tree((Item**)&json_quote_item, new_item);
+  }
+
+  if (json_contains_item)
+  {
+    Item *new_item= json_contains_item->transform(thd, transformer, arg);
+    if (!new_item)
+      return 0;
+    if (json_contains_item != new_item)
+      thd->change_item_tree((Item**)&json_contains_item, new_item);
+  }
+
+  return (this->*transformer)(thd, arg);
+}
+
+Item *Item_func_member_of::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                                   Item_transformer transformer, uchar *arg_t)
+{
+  if (!(this->*analyzer)(arg_p))
+    return 0;
+  if (*arg_p && arg_count)
+  {
+    Item **arg,**arg_end;
+    for (arg= args, arg_end= args+arg_count; arg != arg_end; arg++)
+    {
+      uchar *arg_v= *arg_p;
+      Item *new_item= (*arg)->compile(thd, analyzer, &arg_v, transformer,
+                                      arg_t);
+      if (new_item && *arg != new_item)
+        thd->change_item_tree(arg, new_item);
+    }
+
+    if (json_quote_item)
+    {
+      uchar *arg_v= *arg_p;
+      Item *new_item= json_quote_item->compile(thd, analyzer, &arg_v, transformer, arg_t);
+      if (new_item && json_quote_item != new_item)
+        thd->change_item_tree((Item**)&json_quote_item, new_item);
+    }
+
+    if (json_contains_item)
+    {
+      uchar *arg_v= *arg_p;
+      Item *new_item= json_contains_item->compile(thd, analyzer, &arg_v, transformer, arg_t);
+      if (new_item && json_contains_item != new_item)
+        thd->change_item_tree((Item**)&json_contains_item, new_item);
+    }
+  }
+  return (this->*transformer)(thd, arg_t);
+}
+
+Item *Item_func_member_of::propagate_equal_fields(THD *thd, const Item::Context &ctx,
+                                                 COND_EQUAL *cond)
+{
+  Item_bool_func::propagate_equal_fields(thd, ctx, cond);
+  if (json_quote_item)
+    json_quote_item->propagate_equal_fields(thd, ctx, cond);
+  if (json_contains_item)
+    json_contains_item->propagate_equal_fields(thd, ctx, cond);
+  return this;
+}
+
+void Item_func_member_of::update_used_tables()
+{
+  Item_bool_func::update_used_tables();
+  if (json_quote_item)
+    json_quote_item->update_used_tables();
+  if (json_contains_item)
+    json_contains_item->update_used_tables();
+}
+
 
 void Item_func_member_of::print(String *str, enum_query_type query_type)
 {
@@ -6656,4 +6842,5 @@ void Item_func_member_of::print(String *str, enum_query_type query_type)
   args[1]->print(str, query_type);
   str->append(')');
 }
+
 

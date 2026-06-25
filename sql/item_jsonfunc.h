@@ -1130,11 +1130,45 @@ public:
 };
 
 
+/*
+  Implements the SQL standard "value MEMBER OF (json_doc)" operator.
+
+  Design: composition, not reimplementation.  fix_length_and_dec() builds
+  an internal JSON_QUOTE(args[0]) item (when args[0] is not already JSON-
+  typed) and an internal JSON_CONTAINS(args[1], ...) item.  val_bool()
+  pre-validates both operands and then delegates the actual containment
+  test to json_contains_item.
+
+  je_val (a persistent json_engine_t) exists solely for that pre-validation
+  pass.  Its purpose is twofold: (1) errors are attributed to "member of"
+  with the correct argument index, not to "json_contains"; (2) the full-
+  document scan catches malformed trailing bytes that json_contains would
+  miss if it found an early match and returned before scanning to EOF.
+  je_val.stack is wired once in fix_length_and_dec() via
+  mem_root_dynamic_array_init(), mirroring the pattern used by
+  Item_func_json_contains::fix_length_and_dec().
+
+  walk / transform / compile / propagate_equal_fields / update_used_tables
+  are overridden to expose json_quote_item and json_contains_item to the
+  optimizer.  Those two helper items live outside the normal args[] array
+  that Item_bool_func would otherwise walk automatically, so without these
+  overrides the optimizer would never see them.  This follows the precedent
+  set by Item_in_optimizer, which similarly maintains hidden child items and
+  explicitly threads them through every tree-traversal method.
+*/
 class Item_func_member_of : public Item_bool_func
 {
+  Item_func_json_quote *json_quote_item;
+  Item_func_json_contains *json_contains_item;
+  /* Persistent engine for manual validation of args[1] in val_bool().
+     je_val.stack must be wired via mem_root_dynamic_array_init() in
+     fix_length_and_dec() before any call to json_scan_start(&je_val,...). */
+  json_engine_t je_val;
+  String tmp_js_doc;
+  String tmp_candidate;
 public:
   Item_func_member_of(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b)
+    Item_bool_func(thd, a, b), json_quote_item(NULL), json_contains_item(NULL)
     {}
   bool val_bool() override;
   bool fix_length_and_dec(THD *thd) override;
@@ -1147,6 +1181,13 @@ public:
   }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_member_of>(thd, this); }
+
+  bool walk(Item_processor processor, void *arg, item_walk_flags flags) override;
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                Item_transformer transformer, uchar *arg_t) override;
+  Item *propagate_equal_fields(THD *thd, const Item::Context &ctx, COND_EQUAL *cond) override;
+  void update_used_tables() override;
 };
 
 
