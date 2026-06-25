@@ -137,3 +137,48 @@ val	val MEMBER OF ('[1,2,3]')
 2	1
 "2"	0
 DROP TABLE t4;
+# 13. NOT MEMBER OF tests
+# 13.1 1 NOT MEMBER OF ('[1,2,3]') -> 0 (1 IS a member)
+SELECT 1 NOT MEMBER OF ('[1,2,3]');
+1 NOT MEMBER OF ('[1,2,3]')
+0
+# 13.2 4 NOT MEMBER OF ('[1,2,3]') -> 1
+SELECT 4 NOT MEMBER OF ('[1,2,3]');
+4 NOT MEMBER OF ('[1,2,3]')
+1
+# 13.3 '2' NOT MEMBER OF ('[1,2,3]') -> 1 (type-strict comparison)
+SELECT '2' NOT MEMBER OF ('[1,2,3]');
+'2' NOT MEMBER OF ('[1,2,3]')
+1
+# 13.4 NULL NOT MEMBER OF ('[1,2,3]') -> NULL (and IS NULL -> 1)
+SELECT NULL NOT MEMBER OF ('[1,2,3]');
+NULL NOT MEMBER OF ('[1,2,3]')
+NULL
+SELECT NULL NOT MEMBER OF ('[1,2,3]') IS NULL;
+NULL NOT MEMBER OF ('[1,2,3]') IS NULL
+1
+# 13.5 1 NOT MEMBER OF (NULL) -> NULL (and IS NULL -> 1)
+SELECT 1 NOT MEMBER OF (NULL);
+1 NOT MEMBER OF (NULL)
+NULL
+SELECT 1 NOT MEMBER OF (NULL) IS NULL;
+1 NOT MEMBER OF (NULL) IS NULL
+1
+# 13.6 Malformed JSON with NOT MEMBER OF (returns NULL with warning)
+SELECT 1 NOT MEMBER OF ('not_json');
+1 NOT MEMBER OF ('not_json')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'member of' at position 1
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4038	Syntax error in JSON text in argument 2 to function 'member of' at position 1
+# 13.7 EXPLAIN EXTENDED round-trip print check
+EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 not member of ('[1,2,3]') AS `1 NOT MEMBER OF ('[1,2,3]')`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1003	select 1 not member of ('[1,2,3]') AS `1 NOT MEMBER OF ('[1,2,3]')`

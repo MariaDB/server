@@ -81,4 +81,30 @@ INSERT INTO t4 VALUES ('2'), ('"2"');
 SELECT val, val MEMBER OF ('[1,2,3]') FROM t4;
 DROP TABLE t4;
 
+--echo # 13. NOT MEMBER OF tests
+--echo # 13.1 1 NOT MEMBER OF ('[1,2,3]') -> 0 (1 IS a member)
+SELECT 1 NOT MEMBER OF ('[1,2,3]');
+
+--echo # 13.2 4 NOT MEMBER OF ('[1,2,3]') -> 1
+SELECT 4 NOT MEMBER OF ('[1,2,3]');
+
+--echo # 13.3 '2' NOT MEMBER OF ('[1,2,3]') -> 1 (type-strict comparison)
+SELECT '2' NOT MEMBER OF ('[1,2,3]');
+
+--echo # 13.4 NULL NOT MEMBER OF ('[1,2,3]') -> NULL (and IS NULL -> 1)
+SELECT NULL NOT MEMBER OF ('[1,2,3]');
+SELECT NULL NOT MEMBER OF ('[1,2,3]') IS NULL;
+
+--echo # 13.5 1 NOT MEMBER OF (NULL) -> NULL (and IS NULL -> 1)
+SELECT 1 NOT MEMBER OF (NULL);
+SELECT 1 NOT MEMBER OF (NULL) IS NULL;
+
+--echo # 13.6 Malformed JSON with NOT MEMBER OF (returns NULL with warning)
+SELECT 1 NOT MEMBER OF ('not_json');
+SHOW WARNINGS;
+
+--echo # 13.7 EXPLAIN EXTENDED round-trip print check
+EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
+SHOW WARNINGS;
+
 

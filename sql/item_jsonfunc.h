@@ -1131,13 +1131,20 @@ public:
 
 
 /*
-  Implements the SQL standard "value MEMBER OF (json_doc)" operator.
+  Implements the SQL standard "value MEMBER OF (json_doc)" operator, and its
+  negation "value NOT MEMBER OF (json_doc)" via the inherited negated flag from
+  Item_func_opt_neg.
+
+  This follows the same pattern used by Item_func_between and Item_func_in:
+  a single item class represents both the positive and negated form, with
+  neg_transformer() toggling the negated flag and val_bool() honouring it.
 
   Design: composition, not reimplementation.  fix_length_and_dec() builds
   an internal JSON_QUOTE(args[0]) item (when args[0] is not already JSON-
   typed) and an internal JSON_CONTAINS(args[1], ...) item.  val_bool()
   pre-validates both operands and then delegates the actual containment
-  test to json_contains_item.
+  test to json_contains_item, then negates only when negated==true and
+  null_value==false, matching the Item_func_between pattern exactly.
 
   je_val (a persistent json_engine_t) exists solely for that pre-validation
   pass.  Its purpose is twofold: (1) errors are attributed to "member of"
@@ -1151,12 +1158,12 @@ public:
   walk / transform / compile / propagate_equal_fields / update_used_tables
   are overridden to expose json_quote_item and json_contains_item to the
   optimizer.  Those two helper items live outside the normal args[] array
-  that Item_bool_func would otherwise walk automatically, so without these
+  that Item_func_opt_neg would otherwise walk automatically, so without these
   overrides the optimizer would never see them.  This follows the precedent
   set by Item_in_optimizer, which similarly maintains hidden child items and
   explicitly threads them through every tree-traversal method.
 */
-class Item_func_member_of : public Item_bool_func
+class Item_func_member_of : public Item_func_opt_neg
 {
   Item_func_json_quote *json_quote_item;
   Item_func_json_contains *json_contains_item;
@@ -1168,8 +1175,9 @@ class Item_func_member_of : public Item_bool_func
   String tmp_candidate;
 public:
   Item_func_member_of(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b), json_quote_item(NULL), json_contains_item(NULL)
+    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL)
     {}
+
   bool val_bool() override;
   bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;

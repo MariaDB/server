@@ -6694,7 +6694,9 @@ bool Item_func_member_of::val_bool()
   // 4. Delegate the containment check to the composed JSON_CONTAINS item
   bool res= json_contains_item->val_bool();
   null_value= json_contains_item->null_value;
-  return res;
+  if (null_value)
+    return false;
+  return negated ? !res : res;
 }
 
 bool Item_func_member_of::fix_length_and_dec(THD *thd)
@@ -6837,7 +6839,9 @@ void Item_func_member_of::update_used_tables()
 
 void Item_func_member_of::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
+  if (negated)
+    str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" member of ("));
   args[1]->print(str, query_type);
   str->append(')');

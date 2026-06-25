@@ -10148,6 +10148,14 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | predicate not MEMBER_SYM OF_SYM '(' expr ')' %prec MEMBER_SYM
+          {
+            Item_func_member_of *item=
+              new (thd->mem_root) Item_func_member_of(thd, $1, $6);
+            if (unlikely(item == NULL))
+              MYSQL_YYABORT;
+            $$= item->neg_transformer(thd);
+          }
         | predicate LIKE predicate
           {
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, escape(thd), false);
