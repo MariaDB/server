@@ -7203,22 +7203,66 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
     */
     if (!field->compression_method() &&
         field->hash_join_is_possible() &&
-        (key_field->optimize & KEY_OPTIMIZE_EQ) &&
-        key_field->val->used_tables())
+        (key_field->optimize & KEY_OPTIMIZE_EQ))
     {
-      if (field->can_optimize_hash_join(key_field->cond, key_field->val) !=
-          Data_type_compatibility::OK)
-        return false;
-      if (form->is_splittable())
-        form->add_splitting_info_for_key_field(key_field);
-      /* 
-        If a key use is extracted from an equi-join predicate then it is
-        added not only as a key use for every index whose component can
-        be evalusted utilizing this key use, but also as a key use for
-        hash join. Such key uses are marked with a special key number. 
-      */    
-      if (add_keyuse(keyuse_array, key_field, get_hash_join_key_no(), 0))
-        return TRUE;
+      /*
+        The KEYUSE entry registered below serves two purposes.  For a
+        regular base table it supplies a component of a hash join key,
+        which only makes sense when the value comes from another table.
+        For a materialized derived table that has not yet been created
+        it also describes a key worth generating on the temp table, and
+        there a constant equality is just as useful as an equijoin
+        predicate.
+
+        Grouped derived tables are excluded from the const case because
+        the optimizer relies on condition pushdown into the underlying
+        GROUP BY (which also changes row estimates) to handle constant
+        filters there.  Adding a derived key for them would give the
+        optimizer a second way to apply the same filter, with no benefit.
+
+        A NULL value is excluded.  An IS NULL predicate reaches this
+        point as a NULL literal on the value side.  As a hash join key
+        part it would be compared with equality semantics, and NULL is
+        never equal to NULL, so every row satisfying the predicate would
+        be lost.  10.11 has no support for a key part that holds NULL,
+        so the value is rejected here.  The test inspects the item type
+        rather than evaluating the value, because evaluating a constant
+        function on the value side would call it an extra time, which is
+        observable when that function has a side effect.
+      */
+      bool not_derived_grouped= true;
+      TABLE_LIST *tl= field->table->pos_in_table_list;
+      if (tl->is_materialized_derived())
+      {
+        for (st_select_lex *sl= tl->derived->first_select();
+             sl;
+             sl= sl->next_select())
+        {
+          if (sl->group_list.elements)
+          {
+            not_derived_grouped= false;
+            break;
+          }
+        }
+      }
+      bool val_is_null= key_field->val->type() == Item::NULL_ITEM;
+      if (!val_is_null &&
+          (not_derived_grouped || key_field->val->used_tables()))
+      {
+        if (field->can_optimize_hash_join(key_field->cond, key_field->val) !=
+            Data_type_compatibility::OK)
+          return false;
+        if (form->is_splittable())
+          form->add_splitting_info_for_key_field(key_field);
+        /*
+          If a key use is extracted from an equi-join predicate then it is
+          added not only as a key use for every index whose component can
+          be evalusted utilizing this key use, but also as a key use for
+          hash join. Such key uses are marked with a special key number.
+        */
+        if (add_keyuse(keyuse_array, key_field, get_hash_join_key_no(), 0))
+          return TRUE;
+      }
     }
   }
   return FALSE;

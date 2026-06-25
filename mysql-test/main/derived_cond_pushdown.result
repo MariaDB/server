@@ -8034,7 +8034,7 @@ SELECT *
 FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
 WHERE f = 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	const	0	0.00	
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `sq1`.`f` AS `f` from (/* select#3 */ select min(`test`.`t1`.`i`) AS `f` from `test`.`t1` having `f` = 8) `sq1` where `sq1`.`f` = 8
@@ -8184,18 +8184,20 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 3,
+          "outer_ref_condition": "2 is not null",
           "nested_loop": [
             {
               "table": {
                 "table_name": "<derived5>",
-                "access_type": "index_subquery",
+                "access_type": "ref",
                 "possible_keys": ["key0"],
                 "key": "key0",
                 "key_length": "5",
                 "used_key_parts": ["c"],
-                "ref": ["func"],
-                "rows": 2,
-                "filtered": 100,
+                "ref": ["const"],
+                "rows": 0,
+                "filtered": 0,
+                "attached_condition": "<cache>(t2.b) = v3.c",
                 "materialized": {
                   "query_block": {
                     "select_id": 5,
@@ -8361,14 +8363,19 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 3,
+          "outer_ref_condition": "1 is not null",
           "nested_loop": [
             {
               "table": {
                 "table_name": "<derived4>",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100,
-                "attached_condition": "v2.b = 1",
+                "access_type": "ref",
+                "possible_keys": ["key0"],
+                "key": "key0",
+                "key_length": "5",
+                "used_key_parts": ["b"],
+                "ref": ["const"],
+                "rows": 0,
+                "filtered": 0,
                 "materialized": {
                   "query_block": {
                     "select_id": 4,
@@ -8678,14 +8685,19 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
+          "outer_ref_condition": "50 is not null",
           "nested_loop": [
             {
               "table": {
                 "table_name": "<derived3>",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100,
-                "attached_condition": "v1.a = 50",
+                "access_type": "ref",
+                "possible_keys": ["key0"],
+                "key": "key0",
+                "key_length": "5",
+                "used_key_parts": ["a"],
+                "ref": ["const"],
+                "rows": 0,
+                "filtered": 0,
                 "materialized": {
                   "query_block": {
                     "select_id": 3,
@@ -8820,10 +8832,15 @@ EXPLAIN
             "sort_key": "v1.a",
             "table": {
               "table_name": "<derived3>",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100,
-              "attached_condition": "v1.b = 2",
+              "access_type": "ref",
+              "possible_keys": ["key0"],
+              "key": "key0",
+              "key_length": "4",
+              "used_key_parts": ["b"],
+              "ref": ["const"],
+              "rows": 0,
+              "filtered": 0,
+              "attached_condition": "v1.b <=> 2 and v1.b = 2",
               "materialized": {
                 "query_block": {
                   "select_id": 3,
@@ -8889,9 +8906,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived3>",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "v1.f = 2",
           "materialized": {
             "query_block": {
@@ -8991,9 +9013,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = 3",
           "materialized": {
             "query_block": {
@@ -9060,9 +9087,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = 2.71",
           "materialized": {
             "query_block": {
@@ -9124,9 +9156,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "6",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = 3.21",
           "materialized": {
             "query_block": {
@@ -9188,9 +9225,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "35",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = 'aa'",
           "materialized": {
             "query_block": {
@@ -9254,9 +9296,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "6",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = '2007-05-28 00:00:00'",
           "materialized": {
             "query_block": {
@@ -9318,9 +9365,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "4",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = '2007-05-28'",
           "materialized": {
             "query_block": {
@@ -9382,9 +9434,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "4",
+          "used_key_parts": ["i"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "sq.i = '10:00:02'",
           "materialized": {
             "query_block": {
@@ -9524,9 +9581,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived3>",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "6",
+          "used_key_parts": ["c"],
+          "ref": ["const"],
+          "rows": 0,
+          "filtered": 0,
           "attached_condition": "v1.c = 'foo'",
           "materialized": {
             "query_block": {
@@ -10051,30 +10113,15 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t1",
+          "table_name": "<derived3>",
           "access_type": "ref",
-          "possible_keys": ["i1"],
-          "key": "i1",
+          "possible_keys": ["key0"],
+          "key": "key0",
           "key_length": "5",
-          "used_key_parts": ["i1"],
+          "used_key_parts": ["i2"],
           "ref": ["const"],
-          "rows": 1,
-          "filtered": 100,
-          "using_index": true
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived3>",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "v2.i2 = 1"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "65",
-          "join_type": "BNL",
+          "rows": 0,
+          "filtered": 0,
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -10091,6 +10138,20 @@ EXPLAIN
               ]
             }
           }
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["i1"],
+          "key": "i1",
+          "key_length": "5",
+          "used_key_parts": ["i1"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "using_index": true
         }
       }
     ]
@@ -12241,7 +12302,7 @@ union all
 select col2, col1 from v2;
 explain select * from v3 where col1=123;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	const	0	
 2	DERIVED	t1	ref	a	a	5	const	1	
 3	UNION	t1	ref	a	a	5	const	1	
 # This must use ref accesses for reading table t1, not full scans:
@@ -12255,10 +12316,14 @@ EXPLAIN
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "v3.col1 = 123 and v3.col2 = 321",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "10",
+          "used_key_parts": ["col2", "col1"],
+          "ref": ["const", "const"],
+          "rows": 0,
+          "filtered": 0,
           "materialized": {
             "query_block": {
               "union_result": {
@@ -19651,15 +19716,19 @@ ANALYZE
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
           "r_loops": 1,
-          "rows": 4,
-          "r_rows": 2,
+          "rows": 0,
+          "r_rows": 1,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 50,
-          "attached_condition": "v1.a = 3",
+          "filtered": 0,
+          "r_filtered": 100,
           "materialized": {
             "query_block": {
               "union_result": {

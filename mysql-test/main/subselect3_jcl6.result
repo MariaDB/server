@@ -1342,7 +1342,7 @@ insert into t2 select * from t2;
 explain select * from t1 where (a,b,c) in (select X.a, Y.a, Z.a from t2 X, t2 Y, t2 Z where X.b=33);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	X	hash_ALL	NULL	#hash#$hj	5	test.t1.a	6	Using where; Start temporary; Using join buffer (flat, BNLH join)
+1	PRIMARY	X	hash_ALL	NULL	#hash#$hj	10	const,test.t1.a	6	Using where; Start temporary; Using join buffer (flat, BNLH join)
 1	PRIMARY	Y	hash_ALL	NULL	#hash#$hj	5	test.t1.b	6	Using where; Using join buffer (incremental, BNLH join)
 1	PRIMARY	Z	hash_ALL	NULL	#hash#$hj	5	test.t1.c	6	Using where; End temporary; Using join buffer (incremental, BNLH join)
 drop table t0,t1,t2;

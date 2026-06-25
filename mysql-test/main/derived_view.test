@@ -2940,3 +2940,58 @@ drop view v1,v2;
 drop table t1,t2;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-35291: derived_with_keys not applied for a UNION derived
+--echo #             filtered by a constant equality in the outer WHERE
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, notes TEXT NOT NULL);
+INSERT INTO t1 VALUES (1, 'test1'), (2, 'test2');
+INSERT INTO t1 SELECT seq, seq FROM seq_10_to_1000;
+ANALYZE TABLE t1;
+
+--echo # Reference plan: UNION derived joined with another table on a
+--echo # column equality.  derived_with_keys creates key0 (existing
+--echo # behaviour).
+EXPLAIN
+SELECT dt.* FROM
+  ((SELECT id, notes FROM t1 LIMIT 100) UNION
+   (SELECT id, notes FROM t1 LIMIT 200)) dt, seq_1_to_10 SEQ
+WHERE dt.id = SEQ.seq;
+
+--echo # Bug case: same UNION derived, filtered by a constant equality.
+--echo # LIMIT inside each branch blocks condition pushdown, so
+--echo # derived_with_keys must step in and provide ref(const) on key0.
+EXPLAIN
+SELECT dt.* FROM
+  ((SELECT * FROM t1 LIMIT 100) UNION
+   (SELECT * FROM t1 LIMIT 200)) dt
+WHERE id = 1;
+
+SELECT dt.* FROM
+  ((SELECT * FROM t1 LIMIT 100) UNION
+   (SELECT * FROM t1 LIMIT 200)) dt
+WHERE id = 1;
+
+--echo # Grouped derived: the existing condition-pushdown path handles
+--echo # the constant filter, so no derived key is generated and access
+--echo # stays as a plain scan of the resulting tiny temp table.
+EXPLAIN
+SELECT v1.* FROM (SELECT id, MAX(notes) m FROM t1 GROUP BY id) v1
+WHERE v1.id = 1;
+
+--echo # With derived_with_keys disabled, the bug case falls back to a
+--echo # plain scan.
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='derived_with_keys=off';
+EXPLAIN
+SELECT dt.* FROM
+  ((SELECT * FROM t1 LIMIT 100) UNION
+   (SELECT * FROM t1 LIMIT 200)) dt
+WHERE id = 1;
+SET optimizer_switch= @save_optimizer_switch;
+
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
