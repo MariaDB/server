@@ -911,9 +911,6 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
                                  ORDER *main_query_order,
                                  bool &streaming_wf_order_is_longer)
 {
-  // This checks if more than one SORTORDER_MARKER_CHANGE exists.
-  // Calling order early here has a problem with one of the existing tests. Not
-  // sure why.
   if (win_funcs.elements == 0)
     return false;
 
@@ -3450,7 +3447,9 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
 
   List_iterator_fast<Item_window_func> it(window_funcs);
   Item_window_func *win_func;
-  get_window_functions_required_cursors(thd, window_funcs, &cursor_managers);
+  if (get_window_functions_required_cursors(thd, window_funcs,
+                                            &cursor_managers))
+    return true;
   // we need partition trackers too, should be here in setup
   while ((win_func= it++))
   {
