@@ -896,6 +896,7 @@ class Item_sum_count :public Item_sum_int
   bool add() override;
   void cleanup() override;
   void remove() override;
+  inline bool is_streamable() const override { return true; }
 
 public:
   Item_sum_count(THD *thd, Item *item_par):
