@@ -1,0 +1,73 @@
+#
+# Galera mariabackup SST must reject innodb-buffer-pool-filename when its value
+# contains shell metacharacters, instead of running it through the eval'd
+# mariabackup command (INNOEXTRA).
+#
+# Steps:
+#  1. Bring up a 2-node mariabackup-SST cluster.
+#  2. Shut down node 2; force a full SST; restart it with a malicious
+#     innodb-buffer-pool-filename on the command line (so it is forwarded to
+#     the SST script via --mysqld-args). The value carries a "touch <marker>"
+#     payload.
+#  3. Assert node 2 refuses the SST (safe_path) and the injected command never
+#     runs (no marker file).
+#  4. Restart node 2 cleanly and rejoin.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1
+call mtr.add_suppression('Invalid characters in');
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+perl;
+    unlink "$ENV{MYSQL_TMP_DIR}/bp_inj_marker";
+EOF
+
+# restart the joiner with a malicious innodb-buffer-pool-filename on the command
+# line; the payload is wrapped in double quotes so mtr's own shell does not run
+# it (only the SST script's eval would, on an unfixed build)
+--error 1,134
+--exec $MYSQLD_LAST_CMD --innodb-buffer-pool-filename="x'&touch $MYSQL_TMP_DIR/bp_inj_marker&'y"
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let SEARCH_PATTERN = Invalid characters in INNODB_BUFFER_POOL
+--source include/search_pattern_in_file.inc
+
+perl;
+    die "FAIL: marker created - buffer-pool injection was NOT prevented\n"
+        if -e "$ENV{MYSQL_TMP_DIR}/bp_inj_marker";
+    print "buffer-pool injection prevented\n";
+EOF
+
+# cleanup: restart node 2 cleanly (no malicious arg) and rejoin
+--connection node_2
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+call mtr.add_suppression('Invalid characters in');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('Failed to read .* from: wsrep_sst_mariabackup');
+call mtr.add_suppression('Failed to prepare for .* SST');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('SST request callback failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('Parent mysqld process .* terminated unexpectedly');
+call mtr.add_suppression('Cleanup after exit with status');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST .* failed');

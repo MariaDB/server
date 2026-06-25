@@ -1,0 +1,56 @@
+#
+# Galera SST must reject InnoDB/Aria directory parameters whose value contains
+# shell metacharacters (the SST script's safe_path), as it does for datadir.
+#
+# Steps:
+#  1. Bring up a 2-node rsync-SST cluster.
+#  2. For each of innodb-data-home-dir, innodb-log-group-home-dir,
+#     innodb-undo-directory, aria-log-dir-path: point it at a directory whose
+#     name contains a shell metacharacter, force a full SST, and assert node 2
+#     refuses it.
+#  3. Restore config and rejoin after each parameter.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1
+call mtr.add_suppression('Invalid characters in');
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('Failed to read .* from: wsrep_sst_rsync');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+
+# All four share galera_sst_param_injection.inc (it moves ibdata1 for
+# innodb-data-home-dir so the joiner can still start).
+--let $inj_reject = Invalid characters in
+
+--let $inj_param = innodb-data-home-dir
+--source suite/galera/include/galera_sst_param_injection.inc
+
+--let $inj_param = innodb-log-group-home-dir
+--source suite/galera/include/galera_sst_param_injection.inc
+
+--let $inj_param = innodb-undo-directory
+--source suite/galera/include/galera_sst_param_injection.inc
+
+--let $inj_param = aria-log-dir-path
+--source suite/galera/include/galera_sst_param_injection.inc
+
+# suppress the rejected-SST noise on the final node_2 instance
+call mtr.add_suppression('Invalid characters in');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('Failed to read .* from: wsrep_sst_rsync');
+call mtr.add_suppression('Failed to prepare for .* SST');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('SST request callback failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('Parent mysqld process .* terminated unexpectedly');
+call mtr.add_suppression('Cleanup after exit with status');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST .* failed');

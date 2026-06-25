@@ -203,10 +203,24 @@ void wsrep_set_data_home_dir(const char *data_dir)
   data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
 }
 
-static void make_wsrep_defaults_file()
+/* Build the defaults-file options for the SST command. Validate them first
+   (they are interpolated single-quoted); return false if any is unsafe. */
+static bool make_wsrep_defaults_file()
 {
   if (!wsrep_defaults_file[0])
   {
+    if ((my_defaults_file &&
+         wsrep_check_request_str(my_defaults_file, wsrep_path_char, true)) ||
+        (my_defaults_extra_file &&
+         wsrep_check_request_str(my_defaults_extra_file, wsrep_path_char, true)) ||
+        (my_defaults_group_suffix &&
+         wsrep_check_request_str(my_defaults_group_suffix, wsrep_path_char, true)))
+    {
+      WSREP_ERROR("Refusing SST: a defaults-file option contains characters "
+                  "that are unsafe for shell interpolation.");
+      return false;
+    }
+
     char *ptr= wsrep_defaults_file;
     char *end= ptr + sizeof(wsrep_defaults_file);
     if (my_defaults_file)
@@ -221,6 +235,7 @@ static void make_wsrep_defaults_file()
       ptr= strxnmov(ptr, end - ptr,
                     WSREP_SST_OPT_CONF_SUFFIX, " '", my_defaults_group_suffix, "' ", NULL);
   }
+  return true;
 }
 
 
@@ -1128,6 +1143,27 @@ static ssize_t sst_prepare_other (const char*  method,
     return -ENOMEM;
   }
 
+  /* datadir and innodb-data-home-dir go single-quoted into the SST command;
+     reject shell-unsafe values (see wsrep_path_char). */
+  if (wsrep_check_request_str(mysql_real_data_home, wsrep_path_char, true) ||
+      (data_home_dir &&
+       wsrep_check_request_str(data_home_dir, wsrep_path_char, true)))
+  {
+    WSREP_ERROR("Refusing SST: datadir or innodb-data-home-dir has characters "
+                "unsafe for shell interpolation.");
+    return -EINVAL;
+  }
+
+  /* innodb-data-home-dir: command line (top priority) + env (fallback);
+     omitted when not configured. */
+  char ib_data_home_opt[FN_REFLEN + 32];
+  ib_data_home_opt[0]= '\0';
+  if (data_home_dir)
+  {
+    snprintf(ib_data_home_opt, sizeof(ib_data_home_opt),
+             WSREP_SST_OPT_INNODB_DATA_HOME_DIR " '%s' ", data_home_dir);
+  }
+
   char* binlog_opt_val= NULL;
   char* binlog_index_opt_val= NULL;
 
@@ -1147,7 +1183,12 @@ static ssize_t sst_prepare_other (const char*  method,
     return ret;
   }
 
-  make_wsrep_defaults_file();
+  if (!make_wsrep_defaults_file())
+  {
+    my_free(binlog_opt_val);
+    my_free(binlog_index_opt_val);
+    return -EINVAL;
+  }
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
@@ -1155,11 +1196,13 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_ADDR " '%s' "
                  WSREP_SST_OPT_DATA " '%s' "
                  "%s"
+                 "%s"
                  WSREP_SST_OPT_PARENT " %d "
                  WSREP_SST_OPT_PROGRESS " %d"
                  "%s"
                  "%s",
                  method, addr_in, mysql_real_data_home,
+                 ib_data_home_opt,
                  wsrep_defaults_file,
                  (int)getpid(),
                  0,
@@ -1528,6 +1571,17 @@ static int sst_donate_mysqldump (const char*         addr,
     return -ENOMEM;
   }
 
+  /* socket path and datadir go single-quoted into the SST command; reject
+     shell-unsafe values (see wsrep_path_char). */
+  if ((mysqld_unix_port &&
+       wsrep_check_request_str(mysqld_unix_port, wsrep_path_char, true)) ||
+      wsrep_check_request_str(mysql_real_data_home, wsrep_path_char, true))
+  {
+    WSREP_ERROR("Refusing SST: socket or datadir has characters unsafe for "
+                "shell interpolation.");
+    return -EINVAL;
+  }
+
   /*
     we enable new client connections so that mysqldump donation can connect in,
     but we reject local connections from modifyingcdata during SST, to keep
@@ -1535,7 +1589,8 @@ static int sst_donate_mysqldump (const char*         addr,
   */
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
 
-  make_wsrep_defaults_file();
+  if (!make_wsrep_defaults_file())
+    return -EINVAL;
 
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
@@ -1933,6 +1988,29 @@ static int sst_donate_other (const char*        method,
     return -ENOMEM;
   }
 
+  /* socket path, datadir and innodb-data-home-dir go single-quoted into the SST
+     command; reject shell-unsafe values (see wsrep_path_char). */
+  if ((mysqld_unix_port &&
+       wsrep_check_request_str(mysqld_unix_port, wsrep_path_char, true)) ||
+      wsrep_check_request_str(mysql_real_data_home, wsrep_path_char, true) ||
+      (data_home_dir &&
+       wsrep_check_request_str(data_home_dir, wsrep_path_char, true)))
+  {
+    WSREP_ERROR("Refusing SST: socket, datadir or innodb-data-home-dir has "
+                "characters unsafe for shell interpolation.");
+    return -EINVAL;
+  }
+
+  /* innodb-data-home-dir: command line (top priority) + env (fallback);
+     omitted when not configured. */
+  char ib_data_home_opt[FN_REFLEN + 32];
+  ib_data_home_opt[0]= '\0';
+  if (data_home_dir)
+  {
+    snprintf(ib_data_home_opt, sizeof(ib_data_home_opt),
+             WSREP_SST_OPT_INNODB_DATA_HOME_DIR " '%s' ", data_home_dir);
+  }
+
   char* binlog_opt_val= NULL;
   char* binlog_index_opt_val= NULL;
 
@@ -1951,7 +2029,12 @@ static int sst_donate_other (const char*        method,
     return ret;
   }
 
-  make_wsrep_defaults_file();
+  if (!make_wsrep_defaults_file())
+  {
+    my_free(binlog_opt_val);
+    my_free(binlog_index_opt_val);
+    return -EINVAL;
+  }
 
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
@@ -1964,6 +2047,7 @@ static int sst_donate_other (const char*        method,
                  WSREP_SST_OPT_PROGRESS " %d "
                  WSREP_SST_OPT_DATA " '%s' "
                  "%s"
+                 "%s"
                  WSREP_SST_OPT_GTID " '%s:%lld' "
                  WSREP_SST_OPT_GTID_DOMAIN_ID " %d"
                  "%s"
@@ -1972,6 +2056,7 @@ static int sst_donate_other (const char*        method,
                  method, addr, mysqld_port, mysqld_unix_port,
                  0,
                  mysql_real_data_home,
+                 ib_data_home_opt,
                  wsrep_defaults_file,
                  uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_server.domain_id,
                  binlog_opt_val, binlog_index_opt_val,

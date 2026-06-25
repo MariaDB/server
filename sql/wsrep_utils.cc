@@ -619,6 +619,19 @@ bool wsrep_address_char(const unsigned char c)
          (c == ':') || (c == '[') || (c == ']') || (c == '/');
 }
 
+/* Path char that is also safe single-quoted in shell/eval: allowlist of path
+   chars (incl. space) + bytes >= 0x80 (UTF-8); rejects all shell metacharacters
+   (notably ') so a validated path cannot break out of its quoting. */
+bool wsrep_path_char(const unsigned char c)
+{
+  if (c >= 0x80) return true;                /* UTF-8: never a metacharacter */
+  return wsrep_filename_char(c) ||           /* alnum . - _ */
+         (c == '/') || (c == '\\') ||        /* separators */
+         (c == ':') || (c == ' ') ||         /* drive letter; space */
+         (c == '+') || (c == '=') || (c == ',') || (c == '@') || (c == '%');
+                                             /* punctuation valid in filenames */
+}
+
 bool wsrep_shell_char(const unsigned char c)
 {
   return (c != '`') && (c != '\'') && (c != '$') &&
