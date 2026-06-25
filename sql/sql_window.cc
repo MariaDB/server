@@ -835,10 +835,14 @@ order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 
 static inline bool frame_is_current_row(Window_spec *win_spec)
 {
-  // null is default, range between unbounded preceding and current row
-  return win_spec->window_frame == NULL ||
-         (win_spec->window_frame->top_bound->precedence_type ==
-              Window_frame_bound::CURRENT &&
+  Window_frame *frame= win_spec->window_frame;
+  if (!frame)
+    return true;
+  bool unbounded_preceding_or_current=
+      frame->top_bound->precedence_type == Window_frame_bound::CURRENT ||
+      (frame->top_bound->precedence_type == Window_frame_bound::PRECEDING &&
+       frame->top_bound->is_unbounded());
+  return (unbounded_preceding_or_current &&
           win_spec->window_frame->bottom_bound->precedence_type ==
               Window_frame_bound::CURRENT);
 }
@@ -886,18 +890,16 @@ find_longest_compatible_order(List_iterator_fast<Item_window_func> &it)
                                  longest_spec->win_spec_number,
                                  spec->partition_list, spec->win_spec_number);
     spec->disjoin_partition_and_order_lists();
-    if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
+    if (cmp != CMP_GT_C)
     {
-      longest_spec->disjoin_partition_and_order_lists();
-      return NULL;
+      longest= NULL;
+      break;
     }
   }
   longest_spec->disjoin_partition_and_order_lists();
   return longest;
 }
 
-// now I know number 1 is bad (side effect, but i need it for criteria, why run
-// two times?)
 // 1. Checks if all window function orderings are compatible.
 // 2. We check each fucntion from our subset or no (let it be rank and
 // row_number for now)

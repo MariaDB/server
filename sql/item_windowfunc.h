@@ -150,7 +150,7 @@ public:
     return name;
   }
 
-  bool inline is_streamable() const override { return true; }
+  inline bool is_streamable() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -217,7 +217,7 @@ public:
     return name;
   }
 
-  bool inline is_streamable() const override { return true; }
+  inline bool is_streamable() const override { return true; }
 
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
@@ -294,7 +294,7 @@ class Item_sum_dense_rank: public Item_sum_int
     return name;
   }
 
-  bool inline is_streamable() const override { return true; }
+  inline bool is_streamable() const override { return true; }
 
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
