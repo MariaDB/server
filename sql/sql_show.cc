@@ -1829,10 +1829,7 @@ static void append_create_options(THD *thd, String *packet,
     packet->append(' ');
     append_identifier(thd, packet, &opt->name);
     packet->append('=');
-    if (opt->quoted_value)
-      append_unescaped(packet, opt->value.str, opt->value.length);
-    else
-      packet->append(&opt->value);
+    append_unescaped(packet, opt->value.str, opt->value.length, in_comment);
   }
   if (in_comment)
     packet->append(STRING_WITH_LEN(" */"));

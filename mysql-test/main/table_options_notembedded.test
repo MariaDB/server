@@ -28,3 +28,20 @@ drop table t1, t2;
 
 uninstall soname 'ha_example';
 
+--echo #
+--echo # MDEV-39776 SHOW CREATE TABLE corrupts `-quoted table options
+--echo #
+set sql_mode='ignore_bad_table_options';
+create table t1 (a int) opt1='*\/ oops1 ' opt2=`*/oops2 `;
+show create table t1;
+set sql_mode=default;
+show create table t1;
+--exec $MYSQL_DUMP --compact test t1 > $MYSQL_TMP_DIR/t1.sql
+--cat_file $MYSQL_TMP_DIR/t1.sql
+drop table t1;
+--exec $MYSQL test < $MYSQL_TMP_DIR/t1.sql
+show create table t1;
+drop table t1;
+--remove_file $MYSQL_TMP_DIR/t1.sql
+
+--echo # End of 10.6 tests

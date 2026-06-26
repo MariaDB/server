@@ -3357,7 +3357,8 @@ int closefrm(TABLE *table);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
 ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
-void append_unescaped(String *res, const char *pos, size_t length);
+void append_unescaped(String *res, const char *pos, size_t length,
+                      bool in_comment= false);
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
 const char *fn_frm_ext(const char *name);

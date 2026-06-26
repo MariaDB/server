@@ -95,24 +95,31 @@ static bool report_wrong_value(THD *thd, const char *name, const char *val,
 static bool report_unknown_option(THD *thd, engine_option_value *val,
                                   bool suppress_warning)
 {
+  bool valid_name= true;
   DBUG_ENTER("report_unknown_option");
 
-  if (val->parsed || suppress_warning || thd->slave_thread)
+  for(size_t i=0; valid_name && i < val->name.length; i++)
+    valid_name= isalnum(val->name.str[i]) || val->name.str[i] == '_';
+
+  if (valid_name)
   {
-    DBUG_PRINT("info", ("parsed => exiting"));
-    DBUG_RETURN(FALSE);
+    if (val->parsed || suppress_warning || thd->slave_thread)
+    {
+      DBUG_PRINT("info", ("parsed => exiting"));
+      DBUG_RETURN(FALSE);
+    }
+
+    if (thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_UNKNOWN_OPTION, ER_THD(thd, ER_UNKNOWN_OPTION),
+                          val->name.str);
+      DBUG_RETURN(FALSE);
+    }
   }
 
-  if (!(thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS))
-  {
-    my_error(ER_UNKNOWN_OPTION, MYF(0), val->name.str);
-    DBUG_RETURN(TRUE);
-  }
-
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_UNKNOWN_OPTION, ER_THD(thd, ER_UNKNOWN_OPTION),
-                      val->name.str);
-  DBUG_RETURN(FALSE);
+  my_error(ER_UNKNOWN_OPTION, MYF(0), val->name.str);
+  DBUG_RETURN(TRUE);
 }
 
 #define value_ptr(STRUCT,OPT)    ((char*)(STRUCT) + (OPT)->offset)
