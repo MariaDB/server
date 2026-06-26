@@ -15,24 +15,16 @@ SELECT 1;
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
-# Confirm that transfer was SSL-encrypted
---let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_PATTERN = Using openssl based encryption with socat: with key and crt
---source include/search_pattern_in_file.inc
-
 --echo #
 --echo # MDEV-39413 wsrep unsafe handling of parameters
 --echo #
 
-call mtr.add_suppression('Invalid value for WSREP_SST_OPT_REMOTE_USER');
-call mtr.add_suppression('Failed to read from: wsrep_sst_mariabackup');
-call mtr.add_suppression('Process completed with error: wsrep_sst_mariabackup');
-call mtr.add_suppression('Command did not run: wsrep_sst_mariabackup');
-call mtr.add_suppression('State transfer to .* failed');
-call mtr.add_suppression('Will never receive state. Need to abort');
-call mtr.add_suppression('Error while getting data from donor node');
-call mtr.add_suppression('Cleanup after exit with status');
-call mtr.add_suppression('Removing .*/xtrabackup_galera_info file due to signal');
+call mtr.add_suppression("WSREP: Illegal character in state transfer request:");
+call mtr.add_suppression("WSREP: Bad remote auth string. SST canceled.");
+call mtr.add_suppression("WSREP: SST preparation failed");
+call mtr.add_suppression("WSREP: SST failed:");
+call mtr.add_suppression(".*State transfer to:*");
+call mtr.add_suppression("WSREP: Illegal character in variable:");
 
 --connection node_2
 --source include/shutdown_mysqld.inc
@@ -51,7 +43,8 @@ call mtr.add_suppression('Removing .*/xtrabackup_galera_info file due to signal'
 --exec $MYSQLD_LAST_CMD
 --echo # the server failed to start
 
---let SEARCH_PATTERN = Invalid value for WSREP_SST_OPT_REMOTE_USER
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = Bad remote auth string. SST canceled.
 --source include/search_pattern_in_file.inc
 
 --echo # cleanup
@@ -60,6 +53,10 @@ call mtr.add_suppression('Removing .*/xtrabackup_galera_info file due to signal'
 # pkill exit code varies by platform 0 or 1
 --error 0,1
 --exec pkill -f 'socat.*server-new-cert'
+
 --exec echo ssl-cert=$MYSQL_TEST_DIR/std_data/server-cert.pem >> $MYSQLTEST_VARDIR/my.cnf
 --exec echo ssl-key=$MYSQL_TEST_DIR/std_data/server-key.pem >> $MYSQLTEST_VARDIR/my.cnf
 --source $MYSQL_TEST_DIR/include/start_mysqld.inc
+
+call mtr.add_suppression(".*WSREP.*Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP_SST:");

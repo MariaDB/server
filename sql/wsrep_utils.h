@@ -1,4 +1,5 @@
 /* Copyright (C) 2013-2015 Codership Oy <info@codership.com>
+   Copyright (C) 2025-2026 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -422,5 +423,15 @@ private:
 #endif
 
 } // namespace wsrep
+
+// Functions to validate dynamic variable safety
+bool wsrep_filename_char(const unsigned char c);
+bool wsrep_comma_char(const unsigned char c);
+bool wsrep_address_char(const unsigned char c);
+bool wsrep_shell_char(const unsigned char c);
+bool wsrep_names_list(const unsigned char c);
+bool wsrep_check_request_str(const char* const str,
+                             bool (*check) (const unsigned char),
+                             bool log_warn = true);
 
 #endif /* WSREP_UTILS_H */

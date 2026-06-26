@@ -172,48 +172,6 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
   return NULL;
 }
 
-/* return true if character can be a part of a filename */
-static bool filename_char(int const c)
-{
-  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
-}
-
-/* return true if string is comma seprated list */
-static bool comma_char(int const c)
-{
-  return (c == ',');
-}
-
-/* return true if character can be a part of an address string */
-static bool address_char(int const c)
-{
-  return filename_char(c) ||
-         (c == ':') || (c == '[') || (c == ']') || (c == '/');
-}
-
-/* return true if character can be a part of an address string list */
-static bool names_list(int const c)
-{
-  return address_char(c) || comma_char(c);
-}  
-
-static bool check_request_str(const char* const str,
-                              bool (*check) (int c),
-                              bool log_warn = true)
-{
-  for (size_t i(0); str[i] != '\0'; ++i)
-  {
-    if (!check(str[i]))
-    {
-      if (log_warn) WSREP_WARN("Illegal character in state transfer request: %i (%c).",
-                               str[i], str[i]);
-      return true;
-    }
-  }
-
-  return false;
-}
-
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
   if ((! var->save_result.string_value.str) ||
@@ -226,8 +184,8 @@ bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
   }
 
   /* check also that method name is alphanumeric string  */
-  if (check_request_str(var->save_result.string_value.str,
-                        filename_char, false))
+  if (wsrep_check_request_str(var->save_result.string_value.str,
+                              wsrep_filename_char, false))
   {
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
              var->save_result.string_value.str ?
@@ -279,8 +237,8 @@ bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
   }
 
   /* check also that address contains only accepted characters  */
-  if (check_request_str(var->save_result.string_value.str,
-                        address_char, false))
+  if (wsrep_check_request_str(var->save_result.string_value.str,
+                              wsrep_address_char, false))
   {
     goto err;
   }
@@ -302,7 +260,37 @@ bool wsrep_sst_receive_address_update (sys_var *self, THD* thd,
 
 bool wsrep_sst_auth_check (sys_var *self, THD* thd, set_var* var)
 {
+  /* Allow empty value */
+  if (!var->save_result.string_value.str || var->save_result.string_value.length == 0)
     return 0;
+
+  /* Check length */
+  if ((var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  {
+    goto err;
+  }
+
+  {
+    /* Split sst_auth on ':'-character */
+    std::string auth= var->save_result.string_value.str;
+    std::string r_user= auth.substr(0, auth.find(":"));
+
+    /* check also that user contains only accepted characters,
+       password part is not validated. */
+    if (wsrep_check_request_str(r_user.c_str(),
+                                wsrep_filename_char, true))
+    {
+      goto err;
+    }
+  }
+
+  return 0;
+
+err:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+           var->save_result.string_value.str ?
+           var->save_result.string_value.str : "NULL");
+  return 1;
 }
 
 static bool sst_auth_real_set (const char* value)
@@ -372,8 +360,8 @@ bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
     return 0;
 
   /* check also that donor string contains only accepted characters  */
-  if (check_request_str(var->save_result.string_value.str,
-                        names_list, false))
+  if (wsrep_check_request_str(var->save_result.string_value.str,
+                              wsrep_names_list, false))
   {
     goto err;
   }
@@ -2030,7 +2018,7 @@ int wsrep_sst_donate(const std::string& msg,
   const char* method= msg.data();
   size_t method_len= strlen (method);
 
-  if (check_request_str(method, filename_char, true))
+  if (wsrep_check_request_str(method, wsrep_filename_char, true))
   {
     WSREP_ERROR("Bad SST method name. SST canceled.");
     return WSREP_CB_FAILURE;
@@ -2052,7 +2040,14 @@ int wsrep_sst_donate(const std::string& msg,
     addr= data;
   }
 
-  if (check_request_str(addr, address_char, true))
+  if (remote_auth() &&
+      wsrep_check_request_str(remote_auth(), wsrep_shell_char, true))
+  {
+    WSREP_ERROR("Bad remote auth string. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
+
+  if (wsrep_check_request_str(addr, wsrep_address_char, true))
   {
     WSREP_ERROR("Bad SST address string. SST canceled.");
     return WSREP_CB_FAILURE;

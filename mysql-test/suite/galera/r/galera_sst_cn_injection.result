@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+SELECT 1;
+1
+1
+#
+# MDEV-39413 wsrep unsafe handling of parameters
+#
+call mtr.add_suppression("WSREP: Illegal character in state transfer request:");
+call mtr.add_suppression("WSREP: Bad remote auth string. SST canceled.");
+call mtr.add_suppression("WSREP: SST preparation failed");
+call mtr.add_suppression("WSREP: SST failed:");
+call mtr.add_suppression(".*State transfer to:*");
+call mtr.add_suppression("WSREP: Illegal character in variable:");
+connection node_2;
+# force SST again
+# using a cert with shell-unsafe CN
+# start the server
+# the server failed to start
+FOUND 1 /Bad remote auth string. SST canceled./ in mysqld.1.err
+# cleanup
+# restart
+call mtr.add_suppression(".*WSREP.*Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP_SST:");

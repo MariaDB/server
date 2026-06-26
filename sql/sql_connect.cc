@@ -877,6 +877,13 @@ int thd_set_peer_addr(THD *thd,
   {
     int rc;
 
+    /* Free any previously resolved hostname before overwriting it. */
+    if (thd->main_security_ctx.host != my_localhost)
+    {
+      my_free((void *) thd->main_security_ctx.host);
+      thd->main_security_ctx.host= NULL;
+    }
+
     rc = ip_to_hostname(addr,
       thd->main_security_ctx.ip,
       &thd->main_security_ctx.host,
