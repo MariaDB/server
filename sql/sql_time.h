@@ -121,7 +121,8 @@ int append_interval(String *str, interval_type int_type,
 */
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int lsign, MYSQL_TIME *l_time3, date_mode_t fuzzydate);
-int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
+int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b)
+                    __attribute__((nonnull));
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 
 void calc_time_from_sec(MYSQL_TIME *to, ulong seconds, ulong microseconds);
@@ -183,8 +184,10 @@ check_date_with_warn(THD *thd, const MYSQL_TIME *ltime,
 
 bool adjust_time_range_with_warn(THD *thd, MYSQL_TIME *ltime, uint dec);
 
-longlong pack_time(const MYSQL_TIME *my_time);
+longlong pack_time(const MYSQL_TIME *my_time)
+                   __attribute__((nonnull));
 void unpack_time(longlong packed, MYSQL_TIME *my_time,
-                 enum_mysql_timestamp_type ts_type);
+                 enum_mysql_timestamp_type ts_type)
+                 __attribute__((nonnull));
 
 #endif /* SQL_TIME_INCLUDED */

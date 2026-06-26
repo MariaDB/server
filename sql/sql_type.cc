@@ -8951,7 +8951,7 @@ Type_handler_temporal_result::Item_const_eq(const Item_const *a,
 {
   const MYSQL_TIME *ta= a->const_ptr_mysql_time();
   const MYSQL_TIME *tb= b->const_ptr_mysql_time();
-  return !my_time_compare(ta, tb) &&
+  return ta && tb && !my_time_compare(ta, tb) &&
          (!binary_cmp ||
           a->get_type_all_attributes_from_const()->decimals ==
           b->get_type_all_attributes_from_const()->decimals);
@@ -9107,8 +9107,9 @@ int Type_handler_temporal_with_date::stored_field_cmp_to_item(THD *thd,
                                                               Item *item) const
 {
   MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
-  field->get_date(&field_time, Datetime::Options(TIME_INVALID_DATES, thd));
-  item->get_date(thd, &item_time, Datetime::Options(TIME_INVALID_DATES, thd));
+  if (field->get_date(&field_time, Datetime::Options(TIME_INVALID_DATES, thd))
+      || item->get_date(thd, &item_time, Datetime::Options(TIME_INVALID_DATES, thd)))
+    return -1;
   if (item_time.time_type == MYSQL_TIMESTAMP_TIME &&
       time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
     return 1;
@@ -9121,8 +9122,9 @@ int Type_handler_time_common::stored_field_cmp_to_item(THD *thd,
                                                        Item *item) const
 {
   MYSQL_TIME field_time, item_time;
-  field->get_date(&field_time, Time::Options(thd));
-  item->get_date(thd, &item_time, Time::Options(thd));
+  if (field->get_date(&field_time, Time::Options(thd))
+      || item->get_date(thd, &item_time, Time::Options(thd)))
+    return -1; /* !=0 is important, and avoid my_time_compare */
   return my_time_compare(&field_time, &item_time);
 }
 
