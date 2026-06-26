@@ -1545,7 +1545,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 struct MHNSW_Bulk_context : public Sql_alloc {
     MHNSW_Share *ctx;
     DYNAMIC_ARRAY nodes;
-    uint start_node_idx;
+    size_t start_node_idx;
     uint8_t current_max_layer;
 };
 
@@ -1554,8 +1554,8 @@ struct MHNSW_Bulk_context : public Sql_alloc {
 struct BulkBuildThreadArg
 {
   MHNSW_Bulk_context *bulk;
-  uint start_idx;
-  uint end_idx;
+  size_t start_idx;
+  size_t end_idx;
   int error;
 };
 
@@ -1579,7 +1579,7 @@ static void *bulk_build_thread(void *param)
   init_alloc_root(PSI_INSTRUMENT_MEM, &thread_root, 256*1024, 0, MYF(0));
   SCOPE_EXIT([&thread_root]() { free_root(&thread_root, MYF(0)); });
 
-  for (uint i = arg->start_idx; i < arg->end_idx; i++)
+  for (size_t i = arg->start_idx; i < arg->end_idx; i++)
   {
     FVectorNode *target= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
     const uint8_t max_layer= ctx->start->max_layer;
@@ -1790,8 +1790,8 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
 
   // XXX how many threads to use?
   uint N= std::thread::hardware_concurrency();
-  uint total_nodes= bulk->nodes.elements - 1;
-  uint workers= std::min(N, total_nodes);
+  size_t total_nodes= bulk->nodes.elements - 1;
+  size_t workers= std::min<size_t>(N, total_nodes);
 
   pthread_t *threads= (pthread_t*) my_malloc(PSI_INSTRUMENT_MEM, sizeof(pthread_t) * workers, MYF(MY_WME));
   BulkBuildThreadArg *args= (BulkBuildThreadArg*) my_malloc(PSI_INSTRUMENT_MEM, sizeof(BulkBuildThreadArg) * workers, MYF(MY_WME));
@@ -1804,15 +1804,15 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
     return HA_ERR_OUT_OF_MEM;
   }
 
-  uint chunk_size = total_nodes / workers;
-  uint remainder = total_nodes % workers;
-  uint current_start = 1;
+  size_t chunk_size = total_nodes / workers;
+  size_t remainder = total_nodes % workers;
+  size_t current_start = 1;
 
-  uint workers_spawned= 0;
+  size_t workers_spawned= 0;
 
-  for (uint i= 0; i < workers; i++)
+  for (size_t i= 0; i < workers; i++)
   {
-    uint count = chunk_size + (i == 0 ? remainder : 0);
+    size_t count = chunk_size + (i == 0 ? remainder : 0);
     args[i].bulk= bulk;
     args[i].start_idx = current_start;
     args[i].end_idx = current_start + count;
@@ -1822,7 +1822,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
     int err= mysql_thread_create(0, &threads[i], nullptr, bulk_build_thread, &args[i]);
     if (err)
     {
-      for (uint j= 0; j < workers_spawned; j++)
+      for (size_t j= 0; j < workers_spawned; j++)
         pthread_join(threads[j], nullptr);
       return HA_ERR_OUT_OF_MEM;
     }
@@ -1830,7 +1830,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   }
 
   int final_err= 0;
-  for (uint i= 0; i < workers_spawned; i++)
+  for (size_t i= 0; i < workers_spawned; i++)
   {
     pthread_join(threads[i], nullptr);
     if (args[i].error && !final_err)
@@ -1847,7 +1847,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
       graph->file->ha_end_bulk_insert();
   });
 
-  for (uint i= 0; i < bulk->nodes.elements; i++)
+  for (size_t i= 0; i < bulk->nodes.elements; i++)
   {
     FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
     if (int err= node->save(graph))
@@ -1863,7 +1863,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   SCOPE_EXIT([graph](){ graph->file->ha_rnd_end(); });
 
   // fix neighbors grefs
-  for (uint i= 0; i < bulk->nodes.elements; i++)
+  for (size_t i= 0; i < bulk->nodes.elements; i++)
   {
     FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
     if (int err= node->save(graph))
