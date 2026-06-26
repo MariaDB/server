@@ -346,3 +346,22 @@ drop table t1;
 #
 # End of 10.1 tests
 #
+
+--echo #
+--echo # MDEV-40159: single quote in DATA DIRECTORY breaks SHOW CREATE TABLE
+--echo #
+
+--mkdir $MYSQL_TMP_DIR/o'hara
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval CREATE TABLE t1 (a int) data directory="$MYSQL_TMP_DIR/o'hara";
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval CREATE TABLE t1 (a int) index directory="$MYSQL_TMP_DIR/o'hara";
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--rmdir $MYSQL_TMP_DIR/o'hara
+
+--echo # End of 10.6 tests

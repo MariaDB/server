@@ -1684,7 +1684,7 @@ static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
     }
     filename= winfilename;
 #endif
-    packet->append(filename, length);
+    packet->append_for_single_quote(filename, length);
     packet->append('\'');
   }
 }

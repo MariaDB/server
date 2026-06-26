@@ -249,3 +249,21 @@ t1	CREATE TABLE `t1` (
   `c3` varchar(100) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DELAY_KEY_WRITE=1 DATA DIRECTORY='MYSQL_TMP_DIR/' INDEX DIRECTORY='MYSQL_TMP_DIR/'
 drop table t1;
+#
+# MDEV-40159: single quote in DATA DIRECTORY breaks SHOW CREATE TABLE
+#
+CREATE TABLE t1 (a int) data directory="MYSQL_TMP_DIR/o'hara";
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQL_TMP_DIR/o\'hara/'
+DROP TABLE t1;
+CREATE TABLE t1 (a int) index directory="MYSQL_TMP_DIR/o'hara";
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci INDEX DIRECTORY='MYSQL_TMP_DIR/o\'hara/'
+DROP TABLE t1;
+# End of 10.6 tests
