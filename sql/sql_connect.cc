@@ -1024,6 +1024,9 @@ static int check_connection(THD *thd)
   uint connect_errors= 0;
   int auth_rc;
   NET *net= &thd->net;
+  /* Socket peer IP address, the proxy host under PROXY protocol */
+  char ip[NI_MAXHOST];
+  ip[0]= 0;
 
   DBUG_PRINT("info",
              ("New connection received on %s", vio_description(net->vio)));
@@ -1035,7 +1038,6 @@ static int check_connection(THD *thd)
   if (!thd->main_security_ctx.host)         // If TCP/IP connection
   {
     my_bool peer_rc;
-    char ip[NI_MAXHOST];
     uint16 peer_port;
 
     peer_rc= vio_peer_addr(net->vio, ip, &peer_port, NI_MAXHOST);
@@ -1153,14 +1155,16 @@ static int check_connection(THD *thd)
   }
 
   auth_rc= acl_authenticate(thd, 0);
-  if (auth_rc == 0 && connect_errors != 0)
+  if (auth_rc == 0)
   {
     /*
-      A client connection from this IP was successful,
-      after some previous failures.
-      Reset the connection error counter.
+      Successful login resets connect errors, for both the socket peer and,
+      under PROXY protocol, the real client - each by its own error count.
     */
-    reset_host_connect_errors(thd->main_security_ctx.ip);
+    if (connect_errors)
+      reset_host_connect_errors(ip);
+    if (net->have_proxy_protocol_connect_errors)
+      reset_host_connect_errors(thd->main_security_ctx.ip);
   }
 
   return auth_rc;

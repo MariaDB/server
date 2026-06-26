@@ -488,6 +488,8 @@ typedef struct st_net {
   unsigned char compress;
   my_bool pkt_nr_can_be_reset;
   my_bool using_proxy_protocol;
+  /* proxy protocol: real client address has connect errors to reset on login */
+  my_bool have_proxy_protocol_connect_errors;
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet
