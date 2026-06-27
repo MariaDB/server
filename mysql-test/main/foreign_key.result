@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 create table t1 (
 a int not null references t2,
 b int not null constraint t2_c references t2 (c),
@@ -13,6 +12,10 @@ foreign key (a,b) references t3 (c,d) on update set null);
 create index a on t1 (a);
 create unique index b on t1 (a,b);
 drop table t1;
+# End of 4.1 tests
+#
+# Bug#44987 DELETE IGNORE and FK constraint
+#
 create table t1 (id int primary key) engine = innodb;
 create table t2 (id int PRIMARY KEY, FOREIGN KEY (id) REFERENCES t1(id)) engine=innodb;
 insert into t1 values (1), (2), (3), (4), (5), (6);
@@ -40,7 +43,9 @@ id
 5
 drop table t2;
 drop table t1;
-drop table if exists t_34455;
+#
+# Bug#34455 (Ambiguous foreign keys syntax is accepted)
+#
 create table t_34455 (
 a int not null,
 foreign key (a) references t3 (a) match full match partial);
@@ -108,3 +113,17 @@ ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
 ERROR 42000: Duplicate key name 'sid'
 DROP TABLE tfk;
 DROP TABLE tpk;
+#
+# MDEV-39818 backtick in FK names breaks SHOW CREATE TABLE
+#
+CREATE TABLE p (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT, CONSTRAINT `foo `` bar` FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `foo `` bar` (`a`),
+  CONSTRAINT `foo `` bar` FOREIGN KEY (`a`) REFERENCES `p` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1, p;
+# End of 10.6 tests
