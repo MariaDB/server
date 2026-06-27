@@ -610,8 +610,13 @@ bool Item_func_json_equals::fix_length_and_dec(THD *thd)
 bool Item_func_json_equals::val_bool()
 {
   longlong result= 0;
-
+  int arg_num= 0;
   String a_tmp, b_tmp;
+  THD *thd;
+  json_engine_t je;
+
+  if ((null_value= args[0]->null_value || args[1]->null_value))
+    return 1;
 
   String *a= args[0]->val_json(&a_tmp);
   String *b= args[1]->val_json(&b_tmp);
@@ -631,27 +636,31 @@ bool Item_func_json_equals::val_bool()
     return 1;
   }
 
-  if ((null_value= args[0]->null_value || args[1]->null_value))
-  {
-    null_value= 1;
-    goto end;
-  }
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_normalize(&a_res, a->ptr(), a->length(), a->charset()))
-  {
-    null_value= 1;
-    goto end;
-  }
+  if (json_normalize(&je, &a_res, a->ptr(), a->length(), a->charset()))
+    goto return_null;
 
-  if (json_normalize(&b_res, b->ptr(), b->length(), b->charset()))
-  {
-    null_value= 1;
-    goto end;
-  }
+  arg_num++;
+  if (json_normalize(&je, &b_res, b->ptr(), b->length(), b->charset()))
+    goto return_null;
 
   result= strcmp(a_res.str, b_res.str) ? 0 : 1;
+  goto end;
+
+return_null:
+  null_value= 1;
 
 end:
+  if (je.s.error)
+  {
+    /* looks convoluted, but report_json_error is a macro */
+    if (arg_num != 0)
+       a= b;
+    report_json_error(a, &je, arg_num);
+  }
   dynstr_free(&b_res);
   dynstr_free(&a_res);
   return result;
@@ -4582,6 +4591,8 @@ String* Item_func_json_objectagg::val_str(String* str)
 String *Item_func_json_normalize::val_str(String *buf)
 {
   String tmp;
+  json_engine_t je;
+  THD *thd;
   String *raw_json= args[0]->val_str(&tmp);
 
   DYNAMIC_STRING normalized_json;
@@ -4595,22 +4606,27 @@ String *Item_func_json_normalize::val_str(String *buf)
   if (null_value)
     goto end;
 
-  if (json_normalize(&normalized_json,
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+  je.killed_ptr= (uint32_t *) &thd->killed;
+
+  if (json_normalize(&je, &normalized_json,
                      raw_json->ptr(), raw_json->length(),
                      raw_json->charset()))
-  {
-    null_value= 1;
-    goto end;
-  }
+    goto null_return;
 
   buf->length(0);
   buf->set_charset(collation.collation);
   if (buf->append(normalized_json.str, normalized_json.length))
-  {
-    null_value= 1;
-    goto end;
-  }
+    goto null_return;
 
+  goto end;
+
+null_return:
+  null_value= 1;
+
+  if (je.s.error)
+    report_json_error(raw_json, &je, 0);
 end:
   dynstr_free(&normalized_json);
   return null_value ? NULL : buf;
@@ -4802,6 +4818,8 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   json_skip_level(js);
   const char *value_end= (const char*)value->s.c_str;
   const char *js_end= (const char*)js->s.c_str;
+  json_engine_t je;
+  je.killed_ptr= js->killed_ptr;
 
   String a(value_begin, value_end-value_begin,value->s.cs);
   String b(js_begin, js_end-js_begin, js->s.cs);
@@ -4812,9 +4830,16 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   { 
     goto error;
   }
-  if (json_normalize(&a_res, a.ptr(), a.length(), value->s.cs) ||
-      json_normalize(&b_res, b.ptr(), b.length(), value->s.cs))
+  if (json_normalize(&je, &a_res, a.ptr(), a.length(), value->s.cs))
   {
+    value->s.error= je.s.error;
+    value->s.c_str= je.s.c_str;
+    goto error;
+  }
+  if (json_normalize(&je, &b_res, b.ptr(), b.length(), value->s.cs))
+  {
+    js->s.error= je.s.error;
+    js->s.c_str= je.s.c_str;
     goto error;
   }
 
