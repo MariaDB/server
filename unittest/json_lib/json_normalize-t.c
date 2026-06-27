@@ -25,12 +25,13 @@ check_json_normalize(const char *in, const char *expected)
 {
   int err;
   DYNAMIC_STRING result;
-
+  json_engine_t je= {0};
   CHARSET_INFO *cs= &my_charset_utf8mb4_general_ci;
 
+  je.killed_ptr= NULL;
   init_dynamic_string(&result, NULL, 0, 0);
 
-  err= json_normalize(&result, in, strlen(in), cs);
+  err= json_normalize(&je, &result, in, strlen(in), cs);
 
   ok(err == 0, "normalize err?");
 
@@ -46,26 +47,29 @@ static void
 test_json_normalize_invalid(void)
 {
   DYNAMIC_STRING result;
-
+  json_engine_t je= {0};
   CHARSET_INFO *cs= &my_charset_utf8mb4_general_ci;
 
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, STRING_WITH_LEN(""), cs) != 0,
+  ok(json_normalize(&je, &result, STRING_WITH_LEN(""), cs) != 0,
      "expected normalized error");
   dynstr_free(&result);
 
+  memset(&je, 0, sizeof(je));
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, STRING_WITH_LEN("["), cs) != 0,
+  ok(json_normalize(&je, &result, STRING_WITH_LEN("["), cs) != 0,
      "expected normalized error");
   dynstr_free(&result);
 
+  memset(&je, 0, sizeof(je));
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, STRING_WITH_LEN("}"), cs) != 0,
+  ok(json_normalize(&je, &result, STRING_WITH_LEN("}"), cs) != 0,
      "expected normalized error");
   dynstr_free(&result);
 
+  memset(&je, 0, sizeof(je));
   init_dynamic_string(&result, NULL, 0, 0);
-  ok(json_normalize(&result, NULL, 0, cs) != 0,
+  ok(json_normalize(&je, &result, NULL, 0, cs) != 0,
      "expected normalized error");
   dynstr_free(&result);
 }
@@ -200,17 +204,19 @@ test_json_normalize_non_utf8(void)
   const char utf8[]= { 0x22, 0xC3, 0x8A, 0x22, 0x00 };
   const char latin[] = { 0x22, 0xCA, 0x22, 0x00 };
   DYNAMIC_STRING result;
+  json_engine_t je= {0};
   CHARSET_INFO *cs_utf8= &my_charset_utf8mb4_bin;
   CHARSET_INFO *cs_latin= &my_charset_latin1;
 
   init_dynamic_string(&result, NULL, 0, 0);
-  err= json_normalize(&result, utf8, strlen(utf8), cs_utf8);
+  err= json_normalize(&je, &result, utf8, strlen(utf8), cs_utf8);
   ok(err == 0, "normalize err?");
   ok((strcmp(utf8, result.str) == 0), "utf8 round trip");
   dynstr_free(&result);
 
+  memset(&je, 0, sizeof(je));
   init_dynamic_string(&result, NULL, 0, 0);
-  err= json_normalize(&result, latin, strlen(latin), cs_latin);
+  err= json_normalize(&je, &result, latin, strlen(latin), cs_latin);
   ok(err == 0, "normalize err?");
   ok((strcmp(utf8, result.str) == 0), "latin to utf8 round trip");
   dynstr_free(&result);

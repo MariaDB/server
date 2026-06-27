@@ -442,7 +442,7 @@ int json_locate_key(const char *js, const char *js_end,
                     const char **key_start, const char **key_end,
                     int *comma_pos);
 
-int json_normalize(DYNAMIC_STRING *result,
+int json_normalize(json_engine_t *je, DYNAMIC_STRING *result,
                    const char *s, size_t size, CHARSET_INFO *cs);
 
 int json_skip_array_and_count(json_engine_t *j, int* n_item);
