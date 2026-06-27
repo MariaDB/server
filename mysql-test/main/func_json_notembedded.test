@@ -41,6 +41,7 @@ select json_overlaps(@obj, @arr);
 select json_remove(@obj,'$.foo');
 select json_replace(@obj,'$.foo',1);
 select json_set(@arr,'$[1000]',1);
+select json_valid(@arr);
 select ST_AsTEXT(ST_GeomFromGeoJSON(JSON_OBJECT("type", "Point", "coordinates", @arr),2)) as exp;
 enable_abort_on_error;
 SET debug_dbug= @old_debug;

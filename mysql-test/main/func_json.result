@@ -4,6 +4,8 @@ json_valid('[1, 2]')
 select json_valid('"string"}');
 json_valid('"string"}')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 9
 select json_valid('{"key1":1, "key2":[2,3]}');
 json_valid('{"key1":1, "key2":[2,3]}')
 1
@@ -13,9 +15,13 @@ json_valid('[false, true, null]')
 select json_valid(repeat('[', 1000));
 json_valid(repeat('[', 1000))
 0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
 select json_valid(repeat('{"a":', 1000));
 json_valid(repeat('{"a":', 1000))
 0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 156
 select json_value('{"key1":123}', '$.key2');
 json_value('{"key1":123}', '$.key2')
 NULL
@@ -737,6 +743,8 @@ Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_
 select JSON_VALID(0x36f0c8dccd83c5eac156da);
 JSON_VALID(0x36f0c8dccd83c5eac156da)
 0
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_valid' at position 1
 create table t1(a double not null);
 insert into t1 values (2),(1);
 select 1 from t1 where json_extract(a,'$','$[81]');
@@ -836,6 +844,8 @@ SET sql_mode=default;
 select JSON_VALID( '{"a":1]' );
 JSON_VALID( '{"a":1]' )
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
 #
 # MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
 #
@@ -1490,12 +1500,18 @@ JSON_VALUE(' {"number": 0E-4}', '$.number')
 select JSON_VALID(' {"number": 00E-4}');
 JSON_VALID(' {"number": 00E-4}')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
 select JSON_VALID(' {"number": 01E-4}');
 JSON_VALID(' {"number": 01E-4}')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 14
 select JSON_VALID(' {"number": 0E-4.0}');
 JSON_VALID(' {"number": 0E-4.0}')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 17
 # End of 10.4 tests
 #
 # MDEV-16620 JSON_ARRAYAGG
@@ -2876,6 +2892,8 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' a
 SELECT JSON_VALID('{ "A": [0,] }');
 JSON_VALID('{ "A": [0,] }')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 11
 #
 # MDEV-38264 Assertion in json_find_path() fails after computing
 # array size of invalid json structure
@@ -2900,6 +2918,8 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' a
 SELECT JSON_VALID('{ "A": [0,] }');
 JSON_VALID('{ "A": [0,] }')
 0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 11
 #
 # MDEV-35548 UBSAN: runtime error: index -1 out of bounds for type 'json_path_step_t[32]'
 # (aka 'struct st_json_path_step_t[32]')

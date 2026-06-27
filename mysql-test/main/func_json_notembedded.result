@@ -56,6 +56,8 @@ select json_replace(@obj,'$.foo',1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select json_set(@arr,'$[1000]',1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+select json_valid(@arr);
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 select ST_AsTEXT(ST_GeomFromGeoJSON(JSON_OBJECT("type", "Point", "coordinates", @arr),2)) as exp;
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 SET debug_dbug= @old_debug;

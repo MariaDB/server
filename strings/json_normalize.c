@@ -828,7 +828,7 @@ json_normalize(json_engine_t *je, DYNAMIC_STRING *result,
   }
 
 
-  if (!json_valid(in, in_size, &my_charset_utf8mb4_bin))
+  if (!json_valid(je, in, in_size, &my_charset_utf8mb4_bin))
   {
     err= 1;
     goto json_normalize_end;
@@ -847,7 +847,12 @@ json_normalize_end:
   if (err)
     dynstr_free(result);
   if (s_utf8)
+  {
+    /* resulting error offset is mapped to original string */
+    if (je->s.error)
+      je->s.c_str= (const uchar *) (s + (ptrdiff_t)(je->s.c_str - (const uchar *) s_utf8));
     my_free(s_utf8);
+  }
   return err;
 }
 
