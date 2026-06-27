@@ -590,11 +590,21 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 bool Item_func_json_valid::val_bool()
 {
   String *js= args[0]->val_json(&tmp_value);
+  THD *thd;
+  json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
-  return json_valid(js->ptr(), js->length(), js->charset());
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+  je.killed_ptr= (uint32_t *) &thd->killed;
+
+  if (json_valid(&je, js->ptr(), js->length(), js->charset()))
+    return true;
+  /* Sql_condition::WARN_LEVEL_WARN becomes an error in check constraints */
+  report_json_error_ex(js->ptr(), &je, func_name(), 0, Sql_condition::WARN_LEVEL_NOTE);
+  return false;
 }
 
 

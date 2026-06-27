@@ -1847,7 +1847,13 @@ class User_table_json: public User_table
     if (!value_type && string)
       json.append('"');
     json.append(value_start, res->end() - value_start);
-    DBUG_ASSERT(json_valid(json.ptr(), json.length(), json.charset()));
+#ifndef DBUG_OFF
+    {
+      json_engine_t je;
+      je.killed_ptr= nullptr;
+      DBUG_ASSERT(json_valid(&je, json.ptr(), json.length(), json.charset()));
+    }
+#endif
     m_table->field[2]->store(json.ptr(), json.length(), json.charset());
     return value_type;
   }
