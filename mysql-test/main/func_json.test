@@ -24,10 +24,7 @@ select json_array(1);
 --disable_view_protocol
 select json_array(1, "text", false, null);
 
-#enable after fix MDEV-31554
---disable_cursor_protocol
 select json_array_append('["a", "b"]', '$', FALSE);
---enable_cursor_protocol
 --enable_view_protocol
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
