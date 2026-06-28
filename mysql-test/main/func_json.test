@@ -4390,4 +4390,29 @@ SELECT c1,c2, JSON_OBJECT_FILTER_KEYS(c1, c2) AS c2_s FROM t;
 
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-40185 JSON_ARRAY_INTERSECT error handing incorrect
+--echo #
+
+create table t (j text);
+insert into t values ('[1, 2, 3]'), ('[3, invalid]');
+
+select json_array_intersect(j, '[3, 4]') as arg1_invalid from t;
+select json_array_intersect('[3, 4]', j) as arg2_invalid from t;
+
+drop table t;
+
+create table t (a1 json, a2 json);
+insert into t values ('[1, 2, 3]', '[4, 5, 6]'),
+                     ('[2, 3, 4.0]', '[4.0000, 5, 7]'),
+                     ( NULL, NULL),
+                     ('[1, 2, 3]', '[{"dog": 3, "cat": 4, "fish": 5}]'),
+                     ('[1E0, 2E1, 3E2]', '[1.0, 20.0, 300.0]');
+select a1, a2, json_array_intersect(a1, a2) as jai from t;
+select a2, json_array_intersect('[5.0]', a2) as jai from t;
+select a1, json_array_intersect(a1, '[ 1E0 ]') as jai from t;
+select a2, json_array_intersect('[{"dog":  3}', a2) as jai from t;
+
+drop table t;
+
 --echo # End of 11.4 tests
