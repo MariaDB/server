@@ -12029,28 +12029,37 @@ err1:
   (also restored from the engine) and are handled separately, so they are not
   seeded here.
 
-  The whole cluster binlogs cluster writes under one consistent stream (the
-  seqno stays in lockstep because every node applies in the same total order).
-  The domain of that stream depends on the mode:
-    - wsrep_gtid_mode=ON : wsrep_gtid_domain_id (cluster writes are re-tagged
-      to it, see [wsrep_mysqld.cc:2983]); this is the domain in the checkpoint.
-    - wsrep_gtid_mode=OFF: gtid_domain_id (cluster writes keep the node's
-      configured domain, no re-tag).
-  In both modes the committed cluster seqno is the SE checkpoint seqno, so we
-  seed that domain's binlog state to the checkpoint position. This is also the
-  exact position from which IST will resume re-binlogging, so the joiner stays
-  in lockstep with the rest of the cluster (and, in ON mode, avoids error 1950
-  from re-binlogging over an ahead position).
+  This seeding applies only with wsrep_gtid_mode=ON. In that mode cluster
+  writes are re-tagged to wsrep_gtid_domain_id and binlogged with the cluster
+  seqno, so @@gtid_binlog_pos in that domain tracks the cluster seqno - which is
+  exactly the SE checkpoint position, and exactly the position from which IST
+  resumes re-binlogging. Seeding it keeps the joiner in lockstep and avoids
+  error 1950 from re-binlogging over an ahead position.
+
+  With wsrep_gtid_mode=OFF cluster writes keep the node's configured
+  gtid_domain_id and are binlogged with a locally allocated seq_no; the cluster
+  seqno is not written to the binlog GTID (it lives only in
+  thd->wsrep_current_gtid_seqno - see the GTID assignment guarded by
+  wsrep_gtid_mode in wsrep_mysqld.cc). That binlog position is node-local and
+  unrelated to the checkpoint seqno, so there is nothing cluster-consistent to
+  seed: a fresh joiner just resumes its own local counter, which cannot produce
+  an ahead position. We therefore seed nothing in that mode.
 */
 static void wsrep_seed_binlog_gtid_state()
 {
+  /*
+    Only wsrep_gtid_mode=ON has a cluster-consistent binlog position that maps
+    onto the SE checkpoint (see the block comment above).
+  */
+  if (!wsrep_gtid_mode)
+    return;
+
   wsrep_server_gtid_t const eng= wsrep_get_SE_checkpoint<wsrep_server_gtid_t>();
   if (eng.seqno <= 0)
     return;                              /* not a wsrep node / no position */
 
   rpl_gtid eng_gtid;
-  eng_gtid.domain_id= wsrep_gtid_mode ? eng.domain_id
-                                      : global_system_variables.gtid_domain_id;
+  eng_gtid.domain_id= eng.domain_id;     /* == wsrep_gtid_domain_id */
   eng_gtid.server_id= eng.server_id;
   eng_gtid.seq_no=    eng.seqno;
 
@@ -12062,7 +12071,17 @@ static void wsrep_seed_binlog_gtid_state()
                         "from the storage-engine checkpoint",
                         eng_gtid.domain_id, eng_gtid.server_id,
                         (unsigned long long) eng_gtid.seq_no);
-  rpl_global_gtid_binlog_state.update_nolock(&eng_gtid, false);
+  /*
+    Use the locking update() for consistency with the find_most_recent() read
+    above. With strict=false the only failure is OOM; update() will have called
+    my_error(ER_OUT_OF_RESOURCES), but there is no current_thd this early in
+    startup, so report the failure explicitly here as well.
+  */
+  if (rpl_global_gtid_binlog_state.update(&eng_gtid, false))
+    sql_print_error("WSREP: failed to seed binlog GTID state to %u-%u-%llu "
+                    "from the storage-engine checkpoint (out of memory)",
+                    eng_gtid.domain_id, eng_gtid.server_id,
+                    (unsigned long long) eng_gtid.seq_no);
 }
 #endif /* WITH_WSREP && HAVE_REPLICATION */
 

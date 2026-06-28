@@ -425,7 +425,7 @@ static bool wsrep_sst_complete (THD*                thd,
         position actually adopted, not the script-reported one, to avoid
         confusion.
       */
-      wsrep::gtid const received_gtid(wsrep_get_SE_checkpoint<wsrep::gtid>());
+      wsrep::gtid const received_gtid= wsrep_get_SE_checkpoint<wsrep::gtid>();
       char recv_pos_buf[FN_REFLEN];
       ssize_t const recv_len=
         wsrep::print_to_c_str(received_gtid, recv_pos_buf, FN_REFLEN-1);
@@ -437,7 +437,7 @@ static bool wsrep_sst_complete (THD*                thd,
   {
     char start_pos_buf[FN_REFLEN];
     ssize_t const len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN - 1);
-    start_pos_buf[len]= '\0';
+    start_pos_buf[len > 0 ? len : 0]= '\0';
 
     WSREP_ERROR("SST failed for position %s initialized %d server_state %s",
                 start_pos_buf, server_state.is_initialized(),
