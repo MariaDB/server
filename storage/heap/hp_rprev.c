@@ -62,8 +62,7 @@ int heap_rprev(HP_INFO *info, uchar *record)
     }
     if (pos)
     {
-      memcpy(&pos, pos + (*keyinfo->get_key_length)(keyinfo, pos),
-	     sizeof(uchar*));
+      memcpy(&pos, pos + keyinfo->get_key_length(keyinfo, pos), sizeof(uchar*));
       info->current_ptr = pos;
     }
     else

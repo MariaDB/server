@@ -4,10 +4,6 @@
 # Test of heap tables.
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 create table t1 (a int not null,b int not null, primary key using BTREE (a)) engine=heap comment="testing heaps" avg_row_length=100 min_rows=1 max_rows=100;
 insert into t1 values(1,1),(2,2),(3,3),(4,4);
 delete from t1 where a=1 or a=0;
@@ -227,7 +223,7 @@ DELETE FROM t1 WHERE a=2;
 SELECT * FROM t1;
 DROP TABLE t1;
 
---echo End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # BUG#18160 - Memory-/HEAP Table endless growing indexes
@@ -266,7 +262,7 @@ CREATE TABLE t1(a INT, KEY USING BTREE (a)) ENGINE=MEMORY;
 INSERT INTO t1 VALUES(1),(1);
 DELETE a1 FROM t1 AS a1, t1 AS a2 WHERE a1.a=a2.a;
 DROP TABLE t1;
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 -- echo # bit index in heap tables
 
@@ -285,7 +281,7 @@ select 0+a from t1 where a in (869751,736494,226312,802616);
 explain select 0+a from t1 where a in (869751,736494,226312,802616);
 drop table t1;
 
---echo End of 5.3 tests
+--echo # End of 5.3 tests
 
 #
 # Bug#27799513: POTENTIAL DOUBLE FREE OR CORRUPTION OF HEAP INFO (HP_INFO)
@@ -294,4 +290,4 @@ create table t1 (id int, a varchar(300) not null, key using btree(a)) engine=hea
 insert t1 values (1, repeat('a', 300));
 drop table t1;
 
---echo End of 5.5 tests
+--echo # End of 5.5 tests
