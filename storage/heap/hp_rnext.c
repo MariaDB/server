@@ -53,9 +53,9 @@ int heap_rnext(HP_INFO *info, uchar *record)
         or heap_rfirst(). As last key position (info->last_pos) is available,
         we only need to climb the tree using tree_search_next().
       */
-      pos = tree_search_next(&keyinfo->rb_tree, &info->last_pos,
-                             offsetof(TREE_ELEMENT, left),
-                             offsetof(TREE_ELEMENT, right));
+      pos= tree_search_next(&keyinfo->rb_tree, &info->last_pos,
+                            offsetof(TREE_ELEMENT, left),
+                            offsetof(TREE_ELEMENT, right));
     }
     else if (!info->lastkey_len)
     {
@@ -86,14 +86,13 @@ int heap_rnext(HP_INFO *info, uchar *record)
       custom_arg.key_length = info->lastkey_len;
       custom_arg.search_flag = SEARCH_SAME | SEARCH_FIND;
       info->last_find_flag= HA_READ_KEY_OR_NEXT;
-      pos = tree_search_key(&keyinfo->rb_tree, info->lastkey, info->parents, 
+      pos= tree_search_key(&keyinfo->rb_tree, info->lastkey, info->parents,
                            &info->last_pos, info->last_find_flag, &custom_arg);
       info->key_version= info->s->key_version;
     }
     if (pos)
     {
-      memcpy(&pos, pos + (*keyinfo->get_key_length)(keyinfo, pos), 
-	     sizeof(uchar*));
+      memcpy(&pos, pos + keyinfo->get_key_length(keyinfo, pos), sizeof(uchar*));
       info->current_ptr = pos;
     }
     else
