@@ -3,41 +3,50 @@ connection node_1;
 connection node_1;
 connection node_2;
 connection node_3;
-connection node_1;
 # gtid_strict_mode must be enabled on all nodes
 SELECT @@global.gtid_strict_mode AS gtid_strict_mode;
 gtid_strict_mode
 1
-connection node_2;
-connection node_3;
-connect node_1_load, 127.0.0.1, root, , test, $NODE_MYPORT_1;
-connect node_2_load, 127.0.0.1, root, , test, $NODE_MYPORT_2;
-connection node_1_load;
-CALL p_load();
-connection node_2_load;
-CALL p_load();
 connection node_1;
 connection node_2;
 connection node_3;
+connection node_3;
 connection node_1;
-UPDATE ctrl SET stop = 1 WHERE id = 1;
-connection node_1_load;
-connection node_2_load;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL debug_dbug = '+d,sync.after_mdl_block_ddl';
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR sync.after_mdl_block_ddl_reached';
+connect node_1_freeze, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1_freeze;
+SET DEBUG_SYNC = 'commit_before_get_LOCK_commit_ordered SIGNAL t_frozen WAIT_FOR t_go';
+INSERT INTO t1 (val) VALUES (1);
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR t_frozen';
+SET DEBUG_SYNC = 'now SIGNAL signal.after_mdl_block_ddl_continue';
+SET DEBUG_SYNC = 'now SIGNAL t_go';
+connection node_1_freeze;
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = '';
+connection node_1;
+connection node_3;
+connection node_1;
+connection node_2;
+connection node_3;
 connection node_1;
 SET SESSION wsrep_sync_wait = 15;
 SELECT VARIABLE_VALUE AS wsrep_cluster_size FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 wsrep_cluster_size
 3
-connection node_2;
-SET SESSION wsrep_sync_wait = 15;
-count_match	checksum_match	gtid_match
-1	1	1
 connection node_3;
 SET SESSION wsrep_sync_wait = 15;
 count_match	checksum_match	gtid_match
 1	1	1
-connection node_1;
 connection node_2;
-connection node_3;
+SET SESSION wsrep_sync_wait = 15;
+count_match	checksum_match	gtid_match
+1	1	1
+DROP TABLE t1;
 disconnect node_2;
 disconnect node_1;
