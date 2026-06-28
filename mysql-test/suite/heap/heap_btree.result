@@ -386,3 +386,59 @@ create table t1 (id int, a varchar(300) not null, key using btree(a)) engine=hea
 insert t1 values (1, repeat('a', 300));
 drop table t1;
 # End of 5.5 tests
+#
+# MDEV-40186 MEMORY tables incorrectly restart index scan on DELETE
+#
+create table t1 (a int, b int, c int, key (a, b) using btree) engine=heap;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3 and c>60;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_READ_KEY	1
+HANDLER_READ_NEXT	8
+select * from t1 where a=3;
+a	b	c
+3	3	3
+3	13	13
+3	23	23
+3	33	33
+3	43	43
+3	53	53
+delete from t1;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_READ_KEY	1
+HANDLER_READ_NEXT	8
+select * from t1 where a=3;
+a	b	c
+delete from t1;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3 and c<20 order by a desc, b desc limit 10;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_READ_KEY	1
+HANDLER_READ_PREV	8
+select * from t1 where a=3;
+a	b	c
+3	23	23
+3	33	33
+3	43	43
+3	53	53
+3	63	63
+3	73	73
+delete from t1;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3 order by a desc, b desc limit 10;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_READ_KEY	1
+HANDLER_READ_PREV	8
+select * from t1 where a=3;
+a	b	c
+drop table t1;

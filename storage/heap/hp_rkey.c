@@ -55,7 +55,10 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
       info->update= HA_STATE_NO_KEY;
       DBUG_RETURN(my_errno= HA_ERR_KEY_NOT_FOUND);
     }
-    memcpy(&pos, pos + keyinfo->get_key_length(keyinfo, pos), sizeof(uchar*));
+    info->lastkey_len= keyinfo->get_key_length(keyinfo, pos);
+    if ((keyinfo->flag & (HA_NOSAME | HA_NULL_PART_KEY)) != HA_NOSAME)
+      memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
+    memcpy(&pos, pos + info->lastkey_len, sizeof(uchar*));
     info->current_ptr= pos;
   }
   else

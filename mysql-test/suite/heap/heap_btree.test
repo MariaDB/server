@@ -291,3 +291,40 @@ insert t1 values (1, repeat('a', 300));
 drop table t1;
 
 --echo # End of 5.5 tests
+
+--echo #
+--echo # MDEV-40186 MEMORY tables incorrectly restart index scan on DELETE
+--echo #
+
+--disable_ps2_protocol
+create table t1 (a int, b int, c int, key (a, b) using btree) engine=heap;
+
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3 and c>60;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+select * from t1 where a=3;
+
+delete from t1;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+select * from t1 where a=3;
+
+delete from t1;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3 and c<20 order by a desc, b desc limit 10;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+select * from t1 where a=3;
+
+delete from t1;
+insert t1 select seq % 10, seq, seq from seq_1_to_80;
+flush status;
+delete from t1 where a=3 order by a desc, b desc limit 10;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+select * from t1 where a=3;
+
+drop table t1;
+--enable_ps2_protocol

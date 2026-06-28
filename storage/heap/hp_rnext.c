@@ -84,7 +84,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
       */
       custom_arg.keyseg = keyinfo->seg;
       custom_arg.key_length = info->lastkey_len;
-      custom_arg.search_flag = SEARCH_SAME | SEARCH_FIND;
+      custom_arg.search_flag = SEARCH_BIGGER;
       info->last_find_flag= HA_READ_KEY_OR_NEXT;
       pos= tree_search_key(&keyinfo->rb_tree, info->lastkey, info->parents,
                            &info->last_pos, info->last_find_flag, &custom_arg);
@@ -92,8 +92,11 @@ int heap_rnext(HP_INFO *info, uchar *record)
     }
     if (pos)
     {
-      memcpy(&pos, pos + keyinfo->get_key_length(keyinfo, pos), sizeof(uchar*));
-      info->current_ptr = pos;
+      info->lastkey_len= keyinfo->get_key_length(keyinfo, pos);
+      if ((keyinfo->flag & (HA_NOSAME | HA_NULL_PART_KEY)) != HA_NOSAME)
+        memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
+      memcpy(&pos, pos + info->lastkey_len, sizeof(uchar*));
+      info->current_ptr= pos;
     }
     else
     {
