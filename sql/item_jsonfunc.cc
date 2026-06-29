@@ -5339,21 +5339,16 @@ String* Item_func_json_key_value::val_str(String *str)
   json_scan_start(&je, tmp_str.charset(), (const uchar *) tmp_str.ptr(),
                   (const uchar *) tmp_str.ptr() + tmp_str.length());
   if (json_read_value(&je))
-  {
-    report_json_error(str, &je, 0);
-    goto return_null;
-  }
+    goto return_error;
 
   str->length(0);
   if (get_key_value(&je, str))
-  {
-    report_json_error(str, &je, 0);
-    goto return_null;
-  }
+    goto return_error;
 
   return str;
+return_error:
+  report_json_error(str, &je, 0);
 
-return_null:
   null_value= 1;
   return NULL;
 }
