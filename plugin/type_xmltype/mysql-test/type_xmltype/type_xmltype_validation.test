@@ -2097,3 +2097,24 @@ INSERT INTO t VALUES ('<a>Text</a>');
 
 DROP TABLE t;
 
+#
+# MDEV-40013 Server crashes in XMLSchema_user_type::validate_prepare/XMLSchema_attribute::validate_prepare
+#
+
+SELECT XMLISVALID('<a b="x"/>',
+  '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a">
+  <xs:complexType><xs:attribute name="b" type="xs:string"/></xs:complexType></xs:element></xs:schema>') as V;
+
+
+SELECT XMLISVALID('<a b="x">   </a>',
+  '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a">
+  <xs:complexType><xs:attribute name="b" type="xs:string"/></xs:complexType></xs:element></xs:schema>') as V;
+
+SELECT XMLISVALID('<a b="x"></a>',
+  '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a">
+  <xs:complexType><xs:attribute name="b" type="xs:string"/></xs:complexType></xs:element></xs:schema>') as V;
+
+SELECT XMLISVALID('<a b="x"> <tag /> </a>',
+  '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a">
+  <xs:complexType><xs:attribute name="b" type="xs:string"/></xs:complexType></xs:element></xs:schema>') as V;
+
