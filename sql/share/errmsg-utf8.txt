@@ -12427,3 +12427,11 @@ ER_INVALID_HOST_NETMASK
         eng "Invalid masked host '%s' for user '%s'"
 ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK
         eng "'%s' entry '%s' ignored, the host is not a valid ip/netmask"
+WARN_VERS_WRONG_STARTS
+        chi "%sQ: STARTS 时间戳 %s 晚于最早历史日期 %s，已被设置为 %s"
+        eng "%sQ: STARTS timestamp %s is after earliest history timestamp %s and was set to %s"
+        spa "%sQ: la marca de tiempo STARTS %s es posterior a la fecha histórica más temprana %s y se estableció en %s"
+WARN_VERS_SLOW_ROW_END
+        chi "%sQ: 没有可用的 ROW END 索引，正在使用慢速扫描；请添加以 ROW END 列开头的有序索引（升序，非 DESC）以避免"
+        eng "%sQ: no usable ROW END index, using slow scan; add an ordered index starting with the ROW END column (ascending, not DESC) to avoid it"
+        spa "%sQ: no hay un índice ROW END utilizable, usando escaneo lento; agregue un índice ordenado que comience por la columna ROW END (ascendente, no DESC) para evitarlo"
