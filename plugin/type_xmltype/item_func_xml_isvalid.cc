@@ -1292,6 +1292,8 @@ public:
     declare_attribute(&m_type_name);
     declare_attribute(&m_final);
   }
+  bool leave(MY_XML_VALIDATION_DATA *st,
+            const char *attr, size_t len) override;
   bool validate_name(const char *attr, size_t len) override
   {
     return m_type_name.eq_value(attr, len);
@@ -2137,6 +2139,8 @@ static xs_word xs_base64Binary(STRING_WITH_LEN("base64Binary"));
 static xs_word xs_hexBinary(STRING_WITH_LEN("hexBinary"));
 
 
+static XMLSchema_tag empty_compositor;
+
 class XMLSchema_bool_builtin_type: public XMLSchema_builtin_type
 {
 public:
@@ -2316,6 +2320,14 @@ bool XMLSchema_tag_xmlns_attribute::value(
   return MY_XML_OK;
 }
 
+
+bool XMLSchema_user_type::leave(MY_XML_VALIDATION_DATA *st,
+                                const char *attr, size_t len)
+{
+  if (!m_compositor)
+    m_compositor= &empty_compositor;
+  return XMLSchema_type::leave(st, attr, len);
+}
 
 int XMLSchema_std_attributes::enter_tag(MY_XML_VALIDATION_DATA *st,
                                         const char *attr, size_t len)
@@ -2576,6 +2588,7 @@ bool XMLSchema_complexType::leave(MY_XML_VALIDATION_DATA *st,
     m_next_type= m_schema->m_global_complexTypes;
     m_schema->m_global_complexTypes= this;
   }
+
   return XMLSchema_user_type::leave(st, attr, len);
 }
 
