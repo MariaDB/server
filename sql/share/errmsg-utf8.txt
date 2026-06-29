@@ -12144,10 +12144,10 @@ ER_UNKNOWN_OPERATOR
         sw "Opereta haipo: '%-.128s'"
 ER_SP_DUP_DECL
 	eng "Duplicate declaration: '%-.64s'"
-ER_PART_STARTS_BEYOND_INTERVAL
-        eng "%sQ: STARTS is later than query time, first history partition may exceed INTERVAL value"
-        spa "%sQ: STARTS es posterior al momento de consulta (query), la primera partición de historia puede exceder el valor INTERVAL"
-        sw "%sQ: STARTS ni ya baadaye kuliko muda wa hoja, kizigeu cha kwanza ya historia inaweza kuzidi thamani ya INTERVAL"
+WARN_VERS_STARTS_BEYOND_INTERVAL
+        eng "%sQ: STARTS timestamp %s is later than query timestamp %s, first history partition may exceed INTERVAL value"
+        spa "%sQ: STARTS %s es posterior al momento de consulta (query) %s, la primera partición de historia puede exceder el valor INTERVAL"
+        sw "%sQ: STARTS %s ni wa baadaye kuliko muda wa hoja %s, kizigeu cha kwanza cha historia kinaweza kuzidi thamani ya INTERVAL"
 ER_GALERA_REPLICATION_NOT_SUPPORTED
         eng "Galera replication not supported"
         spa "La replicación en Galera no está soportada"

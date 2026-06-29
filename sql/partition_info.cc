@@ -2870,11 +2870,14 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
     }
     if (!table)
     {
-      if (thd->query_start() < vers_info->interval.start) {
+      if (thd->query_start() < vers_info->interval.start)
+      {
+        Timestamp_string str_interval(thd, vers_info->interval.start);
+        Timestamp_string str_query(thd, thd->query_start());
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_PART_STARTS_BEYOND_INTERVAL,
-                            ER_THD(thd, ER_PART_STARTS_BEYOND_INTERVAL),
-                            table_name);
+                            WARN_VERS_STARTS_BEYOND_INTERVAL,
+                            ER_THD(thd, WARN_VERS_STARTS_BEYOND_INTERVAL),
+                            table_name, str_interval.cstr(), str_query.cstr());
       }
     }
   }

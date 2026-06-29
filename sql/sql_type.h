@@ -35,6 +35,7 @@ C_MODE_START
 C_MODE_END
 
 class Field;
+class Timestamp;
 class Qualified_ident;
 class Column_definition;
 class Column_definition_attributes;
@@ -1391,6 +1392,7 @@ public:
     else
       make_from_decimal(thd, warn, nr, mode);
   }
+  Temporal_hybrid(THD *thd, const Timestamp &time);
   // End of constructors
 
   bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
