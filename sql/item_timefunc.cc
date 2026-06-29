@@ -51,9 +51,6 @@
 #include <m_ctype.h>
 #include <time.h>
 
-/** Day number for Dec 31st, 9999. */
-#define MAX_DAY_NUMBER 3652424L
-
 Func_handler_date_add_interval_datetime_arg0_time
   func_handler_date_add_interval_datetime_arg0_time;
 
