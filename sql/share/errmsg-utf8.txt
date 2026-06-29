@@ -12406,3 +12406,11 @@ ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
         eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."
+WARN_VERS_WRONG_STARTS
+        chi "%sQ: STARTS 时间戳 %s 晚于最早历史日期 %s，已被设置为 %s"
+        eng "%sQ: STARTS timestamp %s is above earliest history date %s and was set to %s"
+        spa "%sQ: la marca de tiempo STARTS %s es posterior a la fecha histórica más temprana %s y se estableció en %s"
+WARN_VERS_SLOW_ROW_END
+        chi "%sQ: 未找到 ROW END 索引，正在使用慢速扫描"
+        eng "%sQ: ROW END index not found, using slow scan"
+        spa "%sQ: no se encontró el índice ROW END, usando escaneo lento"

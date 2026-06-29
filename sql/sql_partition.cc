@@ -100,6 +100,29 @@ static int get_partition_id_linear_key_sub(partition_info *part_info, uint32 *pa
 static uint32 get_next_partition_via_walking(PARTITION_ITERATOR*);
 static void set_up_range_analysis_info(partition_info *part_info);
 static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR*);
+/**
+  Calculate the number of history partitions required for a time range.
+
+  Uses @c interval.start as the left boundary and @p end as the right
+  boundary. For second-based intervals the count is computed arithmetically
+  using interval2sec(). For month- or year-based intervals, boundaries are
+  advanced step by step using date_add_interval() in the current session
+  time zone.
+
+  @param thd         Current thread.
+  @param end         Right boundary (inclusive) of the history range as a
+                     UNIX timestamp.
+  @param interval    Partition interval definition.
+  @param hist_parts  Out parameter receiving the number of history partitions
+                     needed.
+
+  @retval false  Success.
+  @retval true   Error: interval overflow or number of partitions would
+                 exceed @c MAX_PARTITIONS.
+*/
+static bool vers_calc_hist_parts(THD *thd, my_time_t end,
+                                 const Vers_part_info::interval_t &interval,
+                                 uint *hist_parts);
 #endif
 
 uint32 get_next_partition_id_range(PARTITION_ITERATOR* part_iter);
@@ -6138,6 +6161,70 @@ the generated partition syntax in a correct manner.
         }
       }
 
+      if (table->versioned() &&
+          (alter_info->partition_flags & ALTER_PARTITION_INFO) &&
+          part_info->part_type == VERSIONING_PARTITION &&
+          part_info->vers_info->auto_hist &&
+          alt_part_info->use_default_partitions &&
+          (!*fast_alter_table || (alter_info->flags & ALTER_RECREATE)))
+      {
+        if (*fast_alter_table)
+          *fast_alter_table= false;
+        my_timespec_t min_ts, max_ts;
+        Vers_part_info *vers_info= part_info->vers_info;
+        auto &interval= vers_info->interval;
+        if (table->vers_get_history_range(thd, min_ts, max_ts))
+          DBUG_RETURN(true);
+        if (max_ts.sec > MY_TIME_T_MIN) /* there is history in the table */
+        {
+          DBUG_ASSERT(max_ts.sec < TIMESTAMP_MAX_VALUE);
+          DBUG_ASSERT(min_ts.sec <= max_ts.sec);
+          if (max_ts.usec)
+          {
+            max_ts.sec++;
+            max_ts.usec= 0;
+          }
+          if (vers_info->starts_clause)
+          {
+            if (interval.start > min_ts.sec)
+            {
+              TimestampString str_interval(thd, interval.start);
+              if (part_info->vers_set_starts(thd, min_ts.sec))
+              {
+                my_error(ER_PART_WRONG_VALUE, MYF(0),
+                         table->s->table_name.str, "STARTS");
+                DBUG_RETURN(true);
+              }
+              TimestampString str_min_ts(thd, min_ts);
+              TimestampString str_interval2(thd, interval.start);
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  WARN_VERS_WRONG_STARTS, ER_THD(thd, WARN_VERS_WRONG_STARTS),
+                                  table->s->table_name.str,
+                                  str_interval.cstr(), str_min_ts.cstr(), str_interval2.cstr());
+
+            }
+          }
+          else if (part_info->vers_set_starts(thd, min_ts.sec))
+          {
+            my_error(ER_PART_WRONG_VALUE, MYF(0),
+                     table->s->table_name.str, "STARTS");
+            DBUG_RETURN(true);
+          }
+
+          part_info->use_default_num_partitions= false;
+          part_info->use_default_partitions= true;
+          part_info->default_partitions_setup= false;
+          part_info->partitions.empty();
+
+          uint hist_parts= 0;
+          if (vers_calc_hist_parts(thd, max_ts.sec, interval, &hist_parts))
+            DBUG_RETURN(true);
+          part_info->num_parts= hist_parts + 1;
+        } /* if (max_ts.sec > MY_TIME_T_MIN) */
+        else
+          DBUG_ASSERT(max_ts == MY_TIMESPEC_MIN); /* no history in table */
+      } /* if (need to get history range) */
+
       /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
@@ -6163,7 +6250,7 @@ the generated partition syntax in a correct manner.
         DBUG_ASSERT(create_info->db_type);
         create_info->db_type= partition_hton;
       }
-    }
+    } /* if (thd->work_part_info) */
   }
   DBUG_RETURN(FALSE);
 err:
@@ -6171,6 +6258,71 @@ err:
   if (saved_part_info)
     table->part_info= saved_part_info;
   DBUG_RETURN(TRUE);
+}
+
+
+static bool vers_calc_hist_parts(THD *thd, my_time_t end,
+                                 const Vers_part_info::interval_t &interval,
+                                 uint *hist_parts)
+{
+  uint error= 0;
+  my_time_t start= interval.start;
+  DBUG_ASSERT(hist_parts != NULL);
+  *hist_parts= 0;
+
+  if (end < start)
+    return false;
+
+  if (end == start)
+  {
+    *hist_parts= 1;
+    return false;
+  }
+
+  if (!(interval.step.year || interval.step.month))
+  {
+    my_time_t range= end - start;
+    const longlong i_sec= interval2sec(&interval.step);
+    DBUG_ASSERT(i_sec > 0);
+
+    *hist_parts= static_cast<uint>(range / i_sec);
+    if ((*hist_parts) * i_sec != range)
+      (*hist_parts)++;
+    if (*hist_parts >= MAX_PARTITIONS)
+    {
+      my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(0));
+      return true;
+    }
+    return false;
+  }
+
+  MYSQL_TIME boundary;
+  thd->variables.time_zone->gmt_sec_to_TIME(&boundary, start);
+
+  while (start < end)
+  {
+    if (date_add_interval(thd, &boundary, interval.type, interval.step))
+    {
+      my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "TIMESTAMP", "INTERVAL");
+      return true;
+    }
+
+    start= thd->variables.time_zone->TIME_to_gmt_sec(&boundary, &error);
+    if (error)
+    {
+      my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "TIMESTAMP", "INTERVAL");
+      return true;
+    }
+
+    (*hist_parts)++;
+    if (*hist_parts >= MAX_PARTITIONS)
+    {
+      my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(0));
+      return true;
+    }
+  }
+
+  return false;
 }
 
 

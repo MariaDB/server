@@ -2406,6 +2406,59 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate, ulong
 }
 
 
+/**
+  Retrieve the UNIX timestamp for a transaction-versioned field value.
+
+  Reads the transaction ID from the raw field storage at @p pos and looks
+  it up in the transaction registry table (TRT). If the stored value equals
+  @c ULONGLONG_MAX (the open-ended "infinity" sentinel), returns
+  @c TIMESTAMP_MAX_VALUE immediately without a TRT lookup.
+
+  If the transaction ID is not found in the TRT, emits @c ER_VERS_NO_TRX_ID
+  as a warning and returns @c -1.
+
+  @note  A missing TRT entry is reported as a warning rather than a fatal
+         error because the registry row may have been purged after the
+         versioned row was written; the caller can still continue.
+
+  @param[in]  pos       Pointer to the raw 8-byte field value containing
+                        the transaction ID.
+  @param[out] sec_part  If non-NULL, receives the microsecond part of the
+                        commit timestamp.
+
+  @return  Commit timestamp in seconds since epoch, @c TIMESTAMP_MAX_VALUE
+           for the infinity sentinel, or @c -1 if the transaction ID is not
+           found in the TRT.
+*/
+my_time_t Field_vers_trx_id::get_timestamp(const uchar *pos, ulong *sec_part) const
+{
+  ulonglong trx_id= uint8korr(pos);
+  THD *thd= get_thd();
+  if (trx_id == ULONGLONG_MAX)
+  {
+    if (sec_part)
+    {
+      *sec_part= TIME_MAX_SECOND_PART;
+    }
+    return TIMESTAMP_MAX_VALUE;
+  }
+  TR_table trt(thd);
+  if (trt.query(trx_id))
+  {
+    return trt[TR_table::FLD_COMMIT_TS]->get_timestamp(sec_part);
+  }
+
+  if (sec_part)
+    *sec_part= 0;
+
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_VERS_NO_TRX_ID, ER_THD(thd, ER_VERS_NO_TRX_ID),
+                      (longlong) trx_id);
+
+  return -1;
+}
+
+
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
