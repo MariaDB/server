@@ -448,7 +448,13 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       }
     }
     else
+    {
+      /*
+        new and push_back() allocate on the active arena (thd->mem_root),
+        which has already reported the failure.
+      */
       goto end;
+    }
   } while (++i < num_parts);
   result= FALSE;
 end:
