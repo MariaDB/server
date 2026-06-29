@@ -5419,9 +5419,13 @@ NULL
 select json_array_intersect(@arr1, @obj1);
 json_array_intersect(@arr1, @obj1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array_intersect' at position 1
 select json_array_intersect(@arr1, @num1);
 json_array_intersect(@arr1, @num1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array_intersect' at position 1
 select json_array_intersect(@num1, @bool1);
 json_array_intersect(@num1, @bool1)
 NULL
