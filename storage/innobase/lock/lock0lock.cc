@@ -48,6 +48,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "que0que.h"
 #include "scope.h"
 #include "buf0buf.h"
+#include "my_cpu.h"
 #include <debug_sync.h>
 #include <mysql/service_thd_mdl.h>
 
@@ -4545,6 +4546,52 @@ released:
 					g.cell(), first_lock, heap_no);
 }
 
+/** Spin budget for lock_release_try(), lock_release_on_prepare_try() and
+lock_rec_unlock_unmodified() trylock attempts on per-cell and per-table
+latches.
+
+Those paths hold trx->mutex while attempting the trylock (the reverse of
+the standard order used by lock_rec_convert_impl_to_expl()), so blocking
+acquisition would risk deadlock. A single CAS attempt fails too readily
+under contention: any one failure across the trx's record/table locks
+marks the whole try-pass as unsuccessful, and after 5 such passes
+lock_release() escalates to lock_sys.wr_lock() for the entire trx, which
+then blocks every concurrent lock_sys.rd_lock() acquirer in lock_rec_lock()
+and lock_table().
+
+A bounded spin (CAS, PAUSE between attempts, no syscall, no blocking) lets a
+transient holder release without changing the deadlock-avoidance guarantee. The
+upper bound on extra trx->mutex hold time is LOCK_RELEASE_TRY_SPIN_BUDGET
+* pause-cost (tens to ~100ns per iteration, microarchitecture-dependent). */
+static constexpr unsigned LOCK_RELEASE_TRY_SPIN_BUDGET= 16;
+static_assert(LOCK_RELEASE_TRY_SPIN_BUDGET, "the !--spin loops would underflow");
+
+ATTRIBUTE_NOINLINE
+bool lock_sys_t::hash_latch::try_acquire_spin() noexcept
+{
+  for (unsigned spin= LOCK_RELEASE_TRY_SPIN_BUDGET;;)
+  {
+    if (try_acquire())
+      return true;
+    if (!--spin)
+      return false;
+    MY_RELAX_CPU();
+  }
+}
+
+ATTRIBUTE_NOINLINE
+bool dict_table_t::lock_mutex_trylock_spin() noexcept
+{
+  for (unsigned spin= LOCK_RELEASE_TRY_SPIN_BUDGET;;)
+  {
+    if (lock_mutex_trylock())
+      return true;
+    if (!--spin)
+      return false;
+    MY_RELAX_CPU();
+  }
+}
+
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks.
 @return whether the operation succeeded */
@@ -4589,7 +4636,7 @@ restart:
       auto &lock_hash= lock_sys.hash_get(lock->type_mode);
       auto cell= lock_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
       auto latch= lock_sys_t::hash_table::latch(cell);
-      if (!latch->try_acquire())
+      if (!latch->try_acquire_spin())
         all_released= false;
       else
       {
@@ -4604,7 +4651,7 @@ restart:
       ut_ad(table->id >= DICT_HDR_FIRST_ID ||
             (lock->mode() != LOCK_IX && lock->mode() != LOCK_X) ||
             trx->dict_operation || trx->was_dict_operation);
-      if (!table->lock_mutex_trylock())
+      if (!table->lock_mutex_trylock_spin())
         all_released= false;
       else
       {
@@ -4847,7 +4894,7 @@ bool lock_rec_unlock_unmodified(buf_block_t *block, hash_cell_t *cell,
           computed cell address invalid */
           cell= lock_sys.rec_hash.cell_get(
               lock->un_member.rec_lock.page_id.fold());
-          if (!lock_sys_t::hash_table::latch(cell)->try_acquire())
+          if (!lock_sys_t::hash_table::latch(cell)->try_acquire_spin())
             return false;
         }
         if (lock->trx != impl_trx)
@@ -4905,7 +4952,7 @@ reiterate:
       const auto fold = lock->un_member.rec_lock.page_id.fold();
       auto cell= lock_sys.rec_hash.cell_get(fold);
       auto latch= lock_sys_t::hash_table::latch(cell);
-      if (latch->try_acquire())
+      if (latch->try_acquire_spin())
       {
         if (!rec_granted_exclusive_not_gap)
         {
@@ -4942,7 +4989,7 @@ reiterate:
             computed cell address invalid */
             cell= lock_sys.rec_hash.cell_get(fold);
             latch= lock_sys_t::hash_table::latch(cell);
-            if (latch->try_acquire())
+            if (latch->try_acquire_spin())
             {
               if (!lock_rec_unlock_unmodified<CELL>(block, cell, lock,
                                                      offsets))
@@ -4978,7 +5025,7 @@ reiterate:
       switch (lock->mode()) {
       case LOCK_IS:
       case LOCK_S:
-        if (table->lock_mutex_trylock())
+        if (table->lock_mutex_trylock_spin())
         {
           lock_table_dequeue(lock, false);
           table->lock_mutex_unlock();

@@ -663,6 +663,10 @@ class lock_sys_t
     /** @return whether this latch is possibly held by any thread */
     bool is_locked() const noexcept { return lock.is_locked(); }
 #endif
+    /** Try to acquire the latch with a bounded spin (no syscall, no
+    blocking), for the lock-release fast paths that hold trx->mutex.
+    @return whether the latch was acquired */
+    bool try_acquire_spin() noexcept;
   };
 
 public:
