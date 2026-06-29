@@ -689,6 +689,10 @@ add_interval(MYSQL_TIME *ltime, const Time_zone *time_zone,
 /*
   Computes the sum of a timestamp plus interval.
 
+  Computes the smallest next > time_now obtained by adding one or more
+  multiples of the given interval (i_value, i_type) to start, taking
+  into account time_zone conversions and DST ambiguities.
+
   SYNOPSIS
     get_next_time()
       time_zone     event time zone
