@@ -2842,6 +2842,7 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
   /* 2. assign STARTS to interval.start */
   if (starts)
   {
+    vers_info->starts_clause= true;
     if (starts->fix_fields_if_needed_for_scalar(thd, &starts))
       return true;
     switch (starts->result_type())
@@ -2885,21 +2886,8 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
   }
   else // calculate default STARTS depending on INTERVAL
   {
-    thd->variables.time_zone->gmt_sec_to_TIME(&ltime, thd->query_start());
-    if (vers_info->interval.step.second)
-      goto interval_set_starts;
-    ltime.second= 0;
-    if (vers_info->interval.step.minute)
-      goto interval_set_starts;
-    ltime.minute= 0;
-    if (vers_info->interval.step.hour)
-      goto interval_set_starts;
-    ltime.hour= 0;
-
-interval_set_starts:
-    vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
-    if (err)
-      goto interval_starts_error;
+    if (vers_set_starts(thd, thd->query_start(), table_name))
+      return true;
   }
 
   return false;
@@ -2907,6 +2895,61 @@ interval_set_starts:
 interval_starts_error:
   my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
   return true;
+}
+
+
+/**
+  Set STARTS to @p ts with the time-of-day parts below the finest time unit
+  of the INTERVAL cleared.
+
+  Converts @p ts to broken-down local time in the current session time zone,
+  then clears time components in order (second, then minute, then hour),
+  stopping at the finest (smallest) non-zero unit present in
+  @c vers_info->interval.step. Day, month and year are never cleared, so
+  this is not a multiple of the interval: INTERVAL 2 HOUR keeps an odd hour
+  and a month interval keeps the day. If the truncated local time falls into
+  a DST gap, the start of the gap is used; if it falls before the TIMESTAMP
+  range, @p ts itself is used. The result is stored in
+  @c vers_info->interval.start.
+
+  @param thd         Current thread.
+  @param ts          Timestamp to align.
+  @param table_name  Table name, for the ER_PART_WRONG_VALUE message.
+
+  @retval false  Success.
+  @retval true   Error, reported as ER_PART_WRONG_VALUE.
+*/
+bool partition_info::vers_set_starts(THD *thd, my_time_t ts,
+                                     const char *table_name)
+{
+  MYSQL_TIME ltime;
+  uint err;
+  thd->variables.time_zone->gmt_sec_to_TIME(&ltime, ts);
+  if (vers_info->interval.step.second)
+    goto interval_set_starts;
+  ltime.second= 0;
+  if (vers_info->interval.step.minute)
+    goto interval_set_starts;
+  ltime.minute= 0;
+  if (vers_info->interval.step.hour)
+    goto interval_set_starts;
+  ltime.hour= 0;
+
+interval_set_starts:
+  vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
+  /* Truncated below the TIMESTAMP range (e.g. local midnight before 1970) */
+  if (err == ER_WARN_DATA_OUT_OF_RANGE)
+  {
+    vers_info->interval.start= ts;
+    err= 0;
+  }
+  /* In a DST gap TIME_to_timestamp() returns the start of the gap */
+  if (err && err != ER_WARN_INVALID_TIMESTAMP)
+  {
+    my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
+    return true;
+  }
+  return false;
 }
 
 
