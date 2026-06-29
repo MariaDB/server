@@ -1,0 +1,8 @@
+--- partition_notwin.result
++++ partition_notwin,SERVER.result
+@@ -7,5 +7,4 @@
+ ) engine=myisam
+ partition by hash (id)
+ partitions 600;
+-FOUND 1 /Error 24 on file ./test/t1#P#p\d+\.MY[DI] open during `test`.`t1` table copy: Too many open files/ in backup.log
+ drop table t1;
