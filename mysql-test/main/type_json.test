@@ -5,6 +5,7 @@
 create or replace table t1(a json);
 show create table t1;
 
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
 create or replace table t1(a json character set utf8);
 
 create or replace table t1(a json default '{"a":1}');

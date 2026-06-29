@@ -17,7 +17,6 @@ bool Type_handler_json::Column_definition_prepare_stage1(
     column_definition_type_t type,
     const Column_derived_attributes *derived_attr) const
 {
-  def->charset= &my_charset_utf8mb4_bin;
   if (Type_handler_long_blob::Column_definition_prepare_stage1(
           thd, root, def, type, derived_attr))
     return true;
@@ -31,7 +30,7 @@ Field *Type_handler_json::make_table_field(MEM_ROOT *root,
                                            TABLE_SHARE *share) const
 {
   return new (root) Field_json(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                               Field::NONE, name, share, attr.collation);
+                               Field::NONE, name, share);
 }
 
 Field *Type_handler_json::make_table_field_from_def(
@@ -40,7 +39,7 @@ Field *Type_handler_json::make_table_field_from_def(
     const Column_definition_attributes *attr, uint32 flags) const
 {
   return new (root) Field_json(rec.ptr(), rec.null_ptr(), rec.null_bit(),
-                               attr->unireg_check, name, share, attr->charset);
+                               attr->unireg_check, name, share);
 }
 
 Field *Type_handler_json::make_conversion_table_field(
@@ -52,7 +51,7 @@ Field *Type_handler_json::make_conversion_table_field(
     return NULL;
 
   return new (root) Field_json(NULL, (uchar *) "", 1, Field::NONE,
-                               &empty_clex_str, table->s, target->charset());
+                               &empty_clex_str, table->s);
 }
 
 /********************Type collection json *******************/
