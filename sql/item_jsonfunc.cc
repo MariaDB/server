@@ -444,7 +444,7 @@ handle_value:
     };
   } while (json_scan_next(je) == 0);
 
-  return je->s.error || *je->killed_ptr;
+  return je->s.error;
 
 error:
   return 1;
