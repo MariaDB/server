@@ -3695,6 +3695,13 @@ bool st_select_lex::add_gorder_to_list(THD *thd, Item *item, bool asc)
 }
 
 
+bool st_select_lex::add_grouping_func_to_list(THD *thd,
+                                              Item_func_grouping *func)
+{
+  return !func || grouping_func_list.push_back(func, thd->mem_root);
+}
+
+
 bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
   DBUG_ENTER("st_select_lex::add_item_to_list");

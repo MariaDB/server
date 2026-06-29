@@ -1275,6 +1275,8 @@ public:
   List<List_item> save_many_values;
   List<Item> *save_insert_list;
 
+  List<Item_func_grouping> grouping_func_list;
+
   enum_column_usage   item_list_usage;
   bool                is_item_list_lookup:1;
   /*
@@ -1497,6 +1499,7 @@ public:
   bool add_ftfunc_to_list(THD *thd, Item_func_match *func);
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
+  bool add_grouping_func_to_list(THD *thd, Item_func_grouping *func);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
                                 const LEX_CSTRING *alias,
                                 ulong table_options,
