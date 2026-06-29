@@ -2016,3 +2016,37 @@ SELECT XMLISVALID('<a b="x"> <tag /> </a>',
   <xs:complexType><xs:attribute name="b" type="xs:string"/></xs:complexType></xs:element></xs:schema>') as V;
 V
 0
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a;
+a
+1
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+UNION ALL 
+SELECT XMLISVALID('<sc><kfjfn>56.4E3</kfjfn></sc>', '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="sc"><xs:complexType><xs:sequence><xs:element name="kfjfn" type="xs:double"/><xs:element name="ugrx" type="xs:decimal" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') AS a
+;
+a
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
