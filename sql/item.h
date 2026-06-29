@@ -1802,6 +1802,7 @@ public:
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
   int save_str_in_field(Field *field, bool no_conversions);
+  int save_hex_hybrid_in_field(Field *field, bool no_conversions);
   int save_real_in_field(Field *field, bool no_conversions);
   int save_int_in_field(Field *field, bool no_conversions);
   int save_bool_in_field(Field *field, bool no_conversions);
@@ -5189,7 +5190,6 @@ public:
     Item_hex_constant(thd, str, str_length) {}
   const Type_handler *type_handler() const override
   { return &type_handler_hex_hybrid; }
-  decimal_digits_t decimal_precision() const override;
   bool val_bool() override
   {
     return longlong_from_hex_hybrid(str_value.ptr(), str_value.length()) != 0;

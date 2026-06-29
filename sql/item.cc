@@ -7166,6 +7166,32 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
 }
 
 
+/*
+  Store a hex/bit hybrid value into a field, like the bare 0xHHHH / b'..'
+  literal does (see Item_hex_hybrid::save_in_field): Field::store_hex_hybrid()
+  stores the integer value into a numeric field and the raw bytes into a string
+  field. Used for COALESCE/IF/CASE/... results that stay a hex hybrid.
+*/
+int Item::save_hex_hybrid_in_field(Field *field, bool no_conversions)
+{
+  String *result;
+  CHARSET_INFO *cs= collation.collation;
+  char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
+  str_value.set_buffer_if_not_allocated(buff, sizeof(buff), cs);
+  result= val_str(&str_value);
+  if (null_value)
+  {
+    str_value.set_buffer_if_not_allocated(0, 0, cs);
+    return set_field_to_null_with_conversions(field, no_conversions);
+  }
+
+  field->set_notnull();
+  int error= field->store_hex_hybrid(result->ptr(), result->length());
+  str_value.set_buffer_if_not_allocated(0, 0, cs);
+  return error;
+}
+
+
 int Item::save_real_in_field(Field *field, bool no_conversions)
 {
   double nr= val_real();
@@ -7554,22 +7580,6 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
   str->append("0x", 2);
   str->append_hex(str_value.ptr(), str_value.length());
-}
-
-
-decimal_digits_t Item_hex_hybrid::decimal_precision() const
-{
-  switch (max_length) {// HEX                                 DEC
-  case 0:              // ----                                ---
-  case 1: return 3;    // 0xFF                                255
-  case 2: return 5;    // 0xFFFF                            65535
-  case 3: return 8;    // 0xFFFFFF                       16777215
-  case 4: return 10;   // 0xFFFFFFFF                   4294967295
-  case 5: return 13;   // 0xFFFFFFFFFF              1099511627775
-  case 6: return 15;   // 0xFFFFFFFFFFFF          281474976710655
-  case 7: return 17;   // 0xFFFFFFFFFFFFFF      72057594037927935
-  }
-  return 20;           // 0xFFFFFFFFFFFFFFFF 18446744073709551615
 }
 
 

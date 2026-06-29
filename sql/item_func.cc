@@ -1005,6 +1005,12 @@ longlong Item_func_hybrid_field_type::val_int_from_str_op()
   return res ? longlong_from_string_with_check(res) : 0;
 }
 
+longlong Item_func_hybrid_field_type::val_int_from_hex_hybrid_str_op()
+{
+  String *res= str_op_with_null_check(&str_value);
+  return res ? longlong_from_hex_hybrid(res->ptr(), res->length()) : 0;
+}
+
 my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_str_op(my_decimal *decimal_value)
 {
