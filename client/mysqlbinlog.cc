@@ -1574,6 +1574,18 @@ end_skip_count:
   ##############################################################################
 */
 
+static bool store_log_file_pos(uchar *pos)
+{
+  if (log_file_pos > UINT_MAX32)
+  {
+    error("Converted binlog output file exceeds the maximum supported size of "
+          "4GB");
+    return true;
+  }
+  int4store(pos, log_file_pos);
+  return false;
+}
+
 static bool write_event_header(FILE *outfile, Log_event_type event_type,
                                ulong extra_len, time_t timestamp,
                                my_bool *do_checksum, ha_checksum *crc,
@@ -1604,7 +1616,9 @@ static bool write_event_header(FILE *outfile, Log_event_type event_type,
   int2store(header + FLAGS_OFFSET, 0);
   /* Update the log_file_pos */
   log_file_pos+= event_len;
-  int4store(header + LOG_POS_OFFSET, log_file_pos);
+  if (store_log_file_pos(header + LOG_POS_OFFSET))
+    return true;
+
   /* Write this header to outfile */
   if (my_fwrite(outfile, (const uchar *)header, LOG_EVENT_HEADER_LEN, MYF(MY_NABP))) {
     error("Could not write header into converted binlog file '%s'",
@@ -1641,11 +1655,14 @@ write_event_footer(FILE *outfile, my_bool do_checksum, ha_checksum crc)
   It does not update the log_pos variable of ev as it is not 
   really needed for the conversion.
 */
-static void update_event_end_log_pos(Log_event *ev)
+static bool update_event_end_log_pos(Log_event *ev)
 {
-  DBUG_ASSERT(ev->temp_buf != NULL && ev->data_written >= LOG_EVENT_HEADER_LEN);
+  DBUG_ASSERT(ev->temp_buf != NULL &&
+              ev->data_written >= LOG_EVENT_HEADER_LEN);
   log_file_pos+= ev->data_written;
-  int4store(&ev->temp_buf[LOG_POS_OFFSET], log_file_pos);
+  if (store_log_file_pos(ev->temp_buf + LOG_POS_OFFSET))
+    return true;
+  return false;
 }
 
 /*
@@ -1667,7 +1684,8 @@ static bool write_format_description_event_to_legacy_binlog(
   // temp_buf stores the raw bytes of the event and data_written is the length of those raw bytes
   if(fdev->temp_buf) {
     /* Update the log_file_pos */
-    update_event_end_log_pos(fdev);
+    if (update_event_end_log_pos(fdev))
+      return true;
 
     /* recompute checksum */
     update_checksum(fdev);
@@ -1980,7 +1998,8 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
   }
 
   /* Update the log_file_pos */
-  update_event_end_log_pos(ev);
+  if (update_event_end_log_pos(ev))
+    goto err;
 
   // ev->temp_buf contains the raw event bytes and ev->data_written is the length of the event
   if (my_fwrite(output_legacy_binlog_file, (const uchar *)ev->temp_buf,
@@ -3925,6 +3944,7 @@ err:
 end:
   if (output_legacy_binlog_file)
   {
+    /* TODO: Tarun write the STOP_EVENT maybe? */
     my_fclose(output_legacy_binlog_file, MYF(0));
     output_legacy_binlog_file= NULL;
   }
