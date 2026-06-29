@@ -1,0 +1,37 @@
+#
+# Test TLS 1.3 with RSA + ECDSA + EdDSA certificates
+# EdDSA (Ed25519) requires TLS 1.3 for actual use in handshakes.
+# Server started with 3 cert types via ssl_multi_cert_tlsv13-master.opt
+#
+--source include/not_embedded.inc
+--source include/have_ssl_communication.inc
+--source include/have_tlsv13.inc
+
+# Skip on WolfSSL which does not support multiple certs
+if (`select @@version_ssl_library like 'wolfSSL%'`) {
+  skip WolfSSL;
+}
+
+# Ed25519 requires OpenSSL 1.1.1+
+if (`select @@version_ssl_library like 'OpenSSL 1.0%' or @@version_ssl_library like 'OpenSSL 1.1.0%'`) {
+  skip OpenSSL too old for Ed25519;
+}
+
+--echo #
+--echo # Verify Ssl_server_cert_types global status shows all three types
+--echo #
+SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
+
+--echo #
+--echo # TLS 1.3 connection should use one of the loaded cert types
+--echo #
+connect (tls13_con,localhost,root,,,,,SSL);
+--let $cert_type= query_get_value(SHOW STATUS LIKE 'Ssl_server_cert_type', Value, 1)
+if (`SELECT '$cert_type' NOT IN ('RSA', 'ECDSA', 'EdDSA')`) {
+  --echo # ERROR: Unexpected cert type: $cert_type
+  --die Ssl_server_cert_type is not RSA, ECDSA, or EdDSA
+}
+--echo Ssl_server_cert_type is valid: OK
+SHOW STATUS LIKE 'Ssl_version';
+disconnect tls13_con;
+connection default;

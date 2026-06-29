@@ -1,0 +1,5 @@
+--ssl-cert-add=$MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem
+--ssl-key-add=$MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem
+--ssl-cert-add=$MYSQL_TEST_DIR/std_data/server-eddsa-cert.pem
+--ssl-key-add=$MYSQL_TEST_DIR/std_data/server-eddsa-key.pem
+--tls-version=TLSv1.3

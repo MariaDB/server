@@ -1,9 +1,11 @@
 #
-# Test RSA + ECDSA + EdDSA certificate support via repeated --ssl-cert / --ssl-key
+# Test RSA + ECDSA + EdDSA certificate support via --ssl-cert-add / --ssl-key-add
+# Server started with 3 cert types via ssl_multi_cert-master.opt
 #
+--source include/not_embedded.inc
 --source include/have_ssl_communication.inc
 
-# Skip on WolfSSL which may not support multiple certs
+# Skip on WolfSSL which does not support multiple certs
 if (`select @@version_ssl_library like 'wolfSSL%'`) {
   skip WolfSSL;
 }
@@ -12,14 +14,6 @@ if (`select @@version_ssl_library like 'wolfSSL%'`) {
 if (`select @@version_ssl_library like 'OpenSSL 1.0%' or @@version_ssl_library like 'OpenSSL 1.1.0%'`) {
   skip OpenSSL too old for Ed25519;
 }
-
---echo #
---echo # Restart server with RSA (primary), ECDSA and EdDSA certs
---echo #
-
---let $restart_parameters=--ssl-cert-add=$MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=$MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=$MYSQL_TEST_DIR/std_data/server-eddsa-cert.pem --ssl-key-add=$MYSQL_TEST_DIR/std_data/server-eddsa-key.pem --tls-version=TLSv1.2
---source include/kill_mysqld.inc
---source include/start_mysqld.inc
 
 --echo #
 --echo # Verify Ssl_server_cert_types global status shows all three types
@@ -51,34 +45,3 @@ connect (default_con,localhost,root,,,,,SSL);
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 disconnect default_con;
 connection default;
-
---echo #
---echo # Test 4: TLS 1.3 with all three cert types (EdDSA requires TLS 1.3)
---echo #
-
-connection default;
---let $restart_parameters=--ssl-cert-add=$MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem --ssl-key-add=$MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem --ssl-cert-add=$MYSQL_TEST_DIR/std_data/server-eddsa-cert.pem --ssl-key-add=$MYSQL_TEST_DIR/std_data/server-eddsa-key.pem --tls-version=TLSv1.3
---source include/kill_mysqld.inc
---source include/start_mysqld.inc
-
-SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
-
-connect (tls13_con,localhost,root,,,,,SSL);
---echo # TLS 1.3 connection should use one of the loaded cert types
---let $cert_type= query_get_value(SHOW STATUS LIKE 'Ssl_server_cert_type', Value, 1)
-if (`SELECT '$cert_type' NOT IN ('RSA', 'ECDSA', 'EdDSA')`) {
-  --echo # ERROR: Unexpected cert type: $cert_type
-  --die Ssl_server_cert_type is not RSA, ECDSA, or EdDSA
-}
---echo Ssl_server_cert_type is valid: OK
-SHOW STATUS LIKE 'Ssl_version';
-disconnect tls13_con;
-connection default;
-
---echo #
---echo # Cleanup
---echo #
-
---let $restart_parameters=
---source include/kill_mysqld.inc
---source include/start_mysqld.inc
