@@ -44,23 +44,25 @@ struct Vers_part_info : public Sql_alloc
     interval.type= INTERVAL_LAST;
   }
   Vers_part_info(const Vers_part_info &src) :
-    interval(src.interval),
-    limit(src.limit),
-    auto_hist(src.auto_hist),
-    starts_clause(src.starts_clause),
     now_part(NULL),
     hist_part(NULL)
   {
+    copy_settings(src);
   }
   Vers_part_info& operator= (const Vers_part_info &src)
+  {
+    copy_settings(src);
+    now_part= src.now_part;
+    hist_part= src.hist_part;
+    return *this;
+  }
+  /* Copy the settings, keep now_part and hist_part */
+  void copy_settings(const Vers_part_info &src)
   {
     interval= src.interval;
     limit= src.limit;
     auto_hist= src.auto_hist;
     starts_clause= src.starts_clause;
-    now_part= src.now_part;
-    hist_part= src.hist_part;
-    return *this;
   }
   bool initialized()
   {
@@ -443,6 +445,8 @@ public:
                          interval_type int_type, Item *starts,
                          bool auto_part, const char *table_name);
   bool vers_set_starts(THD *thd, my_time_t ts, const char *table_name);
+  void vers_warn_starts_beyond_query(THD *thd,
+                                     const char *table_name) const;
   bool vers_set_limit(ulonglong limit, bool auto_part, const char *table_name);
   bool vers_set_hist_part(THD* thd, uint *create_count);
   bool range_interval_set_count(THD* thd, uint *create_count);

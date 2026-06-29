@@ -104,3 +104,32 @@ a	row_foo_end
 2	2023-12-19 14:23:22.359113
 3	2106-02-07 06:28:15.999999
 drop table sv_basic,sv_partition,sv_explicit;
+#
+# MDEV-25529 Auto-create: Pre-existing historical data is not
+#            partitioned as specified by ALTER
+#
+# Current rows of a table that is not upgraded keep the old row_end
+# marker; they are not history.
+select a, row_end from t1 for system_time all order by a;
+a	row_end
+1	2038-01-19 03:14:07.999999
+2	2023-12-19 14:23:22.305292
+3	2038-01-19 03:14:07.999999
+alter table t1 partition by system_time interval 1 hour auto;
+Warnings:
+Warning	4275	`t1`: no usable ROW END index, using slow scan; add an ordered index starting with the ROW END column (ascending, not DESC) to avoid it
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2023-12-19 14:00:00' AUTO
+PARTITIONS 2
+select a from t1 partition (pn) order by a;
+a
+1
+3
+set timestamp= default;
+drop table t1;
+# End of 13.2 tests

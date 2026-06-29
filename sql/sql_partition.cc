@@ -100,6 +100,10 @@ static int get_partition_id_linear_key_sub(partition_info *part_info, uint32 *pa
 static uint32 get_next_partition_via_walking(PARTITION_ITERATOR*);
 static void set_up_range_analysis_info(partition_info *part_info);
 static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR*);
+static bool vers_calc_hist_parts(THD *thd, my_time_t end,
+                                 const Vers_part_info::interval_t &interval,
+                                 uint num_subparts, uint *hist_parts,
+                                 TABLE_SHARE *s);
 #endif
 
 uint32 get_next_partition_id_range(PARTITION_ITERATOR* part_iter);
@@ -6153,20 +6157,28 @@ the generated partition syntax in a correct manner.
           tab_part_info != part_info && part_info->part_type == VERSIONING_PARTITION &&
           part_info->num_parts == 0)
       {
-        if (part_info->vers_info->interval.is_set() && (
+        /* AUTO with FORCE re-lays out history by copying (see below) */
+        const bool vers_relayout= part_info->vers_info->auto_hist &&
+                                  (alter_info->flags & ALTER_RECREATE);
+        if (part_info->vers_info->interval.is_set() && (vers_relayout ||
             !tab_part_info->vers_info->interval.is_set() ||
             part_info->vers_info->interval == tab_part_info->vers_info->interval))
         {
           /* If interval is changed we can not do fast alter */
-          tab_part_info= tab_part_info->get_clone(thd);
+          partition_info *clone= tab_part_info->get_clone(thd);
+          if (!clone)
+            goto err;
+          /* The parsed now_part and hist_part are NULL: keep the clone's */
+          clone->vers_info->copy_settings(*part_info->vers_info);
+          tab_part_info= clone;
         }
         else
         {
           /* NOTE: fast_alter_partition_table() works on existing TABLE data. */
           *fast_alter_table= true;
           table->mark_table_for_reopen();
+          *tab_part_info->vers_info= *part_info->vers_info;
         }
-        *tab_part_info->vers_info= *part_info->vers_info;
         thd->work_part_info= part_info= tab_part_info;
         *partition_changed= true;
       }
@@ -6199,6 +6211,123 @@ the generated partition syntax in a correct manner.
       }
 
       /*
+        Handle system-versioned auto-partitioning: size the new layout.
+        Align STARTS to the oldest historical row_end (a user STARTS at or
+        before it is kept) and create enough history partitions to cover the
+        newest one and the query time, so pre-existing history is spread
+        across partitions instead of crammed into a single one.
+
+        Only for INTERVAL ... AUTO (interval.is_set() && auto_hist) on
+        TIMESTAMP-based versioning, when the parsed clause (alt_part_info,
+        not part_info, which may already be the table's) has no explicit
+        partition list (use_default_partitions). A fast ALTER skips it unless
+        FORCE is given (ALTER_RECREATE), to keep the frm-only path cheap; with
+        FORCE the re-layout makes it a copy.
+      */
+      const bool vers_auto_alter=
+        (alter_info->partition_flags & ALTER_PARTITION_INFO) &&
+        part_info->part_type == VERSIONING_PARTITION &&
+        part_info->vers_info->auto_hist;
+      if (vers_auto_alter && table->versioned(VERS_TIMESTAMP) &&
+          part_info->vers_info->interval.is_set() &&
+          alt_part_info->use_default_partitions &&
+          (!*fast_alter_table || (alter_info->flags & ALTER_RECREATE)))
+      {
+        *fast_alter_table= false;
+        Timestamp min_ts(0, 0), max_ts(0, 0);
+        Vers_part_info *vers_info= part_info->vers_info;
+        auto &interval= vers_info->interval;
+        /*
+          Block DML from here on: history written after the range is read
+          would not fit the computed layout. online_alter_check_supported()
+          keeps the copy offline for this, so the lock is held until the end.
+          LOCK=NONE and ALGORITHM=INPLACE/NOCOPY/INSTANT are rejected before
+          waiting for the lock.
+        */
+        if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
+        {
+          Alter_info::report_lock_none_unsupported(
+            Alter_info::vers_history_read_reason);
+          goto err;
+        }
+        if (alter_info->algorithm_is_nocopy(thd))
+        {
+          alter_info->report_algorithm_unsupported(thd);
+          goto err;
+        }
+        DBUG_ASSERT(!table->s->tmp_table); /* no versioned temporary tables */
+        if (thd->mdl_context.upgrade_shared_lock(
+              table->mdl_ticket, MDL_SHARED_NO_WRITE,
+              thd->variables.lock_wait_timeout))
+          goto err;
+        alter_info->vers_history_read= true;
+        if (table->vers_get_history_range(thd, min_ts, max_ts))
+          goto err;
+        if (max_ts.tv_sec > MY_TIME_T_MIN) /* there is history in the table */
+        {
+          DBUG_ASSERT(max_ts.tv_sec <= TIMESTAMP_MAX_VALUE);
+          DBUG_ASSERT(min_ts.tv_sec <= max_ts.tv_sec);
+          if (!vers_info->starts_clause || interval.start > min_ts.tv_sec)
+          {
+            /* str_interval captures the old STARTS before vers_set_starts(). */
+            ErrConvTimestamp str_interval(thd, Timestamp(interval.start, 0), 0);
+            if (part_info->vers_set_starts(thd, min_ts.tv_sec,
+                                           table->s->table_name.str))
+              goto err;
+            if (vers_info->starts_clause)
+            {
+              ErrConvTimestamp str_min_ts(thd, min_ts, 6);
+              ErrConvTimestamp str_interval2(thd, Timestamp(interval.start, 0),
+                                             0);
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  WARN_VERS_WRONG_STARTS,
+                                  ER_THD(thd, WARN_VERS_WRONG_STARTS),
+                                  table->s->table_name.str,
+                                  str_interval.ptr(), str_min_ts.ptr(),
+                                  str_interval2.ptr());
+            }
+          }
+
+          /* PARTITIONS N given by the user is kept if it is more */
+          const uint user_parts= alt_part_info->use_default_num_partitions ?
+                                 0 : alt_part_info->num_parts;
+          part_info->use_default_num_partitions= false;
+          part_info->use_default_partitions= true;
+          if (!part_info->use_default_subpartitions)
+          {
+            /* Replace an explicit subpartition list, keeping its size */
+            part_info->use_default_subpartitions= true;
+            part_info->use_default_num_subpartitions= false;
+          }
+          part_info->default_partitions_setup= false;
+          part_info->partitions.empty();
+          part_info->vers_info->now_part= NULL;
+          part_info->vers_info->hist_part= NULL;
+
+          /*
+            Cover the query time too, so DML right after the ALTER finds an
+            existing partition for its history; if the layout (history and
+            current partitions, times subpartitions) exceeds MAX_PARTITIONS,
+            the ALTER fails.
+          */
+          const my_time_t end= MY_MAX(max_ts.tv_sec, thd->query_start());
+          uint hist_parts= 0;
+          if (vers_calc_hist_parts(thd, end, interval,
+                                   MY_MAX(part_info->num_subparts, 1),
+                                   &hist_parts, table->s))
+            goto err;
+          part_info->num_parts= MY_MAX(hist_parts + 1, user_parts);
+        } /* if (max_ts.tv_sec > MY_TIME_T_MIN) */
+        else /* no history */
+          DBUG_ASSERT(max_ts.cmp(Timestamp(MY_TIME_T_MIN, 0)) == 0);
+      }
+
+      /* Deferred from vers_set_interval(): STARTS may have been re-aligned */
+      if (vers_auto_alter && part_info->vers_info->starts_clause)
+        part_info->vers_warn_starts_beyond_query(thd,
+                                                 table->s->table_name.str);
+
+      /*
         Set up partition default_engine_type either from the create_info
         or from the previus table
       */
@@ -6223,7 +6352,7 @@ the generated partition syntax in a correct manner.
         DBUG_ASSERT(create_info->db_type);
         create_info->db_type= partition_hton;
       }
-    }
+    } /* if (thd->work_part_info) */
   }
   DBUG_RETURN(FALSE);
 err:
@@ -6231,6 +6360,107 @@ err:
   if (saved_part_info)
     table->part_info= saved_part_info;
   DBUG_RETURN(TRUE);
+}
+
+
+/**
+  Calculate the number of history partitions required for a time range.
+
+  Uses @c interval.start as the left boundary and @p end as the right
+  boundary. For intervals without a year or month component the count is
+  computed arithmetically using interval2sec(). For month- or year-based
+  intervals, boundaries are advanced step by step using date_add_interval()
+  in UTC.
+
+  @param thd         Current thread.
+  @param end         Right boundary (inclusive) as a UNIX timestamp: the
+                     newest history row_end or the query time, whichever
+                     is later.
+  @param interval    Partition interval definition.
+  @param num_subparts  Number of subpartitions per partition (at least 1).
+  @param hist_parts  Out parameter receiving the number of history partitions
+                     needed.
+  @param s           Table share, used to name the table in error messages.
+
+  @retval false  Success.
+  @retval true   Error: interval overflow, or the history partitions with the
+                 current partition (times @p num_subparts) would exceed
+                 @c MAX_PARTITIONS. The error is reported.
+*/
+static bool vers_calc_hist_parts(THD *thd, my_time_t end,
+                                 const Vers_part_info::interval_t &interval,
+                                 uint num_subparts, uint *hist_parts,
+                                 TABLE_SHARE *s)
+{
+  uint error= 0;
+  my_time_t start= interval.start;
+  DBUG_ASSERT(hist_parts != NULL);
+  DBUG_ASSERT(num_subparts > 0);
+  DBUG_ASSERT(!interval.step.neg); /* rejected by vers_set_interval() */
+  /* STARTS <= oldest history <= end */
+  DBUG_ASSERT(start <= end);
+  *hist_parts= 0;
+
+  if (!(interval.step.year || interval.step.month))
+  {
+    my_time_t range= end - start;
+    /* As in date_add_interval(), so that interval2sec() does not overflow */
+    if (interval_days_out_of_range(interval.step))
+      goto out_of_range;
+    const longlong i_sec= interval2sec(&interval.step);
+    DBUG_ASSERT(i_sec > 0);
+
+    /*
+      A history partition k covers [start + k*i, start + (k+1)*i), so a row
+      whose row_end lands exactly on a boundary start + k*i belongs to
+      partition k and needs k+1 history partitions. Hence floor(range/i) + 1,
+      not ceil(range/i).
+    */
+    const longlong parts= range / i_sec + 1;
+    if ((parts + 1) * num_subparts > MAX_PARTITIONS)
+      goto too_many;
+    *hist_parts= static_cast<uint>(parts);
+    return false;
+  }
+
+  /*
+    Step the boundaries in UTC, as check_vers_constants() and
+    vers_set_hist_part() lay them out: the count must match those
+    boundaries. The session zone could cross a DST gap and miscount.
+  */
+  MYSQL_TIME boundary;
+  my_tz_OFFSET0->gmt_sec_to_TIME(&boundary, start);
+
+  while (start <= end)
+  {
+    if (date_add_interval(thd, &boundary, interval.type, interval.step,
+                          false))
+      goto out_of_range;
+
+    start= my_tz_OFFSET0->TIME_to_gmt_sec(&boundary, &error);
+    if (error && error != ER_WARN_DATA_OUT_OF_RANGE)
+      goto out_of_range;
+
+    if ((++(*hist_parts) + 1) * num_subparts > MAX_PARTITIONS)
+      goto too_many;
+    /*
+      Boundary past TIMESTAMP_MAX_VALUE: this is the partial last history
+      partition, as in check_vers_constants().
+    */
+    if (error)
+      break;
+  }
+
+  return false;
+
+out_of_range:
+  my_error(ER_DATA_OUT_OF_RANGE, MYF(ME_WARNING), "TIMESTAMP", "INTERVAL");
+  goto fail;
+too_many:
+  my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(ME_WARNING));
+fail:
+  my_error(ER_VERS_HIST_PART_FAILED, MYF(0), s->db.str, s->table_name.str);
+  return true;
 }
 
 

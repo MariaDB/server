@@ -2875,20 +2875,12 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
       default:
         goto interval_starts_error;
     }
-    if (!table)
-    {
-      if (thd->query_start() < vers_info->interval.start)
-      {
-        ErrConvTimestamp str_interval(thd,
-                                      Timestamp(vers_info->interval.start, 0),
-                                      0);
-        ErrConvTimestamp str_query(thd, Timestamp(thd->query_start(), 0), 0);
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            WARN_VERS_STARTS_BEYOND_INTERVAL,
-                            ER_THD(thd, WARN_VERS_STARTS_BEYOND_INTERVAL),
-                            table_name, str_interval.ptr(), str_query.ptr());
-      }
-    }
+    /*
+      ALTER .. AUTO may re-align STARTS to the history range in
+      prep_alter_part_table(), which does the check after that.
+    */
+    if (!table && !(auto_hist && thd->lex->sql_command == SQLCOM_ALTER_TABLE))
+      vers_warn_starts_beyond_query(thd, table_name);
   }
   else // calculate default STARTS depending on INTERVAL
   {
@@ -2901,6 +2893,29 @@ bool partition_info::vers_set_interval(THD* thd, Item* interval,
 interval_starts_error:
   my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
   return true;
+}
+
+
+/**
+  Warn if STARTS is later than the query time.
+
+  @param thd         Current thread.
+  @param table_name  Table name, for the warning message.
+*/
+void partition_info::vers_warn_starts_beyond_query(THD *thd,
+                                                   const char *table_name)
+  const
+{
+  if (thd->query_start() < vers_info->interval.start)
+  {
+    ErrConvTimestamp str_interval(thd, Timestamp(vers_info->interval.start, 0),
+                                  0);
+    ErrConvTimestamp str_query(thd, Timestamp(thd->query_start(), 0), 0);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_VERS_STARTS_BEYOND_INTERVAL,
+                        ER_THD(thd, WARN_VERS_STARTS_BEYOND_INTERVAL),
+                        table_name, str_interval.ptr(), str_query.ptr());
+  }
 }
 
 
