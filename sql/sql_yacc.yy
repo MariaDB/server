@@ -571,6 +571,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> FULLTEXT_SYM
 %token  <kwd> GOTO_ORACLE_SYM               /* Oracle-R   */
 %token  <kwd> GRANT                         /* SQL-2003-R */
+%token  <kwd> GROUPING_SYM
 %token  <kwd> GROUP_CONCAT_SYM
 %token  <rwd> JSON_ARRAYAGG_SYM
 %token  <rwd> JSON_OBJECTAGG_SYM
@@ -1629,6 +1630,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_versioning_interval_start
         json_default_literal
         set_expr_misc
+        grouping_operation
 
 %type <sql_statement_name>
         sql_statement_name
@@ -10596,6 +10598,7 @@ column_default_non_parenthesized_expr:
               MYSQL_YYABORT;
             }
           }
+        | grouping_operation
         | window_func_expr
           {
             if (!Lex->select_stack_top)
@@ -11689,6 +11692,17 @@ udf_expr:
                      $2->type() != Item::REF_ITEM /* For HAVING */ )
               $2->set_name(thd, $1, (uint) ($3 - $1), thd->charset());
             $$= $2;
+          }
+        ;
+
+grouping_operation:
+          GROUPING_SYM '(' expr_list ')'
+          {
+            Item_func_grouping *i1= new (thd->mem_root) Item_func_grouping(thd, *$3);
+            if (unlikely(i1 == NULL))
+              MYSQL_YYABORT;
+            Select->add_grouping_func_to_list(thd, i1);
+            $$= i1;
           }
         ;
 

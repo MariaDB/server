@@ -109,7 +109,8 @@ public:
                   JSON_EXTRACT_FUNC, JSON_VALID_FUNC, ROWNUM_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
-                  DATE_FUNC, YEAR_FUNC, SUBSTR_FUNC, LEFT_FUNC
+                  DATE_FUNC, YEAR_FUNC, SUBSTR_FUNC, LEFT_FUNC,
+                  GROUPING_FUNC
                 };
 
   /*
@@ -1328,6 +1329,45 @@ public:
   { return get_date_from_int(thd, ltime, fuzzydate); }
   const Type_handler *type_handler() const override= 0;
   bool fix_length_and_dec(THD *thd) override { return FALSE; }
+};
+
+
+class Item_func_grouping final : public Item_int_func
+{
+  uint *min_rollup_levels;
+  uint current_level;
+
+public:
+  Item_func_grouping(THD *thd, List<Item> &args)
+      : Item_int_func(thd, args), min_rollup_levels(NULL),
+        current_level(UINT_MAX)
+  {
+  }
+
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool resolve_args(THD *thd, ORDER *group_list);
+  void update_used_tables() override
+  {
+    Item_func::update_used_tables();
+    // GROUPING()'s value depends on the rollup level,
+    // and so it must never be treated as constant
+    const_item_cache= false;
+  }
+  void set_current_rollup_level(uint level) { current_level= level; }
+  longlong val_int() override;
+  const Type_handler *type_handler() const override
+  { return &type_handler_slonglong; }
+  enum Functype functype() const override { return GROUPING_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING sum_name= {STRING_WITH_LEN("grouping") };
+    return sum_name;
+  }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel) override { return false; }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_grouping>(thd, this); }
 };
 
 
