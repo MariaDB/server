@@ -8816,6 +8816,36 @@ public:
 
 
 /**
+  Format a Timestamp in the session time zone for an error or warning.
+
+  Holds the value and formats it when the message is built. It formats into
+  the fixed ErrBuff buffer without allocation, so it cannot fail.
+*/
+class ErrConvTimestamp : public ErrConv
+{
+  THD *thd;
+  Timestamp ts;
+  uint dec;
+public:
+  /**
+    @param thd_arg  Current thread (for the session time zone).
+    @param ts_arg   Value to format.
+    @param dec_arg  Number of fractional second digits (0-6).
+  */
+  ErrConvTimestamp(THD *thd_arg, const Timestamp &ts_arg, uint dec_arg)
+    : ErrConv(), thd(thd_arg), ts(ts_arg), dec(dec_arg)
+  {
+    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  }
+  LEX_CSTRING lex_cstring() const override
+  {
+    MYSQL_TIME ltime;
+    ts.to_TIME(thd, &ltime, date_mode_t(0));
+    return set_mysql_time(&ltime, dec);
+  }
+};
+
+/**
   Make a new string allocated on THD's mem-root.
 
   @param thd        thread handler.
