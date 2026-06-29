@@ -2050,3 +2050,10 @@ a
 1
 1
 1
+SELECT XMLISVALID(
+'<xml><c>x</c></xml>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="xml"><xs:complexType><xs:sequence><xs:element name="c"
+type="xs:string"/></xs:sequence></xs:complexType></xs:element></xs:schema>'
+) AS v;
+v
+1
