@@ -5113,18 +5113,19 @@ bool Item_func_json_overlaps::fix_length_and_dec(THD *thd)
 
 bool Item_func_json_schema_valid::val_bool()
 {
+  THD *thd;
   json_engine_t ve;
   int is_valid= 1;
 
   if (!schema_parsed)
   {
     null_value= 1;
-     return 0;
+    return 0;
   }
 
    val= args[1]->val_json(&tmp_val);
 
-   if (!val)
+  if (!val)
   {
     null_value= 1;
     return 0;
@@ -5136,6 +5137,9 @@ bool Item_func_json_schema_valid::val_bool()
 
   json_scan_start(&ve, val->charset(), (const uchar *) val->ptr(),
                   (const uchar *) val->end());
+  thd= current_thd;
+  ve.killed_ptr= (uint32_t *) &thd->killed;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   if (json_read_value(&ve))
     goto end;
@@ -5207,6 +5211,7 @@ bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
   }
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
+  je.killed_ptr= (uint32_t *) &thd->killed;
   if (!create_object_and_handle_keyword(thd, &je, &keyword_list,
                                           &all_keywords))
     schema_parsed= true;
@@ -5532,9 +5537,9 @@ bool Item_func_json_array_intersect::
     free(new_entry);
   }
 
-  res= false;
+  res= value->s.error != 0;
 
-  if (has_value)
+  if (has_value && !res)
   {
     temp_str.chop(); /* remove last comma because there are no values after that. */
     temp_str.append(']');
@@ -5550,6 +5555,7 @@ error:
 
 String* Item_func_json_array_intersect::val_str(String *str)
 {
+  THD *thd;
   DBUG_ASSERT(fixed());
 
   json_engine_t je2, res_je, je1;
@@ -5579,11 +5585,21 @@ String* Item_func_json_array_intersect::val_str(String *str)
   str->set_charset(js2->charset());
   str->length(0);
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   json_scan_start(&je2, js2->charset(), (const uchar *) js2->ptr(),
                   (const uchar *) js2->ptr() + js2->length());
+  je2.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY)
-    goto error_return;
+
+  if (json_read_value(&je2))
+    goto je2_error_return;
+
+  if (je2.value_type != JSON_VALUE_ARRAY)
+  {
+    je2.s.error= JE_SYN;
+    goto je2_error_return;
+  }
 
   if (get_intersect_between_arrays(str, &je2, &items, &seen))
     goto error_return;
@@ -5592,6 +5608,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
   {
     json_scan_start(&res_je, str->charset(), (const uchar *) str->ptr(),
                   (const uchar *) str->ptr() + str->length());
+    res_je.killed_ptr= (uint32_t *) &thd->killed;
     str= &tmp_js1;
     if (json_nice(&res_je, str, Item_func_json_format::LOOSE))
       goto error_return;
@@ -5606,6 +5623,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
 
 error_return:
   if (je2.s.error)
+je2_error_return:
     report_json_error(js2, &je2, 1);
 null_return:
   null_value= 1;
@@ -5614,8 +5632,10 @@ null_return:
 
 bool Item_func_json_array_intersect::prepare_json_and_create_hash(json_engine_t *je1, String *js)
 {
+  THD *thd= current_thd;
   json_scan_start(je1, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
+  je1->killed_ptr= (uint32_t *) &thd->killed;
   /*
     Scan value uses the hash table to get the intersection of two arrays.
   */
@@ -5890,6 +5910,7 @@ static bool convert_to_array(json_engine_t *je, String *str)
 
 String* Item_func_json_object_to_array::val_str(String *str)
 {
+  THD *thd;
   DBUG_ASSERT(fixed());
 
   json_engine_t je;
@@ -5901,8 +5922,11 @@ String* Item_func_json_object_to_array::val_str(String *str)
   str->set_charset(js1->charset());
   str->length(0);
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   json_scan_start(&je, js1->charset(),(const uchar *) js1->ptr(),
                   (const uchar *) js1->ptr() + js1->length());
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   if (json_read_value(&je))
     goto error_return;
