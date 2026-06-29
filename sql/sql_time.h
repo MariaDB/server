@@ -168,4 +168,68 @@ void unpack_time(longlong packed, MYSQL_TIME *my_time,
                  enum_mysql_timestamp_type ts_type)
                  __attribute__((nonnull));
 
+/* Day number of 9999-12-31 */
+static constexpr longlong MAX_DAY_NUMBER= 3652424;
+
+/**
+  Check if the day-time part of an interval is longer than the date range
+  (MAX_DAY_NUMBER days). Otherwise the interval converted with interval2sec()
+  or interval2usec() does not overflow.
+*/
+inline bool interval_days_out_of_range(const INTERVAL &interval)
+{
+  return (ulonglong(interval.day) +
+          ulonglong(interval.hour) / 24 +
+          ulonglong(interval.minute) / 24 / 60 +
+          ulonglong(interval.second) / 24 / 60 / 60) > MAX_DAY_NUMBER;
+}
+
+/**
+  Convert an interval to a total number of seconds.
+
+  The @c year and @c month members must be 0 (asserted). The @c neg member
+  is ignored: the caller applies the sign.
+
+  @param x  Interval.
+
+  @return  Total number of seconds represented by @p x.
+*/
+inline longlong interval2sec(const INTERVAL *x)
+{
+  DBUG_ASSERT(!x->year && !x->month);
+  return ((x->day * 24LL + x->hour) * 60LL + x->minute) * 60LL + x->second;
+}
+
+/**
+  Convert a time value to a total number of seconds.
+
+  The @c year, @c month and @c neg members are ignored: date_add_interval()
+  folds year and month into day and applies the sign itself.
+
+  @param x  Time value.
+
+  @return  Seconds of the day, hour, minute and second members of @p x.
+*/
+inline longlong interval2sec(const MYSQL_TIME *x)
+{
+  return ((x->day * 24LL + x->hour) * 60LL + x->minute) * 60LL + x->second;
+}
+
+/**
+  Convert an interval to a total number of microseconds:
+  interval2sec() * 1000000 + @c second_part.
+*/
+inline longlong interval2usec(const INTERVAL *x)
+{
+  return interval2sec(x) * 1000000LL + x->second_part;
+}
+
+/**
+  Convert a time value to microseconds: interval2sec() * 1000000 +
+  @c second_part.
+*/
+inline longlong interval2usec(const MYSQL_TIME *x)
+{
+  return interval2sec(x) * 1000000LL + x->second_part;
+}
 #endif /* SQL_TIME_INCLUDED */
