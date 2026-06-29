@@ -1772,6 +1772,9 @@ turn_over:
       if (!m_cur_tag->is_validate_done())
         return false;
       m_cur_tag= m_cur_tag->m_next_tag;
+      if (m_cur_tag)
+        m_cur_tag->validate_prepare();
+
     }
 
     return true;
