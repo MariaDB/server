@@ -308,12 +308,93 @@ json_norm_value_string_init(struct json_norm_value *val,
 }
 
 
+static int json_norm_kv_comp(const void *a_, const void *b_);
+
+static int json_norm_value_comp(const struct json_norm_value *a,
+                                const struct json_norm_value *b)
+{
+  if (a->type != b->type)
+    return (int) a->type - b->type;
+
+  switch (a->type)
+  {
+  case JSON_VALUE_OBJECT:
+  {
+    const DYNAMIC_ARRAY *ao= &a->value.object.kv_pairs;
+    const DYNAMIC_ARRAY *bo= &b->value.object.kv_pairs;
+    int ret;
+    if (ao->elements != bo->elements)
+      return ao->elements < bo->elements ? -1 : 1;
+
+    for (size_t i= 0; i < ao->elements; ++i)
+    {
+      const struct json_norm_kv *akv=
+        dynamic_element(ao, i, struct json_norm_kv*);
+      const struct json_norm_kv *bkv=
+        dynamic_element(bo, i, struct json_norm_kv*);
+      if ((ret= json_norm_kv_comp(akv, bkv)))
+        return ret;
+    }
+    return 0;
+  }
+  case JSON_VALUE_ARRAY:
+  {
+    const DYNAMIC_ARRAY *aa= &a->value.array.values;
+    const DYNAMIC_ARRAY *ba= &b->value.array.values;
+    int ret;
+
+    if (aa->elements != ba->elements)
+      return aa->elements < ba->elements ? -1 : 1;
+
+    for (size_t i= 0; i < aa->elements; ++i)
+    {
+      const struct json_norm_value *aval=
+        dynamic_element(aa, i, struct json_norm_value*);
+      const struct json_norm_value *bval=
+        dynamic_element(ba, i, struct json_norm_value*);
+      if ((ret= json_norm_value_comp(aval, bval)))
+        return ret;
+    }
+    return 0;
+  }
+  case JSON_VALUE_STRING:
+  {
+    const LEX_STRING *as= &a->value.string;
+    const LEX_STRING *bs= &b->value.string;
+    if (as->length != bs->length)
+      return as->length < bs->length ? -1 : 1;
+
+    return my_strnncoll(&my_charset_utf8mb4_bin,
+                        (const uchar *)as->str, as->length,
+                        (const uchar *)bs->str, bs->length);
+  }
+  case JSON_VALUE_NUMBER:
+  {
+    const DYNAMIC_STRING *anum= &a->value.number;
+    const DYNAMIC_STRING *bnum= &b->value.number;
+    if (anum->length != bnum->length)
+      return anum->length < bnum->length ? -1 : 1;
+    return strncmp(anum->str, bnum->str, anum->length);
+  }
+  case JSON_VALUE_NULL:
+  case JSON_VALUE_TRUE:
+  case JSON_VALUE_FALSE:
+  case JSON_VALUE_UNINITIALIZED:
+  default:
+    return 0;
+  }
+}
+
+
 static int json_norm_kv_comp(const void *a_, const void *b_)
 {
   const struct json_norm_kv *a= a_, *b= b_;
-  return my_strnncoll(&my_charset_utf8mb4_bin,
-                      (const uchar *)a->key.str, a->key.length,
-                      (const uchar *)b->key.str, b->key.length);
+  int ret;
+  if (!(ret= my_strnncoll(&my_charset_utf8mb4_bin,
+                          (const uchar *)a->key.str, a->key.length,
+                          (const uchar *)b->key.str, b->key.length)))
+    return json_norm_value_comp(&a->value, &b->value);
+  return ret;
 }
 
 

@@ -56,3 +56,129 @@ select concat_ws(' ', t1.text, t1.text) from t1;
 select concat_ws(' ', json_normalize(t1.text), json_normalize(t1.text)) from t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-28922 JSON_NORMALIZE handling of duplicate keys
+--echo #
+
+SET @j = '{"x": 1, "y": 2, "z": 3, "b": 0, "c": 5, "b":3, "a": 4, "b": 1, "a": 3, "a": 2, "a": 1, "b": 2}';
+SELECT @k := JSON_NORMALIZE(@j);
+SELECT JSON_EXTRACT(@j, '$.b') as j1, JSON_EXTRACT(@k, '$.b') as j2;
+
+--echo Primitives
+
+SET @j='{"a": null, "a": true, "a": false, "a": 123, "a": "string"}';
+SELECT JSON_NORMALIZE(@j);
+
+SET @j2='{"a": "string", "a": 123, "a": false, "a": true, "a": null}';
+SELECT JSON_NORMALIZE(@j2);
+SELECT JSON_EQUALS(@j, @j2) je;
+
+--echo Objects
+SET @j='{
+  "a": {},
+  "a": {"x":1},
+  "a": {"x":1,"y":2},
+  "a": {"x":1,"y":2,"z":3}
+}';
+SELECT JSON_NORMALIZE(@j);
+
+SET @j2='{
+  "a": {"x":1,"y":2,"z":3},
+  "a": {"x":1},
+  "a": {},
+  "a": {"x":1,"y":2}
+}';
+SELECT JSON_NORMALIZE(@j2);
+SELECT JSON_EQUALS(@j, @j2) as je;
+
+--echo Arrays
+
+SET @j='{
+  "a": [],
+  "a": [1],
+  "a": [1,2],
+  "a": [1,2,3],
+  "a": [1,2,3,4]
+}';
+SELECT JSON_NORMALIZE(@j);
+
+SET @j2='{
+  "a": [1,2,3],
+  "a": [],
+  "a": [1,2,3,4],
+  "a": [1],
+  "a": [1,2]
+}';
+SELECT JSON_NORMALIZE(@j2);
+SELECT JSON_EQUALS(@j, @j2) je;
+
+--echo Mixed Arrays
+SET @j='{
+  "a": [],
+  "a": [null],
+  "a": [1,"x",true],
+  "a": [{"k":1}],
+  "a": [[1,2],[3,4]]
+}';
+SELECT JSON_NORMALIZE(@j);
+
+SET @j2='{
+  "a": [[1,2],[3,4]],
+  "a": [{"k":1}],
+  "a": [],
+  "a": [1,"x",true],
+  "a": [null]
+}';
+SELECT JSON_NORMALIZE(@j2);
+SELECT JSON_EQUALS(@j, @j2) je;
+
+--echo Nested objects
+SET @j='{
+  "a": {"x":{"y":1}},
+  "a": {"x":{"y":[1,2]}},
+  "a": {"x":{"y":{"z":3}}},
+  "a": {"x":{}}
+}';
+SELECT JSON_NORMALIZE(@j);
+
+SET @j2='{
+  "a": {"x":{}},
+  "a": {"x":{"y":{"z":3}}},
+  "a": {"x":{"y":1}},
+  "a": {"x":{"y":[1,2]}}
+}';
+SELECT JSON_NORMALIZE(@j2);
+SELECT JSON_EQUALS(@j, @j2) je;
+
+--echo Everything mixed
+SET @j='{
+  "a": null,
+  "a": 1,
+  "a": "abc",
+  "a": true,
+  "a": [],
+  "a": [1],
+  "a": [1,2],
+  "a": {},
+  "a": {"k":1},
+  "a": {"k":1,"m":2}
+}';
+SELECT JSON_NORMALIZE(@j);
+
+SET @j2='{
+  "a": {"k":1},
+  "a": [],
+  "a": true,
+  "a": {"k":1,"m":2},
+  "a": "abc",
+  "a": null,
+  "a": [1,2],
+  "a": 1,
+  "a": {},
+  "a": [1]
+}';
+SELECT JSON_NORMALIZE(@j2);
+SELECT JSON_EQUALS(@j, @j2) je;
+
+--echo # End of 10.11 tests
