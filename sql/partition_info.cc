@@ -429,6 +429,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   i= 0;
   do
   {
+    // TODO (newbie): how is it freed? Explain in comment or remake via table->mem_root.
     partition_element *part_elem= new partition_element();
     if (likely(part_elem != 0 && !partitions.push_back(part_elem)))
     {
@@ -448,7 +449,10 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       }
     }
     else
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
+    }
   } while (++i < num_parts);
   result= FALSE;
 end:
@@ -514,7 +518,10 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
         subpart_elem->partition_name= Lex_cstring_strlen(ptr);
       }
       else
+      {
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
         goto end;
+      }
     } while (++j < num_subparts);
   } while (++i < num_parts);
   result= FALSE;
