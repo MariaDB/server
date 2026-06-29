@@ -897,9 +897,10 @@ public:
     err_buffer[len+2]= 0;
     return {err_buffer, len+2};
   }
-  LEX_CSTRING set_mysql_time(const MYSQL_TIME *ltime) const
+  LEX_CSTRING set_mysql_time(const MYSQL_TIME *ltime,
+                             uint dec= AUTO_SEC_PART_DIGITS) const
   {
-    int length= my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
+    int length= my_TIME_to_str(ltime, err_buffer, dec);
     DBUG_ASSERT(length >= 0);
     return {err_buffer, (size_t) length};
   }
