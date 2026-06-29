@@ -6267,21 +6267,21 @@ String *Type_handler_string_result::
 String *Type_handler_time_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Time(func).to_string(str, func->decimals);
+  return func->check_str(Time(func).to_string(str, func->decimals));
 }
 
 
 String *Type_handler_date_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Date(func).to_string(str);
+  return func->check_str(Date(func).to_string(str));
 }
 
 
 String *Type_handler_datetime_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Datetime(func).to_string(str, func->decimals);
+  return func->check_str(Datetime(func).to_string(str, func->decimals));
 }
 
 
@@ -6289,8 +6289,8 @@ String *Type_handler_timestamp_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
   THD *thd= current_thd;
-  return Timestamp_or_zero_datetime_native_null(thd, func).
-           to_datetime(thd).to_string(str, func->decimals);
+  return func->check_str(Timestamp_or_zero_datetime_native_null(thd, func).
+                           to_datetime(thd).to_string(str, func->decimals));
 }
 
 
