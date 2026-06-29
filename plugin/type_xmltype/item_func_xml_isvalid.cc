@@ -2310,16 +2310,7 @@ bool XMLSchema_root::enter_tag(MY_XML_VALIDATION_DATA *st,
 bool XMLSchema_root::validate_tag(MY_XML_VALIDATION_DATA *st,
                                   const char *attr, size_t len)
 {
-  if (xs_xml.eq(attr, len))
-  {
-    st->push(st->xml);
-  }
-  else
-  {
-    return st->schema->validate_element(st, attr, len);
-  }
-
-  return MY_XML_OK;
+  return st->schema->validate_element(st, attr, len);
 }
 
 
