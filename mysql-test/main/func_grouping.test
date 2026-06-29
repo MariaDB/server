@@ -287,9 +287,11 @@ DROP TABLE t1, t2;
 
 CREATE TABLE t(x INT);
 # Used to fail when running with the hypergraph optimizer and --ps-protocol.
+--disable_view_protocol
 SELECT 1 FROM t AS t1, t AS t2,
 (SELECT DISTINCT GROUPING(t3.x) FROM t AS t3, t AS t4
 GROUP BY t3.x WITH ROLLUP) AS dt;
+--enable_view_protocol
 DROP TABLE t;
 
 --echo #
@@ -327,5 +329,17 @@ SELECT f1 FROM t1 GROUP BY f1 ORDER BY GROUPING(f2);
 SELECT f1 FROM t1 GROUP BY f1 ORDER BY GROUPING(f1+f1);
 SELECT 1 FROM t1 GROUP BY (f1+f1) ORDER BY GROUPING(f1+f1);
 DROP TABLE t1;
+
+# send_row_on_empty_set tests
+CREATE TABLE t0(x INT);
+SELECT x, GROUPING(x) FROM t0 GROUP BY x WITH ROLLUP;
+SELECT * FROM t0 GROUP BY x WITH ROLLUP HAVING GROUPING(x)=1;
+SELECT x FROM t0 WHERE 1=0 GROUP BY x WITH ROLLUP;
+SELECT x, GROUPING(x), ROW_NUMBER() OVER () FROM t0 GROUP BY x WITH ROLLUP;
+
+INSERT INTO t0 VALUES (0);
+SELECT EXISTS (SELECT t0.x FROM t0 a WHERE 1=0 GROUP BY a.x WITH ROLLUP) AS e
+  FROM t0;
+DROP TABLE t0;
 
 --echo # End of 13.1 tests.

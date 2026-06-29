@@ -1812,7 +1812,6 @@ public:
   bool subq_exit_fl;
   
   ROLLUP rollup;				///< Used with rollup
-  
   bool mixed_implicit_grouping;
   bool select_distinct;				///< Set if SELECT DISTINCT
   /**
@@ -2087,6 +2086,8 @@ public:
 			  Item_sum ***func);
   int rollup_send_data(uint idx);
   int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param, TABLE *table);
+  bool rollup_setup_grouping_funcs();
+  void rollup_set_level(uint level);
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);

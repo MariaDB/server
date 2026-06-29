@@ -837,6 +837,77 @@ String *Item_int_func::val_str(String *str)
 }
 
 
+bool Item_func_grouping::fix_fields(THD *thd, Item **ref)
+{
+  SELECT_LEX *curr_sel= thd->lex->current_select;
+
+  if (Item_func::fix_fields(thd, ref))
+    return true;
+
+  // longlong is 64 bits, so we can represent a maximum of 64 arguments
+  if (arg_count > 64)
+  {
+    my_error(ER_TOO_MANY_ARGS, MYF(0), "GROUPING", arg_count, "64");
+    return true;
+  }
+
+  if (!curr_sel || !(thd->lex->allow_sum_func.is_set(curr_sel->nest_level)))
+  {
+    my_message(ER_INVALID_GROUP_FUNC_USE,
+               ER_THD(thd, ER_INVALID_GROUP_FUNC_USE), MYF(0));
+    return TRUE;
+  }
+
+  return false;
+}
+
+
+bool Item_func_grouping::resolve_args(THD *thd, ORDER *group_list)
+{
+  if (!(min_rollup_levels= thd->alloc<uint>(arg_count)))
+  {
+    return true;
+  }
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    uint gp= 0;
+    ORDER *g;
+    for (g= group_list; g; g= g->next, gp++)
+    {
+      if (args[i]->real_item()->eq((*g->item)->real_item(), 0))
+        break;
+    }
+    if (!g)
+    {
+      my_error(ER_FIELD_IN_GROUPING_NOT_GROUP_BY, MYF(0),
+               args[i]->full_name());
+      return true;
+    }
+    min_rollup_levels[i]= gp;
+  }
+
+  return false;
+}
+
+
+longlong Item_func_grouping::val_int()
+{
+  if (!min_rollup_levels)
+    return 0;
+
+  longlong result= 0;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (current_level <= min_rollup_levels[i])
+    {
+      result|= 1ULL << (arg_count - i - 1);
+    }
+  }
+  return result;
+}
+
+
 bool Item_func_connection_id::fix_length_and_dec(THD *thd)
 {
   if (Item_long_func::fix_length_and_dec(thd))
