@@ -863,10 +863,14 @@ static inline bool check_argument_list_aggregation(Window_spec *win_spec)
 }
 
 static Item_window_func *
-find_longest_compatible_order(List_iterator_fast<Item_window_func> &it)
+find_longest_compatible_order(const List<Item_window_func> &win_funcs)
 {
+  if (win_funcs.elements == 0)
+    return nullptr;
   int longest_order_elements= -1;
   Item_window_func *longest, *win_func;
+  List<Item_window_func> tmp_win_funcs= win_funcs;
+  List_iterator_fast<Item_window_func> it(tmp_win_funcs);
   while ((win_func= it++))
   {
     Window_spec *spec= win_func->window_spec;
@@ -894,7 +898,7 @@ find_longest_compatible_order(List_iterator_fast<Item_window_func> &it)
     spec->disjoin_partition_and_order_lists();
     if (cmp != CMP_GT_C)
     {
-      longest= NULL;
+      longest= nullptr;
       break;
     }
   }
@@ -916,16 +920,15 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
   if (win_funcs.elements == 0)
     return false;
 
-  List_iterator_fast<Item_window_func> it(win_funcs);
   Item_window_func *win_func_with_longest_order=
-      find_longest_compatible_order(it);
+      find_longest_compatible_order(win_funcs);
   if (!win_func_with_longest_order)
     return false;
 
+  List_iterator_fast<Item_window_func> it(win_funcs);
   Item_window_func *win_func;
   int cmp;
 
-  it.rewind();
   while ((win_func= it++))
   {
     Window_spec *spec= win_func->window_spec;
@@ -3100,8 +3103,6 @@ bool compute_window_func(THD *thd,
     iter_win_funcs.rewind();
     iter_part_trackers.rewind();
     iter_cursor_managers.rewind();
-    // we can use a similar appraoch for streaming, where a row is passed over
-    // all window functions before another is fetched (single pass)
     Group_bound_tracker *tracker;
     while ((win_func= iter_win_funcs++) &&
            (tracker= iter_part_trackers++) &&
@@ -3452,11 +3453,13 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
   if (get_window_functions_required_cursors(thd, window_funcs,
                                             &cursor_managers))
     return true;
-  // we need partition trackers too, should be here in setup
+
+  Group_bound_tracker *tracker;
   while ((win_func= it++))
   {
-    Group_bound_tracker *tracker=
-        new Group_bound_tracker(thd, win_func->window_spec->partition_list);
+    if (!(tracker= new Group_bound_tracker(
+              thd, win_func->window_spec->partition_list)))
+      return true;
     tracker->init();
     partition_trackers.push_back(tracker);
     win_func->set_phase_to_computation();
