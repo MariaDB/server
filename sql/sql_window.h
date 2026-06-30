@@ -263,25 +263,22 @@ public:
   void cleanup();
 };
 
-// I think the only need for the object is to hold the group_bound_trackers, we
-// don't even need the functions list
 class Window_funcs_sort_streaming : public Sql_alloc
 {
 public:
   Window_funcs_sort_streaming(THD *thd) : thd(thd) {}
   bool setup(List<Item_window_func> &win_funcs);
-  bool process_row(); // this object is attached to the JOIN, and
+  bool process_row(); // this object is attached to the JOIN_TAB, and
                       // process_row() is called for a method attached on
                       // takes the window funcs and the current row by
                       // end_compute_win_funcs() and calls the appropriate
                       // cursors to update the aggregate functions
+  void cleanup();
 
 private:
   int rownum= 0; // internal state for process row
   THD *thd= NULL;
   List<Item_window_func> win_funcs;
-  // these correspond to the window functions in the SELECT_LEX (all functions
-  // are streamable)
   List<Cursor_manager> cursor_managers;
   List<Group_bound_tracker> partition_trackers;
 };

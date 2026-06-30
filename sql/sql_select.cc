@@ -16824,6 +16824,10 @@ void JOIN_TAB::cleanup()
     cache->free();
     cache= 0;
   }
+  if (window_funcs_streaming_step)
+  {
+    window_funcs_streaming_step->cleanup();
+  }
   limit= 0;
   // Free select that was created for filesort outside of create_sort_index
   if (filesort && filesort->select && !filesort->own_select)

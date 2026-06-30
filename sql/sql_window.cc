@@ -785,11 +785,12 @@ typedef int (*Item_window_func_cmp)(Item_window_func *f1,
     The changes between the groups are marked by setting item_window_func->marker.
 */
 
-static void
-order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
+static
+void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 {
   if (win_func_list->elements == 0)
     return;
+
   bubble_sort<Item_window_func>(win_func_list,
                                 compare_window_funcs_by_window_specs,
                                 NULL);
@@ -818,7 +819,8 @@ order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
         cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
       if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
       {
-        curr->marker= (MARKER_SORTORDER_CHANGE | MARKER_PARTITION_CHANGE |
+        curr->marker= (MARKER_SORTORDER_CHANGE |
+                       MARKER_PARTITION_CHANGE |
                        MARKER_FRAME_CHANGE);
       }
       else if (win_spec_prev->partition_list != win_spec_curr->partition_list)
@@ -3462,6 +3464,9 @@ bool Window_funcs_sort_streaming::setup(List<Item_window_func> &window_funcs)
     // sets peer tracker inside rank()
     Item_sum *sum_func= win_func->window_func();
     sum_func->setup_window_func(thd, win_func->window_spec);
+
+    win_func->window_func()->set_aggregator(thd,
+                                            Aggregator::SIMPLE_AGGREGATOR);
   }
   this->win_funcs= window_funcs; // internal variable points to the list
   return false;
@@ -3496,11 +3501,17 @@ bool Window_funcs_sort_streaming::process_row()
 
     /* Check if we found any error in the window function while adding values
        through cursors. */
-    if (unlikely(current_thd->is_error() || current_thd->is_killed()))
+    if (unlikely(thd->is_error() || thd->is_killed()))
       return true;
   }
   rownum++;
   return false;
+}
+
+void Window_funcs_sort_streaming::cleanup()
+{
+  cursor_managers.delete_elements();
+  partition_trackers.delete_elements();
 }
 
 Explain_aggr_window_funcs*
