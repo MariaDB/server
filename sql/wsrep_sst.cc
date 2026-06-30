@@ -402,9 +402,6 @@ static bool wsrep_sst_complete (THD*                thd,
   Wsrep_server_state& server_state= Wsrep_server_state::instance();
   enum wsrep::server_state::state state= server_state.state();
   bool failed= false;
-  char start_pos_buf[FN_REFLEN];
-  ssize_t len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN-1);
-  start_pos_buf[len]='\0';
 
   // Do not call sst_received if we are not in joiner or
   // initialized state on server. This is because it
@@ -419,14 +416,31 @@ static bool wsrep_sst_complete (THD*                thd,
     }
     else
     {
-      WSREP_INFO("SST succeeded for position %s", start_pos_buf);
+      /*
+        Note: sst_received() does NOT use sst_gtid (the position reported by
+        the SST script). It determines the position internally from storage via
+        Wsrep_server_service::get_position().
+        For physical SST methods these two may differ (e.g. the joiner's storage
+        recovers to an earlier position than the script reported). Log the
+        position actually adopted, not the script-reported one, to avoid
+        confusion.
+      */
+      wsrep::gtid const received_gtid(wsrep_get_SE_checkpoint<wsrep::gtid>());
+      char recv_pos_buf[FN_REFLEN];
+      ssize_t const recv_len=
+        wsrep::print_to_c_str(received_gtid, recv_pos_buf, FN_REFLEN-1);
+      recv_pos_buf[recv_len > 0 ? recv_len : 0]= '\0';
+      WSREP_INFO("SST succeeded for position %s", recv_pos_buf);
     }
   }
   else
   {
+    char start_pos_buf[FN_REFLEN];
+    ssize_t const len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN - 1);
+    start_pos_buf[len]= '\0';
+
     WSREP_ERROR("SST failed for position %s initialized %d server_state %s",
-                start_pos_buf,
-                server_state.is_initialized(),
+                start_pos_buf, server_state.is_initialized(),
                 wsrep::to_c_string(state));
     failed= true;
   }

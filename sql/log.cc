@@ -64,6 +64,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #include "wsrep_status.h"
+#include "wsrep_xid.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_REPLICATION
@@ -12014,6 +12015,57 @@ err1:
 
 
 
+#if defined(WITH_WSREP) && defined(HAVE_REPLICATION)
+/*
+  MDEV-38147: A Galera mariabackup SST no longer ships the donor's binary log
+  (the only thing it carried was a Gtid_list whose position was ahead of the
+  snapshot, causing error 1950). Instead the joiner starts a fresh binary log,
+  so its Gtid_list / @@gtid_binlog_pos must be seeded from the recovered wsrep
+  position - otherwise the joiner would report an empty binlog position until
+  it re-binlogs new transactions, which breaks its use as an async master.
+
+  The wsrep cluster position lives in the storage-engine checkpoint (restored
+  by the SST). Async-replica source positions live in mysql.gtid_slave_pos
+  (also restored from the engine) and are handled separately, so they are not
+  seeded here.
+
+  The whole cluster binlogs cluster writes under one consistent stream (the
+  seqno stays in lockstep because every node applies in the same total order).
+  The domain of that stream depends on the mode:
+    - wsrep_gtid_mode=ON : wsrep_gtid_domain_id (cluster writes are re-tagged
+      to it, see [wsrep_mysqld.cc:2983]); this is the domain in the checkpoint.
+    - wsrep_gtid_mode=OFF: gtid_domain_id (cluster writes keep the node's
+      configured domain, no re-tag).
+  In both modes the committed cluster seqno is the SE checkpoint seqno, so we
+  seed that domain's binlog state to the checkpoint position. This is also the
+  exact position from which IST will resume re-binlogging, so the joiner stays
+  in lockstep with the rest of the cluster (and, in ON mode, avoids error 1950
+  from re-binlogging over an ahead position).
+*/
+static void wsrep_seed_binlog_gtid_state()
+{
+  wsrep_server_gtid_t const eng= wsrep_get_SE_checkpoint<wsrep_server_gtid_t>();
+  if (eng.seqno <= 0)
+    return;                              /* not a wsrep node / no position */
+
+  rpl_gtid eng_gtid;
+  eng_gtid.domain_id= wsrep_gtid_mode ? eng.domain_id
+                                      : global_system_variables.gtid_domain_id;
+  eng_gtid.server_id= eng.server_id;
+  eng_gtid.seq_no=    eng.seqno;
+
+  rpl_gtid *cur= rpl_global_gtid_binlog_state.find_most_recent(eng_gtid.domain_id);
+  if (cur && cur->seq_no >= eng_gtid.seq_no)
+    return;        /* binlog state already at or ahead of the checkpoint */
+
+  sql_print_information("WSREP: seeding binlog GTID state to %u-%u-%llu "
+                        "from the storage-engine checkpoint",
+                        eng_gtid.domain_id, eng_gtid.server_id,
+                        (unsigned long long) eng_gtid.seq_no);
+  rpl_global_gtid_binlog_state.update_nolock(&eng_gtid, false);
+}
+#endif /* WITH_WSREP && HAVE_REPLICATION */
+
 int
 MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 {
@@ -12048,6 +12100,10 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
         error= 0;
       }
     }
+#if defined(WITH_WSREP) && defined(HAVE_REPLICATION)
+    if (!error && WSREP_PROVIDER_EXISTS)
+      wsrep_seed_binlog_gtid_state();
+#endif
     return error;
   }
 

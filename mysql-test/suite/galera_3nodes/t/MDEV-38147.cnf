@@ -1,0 +1,25 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+gtid_strict_mode=ON
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=100
+gtid_domain_id=10
+log_bin
+log_slave_updates=ON
+wsrep_slave_threads=4
+
+[mysqld.1]
+server_id=11
+
+[mysqld.2]
+server_id=12
+
+[mysqld.3]
+server_id=13
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream
