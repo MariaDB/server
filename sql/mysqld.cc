@@ -7412,7 +7412,7 @@ struct my_option my_long_options[]=
    "It can be specified many times, adding more plugins every time",
    0, 0, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) && !defined(HAVE_WOLFSSL)
   {"ssl-cert-add", OPT_SSL_CERT_ADD,
    "Additional X509 cert in PEM format for multi-certificate support."
    " Each --ssl-cert-add must be positionally matched with a"
