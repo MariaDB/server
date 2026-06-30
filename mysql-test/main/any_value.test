@@ -1,3 +1,7 @@
+--echo #
+--echo # MDEV-10426: ANY_VALUE function
+--echo #
+
 CREATE TABLE t0 (a INT, b INT);
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, b INT);
@@ -107,3 +111,5 @@ SELECT coercibility(ANY_VALUE(a)), coercibility(ANY_VALUE('x')) FROM t;
 DROP TABLE t;
 
 SET sql_mode=@save_sql_mode;
+
+--echo # End of 13.1 tests.
