@@ -27,6 +27,7 @@ extern time_t history_lock_time;
 extern bool sql_thread_started;
 extern char *mysql_slave_position;
 extern char *mysql_binlog_position;
+extern char *mysql_binlog_file;
 extern char *buffer_pool_filename;
 
 /** connection to mysql server */

@@ -1454,37 +1454,49 @@ else # joiner
 
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
             cd "$DATA"
+            #
+            # MDEV-38147: do NOT move the donor's binary log into
+            # place on the joiner.
+            #
+            # The donor still ships its (freshly rotated) current binary log so
+            # that an old joiner keeps working and a new joiner can identify
+            # exactly which file was sent. That file, however, only carries a
+            # Gtid_list, and its position can be ahead of the engine snapshot
+            # (BACKUP STAGE BLOCK_COMMIT blocks the engine commit but not the
+            # binary log write). With gtid_strict_mode=ON that ahead position
+            # makes the joiner raise error 1950 when it re-binlogs transactions
+            # during IST, and keeping the file could also collide with the
+            # joiner's own binary log numbering.
+            #
+            # Therefore the joiner removes the received binary log file(s) and
+            # starts a fresh binary log, seeding its GTID position from the
+            # storage-engine checkpoint during recovery (see
+            # wsrep_seed_binlog_gtid_state() in sql/log.cc) - the exact position
+            # from which IST resumes, which keeps the joiner's binary log in
+            # lockstep with the rest of the cluster.
+            #
             binlogs=""
             if [ -f 'xtrabackup_binlog_info' ]; then
-                NL=$'\n'
                 while read bin_string || [ -n "$bin_string" ]; do
                     bin_file=$(echo "$bin_string" | cut -f1)
-                    if [ -f "$bin_file" ]; then
-                        binlogs="$binlogs${binlogs:+$NL}$bin_file"
+                    if [ -n "$bin_file" -a -f "$bin_file" ]; then
+                        binlogs="$binlogs${binlogs:+ }$bin_file"
                     fi
                 done < 'xtrabackup_binlog_info'
             else
                 binlogs=$(ls -d -1 "$binlog_base".[0-9]* 2>/dev/null || :)
             fi
-            cd "$DATA_DIR"
-            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
-                 "$binlog_dir" != "$DATA_DIR" ]
-            then
-                [ ! -d "$binlog_dir" ] && mkdir -p "$binlog_dir"
-            fi
-            index_dir=$(dirname "$binlog_index");
-            if [ -n "$index_dir" -a "$index_dir" != '.' -a \
-                 "$index_dir" != "$DATA_DIR" ]
-            then
-                [ ! -d "$index_dir" ] && mkdir -p "$index_dir"
-            fi
             if [ -n "$binlogs" ]; then
-                wsrep_log_info "Moving binary logs to $binlog_dir"
-                echo "$binlogs" | \
-                while read bin_file || [ -n "$bin_file" ]; do
-                    mv "$DATA/$bin_file" "$binlog_dir"
-                    echo "$binlog_dir${binlog_dir:+/}$bin_file" >> "$binlog_index"
+                wsrep_log_info "Removing received binary log(s) so the joiner" \
+                               "starts a fresh binary log seeded from the" \
+                               "storage-engine checkpoint (MDEV-38147)"
+                for bin_file in $binlogs; do
+                    rm -f "$DATA/$bin_file"
                 done
+            else
+                wsrep_log_info "No binary log received from donor; the joiner" \
+                               "will start a fresh binary log seeded from the" \
+                               "storage-engine checkpoint (MDEV-38147)"
             fi
             cd "$OLD_PWD"
         fi
