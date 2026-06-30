@@ -835,11 +835,16 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
   }
 }
 
-static inline bool frame_is_current_row(Window_spec *win_spec)
+/*
+  Returns true if the window frame is unbounded preceding or current row.
+*/
+static inline bool frame_is_streaming_compatible(Window_spec *win_spec)
 {
   Window_frame *frame= win_spec->window_frame;
   if (!frame)
     return true;
+  if (frame->units != Window_frame::Frame_units::UNITS_ROWS)
+    return false;
   bool unbounded_preceding_or_current=
       frame->top_bound->precedence_type == Window_frame_bound::CURRENT ||
       (frame->top_bound->precedence_type == Window_frame_bound::PRECEDING &&
@@ -934,7 +939,7 @@ bool have_streaming_window_funcs(THD *thd, List<Item_window_func> &win_funcs,
     Window_spec *spec= win_func->window_spec;
     if (check_argument_list_aggregation(spec) ||
         !(win_func->window_func()->is_streamable() &&
-          frame_is_current_row(win_func->window_spec)))
+          frame_is_streaming_compatible(win_func->window_spec)))
       return false;
   }
 
