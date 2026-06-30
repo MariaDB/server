@@ -485,7 +485,7 @@ public:
 class MHNSW_Share : public Sql_alloc
 {
   mysql_mutex_t cache_lock;     // for node_cache and stats
-  mysql_mutex_t node_lock[32];  // XXX how to choose what's the best value here?
+  mysql_mutex_t node_lock[127];  // XXX how to choose what's the best value here?
 
   void cache_internal(FVectorNode *node)
   {
@@ -544,6 +544,14 @@ public:
     uint ticket= hasher.m_nr1 % array_elements(node_lock);
     mysql_mutex_lock(node_lock + ticket);
     return ticket;
+  }
+
+  bool try_lock_node(FVectorNode *ptr, uint &ticket)
+  {
+    my_hasher_st hasher= my_hasher_mysql5x();
+    my_hash_sort_bin(&hasher, 0, (uchar*)&ptr, sizeof(ptr));
+    ticket= hasher.m_nr1 % array_elements(node_lock);
+    return mysql_mutex_trylock(node_lock + ticket) == 0;
   }
 
   void unlock_node(uint ticket)
@@ -1280,13 +1288,39 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
 {
   const uint max_neighbors= p->ctx->max_neighbors(p->layer);
   const bool bulk= p->ctx->bulk_active;
+  const size_t num_neighbors= node->neighbors[p->layer].num;
 
-  for (size_t i= 0; i < node->neighbors[p->layer].num; i++)
+  if (num_neighbors == 0)
+    return 0;
+
+  FVectorNode **q= (FVectorNode**) my_safe_alloca(sizeof(FVectorNode*) * num_neighbors);
+
+  for (size_t i= 0; i < num_neighbors; i++)
+    q[i]= node->neighbors[p->layer].links[i];
+
+  size_t head= 0;
+  size_t tail= 0;
+  size_t q_len= num_neighbors;
+
+  while (q_len > 0)
   {
-    FVectorNode *neigh= node->neighbors[p->layer].links[i];
+    FVectorNode *neigh= q[head];
+    head= (head + 1) % num_neighbors;
+    q_len--;
+
     uint ticket= 0;
     if (bulk)
-      ticket= p->ctx->lock_node(neigh);
+    {
+      if (q_len == 0)
+        ticket= p->ctx->lock_node(neigh);
+      else if (!p->ctx->try_lock_node(neigh, ticket))
+      {
+        q[tail]= neigh;
+        tail= (tail + 1) % num_neighbors;
+        q_len++;
+        continue;
+      }
+    }
 
     Neighborhood &neighneighbors= neigh->neighbors[p->layer];
     int err= 0;
@@ -1301,8 +1335,13 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
       err= neigh->save(p->graph);
 
     if (err)
+    {
+      my_safe_afree(q, sizeof(FVectorNode*) * num_neighbors);
       return err;
+    }
   }
+
+  my_safe_afree(q, sizeof(FVectorNode*) * num_neighbors);
   return 0;
 }
 
@@ -1791,7 +1830,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   // XXX how many threads to use?
   uint N= std::thread::hardware_concurrency();
   size_t total_nodes= bulk->nodes.elements - 1;
-  size_t workers= std::min<size_t>(N, total_nodes);
+  size_t workers= N;
 
   pthread_t *threads= (pthread_t*) my_malloc(PSI_INSTRUMENT_MEM, sizeof(pthread_t) * workers, MYF(MY_WME));
   BulkBuildThreadArg *args= (BulkBuildThreadArg*) my_malloc(PSI_INSTRUMENT_MEM, sizeof(BulkBuildThreadArg) * workers, MYF(MY_WME));
