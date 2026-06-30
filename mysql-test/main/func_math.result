@@ -4092,4 +4092,11 @@ c1	v
 9223372036854775807	9223372036854775807
 NULL	NULL
 DROP TABLE t1;
+#
+# MDEV-38061 Assertion `args[0]->decimal_precision() < 22' in
+#            Item_func_round::fix_arg_hex_hybrid
+#
+SELECT ROUND(NAME_CONST('x', 0x0123456789ABCDEF0123456789ABCDEF0123456789AB)) as a;
+a
+14839080548208970155
 # End of 10.11 tests

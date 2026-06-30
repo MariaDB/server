@@ -3511,6 +3511,10 @@ public:
   {
     return value_item->type_handler();
   }
+  decimal_digits_t decimal_precision() const override
+  {
+    return value_item->decimal_precision();
+  }
 
   bool const_item() const override { return true; }
 
