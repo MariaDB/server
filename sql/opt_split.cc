@@ -1249,6 +1249,17 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     */
     startup_cost= refills * spl_plan->cost;
     records= (ha_rows) (spl_opt_info->unsplit_card * spl_plan->split_sel);
+    /*
+      If the split is chosen because a hint forced it, then we need to
+      ensure that we don't violate the assertion in the
+      if (use_cond_selectivity > 1) branch of apply_selectivity_for_table()
+      by clamping records to
+        min(unsplit_card, spl_opt_info->unsplit_card * spl_plan->split_sel).
+      If we don't clamp the value of records, then sel exceeds exceeds
+      s->table->opt_range_condition_rows / table_records.
+    */
+    if (spl_opt_info->hint_forced_split)
+      set_if_smaller(records, (ha_rows) spl_opt_info->unsplit_card);
     if (unlikely(thd->trace_started()) && ! already_printed)
     {
       Json_writer_object trace(thd, "split_materialized");
