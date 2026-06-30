@@ -368,4 +368,83 @@ select vec_totext(0x03CA397B);
 --replace_regex /(\.\d{5})\d+/\1/
 select vec_distance_euclidean(0x03CA397B, vec_fromtext('[0]'));
 
+--echo #
+--echo # MDEV-39558 SIGSEGV in collect_indexed_vcols_for_table, memory corruption by my_copy_8bit from charset_info_st::copy_fix
+--echo #
+
+set @old_sql_mode=@@sql_mode;
+set sql_mode='';
+
+--echo # original case
+CREATE TABLE t (c FLOAT(2,2) ZEROFILL,c2 SET('') CHARACTER SET'BINARY' COLLATE'BINARY',c3 DATE,KEY(c));
+ALTER TABLE t MODIFY c2 LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+REPLACE INTO t (c,c2,c3) VALUES ('','r:$u4[Z3y[HmHZ5r{FCU*0#LJOZVb][s;rm7j3N - xca *^ kt-(LE (4UP~IC:%l9/','=DpF=s=G@=d_rqbvtsjhwtgai.N.P7u}3={qDy[Un=LPeqllXoQM % fs=&mXT=e:');
+RENAME TABLE IF EXISTS t TO t4;
+CREATE TABLE t (c INT KEY,c2 VECTOR (4) NOT NULL,VECTOR INDEX (c2) M=4);
+--error ER_TOO_BIG_FIELDLENGTH
+(SELECT c2 FROM t) INTERSECT ALL (SELECT c2 FROM t4);
+
+drop table t, t4;
+
+--echo # simplified cases
+CREATE TABLE t1(c LONGTEXT);
+insert INTO t1 VALUES('1234567890123456789012345678901234567890123456789012345');
+CREATE TABLE t2(d VECTOR(4));
+
+--error ER_TOO_BIG_FIELDLENGTH
+create table tmp as (SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+--error ER_TOO_BIG_FIELDLENGTH
+(SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+drop table t1, t2;
+
+CREATE TABLE t1(c MEDIUMTEXT);
+insert INTO t1 VALUES('1234567890123456789012345678901234567890123456789012345');
+CREATE TABLE t2(d VECTOR(4));
+
+--error ER_TOO_BIG_FIELDLENGTH
+create table tmp as (SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+--error ER_TOO_BIG_FIELDLENGTH
+(SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+drop table t1, t2;
+
+CREATE TABLE t1(c TEXT);
+insert INTO t1 VALUES('1234567890123456789012345678901234567890123456789012345');
+CREATE TABLE t2(d VECTOR(4));
+
+--error ER_TOO_BIG_FIELDLENGTH
+create table tmp as (SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+--error ER_TOO_BIG_FIELDLENGTH
+(SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+drop table t1, t2;
+
+CREATE TABLE t1(c TINYTEXT);
+insert INTO t1 VALUES('1234567890123456789012345678901234567890123456789012345');
+CREATE TABLE t2(d VECTOR(4));
+
+create table tmp as (SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+show create table tmp;
+
+(SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+drop table tmp, t1, t2;
+
+CREATE TABLE t1(c varchar(16383));
+insert INTO t1 VALUES('1234567890123456789012345678901234567890123456789012345');
+CREATE TABLE t2(d VECTOR(4));
+
+create table tmp as (SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+show create table tmp;
+
+(SELECT * FROM t1) INTERSECT (SELECT * FROM t2);
+
+drop table tmp, t1, t2;
+
+set sql_mode=@old_sql_mode;
+
 --echo # End of 11.8 tests

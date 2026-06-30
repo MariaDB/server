@@ -120,6 +120,12 @@ bool Type_handler_vector::Item_hybrid_func_fix_attributes(THD *thd,
 {
   if (func->aggregate_attributes_string(func_name, items, nitems))
     return true;
+  if (func->max_length > MAX_FIELD_VARCHARLENGTH)
+  {
+    my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), func_name.str,
+             static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / sizeof(float)));
+    return true;
+  }
   //func->set_type_maybe_null(true);
   return false;
 }
