@@ -9043,3 +9043,22 @@ DROP TABLE t1;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-39690: UBSAN: signed integer overflow in `my_strntoll_8bit`, `my_strntoll_mb2_or_mb4` during BLOB-to-integer conversion
+#
+SET @old_mode=@@sql_mode;
+SET sql_mode='';
+CREATE TABLE t1 (c BLOB);
+INSERT INTO t1 VALUES ('-9223372036854775808');
+SELECT * FROM t1 WHERE c IN (VALUES(1));
+c
+CREATE TABLE t2 (c VARCHAR(30) CHARACTER SET latin1);
+INSERT INTO t2 VALUES ('-9223372036854775809'),('-9223372036854775808'),('1');
+SELECT * FROM t2 WHERE c IN (VALUES(1));
+c
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '-9223372036854775809'
+DROP TABLE t1, t2;
+SET @@sql_mode= @old_mode;
+# End of 10.11 tests
