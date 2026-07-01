@@ -490,4 +490,94 @@ create table t (a int, b int, c int with system versioning, unique(b));
 insert into t (b) values (1);
 insert into t (b) values (1),(1) on duplicate key update a = 3;
 drop table t;
+#
+# MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+#            table (on UPDATE)
+#
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2(10)))
+with system versioning;
+insert t1 values ('2000-01-01', default), ('2000-01-03', default);
+update t1 set c1= c1 + interval 1 day;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select c1, c2 from t1 for system_time all force index (c2) order by c2;
+c1	c2
+2000-01-01	2000-01-01
+2000-01-02	2000-01-02
+2000-01-03	2000-01-03
+2000-01-04	2000-01-04
+drop table t1;
+# Multi-table UPDATE
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2(10)))
+with system versioning;
+create table t2 (x int) engine=myisam;
+insert t1 values ('2000-01-01', default), ('2000-01-03', default);
+insert t2 values (1);
+update t1, t2 set t1.c1= t1.c1 + interval 1 day;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select c1, c2 from t1 for system_time all force index (c2) order by c2;
+c1	c2
+2000-01-01	2000-01-01
+2000-01-02	2000-01-02
+2000-01-03	2000-01-03
+2000-01-04	2000-01-04
+drop table t1, t2;
+# INSERT ... ON DUPLICATE KEY UPDATE
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+key (v(10))) with system versioning;
+insert t1 (id, a) values (1, 'old'), (2, 'start');
+insert t1 (id, a) values (2, 'x') on duplicate key update a= 'final';
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select id, a, v from t1 for system_time all force index (v) order by v;
+id	a	v
+2	final	v-final
+1	old	v-old
+2	start	v-start
+drop table t1;
+# Virtual fields of the new row are computed once
+set @save_sql_mode= @@sql_mode;
+set sql_mode= '';
+create table t1 (a varchar(10), b int as (a) virtual)
+with system versioning;
+insert t1 (a) values ('x');
+update t1 set a= 'y';
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`b` at row 1
+Warning	1366	Incorrect integer value: 'y' for column `test`.`t1`.`b` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`b` at row 1
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`b` at row 2
+drop table t1;
+set sql_mode= @save_sql_mode;
+# Error from virtual fields computed after the system fields
+set @save_sql_mode= @@sql_mode;
+set sql_mode= 'strict_all_tables,error_for_division_by_zero';
+create table t1 (a int,
+rs timestamp(6) as row start invisible,
+re timestamp(6) as row end invisible,
+period for system_time (rs, re),
+b int as (1 div (year(rs) - 2000)) stored)
+with system versioning engine=innodb;
+create table t2 (x int) engine=myisam;
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (a) values (1);
+insert t2 values (1);
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+flush status;
+update t1, t2 set t1.a= 2;
+ERROR 22012: Division by 0
+# Non-zero: t1 is updated through the temporary table
+show status like 'Handler_tmp_write';
+Variable_name	Value
+Handler_tmp_write	1
+set timestamp= default;
+select a, b from t1;
+a	b
+1	1
+drop table t1, t2;
+set sql_mode= @save_sql_mode;
 # End of 10.11 tests

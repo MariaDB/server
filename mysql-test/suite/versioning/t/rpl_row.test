@@ -71,4 +71,94 @@ select * from t;
 --connection master
 drop table t;
 
+--echo #
+--echo # MDEV-24646 ASAN heap-use-after-free in Field_blob::pack /
+--echo #            THD::binlog_update_row upon DML on table with virtual column
+--echo #
+--connection master
+create table t (a text, v blob as (a) virtual)
+  with system versioning as select 'foo' as a;
+
+update t set a='bar';
+--sync_slave_with_master
+select * from t;
+--connection master
+drop table t;
+
+--echo #
+--echo # MDEV-39711 UPDATE on System-Versioned Tables uses the after-value
+--echo #            in Row-format Binlog's before-image
+--echo #            for non-trivial Text/Blob Virtual Columns
+--echo #
+--connection master
+create table t (a text, v text as (right(a, 1)) virtual)
+  with system versioning as select 'before' as a;
+
+update t set a='after';
+--sync_slave_with_master
+select * from t;
+--connection master
+drop table t;
+
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #            Unversioned master, versioned slave, minimal row image
+--echo #
+--connection master
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+                key (v(10))) engine=innodb;
+--connection slave
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+                rs timestamp(6) as row start invisible,
+                re timestamp(6) as row end invisible,
+                period for system_time (rs, re),
+                w decimal(20,6) as (id + unix_timestamp(rs)) virtual,
+                ws decimal(20,6) as (id + unix_timestamp(rs)) stored,
+                key (v(10)), key (w), key (ws))
+engine=innodb with system versioning;
+--connection master
+set @old_row_image= @@binlog_row_image;
+set binlog_row_image= minimal;
+insert t (id, a) values (1, 'before'), (2, 'start');
+update t set a= 'after';
+set binlog_row_image= @old_row_image;
+--sync_slave_with_master
+check table t extended;
+select id, a, v, ws = id + unix_timestamp(rs) as ok
+from t for system_time all force index (v) order by v, id;
+--connection master
+drop table t;
+
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #            Unversioned master, versioned slave, failed update
+--echo #
+--connection master
+set statement sql_log_bin=0 for
+create table t (id int primary key, a int) engine=innodb;
+--connection slave
+call mtr.add_suppression("Slave SQL.*Duplicate entry");
+set statement sql_log_bin=0 for
+create table t (id int primary key, a int, unique (a))
+engine=innodb with system versioning;
+--connection master
+insert t values (1, 1), (2, 2);
+# Duplicate on the slave only
+update t set a= 2 where id = 1;
+let $slave_sql_errno= 1062;
+--source include/wait_for_slave_sql_error_and_skip.inc
+--connection slave
+select id, a, row_end > now(6) as current
+from t for system_time all order by id, current;
+--connection master
+drop table t;
+--sync_slave_with_master
+--connection master
+
+--echo # End of 10.11 tests
+
 --source rpl_common.inc

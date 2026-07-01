@@ -1807,6 +1807,7 @@ public:
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
   void remember_blob_values(String *blob_storage);
   void restore_blob_values(String *blob_storage);
+  void free_blob_values(String *blob_storage);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
@@ -1947,6 +1948,8 @@ public:
   inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
   template <bool replace>
   int delete_row(bool versioned);
+  /* vers_update_fields() and update_virtual_fields(VCOL_UPDATE_FOR_WRITE) */
+  int vers_update_fields_vcols();
   /* Used in majority of DML (called from fill_record()) */
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */

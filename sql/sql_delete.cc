@@ -309,6 +309,7 @@ int TABLE::delete_row(bool treat_versioned)
 {
   int err= 0;
   uchar *del_buf= record[replace ? 1 : 0];
+  String *blob_storage= NULL;
 
   bool delete_row= !treat_versioned
                    || in_use->lex->vers_conditions.delete_history
@@ -326,6 +327,17 @@ int TABLE::delete_row(bool treat_versioned)
     {
       store_record(this, record[1]);
     }
+    /*
+      vers_update_end() computes virtual blobs into Field_blob::value, which
+      holds the virtual blobs of the new row in record[2] (REPLACE) or of the
+      old row in record[1] (computed with VCOL_UPDATE_FOR_DELETE)
+    */
+    if (s->virtual_not_stored_blob_fields)
+    {
+      blob_storage= (String *) alloca(sizeof(String) *
+                                      s->virtual_not_stored_blob_fields);
+      remember_blob_values(blob_storage);
+    }
     vers_update_end();
 
     Field *row_start= vers_start_field();
@@ -335,6 +347,8 @@ int TABLE::delete_row(bool treat_versioned)
 
     if (likely(!delete_row))
       err= file->ha_update_row(record[1], record[0]);
+    if (replace && blob_storage)
+      restore_blob_values(blob_storage);
     if (unlikely(err))
     {
       /*
@@ -350,7 +364,7 @@ int TABLE::delete_row(bool treat_versioned)
                   || err == HA_ERR_FOUND_DUPP_UNIQUE
                   || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
       if (!delete_row)
-        return err;
+        goto end;
     }
 
     if (delete_row)
@@ -363,6 +377,15 @@ int TABLE::delete_row(bool treat_versioned)
   if (delete_row)
     err= file->ha_delete_row(del_buf);
 
+end:
+  /*
+    DELETE: record[0] is the history row, which AFTER DELETE triggers read as
+    OLD, so its generated blobs stay in Field_blob::value. Free the buffers
+    moved aside by remember_blob_values(), kept for ha_update_row() and
+    ha_delete_row() (the ones of record[1] in single-table DELETE).
+  */
+  if (!replace && blob_storage)
+    free_blob_values(blob_storage);
   return err;
 }
 
