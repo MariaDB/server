@@ -9422,7 +9422,7 @@ bool TABLE::vers_update_fields()
   }
 
   if (vfield)
-    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
+    update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
   return res;
 }
 

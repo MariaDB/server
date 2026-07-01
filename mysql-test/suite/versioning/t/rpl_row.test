@@ -71,4 +71,19 @@ select * from t;
 --connection master
 drop table t;
 
+--echo #
+--echo # MDEV-39711 UPDATE on System-Versioned Tables uses the after-value
+--echo #            in Row-format Binlog's before-image
+--echo #            for non-trivial Text/Blob Virtual Columns
+--echo #
+--connection master
+create table t (a text, v text as (right(a, 1)) virtual)
+  with system versioning as select 'before' as a;
+
+update t set a='after';
+--sync_slave_with_master
+select * from t;
+--connection master
+drop table t;
+
 --source rpl_common.inc

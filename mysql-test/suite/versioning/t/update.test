@@ -438,6 +438,15 @@ insert into t (b) values (1);
 insert into t (b) values (1),(1) on duplicate key update a = 3;
 drop table t;
 
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB table (on UPDATE)
+--echo #
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2))
+with system versioning engine=innodb;
+insert t1 values ('2000-01-01', default);
+update t1 set c1= date('2000-01-02');
+drop table t1;
+
 --echo # End of 10.11 tests
 
 source suite/versioning/common_finish.inc;
