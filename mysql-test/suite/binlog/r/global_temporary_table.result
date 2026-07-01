@@ -1325,6 +1325,8 @@ set autocommit=1;
 create global temporary table t (c int) engine=innodb on commit preserve rows;
 set session transaction isolation level serializable;
 flush tables t with read lock;
+Warnings:
+Warning	1809	Table `test`.`t` in system tablespace
 insert t values (1);
 update t set c=c+1;
 # Cleanup
@@ -1354,6 +1356,15 @@ ERROR HY000: 'mysql.help_topic' is not of type 'BASE TABLE'
 drop table mysql.help_topic;
 rename table mysql.help_topic1 to mysql.help_topic;
 disconnect con1;
+# MDEV-40167 - GTT created with the InnoDB incorrectly accept FULLTEXT/VECTOR indexes
+CREATE GLOBAL TEMPORARY TABLE gtt (id INT PRIMARY KEY, body TEXT, FULLTEXT (body))
+ENGINE=InnoDB ON COMMIT PRESERVE ROWS;
+ERROR HY000: Cannot create FULLTEXT index on temporary InnoDB table
+CREATE GLOBAL TEMPORARY TABLE gtt_v (id INT PRIMARY KEY, v VECTOR (4) NOT NULL, VECTOR INDEX (v))
+ENGINE=InnoDB ON COMMIT PRESERVE ROWS;
+ERROR HY000: Cannot create VECTOR index on temporary InnoDB table
+CREATE GLOBAL TEMPORARY TABLE gtt (id INT ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ON COMMIT PRESERVE ROWS;
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#

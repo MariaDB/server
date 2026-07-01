@@ -11055,15 +11055,17 @@ create_table_info_t::create_option_data_directory_is_valid()
 		is_valid = false;
 	}
 
-	/* Do not use DATA DIRECTORY with TEMPORARY TABLE. */
-	if (m_create_info->tmp_table()) {
-		push_warning(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,
-			"InnoDB: DATA DIRECTORY cannot be used"
-			" for TEMPORARY tables.");
-		is_valid = false;
-	}
+        /* Do not use DATA DIRECTORY with TEMPORARY TABLE or
+        GLOBAL TEMPORARY TABLE. */
+        if (m_create_info->tmp_table() || m_create_info->global_tmp_table()) {
+          push_warning_printf(
+                  m_thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_ILLEGAL_HA_CREATE_OPTION,
+                  "InnoDB: DATA DIRECTORY cannot be used for %s tables.",
+                  m_create_info->global_tmp_table()
+                    ? "GLOBAL TEMPORARY" : "TEMPORARY");
+          is_valid = false;
+        }
 
 	/* We check for a DATA DIRECTORY mixed with TABLESPACE in
 	create_option_tablespace_is_valid(), no need to here. */
@@ -11086,6 +11088,7 @@ create_table_info_t::create_options_are_invalid()
 	const char*	ret = NULL;
 	enum row_type	row_format	= m_create_info->row_type;
 	const bool	is_temp 	= m_create_info->tmp_table();
+	const bool	is_global_temp 	= m_create_info->global_tmp_table();
 
 	ut_ad(m_thd != NULL);
 
@@ -11096,7 +11099,7 @@ create_table_info_t::create_options_are_invalid()
 
 	/* Check if a non-zero KEY_BLOCK_SIZE was specified. */
 	if (has_key_block_size) {
-		if (is_temp || innodb_read_only_compressed) {
+		if (is_temp || is_global_temp || innodb_read_only_compressed) {
 			my_error(ER_UNSUPPORTED_COMPRESSED_TABLE, MYF(0));
 			return("KEY_BLOCK_SIZE");
 		}
@@ -11152,7 +11155,7 @@ create_table_info_t::create_options_are_invalid()
 	other incompatibilities. */
 	switch (row_format) {
 	case ROW_TYPE_COMPRESSED:
-		if (is_temp || innodb_read_only_compressed) {
+		if (is_temp || is_global_temp || innodb_read_only_compressed) {
 			my_error(ER_UNSUPPORTED_COMPRESSED_TABLE, MYF(0));
 			return("ROW_FORMAT");
 		}
@@ -11510,7 +11513,8 @@ bool create_table_info_t::innobase_table_flags()
 	rec_format_t	innodb_row_format =
 		get_row_format(m_default_row_format);
 	const bool	is_temp = m_create_info->tmp_table();
-	bool		zip_allowed = !is_temp;
+	const bool	is_global_temp = m_create_info->global_tmp_table();
+	bool		zip_allowed = !is_temp && !is_global_temp;
 
 	const ulint	zip_ssize_max =
 		ut_min(static_cast<ulint>(UNIV_PAGE_SSIZE_MAX),
@@ -11531,7 +11535,7 @@ bool create_table_info_t::innobase_table_flags()
 
 			/* We don't support FTS indexes in temporary
 			tables. */
-			if (is_temp) {
+			if (is_temp || is_global_temp) {
 				my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0),
 					 "FULLTEXT",  "InnoDB");
 				DBUG_RETURN(false);
@@ -11581,7 +11585,7 @@ index_bad:
 		}
 
 		/* Make sure compressed row format is allowed. */
-		if (is_temp) {
+		if (is_temp || is_global_temp) {
 			push_warning(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
@@ -11653,7 +11657,7 @@ index_bad:
 		innodb_row_format = REC_FORMAT_COMPACT;
 		break;
 	case ROW_TYPE_COMPRESSED:
-		if (is_temp) {
+		if (is_temp || is_global_temp) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
@@ -11698,8 +11702,8 @@ index_bad:
 		zip_allowed = false;
 	}
 
-	ut_ad(!is_temp || !zip_allowed);
-	ut_ad(!is_temp || innodb_row_format != REC_FORMAT_COMPRESSED);
+	ut_ad(!(is_temp || is_global_temp) || !zip_allowed);
+	ut_ad(!(is_temp || is_global_temp) || innodb_row_format != REC_FORMAT_COMPRESSED);
 
 	/* Set the table flags */
 	if (!zip_allowed) {
@@ -11929,10 +11933,11 @@ create_table_info_t::set_tablespace_type(
 	/* Ignore the current innodb-file-per-table setting if we are
 	creating a temporary table. */
 	m_use_file_per_table = m_allow_file_per_table
-		&& !m_create_info->tmp_table();
+		&& !m_create_info->tmp_table()
+		&& !m_create_info->global_tmp_table();
 
 	/* DATA DIRECTORY must have m_use_file_per_table but cannot be
-	used with TEMPORARY tables. */
+	used with TEMPORARY tables and global temporary tables. */
 	m_use_data_dir =
 		m_use_file_per_table
 		&& m_create_info->data_file_name
