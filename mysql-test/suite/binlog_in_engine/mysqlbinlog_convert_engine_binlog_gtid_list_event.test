@@ -2,6 +2,7 @@
 # Purpose:
 #   Verify that mariadb-binlog populates synthesized GTID_LIST_EVENTs correctly
 #   when converting InnoDB-format binlogs (.ibb) to legacy binlog files.
+#   Also verify that the generated legacy binlogs contain the expected ROTATE_EVENT.
 #
 # Methodology:
 #   Generate several .ibb files with GTIDs across multiple domains and server
@@ -38,7 +39,7 @@ SET @@session.gtid_domain_id= 1;
 SET @@session.server_id= 2;
 INSERT INTO t2 VALUES (1);
 
-# end of binlog-000000.ibb
+# end of binlog-000000.ibb which will be converted to gtid_conv.000001
 
 FLUSH BINARY LOGS;
 
@@ -52,7 +53,7 @@ SET @@session.gtid_domain_id= 2;
 SET @@session.server_id= 3;
 INSERT INTO t3 VALUES (1);
 
-# end of binlog-000001.ibb
+# end of binlog-000001.ibb which will be converted to gtid_conv.000002
 
 FLUSH BINARY LOGS;
 
@@ -66,14 +67,17 @@ SET @@session.gtid_domain_id= 3;
 SET @@session.server_id= 4;
 INSERT INTO t4 VALUES (1);
 
+# this will trigger a ROTATE_EVENT and will be converted to/end of gtid_conv.000003
+
 --source include/restart_mysqld.inc
+
+# start of converted gtid_conv.000004
 
 SET @@session.gtid_domain_id= 0;
 SET @@session.server_id= 1;
 INSERT INTO t1 VALUES (3);
 
-# end of binlog-000002.ibb
-
+# end of binlog-000002.ibb which will be converted to gtid_conv.000004
 FLUSH BINARY LOGS;
 
 --let $binlog_name= binlog-000003.ibb
@@ -98,6 +102,9 @@ FLUSH BINARY LOGS;
 --let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 2-3-1\]
 --source include/search_pattern_in_file.inc
 
+--let SEARCH_PATTERN= Rotate to gtid_conv.000004
+--source include/search_pattern_in_file.inc
+
 --exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000004 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
 --let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]
 --source include/search_pattern_in_file.inc
@@ -117,6 +124,9 @@ FLUSH BINARY LOGS;
 --let SEARCH_FILE= $MYSQL_TMP_DIR/gtid_conv_listing.txt
 --let SEARCH_PATTERN= Gtid list \[0-1-2,\n# 1-2-1,\n# 1-1-2,\n# 2-3-1,\n# 3-4-1\]
 # TODO: Tarun this search will fail now as this functionality is not yet implemented
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= Rotate to gtid_conv.000002
 --source include/search_pattern_in_file.inc
 
 --remove_file $MYSQL_TMP_DIR/gtid_conv_listing.txt

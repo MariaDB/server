@@ -16,6 +16,7 @@ FLUSH BINARY LOGS;
 FOUND 1 /Gtid list/ in conv_listing.txt
 FOUND 1 /Binlog checkpoint/ in conv_listing.txt
 FOUND 1 /Start: binlog v 4/ in conv_listing.txt
+NOT FOUND /Rotate to/ in conv_listing.txt
 *** Round-trip: replay the converted file and compare data
 DROP TABLE t1;
 SELECT * FROM t1 ORDER BY a;

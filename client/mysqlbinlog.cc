@@ -1812,6 +1812,12 @@ static bool write_gtid_list_event_to_legacy_binlog(FILE *outfile,
   return false;
 }
 
+/* 
+  TODO: Tarun get this reviewed. should i pass the event to this function
+  or alternatively i can just pass the required args 
+  (binlog_file_name, binlog_file_len) to this function
+  and we don't have to extract the constructor for BINLOG_CHECKPOINT_EVENT
+*/
 static bool write_binlog_checkpoint_event_to_legacy_binlog(
     FILE *outfile, Binlog_checkpoint_log_event *bcle)
 {
@@ -1876,6 +1882,64 @@ static bool write_binlog_checkpoint_event_to_legacy_binlog(
   return false;
 }
 
+static bool
+write_rotate_log_event_to_legacy_binlog(FILE *outfile,
+                                        const char *binlog_file_name)
+{
+  char buf[ROTATE_HEADER_LEN];
+  my_bool do_checksum;
+  ha_checksum crc= 0;
+
+  const char *p= binlog_file_name + dirname_length(binlog_file_name);
+  uint ident_len= (uint) strlen(p);
+
+  /* Write header of ROTATE_EVENT */
+  /* TODO: Tarun handle the timestamp */
+  time_t ts= 0;
+  if (write_event_header(outfile, ROTATE_EVENT, ident_len + ROTATE_HEADER_LEN,
+                         ts, &do_checksum, &crc, BINLOG_CHECKSUM_ALG_OFF))
+  {
+    error("Could not write ROTATE_EVENT header to output legacy binlog file");
+    return true;
+  }
+
+  /* Write body of ROTATE_EVENT */
+  int8store(buf + R_POS_OFFSET, BIN_LOG_HEADER_SIZE);
+
+  if (my_fwrite(outfile, (const uchar *) buf, ROTATE_HEADER_LEN, MYF(MY_NABP)))
+  {
+    error("Could not write body into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+
+  if (my_fwrite(outfile, (const uchar *) p, ident_len, MYF(MY_NABP)))
+  {
+    error("Could not write body into converted binlog file '%s'",
+          out_file_name);
+    return true;
+  }
+
+  /* we are not writing the footer because we are not supporting the checksum
+     in every event */
+
+  return false;
+}
+
+
+/*
+  Generates the output legacy binlog file name based on the prefix and the index
+  @param out_name: Char buffer to store the result
+  @param out_name_len: Size of the char buffer
+  @param index: Index of the output legacy binlog file
+*/
+static void generate_output_legacy_binlog_name(char *out_name, size_t out_name_len, ulonglong index)
+{
+  const char *prefix= result_file_name ? result_file_name
+                                       : default_output_legacy_binlog_prefix;
+  my_snprintf(out_name, out_name_len, "%s.%06llu", prefix, index);
+}
+
 static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
                                       size_t out_name_len)
 {
@@ -1883,11 +1947,7 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
   /* Reset the log_file_pos to 0 for the new output legacy binlog file */
   log_file_pos= 0;
 
-  const char *prefix= result_file_name ? result_file_name
-                                       : default_output_legacy_binlog_prefix;
-
-  my_snprintf(out_name, out_name_len, "%s.%06llu", prefix,
-              ++convert_engine_output_index);
+  generate_output_legacy_binlog_name(out_name, out_name_len, ++convert_engine_output_index);
 
   if (!(*out_file= my_fopen(out_name, O_WRONLY | O_BINARY, MYF(MY_WME))))
   {
@@ -1953,15 +2013,27 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
 static Exit_status write_event_to_legacy_binlog(Log_event *ev)
 {
 
-  // if event type is FORMAT_DESCRIPTION_EVENT, store the event in global variable glob_description_event
-  if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT) {
+  // if event type is FORMAT_DESCRIPTION_EVENT, store the event in global
+  // variable glob_description_event
+  if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
+  {
 
     delete glob_description_event;
-    glob_description_event= (Format_description_log_event*) ev;
+    glob_description_event= (Format_description_log_event *) ev;
 
     // close the output legacy binlog file if it is open
-    if (output_legacy_binlog_file) {
-      // TODO: tarun Write the ROTATE_EVENT to the output legacy binlog file
+    if (output_legacy_binlog_file)
+    {
+      char next_out_file_name[FN_REFLEN + 1];
+      generate_output_legacy_binlog_name(next_out_file_name,
+                                         sizeof(next_out_file_name),
+                                         convert_engine_output_index + 1);
+
+      /* Write the ROTATE_EVENT to the output legacy binlog file */
+      if (write_rotate_log_event_to_legacy_binlog(output_legacy_binlog_file,
+                                                  next_out_file_name))
+        goto err;
+
       my_fclose(output_legacy_binlog_file, MYF(0));
       output_legacy_binlog_file= NULL;
     }
@@ -1971,7 +2043,8 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
 
   /*
     Open and initialize the output legacy binlog file.
-    Writes the FORMAT_DESCRIPTION_EVENT, GTID_LIST event, and BINLOG_CHECKPOINT event.
+    Writes the FORMAT_DESCRIPTION_EVENT, GTID_LIST event, and BINLOG_CHECKPOINT
+    event.
   */
   if (!output_legacy_binlog_file)
   {
@@ -1983,15 +2056,17 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
 
   /*
     if event type is GTID_EVENT, update the gtid_state
-    which will be used to write the GTID_LIST_EVENT in 
+    which will be used to write the GTID_LIST_EVENT in
     the next output legacy binlog file.
   */
-  if (ev->get_type_code() == GTID_EVENT) {
+  if (ev->get_type_code() == GTID_EVENT)
+  {
     rpl_gtid ev_gtid;
-    Gtid_log_event *gle= (Gtid_log_event*) ev;
+    Gtid_log_event *gle= (Gtid_log_event *) ev;
     ev_gtid= {gle->domain_id, gle->server_id, gle->seq_no};
 
-    if (gtid_state->update_nolock(&ev_gtid)) {
+    if (gtid_state->update_nolock(&ev_gtid))
+    {
       error("Failed to update GTID state");
       goto err;
     }
@@ -2001,12 +2076,12 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
   if (update_event_end_log_pos(ev))
     goto err;
 
-  // ev->temp_buf contains the raw event bytes and ev->data_written is the length of the event
-  if (my_fwrite(output_legacy_binlog_file, (const uchar *)ev->temp_buf,
+  // ev->temp_buf contains the raw event bytes and ev->data_written is the
+  // length of the event
+  if (my_fwrite(output_legacy_binlog_file, (const uchar *) ev->temp_buf,
                 ev->data_written, MYF(MY_NABP)))
   {
-    error("Could not write into converted binlog file '%s'",
-          out_file_name);
+    error("Could not write into converted binlog file '%s'", out_file_name);
     goto err;
   }
   fflush(output_legacy_binlog_file);
@@ -2018,7 +2093,6 @@ err:
   delete ev;
   return ERROR_STOP;
 }
-
 
 static struct my_option my_options[] =
 {
