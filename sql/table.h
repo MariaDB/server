@@ -1947,6 +1947,8 @@ public:
   inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
   template <bool replace>
   int delete_row(bool versioned);
+  /* Used in multi-table UPDATE and RBR appliers */
+  int vers_update_fields_vcols();
   /* Used in majority of DML (called from fill_record()) */
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */

@@ -3047,8 +3047,9 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-        if (has_vers_fields && table->versioned())
-          table->vers_update_fields();
+        if (has_vers_fields && table->versioned() &&
+            table->vers_update_fields_vcols())
+          goto err2;
 
         if (unlikely((local_error=
                       table->file->ha_update_row(table->record[1],

@@ -71,4 +71,57 @@ select * from t;
 --connection master
 drop table t;
 
+--echo #
+--echo # MDEV-24646 ASAN heap-use-after-free in Field_blob::pack /
+--echo #            THD::binlog_update_row upon DML on table with virtual column
+--echo #
+--connection master
+create table t (a text, v blob as (a) virtual)
+  with system versioning as select 'foo' as a;
+
+update t set a='bar';
+--sync_slave_with_master
+select * from t;
+--connection master
+drop table t;
+
+--echo #
+--echo # MDEV-39711 UPDATE on System-Versioned Tables uses the after-value
+--echo #            in Row-format Binlog's before-image
+--echo #            for non-trivial Text/Blob Virtual Columns
+--echo #
+--connection master
+create table t (a text, v text as (right(a, 1)) virtual)
+  with system versioning as select 'before' as a;
+
+update t set a='after';
+--sync_slave_with_master
+select * from t;
+--connection master
+drop table t;
+
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB table (on UPDATE)
+--echo #            Unversioned master, versioned slave, minimal row image
+--echo #
+--connection master
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+                key (v(10))) engine=innodb;
+--connection slave
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+                key (v(10))) engine=innodb with system versioning;
+--connection master
+set @old_row_image= @@binlog_row_image;
+set binlog_row_image= minimal;
+insert t (id, a) values (1, 'before'), (2, 'start');
+update t set a= 'after';
+set binlog_row_image= @old_row_image;
+--sync_slave_with_master
+check table t extended;
+select id, a, v from t for system_time all force index (v) order by v, id;
+--connection master
+drop table t;
+
 --source rpl_common.inc

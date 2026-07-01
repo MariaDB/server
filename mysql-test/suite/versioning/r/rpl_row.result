@@ -74,6 +74,65 @@ i
 connection master;
 drop table t;
 #
+# MDEV-24646 ASAN heap-use-after-free in Field_blob::pack /
+#            THD::binlog_update_row upon DML on table with virtual column
+#
+connection master;
+create table t (a text, v blob as (a) virtual)
+with system versioning as select 'foo' as a;
+update t set a='bar';
+connection slave;
+select * from t;
+v	a
+bar	bar
+connection master;
+drop table t;
+#
+# MDEV-39711 UPDATE on System-Versioned Tables uses the after-value
+#            in Row-format Binlog's before-image
+#            for non-trivial Text/Blob Virtual Columns
+#
+connection master;
+create table t (a text, v text as (right(a, 1)) virtual)
+with system versioning as select 'before' as a;
+update t set a='after';
+connection slave;
+select * from t;
+v	a
+r	after
+connection master;
+drop table t;
+#
+# MDEV-39306 Index corruption on UPDATE when using versioned InnoDB table (on UPDATE)
+#            Unversioned master, versioned slave, minimal row image
+#
+connection master;
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+key (v(10))) engine=innodb;
+connection slave;
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+key (v(10))) engine=innodb with system versioning;
+connection master;
+set @old_row_image= @@binlog_row_image;
+set binlog_row_image= minimal;
+insert t (id, a) values (1, 'before'), (2, 'start');
+update t set a= 'after';
+set binlog_row_image= @old_row_image;
+connection slave;
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select id, a, v from t for system_time all force index (v) order by v, id;
+id	a	v
+1	before	e
+1	after	r
+2	after	r
+2	start	t
+connection master;
+drop table t;
+#
 # MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
 #
 flush binary logs;
