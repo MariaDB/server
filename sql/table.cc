@@ -8468,6 +8468,21 @@ void TABLE::restore_blob_values(String *blob_storage)
 }
 
 
+/*
+  Free blob values stored by remember_blob_values() without restoring them
+*/
+
+void TABLE::free_blob_values(String *blob_storage)
+{
+  for (Field **vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+  {
+    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
+        !(*vfield_ptr)->vcol_info->stored_in_db)
+      (blob_storage++)->free();
+  }
+}
+
+
 /**
   @brief
   Allocate space for keys
@@ -9441,10 +9456,13 @@ int TABLE::update_generated_fields()
     next_number_field= NULL;
   }
 
-  if (likely(!res) && vfield)
-    res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
-  if (likely(!res) && versioned())
-    vers_update_fields();
+  if (likely(!res))
+  {
+    if (versioned())
+      res= vers_update_fields_vcols();
+    else if (vfield)
+      res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  }
   if (likely(!res))
     res= verify_constraints(false) == VIEW_CHECK_ERROR;
   return res;
@@ -9570,7 +9588,18 @@ bool TABLE::check_period_overlaps(const KEY &key,
   return true;
 }
 
-/* returns true if vers_end_field was updated */
+/**
+  Set row_start and row_end of the row in record[0] unless they have
+  explicit values. For VERS_TRX_ID only row_end is set, regardless of its
+  explicit value.
+
+  Virtual fields are not computed: the caller must call
+  update_virtual_fields(VCOL_UPDATE_FOR_WRITE) afterwards, or use
+  vers_update_fields_vcols().
+
+  @retval true   vers_end_field was updated
+  @retval false  vers_end_field has an explicit value and was not updated
+*/
 bool TABLE::vers_update_fields()
 {
   bool res= false;
@@ -9586,9 +9615,24 @@ bool TABLE::vers_update_fields()
     res= true;
   }
 
-  if (vfield)
-    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
   return res;
+}
+
+
+/**
+  Set the system fields and compute virtual fields, which may depend on them.
+
+  @see vers_update_fields()
+
+  @retval 0      Success
+  @retval other  Error from update_virtual_fields(VCOL_UPDATE_FOR_WRITE)
+*/
+int TABLE::vers_update_fields_vcols()
+{
+  vers_update_fields();
+  if (vfield)
+    return update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  return 0;
 }
 
 
