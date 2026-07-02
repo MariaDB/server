@@ -10680,6 +10680,155 @@ const char *online_alter_check_supported(THD *thd,
 
 
 /**
+  Append exclusive metadata lock requests for all tables related by
+  foreign keys to the given open table: both the parent tables its
+  foreign keys reference and the child tables whose foreign keys
+  reference it.
+
+  Renaming a table rewrites the foreign key metadata that both sides
+  of each relationship share. DML on a related table reads that
+  metadata during prelocking (see prepare_fk_prelocking_list() and
+  prepare_fk_referenced_prelocking_list()) while holding a metadata
+  lock on itself only. Locking the related tables exclusively during
+  a rename serializes the rename with such readers, so that they
+  cannot read the old name and acquire a metadata lock on it after
+  the rename has invalidated it.
+
+  An intention exclusive lock on each related table's schema is
+  requested as well, matching the lock_table_names() protocol.
+
+  @param      thd           Thread context
+  @param      file          Open handler of the table being renamed
+  @param[out] mdl_requests  List to append the lock requests to
+
+  @retval FALSE  Success
+  @retval TRUE   Failure (OOM or handler error)
+*/
+
+static bool
+fk_append_related_table_mdl_requests(THD *thd, handler *file,
+                                     MDL_request_list *mdl_requests)
+{
+  List<FOREIGN_KEY_INFO> child_list;
+  List<FK_TABLE_NAME> parent_list;
+  MDL_request *req;
+
+  if (file->referenced_by_foreign_key())
+  {
+    if (file->get_parent_foreign_key_list(thd, &child_list) ||
+        unlikely(thd->is_error()))
+      return TRUE;
+
+    List_iterator<FOREIGN_KEY_INFO> it(child_list);
+    while (FOREIGN_KEY_INFO *fk= it++)
+    {
+      if (!(req= new (thd->mem_root) MDL_request))
+        return TRUE;
+      MDL_REQUEST_INIT(req, MDL_key::TABLE, fk->foreign_db->str,
+                       fk->foreign_table->str, MDL_EXCLUSIVE,
+                       MDL_TRANSACTION);
+      mdl_requests->push_front(req);
+
+      if (!(req= new (thd->mem_root) MDL_request))
+        return TRUE;
+      MDL_REQUEST_INIT(req, MDL_key::SCHEMA, fk->foreign_db->str, "",
+                       MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
+      mdl_requests->push_front(req);
+    }
+  }
+
+  if (file->references_foreign_key())
+  {
+    if (file->get_fk_referenced_table_names(thd, &parent_list) ||
+        unlikely(thd->is_error()))
+      return TRUE;
+
+    List_iterator<FK_TABLE_NAME> it(parent_list);
+    while (FK_TABLE_NAME *fk= it++)
+    {
+      if (!(req= new (thd->mem_root) MDL_request))
+        return TRUE;
+      MDL_REQUEST_INIT(req, MDL_key::TABLE, fk->db.str, fk->table.str,
+                       MDL_EXCLUSIVE, MDL_TRANSACTION);
+      mdl_requests->push_front(req);
+
+      if (!(req= new (thd->mem_root) MDL_request))
+        return TRUE;
+      MDL_REQUEST_INIT(req, MDL_key::SCHEMA, fk->db.str, "",
+                       MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
+      mdl_requests->push_front(req);
+    }
+  }
+
+  return FALSE;
+}
+
+
+/**
+  Acquire exclusive metadata locks on all tables related by foreign
+  keys to the source tables of a RENAME TABLE statement.
+
+  Must be called after lock_table_names() has acquired exclusive locks
+  on the renamed names: they guarantee that no new foreign keys can be
+  added to or from the renamed tables concurrently (adding a foreign
+  key requires a lock on both tables involved), so the collected set
+  of related tables cannot grow after it has been read.
+
+  Sources that do not exist, are temporary tables, views, or use an
+  engine without foreign key support are skipped: they have no foreign
+  key metadata to protect, and any genuine error they represent is
+  reported by the rename execution itself.
+
+  @param thd         Thread context
+  @param table_list  Renamed tables as (source, target) pairs
+
+  @retval FALSE  Success
+  @retval TRUE   Failure (OOM, handler error or lock acquisition failure)
+*/
+
+bool fk_lock_related_tables(THD *thd, TABLE_LIST *table_list)
+{
+  MDL_request_list mdl_requests;
+  DBUG_ENTER("fk_lock_related_tables");
+
+  for (TABLE_LIST *ren_table= table_list; ren_table;
+       ren_table= ren_table->next_local->next_local)
+  {
+    if (thd->find_temporary_table(ren_table, THD::TMP_TABLE_ANY))
+      continue;
+
+    Dummy_error_handler err_handler;
+    thd->push_internal_handler(&err_handler);
+    TABLE_SHARE *share= tdc_acquire_share(thd, ren_table, GTS_TABLE);
+    TABLE tmp_table;
+    bool table_opened= share &&
+        (share->db_type()->flags & HTON_SUPPORTS_FOREIGN_KEYS) &&
+        !open_table_from_share(thd, share, &empty_clex_str, HA_OPEN_KEYFILE,
+                               0, HA_OPEN_FOR_ALTER, &tmp_table, false);
+    thd->pop_internal_handler();
+
+    bool error= FALSE;
+    if (table_opened)
+    {
+      error= fk_append_related_table_mdl_requests(thd, tmp_table.file,
+                                                  &mdl_requests);
+      closefrm(&tmp_table);
+    }
+    if (share)
+      tdc_release_share(share);
+    if (error)
+      DBUG_RETURN(TRUE);
+  }
+
+  if (mdl_requests.is_empty())
+    DBUG_RETURN(FALSE);
+
+  DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
+                                             thd->variables.lock_wait_timeout));
+}
+
+
+/**
   Alter table
 
   @param thd              Thread handle
@@ -11049,6 +11198,16 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                          MDL_TRANSACTION);
         mdl_requests.push_front(&target_db_mdl_request);
       }
+
+      /*
+        The rename rewrites the foreign key metadata shared with tables
+        related to this one by foreign keys. Lock them exclusively so
+        that concurrent DML cannot read the old name from that metadata
+        and acquire a metadata lock on it after the rename.
+      */
+      if (fk_append_related_table_mdl_requests(thd, table->file,
+                                               &mdl_requests))
+        DBUG_RETURN(true);
 
       /*
         Protection against global read lock must have been acquired when table

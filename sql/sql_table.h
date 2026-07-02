@@ -176,6 +176,7 @@ bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, const LEX_CUSTRING *id,
                         uint flags);
+bool fk_lock_related_tables(THD *thd, TABLE_LIST *table_list);
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 
