@@ -26,6 +26,9 @@
   DOESN'T CONTAIN WARNINGS/ERRORS BEFORE YOU PUSH.
 */
 
+/* Real leaks are reported by ASAN, which we run regularly. */
+// @infer-ignore-every MEMORY_LEAK_C
+
 
 /*
   The fw.c file includes all the mysql_client_test framework; this file
