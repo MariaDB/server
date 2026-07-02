@@ -4683,7 +4683,26 @@ public:
 
     return NULL;
   }
-  /* store value for the duration of the current read record */
+  /*
+    Double-buffering of virtual blob columns with 'value' and 'read_value'.
+    'value' is the scratch buffer that store() writes into (and points the
+    record at), while 'read_value' holds the computed value for the read
+    row. The swap only exchanges buffer ownership, so a record pointer
+    already referring to that memory stays valid until a later swap returns
+    the buffer to 'value' and a store() reuses it.
+
+    enum_vcol_update_mode says which buffer each update_virtual_fields()
+    mode stores blob values into: the modes that store into 'read_value'
+    compute into 'value' and then swap, so a later store() into 'value'
+    does not overwrite the value of the read row.
+
+    Code that reads or computes another row into record[0] while a saved
+    record still points into 'value' keeps 'value' with
+    TABLE::remember_blob_values() and TABLE::restore_blob_values(). A read
+    in between swaps the buffers, so it is swapped back after each read:
+    'read_value' then keeps the buffer of the previously read row, and the
+    buffer of the read stays in 'value' for restore_blob_values() to free.
+  */
   inline void swap_value_and_read_value()
   {
     read_value.swap(value);
