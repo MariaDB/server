@@ -50,6 +50,18 @@ bool DuckdbManager::Initialize()
 
   config.options.use_direct_io= global_use_dio;
 
+  /*
+    Pin the on-disk storage format version to v1.5.2 for newly created
+    databases.  Modern column compression schemes (e.g. DICT_FSST) are gated
+    behind the storage version; with the conservative default DuckDB falls
+    back to the legacy separate Dictionary/FSST encodings, which makes the
+    database file substantially larger.  For a freshly created database
+    (no ATTACH storage_version override) StorageManager derives the storage
+    version from this option.
+  */
+  config.options.serialization_compatibility=
+      duckdb::SerializationCompatibility::FromString("v1.5.2");
+
   if (global_max_threads != 0)
     config.options.maximum_threads= global_max_threads;
 
