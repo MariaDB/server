@@ -225,6 +225,9 @@ public:
         int get_foreign_key_list(THD *thd,
                                  List<FOREIGN_KEY_INFO> *f_key_list) override;
 
+        int get_fk_referenced_table_names(
+                THD *thd, List<FK_TABLE_NAME> *fk_table_list) override;
+
 	int get_parent_foreign_key_list(
 		THD*		thd,
 		List<FOREIGN_KEY_INFO>*	f_key_list) override;
