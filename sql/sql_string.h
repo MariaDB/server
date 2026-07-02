@@ -1120,7 +1120,7 @@ public:
   friend class Field;
   uint32 numchars() const
   {
-    return (uint32) Charset::numchars(ptr(), end());
+    return ptr() ? (uint32) Charset::numchars(ptr(), end()) : 0;
   }
   int charpos(longlong i, uint32 offset=0)
   {
