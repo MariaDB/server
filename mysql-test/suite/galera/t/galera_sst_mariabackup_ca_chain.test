@@ -1,0 +1,25 @@
+# mariabackup SST succeeds when the TLS certificate bundles an intermediate CA.
+#
+# STEPS:
+# 1. Bring up a 2-node cluster whose encrypt=3 socat SST uses a leaf+intermediate
+#    chain certificate (tcert) and a root-only CA file (tca).
+# 2. node_2 joins node_1 via a full SST.
+# 3. Confirm the transfer went through socat SSL with certificate verification.
+#
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Confirm that transfer was SSL-encrypted via socat with the chain certificate.
+--let $assert_text = Using openssl based encryption with socat
+--let $assert_select = Using openssl based encryption with socat: with key and crt
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after = CURRENT_TEST
+--source include/assert_grep.inc
