@@ -14117,9 +14117,12 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   DBUG_ASSERT(db || !db_len);
   // Don't pass db==nullptr to avoid UB nullptr+0 inside copy_with_error()
-  if (unlikely(thd->copy_with_error(system_charset_info,
-                                    (LEX_STRING*) &mpvio->db,
-                                    thd->charset(), db ? db : "", db_len)))
+  // and unnecessary string charset conversion of ""
+  if (db_len == 0)
+    mpvio->db= {STRING_WITH_LEN("")};
+  else if(unlikely(thd->copy_with_error(system_charset_info,
+                                        (LEX_STRING*) &mpvio->db,
+                                        thd->charset(), db, db_len)))
     return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
