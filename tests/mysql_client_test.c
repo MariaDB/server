@@ -15739,6 +15739,7 @@ static void test_bug16143()
   myheader("test_bug16143");
 
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   /* Check mysql_stmt_sqlstate return "no error" */
   DIE_UNLESS(strcmp(mysql_stmt_sqlstate(stmt), "00000") == 0);
 
@@ -15757,6 +15758,7 @@ static void test_bug16144()
 
   /* Check that attr_get returns correct data on little and big endian CPUs */
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (const void*) &flag);
   mysql_stmt_attr_get(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &flag);
   DIE_UNLESS(flag == flag_orig);
@@ -18410,6 +18412,7 @@ static void test_bug38486(void)
   myheader("test_bug38486");
 
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*)&type);
   stmt_text= "CREATE TABLE t1 (a INT)";
   mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
@@ -18417,6 +18420,7 @@ static void test_bug38486(void)
   mysql_stmt_close(stmt);
 
   stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
   mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*)&type);
   stmt_text= "INSERT INTO t1 VALUES (1)";
   mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));

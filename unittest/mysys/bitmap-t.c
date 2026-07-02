@@ -562,7 +562,8 @@ my_bool test_bitmap_exists_intersection(MY_BITMAP *map, uint bitsize)
   maps[0]= map;
   maps[1]= &map2;
 
-  my_bitmap_init(&map2, 0, bitsize);
+  if (my_bitmap_init(&map2, 0, bitsize))
+    BAIL_OUT("my_bitmap_init failed (out of memory)");
   bitmap_clear_all(map);
   bitmap_clear_all(&map2);
 
