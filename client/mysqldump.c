@@ -2579,7 +2579,7 @@ static uint dump_events_for_db(char *db)
   char       *event_name;
   char       delimiter[QUERY_LENGTH];
   FILE       *sql_file= md_result_file;
-  MYSQL_RES  *event_res, *event_list_res;
+  MYSQL_RES  *event_res= NULL, *event_list_res= NULL;
   MYSQL_ROW  row, event_list_row;
 
   char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
@@ -2617,14 +2617,11 @@ static uint dump_events_for_db(char *db)
       /* Get database collation. */
 
       if (fetch_db_collation(db_name_buff, db_cl_name, sizeof (db_cl_name)))
-      {
-        mysql_free_result(event_list_res);
-        DBUG_RETURN(1);
-      }
+        goto err;
     }
 
     if (switch_character_set_results(mysql, "binary"))
-      DBUG_RETURN(1);
+      goto err;
 
     while ((event_list_row= mysql_fetch_row(event_list_res)) != NULL)
     {
@@ -2634,7 +2631,7 @@ static uint dump_events_for_db(char *db)
           event_name);
 
       if (mysql_query_with_error_report(mysql, &event_res, query_buff))
-        DBUG_RETURN(1);
+        goto err;
 
       while ((row= mysql_fetch_row(event_res)) != NULL)
       {
@@ -2661,7 +2658,7 @@ static uint dump_events_for_db(char *db)
           {
             fprintf(stderr, "%s: Warning: Can't create delimiter for event '%s'\n",
                     my_progname_short, event_name);
-            DBUG_RETURN(1);
+            goto err;
           }
 
           fprintf(sql_file, "DELIMITER %s\n", delimiter);
@@ -2670,9 +2667,7 @@ static uint dump_events_for_db(char *db)
           {
             if (switch_db_collation(sql_file, db_name_buff, delimiter,
                                     db_cl_name, row[6], &db_cl_altered))
-            {
-              DBUG_RETURN(1);
-            }
+              goto err;
 
             switch_cs_variables(sql_file, delimiter,
                                 row[4],   /* character_set_client */
@@ -2723,12 +2718,13 @@ static uint dump_events_for_db(char *db)
             {
               if (restore_db_collation(sql_file, db_name_buff, delimiter,
                                        db_cl_name))
-                DBUG_RETURN(1);
+                goto err;
             }
           }
         }
       } /* end of event printing */
       mysql_free_result(event_res);
+      event_res= NULL;
 
     } /* end of list of events */
     if (opt_xml)
@@ -2743,13 +2739,21 @@ static uint dump_events_for_db(char *db)
     }
 
     if (switch_character_set_results(mysql, default_charset))
-      DBUG_RETURN(1);
+      goto err;
   }
   mysql_free_result(event_list_res);
 
   if (lock_tables)
     (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
   DBUG_RETURN(0);
+
+err:
+  mysql_free_result(event_res);
+  mysql_free_result(event_list_res);
+  (void) switch_character_set_results(mysql, default_charset);
+  if (lock_tables)
+    (void) mysql_query_with_error_report(mysql, 0, "UNLOCK TABLES");
+  DBUG_RETURN(1);
 }
 
 
