@@ -1405,9 +1405,13 @@ verify_ca_matches_cert()
 
     local not_match=0
     local errmsg
+    # -untrusted lets intermediate CAs bundled after the leaf complete the
+    # chain to the CA. Safe despite the name: these are only candidate links,
+    # still rejected unless signed back to the trusted CA (-CAfile).
     errmsg=$("$OPENSSL_BINARY" verify -verbose \
                                ${ca:+ -CAfile} ${ca:+ "$ca"} \
                                ${cap:+ -CApath} ${cap:+ "$cap"} \
+                               -untrusted "$cert" \
                                "$cert" 2>&1) || not_match=1
 
     if [ $not_match -eq 1 ]; then
