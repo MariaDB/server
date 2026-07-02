@@ -459,6 +459,9 @@ static const char *opt_related_sys_vars[]=
   NULL
 };
 
+static const char *read_only_info_sys_vars[]= {
+    "version", "version_source_revision", NULL};
+
 static const char *excluded_sys_vars[]= {"optimizer_replay_context",
                                          "optimizer_record_context", NULL};
 
@@ -523,18 +526,30 @@ static void store_system_variables(THD *thd, String &script)
   {
     if (is_optimizer_related_var(excluded_sys_vars, show_var->name))
       continue;
+
+    bool is_informative_sys_var= false;
+
     if (strstr(show_var->name, "optimizer") != NULL ||
-        is_optimizer_related_var(opt_related_sys_vars, show_var->name))
+        is_optimizer_related_var(opt_related_sys_vars, show_var->name) ||
+        (is_informative_sys_var= is_optimizer_related_var(
+             read_only_info_sys_vars, show_var->name)))
     {
       sys_var *var= (sys_var *) show_var->value;
       mysql_mutex_lock(&LOCK_global_system_variables);
       pos= get_one_variable(thd, show_var, SHOW_OPT_SESSION, show_var->type,
                             NULL, &charset_info, buf.c_ptr_safe(), &len);
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      script.append(STRING_WITH_LEN("SET "));
+      if (is_informative_sys_var)
+      {
+        script.append(STRING_WITH_LEN("## "));
+      }
+      else
+      {
+        script.append(STRING_WITH_LEN("SET "));
 
-      if (var->check_type(SHOW_OPT_SESSION))
-        script.append(STRING_WITH_LEN("GLOBAL "));
+        if (var->check_type(SHOW_OPT_SESSION))
+          script.append(STRING_WITH_LEN("GLOBAL "));
+      }
 
       script.append(show_var->name, strlen(show_var->name));
       script.append(STRING_WITH_LEN("="));
