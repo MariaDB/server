@@ -1,0 +1,44 @@
+#
+# MDEV-38843: applier torn down with an active transaction must not assert
+# m_local in transaction::after_statement() via client_state::close().
+# STEPS:
+#   1. Force a node_2 applier commit to return an error; after_apply() is
+#      then skipped and the applier transaction is left active.
+#   2. The apply error makes node_2 lose the consensus vote and leave the
+#      primary component, so the applier exits with the transaction active
+#      and client_state::close() cleans it up.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1'
+--source include/wait_condition.inc
+SET GLOBAL debug_dbug = '+d,simulate_commit_failure_in_applier';
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+# node_2 loses the vote and leaves; the applier tears down with an active trx.
+--source include/wsrep_wait_disconnect.inc
+--let $members = 0
+--source include/wsrep_wait_membership.inc
+
+SET SESSION wsrep_on = OFF;
+--source include/shutdown_mysqld.inc
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+
+--connection node_1
+DROP TABLE t1;
+
+--connection node_2
+CALL mtr.add_suppression("Inconsistency detected");
+CALL mtr.add_suppression("WSREP: Failed to apply write set");
+CALL mtr.add_suppression("Vote 0 .* against");

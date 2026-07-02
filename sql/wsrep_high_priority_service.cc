@@ -316,6 +316,9 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
   DBUG_ENTER("Wsrep_high_priority_service::commit");
   THD* thd= m_thd;
   DBUG_ASSERT(thd->wsrep_trx().active());
+  // Simulate an applier commit failure (e.g. commit order could not be
+  // entered because the node is leaving the primary component).
+  DBUG_EXECUTE_IF("simulate_commit_failure_in_applier", DBUG_RETURN(1););
   thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
   thd_proc_info(thd, "committing");
   int ret=0;
