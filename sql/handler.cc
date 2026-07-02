@@ -6485,10 +6485,9 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
   @param frm            an frm image or NULL (meaning, read it from the file)
   @param skip_frm_file  do not write the frm image to the .frm file
 
-  @retval
-   0  ok
-  @retval
-   1  error
+  @retval 0  ok
+  @retval 1  error. Any table (and high level index tables) that were
+             created are dropped before returning.
 */
 int ha_create_table(THD *thd, const char *path, const char *db,
                     const char *table_name, HA_CREATE_INFO *create_info,
@@ -6580,10 +6579,18 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       uint unused;
       if ((error= ha_create_table_from_share(thd, &index_share, &index_cinfo,
                                              &unused)))
+      {
+        ha_delete_table(thd, create_info->db_type, file_name,
+                        &share.db, &share.table_name, 0);
         break;
+      }
     }
     thd->lex->sql_command= old_sql_command;
     free_table_share(&index_share);
+
+    if (error)
+      ha_delete_table(thd, create_info->db_type, path,
+                      &share.db, &share.table_name, 0);
   }
 
 err:
