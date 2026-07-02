@@ -102,6 +102,8 @@ SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER
 SET standard_compliant_cte='ON';
 SET time_zone='REPLACED';
 SET timestamp=REPLACED;
+## version='REPLACED';
+## version_source_revision='REPLACED';
 
 select count(*) from t1;
 count(*)
