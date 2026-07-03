@@ -3727,18 +3727,6 @@ Replicate_events_marked_for_skip
 
 /* new options for semisync */
 
-static bool
-check_rpl_semi_sync_master_enabled(sys_var *self, THD *thd, set_var *var)
-{
-  if (opt_binlog_engine_hton && var->save_result.ulonglong_value)
-  {
-    my_error(ER_NOT_YET_SUPPORTED_ENGINE_BINLOG, MYF(0),
-             "Semi-synchronous replication");
-    return true;
-  }
-  return false;
-}
-
 static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
                                              enum_var_type type)
 {
@@ -3786,6 +3774,20 @@ static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
   return false;
 }
 
+static bool check_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
+                                                  set_var *var)
+{
+  if (opt_binlog_engine_hton &&
+      var->save_result.ulonglong_value ==
+      SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC)
+  {
+    my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0),
+             "rpl_semi_sync_master_wait_point=AFTER_SYNC");
+    return true;
+  }
+  return false;
+}
+
 static Sys_var_on_access_global<Sys_var_mybool,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED>
 Sys_semisync_master_enabled(
@@ -3793,8 +3795,7 @@ Sys_semisync_master_enabled(
        "Enable semi-synchronous replication master (disabled by default).",
        GLOBAL_VAR(rpl_semi_sync_master_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_rpl_semi_sync_master_enabled),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_enabled));
 
 static Sys_var_on_access_global<Sys_var_ulong,
@@ -3841,7 +3842,8 @@ Sys_semisync_master_wait_point(
        "or after having committed in storage engine.",
        GLOBAL_VAR(rpl_semi_sync_master_wait_point), CMD_LINE(REQUIRED_ARG),
        repl_semisync_wait_point, DEFAULT(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_rpl_semi_sync_master_wait_point),
        ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
 
 static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,

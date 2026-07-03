@@ -1,4 +1,12 @@
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+ERROR HY000: rpl_semi_sync_master_wait_point=AFTER_SYNC is not available when --binlog-storage-engine is enabled
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
 SET GLOBAL rpl_semi_sync_master_enabled= 1;
-ERROR HY000: Semi-synchronous replication is not yet supported with --binlog-storage-engine
+SELECT @@GLOBAL.rpl_semi_sync_master_enabled;
+@@GLOBAL.rpl_semi_sync_master_enabled
+1
+SET GLOBAL rpl_semi_sync_master_enabled= 0;
+SET GLOBAL rpl_semi_sync_master_enabled= DEFAULT;
+SET GLOBAL rpl_semi_sync_master_wait_point= DEFAULT;
 SELECT BINLOG_GTID_POS("binlog-000000.ibb", 4096);
 ERROR HY000: BINLOG_GTID_POS() is not available when --binlog-storage-engine is enabled

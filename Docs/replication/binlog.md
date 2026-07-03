@@ -117,7 +117,8 @@ These are the chunk types used:
 A few things are not supported with the new binlog implementation. Some of these should be supported in a later version of MariaDB.
 
 #. Old-style filename/offset replication positions are not available with the new binlog. Slaves must be configured to use GTID (this is the default). Event offsets are generally reported as zero. `MASTER_POS_WAIT()` is not available, `MASTER_GTID_WAIT()` should be used instead. Similarly, `BINLOG_GTID_POS()` is not available.
-#. Semi-synchronous replication is not supported in the first version. It will be supported as normal eventually using the `AFTER_COMMIT` option. The `AFTER_SYNC` option cannot be supported, as the expensive two-phase commit between binlog and engine is no longer needed (`AFTER_SYNC` waits for slave acknowledgement in the middle of the two-phase commit). Likewise, `--init-rpl-role` is not supported.
+#. The `AFTER_SYNC` option of semi-synchronous replication is not supported, as the expensive two-phase commit between binlog and engine is eliminated (`AFTER_SYNC` waits for slave acknowledgement in the middle of the two-phase commit). Instead, `AFTER_COMMIT` can be used.
+#. The `--init-rpl-role` option is not supported.
 #. The new binlog implementation cannot be used with Galera.
 #. In the initial version, only InnoDB is available as an engine for the binlog (`--binlog-storage-engine=innodb`). It the future, other transactional storage engines could implement storing the binlog themselves (performance is best when the binlog is implemented in the same engine as the tables that are updated).
 #. The `sync_binlog` option is no longer needed and is effectively ignored. Since the binlog files are now crash-safe without needing any syncing. The durability of commits is now controlled solely by the `--innodb-flush-log-at-trx-commit` option, which now applies to both binlog files and InnoDB table data.

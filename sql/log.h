@@ -799,6 +799,12 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
   */
   int new_file_impl();
   void do_checkpoint_request(ulong binlog_id);
+  /*
+    Handle semi-sync report_binlog_update() when using the engine-implemented
+    binlog.
+  */
+  int semisync_report_update_engine(THD *thd, uint64_t file_no,
+                                    uint64_t log_pos, const rpl_gtid *gtid);
   int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
   int queue_for_group_commit(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);

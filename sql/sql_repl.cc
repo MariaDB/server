@@ -2516,7 +2516,11 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
   if (opt_binlog_engine_hton)
-    pos= 4;  // ToDo: Support for semi-sync in binlog-in-engine
+    /*
+      In --binlog-storage-engine mode semisync identity is GTID-based, so
+      file/offset is not used for matching acknowledgements.
+    */
+    pos= 4;
   else
     pos= my_b_tell(log);
   if (end_of_group_event &&
