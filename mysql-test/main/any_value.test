@@ -6,14 +6,14 @@ CREATE TABLE t0 (a INT, b INT);
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, b INT);
 CREATE TABLE t3 (c INT, d INT);
-CREATE TABLE t4 (x INT, y INT, z INT);
+CREATE TABLE t4 (x INT, y INT, z CHAR(1));
 CREATE TABLE t5 (x INT, y INT, INDEX idx (y, x));
 CREATE TABLE t6 (x INT, y CHAR(1), z INT);
 INSERT INTO t0 VALUES (NULL,10),(NULL,10),(NULL,20),(NULL,20),(NULL,30);
 INSERT INTO t1 VALUES (NULL,NULL),(NULL,NULL),(NULL,NULL);
 INSERT INTO t2 VALUES (1,10),(2,10),(NULL,20),(3,20),(NULL,30),(4,40);
 INSERT INTO t3 VALUES (1,100),(2,200),(3,300);
-INSERT INTO t4 VALUES (1,10,10),(2,10,10),(3,20,20),(4,20,20),(5,30,30);
+INSERT INTO t4 VALUES (1,10,'a'),(2,10,'a'),(3,20,'b'),(4,20,'b'),(5,30,'c');
 INSERT INTO t5 VALUES (1,10),(2,10),(3,20),(4,20),(5,30);
 INSERT INTO t6 VALUES (1,'a',1),(1,'a',2),(1,'b',3),(1,'b',4),(2,'a',5),(2,'a',6),(2,'b',7);
 
@@ -54,7 +54,6 @@ SELECT ANY_VALUE(b) FROM t2 GROUP BY b;
 # Expression inside ANY_VALUE
 SELECT b, ANY_VALUE(a + 100) FROM t2 GROUP BY b;
 SELECT b, ANY_VALUE(a * 2 + b) FROM t2 GROUP BY b;
-SELECT y, ANY_VALUE(x + z) FROM t4 GROUP BY y;
 
 #
 # NULL handling
@@ -81,7 +80,7 @@ SELECT b, (SELECT SUM(t3.d) + SUM(t2.a) FROM t3) AS sub FROM t2 GROUP BY b;
 SELECT b, (SELECT SUM(t3.d) + ANY_VALUE(t2.a) FROM t3) AS sub FROM t2 GROUP BY b;
 
 # In HAVING
-SELECT y, ANY_VALUE(z) FROM t4 GROUP BY y HAVING ANY_VALUE(z) = 20;
+SELECT y, ANY_VALUE(z) FROM t4 GROUP BY y HAVING ANY_VALUE(z) = 'b';
 
 # Rollup
 SELECT x, y, ANY_VALUE(z) FROM t6 GROUP BY x, y WITH ROLLUP;
@@ -90,8 +89,15 @@ SELECT x, y, ANY_VALUE(z) FROM t6 GROUP BY x, y WITH ROLLUP;
 # As a window function
 #
 
-SELECT x, y, ANY_VALUE(x) OVER (PARTITION BY y) AS w FROM t4 ORDER BY x;
-SELECT x, y, ANY_VALUE(x) OVER () AS w FROM t4 ORDER BY x;
+# NOTE: When used as a window function, ANY_VALUE()'s return value can vary
+# across executions. The internal iteration order of the temp table used
+# for window computation can depend on the in-memory position of rows, which may
+# be different from run to run. Thus, when writing such test cases, it is
+# important that the ANY_VALUE column is functionally dependent on the PARTITION
+# BY column, else you risk creating flaky tests.
+
+SELECT x, y, ANY_VALUE(z) OVER (PARTITION BY y) AS w FROM t4 ORDER BY x;
+SELECT x, y, ANY_VALUE(z) OVER () AS w FROM t4 ORDER BY x;
 SELECT x, y, ANY_VALUE(z) OVER (PARTITION BY y ORDER BY x) AS w FROM t4 ORDER BY x;
 
 DROP TABLE t0,t1,t2,t3,t4,t5,t6;
