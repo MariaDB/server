@@ -773,6 +773,8 @@ list_fields(MYSQL *mysql,const char *db,const char *table,
   print_res_top(result);
   if (opt_show_keys)
   {
+    mysql_free_result(result);          /* free the columns result set */
+    result= NULL;
     my_snprintf(query, sizeof(query), "show keys from `%s`", table);
     if (mysql_query(mysql,query) || !(result=mysql_store_result(mysql)))
     {

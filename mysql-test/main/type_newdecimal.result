@@ -3053,4 +3053,16 @@ truncate 2
 select '12185184186.000000000000000000000000000024692343000000000000000000000000000000000002' as 'exact result';
 exact result
 12185184186.000000000000000000000000000024692343000000000000000000000000000000000002
+#
+# MDEV-39744: Assertion `buf != end` failed in `decimal_mul`
+#
+SET @old_prec_incr= @@SESSION.div_precision_increment;
+SET @@SESSION.div_precision_increment=0;
+SELECT ((273 / 941) * (-299 / 450)) as x;
+x
+0
+SELECT (-299 / 450) AS neg_div;
+neg_div
+0
+SET @@SESSION.div_precision_increment=@old_prec_incr;
 # End of 10.11 tests

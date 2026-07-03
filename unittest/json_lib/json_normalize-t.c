@@ -223,7 +223,8 @@ check_number_normalize(const char *in, const char *expected)
   int err;
   DYNAMIC_STRING buf;
 
-  init_dynamic_string(&buf, NULL, 0, 0);
+  if (init_dynamic_string(&buf, NULL, 0, 0))
+    BAIL_OUT("init_dynamic_string failed (out of memory)");
 
   err= json_normalize_number(&buf, in, strlen(in));
   ok(err == 0, "normalize number err?");

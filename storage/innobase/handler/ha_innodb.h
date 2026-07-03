@@ -710,7 +710,10 @@ private:
 	/** Connection thread handle. */
 	THD*		m_thd;
 
-	/** InnoDB transaction handle. */
+	/** InnoDB transaction handle. Non-NULL only when
+	create is invoked from an truncation operation.
+	NULL for regular CREATE TABLE and ALTER TABLE,
+	which build their own transaction internally. */
 	trx_t*		m_trx;
 
 	/** Information on table columns and indexes. */
