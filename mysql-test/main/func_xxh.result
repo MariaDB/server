@@ -116,11 +116,11 @@ bin_ne
 1
 ## 8. Charset conversion
 SET NAMES utf8mb4;
-SELECT XXH32(CONVERT('café' USING utf8mb4));
-XXH32(CONVERT('café' USING utf8mb4))
+SELECT XXH32(_utf8mb4 'café') as utf8exp;
+utf8exp
 1341024521
-SELECT XXH32(CONVERT('café' USING latin1));
-XXH32(CONVERT('café' USING latin1))
+SELECT XXH32(CONVERT(_utf8mb4 'café' USING latin1)) as latin1exp;
+latin1exp
 2242119311
 ## 9. Reject non-string types
 SELECT XXH32(1);
@@ -165,7 +165,7 @@ NULL	NULL	NULL
 	0	0
 beta	993120499	1451779014391855821
 alpha	1378942857	12739993147785832021
-SELECT * FROM t_gen WHERE h3s = XXH3('alpha');
+SELECT * FROM t_gen WHERE h3s = XXH3(_utf8mb4'alpha');
 d	h32v	h3s
 alpha	1378942857	12739993147785832021
 DROP TABLE t_gen;

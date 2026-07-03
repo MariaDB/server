@@ -77,8 +77,8 @@ SELECT XXH32(_latin1 'ABC' COLLATE latin1_bin) <> XXH32(_latin1 'abc' COLLATE la
 
 --echo ## 8. Charset conversion
 SET NAMES utf8mb4;
-SELECT XXH32(CONVERT('café' USING utf8mb4));
-SELECT XXH32(CONVERT('café' USING latin1));
+SELECT XXH32(_utf8mb4 'café') as utf8exp;
+SELECT XXH32(CONVERT(_utf8mb4 'café' USING latin1)) as latin1exp;
 
 --echo ## 9. Reject non-string types
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
@@ -126,7 +126,7 @@ INSERT INTO t_gen (d) VALUES ('alpha'),('beta'),(NULL),('');
 
 SELECT d, h32v, h3s FROM t_gen ORDER BY h3s;
 
-SELECT * FROM t_gen WHERE h3s = XXH3('alpha');
+SELECT * FROM t_gen WHERE h3s = XXH3(_utf8mb4'alpha');
 
 DROP TABLE t_gen;
 
@@ -134,7 +134,9 @@ DROP TABLE t_gen;
 CREATE OR REPLACE FUNCTION fxh32(s VARCHAR(255)) RETURNS INT UNSIGNED DETERMINISTIC RETURN XXH32(s);
 CREATE OR REPLACE FUNCTION fxh3(s VARCHAR(255)) RETURNS BIGINT UNSIGNED DETERMINISTIC RETURN XXH3(s);
 
+--disable_view_protocol
 SELECT fxh32('abc') = XXH32('abc'), fxh3('abc') = XXH3('abc');
+--enable_view_protocol
 
 DROP FUNCTION fxh32;
 DROP FUNCTION fxh3;
