@@ -66,7 +66,7 @@ struct Trans_binlog_info : public Repl_semi_sync_trx_info {
   void set(const Repl_semi_sync_trx_info *inf);
   void set(const char *log_file, my_off_t log_pos, const rpl_gtid *gtid);
   void clear();
-  bool is_clear() { return log_pos == 0; }
+  bool is_clear() { return log_pos == 0 && gtid.seq_no == 0; }
 };
 
 

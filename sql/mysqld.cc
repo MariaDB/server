@@ -5845,10 +5845,12 @@ static int init_server_components()
       unireg_abort(1);
     }
 #ifdef HAVE_REPLICATION
-    if (rpl_semi_sync_master_enabled)
+    if (rpl_semi_sync_master_enabled &&
+        rpl_semi_sync_master_wait_point ==
+          SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC)
     {
-      sql_print_error("Semi-synchronous replication is not yet supported "
-                      "with --binlog-storage-engine");
+      sql_print_error("rpl_semi_sync_master_wait_point=AFTER_SYNC is not "
+                      "supported with --binlog-storage-engine");
       unireg_abort(1);
     }
     if (rpl_status != RPL_AUTH_MASTER)

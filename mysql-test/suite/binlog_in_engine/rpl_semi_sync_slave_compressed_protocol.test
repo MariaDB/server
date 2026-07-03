@@ -1,0 +1,6 @@
+--source include/have_innodb_binlog.inc
+--source ../rpl/t/rpl_semi_sync_slave_compressed_protocol.test
+
+# A small trick, we include this again so it can override the .cnf from
+# the --source include/master-slave.inc in the included test case.
+--source include/have_innodb_binlog.inc

@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (i INT);
+DROP TABLE t1;
+include/rpl_sync.inc
+include/assert_grep.inc [Check that there is no 'Read semi-sync reply magic number error' in error log.]
+connection master;
+SET @@GLOBAL. rpl_semi_sync_master_enabled = $sav_enabled_master;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = $sav_enabled_slave;
+include/start_slave.inc
+include/rpl_end.inc
