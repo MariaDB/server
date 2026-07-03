@@ -140,6 +140,7 @@ static my_bool abort_on_error= 1, opt_continue_on_error= 0;
 static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
 static my_bool optimizer_trace_active= 0;
+static my_bool enable_sync_gtid= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
 { "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
@@ -169,7 +170,8 @@ static struct property prop_list[] = {
   { &service_connection_enabled, 0, 1, 0, "$ENABLED_SERVICE_CONNECTION"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
-  { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" }
+  { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" },
+  { &enable_sync_gtid, 0, 0, 0, "$ENABLED_SYNC_GTID" }
 };
 
 static my_bool once_property= FALSE;
@@ -188,6 +190,7 @@ enum enum_prop {
   P_QUERY,
   P_RESULT,
   P_WARN,
+  P_SYNC_GTID,
   P_MAX
 };
 
@@ -311,6 +314,8 @@ struct MasterPos
   char file[FN_REFLEN];
   char gtid[256];
   ulong pos;
+  DYNAMIC_STRING gtid_pos;
+  bool gtid_pos_set;
 } master_pos;
 
 /* if set, all results are concated and compared against this file */
@@ -388,6 +393,7 @@ enum enum_commands {
   Q_ENABLE_QUERY_LOG, Q_DISABLE_QUERY_LOG,
   Q_ENABLE_RESULT_LOG, Q_DISABLE_RESULT_LOG,
   Q_ENABLE_CONNECT_LOG, Q_DISABLE_CONNECT_LOG,
+  Q_ENABLE_SYNC_GTID, Q_DISABLE_SYNC_GTID,
   Q_WAIT_FOR_SLAVE_TO_STOP,
   Q_ENABLE_WARNINGS, Q_DISABLE_WARNINGS,
   Q_ENABLE_INFO, Q_DISABLE_INFO,
@@ -472,6 +478,8 @@ const char *command_names[]=
   "disable_result_log",
   "enable_connect_log",
   "disable_connect_log",
+  "enable_sync_gtid",
+  "disable_sync_gtid",
   "wait_for_slave_to_stop",
   "enable_warnings",
   "disable_warnings",
@@ -5344,28 +5352,45 @@ void do_sync_with_master2(struct st_command *command, long offset,
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
+  DYNAMIC_STRING ds_query;
+  const char *query_ptr;
   MYSQL *mysql= cur_con->mysql;
   char query_buf[FN_REFLEN+128], query_buf2[256];
   int timeout= opt_wait_for_pos_timeout;
 
-  if (!master_pos.file[0])
+  if ((enable_sync_gtid && !master_pos.gtid_pos_set) ||
+      (!enable_sync_gtid && !master_pos.file[0]))
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  snprintf(query_buf, sizeof(query_buf),
-          "select master_pos_wait('%s', %ld, %d, '%s')",
-          master_pos.file, master_pos.pos + offset, timeout,
-          connection_name);
+  if (enable_sync_gtid)
+  {
+    init_dynamic_string(&ds_query, "select master_gtid_wait('",
+                        master_pos.gtid_pos.length+32, 256);
+    dynstr_append_mem(&ds_query, master_pos.gtid_pos.str,
+                      master_pos.gtid_pos.length);
+    sprintf(query_buf, "', %d)", timeout);
+    dynstr_append_mem(&ds_query, query_buf, strlen(query_buf));
+    query_ptr= ds_query.str;
+  }
+  else
+  {
+    snprintf(query_buf, sizeof(query_buf),
+            "select master_pos_wait('%s', %ld, %d, '%s')",
+            master_pos.file, master_pos.pos + offset, timeout,
+            connection_name);
+    query_ptr= query_buf;
+  }
 
-  if (mysql_query(mysql, query_buf))
-    die("failed in '%s': %d: %s", query_buf, mysql_errno(mysql),
+  if (mysql_query(mysql, query_ptr))
+    die("failed in '%s': %d: %s", query_ptr, mysql_errno(mysql),
         mysql_error(mysql));
 
   if (!(res= mysql_store_result(mysql)))
-    die("mysql_store_result() returned NULL for '%s'", query_buf);
+    die("mysql_store_result() returned NULL for '%s'", query_ptr);
   if (!(row= mysql_fetch_row(res)))
   {
     mysql_free_result(res);
-    die("empty result in %s", query_buf);
+    die("empty result in %s", query_ptr);
   }
 
   int result= -99;
@@ -5408,6 +5433,23 @@ void do_sync_with_master2(struct st_command *command, long offset,
     }
     /* purify end tested */
 
+
+    if (master_pos.gtid_pos_set &&
+        !mysql_query(mysql, "select @@global.gtid_slave_pos"))
+    {
+      if ((res= mysql_store_result(mysql)))
+      {
+        if ((row= mysql_fetch_row(res)))
+        {
+          fprintf(stderr, "Slave GTID position: %s\n",
+                  get_col_value(res, row, "@@global.gtid_slave_pos"));
+          fprintf(stderr, "Master GTID position: %s\n",
+                  master_pos.gtid_pos.str);
+        }
+        mysql_free_result(res);
+      }
+    }
+
     if (!result_str)
     {
       /*
@@ -5418,17 +5460,20 @@ void do_sync_with_master2(struct st_command *command, long offset,
       */
       die("%.*sB failed: '%s' returned NULL "            \
           "indicating slave SQL thread failure",
-          command->first_word_len, command->query, query_buf);
+          command->first_word_len, command->query, query_ptr);
     }
 
     if (result == -1)
       die("%.*sB failed: '%s' returned -1 "            \
           "indicating timeout after %d seconds",
-          command->first_word_len, command->query, query_buf, timeout);
+          command->first_word_len, command->query, query_ptr, timeout);
     else
       die("%.*sB failed: '%s' returned unknown result :%d",
-          command->first_word_len, command->query, query_buf, result);
+          command->first_word_len, command->query, query_ptr, result);
   }
+
+  if (enable_sync_gtid)
+    dynstr_free(&ds_query);
 
   return;
 }
@@ -5477,17 +5522,26 @@ int do_save_master_pos()
   const char *query;
   DBUG_ENTER("do_save_master_pos");
 
-  if (mysql_query(mysql, query= "show master status"))
-    die("failed in 'show master status': %d %s",
+  query= enable_sync_gtid ? "select @@gtid_binlog_pos" : "show master status";
+  if (mysql_query(mysql, query))
+    die("failed in '%s': %d %s", query,
 	mysql_errno(mysql), mysql_error(mysql));
 
   if (!(res = mysql_store_result(mysql)))
     die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
-    die("empty result in show master status");
-  strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
-  master_pos.pos= strtoul(row[1], (char**) 0, 10);
-  strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
+    die("empty result in %s", query);
+  if (enable_sync_gtid)
+  {
+    dynstr_set(&master_pos.gtid_pos, row[0]);
+    master_pos.gtid_pos_set= 1;
+  }
+  else
+  {
+    strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
+    master_pos.pos = strtoul(row[1], (char**) 0, 10);
+    strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
+  }
   mysql_free_result(res);
   DBUG_RETURN(0);
 }
@@ -13189,6 +13243,7 @@ int main(int argc, char **argv)
   }
 
   memset(&master_pos, 0, sizeof(master_pos));
+  init_dynamic_string(&master_pos.gtid_pos, "", 1, 256);
 
   parser.current_line= parser.read_lines= 0;
   memset(&var_reg, 0, sizeof(var_reg));
@@ -13231,6 +13286,7 @@ int main(int argc, char **argv)
   var_set_int("$ENABLED_ABORT_ON_ERROR", 1);
   var_set_int("$ENABLED_RESULT_LOG", 1);
   var_set_int("$ENABLED_CONNECT_LOG", 0);
+  var_set_int("$ENABLED_SYNC_GTID", enable_sync_gtid);
   var_set_int("$ENABLED_WARNINGS", 1);
   var_set_int("$ENABLED_INFO", 0);
   var_set_int("$ENABLED_METADATA", 0);
@@ -13424,6 +13480,12 @@ int main(int argc, char **argv)
         break;
       case Q_DISABLE_METADATA:
         set_property(command, P_META, 0);
+        break;
+      case Q_ENABLE_SYNC_GTID:
+        set_property(command, P_SYNC_GTID, 1);
+        break;
+      case Q_DISABLE_SYNC_GTID:
+        set_property(command, P_SYNC_GTID, 0);
         break;
       case Q_ENABLE_COLUMN_NAMES:
         disable_column_names= 0;
