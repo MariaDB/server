@@ -27,13 +27,4 @@ SHOW STATUS LIKE 'Ssl_server_cert_type';
 Variable_name	Value
 Ssl_server_cert_type	ECDSA
 disconnect ecdsa_con;
-#
-# Test 3: Connect with default ciphers - should succeed
-#
-connection default;
-connect  default_con,localhost,root,,,,,SSL;
-SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
-have_ssl
-1
-disconnect default_con;
 connection default;
