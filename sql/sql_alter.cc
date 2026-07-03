@@ -424,11 +424,13 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
     if (lower_case_table_names == 1) // Convert new_name/new_alias to lower
     {
+      new_db.length= my_casedn_str(files_charset_info, (char*) new_db.str);
       new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
       new_alias= new_name;
     }
     else if (lower_case_table_names == 2) // Convert new_name to lower case
     {
+      new_db.length= my_casedn_str(files_charset_info, (char*) new_db.str);
       new_alias.str=    new_alias_buff;
       new_alias.length= new_name.length;
       strmov(new_alias_buff, new_name.str);

@@ -3209,3 +3209,19 @@ drop tables t1, t2, t3;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-37739 parts test suite fails on case-insensitive filesystems, debug assertions, wrong results
+#
+create database Another;
+create table t1 (c int) engine=innodb;
+alter table t1 rename to Another.Tp4;
+show create table Another.Tp4;
+Table	Create Table
+Tp4	CREATE TABLE `Tp4`-ok (
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table Another.Tp4;
+drop database Another;
+#
+# End of 11.4 tests
+#
