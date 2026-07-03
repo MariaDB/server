@@ -5,17 +5,8 @@
 #
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
+--source include/have_openssl.inc
 --source include/have_tlsv13.inc
-
-# Skip on WolfSSL which does not support multiple certs
-if (`select @@version_ssl_library like 'wolfSSL%'`) {
-  skip WolfSSL;
-}
-
-# Ed25519 requires OpenSSL 1.1.1+
-if (`select @@version_ssl_library like 'OpenSSL 1.0%' or @@version_ssl_library like 'OpenSSL 1.1.0%'`) {
-  skip OpenSSL too old for Ed25519;
-}
 
 --echo #
 --echo # Verify Ssl_server_cert_types global status shows all three types

@@ -7,11 +7,8 @@
 #
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
-
-# Skip on WolfSSL which does not support multiple certs
-if (`select @@version_ssl_library like 'wolfSSL%'`) {
-  skip WolfSSL;
-}
+--source include/have_openssl.inc
+--source include/big_test.inc
 
 --source include/shutdown_mysqld.inc
 

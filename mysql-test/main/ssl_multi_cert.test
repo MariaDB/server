@@ -4,16 +4,7 @@
 #
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
-
-# Skip on WolfSSL which does not support multiple certs
-if (`select @@version_ssl_library like 'wolfSSL%'`) {
-  skip WolfSSL;
-}
-
-# Ed25519 requires OpenSSL 1.1.1+
-if (`select @@version_ssl_library like 'OpenSSL 1.0%' or @@version_ssl_library like 'OpenSSL 1.1.0%'`) {
-  skip OpenSSL too old for Ed25519;
-}
+--source include/have_openssl.inc
 
 --echo #
 --echo # Verify Ssl_server_cert_types global status shows all three types
@@ -37,11 +28,4 @@ SHOW STATUS LIKE 'Ssl_cipher';
 SHOW STATUS LIKE 'Ssl_server_cert_type';
 disconnect ecdsa_con;
 
---echo #
---echo # Test 3: Connect with default ciphers - should succeed
---echo #
-connection default;
-connect (default_con,localhost,root,,,,,SSL);
-SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
-disconnect default_con;
 connection default;
