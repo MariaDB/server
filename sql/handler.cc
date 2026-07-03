@@ -565,7 +565,6 @@ static void update_discovery_counters(handlerton *hton, int val)
 
 static int hton_drop_table(handlerton *hton, const char *path)
 {
-  Table_path_buffer tmp_path;
   handler *file= get_new_handler(nullptr, current_thd->mem_root, hton);
   if (!file)
   {
@@ -575,7 +574,6 @@ static int hton_drop_table(handlerton *hton, const char *path)
     */
     return my_errno == ENOMEM ? ENOMEM : ENOENT;
   }
-  path= file->get_canonical_filename(Lex_cstring_strlen(path), &tmp_path).str;
   int error= file->delete_table(path);
   delete file;
   return error;
@@ -3338,6 +3336,8 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
                     bool generate_warning)
 {
   int error;
+  const char *name;
+  Table_path_buffer tmp_path;
   bool is_error= thd->is_error();
   DBUG_ENTER("ha_delete_table");
 
@@ -3348,7 +3348,17 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
   if (ha_check_if_updates_are_ignored(thd, hton, "DROP"))
     DBUG_RETURN(0);
 
-  error= hton->drop_table(hton, path);
+  handler *file= get_new_handler(nullptr, thd->mem_root, hton);
+  if (!file)
+  {
+    /*
+      If file is not defined it means that the engine can't create a
+      handler if share is not set or we got an out of memory error
+    */
+    DBUG_RETURN(my_errno == ENOMEM ? ENOMEM : ENOENT);
+  }
+  name= file->get_canonical_filename(Lex_cstring_strlen(path), &tmp_path).str;
+  error= hton->drop_table(hton, name);
   if (error > 0)
   {
     /*
@@ -3361,21 +3371,17 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
     {
       TABLE dummy_table;
       TABLE_SHARE dummy_share;
-      handler *file= get_new_handler(nullptr, thd->mem_root, hton);
-      if (file) {
-        bzero((char*) &dummy_table, sizeof(dummy_table));
-        bzero((char*) &dummy_share, sizeof(dummy_share));
-        dummy_share.path.str= (char*) path;
-        dummy_share.path.length= strlen(path);
-        dummy_share.normalized_path= dummy_share.path;
-        dummy_share.db= *db;
-        dummy_share.table_name= *alias;
-        dummy_table.s= &dummy_share;
-        dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
-        file->change_table_ptr(&dummy_table, &dummy_share);
-        file->print_error(error, MYF(intercept ? ME_WARNING : 0));
-        delete file;
-      }
+      bzero((char*) &dummy_table, sizeof(dummy_table));
+      bzero((char*) &dummy_share, sizeof(dummy_share));
+      dummy_share.path.str= (char*) path;
+      dummy_share.path.length= strlen(path);
+      dummy_share.normalized_path= dummy_share.path;
+      dummy_share.db= *db;
+      dummy_share.table_name= *alias;
+      dummy_table.s= &dummy_share;
+      dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
+      file->change_table_ptr(&dummy_table, &dummy_share);
+      file->print_error(error, MYF(intercept ? ME_WARNING : 0));
     }
     if (intercept)
     {
@@ -3385,6 +3391,7 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
       error= -1;
     }
   }
+  delete file;
   if (error)
     DBUG_PRINT("exit", ("error: %d", error));
   DBUG_RETURN(error);
