@@ -8998,9 +8998,6 @@ err:
           after-sync and after-commit semisync methods are mostly the same; the
           change has already become visible to other connections on the master
           when it is binlogged.
-
-          ToDo: If semi-sync is enabled, obtain the binlog coords from the
-          engine to be waited for later at after-commit.
         */
         mysql_mutex_lock(&LOCK_after_binlog_sync);
         mysql_mutex_unlock(&LOCK_log);
@@ -9013,6 +9010,17 @@ err:
           mysql_mutex_unlock(&LOCK_commit_ordered);
           goto engine_fail;
         }
+
+#ifdef HAVE_REPLICATION
+        if (unlikely(repl_semisync_master->get_master_enabled()) &&
+            semisync_report_update_engine(thd, engine_context->out_file_no,
+                                          engine_context->out_offset,
+                                          commit_gtid))
+        {
+          mysql_mutex_unlock(&LOCK_commit_ordered);
+          goto engine_fail;
+        }
+#endif
         mysql_mutex_unlock(&LOCK_commit_ordered);
         cache_mngr->last_commit_pos_file.engine_file_no=
           engine_context->out_file_no;
@@ -10529,6 +10537,36 @@ end:
   DBUG_RETURN(result);
 }
 
+
+int
+MYSQL_BIN_LOG::semisync_report_update_engine(THD *thd, uint64_t file_no,
+                                             uint64_t log_pos,
+                                             const rpl_gtid *gtid)
+{
+  int res= 0;
+
+  DBUG_ASSERT(repl_semisync_master->get_master_enabled());
+  DBUG_ASSERT(opt_binlog_engine_hton);
+
+#ifdef HAVE_REPLICATION
+  /*
+    When using engine-implemented binlog, we are using GTID for semi-sync
+    acknowledgement. We still supply a binlog file name, but it is only used
+    in diagnostic messages.
+  */
+  char filename_buf[FN_REFLEN];
+  if (file_no != ~(uint64_t)0)
+    (*opt_binlog_engine_hton->get_filename)(filename_buf, file_no);
+  else
+    filename_buf[0]= '\0';
+  res= repl_semisync_master->report_binlog_update(thd, thd, filename_buf,
+                                                  (my_off_t)log_pos, gtid);
+#endif
+
+  return res;
+}
+
+
 inline bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
@@ -10637,6 +10675,20 @@ MYSQL_BIN_LOG::write_transaction_with_group_commit(group_commit_entry *entry)
         }
       }
     }
+
+#ifdef HAVE_REPLICATION
+    if (opt_binlog_engine_hton && likely(!entry->error) &&
+        unlikely(repl_semisync_master->get_master_enabled()) &&
+        semisync_report_update_engine(entry->thd,
+                                      cache_mngr->last_commit_pos_file.engine_file_no,
+                                      cache_mngr->last_commit_pos_offset,
+                                      entry->thd->get_last_commit_gtid()))
+    {
+      entry->error= ER_ERROR_ON_WRITE;
+      entry->commit_errno= -1;
+      entry->error_cache= NULL;
+    }
+#endif
 
     group_commit_entry *next= entry->next;
     if (!next)
@@ -10906,7 +10958,8 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
     else
     {
 #ifdef HAVE_REPLICATION
-      if (unlikely(repl_semisync_master->get_master_enabled()))
+      if (!opt_binlog_engine_hton &&
+          unlikely(repl_semisync_master->get_master_enabled()))
       {
         DEBUG_SYNC(leader->thd, "commit_before_update_binlog_end_pos");
         bool any_error= false;
@@ -10928,16 +10981,11 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
                             SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT)
                                ? current->thd
                                : leader->thd;
-          char buf[FN_REFLEN];
-          const char *filename= buf;
-          if (opt_binlog_engine_hton)
-            (*opt_binlog_engine_hton->get_filename)
-              (buf, current->cache_mngr->last_commit_pos_file.engine_file_no);
-          else
-            filename= current->cache_mngr->last_commit_pos_file.legacy_name;
           if (likely(!current->error) &&
               unlikely(repl_semisync_master->
-                       report_binlog_update(current->thd, waiter_thd, filename,
+                       report_binlog_update(current->thd, waiter_thd,
+                                            current->cache_mngr->
+                                            last_commit_pos_file.legacy_name,
                                             (my_off_t)current->cache_mngr->
                                             last_commit_pos_offset,
                                             current->thd->
@@ -11145,6 +11193,21 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
         }
       }
     }
+
+#ifdef HAVE_REPLICATION
+    if (opt_binlog_engine_hton &&
+        unlikely(repl_semisync_master->get_master_enabled()) &&
+        likely(!current->error) &&
+        semisync_report_update_engine(current->thd,
+                                      cache_mngr->last_commit_pos_file.engine_file_no,
+                                      cache_mngr->last_commit_pos_offset,
+                                      current->thd->get_last_commit_gtid()))
+    {
+      current->error= ER_ERROR_ON_WRITE;
+      current->commit_errno= -1;
+      current->error_cache= NULL;
+    }
+#endif
 
     current->thd->wakeup_subsequent_commits(current->error);
 
