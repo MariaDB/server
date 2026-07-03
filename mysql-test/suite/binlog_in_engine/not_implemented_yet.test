@@ -1,8 +1,16 @@
 --source include/have_binlog_format_mixed.inc
 --source include/have_innodb_binlog.inc
 
---error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+--error ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+
 SET GLOBAL rpl_semi_sync_master_enabled= 1;
+SELECT @@GLOBAL.rpl_semi_sync_master_enabled;
+SET GLOBAL rpl_semi_sync_master_enabled= 0;
+
+SET GLOBAL rpl_semi_sync_master_enabled= DEFAULT;
+SET GLOBAL rpl_semi_sync_master_wait_point= DEFAULT;
 
 # The BINLOG_GTID_POS() function is not available and will not be, we
 # want to get away from old problematic filename/offset coordinates.
