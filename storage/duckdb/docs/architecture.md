@@ -243,5 +243,5 @@ storage/duckdb/
 │   └── row_helpers.h             — byte-level row reading utilities
 │
 ├── cmake/                        — DuckDB build integration (ExternalProject_Add)
-└── third_parties/duckdb/         — upstream DuckDB submodule (v1.5.2)
+└── third_parties/duckdb/         — upstream DuckDB submodule (v1.5.4)
 ```
