@@ -54,4 +54,40 @@ sync_slave_with_master;
 --sorted_result
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 
+# MDEV-37214: failing CREATE OR REPLACE USER must not write to binlog
+# and must not leave master/replica in diverged state.
+connection master;
+CREATE USER u3@localhost IDENTIFIED BY 'abcdefghijk';
+CREATE USER u4@localhost IDENTIFIED BY 'abcdefghijk';
+sync_slave_with_master;
+--sorted_result
+SELECT user FROM mysql.user WHERE user IN ('u3','u4');
+
+connection master;
+# Single-account: bad plugin -> statement fails, u3 unchanged on both sides
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+# Multi-account: bad plugin on first account -> u3 fails (unchanged),
+# u4 is recreated (partial success is documented behavior)
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin, u4@localhost IDENTIFIED BY 'newpw12345678';
+# Multi-account: bad plugin on second account -> u4 is recreated first,
+# then u3 fails (partial success)
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u4@localhost IDENTIFIED BY 'newpw12345678', u3@localhost IDENTIFIED VIA no_such_plugin;
+sync_slave_with_master;
+# Verify slave did not stop with a replication error
+--source include/check_slave_no_error.inc
+connection master;
+--sorted_result
+SELECT user FROM mysql.user WHERE user IN ('u3','u4');
+connection slave;
+--sorted_result
+SELECT user FROM mysql.user WHERE user IN ('u3','u4');
+
+connection master;
+DROP USER u3@localhost;
+DROP USER u4@localhost;
+sync_slave_with_master;
+
 --source include/rpl_end.inc
