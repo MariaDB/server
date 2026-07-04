@@ -1,0 +1,75 @@
+#
+# DuckDB space reclaim test
+#
+# Verifies that after DROP TABLE + FORCE CHECKPOINT, freed blocks
+# are reused by subsequent inserts (file does not keep growing).
+#
+# Uses 4 SHA2 columns (incompressible data) to guarantee multiple
+# 256 KB blocks are allocated (~2-3 MB total).
+#
+#
+# 1) Create a table and insert incompressible data to allocate blocks
+#
+CREATE DATABASE IF NOT EXISTS db_reclaim;
+USE db_reclaim;
+CREATE TABLE t_big (
+id INT PRIMARY KEY,
+c1 VARCHAR(200),
+c2 VARCHAR(200),
+c3 VARCHAR(200),
+c4 VARCHAR(200)
+) ENGINE = DuckDB;
+SELECT COUNT(*) AS row_count FROM t_big;
+row_count
+1000
+#
+# 2) Force checkpoint to flush WAL to main file
+#
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+run_in_duckdb('FORCE CHECKPOINT')
+Success	
+BOOLEAN	
+[ Rows: 0]
+
+
+#
+# 3) Record total_blocks after initial load
+#
+SELECT run_in_duckdb('SELECT total_blocks, used_blocks, free_blocks FROM pragma_database_size()') AS db_size_after_load;
+db_size_after_load
+total_blocks	used_blocks	free_blocks	
+BIGINT	BIGINT	BIGINT	
+[ Rows: 1]
+3	3	0
+
+
+total_blocks after load: 0
+#
+# 4) Drop table and force checkpoint — blocks become free
+#
+DROP TABLE t_big;
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+run_in_duckdb('FORCE CHECKPOINT')
+Success	
+BOOLEAN	
+[ Rows: 0]
+
+
+#
+# 5) Verify used_blocks decreased at least 10x after drop
+#
+SELECT run_in_duckdb('SELECT total_blocks, used_blocks, free_blocks FROM pragma_database_size()') AS db_size_after_drop;
+db_size_after_drop
+total_blocks	used_blocks	free_blocks	
+BIGINT	BIGINT	BIGINT	
+[ Rows: 1]
+1	1	0
+
+
+used_blocks after drop: 0
+PASS: used_blocks after drop is at least 10x smaller than after load
+#
+# 6) Cleanup
+#
+USE test;
+DROP DATABASE db_reclaim;

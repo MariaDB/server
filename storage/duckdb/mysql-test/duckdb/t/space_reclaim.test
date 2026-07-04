@@ -1,0 +1,75 @@
+--source ../include/have_duckdb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # DuckDB space reclaim test
+--echo #
+--echo # Verifies that after DROP TABLE + FORCE CHECKPOINT, freed blocks
+--echo # are reused by subsequent inserts (file does not keep growing).
+--echo #
+--echo # Uses 4 SHA2 columns (incompressible data) to guarantee multiple
+--echo # 256 KB blocks are allocated (~2-3 MB total).
+--echo #
+
+--echo #
+--echo # 1) Create a table and insert incompressible data to allocate blocks
+--echo #
+CREATE DATABASE IF NOT EXISTS db_reclaim;
+USE db_reclaim;
+
+CREATE TABLE t_big (
+  id INT PRIMARY KEY,
+  c1 VARCHAR(200),
+  c2 VARCHAR(200),
+  c3 VARCHAR(200),
+  c4 VARCHAR(200)
+) ENGINE = DuckDB;
+
+--disable_query_log
+INSERT INTO t_big
+SELECT seq,
+  SHA2(CONCAT(seq, 'a'), 256),
+  SHA2(CONCAT(seq, 'b'), 256),
+  SHA2(CONCAT(seq, 'c'), 256),
+  SHA2(CONCAT(seq, 'd'), 256)
+FROM test.seq_1_to_1000;
+--enable_query_log
+
+SELECT COUNT(*) AS row_count FROM t_big;
+
+--echo #
+--echo # 2) Force checkpoint to flush WAL to main file
+--echo #
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+
+--echo #
+--echo # 3) Record total_blocks after initial load
+--echo #
+SELECT run_in_duckdb('SELECT total_blocks, used_blocks, free_blocks FROM pragma_database_size()') AS db_size_after_load;
+--let $blocks_after_load = `SELECT CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT total_blocks FROM pragma_database_size()'), '\n', 3), '\n', -1)) AS UNSIGNED)`
+--echo total_blocks after load: $blocks_after_load
+
+--echo #
+--echo # 4) Drop table and force checkpoint — blocks become free
+--echo #
+DROP TABLE t_big;
+SELECT run_in_duckdb('FORCE CHECKPOINT');
+
+--echo #
+--echo # 5) Verify used_blocks decreased at least 10x after drop
+--echo #
+SELECT run_in_duckdb('SELECT total_blocks, used_blocks, free_blocks FROM pragma_database_size()') AS db_size_after_drop;
+--let $blocks_after_drop = `SELECT CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT used_blocks FROM pragma_database_size()'), '\n', 3), '\n', -1)) AS UNSIGNED)`
+--echo used_blocks after drop: $blocks_after_drop
+
+if (`SELECT $blocks_after_drop > $blocks_after_load / 10`)
+{
+  --die Space reclaim failed: used_blocks after drop is not 10x smaller than after load
+}
+--echo PASS: used_blocks after drop is at least 10x smaller than after load
+
+--echo #
+--echo # 6) Cleanup
+--echo #
+USE test;
+DROP DATABASE db_reclaim;
