@@ -1,9 +1,10 @@
 SET @saved_allow_run_in_duckdb = @@GLOBAL.duckdb_allow_run_in_duckdb;
+SET GLOBAL duckdb_allow_run_in_duckdb = OFF;
 #
 # Test: run_in_duckdb() access control
 #
 #
-# 1) Disabled by default (sysvar OFF) — even root cannot call it
+# 1) Disabled (sysvar OFF) — even root cannot call it
 #
 SELECT run_in_duckdb('SELECT 42');
 ERROR HY000: The MariaDB server is running with the --duckdb-allow-run-in-duckdb option so it cannot execute this statement

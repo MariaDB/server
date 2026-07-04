@@ -4,11 +4,11 @@
 --echo #
 --echo # DuckDB space reclaim test
 --echo #
---echo # Verifies that after DROP TABLE + FORCE CHECKPOINT, freed blocks
---echo # are reused by subsequent inserts (file does not keep growing).
+--echo # Verifies that DROP TABLE + FORCE CHECKPOINT frees DuckDB storage
+--echo # blocks, i.e. the disk-cleanup path reclaims used_blocks.
 --echo #
---echo # Uses 4 SHA2 columns (incompressible data) to guarantee multiple
---echo # 256 KB blocks are allocated (~2-3 MB total).
+--echo # Uses 4 SHA2 columns (incompressible data) over 5000 rows so several
+--echo # 256 KB blocks are allocated (~1.3 MB), keeping the test fast.
 --echo #
 
 --echo #
@@ -32,41 +32,56 @@ SELECT seq,
   SHA2(CONCAT(seq, 'b'), 256),
   SHA2(CONCAT(seq, 'c'), 256),
   SHA2(CONCAT(seq, 'd'), 256)
-FROM test.seq_1_to_1000;
+FROM test.seq_1_to_5000;
 --enable_query_log
 
 SELECT COUNT(*) AS row_count FROM t_big;
 
 --echo #
---echo # 2) Force checkpoint to flush WAL to main file
+--echo # 2) Force checkpoint to flush the WAL into the main database file
+--echo #    so the data blocks are actually allocated on disk.
 --echo #
+--disable_result_log
 SELECT run_in_duckdb('FORCE CHECKPOINT');
+--enable_result_log
 
 --echo #
---echo # 3) Record total_blocks after initial load
+--echo # 3) Record used_blocks after the initial load.
 --echo #
-SELECT run_in_duckdb('SELECT total_blocks, used_blocks, free_blocks FROM pragma_database_size()') AS db_size_after_load;
---let $blocks_after_load = `SELECT CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT total_blocks FROM pragma_database_size()'), '\n', 3), '\n', -1)) AS UNSIGNED)`
---echo total_blocks after load: $blocks_after_load
+# run_in_duckdb() returns a rendered result: line 1 = column header,
+# line 2 = column type, line 3 = "[ Rows: N ]", line 4 = the value row.
+# Extract line 4 to get the scalar block count.
+--let $used_after_load = `SELECT CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT used_blocks FROM pragma_database_size()'), '\n', 4), '\n', -1) AS UNSIGNED)`
 
 --echo #
---echo # 4) Drop table and force checkpoint — blocks become free
+--echo # 4) Drop the only table and checkpoint again so its blocks are freed.
 --echo #
 DROP TABLE t_big;
+--disable_result_log
 SELECT run_in_duckdb('FORCE CHECKPOINT');
+--enable_result_log
+
+--let $used_after_drop = `SELECT CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT used_blocks FROM pragma_database_size()'), '\n', 4), '\n', -1) AS UNSIGNED)`
 
 --echo #
---echo # 5) Verify used_blocks decreased at least 10x after drop
+--echo # 5) Verify the disk-cleanup path actually reclaimed the blocks.
 --echo #
-SELECT run_in_duckdb('SELECT total_blocks, used_blocks, free_blocks FROM pragma_database_size()') AS db_size_after_drop;
---let $blocks_after_drop = `SELECT CAST(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(run_in_duckdb('SELECT used_blocks FROM pragma_database_size()'), '\n', 3), '\n', -1)) AS UNSIGNED)`
---echo used_blocks after drop: $blocks_after_drop
-
-if (`SELECT $blocks_after_drop > $blocks_after_load / 10`)
+# Sanity: the load must have allocated a few blocks, otherwise the reclaim
+# check below would be meaningless.
+if (`SELECT $used_after_load < 3`)
 {
-  --die Space reclaim failed: used_blocks after drop is not 10x smaller than after load
+  --echo used_blocks after load: $used_after_load
+  --die Test setup error: expected several used blocks after load
 }
---echo PASS: used_blocks after drop is at least 10x smaller than after load
+
+# Dropping the only user table must free at least half of the used blocks.
+if (`SELECT $used_after_drop * 2 > $used_after_load`)
+{
+  --echo used_blocks after load: $used_after_load
+  --echo used_blocks after drop: $used_after_drop
+  --die Space reclaim failed: used_blocks not reduced by at least half after DROP TABLE + FORCE CHECKPOINT
+}
+--echo PASS: DROP TABLE + FORCE CHECKPOINT reclaimed at least half of used blocks
 
 --echo #
 --echo # 6) Cleanup

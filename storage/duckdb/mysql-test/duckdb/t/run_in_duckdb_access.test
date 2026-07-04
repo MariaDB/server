@@ -1,13 +1,17 @@
 --source ../include/have_duckdb.inc
 
 SET @saved_allow_run_in_duckdb = @@GLOBAL.duckdb_allow_run_in_duckdb;
+# The suite enables duckdb_allow_run_in_duckdb globally (suite.opt), and MTR may
+# reuse a server started with it ON. Force it OFF here so this test does not
+# depend on the startup value.
+SET GLOBAL duckdb_allow_run_in_duckdb = OFF;
 
 --echo #
 --echo # Test: run_in_duckdb() access control
 --echo #
 
 --echo #
---echo # 1) Disabled by default (sysvar OFF) — even root cannot call it
+--echo # 1) Disabled (sysvar OFF) — even root cannot call it
 --echo #
 --error ER_OPTION_PREVENTS_STATEMENT
 SELECT run_in_duckdb('SELECT 42');
