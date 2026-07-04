@@ -19,8 +19,11 @@
 
 #include "duckdb_manager.h"
 
+#define MYSQL_SERVER 1
 #include <my_global.h>
+#include <unistd.h>
 #include "mysqld.h"
+#include "sys_vars_shared.h"
 #include "log.h"
 #include "duckdb_config.h"
 
@@ -35,6 +38,51 @@ namespace myduck
 DuckdbManager *DuckdbManager::m_instance= nullptr;
 
 DuckdbManager::DuckdbManager() : m_database(nullptr) {}
+
+namespace
+{
+
+/* Total physical memory of the host, in bytes (0 if it cannot be detected). */
+uint64_t duckdb_physical_memory()
+{
+  long pages= sysconf(_SC_PHYS_PAGES);
+  long page_size= sysconf(_SC_PAGESIZE);
+  if (pages > 0 && page_size > 0)
+    return (uint64_t) pages * (uint64_t) page_size;
+  return 0;
+}
+
+/* Read a global integer system variable by name (0 if not found/NULL). */
+uint64_t read_global_ull_sysvar(const char *name, size_t len)
+{
+  sys_var *var= intern_find_sys_var(name, len);
+  if (!var)
+    return 0;
+  const LEX_CSTRING base= {nullptr, 0};
+  bool is_null= false;
+  longlong v= var->val_int(&is_null, current_thd, OPT_GLOBAL, &base);
+  return (is_null || v < 0) ? 0 : (uint64_t) v;
+}
+
+/*
+  Estimate the memory InnoDB may reserve for its buffer pool.
+  innodb_buffer_pool_size_max is the address space InnoDB pre-reserves for the
+  (dynamically resizable) buffer pool, i.e. the upper bound of its cache
+  memory.  When left at its huge default (~8TB of PROT_NONE mapping, larger
+  than physical RAM) it is not a meaningful budget figure, so fall back to the
+  currently committed innodb_buffer_pool_size in that case.
+*/
+uint64_t innodb_reserved_memory(uint64_t phys_mem)
+{
+  uint64_t bp_max=
+      read_global_ull_sysvar(STRING_WITH_LEN("innodb_buffer_pool_size_max"));
+  if (bp_max == 0 || bp_max >= phys_mem)
+    bp_max=
+        read_global_ull_sysvar(STRING_WITH_LEN("innodb_buffer_pool_size"));
+  return bp_max;
+}
+
+} // anonymous namespace
 
 bool DuckdbManager::Initialize()
 {
@@ -66,17 +114,34 @@ bool DuckdbManager::Initialize()
     config.options.maximum_threads= global_max_threads;
 
   /*
-    When memory_limit sysvar is 0 (default), DuckDB tries to auto-detect
-    available RAM (80%).  Inside some Docker/cgroup environments this
-    detection fails and returns 0, making DuckDB unable to allocate
-    anything.  Use an explicit 1 GB fallback in that case.
+    When memory_limit sysvar is 0 (default), size DuckDB's memory as 80% of
+    the RAM left after InnoDB's reserved buffer-pool memory:
+
+        memory_limit = 0.8 * (physical_RAM - innodb_buffer_pool_size_max)
+
+    Fall back to an explicit 1 GB if detection is unavailable (e.g. inside
+    some Docker/cgroup environments) or the computed value is too small.
   */
   static constexpr uint64_t DUCKDB_DEFAULT_MEMORY_FALLBACK= 1ULL
                                                             << 30; /* 1 GB */
   if (global_memory_limit != 0)
     config.options.maximum_memory= global_memory_limit;
   else
-    config.options.maximum_memory= DUCKDB_DEFAULT_MEMORY_FALLBACK;
+  {
+    uint64_t phys_mem= duckdb_physical_memory();
+    uint64_t innodb_mem= innodb_reserved_memory(phys_mem);
+    uint64_t avail= (phys_mem > innodb_mem)
+                        ? (uint64_t) ((phys_mem - innodb_mem) * 0.8)
+                        : 0;
+    config.options.maximum_memory= (avail > DUCKDB_DEFAULT_MEMORY_FALLBACK)
+                                       ? avail
+                                       : DUCKDB_DEFAULT_MEMORY_FALLBACK;
+    sql_print_information(
+        "DuckDB: auto memory_limit=%llu bytes "
+        "(physical RAM=%llu, InnoDB reserved=%llu)",
+        (unsigned long long) config.options.maximum_memory,
+        (unsigned long long) phys_mem, (unsigned long long) innodb_mem);
+  }
 
   if (global_max_temp_directory_size != 0)
     config.options.maximum_swap_space= global_max_temp_directory_size;
