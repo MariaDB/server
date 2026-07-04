@@ -1,4 +1,5 @@
 [mysqld]
 plugin-maturity=alpha
 plugin-load-add=ha_duckdb.so
-#loose-duckdb-memory-limit=1073741824
+duckdb-allow-run-in-duckdb=ON
+#loose-duckdb-memory-limit=10G
