@@ -138,6 +138,20 @@ bool DuckdbManager::Initialize()
                "(d1::DATE - d2::DATE)");
     con->Query("CREATE OR REPLACE MACRO curdate() AS current_date");
     con->Query("CREATE OR REPLACE MACRO curtime(fsp := 0) AS current_time");
+    /* utc_time/utc_timestamp/utc_date — UTC wall-clock; fsp ignored */
+    con->Query("CREATE OR REPLACE MACRO utc_timestamp(fsp := 0) AS "
+               "timezone('UTC', now())::TIMESTAMP");
+    con->Query("CREATE OR REPLACE MACRO utc_time(fsp := 0) AS "
+               "timezone('UTC', now())::TIME");
+    con->Query("CREATE OR REPLACE MACRO utc_date() AS "
+               "timezone('UTC', now())::DATE");
+    /* unix_timestamp([ts]) — epoch seconds; no arg = now() */
+    con->Query("CREATE OR REPLACE MACRO unix_timestamp(ts := now()) AS "
+               "epoch(ts)::BIGINT");
+    /* time_to_sec(t) — seconds since midnight */
+    con->Query("CREATE OR REPLACE MACRO time_to_sec(t) AS "
+               "(date_part('hour', t)*3600 + date_part('minute', t)*60 "
+               "+ date_part('second', t))::BIGINT");
     /* convert_tz(ts, from_tz, to_tz) */
     con->Query("CREATE OR REPLACE MACRO convert_tz(ts, from_tz, to_tz) AS "
                "timezone(to_tz, timezone(from_tz, ts))");
