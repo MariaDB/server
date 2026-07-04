@@ -1187,7 +1187,15 @@ bool ha_duckdb::commit_inplace_alter_table(TABLE *altered_table,
 
 /* ----- Plugin declaration ----- */
 
+my_bool allow_run_in_duckdb= FALSE;
+
 /* ---- AliSQL-specific global variables (no DuckDB push) ---- */
+
+static MYSQL_SYSVAR_BOOL(allow_run_in_duckdb, allow_run_in_duckdb,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Allow execution of run_in_duckdb() function "
+                         "(requires SUPER privilege)",
+                         NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(copy_ddl_in_batch, copy_ddl_in_batch,
                          PLUGIN_VAR_RQCMDARG,
@@ -1314,6 +1322,7 @@ ulonglong get_thd_disabled_optimizers(THD *thd)
 } // namespace myduck
 
 static struct st_mysql_sys_var *duckdb_system_variables[]= {
+    MYSQL_SYSVAR(allow_run_in_duckdb),
     MYSQL_SYSVAR(copy_ddl_in_batch), MYSQL_SYSVAR(dml_in_batch),
     MYSQL_SYSVAR(update_modified_column_only),
     /* Global proxy */

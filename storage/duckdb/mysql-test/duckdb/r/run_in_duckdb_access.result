@@ -1,0 +1,43 @@
+SET @saved_allow_run_in_duckdb = @@GLOBAL.duckdb_allow_run_in_duckdb;
+#
+# Test: run_in_duckdb() access control
+#
+#
+# 1) Disabled by default (sysvar OFF) — even root cannot call it
+#
+SELECT run_in_duckdb('SELECT 42');
+ERROR HY000: The MariaDB server is running with the --duckdb-allow-run-in-duckdb option so it cannot execute this statement
+#
+# 2) Enable sysvar — root (SUPER) can call it
+#
+SET GLOBAL duckdb_allow_run_in_duckdb = ON;
+SELECT run_in_duckdb('SELECT 42 AS answer');
+run_in_duckdb('SELECT 42 AS answer')
+answer	
+INTEGER	
+[ Rows: 1]
+42
+
+
+#
+# 3) Non-SUPER user is denied even with sysvar ON
+#
+CREATE USER 'test_nosuper'@'localhost';
+GRANT ALL ON *.* TO 'test_nosuper'@'localhost';
+REVOKE SUPER ON *.* FROM 'test_nosuper'@'localhost';
+connect con_nosuper, localhost, test_nosuper,,;
+SELECT run_in_duckdb('SELECT 1');
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+disconnect con_nosuper;
+connection default;
+#
+# 4) Disable sysvar again — root is blocked
+#
+SET GLOBAL duckdb_allow_run_in_duckdb = OFF;
+SELECT run_in_duckdb('SELECT 1');
+ERROR HY000: The MariaDB server is running with the --duckdb-allow-run-in-duckdb option so it cannot execute this statement
+#
+# 5) Cleanup
+#
+DROP USER 'test_nosuper'@'localhost';
+SET GLOBAL duckdb_allow_run_in_duckdb = @saved_allow_run_in_duckdb;

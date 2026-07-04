@@ -1,0 +1,45 @@
+--source ../include/have_duckdb.inc
+
+SET @saved_allow_run_in_duckdb = @@GLOBAL.duckdb_allow_run_in_duckdb;
+
+--echo #
+--echo # Test: run_in_duckdb() access control
+--echo #
+
+--echo #
+--echo # 1) Disabled by default (sysvar OFF) — even root cannot call it
+--echo #
+--error ER_OPTION_PREVENTS_STATEMENT
+SELECT run_in_duckdb('SELECT 42');
+
+--echo #
+--echo # 2) Enable sysvar — root (SUPER) can call it
+--echo #
+SET GLOBAL duckdb_allow_run_in_duckdb = ON;
+SELECT run_in_duckdb('SELECT 42 AS answer');
+
+--echo #
+--echo # 3) Non-SUPER user is denied even with sysvar ON
+--echo #
+CREATE USER 'test_nosuper'@'localhost';
+GRANT ALL ON *.* TO 'test_nosuper'@'localhost';
+REVOKE SUPER ON *.* FROM 'test_nosuper'@'localhost';
+
+--connect(con_nosuper, localhost, test_nosuper,,)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT run_in_duckdb('SELECT 1');
+--disconnect con_nosuper
+--connection default
+
+--echo #
+--echo # 4) Disable sysvar again — root is blocked
+--echo #
+SET GLOBAL duckdb_allow_run_in_duckdb = OFF;
+--error ER_OPTION_PREVENTS_STATEMENT
+SELECT run_in_duckdb('SELECT 1');
+
+--echo #
+--echo # 5) Cleanup
+--echo #
+DROP USER 'test_nosuper'@'localhost';
+SET GLOBAL duckdb_allow_run_in_duckdb = @saved_allow_run_in_duckdb;
