@@ -30,6 +30,7 @@
 #include "duckdb_query.h"
 #include "duckdb_context.h"
 #include "cross_engine_scan.h"
+#include "duckdb_config.h"
 #include "duckdb_log.h"
 
 extern handlerton *duckdb_hton;
@@ -355,6 +356,8 @@ int ha_duckdb_select_handler::init_scan()
    */
   if (has_cross_engine)
   {
+    myduck::register_cross_engine_ryow(myduck::get_thd_cross_engine_ryow(thd));
+
     auto register_tables_from_sel= [this](SELECT_LEX *sl) {
       for (TABLE_LIST *tbl= sl->get_table_list(); tbl; tbl= tbl->next_global)
       {
