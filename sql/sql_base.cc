@@ -8661,6 +8661,14 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         my_error(ER_SYNTAX_ERROR, MYF(0));
         DBUG_RETURN(1);
       }
+
+      // disable usage of indexes in presence of tablesample clause
+      // because it will cause the optimizer to choose an unwanted access
+      // path, wrong join strategy etc
+      table_list->table->keys_in_use_for_query.clear_all();
+      table_list->table->keys_in_use_for_group_by.clear_all();
+      table_list->table->keys_in_use_for_order_by.clear_all();
+      table_list->table->keys_in_use_for_rowid_filter.clear_all();
     }
   }
 
