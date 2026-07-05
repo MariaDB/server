@@ -94,6 +94,67 @@ ha_duckdb_select_handler::init_scan()
 
 The fiber runs on the same OS thread as DuckDB. TLS (`current_thd`, `THR_KEY_mysys`) is swapped around fiber spawn/continue calls.
 
+#### Pushdown modes: `duckdb_cross_engine_ryow`
+
+The session variable `duckdb_cross_engine_ryow` (default `OFF`) selects, per
+query, how external (non-DuckDB) tables are read. The flag is captured once in
+`init_scan()` (`register_cross_engine_ryow()`), and the replacement scan then
+redirects to one of two table functions.
+
+| Aspect | `duckdb_cross_engine_ryow = OFF` (default) | `duckdb_cross_engine_ryow = ON` |
+|---|---|---|
+| Table function | `_mdb_scan` | `_mdb_scan_direct` |
+| Scan mechanism | fiber runs a synthetic `SELECT … WHERE …` via `mysql_execute_command()` | direct `ha_rnd_init` / `ha_rnd_next` on the parent handler |
+| Transaction | separate background-THD transaction | parent THD's transaction |
+| Visibility | committed data only (the fiber's transaction opens its own REPEATABLE READ view; the parent's uncommitted writes are **not** visible) | **Read-Your-Own-Writes**: the parent's uncommitted writes are visible |
+| MariaDB optimizer for the external table | yes — range/index access, ICP (`idx_cond_push`), range-filter pushdown, index choice | no — plain full table scan |
+| DuckDB `filter_pushdown` | `true` — DuckDB removes the predicates from the plan; the fiber applies them via the WHERE registered by `make_cond_for_table()` | `false` — DuckDB keeps the `Filter` operator above the scan and applies predicates itself |
+| DuckDB `projection_pushdown` | `true` | `true` |
+
+Why `filter_pushdown` differs: `PhysicalTableScan` returns the table function's
+chunk **without re-applying** `table_filters`. When `filter_pushdown = true`
+the optimizer strips those predicates and the scan is solely responsible for
+them. The direct `ha_rnd_next` path does not evaluate DuckDB `input.filters`,
+so `_mdb_scan_direct` sets `filter_pushdown = false` to keep correctness via
+DuckDB's own `Filter` operator. Projection pushdown stays enabled in both modes
+(the direct path honors `column_ids` through the read set).
+
+Tradeoffs of `ON`: RYOW at the cost of losing the external engine's range/index
+access and `idx_cond_push` for that table (it becomes a full scan). Note that
+`cond_push` (engine condition pushdown) is unavailable for InnoDB/Aria/MyISAM/
+RocksDB regardless of mode — only ICP is, and only in the `OFF` (fiber) path.
+
+#### Future: index access / `idx_cond_push` in the RYOW path
+
+The RYOW path currently loses row-count reduction because it does a full
+`ha_rnd_next` scan. This can be improved without giving up RYOW or correctness:
+
+1. `input.filters` (a DuckDB `TableFilterSet`) is already available in
+   `mdb_scan_init_global`. Inspect it for sargable predicates
+   (`CONSTANT_COMPARISON`, `IS NULL`, `IN`) on a key prefix of some index of
+   the external `TABLE`.
+2. Replace `ha_rnd_init` with `ha_index_init(keyno)` + `ha_index_read_map()`
+   and an `end_range`, iterating with `ha_index_next()`. This recovers range
+   access — the larger win — and needs no server `Item` tree.
+3. Optionally, for residual index-column predicates, synthesize an `Item`
+   expression from the `TableFilter`s over the table's `Field*` and call
+   `tbl->file->idx_cond_push(keyno, item)`, so the engine checks them at the
+   index level.
+
+Key constraint: keep `filter_pushdown = false` even after this work. In DuckDB's
+model the function must apply pushed filters *entirely* (no re-check), so a
+partial/best-effort translation would be unsafe. Treating `input.filters` purely
+as a seek/ICP *hint* — while DuckDB's `Filter` stays the source of truth — keeps
+correctness independent of translation quality.
+
+Caveats: `Item` synthesis needs a THD + memory root (use `tbl->in_use`);
+constant/collation coercion between the DuckDB value and the MariaDB `Field`;
+only AND-of-per-column predicates are sargable (OR is not); the parent handler
+is mid-statement (opened and RDLCK-locked), so switch cleanly between rnd/index
+scans and keep a single active scan; InnoDB refuses ICP on indexes with virtual
+columns (`idx_cond_push` returns the condition), leaving a residual that must
+fall back to DuckDB's `Filter`.
+
 ### Path 2: DDL via Handler API
 
 ```
