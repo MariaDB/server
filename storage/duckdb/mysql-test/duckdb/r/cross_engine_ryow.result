@@ -1,0 +1,59 @@
+#
+# Cross-engine RYOW: duckdb_cross_engine_ryow toggles visibility of
+# uncommitted parent-transaction writes to non-DuckDB tables
+#
+DROP DATABASE IF EXISTS cross_engine_ryow;
+CREATE DATABASE cross_engine_ryow CHARACTER SET utf8mb4;
+USE cross_engine_ryow;
+CREATE TABLE t_duck (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, name VARCHAR(50), score INT) ENGINE=InnoDB;
+INSERT INTO t_duck VALUES (1,'alpha'),(2,'beta'),(3,'gamma'),(4,'delta'),(5,'epsilon'),(6,'zeta');
+INSERT INTO t_inno VALUES (1,'Alice',90),(2,'Bob',80),(3,'Carol',70),(4,'Dave',60),(5,'Eve',50);
+
+# (1) RYOW disabled (default): uncommitted writes are NOT visible
+
+SET SESSION duckdb_cross_engine_ryow=0;
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=2;
+INSERT INTO t_inno VALUES (6,'Frank',100);
+SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+id	name	score
+1	Alice	90
+2	Bob	80
+3	Carol	70
+4	Dave	60
+5	Eve	50
+ROLLBACK;
+
+# (2) RYOW enabled: uncommitted writes ARE visible (read own writes)
+
+SET SESSION duckdb_cross_engine_ryow=1;
+BEGIN;
+UPDATE t_inno SET score=999 WHERE id=2;
+INSERT INTO t_inno VALUES (6,'Frank',100);
+SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+id	name	score
+1	Alice	90
+2	Bob	999
+3	Carol	70
+4	Dave	60
+5	Eve	50
+6	Frank	100
+ROLLBACK;
+
+# (3) After rollback, committed state is intact
+
+SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+id	name	score
+1	Alice	90
+2	Bob	80
+3	Carol	70
+4	Dave	60
+5	Eve	50
+
+# Cleanup
+
+SET SESSION duckdb_cross_engine_ryow=DEFAULT;
+DROP TABLE t_duck;
+DROP TABLE t_inno;
+DROP DATABASE cross_engine_ryow;

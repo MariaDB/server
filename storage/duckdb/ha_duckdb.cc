@@ -1297,6 +1297,13 @@ static MYSQL_THDVAR_SET(disabled_optimizers, PLUGIN_VAR_RQCMDARG,
                         "Disable specific DuckDB optimizer rules", NULL, NULL,
                         0, &myduck::disabled_optimizers_typelib);
 
+static MYSQL_THDVAR_BOOL(cross_engine_ryow, PLUGIN_VAR_RQCMDARG,
+                         "In cross-engine joins, read own uncommitted writes "
+                         "from non-DuckDB tables via a direct handler scan in "
+                         "the parent transaction (disables predicate pushdown "
+                         "and index access path for those tables)",
+                         NULL, NULL, FALSE);
+
 /* ---- THDVAR accessor functions (used from duckdb_context.cc) ---- */
 
 namespace myduck
@@ -1319,6 +1326,11 @@ ulonglong get_thd_disabled_optimizers(THD *thd)
   return THDVAR(thd, disabled_optimizers);
 }
 
+my_bool get_thd_cross_engine_ryow(THD *thd)
+{
+  return THDVAR(thd, cross_engine_ryow);
+}
+
 } // namespace myduck
 
 static struct st_mysql_sys_var *duckdb_system_variables[]= {
@@ -1335,7 +1347,8 @@ static struct st_mysql_sys_var *duckdb_system_variables[]= {
     MYSQL_SYSVAR(log_options),
     /* Session proxy */
     MYSQL_SYSVAR(merge_join_threshold), MYSQL_SYSVAR(force_no_collation),
-    MYSQL_SYSVAR(explain_output), MYSQL_SYSVAR(disabled_optimizers), NULL};
+    MYSQL_SYSVAR(explain_output), MYSQL_SYSVAR(disabled_optimizers),
+    MYSQL_SYSVAR(cross_engine_ryow), NULL};
 
 static struct st_mysql_show_var duckdb_status_variables[]= {
     {"Duckdb_rows_insert", (char *) &srv_duckdb_status.duckdb_rows_insert,
