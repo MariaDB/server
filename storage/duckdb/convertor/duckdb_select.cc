@@ -76,6 +76,12 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_STRING:
     case MYSQL_TYPE_VAR_STRING: {
+      if (is_uuid_field(field))
+      {
+        auto str= value.GetValue<duckdb::string>();
+        field->store(str.c_str(), str.size(), system_charset_info);
+        break;
+      }
       if (field->has_charset())
       {
         DBUG_ASSERT(field->charset() != &my_charset_bin);

@@ -149,6 +149,8 @@ static duckdb::LogicalType field_to_logical_type(const Field *field)
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_ENUM:
+    if (is_uuid_field(field))
+      return duckdb::LogicalType::UUID;
     return duckdb::LogicalType::VARCHAR;
   default:
     return duckdb::LogicalType::VARCHAR;
@@ -220,6 +222,8 @@ static duckdb::Value field_to_duckdb_value(Field *field)
   default: {
     String buf;
     field->val_str(&buf);
+    if (is_uuid_field(field))
+      return duckdb::Value::UUID(std::string(buf.ptr(), buf.length()));
     return duckdb::Value(std::string(buf.ptr(), buf.length()));
   }
   }

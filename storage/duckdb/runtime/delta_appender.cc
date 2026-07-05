@@ -439,6 +439,13 @@ int DeltaAppender::append_mysql_field(const Field *field_arg,
     String tmp(buf, sizeof(buf), &my_charset_bin);
     field->val_str(&tmp);
 
+    if (is_uuid_field(field))
+    {
+      appender->Append(
+          duckdb::Value::UUID(std::string(tmp.ptr(), tmp.length())));
+      break;
+    }
+
     bool is_blob= false;
     if (blob_type_map != nullptr)
       is_blob= bitmap_is_set(blob_type_map, field->field_index);
