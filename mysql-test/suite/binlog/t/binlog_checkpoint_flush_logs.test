@@ -53,7 +53,7 @@ SET DEBUG_SYNC= "now SIGNAL default_go";
 
 connection default;
 --enable_reconnect
---error 0,2013
+--error 0,2013,2026
 --reap
 
 --echo Must be tree logs in the list:

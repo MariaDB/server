@@ -20,7 +20,7 @@ call mtr.add_suppression("2001:db8::6:6");
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc
 
-connect (con1,"::1",root,,test,$MASTER_MYPORT,);
+connect con1,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 select current_user();
 disconnect con1;
@@ -31,7 +31,7 @@ set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_error_again";
 
 --disable_query_log
 --error ER_HOST_NOT_PRIVILEGED
-connect (con2,"::1",root,,test,$MASTER_MYPORT,);
+connect con2,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -39,7 +39,7 @@ connect (con2,"::1",root,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HOST_NOT_PRIVILEGED
-connect (con3,"::1",root,,test,$MASTER_MYPORT,);
+connect con3,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -49,7 +49,7 @@ set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddr
 
 --disable_query_log
 --error ER_HOST_NOT_PRIVILEGED
-connect (con4,"::1",root,,test,$MASTER_MYPORT,);
+connect con4,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -57,7 +57,7 @@ connect (con4,"::1",root,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_HOST_NOT_PRIVILEGED
-connect (con5,"::1",root,,test,$MASTER_MYPORT,);
+connect con5,"::1",root,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default

@@ -40,10 +40,10 @@ wait-binlog_mdev342.test
 EOF
 # If con1 manages to race ahead and crash, we can see the crash already in the
 # SET DEBUG_SYNC statement, so need --error here also.
---error 0,2006,2013
+--error 0,2006,2013,2026
 SET DEBUG_SYNC= "now SIGNAL con1_cont";
 connection con1;
---error 2006,2013
+--error 2006,2013,2026
 reap;
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

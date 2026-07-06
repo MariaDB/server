@@ -50,7 +50,7 @@ while ($c < $crash_count)
     --eval set @@debug_dbug="+d,definition_file_simulate_write_error",@debug_error_counter=$r;
 
     let $errno=0;
-    --error 0,3,2013
+    --error 0,3,2013,2026
     rename table v1 to v5, v2 to v1, v5 to v2, v4 to v5, v3 to v4;
     let $error=$errno;
     --enable_reconnect
