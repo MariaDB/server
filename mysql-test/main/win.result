@@ -4832,5 +4832,36 @@ c1	c2
 2	2
 DROP TABLE t1;
 #
+# MDEV-28509: Access null pointer during add_key_field call
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(5),(7),(1);
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i != 5;
+i
+1
+7
+# The same crash occurs when the WHERE uses < instead of !=.
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i < 5;
+i
+1
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode= ONLY_FULL_GROUP_BY;
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i != 5;
+i
+1
+7
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i < 5;
+i
+1
+# An unreferenced WINDOW does not exempt b.i from ONLY_FULL_GROUP_BY.
+SELECT b.i FROM t1 a, t1 b GROUP BY a.i WINDOW w AS (PARTITION BY a.i);
+ERROR 42000: 'test.b.i' isn't in GROUP BY
+SET @@sql_mode= @save_sql_mode;
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #

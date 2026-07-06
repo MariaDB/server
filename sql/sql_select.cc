@@ -28944,6 +28944,21 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 }
 
 
+/*
+  Is item one of the expressions of the GROUP BY list?  find_order_in_list()
+  has already pointed every ORDER entry at its select list expression; direct
+  comparison is sufficient.
+*/
+
+static bool item_in_group_list(ORDER *order, Item *item)
+{
+  for (ORDER *ord= order; ord; ord= ord->next)
+    if (*ord->item == item)
+      return true;
+  return false;
+}
+
+
 /**
   Intitialize the GROUP BY list.
 
@@ -28992,7 +29007,6 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
                            all_fields, true, true, from_window_spec))
       return 1;
-    (*ord->item)->marker= MARKER_UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func() && context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
@@ -29042,7 +29056,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     while (field && (item=li++))
     {
       if (item->type() != Item::SUM_FUNC_ITEM &&
-          item->marker != MARKER_UNDEF_POS &&
+          !item_in_group_list(order, item) &&
           !item->const_item() &&
           !(item->real_item()->type() == Item::FIELD_ITEM &&
             item->used_tables() & OUTER_REF_TABLE_BIT))

@@ -158,8 +158,6 @@ bool mark_unsupported_function(const char *w1, const char *w2,
   Note that for Item_fields, the marker contains
   'select->cur_pos_in_select_list
 */
-/* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
-#define MARKER_UNDEF_POS      -1
 #define MARKER_UNUSED         0
 #define MARKER_CHANGE_COND    1
 #define MARKER_PROCESSED      2
