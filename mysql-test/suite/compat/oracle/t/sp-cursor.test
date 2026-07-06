@@ -1042,3 +1042,42 @@ DELIMITER ;$$
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-37086 Service crashed on procedure call
+--echo #
+
+delimiter $$;
+create procedure sp () as
+ cursor c1 is select 1;
+ cursor refreshed (d1 int) is select  1;
+ r_refreshed refreshed%rowtype;
+begin
+ open refreshed(0);
+end;
+$$
+delimiter ;$$
+call sp();
+drop procedure sp;
+
+create table t1 (id int, id2 datetime);
+delimiter $$;
+create procedure sp () as
+  cursor expired is select id, id2 from t1 ;
+  cursor refreshed (d1 datetime,d2 datetime) is select id, id2 from t1;
+  r_refreshed refreshed%rowtype;
+  udb_time datetime;
+  ndb_time datetime;
+begin
+  open refreshed(udb_time,ndb_time);
+end;
+$$
+delimiter ;$$
+call sp();
+drop procedure sp;
+drop table t1;

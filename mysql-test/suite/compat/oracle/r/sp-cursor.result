@@ -1020,3 +1020,33 @@ ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor param
 #
 # End of 10.8 tests
 #
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-37086 Service crashed on procedure call
+#
+create procedure sp () as
+cursor c1 is select 1;
+cursor refreshed (d1 int) is select  1;
+r_refreshed refreshed%rowtype;
+begin
+open refreshed(0);
+end;
+$$
+call sp();
+drop procedure sp;
+create table t1 (id int, id2 datetime);
+create procedure sp () as
+cursor expired is select id, id2 from t1 ;
+cursor refreshed (d1 datetime,d2 datetime) is select id, id2 from t1;
+r_refreshed refreshed%rowtype;
+udb_time datetime;
+ndb_time datetime;
+begin
+open refreshed(udb_time,ndb_time);
+end;
+$$
+call sp();
+drop procedure sp;
+drop table t1;
