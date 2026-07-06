@@ -1499,6 +1499,14 @@ lock_rec_enqueue_waiting(
         lock, that's why we check only deadlock victim bit here. */
         ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
 
+	/* If this transaction has already been chosen as a victim — it must not
+	enqueue a new waiting lock request.
+	Return DB_DEADLOCK so that the caller rolls  back instead of waiting. */
+	if (trx->lock.was_chosen_as_deadlock_victim) {
+		trx->error_state = DB_DEADLOCK;
+		return DB_DEADLOCK;
+	}
+
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 		return DB_LOCK_WAIT_TIMEOUT;
@@ -3825,10 +3833,6 @@ lock_table_enqueue_waiting(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(!trx->dict_operation_lock_mode);
 
-	/* Enqueue the lock request that will wait to be granted */
-	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
-
-	trx->lock.wait_thr = thr;
         /* Apart from Galera, only transactions that have waiting lock
         may be chosen as deadlock victims. Only one lock can be waited for at a
         time, and a transaction is associated with a single thread. That is why
@@ -3837,6 +3841,19 @@ lock_table_enqueue_waiting(
         from MDL acquisition code when the transaction does not have waiting
         lock, that's why we check only deadlock victim bit here. */
         ut_ad(!(trx->lock.was_chosen_as_deadlock_victim & 1));
+
+	/* A transaction already chosen as a victim must not enqueue a new
+	waiting lock request.
+	Return DB_DEADLOCK so the caller rolls the transaction back. */
+	if (trx->lock.was_chosen_as_deadlock_victim) {
+		trx->error_state = DB_DEADLOCK;
+		return DB_DEADLOCK;
+	}
+
+	/* Enqueue the lock request that will wait to be granted */
+	lock_table_create(table, mode | LOCK_WAIT, trx, c_lock);
+
+	trx->lock.wait_thr = thr;
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
 	return(DB_LOCK_WAIT);
@@ -6705,10 +6722,11 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
   if (trx->lock.was_chosen_as_deadlock_victim)
     return DB_DEADLOCK;
   DEBUG_SYNC_C("lock_trx_handle_wait_before_unlocked_wait_lock_check");
+
   /* trx->lock.was_chosen_as_deadlock_victim must always be set before
   trx->lock.wait_lock if the transaction was chosen as deadlock victim,
-  the function must not return DB_SUCCESS if
-  trx->lock.was_chosen_as_deadlock_victim is set. */
+  the function must not return DB_SUCCESS
+  if trx->lock.was_chosen_as_deadlock_victim is set. */
   if (!trx->lock.wait_lock)
     return trx->lock.was_chosen_as_deadlock_victim ? DB_DEADLOCK : DB_SUCCESS;
   dberr_t err= DB_SUCCESS;

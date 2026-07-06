@@ -11292,7 +11292,13 @@ create_table_info_t::check_table_options()
 				" ENCRYPTION_KEY_ID=1");
 			compile_time_assert(FIL_DEFAULT_ENCRYPTION_KEY == 1);
 		}
-		if (srv_encrypt_tables != 2) {
+		/* m_trx is non-NULL because TRUNCATE that
+		passes its own transaction. TRUNCATE recreates
+		the table preserving the original ENCRYPTED=NO
+		attribute; bypass the innodb_encrypt_tables=FORCE
+		check here so the encryption state does not
+		silently change across a TRUNCATE. */
+		if (m_trx || srv_encrypt_tables != 2) {
 			break;
 		}
 		push_warning(
@@ -13887,6 +13893,26 @@ int ha_innobase::truncate()
   if (ib_table->is_temporary())
   {
     info.options|= HA_LEX_CREATE_TMP_TABLE;
+
+    /* Validate the create options before dropping the existing
+    table, so that a validation failure leaves the original table
+    intact instead of dropping it and then failing in create(),
+    which would leave the handler without a table. */
+    {
+      char norm_name[FN_REFLEN], remote_path[FN_REFLEN];
+      create_table_info_t validate(m_user_thd, table, &info, norm_name,
+                                   remote_path, true, trx);
+      int err= validate.initialize();
+      if (!err)
+        err= validate.prepare_create_table(ib_table->name.m_name, false);
+      if (err)
+      {
+        trx_rollback_for_mysql(trx);
+        trx->free();
+        DBUG_RETURN(err);
+      }
+    }
+
     btr_drop_temporary_table(*ib_table);
     m_prebuilt->table= nullptr;
     row_prebuilt_free(m_prebuilt);

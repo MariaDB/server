@@ -2105,4 +2105,16 @@ select 12345678 * 987.000000000000000000000000000000000002 as 'truncate 1';
 select 12345678.000000000000000000000000000000000001 * 987 as 'truncate 2';
 select '12185184186.000000000000000000000000000024692343000000000000000000000000000000000002' as 'exact result';
 
+--echo #
+--echo # MDEV-39744: Assertion `buf != end` failed in `decimal_mul`
+--echo #
+
+SET @old_prec_incr= @@SESSION.div_precision_increment;
+
+SET @@SESSION.div_precision_increment=0;
+SELECT ((273 / 941) * (-299 / 450)) as x;
+SELECT (-299 / 450) AS neg_div;
+
+SET @@SESSION.div_precision_increment=@old_prec_incr;
+
 --echo # End of 10.11 tests

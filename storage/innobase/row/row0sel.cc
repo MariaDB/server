@@ -5241,6 +5241,13 @@ no_gap_lock:
 			lock_type = LOCK_ORDINARY;
 		}
 
+		/* Test hook (debug builds only): allows a BF abort to mark this
+		transaction a wsrep victim after the interrupt check at the top of
+		rec_loop but before it enqueues a waiting lock request below — the
+		window in which the orphaned-waiter bug forms. Inert in release
+		builds (DEBUG_SYNC_C compiles to nothing without ENABLED_DEBUG_SYNC). */
+		DEBUG_SYNC_C("row_search_before_rec_lock");
+
 		err = sel_set_rec_lock(pcur,
 				       rec, index, offsets,
 				       prebuilt->select_lock_type,

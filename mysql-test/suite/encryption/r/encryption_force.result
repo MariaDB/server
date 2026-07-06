@@ -11,6 +11,7 @@ ERROR HY000: Can't create table `test`.`t5` (errno: 140 "Wrong create options")
 set global innodb_encrypt_tables='ON';
 create table t3 (a int) engine=innodb encrypted=no;
 set global innodb_encrypt_tables='FORCE';
+truncate table t3;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
