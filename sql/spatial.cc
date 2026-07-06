@@ -2395,7 +2395,9 @@ int Gis_polygon::simplify(String *result, double max_distance) const
     return 1;
 
   result->length(0);
-  result->reserve(SRID_SIZE + WKB_HEADER_SIZE);
+  // Reserve room for the SRID, byte order, type, and ring count.
+  if (result->reserve(SRID_SIZE + WKB_HEADER_SIZE + sizeof(uint32)))
+    return 1;
   result->q_append(SRID_PLACEHOLDER);
   result->q_append((char) wkb_ndr);
   result->q_append((uint32) wkb_polygon);
@@ -3500,7 +3502,9 @@ int Gis_multi_line_string::simplify(String *result, double max_distance) const
     return 1;
 
   result->length(0);
-  result->reserve(SRID_SIZE + WKB_HEADER_SIZE);
+  // Reserve room for the SRID, byte order, type, and line count.
+  if (result->reserve(SRID_SIZE + WKB_HEADER_SIZE + sizeof(uint32)))
+    return 1;
   result->q_append(SRID_PLACEHOLDER);
   result->q_append((char) wkb_ndr);
   result->q_append((uint32) wkb_multilinestring);
@@ -4107,7 +4111,9 @@ int Gis_multi_polygon::simplify(String *result, double max_distance) const
     return 1;
 
   result->length(0);
-  result->reserve(SRID_SIZE + WKB_HEADER_SIZE);
+  // Reserve room for the SRID, byte order, type, and polygon count.
+  if (result->reserve(SRID_SIZE + WKB_HEADER_SIZE + sizeof(uint32)))
+    return 1;
   result->q_append(SRID_PLACEHOLDER);
   result->q_append((char) wkb_ndr);
   result->q_append((uint32) wkb_multipolygon);
@@ -4702,7 +4708,9 @@ int Gis_geometry_collection::simplify(String *result,
     return 1;
 
   result->length(0);
-  result->reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE);
+  // Reserve room for the SRID, byte order, type, and geometry count.
+  if (result->reserve(SRID_SIZE + WKB_HEADER_SIZE + sizeof(uint32)))
+    return 1;
   result->q_append(SRID_PLACEHOLDER);
   result->q_append((char) wkb_ndr);
   result->q_append((uint32) wkb_geometrycollection);

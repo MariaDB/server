@@ -2135,6 +2135,7 @@ longlong Item_func_isvalid::val_int()
   String *wkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
   Geometry *geometry;
+  null_value= 1;
 
   int valid;
   if ((args[0]->null_value ||
@@ -2142,16 +2143,13 @@ longlong Item_func_isvalid::val_int()
   {
     if (!args[0]->null_value)
       my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
-    null_value= 1;
     return 1;
   }
 
   if (geometry->is_valid(&valid))
-  {
-    null_value= 1;
     return 1;
-  }
 
+  null_value= 0;
   return (longlong) valid;
 }
 
@@ -2321,6 +2319,14 @@ String *Item_func_simplify::val_str(String *str)
     }
   }
 
+  /*
+    ST_SIMPLIFY returns a binary geometry.  The simplify methods append the
+    result with String::append, which consults the charset of the output
+    buffer.  When that buffer is an element of the comparison array that IN
+    builds it arrives cleared, with no charset, so mark it binary before
+    writing.
+  */
+  str->set_charset(&my_charset_bin);
   if (geometry->simplify(str, max_distance))
   {
     null_value= 1;
