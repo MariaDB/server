@@ -307,6 +307,12 @@ String *Item_xmltype_typecast::val_str(String *to)
 
   if (check_parse_xml(res->ptr(), res->length(), res->charset()) != MY_XML_OK)
   {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_TRUNCATED_WRONG_VALUE,
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "xmltype",
+                        ErrConvString(res->ptr(), res->length(),
+                                      res->charset()).ptr());
     null_value= TRUE;
     return NULL;
   }

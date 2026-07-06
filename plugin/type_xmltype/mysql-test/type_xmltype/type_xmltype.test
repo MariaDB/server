@@ -302,4 +302,10 @@ INSERT IGNORE INTO t2 SELECT i FROM t1;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-39655 No warning after CAST( AS xmltype).
+--echo #
+
+SELECT CAST('a' AS xmltype);
+
 --echo # End of 12.3 tests

@@ -285,12 +285,16 @@ set sql_mode= DEFAULT;
 SELECT XMLTYPE(1);
 XMLTYPE(1)
 NULL
+Warnings:
+Warning	1292	Truncated incorrect xmltype value: '1'
 SELECT XMLTYPE("<a></a>");
 XMLTYPE("<a></a>")
 <a></a>
 SELECT CAST(1 AS XMLTYPE);
 CAST(1 AS XMLTYPE)
 NULL
+Warnings:
+Warning	1292	Truncated incorrect xmltype value: '1'
 SELECT CAST("<a></a>" AS XMLTYPE);
 CAST("<a></a>" AS XMLTYPE)
 <a></a>
@@ -368,4 +372,12 @@ CREATE TABLE t2 (x XMLTYPE not null);
 INSERT IGNORE INTO t2 SELECT i FROM t1;
 ERROR HY000: Incorrect XMLTYPE value: '1'
 DROP TABLE t1, t2;
+#
+# MDEV-39655 No warning after CAST( AS xmltype).
+#
+SELECT CAST('a' AS xmltype);
+CAST('a' AS xmltype)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect xmltype value: 'a'
 # End of 12.3 tests
