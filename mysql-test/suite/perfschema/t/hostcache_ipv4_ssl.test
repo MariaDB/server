@@ -24,7 +24,7 @@ grant select on test.* to 'user_ssl_x509'@'santa.claus.ipv4.example.com'
     O=No such thing/
     CN=Santa Claus/emailAddress=santa.claus@example.com';
 
-connect (con1,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+connect con1,"127.0.0.1",root,,test,$MASTER_MYPORT,,NOSSL;
 select "Con1 is alive";
 select current_user();
 disconnect con1;
@@ -35,7 +35,7 @@ set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddr
 
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR
-connect (con2a,"127.0.0.1",user_ssl,,test,$MASTER_MYPORT,);
+connect con2a,"127.0.0.1",user_ssl,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default
@@ -43,7 +43,7 @@ connect (con2a,"127.0.0.1",user_ssl,,test,$MASTER_MYPORT,);
 
 --disable_query_log
 --error ER_ACCESS_DENIED_ERROR
-connect (con2b,"127.0.0.1",user_ssl,,test,$MASTER_MYPORT,);
+connect con2b,"127.0.0.1",user_ssl,,test,$MASTER_MYPORT,,NOSSL;
 --enable_query_log
 
 --connection default

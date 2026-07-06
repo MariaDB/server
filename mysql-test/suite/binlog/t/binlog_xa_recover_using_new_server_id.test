@@ -19,7 +19,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 wait-binlog_xa_recover_using_new_server_id.test
 EOF
 SET SESSION debug_dbug="+d,crash_commit_after_log";
---error 2006,2013
+--error 2006,2013,2026
 INSERT INTO t1 VALUES (1, NULL);
 
 

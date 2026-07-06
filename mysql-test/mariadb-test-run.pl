@@ -244,7 +244,7 @@ my $opt_tail_lines= 20;
 my $opt_dry_run;
 
 my $opt_compress;
-my $opt_ssl;
+our $opt_ssl;
 my $opt_skip_ssl;
 my @opt_skip_test_list;
 our $opt_ssl_supported;
