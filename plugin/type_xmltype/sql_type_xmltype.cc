@@ -170,6 +170,115 @@ const Type_handler *Type_handler_xmltype::
 }
 
 
+bool Type_handler_xmltype::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  LEX_CSTRING name= {STRING_WITH_LEN("sum") };
+  return Item_func_or_sum_illegal_param(name);
+}
+
+
+bool Type_handler_xmltype::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  LEX_CSTRING name= {STRING_WITH_LEN("avg") };
+  return Item_func_or_sum_illegal_param(name);
+}
+
+
+bool Type_handler_xmltype::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_xmltype::
+       Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
+                                                 const
+{
+  return Item_func_or_sum_illegal_param(item);
+
+}
+
+
 
 /*****************************************************************/
 void Field_xmltype::sql_type(String &res) const

@@ -380,4 +380,41 @@ CAST('a' AS xmltype)
 NULL
 Warnings:
 Warning	1292	Truncated incorrect xmltype value: 'a'
+#
+# MDEV-39683 Numeric aggregates should end up with an error for xmltype.
+#
+CREATE TABLE t (x XMLTYPE);
+INSERT INTO t VALUES ('<a/>');
+INSERT INTO t VALUES ('<a/>'),('<b>1</b>'),('<n>4.5</n>'),('<c/>');
+SELECT round(x) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'round'
+SELECT floor(x) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'floor'
+SELECT abs(x) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'abs'
+SELECT -x FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation '-'
+SELECT sum(x) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'sum'
+SELECT avg(x) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'avg'
+SELECT variance(x) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'variance('
+SELECT cast(x as signed) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'cast_as_signed'
+SELECT cast(x as unsigned) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'cast_as_unsigned'
+SELECT cast(x as float) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'float_typecast'
+SELECT cast(x as double) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'double_typecast'
+SELECT cast(x as decimal) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'decimal_typecast'
+SELECT cast(x as time) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'cast_as_time'
+SELECT cast(x as date) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'cast_as_date'
+SELECT cast(x as datetime) FROM t;
+ERROR HY000: Illegal parameter data type xmltype for operation 'cast_as_datetime'
+DROP TABLE t;
 # End of 12.3 tests
