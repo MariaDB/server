@@ -2894,7 +2894,48 @@ struct TABLE_LIST
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
   bool          straight;		/* optimize with prev table */
-  bool          updating;               /* for replicate-do/ignore table */
+  /*
+    Set when this statement changes the table rather than merely reading it
+    (DML *or* DDL) - i.e. the table is a target the statement modifies or
+    operates on. This is a SQL-layer/semantic flag and is deliberately
+    distinct from "a write lock will be taken" (lock_type >= TL_FIRST_WRITE):
+    SELECT ... FOR UPDATE / LOCK IN SHARE MODE take a write lock (especially on
+    engines without row locks, e.g. MyISAM) yet only read, so their tables
+    have updating == false; conversely a table can be flagged for replication
+    reasons without a write lock (see below).
+
+    Set by:
+      - the parser, via the TL_OPTION_UPDATING table option, for tables a
+        statement changes:
+          * DDL targets: CREATE/ALTER/RENAME TABLE, CREATE/DROP INDEX,
+            CREATE/DROP SEQUENCE, CREATE TRIGGER;
+          * DML targets of DELETE (single and multi) and LOAD;
+          * LOCK TABLES ... WRITE;
+      - set_lock_for_tables(for_update=true) for INSERT/REPLACE/UPDATE targets
+        (these do not use the parser option);
+      - the init_one_table() / TABLE_LIST(.., lock_type) ctors, which derive it
+        as (lock_type >= TL_FIRST_WRITE) for internally built table refs
+        (system tables, row-event replication apply, etc.);
+      - multi-UPDATE, which refines it per table during prelocking once the set
+        of updated tables is known;
+      - NEXTVAL() / SETVAL(), which mark the modified sequence table (it is
+        changed even though it carries no TL_OPTION_UPDATING);
+      - replication, which forces it independently of the lock, e.g. DROP
+        TRIGGER, and the table_map_for_update filtering of multi-UPDATE.
+
+    Read by:
+      - Rpl_filter::tables_ok() - replicate-do-table / replicate-ignore-table
+        filtering on the slave (the field's original purpose). This is why DDL
+        must set it: otherwise tables_ok() would skip the table and the slave
+        would wrongly ignore the statement.
+      - some_non_temp_table_to_be_updated() - read_only enforcement and related
+        binlog decisions.
+      - extend_table_list() - prelocking; paired with lock_type >= TL_FIRST_WRITE
+        so only genuinely-written, write-locked tables pull in triggers/FKs.
+      - THD::decide_logging_format() - distinguishes a genuine write from a
+        FOR UPDATE read when setting the STMT_WRITES_* accessed-table flags.
+  */
+  bool          updating;
   bool          ignore_leaves;          /* preload only non-leaf nodes */
   bool          crashed;                /* Table was found crashed */
   bool          skip_locked;            /* Skip locked in view definition */
