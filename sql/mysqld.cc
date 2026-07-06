@@ -1525,10 +1525,10 @@ char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
   *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
   *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
 #if !defined(EMBEDDED_LIBRARY)
-#define SSL_MAX_ALT_CERTS 4
-static const char *opt_ssl_alt_certs[SSL_MAX_ALT_CERTS];
-static const char *opt_ssl_alt_keys[SSL_MAX_ALT_CERTS];
-static uint ssl_alt_cert_count= 0, ssl_alt_key_count= 0;
+#define SSL_MAX_CERTS 3
+static const char *ssl_cert_files[SSL_MAX_CERTS];
+static const char *ssl_key_files[SSL_MAX_CERTS];
+static uint ssl_cert_count= 0, ssl_key_count= 0;
 #endif
 ulonglong tls_version= 0;
 
@@ -4760,7 +4760,8 @@ struct SSL_ACCEPTOR_STATS
   long verify_depth;
   long zero;
   const char *session_cache_mode;
-  char cert_types[64];
+  char cert_types[sizeof("RSA") + sizeof("ECDSA") + sizeof("EdDSA") +
+                  2 * sizeof(", ")];
   uchar fprint[256/8];
 
   SSL_ACCEPTOR_STATS():
@@ -4805,7 +4806,7 @@ struct SSL_ACCEPTOR_STATS
     {
 #ifndef HAVE_WOLFSSL
       {
-        int pos= 0;
+        size_t pos= 0;
         SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_FIRST);
         do {
           X509 *c= SSL_CTX_get0_certificate(ctx);
@@ -4815,18 +4816,16 @@ struct SSL_ACCEPTOR_STATS
             if (pk)
             {
               const char *name= evp_pkey_type_name(EVP_PKEY_get_base_id(pk));
-              if (pos > 0 && pos + 2 < (int) sizeof(cert_types))
+              if (pos > 0 && pos + 2 < sizeof(cert_types))
               {
                 cert_types[pos++]= ',';
                 cert_types[pos++]= ' ';
               }
-              pos+= (int)(strmake(cert_types + pos, name,
-                                  sizeof(cert_types) - pos - 1) -
-                          (cert_types + pos));
+              pos= strmake(cert_types + pos, name,
+                           sizeof(cert_types) - pos - 1) - cert_types;
             }
           }
         } while (SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_NEXT));
-        cert_types[pos]= 0;
       }
 #else
       X509 *c= SSL_CTX_get0_certificate(ctx);
@@ -4878,29 +4877,15 @@ static void init_ssl()
 #if defined(HAVE_OPENSSL)
   if (opt_use_ssl)
   {
-    if (ssl_alt_cert_count != ssl_alt_key_count)
+    if (ssl_cert_count != ssl_key_count)
     {
       sql_print_error("Mismatched --ssl-cert-add/--ssl-key-add: %u certs, %u keys",
-                      ssl_alt_cert_count, ssl_alt_key_count);
+                      ssl_cert_count, ssl_key_count);
       if (!opt_bootstrap)
         unireg_abort(1);
     }
 
     enum enum_ssl_init_error error= SSL_INITERR_NOERROR;
-
-    /* Build combined cert/key arrays: primary at [0], alt certs after */
-    const char *ssl_key_files[SSL_MAX_ALT_CERTS + 1];
-    const char *ssl_cert_files[SSL_MAX_ALT_CERTS + 1];
-    uint ssl_cert_count= 0;
-    ssl_cert_files[ssl_cert_count]= opt_ssl_cert;
-    ssl_key_files[ssl_cert_count]= opt_ssl_key;
-    ssl_cert_count++;
-    for (uint i= 0; i < ssl_alt_cert_count; i++)
-    {
-      ssl_cert_files[ssl_cert_count]= opt_ssl_alt_certs[i];
-      ssl_key_files[ssl_cert_count]= opt_ssl_alt_keys[i];
-      ssl_cert_count++;
-    }
 
     /* having ssl_acceptor_fd != 0 signals the use of SSL */
     ssl_acceptor_fd= new_VioSSLAcceptorFd(ssl_key_files, ssl_cert_files,
@@ -4951,19 +4936,6 @@ int reinit_ssl()
     return 0;
 
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
-
-  const char *ssl_key_files[SSL_MAX_ALT_CERTS + 1];
-  const char *ssl_cert_files[SSL_MAX_ALT_CERTS + 1];
-  uint ssl_cert_count= 0;
-  ssl_cert_files[ssl_cert_count]= opt_ssl_cert;
-  ssl_key_files[ssl_cert_count]= opt_ssl_key;
-  ssl_cert_count++;
-  for (uint i= 0; i < ssl_alt_cert_count; i++)
-  {
-    ssl_cert_files[ssl_cert_count]= opt_ssl_alt_certs[i];
-    ssl_key_files[ssl_cert_count]= opt_ssl_alt_keys[i];
-    ssl_cert_count++;
-  }
 
   st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(ssl_key_files, ssl_cert_files,
     ssl_cert_count,
@@ -8649,11 +8621,17 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     my_getopt_init_one_value(opt, opt->value, opt->def_value);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  /* --ssl-cert/--ssl-key reset alt cert/key lists (like --plugin-load resets) */
+  /* --ssl-cert/--ssl-key reset and re-add primary (like --plugin-load) */
   if (opt->id == OPT_SSL_CERT)
-    ssl_alt_cert_count= 0;
+  {
+    ssl_cert_count= 0;
+    ssl_cert_files[ssl_cert_count++]= opt_ssl_cert;
+  }
   else if (opt->id == OPT_SSL_KEY)
-    ssl_alt_key_count= 0;
+  {
+    ssl_key_count= 0;
+    ssl_key_files[ssl_key_count++]= opt_ssl_key;
+  }
 #endif
 
   switch(opt->id) {
@@ -8722,35 +8700,25 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   case OPT_SSL_CERT_ADD:
     if (!opt_ssl_cert || !opt_ssl_cert[0])
-    {
       opt_ssl_cert= (char *) argument;
-    }
-    else
+    if (ssl_cert_count >= SSL_MAX_CERTS)
     {
-      if (ssl_alt_cert_count >= SSL_MAX_ALT_CERTS)
-      {
-        sql_print_error("Too many --ssl-cert-add options (max %u)",
-                        (uint) SSL_MAX_ALT_CERTS);
-        return 1;
-      }
-      opt_ssl_alt_certs[ssl_alt_cert_count++]= argument;
+      sql_print_error("Too many --ssl-cert-add options (max %u)",
+                      (uint) (SSL_MAX_CERTS - 1));
+      return 1;
     }
+    ssl_cert_files[ssl_cert_count++]= argument;
     break;
   case OPT_SSL_KEY_ADD:
     if (!opt_ssl_key || !opt_ssl_key[0])
-    {
       opt_ssl_key= (char *) argument;
-    }
-    else
+    if (ssl_key_count >= SSL_MAX_CERTS)
     {
-      if (ssl_alt_key_count >= SSL_MAX_ALT_CERTS)
-      {
-        sql_print_error("Too many --ssl-key-add options (max %u)",
-                        (uint) SSL_MAX_ALT_CERTS);
-        return 1;
-      }
-      opt_ssl_alt_keys[ssl_alt_key_count++]= argument;
+      sql_print_error("Too many --ssl-key-add options (max %u)",
+                      (uint) (SSL_MAX_CERTS - 1));
+      return 1;
     }
+    ssl_key_files[ssl_key_count++]= argument;
     break;
 #endif
   case 'V':
