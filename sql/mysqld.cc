@@ -4804,7 +4804,17 @@ struct SSL_ACCEPTOR_STATS
     /* Build list of loaded certificate types */
     cert_types[0]= 0;
     {
-#ifndef HAVE_WOLFSSL
+#ifdef HAVE_WOLFSSL
+      X509 *c= SSL_CTX_get0_certificate(ctx);
+      if (c)
+      {
+        EVP_PKEY *pk= X509_get0_pubkey(c);
+        if (pk)
+          strmake(cert_types,
+                  evp_pkey_type_name(EVP_PKEY_get_base_id(pk)),
+                  sizeof(cert_types) - 1);
+      }
+#else
       {
         size_t pos= 0;
         SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_FIRST);
@@ -4826,17 +4836,6 @@ struct SSL_ACCEPTOR_STATS
             }
           }
         } while (SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_NEXT));
-      }
-#else
-      X509 *c= SSL_CTX_get0_certificate(ctx);
-      if (c)
-      {
-        EVP_PKEY *pk= X509_get0_pubkey(c);
-        if (pk)
-        {
-          const char *name= evp_pkey_type_name(EVP_PKEY_get_base_id(pk));
-          strmake(cert_types, name, sizeof(cert_types) - 1);
-        }
       }
 #endif
     }
