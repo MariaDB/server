@@ -21,7 +21,6 @@ EDITABLE
 disconnect con2;
 connection slave;
 drop user foo@127.0.0.1;
-set timestamp=default;
 ### BINLOG REPLAY
 create user foo@127.0.0.1;
 grant binlog replay on *.* TO `foo`@`127.0.0.1`;
@@ -33,7 +32,6 @@ EDITABLE
 disconnect con2;
 connection slave;
 drop user foo@127.0.0.1;
-set timestamp=default;
 ### non-privileged user
 create user foo@127.0.0.1;
 connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
@@ -45,7 +43,6 @@ READONLY
 disconnect con2;
 connection slave;
 drop user foo@127.0.0.1;
-set timestamp=default;
 connection master;
 set time_zone='+00:00';
 set timestamp=1234567890.101112;
@@ -60,12 +57,32 @@ create trigger t1rbr before insert on t1 for each row set new.a=now(6);
 set @@global.slave_run_triggers_for_rbr= yes;
 binlog 'LQfqWg8BAAAA/AAAAAABAAABAAQAMTAuMy42LU1hcmlhREItZGVidWctbG9nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAtB+paEzgNAAgAEgAEBAQEEgAA5AAEGggAAAAICAgCAAAACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEwQADQgICAoKCgFlBcaR';
 binlog '0gKWSRMBAAAAMQAAAHQDAAAAAB8AAAAAAAEABHRlc3QAAnQxAAIPEQMUAAYBQFUzwA==0gKWSRcBAAAAMAAAAKQDAAAAAB8AAAAAAAEAAv/8BmJpbmxvZ0mWAtIBivg3mwo+';
+set timestamp=default;
 set @@global.slave_run_triggers_for_rbr= default;
 select b, if(a > 20100101, 'READONLY', 'EDITABLE') as 'REPLICATION' from t1;
 b	REPLICATION
 inserted	EDITABLE
 updated	EDITABLE
 binlog	EDITABLE
+connection master;
+drop table t1;
+create table t1 (b varchar(20) primary key, rs timestamp(6) as row start, re timestamp(6) as row end,
+period for system_time (rs,re)) with system versioning;
+insert t1 (b) values ('inserted'), ('before update');
+set timestamp=1345678900.101112;
+set binlog_format=statement;
+update t1 set b='updated...' where b<'c';
+select * from t1 for system_time all;
+b	rs	re
+inserted	2009-02-13 23:31:30.101112	2038-01-19 03:14:07.999999
+updated...	2012-08-22 23:41:40.101112	2038-01-19 03:14:07.999999
+before update	2009-02-13 23:31:30.101112	2012-08-22 23:41:40.101112
+connection slave;
+select b, strcmp(year(rs), 2012), strcmp(year(re),year(current_date)) from t1 for system_time all;
+b	strcmp(year(rs), 2012)	strcmp(year(re),year(current_date))
+inserted	-1	1
+updated...	0	1
+before update	-1	-1
 connection master;
 drop table t1;
 include/rpl_end.inc

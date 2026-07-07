@@ -7918,7 +7918,8 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
   {
     ulong sec_part;
     // Check whether a row came from unversioned table and fix vers fields.
-    if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
+    if (opt_secure_timestamp > SECTIME_REPL ||
+        (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0))
       table->vers_update_fields();
   }
 
@@ -8833,7 +8834,8 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
   if (m_table->versioned())
   {
-    if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
+    if ((m_vers_from_plain || opt_secure_timestamp > SECTIME_REPL) &&
+        m_table->versioned(VERS_TIMESTAMP))
       m_table->vers_update_fields();
     Field *end= m_table->vers_end_field();
     const uchar *old_ptr= end->ptr_in_record(m_table->record[1]);
