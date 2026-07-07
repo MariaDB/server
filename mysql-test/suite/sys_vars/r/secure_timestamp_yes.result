@@ -55,8 +55,9 @@ set timestamp=1234567890.101112;
 select @@timestamp, now(6);
 @@timestamp	now(6)
 1234567890.101112	2009-02-13 23:31:30.101112
-create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6));
-insert t1 (b) values ('replicated');
+create table t1 (b varchar(20) primary key, a timestamp(6) default current_timestamp(6) on update current_timestamp(6));
+insert t1 (b) values ('inserted'), ('');
+update t1 set b='updated' where b='';
 connection slave;
 create trigger t1rbr before insert on t1 for each row set new.a=now(6);
 set @@global.slave_run_triggers_for_rbr= yes;
@@ -65,7 +66,8 @@ binlog '0gKWSRMBAAAAMQAAAHQDAAAAAB8AAAAAAAEABHRlc3QAAnQxAAIPEQMUAAYBQFUzwA==0gKW
 set @@global.slave_run_triggers_for_rbr= default;
 select b, if(a > 20100101, 'READONLY', 'EDITABLE') as 'REPLICATION' from t1;
 b	REPLICATION
-replicated	READONLY
+inserted	READONLY
+updated	READONLY
 binlog	READONLY
 connection master;
 drop table t1;

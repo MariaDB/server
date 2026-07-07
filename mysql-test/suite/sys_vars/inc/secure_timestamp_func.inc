@@ -1,7 +1,6 @@
 #
 # MDEV-15923 option to control who can set session @@timestamp
 #
-source include/have_binlog_format_statement.inc;
 source include/master-slave.inc;
 
 connection slave;
@@ -58,8 +57,9 @@ set time_zone='+00:00';
 set timestamp=1234567890.101112;
 select @@timestamp, now(6);
 
-create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6));
-insert t1 (b) values ('replicated');
+create table t1 (b varchar(20) primary key, a timestamp(6) default current_timestamp(6) on update current_timestamp(6));
+insert t1 (b) values ('inserted'), ('');
+update t1 set b='updated' where b='';
 sync_slave_with_master;
 create trigger t1rbr before insert on t1 for each row set new.a=now(6);
 set @@global.slave_run_triggers_for_rbr= yes;
