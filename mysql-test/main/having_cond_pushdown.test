@@ -1657,4 +1657,18 @@ execute stmt;
 
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-39916 Crash with having filter when getting pushed down
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0), (1);
+
+SELECT a
+FROM t1
+GROUP BY a
+HAVING (NOT a) AND TRUE;
+
+DROP TABLE t1;
+
 --echo # End of 10.11 tests

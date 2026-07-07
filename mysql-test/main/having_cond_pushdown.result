@@ -6090,4 +6090,16 @@ EXPLAIN
   }
 }
 drop table t1, t2;
+#
+# MDEV-39916 Crash with having filter when getting pushed down
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0), (1);
+SELECT a
+FROM t1
+GROUP BY a
+HAVING (NOT a) AND TRUE;
+a
+0
+DROP TABLE t1;
 # End of 10.11 tests
