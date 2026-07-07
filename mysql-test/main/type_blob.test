@@ -853,3 +853,20 @@ INSERT INTO t1 (c1) VALUES (-2),(-1),(1),(2),(3),(4),(5);
 SELECT c1 FROM t1 WHERE 'a' BETWEEN 0 AND (c1);
 SELECT c1 FROM t1 WHERE '#' BETWEEN c1 AND 0;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31182 ASAN errors in String_copier::well_formed_copy / calculate_cond_selectivity_for_table
+--echo #
+
+SET histogram_type = DOUBLE_PREC_HB;
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+ANALYZE TABLE t PERSISTENT FOR ALL;
+ALTER TABLE t MODIFY a BLOB, ALGORITHM=COPY;
+
+SELECT a FROM t WHERE a LIKE '1%';
+
+DROP TABLE t;
+
+--echo # end of 10.11 tests

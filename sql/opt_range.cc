@@ -3241,7 +3241,8 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
       store_length= key_part->length;
       if (field->real_maybe_null())
         store_length+= HA_KEY_NULL_LENGTH;
-      if (field->real_type() == MYSQL_TYPE_VARCHAR)
+      if (field->real_type() == MYSQL_TYPE_VARCHAR ||
+          field->real_type() == MYSQL_TYPE_BLOB)
         store_length+= HA_KEY_BLOB_LENGTH;
       if (max_key_len < store_length)
         max_key_len= store_length;
@@ -8930,7 +8931,7 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
 
   if (length != key_part->length + maybe_null)
   {
-    /* key packed with length prefix */
+    /* BLOB or VARCHAR: key packed with length prefix */
     offset+= HA_KEY_BLOB_LENGTH;
     field_length= length - HA_KEY_BLOB_LENGTH;
   }
