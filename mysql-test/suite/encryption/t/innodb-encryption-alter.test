@@ -131,3 +131,22 @@ disconnect con1;
 
 select * from t1;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV 39795 : Assertion `n_reserved > 0' failed
+--echo #
+SET GLOBAL innodb_encrypt_tables = ON;
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  col1 INT,
+  col2 INT,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB ROW_FORMAT = Compact PAGE_COMPRESSED=1;
+
+INSERT INTO t1 (col1, col2) VALUES (10, 100);
+--error ER_GET_ERRMSG
+SET STATEMENT debug_dbug = 'd,inode_page_decryption_failed' FOR
+ALTER TABLE t1 ADD INDEX idx_col1 (col1);
+# Cleanup
+SET GLOBAL innodb_encrypt_tables = OFF;
+DROP TABLE t1;
