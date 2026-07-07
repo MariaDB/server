@@ -1,0 +1,76 @@
+--source include/have_aria.inc
+
+--let $log_directory=$MYSQLTEST_VARDIR/log_directory
+--let $target_directory=$MYSQLTEST_VARDIR/some_directory
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $log_directory
+--error 0,1
+--rmdir $target_directory
+
+--mkdir $log_directory
+
+--let $orig_restart_parameters=--aria-log-dir-path=$log_directory
+--let $restart_parameters=$orig_restart_parameters
+--source include/restart_mysqld.inc
+
+CREATE TABLE t (
+  id INT PRIMARY KEY,
+  str_val VARCHAR(255),
+  blob_val BLOB,
+  INDEX idx_str (str_val)
+) ENGINE=Aria TRANSACTIONAL=1;
+
+--disable_warnings
+DELIMITER //;
+CREATE PROCEDURE populate_data(IN num_rows INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < num_rows DO
+    SET @str = CONCAT('_row_', i);
+    SET @blb = REPEAT(CHAR(97 + (i % 26)), 1500);
+    INSERT INTO t (id, str_val, blob_val) VALUES (i, @str, @blb);
+    SET i = i + 1;
+  END WHILE;
+END//
+DELIMITER ;//
+--enable_warnings
+
+CALL populate_data(10000);
+
+SELECT COUNT(*) from t;
+SELECT SUM(id) FROM t;
+SELECT SUM(LENGTH(str_val)) FROM t;
+SELECT SUM(LENGTH(blob_val)) FROM t;
+
+--echo Back up the database
+evalp BACKUP SERVER TO '$target_directory';
+
+--echo Restore the database
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+--echo Check contents after restore
+
+SELECT COUNT(*) from t;
+SELECT SUM(id) FROM t;
+SELECT SUM(LENGTH(str_val)) FROM t;
+SELECT SUM(LENGTH(blob_val)) FROM t;
+
+--echo Restart database in original log and data directories
+--let $restart_parameters=$orig_restart_parameters
+--source include/restart_mysqld.inc
+
+--echo Clean up
+
+DROP PROCEDURE populate_data;
+DROP TABLE t;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--rmdir $target_directory
+--rmdir $log_directory
+
+--echo # End of 13.2 test

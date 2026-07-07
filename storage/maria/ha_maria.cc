@@ -3944,7 +3944,7 @@ static int ha_maria_init(void *p)
   maria_hton->end_backup= maria_end_backup;
   maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
   maria_hton->backup_start= aria_backup_start;
-  //maria_hton->backup_step= aria_backup_step;
+  maria_hton->backup_step= aria_backup_step;
   maria_hton->backup_end= aria_backup_end;
 
   /* TODO: decide if we support Maria being used for log tables */

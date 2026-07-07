@@ -24,6 +24,12 @@
 #include "tpool.h"
 #include "aligned.h"
 
+#include <string>
+#include <set>
+#include <algorithm>
+
+static constexpr const char zerobuf[511]{};
+
 #if defined __linux__ || defined __FreeBSD__
 using copying_step= ssize_t(int,int,size_t,off_t*);
 template<copying_step step,bool nonblocking>
@@ -62,6 +68,29 @@ using tpool::pread;
 using tpool::pwrite;
 #else
 # include <sys/mman.h>
+
+/** Obtain file descriptor to source directory.
+@return  File descriptor or -1 on error
+#note  Should be called when BACKUP SERVER is in progress.
+       Call is thread-safe and may incur synchronization cost.
+       Value may be stored safely for the duration of backup.
+       Lifetime is managed by SQL layer. Error is reported by my_error.
+*/
+int get_datadir_fd()
+{
+  /* Implemented by lazy initialization of static local variable on first call.
+  mysql_real_data_home is guaranteed to be populated from the requirement that
+  the call should happen from withing the backup process.
+  The descriptor is then kept open throughout the lifetime of the process
+  (it is never explicitly closed). */
+  static int datadir_fd= open(mysql_real_data_home, O_DIRECTORY);
+  if (datadir_fd < 0)
+  {
+    my_error(ER_CANT_READ_DIR, MYF(0), mysql_real_data_home, errno);
+  }
+  return datadir_fd;
+}
+
 /**
    Copy a file using a memory mapping.
    @tparam stream true=write to a stream, false=pwrite to a file
@@ -168,7 +197,98 @@ static ssize_t pread_write(IF_WIN(const native_file_handle&,int) in_fd,
 #ifdef __APPLE__
 /* The inline copy_entire_file() invokes fcopyfile() */
 #elif defined _WIN32
-/* CopyFileEx() should be used */
+/** Copy entire file.
+ @param src_path  path file file to copy
+ @param dst_path  path of file to copy to
+ @param target    backup target
+ @param sink      worker context
+ @return error code (non-positive)
+ @retval 0      on success
+ @note Wrapper for CopyFileExA, will report error using my_error  */
+extern "C"
+int copy_entire_file(const char *src_path, const char *dst_path,
+                     const struct backup_target *target,
+                     const struct backup_sink *sink)
+{
+   if (sink->stream == sink->NO_STREAM)
+  {
+    const std::string full_dst_path{make_path(target->path, dst_path)};
+    if (!CopyFileEx(src_path, full_dst_path.c_str(), nullptr, nullptr, nullptr,
+                    COPY_FILE_NO_BUFFERING))
+    {
+      my_osmaperr(GetLastError());
+      my_error(ER_CANT_CREATE_FILE, MYF(0), full_dst_path.c_str(), errno);
+      return 1;
+    }
+  }
+  else
+  {
+    HANDLE src, dst{sink->stream};
+    for (;;)
+    {
+      src= CreateFile(src_path, GENERIC_READ,
+                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                      my_win_file_secattr(), OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL, nullptr);
+      if (src != INVALID_HANDLE_VALUE)
+        break;
+
+      switch (GetLastError()) {
+      case ERROR_SHARING_VIOLATION:
+      case ERROR_LOCK_VIOLATION:
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        continue;
+      }
+
+      my_osmaperr(GetLastError());
+      my_error(ER_FILE_NOT_FOUND, MYF(ME_ERROR_LOG), src_path, errno);
+      return -1;
+    }
+
+    LARGE_INTEGER li;
+    if (!GetFileSizeEx(src, &li))
+    {
+    write_error:
+      my_osmaperr(GetLastError());
+      my_error(ER_ERROR_ON_WRITE, MYF(0), dst_path, errno);
+      if (src != INVALID_HANDLE_VALUE)
+        CloseHandle(src);
+      return -1;
+    }
+
+    if (backup_stream_start(dst, dst_path, 0644, li.QuadPart, nullptr, 0) ||
+        backup_stream_append_plain(src, dst, 0, li.QuadPart))
+      goto write_error;
+
+    if (size_t pad= size_t(li.LowPart) & 511)
+      if (backup_stream_write(dst, zerobuf, 512 - pad))
+        goto write_error;
+    if (!CloseHandle(src))
+    {
+      src= INVALID_HANDLE_VALUE;
+      goto write_error;
+    }
+  }
+  return 0;
+}
+
+/** Copy entire file from data directory target, preserving path.
+@param path    relative path of file
+@param target  backup target
+@param sink    worker context
+@return error code
+@retval 0      on success
+@note   The file will be copied to the same path relative to
+        target directory. Any intermediate directories must
+        already exist in the target. */
+extern "C" int copy_datafile_to_target(const char *path,
+                                       const struct backup_target *target,
+                                       const backup_sink *sink)
+{
+  return copy_entire_file(make_path(mysql_real_data_home, path).c_str(),
+                          path, target, sink);
+}
+
 #else
 /** Copy a file (whole content).
 @param src  source file descriptor
@@ -178,6 +298,94 @@ static ssize_t pread_write(IF_WIN(const native_file_handle&,int) in_fd,
 extern "C" int copy_entire_file(int src, int dst)
 {
   return copy_file(src, dst, 0, lseek(src, 0, SEEK_END));
+}
+#endif
+
+#ifndef _WIN32
+/** Copy an entire file to target.
+@param src_fd  source file descriptor
+@param target  backup target
+@return error code (non-positive)
+@retval 0   on success
+@note   Any intermediate directories must already exist in the target. */
+# ifdef __cplusplus
+extern "C"
+# endif
+int copy_fd_to_target(int src_fd,
+                      const struct backup_target *target,
+                      const char *path,
+                      const struct backup_sink *sink)
+{
+  int ret_val= 0;
+  int tgt_fd{sink->stream};
+  if (tgt_fd == sink->NO_STREAM)
+  {
+    tgt_fd= openat(target->fd, path,
+                    O_CREAT | O_EXCL | O_WRONLY, 0666);
+
+    if (tgt_fd < 0)
+    {
+      my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
+      ret_val= 1;
+    }
+    else
+    {
+      ret_val= copy_entire_file(src_fd, tgt_fd);
+      if (ret_val | close(tgt_fd))
+      {
+      write_error:
+        my_error(ER_ERROR_ON_WRITE, MYF(0), path, errno);
+        ret_val= 1;
+      }
+    }
+  }
+  else
+  {
+    off_t end_off= lseek(src_fd, 0, SEEK_END);
+    if (end_off == (off_t) -1)
+    {
+      my_error(ER_ERROR_ON_READ, MYF(0), path, errno);
+      ret_val= 1;
+    }
+    else
+    {
+      uint64_t end= static_cast<uint64_t>(end_off);
+      if (backup_stream_start(tgt_fd, path, 0644, end, nullptr, 0) ||
+          backup_stream_append(src_fd, tgt_fd, 0, end))
+        goto write_error;
+      if (size_t pad= size_t(end) & 511)
+        if (backup_stream_write(tgt_fd, zerobuf, 512 - pad))
+          goto write_error;
+    }
+  }
+
+  return ret_val;
+}
+
+/** Copy entire file from data directory target, preserving path.
+@param datadir_fd  file descriptor of source directory
+@param path        relative path of file
+@param target      backup target
+@param sink        worker context
+@return error code
+@retval 0      on success
+@note   The file will be copied to the same path relative to
+        target directory. Any intermediate directories must
+        already exist in the target. */
+extern "C" int copy_datafile_to_target(int datadir_fd,
+                                       const char *path,
+                                       const struct backup_target *target,
+                                       const backup_sink *sink)
+{
+  int src_fd = openat(datadir_fd, path, O_RDONLY);
+  if (src_fd < 0)
+  {
+    my_error(ER_CANT_OPEN_FILE, MYF(0), path, errno);
+    return 1;
+  }
+  int ret_val=  copy_fd_to_target(src_fd, target, path, sink);
+  close(src_fd);
+  return ret_val;
 }
 #endif
 
@@ -214,6 +422,133 @@ extern "C" int copy_file(IF_WIN(const native_file_handle&,int) src,
   assert(ret <= 0);
   return int(ret);
 }
+
+/** Ensure a file can be copied to a subdirectory in target.
+May create the subdirectory.
+@param target  backup target
+@param name    subdirectory name
+@return error code (non-positive)
+@retval 0      on success
+@note   If the directory is created, the directory containing it must
+        already exist: nested directory creation is not supported. */
+extern "C" int ensure_target_subdir(const struct backup_target *target,
+                                    const char* name)
+{
+
+#ifdef _WIN32
+  const std::string dir_path{make_path(target->path, name)};
+  if (CreateDirectory(dir_path.c_str(), nullptr))
+    return 0;
+  DWORD err= GetLastError();
+  if (err == ERROR_ALREADY_EXISTS)
+    return 0;
+  my_osmaperr(err);
+#else
+  if (likely(!mkdirat(target->fd, name, 0777) || errno == EEXIST))
+    return 0;
+#endif
+  my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
+  return 1;
+}
+
+/* all extensions have the same length, adjust if that changes */
+static constexpr size_t ext_len= 4;
+
+/* Files not copied by plugin backup implementations: files managed by
+SQL layer and miscellaneous engine files to be copied bunde DDL lock */
+static constexpr const char* misc_exts[] {".frm", ".par", ".TRG", ".TRN",
+                                          ".MYD", ".MYI", ".MRG",
+                                          ".ARM", ".ARZ", ".CSM", ".CSV"};
+static constexpr const char db_opt_name[] {"db.opt"};
+static constexpr size_t db_opt_len= sizeof(db_opt_name) - 1;
+
+static bool match_ext(const char* ext1, const char* ext2) noexcept
+{
+  return memcmp(ext1,
+                ext2,
+                ext_len) == 0;
+}
+
+static bool match_misc_ext(const char* file_ext) noexcept
+{
+  return std::find_if(std::begin(misc_exts), std::end(misc_exts),
+                    [file_ext](const char* misc_ext) {
+                      return match_ext(file_ext, misc_ext);
+                    }) != std::end(misc_exts);
+}
+
+static bool is_db_opt(const char* filename, size_t filename_len)
+{
+  return filename_len == db_opt_len &&
+         memcmp(filename, db_opt_name, db_opt_len) == 0;
+}
+
+static bool is_misc_file(const char* filename)
+{
+  size_t filename_len= strlen(filename);
+  if (filename_len < ext_len)
+    return false;
+  const char *file_ext = filename + filename_len - ext_len;
+  return match_misc_ext(file_ext) || is_db_opt(filename, filename_len);
+}
+
+std::string make_path(const char *base_path, const char *filename) noexcept
+{
+  std::string path;
+  const size_t base_len= strlen(base_path);
+  const size_t filename_len= strlen(filename);
+  path.reserve(base_len + filename_len + 1);
+  path.append(base_path, base_len);
+  path+= '/';
+  path.append(filename, filename_len);
+  return path;
+}
+
+static bool copy_misc_files(const backup_target *target,
+                            const backup_sink *sink)
+{
+#ifndef _WIN32
+  int datadir_fd= get_datadir_fd();
+  if (datadir_fd < 0)
+    return true;
+#endif
+  std::unordered_set<std::string> ensured_dirs;
+  Dir_scan datadir;
+  if (datadir.initialize(mysql_real_data_home, MYF(MY_WANT_STAT)))
+    return true;
+  for (const fileinfo &fi : datadir.contents())
+  {
+    if ((fi.mystat->st_mode & S_IFMT) == S_IFDIR)
+    {
+      const char* dir_name= fi.name;
+      if(sink->stream == sink->NO_STREAM &&
+         ensured_dirs.insert(dir_name).second)
+      {
+        if (ensure_target_subdir(target, dir_name))
+          return true;
+      }
+      const std::string dir_path{make_path(mysql_real_data_home, dir_name)};
+      Dir_scan dbdir;
+      if (dbdir.initialize(dir_path.c_str(), MYF(0)))
+        return true;
+      for (const fileinfo &fi : dbdir.contents())
+      {
+        if (is_misc_file(fi.name))
+        {
+          const std::string path= make_path(dir_name, fi.name);
+          if (copy_datafile_to_target(
+#ifndef _WIN32
+                                      datadir_fd,
+#endif
+                                      path.c_str(), target, sink))
+            return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 
 /** Append to the configuration file.
 @param target   backup target directory
@@ -558,6 +893,11 @@ bool Sql_cmd_backup::execute(THD *thd)
     }
   backup_phase_start:
     target_phase->phase= backup_phase(phase);
+
+    if (phase == BACKUP_PHASE_NO_DDL)
+      if ((fail= copy_misc_files(&target_phase->target, &target_phase->sink)))
+        break;
+
     fail= plugin_foreach_with_mask(thd, backup_start,
                                    MYSQL_STORAGE_ENGINE_PLUGIN,
                                    PLUGIN_IS_DELETED|PLUGIN_IS_READY,

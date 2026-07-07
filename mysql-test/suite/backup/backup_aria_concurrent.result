@@ -1,0 +1,21 @@
+15 30 7500
+Back up the database
+BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
+Restore the database
+# restart: --datadir=MYSQLTEST_VARDIR/some_directory
+Check contents after restore
+SELECT COUNT(*) FROM table_checks;
+COUNT(*)
+400
+SELECT * FROM table_checks WHERE sum_id <> 15;
+tbl_name	sum_id	str_len	blob_len	num_rows
+SELECT * FROM table_checks WHERE str_len <> 30;
+tbl_name	sum_id	str_len	blob_len	num_rows
+SELECT * FROM table_checks WHERE blob_len <> 7500;
+tbl_name	sum_id	str_len	blob_len	num_rows
+SELECT * FROM table_checks WHERE num_rows <> 5;
+tbl_name	sum_id	str_len	blob_len	num_rows
+Restart database in original data directory
+# restart
+Clean up
+# End of 13.2 test
