@@ -3481,7 +3481,11 @@ public:
              Item *f1, Item *f2, bool with_const_item);
   Item_equal(THD *thd, Item_equal *item_equal);
   /* Currently the const item is always the first in the list of equal items */
-  inline Item* get_const() { return with_const ? equal_items.head() : NULL; }
+  inline Item* get_const()
+  {
+    DBUG_ASSERT(!with_const || equal_items.head()->const_item());
+    return with_const ? equal_items.head() : NULL;
+  }
   void add_const(THD *thd, Item *c);
   /** Add a non-constant item to the multiple equality */
   void add(Item *f, MEM_ROOT *root) { equal_items.push_back(f, root); }
@@ -3614,6 +3618,7 @@ public:
     {
       LI<T> *list_it= this;
       curr_item=  (*list_it)++;
+      DBUG_ASSERT(curr_item && curr_item->const_item());
     }
   }
   Item* operator++(int)
@@ -3627,7 +3632,10 @@ public:
     LI<T> *list_it= this;
     list_it->rewind();
     if (item_equal->with_const)
+    {
       curr_item= (*list_it)++;
+      DBUG_ASSERT(curr_item && curr_item->const_item());
+    }
   }  
   Field *get_curr_field()
   {
