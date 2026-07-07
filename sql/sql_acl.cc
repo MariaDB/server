@@ -7881,6 +7881,22 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     db=tmp_db;
   }
 
+  if (db)
+  {
+    /*
+      Reject a db name that would not fit in the mysql.db.Db column instead of
+      silently truncating it into a non-functional grant (MDEV-39047). Escaping
+      wildcards (\_ \%) can make the stored name longer than the actual db name.
+    */
+    Lex_cstring_strlen db_str(db);
+    if (check_string_char_length(&db_str, 0, max_dbname_length,
+                                 system_charset_info, 1))
+    {
+      my_error(ER_WRONG_DB_NAME, MYF(0), db);
+      DBUG_RETURN(TRUE);
+    }
+  }
+
   if (is_proxy)
   {
     DBUG_ASSERT(!db);

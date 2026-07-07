@@ -2356,4 +2356,23 @@ DROP USER foo;
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # MDEV-39047 Impossible to create DB grant for long escaped DB name
+--echo #
+CREATE USER u@localhost;
+# 62-char db name with underscores; escaped form (\_) exceeds 64 chars and
+# was silently truncated in mysql.db, creating a broken grant.
+CREATE DATABASE very_long_database_name_with_underscore_symbols_inside_the_name;
+--error ER_WRONG_DB_NAME
+GRANT ALL ON `very\_long\_database\_name\_with\_underscore\_symbols\_inside\_the\_name`.* TO u@localhost;
+# Unescaped name fits and works
+GRANT ALL ON `very_long_database_name_with_underscore_symbols_inside_the_name`.* TO u@localhost;
+SHOW GRANTS FOR u@localhost;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR u@localhost;
+DROP DATABASE very_long_database_name_with_underscore_symbols_inside_the_name;
+DROP USER u@localhost;
+
+--echo # End of 10.6 tests
+
 update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';
