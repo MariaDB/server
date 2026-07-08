@@ -1,0 +1,4 @@
+--innodb-page-size=16k
+--innodb-buffer-pool-size=64M
+--innodb-default-row-format=dynamic
+--loose-innodb-adaptive-hash-index=0
