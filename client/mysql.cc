@@ -102,6 +102,8 @@ extern "C" {
 #define USE_POPEN
 }
 
+#define HISTORY_FILE ".mariadb_history"
+
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 #if defined(_WIN32)
@@ -1427,19 +1429,19 @@ int main(int argc,char *argv[])
     else if ((home= getenv("HOME")))
     {
       size_t histfile_size=
-        strlen(home) + strlen("/.mysql_history") + 2;
+        strlen(home) + strlen("/" HISTORY_FILE) + 2;
       histfile=(char*) my_malloc(PSI_NOT_INSTRUMENTED,
             histfile_size, MYF(MY_WME));
       if (histfile)
       {
-        snprintf(histfile, histfile_size, "%s/.mariadb_history", home);
+        snprintf(histfile, histfile_size, "%s/%s", home, HISTORY_FILE);
         if (my_access(histfile, F_OK))
         {
           /* no .mariadb_history, look for historical name and use if present */
           snprintf(histfile, histfile_size, "%s/.mysql_history", home);
           /* and go back to original if not found */
           if (my_access(histfile, F_OK))
-            snprintf(histfile, histfile_size, "%s/.mariadb_history", home);
+            snprintf(histfile, histfile_size, "%s/%s", home, HISTORY_FILE);
         }
         char link_name[FN_REFLEN];
         if (my_readlink(link_name, histfile, 0) == 0 &&
