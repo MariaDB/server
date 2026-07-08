@@ -16037,6 +16037,10 @@ ha_innobase::reset()
 	/* This is a statement level counter. */
 	m_prebuilt->autoinc_last_value = 0;
 
+	/* The clustered leaf hint is scoped to one statement. */
+	m_prebuilt->clust_leaf_hint_page_no = 0;
+	m_prebuilt->clust_leaf_hint_miss_streak = 0;
+
 	m_prebuilt->skip_locked = false;
 	return(0);
 }
