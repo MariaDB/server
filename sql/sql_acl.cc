@@ -474,19 +474,20 @@ public:
   }
 
 
-  void print_grant(String *str)
+  void print_grant(THD *thd, String *str)
   {
-    str->append(STRING_WITH_LEN("GRANT PROXY ON '"));
-    str->append(proxied_user, strlen(proxied_user));
-    str->append(STRING_WITH_LEN("'@'"));
-    if (proxied_host.hostname)
-      str->append(proxied_host.hostname, strlen(proxied_host.hostname));
-    str->append(STRING_WITH_LEN("' TO '"));
-    str->append(user, strlen(user));
-    str->append(STRING_WITH_LEN("'@'"));
-    if (host.hostname)
-      str->append(host.hostname, strlen(host.hostname));
-    str->append(STRING_WITH_LEN("'"));
+    str->append(STRING_WITH_LEN("GRANT PROXY ON "));
+    append_identifier(thd, str, proxied_user, strlen(proxied_user));
+    str->append(STRING_WITH_LEN("@"));
+    DBUG_ASSERT(proxied_host.hostname);
+    if (proxied_host.hostname) // Why?
+      append_identifier(thd, str, proxied_host.hostname, strlen(proxied_host.hostname));
+    str->append(STRING_WITH_LEN(" TO "));
+    append_identifier(thd, str, user, strlen(user));
+    str->append(STRING_WITH_LEN("@"));
+    DBUG_ASSERT(host.hostname);
+    if (host.hostname) // Why?
+      append_identifier(thd, str, host.hostname, strlen(host.hostname));
     if (with_grant)
       str->append(STRING_WITH_LEN(" WITH GRANT OPTION"));
   }
@@ -9155,9 +9156,8 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
   {
     if (acl_user->auth->auth_string.length)
     {
-      result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD '"));
-      result->append(&acl_user->auth->auth_string);
-      result->append('\'');
+      result->append(STRING_WITH_LEN(" IDENTIFIED BY PASSWORD "));
+      append_unescaped(result, acl_user->auth->auth_string);
     }
   }
   else
@@ -9170,9 +9170,8 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
       result->append(&acl_user->auth[i].plugin);
       if (acl_user->auth[i].auth_string.length)
       {
-        result->append(STRING_WITH_LEN(" USING '"));
-        result->append(&acl_user->auth[i].auth_string);
-        result->append('\'');
+        result->append(STRING_WITH_LEN(" USING "));
+        append_unescaped(result, acl_user->auth[i].auth_string);
       }
     }
   }
@@ -9188,27 +9187,25 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
     if (acl_user->x509_issuer[0])
     {
       ssl_options++;
-      result->append(STRING_WITH_LEN("ISSUER \'"));
-      result->append(acl_user->x509_issuer,strlen(acl_user->x509_issuer));
-      result->append('\'');
+      result->append(STRING_WITH_LEN("ISSUER "));
+      append_unescaped(result, acl_user->x509_issuer,
+                       strlen(acl_user->x509_issuer));
     }
     if (acl_user->x509_subject[0])
     {
       if (ssl_options++)
         result->append(' ');
-      result->append(STRING_WITH_LEN("SUBJECT \'"));
-      result->append(acl_user->x509_subject,strlen(acl_user->x509_subject),
-                    system_charset_info);
-      result->append('\'');
+      result->append(STRING_WITH_LEN("SUBJECT "));
+      append_unescaped(result, acl_user->x509_subject,
+                       strlen(acl_user->x509_subject));
     }
     if (acl_user->ssl_cipher)
     {
       if (ssl_options++)
         result->append(' ');
-      result->append(STRING_WITH_LEN("CIPHER '"));
-      result->append(acl_user->ssl_cipher,strlen(acl_user->ssl_cipher),
-                    system_charset_info);
-      result->append('\'');
+      result->append(STRING_WITH_LEN("CIPHER "));
+      append_unescaped(result, acl_user->ssl_cipher,
+                       strlen(acl_user->ssl_cipher));
     }
   }
   if (with_grant ||
@@ -12035,7 +12032,7 @@ show_proxy_grants(THD *thd, const char *username, const char *hostname,
     {
       String global(buff, buffsize, system_charset_info);
       global.length(0);
-      proxy->print_grant(&global);
+      proxy->print_grant(thd, &global);
       protocol->prepare_for_resend();
       protocol->store(global.ptr(), global.length(), global.charset());
       if (protocol->write())

@@ -228,7 +228,7 @@ GRANT EXECUTE ON PROCEDURE `test`.`p1` TO `user49119`@`localhost`
 SHOW GRANTS FOR CURRENT_USER;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 ##############################################################
 connection slave;
 ##############################################################
@@ -240,7 +240,7 @@ GRANT EXECUTE ON PROCEDURE `test`.`p1` TO `user49119`@`localhost`
 SHOW GRANTS FOR CURRENT_USER;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 ##############################################################
 connection master;
 ## This statement will make the revoke fail because root has no
@@ -257,7 +257,7 @@ GRANT USAGE ON *.* TO `user49119`@`localhost`
 SHOW GRANTS FOR CURRENT_USER;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 ##############################################################
 connection slave;
 #############################################################
@@ -269,7 +269,7 @@ GRANT USAGE ON *.* TO `user49119`@`localhost`
 SHOW GRANTS FOR CURRENT_USER;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
 ##############################################################
 connection master;
 DROP TABLE t1;
