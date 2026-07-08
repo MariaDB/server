@@ -825,6 +825,29 @@ static uint xml_num_state_types[NS_NUM_STATES]=
 };
 
 
+class XMLSchema_empty_builtin_type: public XMLSchema_builtin_type
+{
+public:
+  bool valid_value(const char *value, size_t len) override
+  {
+    /* Only allow some whitespaces as a value. */
+    size_t pos= 0;
+
+    while (len > pos)
+    {
+      unsigned int c= ((uchar *) value)[pos++];
+      if (c >= array_elements(xml_num_chr_map))
+        return 0;
+
+      if (xml_num_chr_map[c] != N_SPC)
+        return 0;
+    }
+
+    return 1;
+  }
+};
+
+
 class XMLSchema_num_builtin_type: public XMLSchema_builtin_type
 {
 public:
@@ -3011,8 +3034,17 @@ bool XMLSchema_element_global::enter_tag(MY_XML_VALIDATION_DATA *st,
 bool XMLSchema_element_global::resolve_type(
                             MY_XML_VALIDATION_DATA *st, LEX_CSTRING *bad_type)
 {
-  m_type= st->schema->find_type_by_name(
-                        st, m_atr_type.m_val, m_atr_type.m_val_len);
+  if (!m_atr_type.is_set())
+  {
+    XMLSchema_builtin_type *builtin_type;
+    builtin_type= new(st->mem_root) XMLSchema_empty_builtin_type();
+    m_type= new(st->mem_root) XMLSchema_simple_builtin_type(builtin_type);
+  }
+  else
+  {
+    m_type= st->schema->find_type_by_name(
+                          st, m_atr_type.m_val, m_atr_type.m_val_len);
+  }
   if (m_type)
     return MY_XML_OK;
 
@@ -3407,7 +3439,7 @@ static int schema_parse(THD *thd, const String *xml,
 
 exit:
   my_xml_parser_free(&p);
-  return 0;
+  return rc;
 }
 
 

@@ -2079,3 +2079,21 @@ select XMLISVALID(@xml, @schema);
 
 --echo # End of 11.8 tests
 
+#
+# MDEV-40008 sql_error.cc:357: void Diagnostics_area::set_ok_status after CHECK (XMLISVALID
+#
+
+--error ER_WRONG_VALUE
+CREATE TABLE t (x XMLTYPE,CHECK (XMLISVALID(x, '<xs:scema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a"/></xs:schema>')));
+
+CREATE TABLE t (x XMLTYPE,CHECK (
+    XMLISVALID(x, '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a"/></xs:schema>')));
+INSERT INTO t VALUES ('<a />');
+INSERT INTO t VALUES ('<a> </a>');
+INSERT INTO t VALUES ('<a>   </a>');
+
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t VALUES ('<a>Text</a>');
+
+DROP TABLE t;
+
