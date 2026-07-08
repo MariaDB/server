@@ -26,7 +26,7 @@ SHOW WARNINGS;
 --echo # 6. Nested array and object checks using JSON_COMPACT() vs uncast strings
 SELECT JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]');
 SELECT '[1,2]' MEMBER OF ('[[1,2],[3,4]]');
-SELECT JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
+SELECT JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]') AS expr;
 SELECT '{"name":"John"}' MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
 
 --echo # 7. MEMBER OF with scalar/object as container (acting as 1-element array)
@@ -68,12 +68,10 @@ DEALLOCATE PREPARE stmt2;
 
 --echo # 11. Malformed JSON-typed candidate test (using CHECK constraints bypass)
 CREATE TABLE t3 (val JSON);
-SET check_constraint_checks=0;
-INSERT INTO t3 VALUES ('[1,2');
+SET STATEMENT check_constraint_checks=0 FOR INSERT INTO t3 VALUES ('[1,2');
 SELECT val MEMBER OF ('[1,2,3]') FROM t3;
 SHOW WARNINGS;
 DROP TABLE t3;
-SET check_constraint_checks=1;
 
 --echo # 12. JSON scalar candidate test (type-strictness in passthrough branch)
 CREATE TABLE t4 (val JSON);

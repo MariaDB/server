@@ -48,8 +48,8 @@ JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
 SELECT '[1,2]' MEMBER OF ('[[1,2],[3,4]]');
 '[1,2]' MEMBER OF ('[[1,2],[3,4]]')
 0
-SELECT JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
-JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
+SELECT JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]') AS expr;
+expr
 1
 SELECT '{"name":"John"}' MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
 '{"name":"John"}' MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
@@ -117,8 +117,7 @@ JSON_COMPACT(?) MEMBER OF (?)
 DEALLOCATE PREPARE stmt2;
 # 11. Malformed JSON-typed candidate test (using CHECK constraints bypass)
 CREATE TABLE t3 (val JSON);
-SET check_constraint_checks=0;
-INSERT INTO t3 VALUES ('[1,2');
+SET STATEMENT check_constraint_checks=0 FOR INSERT INTO t3 VALUES ('[1,2');
 SELECT val MEMBER OF ('[1,2,3]') FROM t3;
 val MEMBER OF ('[1,2,3]')
 NULL
@@ -128,7 +127,6 @@ SHOW WARNINGS;
 Level	Code	Message
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'member of'
 DROP TABLE t3;
-SET check_constraint_checks=1;
 # 12. JSON scalar candidate test (type-strictness in passthrough branch)
 CREATE TABLE t4 (val JSON);
 INSERT INTO t4 VALUES ('2'), ('"2"');
@@ -169,10 +167,10 @@ SELECT 1 NOT MEMBER OF ('not_json');
 1 NOT MEMBER OF ('not_json')
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 2 to function 'member of' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'not member of' at position 1
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4038	Syntax error in JSON text in argument 2 to function 'member of' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'not member of' at position 1
 # 13.7 EXPLAIN EXTENDED round-trip print check
 EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra

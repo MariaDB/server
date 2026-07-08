@@ -1184,8 +1184,9 @@ public:
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("member_of") };
-    return name;
+    static LEX_CSTRING name=     {STRING_WITH_LEN("member of") };
+    static LEX_CSTRING neg_name= {STRING_WITH_LEN("not member of") };
+    return negated ? neg_name : name;
   }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_member_of>(thd, this); }

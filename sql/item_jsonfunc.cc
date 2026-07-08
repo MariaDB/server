@@ -6640,7 +6640,7 @@ bool Item_func_member_of::val_bool()
 {
   DBUG_ASSERT(fixed());
 
-  // 1. Evaluate args[1] (the JSON document/array) to check if it is SQL NULL
+  /* 1. Evaluate args[1] (the JSON document/array) to check if it is SQL NULL */
   String *js_doc= args[1]->val_json(&tmp_js_doc);
   if (args[1]->null_value || !js_doc)
   {
@@ -6648,21 +6648,23 @@ bool Item_func_member_of::val_bool()
     return false;
   }
 
-  // 2. Validate args[1] (the JSON document/array) is well-formed JSON.
-  // This prevents the composed JSON_CONTAINS item from raising its own warning.
-  // je_val.stack is pre-wired via mem_root_dynamic_array_init() in fix_length_and_dec();
-  // json_scan_start() resets all other engine state itself, so je_val is safe to reuse.
+  /*
+    2. Validate args[1] (the JSON document/array) is well-formed JSON.
+    This prevents the composed JSON_CONTAINS item from raising its own warning.
+    je_val.stack is pre-wired via mem_root_dynamic_array_init() in fix_length_and_dec();
+    json_scan_start() resets all other engine state itself, so je_val is safe to reuse.
+  */
   json_scan_start(&je_val, js_doc->charset(), (const uchar *) js_doc->ptr(),
                   (const uchar *) js_doc->ptr() + js_doc->length());
   while (json_scan_next(&je_val) == 0) /* no-op */ ;
   if (je_val.s.error)
   {
-    report_json_error_ex(js_doc->ptr(), &je_val, "member of", 1, Sql_condition::WARN_LEVEL_WARN);
+    report_json_error(js_doc, &je_val, 1);
     null_value= 1;
     return false;
   }
 
-  // 3. Evaluate args[0] (the candidate value) to check if it is SQL NULL.
+  /* 3. Evaluate args[0] (the candidate value) to check if it is SQL NULL. */
   if (is_json_type(args[0]))
   {
     String *js_cand= args[0]->val_json(&tmp_candidate);
@@ -6676,7 +6678,7 @@ bool Item_func_member_of::val_bool()
     while (json_scan_next(&je_val) == 0) /* no-op */ ;
     if (je_val.s.error)
     {
-      report_json_error_ex(js_cand->ptr(), &je_val, "member of", 0, Sql_condition::WARN_LEVEL_WARN);
+      report_json_error(js_cand, &je_val, 0);
       null_value= 1;
       return false;
     }
@@ -6691,7 +6693,7 @@ bool Item_func_member_of::val_bool()
     }
   }
 
-  // 4. Delegate the containment check to the composed JSON_CONTAINS item
+  /* 4. Delegate the containment check to the composed JSON_CONTAINS item */
   bool res= json_contains_item->val_bool();
   null_value= json_contains_item->null_value;
   if (null_value)
