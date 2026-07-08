@@ -1687,7 +1687,7 @@ static Sys_var_ulong Sys_max_allowed_packet(
        "max_allowed_packet",
        "Max packet length to send to or receive from the server",
        SESSION_VAR(max_allowed_packet), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, 1024*1024*1024), DEFAULT(16*1024*1024),
+       VALID_RANGE(1024, MAX_MAX_ALLOWED_PACKET), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_max_allowed_packet));
 
@@ -2997,7 +2997,9 @@ static const char *adjust_secondary_key_cost[]=
 {
   "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by",
   "fix_innodb_cardinality", "fix_reuse_range_for_ref",
-  "fix_card_multiplier", "fix_derived_table_read_cost", 0
+  "fix_card_multiplier", "fix_derived_table_read_cost",
+  "fix_order_by_index_choice",
+  0
 };
 
 
@@ -5085,7 +5087,8 @@ static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, MAX_MAX_ALLOWED_PACKET), DEFAULT(1024*1024),
+       BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
@@ -5133,10 +5136,7 @@ static Sys_var_uint Sys_repl_report_port(
 static Sys_var_mybool Sys_keep_files_on_create(
        "keep_files_on_create",
        "Don't overwrite stale .MYD and .MYI even if no directory is specified",
-       SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("")); // since 10.8.0
+       SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static char *license;
 static Sys_var_charptr Sys_license(
@@ -6215,7 +6215,7 @@ static Sys_var_charptr Sys_wsrep_start_position (
        CMD_LINE(REQUIRED_ARG),
        DEFAULT(WSREP_START_POSITION_ZERO),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(wsrep_start_position_check), 
+       ON_CHECK(wsrep_start_position_check),
        ON_UPDATE(wsrep_start_position_update));
 
 static Sys_var_ulong Sys_wsrep_max_ws_size (
@@ -6228,7 +6228,9 @@ static Sys_var_ulong Sys_wsrep_max_ws_size (
 static Sys_var_ulong Sys_wsrep_max_ws_rows (
        "wsrep_max_ws_rows", "Max number of rows in write set",
        GLOBAL_VAR(wsrep_max_ws_rows), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 1048576), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, 1048576), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_max_ws_rows_check), ON_UPDATE(0));
 
 static Sys_var_charptr Sys_wsrep_notify_cmd(
        "wsrep_notify_cmd", "",

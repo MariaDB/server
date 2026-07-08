@@ -212,11 +212,7 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
     ELSE()
       # Generic Unix, Cygwin or MinGW. In post-build step, call
       # script, that uses a MRI script to append static archives.
-      IF(CMAKE_VERSION VERSION_LESS "3.0")
-        SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.mri")
-      ELSE()
-        SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}-$<CONFIG>.mri")
-      ENDIF()
+      SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.mri")
       SET(MRI_SCRIPT_TPL "${MRI_SCRIPT}.tpl")
 
       SET(SCRIPT_CONTENTS "CREATE $<TARGET_FILE:${TARGET}>\n")

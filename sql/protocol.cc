@@ -1815,6 +1815,10 @@ bool Protocol_binary::store_float(float from, uint32 decimals)
   char *to= packet->prep_append(4, PACKET_BUFFER_EXTRA_ALLOC);
   if (!to)
     return 1;
+  if (from == 0.0)
+  {
+    from= 0.0; // correct negative zero
+  }
   float4store(to, from);
   return 0;
 }
@@ -1826,6 +1830,10 @@ bool Protocol_binary::store_double(double from, uint32 decimals)
   char *to= packet->prep_append(8, PACKET_BUFFER_EXTRA_ALLOC);
   if (!to)
     return 1;
+  if (from == 0.0)
+  {
+    from= 0.0; // correct negative zero
+  }
   float8store(to, from);
   return 0;
 }

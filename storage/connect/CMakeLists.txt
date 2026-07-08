@@ -58,7 +58,8 @@ endmacro()
 # OS specific C flags, definitions and source files.
 #
 IF(UNIX)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wall -Wmissing-declarations")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wall")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wmissing-declarations")
   if(NOT WITH_WARNINGS)
     DISABLE_WARNING("unused-function")
     DISABLE_WARNING("unused-variable")
@@ -313,9 +314,14 @@ ENDIF(CONNECT_WITH_JDBC)
 OPTION(CONNECT_WITH_ZIP "Compile CONNECT storage engine with ZIP support" ON)
 
 IF(CONNECT_WITH_ZIP)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamzip.cpp tabzip.cpp unzip.c ioapi.c zip.c
-    filamzip.h tabzip.h ioapi.h unzip.h zip.h)
+  SET(MINIZIP_SOURCES unzip.c ioapi.c zip.c)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} ${MINIZIP_SOURCES} filamzip.cpp
+    tabzip.cpp filamzip.h tabzip.h)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
+  SET_SOURCE_FILES_PROPERTIES(${MINIZIP_SOURCES} PROPERTIES COMPILE_FLAGS "\
+    $<${have_C__Wmissing_declarations}:-Wno-missing-declarations> \
+    $<${have_C__Wdeclaration_after_statement}:-Wno-declaration-after-statement> \
+  ")
 ENDIF(CONNECT_WITH_ZIP)
 ADD_FEATURE_INFO(CONNECT_ZIP CONNECT_WITH_ZIP "Support for ZIP in the CONNECT storage engine")
 

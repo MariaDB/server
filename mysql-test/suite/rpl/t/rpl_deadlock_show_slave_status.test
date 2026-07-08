@@ -1,5 +1,5 @@
 #
-#   Verify that SHOW SLAVE STATUS will not cause deadlocks on the replica.
+#   Verify that SHOW SLAVE STATUS will not cause deadlocks on the slave.
 # A deadlock has been seen in do_gco_wait if the thread is killed, as it will
 # hold the LOCK_parallel_entry, and during error reporting, try to grab the
 # err_lock. Prior to MDEV-10653, SHOW SLAVE STATUS would grab these locks in

@@ -832,7 +832,6 @@ static int connect_init_func(void *p)
     sql_print_information("connect_init: hton=%p", p);
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
-  BINCOL::SetEndian();        // Initialize host endian setting
 #if defined(JAVA_SUPPORT)
 	JAVAConn::SetJVM();
 #endif   // JAVA_SUPPORT
@@ -5977,7 +5976,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
       case TAB_REST:
         if (!topt->http)
-          sprintf(g->Message, "Missing %s HTTP address", topt->type);
+          snprintf(g->Message, sizeof(g->Message), "Missing %s HTTP address", topt->type);
         else
           ok= true;
 
@@ -6401,7 +6400,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
  err:
   if (rc)
-    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    if (g->Message[0])
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    else
+      my_error(ER_GET_ERRNO, MYF(0), rc, "CONNECT");
 
 	PopUser(xp);
 	return rc;

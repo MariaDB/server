@@ -195,7 +195,7 @@ void xtrc(char const *fmt, ...)
   va_start (ap, fmt);
 																							;
 //vfprintf(stderr, fmt, ap);
-  vsprintf(s, fmt, ap);
+  vsnprintf(s, sizeof(s), fmt, ap);
   if (s[strlen(s)-1] == '\n')
       s[strlen(s)-1] = 0;
   va_end (ap);

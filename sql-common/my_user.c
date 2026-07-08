@@ -41,7 +41,7 @@ int parse_user(const char *user_id_str, size_t user_id_len,
                char *user_name_str, size_t *user_name_len,
                char *host_name_str, size_t *host_name_len)
 {
-  char *p= strrchr(user_id_str, '@');
+  const char *p= strrchr(user_id_str, '@');
 
   if (!p)
   {

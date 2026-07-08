@@ -108,6 +108,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     MESSAGE(FATAL_ERROR "Invalid value for PLUGIN_${plugin}")
   ENDIF()
 
+  # Validate that the requested build mode is compatible with what the
+  # plugin actually supports. STATIC_ONLY plugins cannot be built as
+  # dynamic modules, and MODULE_ONLY plugins cannot be linked statically.
+  IF(PLUGIN_${plugin} STREQUAL "DYNAMIC" AND ARG_STATIC_ONLY)
+    MESSAGE(FATAL_ERROR "Plugin ${plugin} is STATIC_ONLY and cannot be built"
+      " with -DPLUGIN_${plugin}=DYNAMIC. Remove this option or use STATIC.")
+  ELSEIF(PLUGIN_${plugin} STREQUAL "STATIC" AND ARG_MODULE_ONLY)
+    MESSAGE(FATAL_ERROR "Plugin ${plugin} is MODULE_ONLY and cannot be built"
+      " with -DPLUGIN_${plugin}=STATIC. Remove this option or use DYNAMIC.")
+  ENDIF()
+
   IF(ARG_STORAGE_ENGINE)
     SET(with_var "WITH_${plugin}_STORAGE_ENGINE" )
   ELSE()

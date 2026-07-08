@@ -15071,8 +15071,16 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     keys_per_group= (table_records / 10) + 1;
   num_groups= (table_records / keys_per_group) + 1;
 
-  /* Apply the selectivity of the quick select for group prefixes. */
-  if (range_tree && (quick_prefix_records != HA_POS_ERROR))
+  DBUG_ASSERT(keys_per_group > 0);
+  DBUG_ASSERT(num_groups > 0);
+
+  /*
+    Apply the selectivity of the quick select for group prefixes.
+
+    If there are no records in the table, then there's nothing to select so
+    let num_groups continue to be 1 as set above.
+  */
+  if (range_tree && (quick_prefix_records != HA_POS_ERROR) && table_records > 0)
   {
     quick_prefix_selectivity= (double) quick_prefix_records /
                               (double) table_records;

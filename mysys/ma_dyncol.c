@@ -658,6 +658,7 @@ static struct st_service_funcs fmt_data[2]=
 static enum enum_dyncol_func_result
 init_read_hdr(DYN_HEADER *hdr, DYNAMIC_COLUMN *str)
 {
+  size_t nodata_size;
   if (read_fixed_header(hdr, str))
     return ER_DYNCOL_FORMAT;
   hdr->header= (uchar*)str->str + fmt_data[hdr->format].fixed_hdr;
@@ -666,8 +667,11 @@ init_read_hdr(DYN_HEADER *hdr, DYNAMIC_COLUMN *str)
              hdr->column_count);
   hdr->nmpool= hdr->header + hdr->header_size;
   hdr->dtpool= hdr->nmpool + hdr->nmpool_size;
-  hdr->data_size= str->length - fmt_data[hdr->format].fixed_hdr -
-    hdr->header_size - hdr->nmpool_size;
+  nodata_size= fmt_data[hdr->format].fixed_hdr + hdr->header_size +
+               hdr->nmpool_size;
+  if (str->length < nodata_size)
+    return ER_DYNCOL_FORMAT;
+  hdr->data_size= str->length - nodata_size;
   hdr->data_end= (uchar*)str->str + str->length;
   return ER_DYNCOL_OK;
 }
@@ -2018,7 +2022,7 @@ static my_bool read_name(DYN_HEADER *hdr, uchar *entry, LEX_STRING *name)
   else
   {
     size_t next_nmoffset= uint2korr(next_entry);
-    if (next_nmoffset > hdr->nmpool_size)
+    if (next_nmoffset > hdr->nmpool_size || next_nmoffset < nmoffset)
       return 1;
     name->length= next_nmoffset - nmoffset;
   }

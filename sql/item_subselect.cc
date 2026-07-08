@@ -476,15 +476,19 @@ public:
   st_select_lex *new_parent; /* Select we're in */
   void visit_field(Item_field *item) override
   {
-    //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
-    //{
-    //  if (tbl->table == field->table)
-    //  {
-        used_tables|= item->field->table->map;
-    //    return;
-    //  }
-    //}
-    //used_tables |= OUTER_REF_TABLE_BIT;
+    DBUG_ASSERT(item->field && item->field->table);
+    if (!item->field->table->pos_in_table_list)
+    {
+      used_tables|= OUTER_REF_TABLE_BIT;
+      return;
+    }
+    st_select_lex *cmp= new_parent;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list->select_lex == cmp)
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
   }
 };
 
@@ -1279,8 +1283,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
 		   ER_SELECT_REDUCED, warn_buff);
     }
@@ -2069,8 +2073,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_SELECT_REDUCED, warn_buff);
     }

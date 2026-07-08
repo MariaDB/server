@@ -513,7 +513,7 @@ static int run_tool(char *tool_path, DYNAMIC_STRING *ds_res, ...)
 static void find_tool(char *tool_executable_name, const char *tool_name, 
                       const char *self_name)
 {
-  char *last_fn_libchar;
+  const char *last_fn_libchar;
   DYNAMIC_STRING ds_tmp;
   DBUG_ENTER("find_tool");
   DBUG_PRINT("enter", ("progname: %s", my_progname));

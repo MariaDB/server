@@ -2255,6 +2255,7 @@ private:
      between them, top bound row  and bottom bound row inclusive. */
   void compute_values_for_current_row()
   {
+    THD *thd= current_thd;
     if (top_bound.is_outside_computation_bounds() ||
         bottom_bound.is_outside_computation_bounds())
       return;
@@ -2265,7 +2266,8 @@ private:
 
     cursor.move_to(start_rownum);
 
-    for (ha_rows idx= start_rownum; idx <= bottom_rownum; idx++)
+    for (ha_rows idx= start_rownum; idx <= bottom_rownum
+         && ((idx & 0xFF) || !thd->check_killed(true)); idx++)
     {
       if (cursor.fetch()) //EOF
         break;
@@ -2973,7 +2975,7 @@ static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
     for (ORDER *cur= cur_list; cur; cur= cur->next)
     {
       ORDER *copy= (ORDER*)alloc_root(mem_root, sizeof(ORDER));
-      memcpy(copy, cur, sizeof(ORDER));
+      memcpy((void *) copy, (void *) cur, sizeof(ORDER));
       if (prev)
         prev->next= copy;
       prev= copy;
@@ -3148,7 +3150,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
        field. We don't care of the particular sorting result in this case.
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
-    memset(order, 0, sizeof(*order));
+    memset((void *) order, 0, sizeof(*order));
     Item_field *item=
         new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
     if (item)
@@ -3253,10 +3255,13 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
 }
 
 
-bool st_select_lex::add_window_func(Item_window_func *win_func)
+bool st_select_lex::add_window_func(THD *thd, Item_window_func *win_func)
 {
   if (parsing_place != SELECT_LIST)
     fields_in_window_functions+= win_func->window_func()->argument_count();
+  /* We may use it later for other clauses, now just ORDER_CLAUSE */
+  if (thd->where == THD_WHERE::ORDER_CLAUSE)
+    parent_lex->clause_winfuncs.push_back(win_func, thd->mem_root);
   return window_funcs.push_back(win_func);
 }
 

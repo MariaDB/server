@@ -5327,9 +5327,14 @@ longlong Item_copy_string::val_int()
 {
   DBUG_ASSERT(copied_in);
   int err;
-  return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
-                                                        str_value.length(), 10,
-                                                        (char**) 0, &err);
+  if (null_value)
+    return 0;
+  if (unsigned_flag)
+    return (longlong)
+        str_value.charset()->strntoull(str_value.ptr(), str_value.length(),
+                                       10, 0, &err);
+  return str_value.charset()->strntoll(str_value.ptr(), str_value.length(),
+                                       10, 0, &err);
 }
 
 
@@ -5370,6 +5375,75 @@ my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
     return (my_decimal *) 0;
   string2my_decimal(E_DEC_FATAL_ERROR, &str_value, decimal_value);
   return (decimal_value);
+}
+
+
+/****************************************************************************
+  Item_copy_real and its FLOAT and DOUBLE variants
+****************************************************************************/
+
+void Item_copy_real::copy()
+{
+  cached_value= item->val_real();
+  null_value= item->null_value;
+#ifndef DBUG_OFF
+  copied_in= 1;
+#endif
+}
+
+
+double Item_copy_real::val_real()
+{
+  DBUG_ASSERT(copied_in);
+  return null_value ? 0.0 : cached_value;
+}
+
+
+longlong Item_copy_real::val_int()
+{
+  DBUG_ASSERT(copied_in);
+  return null_value ? 0 :
+         Converter_double_to_longlong(cached_value, unsigned_flag).result();
+}
+
+
+my_decimal *Item_copy_real::val_decimal(my_decimal *decimal_value)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return NULL;
+  double2my_decimal(E_DEC_FATAL_ERROR, cached_value, decimal_value);
+  return decimal_value;
+}
+
+
+int Item_copy_real::save_in_field(Field *field, bool no_conversions)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return set_field_to_null(field);
+  field->set_notnull();
+  return field->store(cached_value);
+}
+
+
+String *Item_copy_float::val_str(String *str)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return NULL;
+  Float(cached_value).to_string(str, decimals);
+  return str;
+}
+
+
+String *Item_copy_double::val_str(String *str)
+{
+  DBUG_ASSERT(copied_in);
+  if (null_value)
+    return NULL;
+  str->set_real(cached_value, decimals, &my_charset_numeric);
+  return str;
 }
 
 
@@ -8074,6 +8148,20 @@ Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
 }
 
 
+/*
+  @brief
+    Given an @p item from this select, check if it originates from
+    derived table made from select @p sel. If yes, return the item
+    expression from select @p sel that produces it.
+
+  @note
+    Also check the multiple equality that @p item is a member of.
+
+  @return
+    The item in sel's select list that is the source for @p item.
+    NULL if the item is not found.
+*/
+
 static 
 Item *find_producing_item(Item *item, st_select_lex *sel)
 {
@@ -8123,6 +8211,16 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
   }
+  /*
+    This item doesn't come from the SELECT that we're pushing condition into.
+    This can be due to:
+     - This item refers to a constant expression. Currently we push those
+       down anyway.
+     - This item is inside Item_direct_view_ref object, call it $REF. $REF
+       participates in multiple equality which includes a pushable item $PI.
+       $REF->derived_field_transformer_for_where() will make sure that $PI
+       is pushed down instead.
+  */
   return this;
 }
 
@@ -8154,6 +8252,17 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
   }
+  /*
+    We get here in two cases:
+    1. This is DEFAULT(field). TODO: Should this be pushed?
+    2. This item doesn't come from the SELECT that we're pushing condition
+     - This item refers to a constant expression. Currently we push those
+       down anyway.
+     - This item is inside Item_direct_view_ref object, call it $REF. $REF
+       participates in multiple equality which includes a pushable item $PI.
+       $REF->derived_field_transformer_for_where() will make sure that $PI
+       is pushed down instead.
+  */
   return this;
 }
 
@@ -9796,7 +9905,12 @@ bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
     if (args[i]->type() == Item::FUNC_ITEM &&
         ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC)
       return false;
-    if (args[i]->const_item())
+    /*
+      Constant expression doesn't need to be checked.
+      BUT if it still reports to have references to tables, we must check that
+      only allowed columns are referred.
+    */
+    if (args[i]->const_item() && !args[i]->used_tables())
       continue;
     if (!args[i]->excl_dep_on_grouping_fields(sel))
       return false;
@@ -10892,6 +11006,7 @@ bool Item_cache_str::cache_value()
   }
   else
     value_buff.copy();
+  value_buff.mark_as_const();
   return TRUE;
 }
 

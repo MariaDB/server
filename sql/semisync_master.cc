@@ -694,7 +694,7 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
    * thread sending the binlog to the slave.
    * In reality, to improve the transaction availability, we allow multiple
    * sync replication slaves.  So, if any one of them get the transaction,
-   * the transaction session in the primary can move forward.
+   * the transaction session in the master can move forward.
    */
   if (m_reply_file_name_inited)
   {
@@ -705,7 +705,7 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
      * would not adjust sending binlog position.
      * We based on the assumption that there are multiple semi-sync slave,
      * and at least one of them shou/ld be up to date.
-     * If all semi-sync slaves are behind, at least initially, the primary
+     * If all semi-sync slaves are behind, at least initially, the master
      * can find the situation after the waiting timeout.  After that, some
      * slaves should catch up quickly.
      */
@@ -943,7 +943,7 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
       /* In between the binlogging of this transaction and this wait, it is
        * possible that our entry in Active_tranx was removed (i.e. if
        * semi-sync was switched off and on). It is also possible that the
-       * event was already sent to a replica; however, we don't know if
+       * event was already sent to a slave; however, we don't know if
        * semi-sync was on or off at that time, so an ACK may never come. So
        * skip the wait. Note that rpl_semi_sync_master_request_acks was
        * already incremented in report_binlog_update(), so to keep

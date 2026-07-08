@@ -222,5 +222,3 @@ include(${_SCRIPT_DIR}/WindowsCache.cmake)
 # this is out of place, not really a system check
 set(FN_NO_CASE_SENSE 1)
 set(USE_SYMDIR 1)
-set(HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT 1)
-

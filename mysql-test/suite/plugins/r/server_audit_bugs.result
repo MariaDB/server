@@ -1,0 +1,20 @@
+#
+# MDEV-34074 server_audit crashes in get_loc_info() with NULL loc_info
+#
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+UNINSTALL PLUGIN server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+connect  con1,localhost,root,,;
+DO @@session.aria_repair_threads;
+connection default;
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+connection con1;
+SELECT 1;
+1
+1
+connection default;
+disconnect con1;
+UNINSTALL PLUGIN server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

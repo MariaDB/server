@@ -3588,6 +3588,8 @@ public:
   }
   virtual double scan_time()
   {
+    if (!stats.block_size)
+      return 0.0;
     return ((ulonglong2double(stats.data_file_length) / stats.block_size + 2) *
             avg_io_cost());
   }

@@ -14,3 +14,17 @@ disconnect con1;
 connection default;
 drop table t1;
 set debug_sync='reset';
+#
+# MDEV-39261 MariaDB crash on startup in presence of
+#        indexed virtual columns
+#
+# Create 33 tables with virtual index
+InnoDB		0 transactions not purged
+connect purge_control,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+# Do update on all 33 tables
+# restart: --innodb_purge_threads=1 --debug_dbug=d,ib_purge_virtual_index_callback
+InnoDB		0 transactions not purged
+# Drop all 33 tables
+# restart

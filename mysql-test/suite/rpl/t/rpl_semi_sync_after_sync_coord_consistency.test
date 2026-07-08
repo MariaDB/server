@@ -2,7 +2,7 @@
 #   This test ensures that a race condition (reported in MDEV-35109) which
 # could cause semi-sync transactions binlogging through MYSQL_BIN_LOG::write()
 # to hang until the semi-sync timeout has been hit, despite the ACK actually
-# having been received. The problem was that, for a primary configured with
+# having been received. The problem was that, for a master configured with
 # wait_point=AFTER_SYNC, if two threads T1 (binlogging through
 # MYSQL_BIN_LOG::write()) and T2 were binlogging at the same time, T1 could
 # accidentally wait for the binlog coordinates of T2. Prior to MDEV-33551,
@@ -37,7 +37,7 @@
 # through binlog group commit. We use debug_sync to stop both T1 and T2
 # after binlogging, reporting their coordinates to the semi-sync cache (i.e.
 # after report_binlog_update()), and after releasing LOCK_log. Debug_sync is
-# used on the replica to ensure no ACKs are sent until after both T1 and T2
+# used on the slave to ensure no ACKs are sent until after both T1 and T2
 # are paused. Then, T1 and T2 are signaled for wakeup, and both ACKs are sent.
 # Prior to MDEV-35109 fixes, this results in T1 timing out after the configured
 # 2 second timeout.
@@ -45,7 +45,7 @@
 # References:
 #   MDEV-33551: Semi-sync Wait Point AFTER_COMMIT Slow on Workloads with Heavy
 #               Concurrency
-#   MDEV-35109: Semi-sync Replication stalling Primary using
+#   MDEV-35109: Semi-sync Replication stalling Master using
 #               wait_point=AFTER_SYNC
 #
 

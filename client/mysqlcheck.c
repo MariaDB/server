@@ -274,8 +274,8 @@ static void usage(void)
   printf("Usage: %s [OPTIONS] database [tables]\n", my_progname);
   printf("OR     %s [OPTIONS] --databases DB1 [DB2 DB3...]\n",
 	 my_progname);
-  puts("Please consult the MariaDB Knowledge Base at");
-  puts("https://mariadb.com/kb/en/mysqlcheck for latest information about");
+  puts("Please consult the MariaDB Documentation at");
+  puts("https://mariadb.com/docs/server/clients-and-utilities/legacy-clients-and-utilities/mysqlcheck for latest information about");
   puts("this program.");
   print_defaults("my", load_default_groups);
   puts("");
@@ -983,7 +983,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_ASSERT(strlen(op)+strlen(tables)+strlen(options)+8+1 <= query_size);
 
     /* No backticks here as we added them before */
-    query_length= sprintf(query, "%s%s%s %s", op,
+    query_length= snprintf(query, query_size, "%s%s%s %s", op,
                           tab_view, tables, options);
     table_name= tables;
   }
@@ -1012,7 +1012,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   print_result();
   if (opt_flush_tables)
   {
-    query_length= sprintf(query, "FLUSH TABLES %s", table_name);
+    query_length= snprintf(query, query_size, "FLUSH TABLES %s", table_name);
     if (mysql_real_query(sock, query, (ulong)query_length))
     {
       DBerror(sock, query);
@@ -1080,7 +1080,7 @@ static void __attribute__((noinline)) print_result()
 	continue;
     }
     if (status && changed)
-      printf("%-50s %s", row[0], row[3]);
+      printf("%-50s %s\n", row[0], row[3]);
     else if (!status && changed)
     {
       /*
@@ -1090,11 +1090,11 @@ static void __attribute__((noinline)) print_result()
       */
       if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR "))
       {
-        printf("%-50s %s", row[0], "Needs upgrade");
+        printf("%-50s %s\n", row[0], "Needs upgrade");
         array4repair= strstr(row[3], "VIEW") ? &views4repair : &tables4repair;
       }
-      else
-        printf("%s\n%-9s: %s", row[0], row[2], row[3]);
+      else if (!opt_silent || !strcasecmp(row[2],"error"))
+        printf("%s\n%-9s: %s\n", row[0], row[2], row[3]);
       if (opt_auto_repair && strcmp(row[2],"note"))
       {
         found_error=1;
@@ -1103,9 +1103,8 @@ static void __attribute__((noinline)) print_result()
       }
     }
     else
-      printf("%-9s: %s", row[2], row[3]);
+      printf("%-9s: %s\n", row[2], row[3]);
     strmov(prev, row[0]);
-    putchar('\n');
   }
   /* add the last table to be repaired to the list */
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)

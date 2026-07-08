@@ -3,8 +3,8 @@
 # Note that on most Linux systems logs are written to journald, which has its
 # own rotation scheme.
 #
-# Read https://mariadb.com/kb/en/error-log/ to learn more about logging and
-# https://mariadb.com/kb/en/rotating-logs-on-unix-and-linux/ about rotating logs.
+# Read https://mariadb.com/docs/server/server-management/server-monitoring-logs/error-log to learn more about logging and
+# https://mariadb.com/docs/server/server-management/server-monitoring-logs/rotating-logs-on-unix-and-linux about rotating logs.
 
 @localstatedir@/mysqld.log @localstatedir@/mariadb.log @logdir@/*.log {
 

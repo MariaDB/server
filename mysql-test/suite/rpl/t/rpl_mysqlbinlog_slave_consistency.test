@@ -3,29 +3,29 @@
 #
 # This test ensures the mariadb-binlog command line tool filters events
 # by domain id (via --do-domain-ids and --ignore-domain-ids) and server id (via
-# --ignore-server-ids) in the same way that a replica server does.
+# --ignore-server-ids) in the same way that a slave server does.
 #
 #
 # Methodology:
 #
 # This test validates that the domain and server id filtering logic of
-# mariadb-binlog matches that of a replica server. In particular, it validates
+# mariadb-binlog matches that of a slave server. In particular, it validates
 # a mariadb-binlog replay of a master's binary log is consistent with a
-# replica's state which is configured using the same filtering configuration.
+# slave's state which is configured using the same filtering configuration.
 #
 # It uses a repeatable process to allow for multiple test cases that span
 # different filtering configurations. First, a master is seeded with an initial
 # set of SQL statements with varying domain and server ids. Then, a set of
-# filtering parameters supported by both mariadb-binlog and replica
-# capabilities are defined. The replica is configured using these parameters
-# and run it until it has processed all events from the primary server; it is
+# filtering parameters supported by both mariadb-binlog and slave
+# capabilities are defined. The slave is configured using these parameters
+# and run it until it has processed all events from the master server; it is
 # stopped afterward. For mariadb-binlog validation, the binary log of the
-# primary server is copied to a different location for later replay. The
-# primary is then reset to its initial state (i.e. the tables are dropped and
+# master server is copied to a different location for later replay. The
+# master is then reset to its initial state (i.e. the tables are dropped and
 # the logs are reset). The mariadb-binlog tool is then used to replay the
-# copied binary log file back onto the clean primary server under the same
-# filtering conditions as the replica. At this point, the data on the primary
-# and replica should be exactly the same because the filtering conditions were
+# copied binary log file back onto the clean master server under the same
+# filtering conditions as the slave. At this point, the data on the master
+# and slave should be exactly the same because the filtering conditions were
 # the same, and all existing tables on both servers are compared using.
 # checksums.
 #
@@ -61,7 +61,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 
 --echo #
 --echo #
---echo #  Test Case 1: Base case to ensure that mariadb-binlog and replica
+--echo #  Test Case 1: Base case to ensure that mariadb-binlog and slave
 --echo #  are consistent without any filtering
 --echo #
 --let $do_domain_ids=
@@ -74,7 +74,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #
 --echo #
 --echo #  Test Case 2: Ensure filtering by a single id in --do-domain-ids is
---echo #  consistent between mariadb-binlog and replica
+--echo #  consistent between mariadb-binlog and slave
 --echo #
 --let $do_domain_ids=0
 --let $ignore_domain_ids=
@@ -86,7 +86,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #
 --echo #
 --echo #  Test Case 3: Ensure filtering by multiple ids in --do-domain-ids is
---echo #  consistent between mariadb-binlog and replica
+--echo #  consistent between mariadb-binlog and slave
 --echo #
 --let $do_domain_ids=0,1
 --let $ignore_domain_ids=
@@ -97,7 +97,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 
 --echo #
 --echo #  Test Case 4: Ensure filtering by a single id in --ignore-domain-ids
---echo #  is consistent between mariadb-binlog and replica
+--echo #  is consistent between mariadb-binlog and slave
 --echo #
 --let $do_domain_ids=
 --let $ignore_domain_ids=0
@@ -109,7 +109,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #
 --echo #
 --echo #  Test Case 5: Ensure filtering by multiple ids in --ignore-domain-ids
---echo #  is consistent between mariadb-binlog and replica
+--echo #  is consistent between mariadb-binlog and slave
 --echo #
 --let $do_domain_ids=
 --let $ignore_domain_ids=0,1
@@ -120,7 +120,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 
 --echo #
 --echo #  Test Case 6: Ensure filtering by a single id in --ignore-server-ids
---echo #  is consistent between mariadb-binlog and replica
+--echo #  is consistent between mariadb-binlog and slave
 --echo #
 --let $do_domain_ids=
 --let $ignore_domain_ids=
@@ -132,7 +132,7 @@ let $ORIG_SERVER_ID = `select @@session.server_id`;
 --echo #
 --echo #
 --echo #  Test Case 7: Ensure filtering by multiple ids in --ignore-server-ids
---echo #  is consistent between mariadb-binlog and replica
+--echo #  is consistent between mariadb-binlog and slave
 --echo #
 --let $do_domain_ids=
 --let $ignore_domain_ids=

@@ -22,7 +22,7 @@ create database test_replica;
 let $rewrite_db_sss= query_get_value(SHOW SLAVE STATUS, Replicate_Rewrite_DB, 1);
 eval SELECT @@GLOBAL.replicate_rewrite_db, '$rewrite_db_sss' as 'Replicate_Rewrite_DB from SHOW SLAVE STATUS';
 
---echo # Create DBs and tables on primary
+--echo # Create DBs and tables on master
 connection master;
 --enable_warnings
 create database primary_db1;
@@ -35,7 +35,7 @@ create table my_table (t int);
 insert into my_table values (654),(532);
 --source include/save_master_gtid.inc
 
---echo # Check replica
+--echo # Check slave
 --connection slave
 --source include/sync_with_master_gtid.inc
 --let $diff_tables=master:primary_db1.my_table,slave:replica_db1.my_table
@@ -48,7 +48,7 @@ select * from replica_db1.my_table;
 show tables from y;
 select * from y.my_table;
 
---echo # Set replica sys var replicate_rewrite_db
+--echo # Set slave sys var replicate_rewrite_db
 connection slave;
 --error ER_SLAVE_MUST_STOP
 SET @@GLOBAL.replicate_rewrite_db="test_master->test_replica";
@@ -61,7 +61,7 @@ source include/start_slave.inc;
 let $rewrite_db_sss= query_get_value(SHOW SLAVE STATUS, Replicate_Rewrite_DB, 1);
 eval SELECT @@GLOBAL.replicate_rewrite_db, '$rewrite_db_sss' as 'Replicate_Rewrite_DB from SHOW SLAVE STATUS';
 
---echo # Create DB and tables on primary
+--echo # Create DB and tables on master
 connection master;
 --enable_warnings
 create database test_master;
@@ -70,7 +70,7 @@ create table my_table (t int);
 insert into my_table values (1),(3);
 --source include/save_master_gtid.inc
 
---echo # Ensure that the replica receives all of the primary's events without
+--echo # Ensure that the slave receives all of the master's events without
 --echo # error
 --connection slave
 --source include/sync_with_master_gtid.inc
@@ -87,7 +87,7 @@ select * from test_replica.my_table;
 --let $diff_tables=master:test_master.my_table,slave:test_replica.my_table
 --source include/diff_tables.inc
 
---echo # Update of values on primary for DB not set in replication_rewrite_db
+--echo # Update of values on master for DB not set in replication_rewrite_db
 --source include/stop_slave.inc
 --source include/reset_slave.inc
 
@@ -128,7 +128,7 @@ connection slave;
 --source include/start_slave.inc
 SELECT @@GLOBAL.replicate_rewrite_db;
 --source include/sync_with_master_gtid.inc
-# This should update values with 314 and 1000 from primary
+# This should update values with 314 and 1000 from master
 select * from y.my_table;
 
 --echo # Cleanup

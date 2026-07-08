@@ -12,7 +12,6 @@ CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 REVOKE CONNECTION ADMIN, SUPER ON *.* FROM user1@localhost;
 --connect(user1,localhost,user1,,)
---connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SET GLOBAL proxy_protocol_networks="";
 --error ER_GLOBAL_VARIABLE
@@ -28,7 +27,6 @@ DROP USER user1@localhost;
 CREATE USER user1@localhost;
 GRANT CONNECTION ADMIN ON *.* TO user1@localhost;
 --connect(user1,localhost,user1,,)
---connection user1
 SET GLOBAL proxy_protocol_networks="";
 --error ER_GLOBAL_VARIABLE
 SET proxy_protocol_networks="";
@@ -43,7 +41,6 @@ DROP USER user1@localhost;
 CREATE USER user1@localhost;
 GRANT SUPER ON *.* TO user1@localhost;
 --connect(user1,localhost,user1,,)
---connection user1
 SET GLOBAL proxy_protocol_networks="";
 --error ER_GLOBAL_VARIABLE
 SET proxy_protocol_networks="";
@@ -53,4 +50,11 @@ SET SESSION proxy_protocol_networks="";
 --connection default
 DROP USER user1@localhost;
 
+--echo #
+--echo # MDEV-39658 ASAN crash on invalid proxy_protocol_networks value
+--echo #
+--error ER_PARSE_ERROR
+SET GLOBAL proxy_protocol_networks='1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0';
+
+--echo # End of 10.6 tests
 SET @@global.proxy_protocol_networks=@global;

@@ -108,7 +108,7 @@ size_t my_fcvt(double x, int precision, char *to, my_bool *error)
   src= res;
   len= (int)(end - src);
 
-  if (sign)
+  if (sign && x != 0.0)
     *dst++= '-';
 
   if (decpt <= 0)
@@ -344,7 +344,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
       At this point we are sure we have enough space to put all digits
       returned by dtoa
     */
-    if (sign && dst < dend)
+    if (sign && x != 0.0 && dst < dend)
       *dst++= '-';
     if (decpt <= 0)
     {
@@ -404,7 +404,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
       At this point we are sure we have enough space to put all digits
       returned by dtoa
     */
-    if (sign && dst < dend)
+    if (sign && x != 0.0 && dst < dend)
       *dst++= '-';
     if (dst < dend)
       *dst++= *src++;
@@ -416,7 +416,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
     }
     if (dst < dend)
       *dst++= 'e';
-    if (decpt_sign && dst < dend)
+    if (decpt_sign && x != 0.0 && dst < dend)
       *dst++= '-';
 
     if (decpt >= 100 && dst < dend)

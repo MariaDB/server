@@ -567,4 +567,36 @@ DROP TABLE t1, t2;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-24931: Assertion `prefix_size <= width' failed in
+#   Bitmap<64>::is_prefix with >64-column NATURAL JOIN on derived table
+#
+CREATE TABLE t1 (
+c1 INT, c2 INT, c3 INT, c4 INT, c5 INT, c6 INT, c7 INT, c8 INT,
+c9 INT, c10 INT, c11 INT, c12 INT, c13 INT, c14 INT, c15 INT, c16 INT,
+c17 INT, c18 INT, c19 INT, c20 INT, c21 INT, c22 INT, c23 INT, c24 INT,
+c25 INT, c26 INT, c27 INT, c28 INT, c29 INT, c30 INT, c31 INT, c32 INT,
+c33 INT, c34 INT, c35 INT, c36 INT, c37 INT, c38 INT, c39 INT, c40 INT,
+c41 INT, c42 INT, c43 INT, c44 INT, c45 INT, c46 INT, c47 INT, c48 INT,
+c49 INT, c50 INT, c51 INT, c52 INT, c53 INT, c54 INT, c55 INT, c56 INT,
+c57 INT, c58 INT, c59 INT, c60 INT, c61 INT, c62 INT, c63 INT, c64 INT,
+c65 INT
+) ENGINE=InnoDB;
+CREATE VIEW v1 AS SELECT * FROM t1;
+set optimizer_switch='derived_merge=off';
+# Derived table subquery
+SELECT * FROM t1 AS a NATURAL JOIN (SELECT * FROM t1) AS b;
+c1	c2	c3	c4	c5	c6	c7	c8	c9	c10	c11	c12	c13	c14	c15	c16	c17	c18	c19	c20	c21	c22	c23	c24	c25	c26	c27	c28	c29	c30	c31	c32	c33	c34	c35	c36	c37	c38	c39	c40	c41	c42	c43	c44	c45	c46	c47	c48	c49	c50	c51	c52	c53	c54	c55	c56	c57	c58	c59	c60	c61	c62	c63	c64	c65
+# View
+SELECT * FROM v1 NATURAL JOIN t1;
+c1	c2	c3	c4	c5	c6	c7	c8	c9	c10	c11	c12	c13	c14	c15	c16	c17	c18	c19	c20	c21	c22	c23	c24	c25	c26	c27	c28	c29	c30	c31	c32	c33	c34	c35	c36	c37	c38	c39	c40	c41	c42	c43	c44	c45	c46	c47	c48	c49	c50	c51	c52	c53	c54	c55	c56	c57	c58	c59	c60	c61	c62	c63	c64	c65
+# CTE
+WITH cte AS (SELECT * FROM t1) SELECT * FROM t1 NATURAL JOIN cte;
+c1	c2	c3	c4	c5	c6	c7	c8	c9	c10	c11	c12	c13	c14	c15	c16	c17	c18	c19	c20	c21	c22	c23	c24	c25	c26	c27	c28	c29	c30	c31	c32	c33	c34	c35	c36	c37	c38	c39	c40	c41	c42	c43	c44	c45	c46	c47	c48	c49	c50	c51	c52	c53	c54	c55	c56	c57	c58	c59	c60	c61	c62	c63	c64	c65
+set optimizer_switch= @save_optimizer_switch;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#
 set optimizer_switch=@exit_optimizer_switch;

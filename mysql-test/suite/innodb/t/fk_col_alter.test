@@ -164,3 +164,22 @@ ALTER TABLE t2 CHANGE COLUMN f2 f3 VARCHAR(20) NOT NULL,
 DROP TABLE t2, t1;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 --echo # End of 10.4 tests
+
+--echo #
+--echo #  MDEV-35630 Wrong ER_FK_COLUMN_CANNOT_CHANGE when a STORED
+--echo #             generated column precedes the foreign key column
+--echo #
+CREATE TABLE t1 (user_id INT PRIMARY KEY) ENGINE=InnoDB;
+# Stored generated column placed before the FK column 'id'
+CREATE TABLE t2 (a INT AS (1) STORED, id INT, b VARCHAR(10),
+                 CONSTRAINT a1 FOREIGN KEY (id) REFERENCES t1 (user_id)
+                ) ENGINE=InnoDB;
+# 'b' is not part of any foreign key, the ALTER must succeed
+ALTER TABLE t2 MODIFY COLUMN b VARCHAR(11), ALGORITHM=INPLACE;
+ALTER TABLE t2 MODIFY COLUMN b VARCHAR(12), ALGORITHM=COPY;
+# Changing the actual FK column is still rejected
+--error ER_FK_COLUMN_CANNOT_CHANGE
+ALTER TABLE t2 MODIFY COLUMN id BIGINT;
+DROP TABLE t2, t1;
+
+--echo # End of 10.11 tests

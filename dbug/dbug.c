@@ -221,6 +221,9 @@ static BOOLEAN init_done= FALSE; /* Set to TRUE when initialization done */
 static struct settings init_settings;
 static const char *db_process= 0;/* Pointer to process name; argv[0] */
 my_bool _dbug_on_= TRUE;	 /* FALSE if no debugging at all */
+static char * command_line= 0; /* copy of controls */
+#define FREE_COMMAND_LINE do{ free(command_line); command_line= 0; }while(0)
+
 
 typedef struct _db_code_state_ {
   const char *process;          /* Pointer to process name; usually argv[0] */
@@ -899,10 +902,17 @@ int _db_is_pushed_()
 void _db_set_init_(const char *control)
 {
   CODE_STATE tmp_cs;
+  FREE_COMMAND_LINE;
+  command_line= strdup(control);
+  if (unlikely(!command_line))
+  {
+    /* We can not return error so just return */
+    return;
+  }
   bzero((uchar*) &tmp_cs, sizeof(tmp_cs));
   tmp_cs.stack= &init_settings;
   tmp_cs.process= db_process ? db_process : "dbug";
-  DbugParse(&tmp_cs, control);
+  DbugParse(&tmp_cs, command_line);
 }
 
 /*
@@ -1688,6 +1698,8 @@ void _db_end_()
   pthread_mutex_destroy(&THR_LOCK_dbug);
   init_done= 0;
   _dbug_on_= 0;
+  /* see Writable() */
+  FREE_COMMAND_LINE;
 }
 
 
@@ -2158,7 +2170,11 @@ static BOOLEAN Writable(const char *pathname)
   }
   else
   {
-    lastslash= strrchr(pathname, '/');
+    /*
+      It is safe because we made duplicate of the string
+      in _db_set_init_() and freed in _db_end_()
+    */
+    lastslash= (char *)strrchr(pathname, '/');
     if (lastslash != NULL)
       *lastslash= '\0';
     else

@@ -124,7 +124,7 @@ grn_bool
 grn_time_to_tm(grn_ctx *ctx, int64_t time, struct tm *tm)
 {
   int64_t sec;
-  int32_t usec;
+  int32_t usec __attribute__((unused));
 
   GRN_TIME_UNPACK(time, sec, usec);
   return grn_time_t_to_tm(ctx, sec, tm);

@@ -528,7 +528,7 @@ drop database events_test;
 --enable_service_connection
 
 --echo #
---echo # MDEV-37744 Table Charset Mismatch (Primary/Replica) via Event
+--echo # MDEV-37744 Table Charset Mismatch (Master/Slave) via Event
 --echo #
 set global event_scheduler=1;
 create schema andre default charset utf8mb4 collate utf8mb4_general_ci;

@@ -3,9 +3,9 @@
 #
 # param $check_db : The name of the database to validate all tables are the
 #                   same within (test by default)
-# param $con1     : The connection name of the primary server, defaults to
+# param $con1     : The connection name of the master server, defaults to
 #                   master
-# param $con2     : The connection name of the replica server, defaults to
+# param $con2     : The connection name of the slave server, defaults to
 #                   slave
 
 --let $include_filename= rpl_check_table_consistency.inc

@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 --echo #
 --echo # MDEV-16110 ALTER with ALGORITHM=INPLACE breaks temporary table with virtual columns
@@ -39,6 +40,19 @@ drop temporary table t1;
 create table t1 (c point not null);
 alter table t1 add spatial index b1(c desc);
 alter table t1 add spatial index b2(c desc);
+drop table t1;
+
+--echo #
+--echo # MDEV-23507 Wrong duplicate key value printed in ER_DUP_ENTRY
+--echo #
+create table t1 (a int) engine=myisam;
+insert into t1 values (8);
+insert into t1 select seq from seq_1_to_100;
+--error ER_DUP_ENTRY
+alter table t1 add unique (a);
+alter table t1 engine=aria;
+--error ER_DUP_ENTRY
+alter table t1 add unique (a);
 drop table t1;
 
 --echo # End of 10.11 tests

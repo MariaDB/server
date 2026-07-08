@@ -193,8 +193,9 @@ int my_init_large_pages(void)
   {
     my_printf_error(EE_PERM_LOCK_MEMORY,
                     "Lock Pages in memory access rights required for use with"
-                    " large-pages, see https://mariadb.com/kb/en/library/"
-                    "mariadb-memory-allocation/#huge-pages", MYF(MY_WME));
+                    " large-pages, see "
+		    "https://mariadb.com/docs/server/ha-and-performance/mariadb-memory-allocation#huge-pages"
+                    , MYF(MY_WME));
     my_use_large_pages= 0;
   }
   my_large_page_size= GetLargePageMinimum();
@@ -482,15 +483,20 @@ char *my_large_virtual_alloc(size_t *size)
         DBUG_RETURN(ptr);
       }
     }
+
+    my_use_large_pages= FALSE;
   }
 
+# ifdef _AIX
+  /* On IBM AIX, my_virtual_mem_commit() relies on mprotect(2) rather than
+  a subsequent mmap(2) with MAP_FIXED. */
   ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE,
             MAP_PRIVATE | OS_MAP_ANON, -1, 0);
+# else
+  ptr= mmap(NULL, *size, PROT_NONE, MAP_PRIVATE | OS_MAP_ANON, -1, 0);
+# endif
   if (ptr == MAP_FAILED)
-  {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), size);
     ptr= NULL;
-  }
 
   DBUG_RETURN(ptr);
 }

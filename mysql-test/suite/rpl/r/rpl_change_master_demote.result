@@ -13,8 +13,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -52,8 +52,8 @@ GTID_CURRENT_POS	0-2-3
 GTID_SLAVE_POS	0-2-3
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -80,8 +80,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -119,8 +119,8 @@ GTID_CURRENT_POS	0-2-5
 GTID_SLAVE_POS	0-2-5
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -140,8 +140,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -179,8 +179,8 @@ GTID_CURRENT_POS	0-2-9
 GTID_SLAVE_POS	0-2-9
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -202,8 +202,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -241,8 +241,8 @@ GTID_CURRENT_POS	0-2-13
 GTID_SLAVE_POS	0-2-13
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -267,8 +267,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -306,8 +306,8 @@ GTID_CURRENT_POS	0-2-17,1-1-2
 GTID_SLAVE_POS	0-2-17,1-1-2
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -350,8 +350,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -389,8 +389,8 @@ GTID_CURRENT_POS	0-2-21,1-3-4,2-1-2,4-3-2
 GTID_SLAVE_POS	0-2-21,1-3-4,2-1-2,4-3-2
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -416,8 +416,8 @@ include/sync_with_master_gtid.inc
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -455,8 +455,8 @@ GTID_CURRENT_POS	0-2-24,1-3-4,2-1-3,3-1-2,4-3-2
 GTID_SLAVE_POS	0-2-24,1-3-4,2-1-3,3-1-2,4-3-2
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -518,8 +518,8 @@ connection master;
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -559,8 +559,8 @@ GTID_CURRENT_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
 GTID_SLAVE_POS	0-2-29,1-3-4,2-1-3,3-1-2,4-3-2
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -584,8 +584,8 @@ connection master;
 include/rpl_change_master_demote.inc
 ##############################################
 # Connection semantics change:
-#  * True primary is now connection 'slave'
-#  * True replica is now connection 'master'
+#  * True master is now connection 'slave'
+#  * True slave is now connection 'master'
 ##############################################
 connection master;
 SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME LIKE 'gtid_binlog_pos' OR VARIABLE_NAME LIKE 'gtid_slave_pos' OR VARIABLE_NAME LIKE 'gtid_current_pos' ORDER BY VARIABLE_NAME ASC;
@@ -623,8 +623,8 @@ GTID_CURRENT_POS	0-2-32,1-3-4,2-1-3,3-1-2,4-3-2
 GTID_SLAVE_POS	0-2-32,1-3-4,2-1-3,3-1-2,4-3-2
 ##############################################
 # Connection semantics change:
-#  * True primary is back to connection 'master'
-#  * True replica is back to connection 'slave'
+#  * True master is back to connection 'master'
+#  * True slave is back to connection 'slave'
 ##############################################
 connection master;
 connection slave;
@@ -698,7 +698,7 @@ CHANGE MASTER TO master_use_gtid=Replica_Pos, master_demote_to_replica=1;
 DROP TABLE t_mdev_31768;
 RESET MASTER;
 include/reset_slave.inc
-# Clear primary binlog state to match replica
+# Clear master binlog state to match slave
 connection master;
 RESET MASTER;
 #

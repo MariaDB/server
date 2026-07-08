@@ -78,6 +78,7 @@ DROP TABLE t1;
 
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 
 --echo #cleanup
 --connection node_1

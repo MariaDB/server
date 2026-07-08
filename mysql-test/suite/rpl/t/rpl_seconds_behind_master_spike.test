@@ -19,7 +19,7 @@
 # References:
 #   MDEV-16091: Seconds_Behind_Master spikes to millions of seconds
 #   MDEV-25999: Unrealistic "Seconds behind master" value
-#   MDEV-36840: Seconds_Behind_Master Spike at Log Rotation on Parallel Replica
+#   MDEV-36840: Seconds_Behind_Master Spike at Log Rotation on Parallel Slave
 #
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
@@ -130,7 +130,7 @@ while (!$caught_up)
     # Wait 30s
     if (`SELECT $tries > 300`)
     {
-        --die Replica failed to sync with primary
+        --die Slave failed to sync with master
     }
     sleep 0.1;
 }
@@ -169,7 +169,7 @@ while (!$caught_up)
     # Wait 30s
     if (`SELECT $tries > 300`)
     {
-        --die Replica failed to sync with primary
+        --die Slave failed to sync with master
     }
     sleep 0.1;
 }

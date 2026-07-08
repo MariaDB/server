@@ -58,3 +58,28 @@ SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }')) 
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-39813 ST_GeomFromGeoJSON does not control recursion depth
+--echo #
+
+SELECT ST_GeomFromGeoJSON(
+  concat(
+    repeat('{"type":"GeometryCollection","geometries":[', 2000),
+    '{"type":"Point","coordinates":[0,0]}',
+    repeat(']}', 2000)
+  )) as exp;
+
+--echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-34079: ST_AsGeoJSON returns incorrect value for empty geometry
+--echo #
+
+SELECT ST_AsGeoJSON(GeomFromText('GeometryCollection EMPTY'));
+SELECT ST_AsGeoJSON(ST_DIFFERENCE(POINT(0,0), POINT(0,0)));
+SELECT ST_AsGeoJSON(GeomFromText('MultiPoint EMPTY'));
+SELECT ST_AsGeoJSON(GeomFromText('MultiLineString EMPTY'));
+SELECT ST_AsGeoJSON(GeomFromText('MultiPolygon EMPTY'));
+
+--echo # End of 10.11 tests

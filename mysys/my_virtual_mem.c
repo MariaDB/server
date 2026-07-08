@@ -103,9 +103,6 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
 # else
     void *p= 0;
     const int flags=
-#  ifdef MAP_POPULATE
-      MAP_POPULATE |
-#  endif
       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
     p= mmap(ptr, size, PROT_READ | PROT_WRITE, flags, -1, 0);
     if (p == MAP_FAILED)
@@ -128,9 +125,6 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 {
 #ifdef _WIN32
   DBUG_ASSERT(is_memory_committed(ptr, size));
-# ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-#  error "VirtualFree(MEM_DECOMMIT) will not allow subsequent reads!"
-# endif
   if (!my_use_large_pages)
   {
     if (!VirtualFree(ptr, size, MEM_DECOMMIT))
@@ -141,19 +135,6 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
     }
   }
 #else
-  const int prot=
-# ifndef HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT
-    /*
-      In InnoDB, buf_pool_t::page_guess() may deference pointers to
-      this, assuming that either the original contents or zeroed
-      contents is available.
-    */
-    PROT_READ
-# else
-    /* We will explicitly mark the memory unaccessible. */
-    PROT_NONE
-# endif
-    ;
 # ifdef _AIX
   disclaim(ptr, size, DISCLAIM_ZEROMEM);
 # elif defined __linux__ || defined __osf__
@@ -172,7 +153,7 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 # else
 #  warning "Do not know how to decommit memory"
 # endif
-  if (mprotect(ptr, size, prot))
+  if (mprotect(ptr, size, PROT_NONE))
   {
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size, errno);
     DBUG_ASSERT(0);

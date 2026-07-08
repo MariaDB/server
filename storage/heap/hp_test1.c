@@ -74,7 +74,7 @@ int main(int argc, char **argv)
   for (i=49 ; i>=1 ; i-=2 )
   {
     j=i%25 +1;
-    sprintf((char*) key,"%6d",j);
+    snprintf((char*) key, sizeof(key), "%6d",j);
     bmove(record+1,key,6);
     error=heap_write(file,record);
     if (heap_check_heap(file,0))
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
   for (i=1 ; i<=10 ; i++)
   {
     if (i == remove_ant) { (void) heap_close(file); return (0) ; }
-    sprintf((char*) key,"%6d",(j=(int) ((rand() & 32767)/32767.*25)));
+    snprintf((char*) key, sizeof(key), "%6d",(j=(int) ((rand() & 32767)/32767.*25)));
     if ((error = heap_rkey(file,record,0,key,6,HA_READ_KEY_EXACT)))
     {
       if (verbose || (flags[j] == 1 ||
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
   printf("- Reading records with key\n");
   for (i=1 ; i<=25 ; i++)
   {
-    sprintf((char*) key,"%6d",i);
+    snprintf((char*) key, sizeof(key), "%6d",i);
     bmove(record+1,key,6);
     my_errno=0;
     error=heap_rkey(file,record,0,key,6,HA_READ_KEY_EXACT);

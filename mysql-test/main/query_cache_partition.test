@@ -1,0 +1,19 @@
+--source include/have_partition.inc
+--source include/have_query_cache.inc
+
+--echo #
+--echo # MDEV-33170 ASAN errors upon CONVERT TABLE TO PARTITION with query cache
+--echo #
+
+SET @qcache= @@global.query_cache_type;
+SET GLOBAL query_cache_type= 1;
+
+CREATE TABLE t (a INT) PARTITION BY LIST (a) (PARTITION p0 VALUES IN (1));
+CREATE TABLE t1 (a INT);
+ALTER TABLE t CONVERT TABLE t1 TO PARTITION pn VALUES IN (2);
+
+# Cleanup
+DROP TABLE IF EXISTS t1, t;
+SET GLOBAL query_cache_type= @qcache;
+
+--echo # End of 10.11 tests

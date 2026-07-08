@@ -55,7 +55,7 @@ IF (WIN32)
     my_wintoken.c
     my_wincond.c
     my_winerr.c
-    my_winfile.c
+    my_winfile.cc
     my_minidump.cc
     my_win_popen.cc)
 ENDIF()

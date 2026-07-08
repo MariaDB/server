@@ -3597,7 +3597,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(11) NOT NULL,
-  `c2` bigint(11) NOT NULL
+  `c2` bigint(12) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
@@ -3633,47 +3633,47 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i1` int(1) NOT NULL,
-  `c1` int(1) NOT NULL,
+  `c1` int(2) NOT NULL,
   `i2` int(2) NOT NULL,
-  `c2` int(2) NOT NULL,
+  `c2` int(3) NOT NULL,
   `i3` int(3) NOT NULL,
-  `c3` int(3) NOT NULL,
+  `c3` int(4) NOT NULL,
   `i4` int(4) NOT NULL,
-  `c4` int(4) NOT NULL,
+  `c4` int(5) NOT NULL,
   `i5` int(5) NOT NULL,
-  `c5` int(5) NOT NULL,
+  `c5` int(6) NOT NULL,
   `i6` int(6) NOT NULL,
-  `c6` int(6) NOT NULL,
+  `c6` int(7) NOT NULL,
   `i7` int(7) NOT NULL,
-  `c7` int(7) NOT NULL,
+  `c7` int(8) NOT NULL,
   `i8` int(8) NOT NULL,
-  `c8` int(8) NOT NULL,
+  `c8` int(9) NOT NULL,
   `i9` int(9) NOT NULL,
-  `c9` int(9) NOT NULL,
+  `c9` int(10) NOT NULL,
   `2147483647` bigint(10) NOT NULL,
-  `COALESCE(2147483647)` bigint(10) NOT NULL,
+  `COALESCE(2147483647)` bigint(11) NOT NULL,
   `2147483648` bigint(10) NOT NULL,
-  `COALESCE(2147483648)` bigint(10) NOT NULL,
+  `COALESCE(2147483648)` bigint(11) NOT NULL,
   `i10` bigint(10) NOT NULL,
-  `c10` bigint(10) NOT NULL,
+  `c10` bigint(11) NOT NULL,
   `i11` bigint(11) NOT NULL,
-  `c11` bigint(11) NOT NULL,
+  `c11` bigint(12) NOT NULL,
   `i12` bigint(12) NOT NULL,
-  `c12` bigint(12) NOT NULL,
+  `c12` bigint(13) NOT NULL,
   `i13` bigint(13) NOT NULL,
-  `c13` bigint(13) NOT NULL,
+  `c13` bigint(14) NOT NULL,
   `i14` bigint(14) NOT NULL,
-  `c14` bigint(14) NOT NULL,
+  `c14` bigint(15) NOT NULL,
   `i15` bigint(15) NOT NULL,
-  `c15` bigint(15) NOT NULL,
+  `c15` bigint(16) NOT NULL,
   `i16` bigint(16) NOT NULL,
-  `c16` bigint(16) NOT NULL,
+  `c16` bigint(17) NOT NULL,
   `i17` bigint(17) NOT NULL,
-  `c17` bigint(17) NOT NULL,
+  `c17` bigint(18) NOT NULL,
   `i18` bigint(18) NOT NULL,
-  `c18` bigint(18) NOT NULL,
+  `c18` bigint(19) NOT NULL,
   `9223372036854775807` bigint(19) NOT NULL,
-  `COALESCE(9223372036854775807)` bigint(19) NOT NULL,
+  `COALESCE(9223372036854775807)` bigint(20) NOT NULL,
   `9223372036854775808` bigint(19) unsigned NOT NULL,
   `COALESCE(9223372036854775808)` bigint(19) unsigned NOT NULL,
   `i19` bigint(19) unsigned NOT NULL,
@@ -4399,7 +4399,7 @@ DROP VIEW v4;
 CREATE VIEW v5 AS SELECT COALESCE(c, COALESCE(NULL, 10), NULL) as c_col FROM (SELECT NULL AS c) AS t;
 SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'v5';
 COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
-c_col	NO	varchar(2)
+c_col	NO	varchar(3)
 DROP VIEW v5;
 CREATE TABLE t (c1 INT, c2 DOUBLE, c3 VARCHAR(5), c4 DATE);
 INSERT INTO t values (1, 2.3, 'four', '2025-05-06');

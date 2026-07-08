@@ -155,16 +155,6 @@ SHOW VARIABLES LIKE 'group_concat_max_len';
 SELECT GROUP_CONCAT(val) AS simple FROM t1;
 SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
 
-SET group_concat_max_len = 1073741826;
-SHOW VARIABLES LIKE 'group_concat_max_len';
-SELECT GROUP_CONCAT(val) AS simple FROM t1;
-SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
-
-SET group_concat_max_len = 2147483649;
-SHOW VARIABLES LIKE 'group_concat_max_len';
-SELECT GROUP_CONCAT(val) AS simple FROM t1;
-SELECT * FROM ( SELECT GROUP_CONCAT(val) AS nested FROM t1) As tmp;
-
 DROP TABLE t1;
 
 SET @@global.group_concat_max_len = @save;

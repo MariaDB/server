@@ -1,39 +1,47 @@
 connection node_2;
 connection node_1;
 SET SESSION wsrep_trx_fragment_size = 1;
-CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 connection node_1;
+SET SESSION wsrep_sync_wait=15;
 CREATE TABLE t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
 connection node_2;
-SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
-COUNT(*) = 13
-1
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) AS EXPECT_13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
+EXPECT_13
+13
 connection node_1;
+# Insert 10K rows
 INSERT INTO t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
 connection node_2;
-SELECT COUNT(f2) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
-COUNT(f2) = 10000
-1
+SELECT COUNT(f2) AS EXPECT_10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
+EXPECT_10000
+10000
 UPDATE t1 SET f2 = 'abcdefjhk';
 connection node_1;
-SELECT COUNT(f2) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
-COUNT(f2) = 10000
-1
-connection node_2;
+SELECT COUNT(f2) AS EXPECT_10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
+EXPECT_10000
+10000
 DROP TABLE t1;
-connection node_1;
-CREATE TABLE t1 (f1 VARCHAR(100), FULLTEXT (f1)) ENGINE=InnoDB;
-connection node_2;
-INSERT INTO t1 (f1) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
-connection node_1;
-SELECT COUNT(f1) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('foobarbaz');
-COUNT(f1) = 1000
+SELECT COUNT(*) AS EXPECT_1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
+EXPECT_1
 1
-UPDATE t1 SET f1 = 'abcdefjhk';
+CREATE TABLE t2 (f1 VARCHAR(100), FULLTEXT (f1)) ENGINE=InnoDB;
 connection node_2;
-SELECT COUNT(f1) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
-COUNT(f1) = 1000
-1
-DROP TABLE t1;
+# We insert only 1K rows here, because updates without a PK are very slow
+INSERT INTO t2 (f1) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
+connection node_1;
+SELECT COUNT(f1) AS EXPECT_1000 FROM t2 WHERE MATCH(f1) AGAINST ('foobarbaz');
+EXPECT_1000
+1000
+UPDATE t2 SET f1 = 'abcdefjhk';
+connection node_2;
+SELECT COUNT(f1) AS EXPECT_1000 FROM t2 WHERE MATCH(f1) AGAINST ('abcdefjhk');
+EXPECT_1000
+1000
+connection node_1;
+DROP TABLE t2;
 DROP TABLE ten;
+disconnect node_2;
+disconnect node_1;

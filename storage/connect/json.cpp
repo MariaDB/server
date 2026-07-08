@@ -1670,13 +1670,13 @@ PSZ JVALUE::GetString(PGLOBAL g, char *buff)
     p = Strp;
     break;
   case TYPE_INTG:
-    sprintf(p, "%d", N);
+    snprintf(p, 32, "%d", N);
     break;
   case TYPE_BINT:
-    sprintf(p, "%lld", LLn);
+    snprintf(p, 32, "%lld", LLn);
     break;
   case TYPE_DBL:
-    sprintf(p, "%.*lf", Nd, F);
+    snprintf(p, 32, "%.*lf", Nd, F);
     break;
   case TYPE_BOOL:
     p = (char*)((B) ? "true" : "false");
@@ -1770,7 +1770,7 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
     DataType = TYPE_BINT;
     break;
   default:
-    snprintf(g->Message, sizeof(g->Message), "Unsupported typ %d\n", valp->GetType());
+    snprintf(g->Message, sizeof(g->Message), "Unsupported typ %d", valp->GetType());
     throw(777);
   } // endswitch Type
 

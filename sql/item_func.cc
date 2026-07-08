@@ -1881,10 +1881,15 @@ void Item_func_neg::fix_length_and_dec_double()
 {
   set_handler(&type_handler_double);
   decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
-  max_length= args[0]->max_length + 1;
-  // Limit length with something reasonable
-  uint32 mlen= type_handler()->max_display_length(this);
-  set_if_smaller(max_length, mlen);
+  /*
+    Clamp the argument width so that adding one character for the sign keeps
+    the result within the double display length.  The argument must be
+    clamped before the sign is added, otherwise an argument whose max_length
+    is already the uint32 maximum, as with LONGTEXT and LONGBLOB, overflows
+    to zero and produces a zero width result.
+  */
+  const uint32 mlen= type_handler()->max_display_length(this);
+  max_length= MY_MIN(args[0]->max_length, mlen - 1) + 1;
   unsigned_flag= false;
 }
 

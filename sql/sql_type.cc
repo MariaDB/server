@@ -678,7 +678,7 @@ Year::Year(longlong value, bool unsigned_flag, uint length)
 }
 
 
-uint Year::year_precision(const Item *item) const
+uint Year::year_precision(const Item *item)
 {
   return item->type_handler() == &type_handler_year2 ? 2 : 4;
 }
@@ -4675,6 +4675,20 @@ Item_copy *
 Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
 {
   return new (thd->mem_root) Item_copy_timestamp(thd, item);
+}
+
+
+Item_copy *
+Type_handler_float::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_float(thd, item);
+}
+
+
+Item_copy *
+Type_handler_double::create_item_copy(THD *thd, Item *item) const
+{
+  return new (thd->mem_root) Item_copy_double(thd, item);
 }
 
 /*************************************************************************/

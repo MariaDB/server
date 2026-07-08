@@ -479,7 +479,113 @@ end:
     plugin_unlock(NULL, engine);
 }
 
+static bool slave_deadlock_handler_thread_running;
+static bool slave_deadlock_handler_thread_stop;
 static bool slave_background_thread_gtid_loaded;
+
+struct slave_deadlock_kill_t {
+  slave_deadlock_kill_t *next;
+  THD *to_kill;
+} *slave_deadlock_kill_list;
+
+
+pthread_handler_t
+slave_deadlock_handler(void *arg __attribute__((unused)))
+{
+  bool stop;
+
+  my_thread_init();
+
+  mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  slave_deadlock_handler_thread_running= true;
+  mysql_cond_broadcast(&COND_slave_deadlock_handler);
+  do
+  {
+    slave_deadlock_kill_t *kill_list;
+
+    for (;;)
+    {
+      stop= abort_loop || slave_deadlock_handler_thread_stop;
+      kill_list= slave_deadlock_kill_list;
+      if (stop || kill_list)
+        break;
+      mysql_cond_wait(&COND_slave_deadlock_handler, &LOCK_slave_deadlock_handler);
+    }
+
+    slave_deadlock_kill_list= NULL;
+    mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+
+    while (kill_list)
+    {
+      slave_deadlock_kill_t *p = kill_list;
+      THD *to_kill= p->to_kill;
+      kill_list= p->next;
+
+      DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
+      to_kill->awake(KILL_CONNECTION);
+      mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
+      to_kill->rgi_slave->killed_for_retry=
+        rpl_group_info::RETRY_KILL_KILLED;
+      mysql_cond_broadcast(&to_kill->COND_wakeup_ready);
+      mysql_mutex_unlock(&to_kill->LOCK_wakeup_ready);
+      my_free(p);
+    }
+    mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  } while (!stop);
+
+  slave_deadlock_handler_thread_running= false;
+  mysql_cond_broadcast(&COND_slave_deadlock_handler);
+  mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+
+  my_thread_end();
+  return 0;
+}
+
+
+/*
+  Start the slave deadlock handler thread.
+
+  This thread is used to kill worker thread transactions during parallel
+  replication, when a storage engine attempts to take an errorneous
+  conflicting lock that would cause a deadlock. Killing is done
+  asynchroneously, as the kill may not be safe within the context of a
+  callback from inside storage engine locking code.
+*/
+static int
+start_slave_deadlock_handler_thread()
+{
+  pthread_t th;
+
+  mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  slave_deadlock_handler_thread_running= false;
+  slave_deadlock_handler_thread_stop= false;
+  if (mysql_thread_create(key_thread_slave_deadlock_handler,
+                          &th, &connection_attrib, slave_deadlock_handler,
+                          NULL))
+  {
+    sql_print_error("Failed to create thread while initialising slave");
+    return 1;
+  }
+
+  while (!slave_deadlock_handler_thread_running)
+    mysql_cond_wait(&COND_slave_deadlock_handler, &LOCK_slave_deadlock_handler);
+  mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+
+  return 0;
+}
+
+
+static void
+stop_slave_deadlock_handler_thread()
+{
+  mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+  slave_deadlock_handler_thread_stop= true;
+  mysql_cond_broadcast(&COND_slave_deadlock_handler);
+  while (slave_deadlock_handler_thread_running)
+    mysql_cond_wait(&COND_slave_deadlock_handler, &LOCK_slave_deadlock_handler);
+  mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+}
+
 
 static void bg_rpl_load_gtid_slave_state(void *)
 {
@@ -501,24 +607,26 @@ static void bg_rpl_load_gtid_slave_state(void *)
   delete thd;
 }
 
-static void bg_slave_kill(void *victim)
-{
-  THD *to_kill= (THD *)victim;
-  DBUG_EXECUTE_IF("rpl_delay_deadlock_kill", my_sleep(1500000););
-  to_kill->awake(KILL_CONNECTION);
-  mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
-  to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-  mysql_cond_broadcast(&to_kill->COND_wakeup_ready);
-  mysql_mutex_unlock(&to_kill->LOCK_wakeup_ready);
-}
 
 void slave_background_kill_request(THD *to_kill)
 {
   if (to_kill->rgi_slave->killed_for_retry)
     return;                                     // Already deadlock killed.
-  to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_PENDING;
-  mysql_manager_submit(bg_slave_kill, to_kill);
+  slave_deadlock_kill_t *p= (slave_deadlock_kill_t *)
+    my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
+  if (p)
+  {
+    p->to_kill= to_kill;
+    to_kill->rgi_slave->killed_for_retry=
+      rpl_group_info::RETRY_KILL_PENDING;
+    mysql_mutex_lock(&LOCK_slave_deadlock_handler);
+    p->next= slave_deadlock_kill_list;
+    slave_deadlock_kill_list= p;
+    mysql_cond_signal(&COND_slave_deadlock_handler);
+    mysql_mutex_unlock(&LOCK_slave_deadlock_handler);
+  }
 }
+
 
 /*
   This function must only be called from a slave SQL thread (or worker thread),
@@ -563,6 +671,9 @@ int init_slave()
 #ifdef HAVE_PSI_INTERFACE
   init_slave_psi_keys();
 #endif
+
+  if (start_slave_deadlock_handler_thread())
+    return 1;
 
   if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
     return 1;
@@ -795,6 +906,10 @@ bool init_slave_skip_errors(const char* arg)
   if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
   {
     bitmap_set_all(&slave_error_mask);
+    bitmap_clear_bit(&slave_error_mask,ER_CONNECTION_KILLED);
+    sql_print_warning("Slave: ER_CONNECTION_KILLED (%d) is not allowed in "
+                      "--slave-skip-errors=all. This error will never be skipped "
+                      "by the slave.", ER_CONNECTION_KILLED);
     goto end;
   }
   for (p= arg ; *p; )
@@ -803,7 +918,18 @@ bool init_slave_skip_errors(const char* arg)
     if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
       break;
     if (err_code < MAX_SLAVE_ERROR)
-       bitmap_set_bit(&slave_error_mask,(uint)err_code);
+    {
+      if (err_code == ER_CONNECTION_KILLED)
+      {
+        sql_print_warning("Slave: ER_CONNECTION_KILLED (%d) is not allowed in "
+                          "--slave-skip-errors. This error will never be skipped "
+                          "by the slave.", ER_CONNECTION_KILLED);
+      }
+      else
+      {
+        bitmap_set_bit(&slave_error_mask,(uint)err_code);
+      }
+    }
     while (!my_isdigit(system_charset_info,*p) && *p)
       p++;
   }
@@ -1298,6 +1424,7 @@ void slave_prepare_for_shutdown()
   mysql_mutex_lock(&LOCK_active_mi);
   master_info_index->free_connections();
   mysql_mutex_unlock(&LOCK_active_mi);
+  stop_slave_deadlock_handler_thread();
   // It's safe to destruct worker pool now when
   // all driver threads are gone.
   global_rpl_thread_pool.deactivate();
@@ -1330,6 +1457,8 @@ void end_slave()
   master_info_index= 0;
   active_mi= 0;
   mysql_mutex_unlock(&LOCK_active_mi);
+
+  stop_slave_deadlock_handler_thread();
 
   global_rpl_thread_pool.destroy();
   free_all_rpl_filters();
@@ -1570,48 +1699,99 @@ int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
   DBUG_RETURN(1);
 }
 
-/*
-  when moving these functions to mysys, don't forget to
-  remove slave.cc from libmysqld/CMakeLists.txt
-*/
+/* Check if numeric string parsing has trailing garbage */
+static bool is_string_blank_or_empty(const char *endptr)
+{
+  while (*endptr != '\0' &&
+         (my_isspace(system_charset_info, *endptr) ||
+          my_iscntrl(system_charset_info, *endptr)))
+  {
+    endptr++;
+  }
+
+  return *endptr != '\0';
+}
+
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val)
 {
-  char buf[32];
+  char buf[32]= {0};
   DBUG_ENTER("init_intvar_from_file");
 
+  *var= 0;
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if (!my_b_gets(f, buf, sizeof(buf)))
   {
-    *var = atoi(buf);
+    if (!default_val)
+      DBUG_RETURN(1);
+    *var= default_val;
     DBUG_RETURN(0);
   }
-  else if (default_val)
+
+  char *endptr= buf + strlen(buf);
+  int error= 0;
+  longlong val= my_strtoll10(buf, &endptr, &error);
+
+  if (error || is_string_blank_or_empty(endptr))
+    DBUG_RETURN(1);
+
+  if (val < 0 || val > UINT_MAX)
+    DBUG_RETURN(1);
+
+  *var= (int) val;
+  DBUG_RETURN(0);
+}
+
+int init_ulonglongvar_from_file(ulonglong* var, IO_CACHE* f,
+                                ulonglong default_val)
+{
+  char buf[MY_INT64_NUM_DECIMAL_DIGITS]= {0};
+  int error= 0;
+  DBUG_ENTER("init_ulonglongvar_from_file");
+
+  *var= 0;
+
+  if (!my_b_gets(f, buf, sizeof(buf)))
   {
-    *var = default_val;
+    if (!default_val)
+      DBUG_RETURN(1);
+    *var= default_val;
     DBUG_RETURN(0);
   }
-  DBUG_RETURN(1);
+
+  char *endptr= buf + strlen(buf);
+  ulonglong val= (ulonglong) my_strtoll10(buf, &endptr, &error);
+
+  if (error || is_string_blank_or_empty(endptr))
+    DBUG_RETURN(1);
+
+  *var= val;
+  DBUG_RETURN(0);
 }
 
 int init_floatvar_from_file(float* var, IO_CACHE* f, float default_val)
 {
-  char buf[16];
+  char buf[16]= {0};
   DBUG_ENTER("init_floatvar_from_file");
 
+  *var= 0.0;
 
-  if (my_b_gets(f, buf, sizeof(buf)))
+  if (!my_b_gets(f, buf, sizeof(buf)))
   {
-    if (sscanf(buf, "%f", var) != 1)
+    if (default_val == 0.0)
       DBUG_RETURN(1);
-    else
-      DBUG_RETURN(0);
-  }
-  else if (default_val != 0.0)
-  {
-    *var = default_val;
+    *var= default_val;
     DBUG_RETURN(0);
   }
-  DBUG_RETURN(1);
+
+  char *endptr= buf + strlen(buf);
+  int error= 0;
+  double val= my_strtod(buf, &endptr, &error);
+
+  if (error || is_string_blank_or_empty(endptr))
+    DBUG_RETURN(1);
+
+  *var= (float) val;
+  DBUG_RETURN(0);
 }
 
 
@@ -1774,11 +1954,11 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
              "Master reported unrecognized MariaDB version: %s",
              mysql->server_version);
     err_code= ER_SLAVE_FATAL_ERROR;
-    sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
+    snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), err_buff2);
   }
   else
   {
-    DBUG_EXECUTE_IF("mock_mariadb_primary_v5_in_get_master_version",
+    DBUG_EXECUTE_IF("mock_mariadb_master_v5_in_get_master_version",
                     version= 5;);
 
     /*
@@ -1793,7 +1973,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
                "Master reported unrecognized MariaDB version: %s",
                mysql->server_version);
       err_code= ER_SLAVE_FATAL_ERROR;
-      sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
+      snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), err_buff2);
       break;
     case 3:
       mi->rli.relay_log.description_event_for_queue= new
@@ -1833,7 +2013,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   {
     errmsg= "default Format_description_log_event";
     err_code= ER_SLAVE_CREATE_EVENT_FAILURE;
-    sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
+    snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), errmsg);
     goto err;
   }
 
@@ -1970,7 +2150,7 @@ MariaDB server ids; these ids must be different for replication to work (or \
 the --replicate-same-server-id option must be used on slave but this does \
 not always make sense; please check the manual before using it).";
       err_code= ER_SLAVE_FATAL_ERROR;
-      sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
+      snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), errmsg);
       goto err;
     }
   }
@@ -1988,7 +2168,7 @@ not always make sense; please check the manual before using it).";
     errmsg= "The slave I/O thread stops because a fatal error is encountered \
 when it try to get the value of SERVER_ID variable from master.";
     err_code= mysql_errno(mysql);
-    sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+    snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
     goto err;
   }
   else if (!master_row && master_res)
@@ -2006,7 +2186,7 @@ maybe it is a *VERY OLD MASTER*.");
   {
     errmsg= "Slave configured with server id filtering could not detect the master server id.";
     err_code= ER_SLAVE_FATAL_ERROR;
-    sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
+    snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), errmsg);
     goto err;
   }
 
@@ -2046,7 +2226,7 @@ maybe it is a *VERY OLD MASTER*.");
 different values for the COLLATION_SERVER global variable. The values must \
 be equal for the Statement-format replication to work";
         err_code= ER_SLAVE_FATAL_ERROR;
-        sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
+        snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), errmsg);
         goto err;
       }
     }
@@ -2064,7 +2244,7 @@ be equal for the Statement-format replication to work";
       errmsg= "The slave I/O thread stops because a fatal error is encountered \
 when it try to get the value of COLLATION_SERVER global variable from master.";
       err_code= mysql_errno(mysql);
-      sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+      snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
       goto err;
     }
     else
@@ -2109,7 +2289,7 @@ inconsistency if replicated data deals with collation.");
 different values for the TIME_ZONE global variable. The values must \
 be equal for the Statement-format replication to work";
         err_code= ER_SLAVE_FATAL_ERROR;
-        sprintf(err_buff, ER_DEFAULT(err_code), errmsg);
+        snprintf(err_buff, sizeof(err_buff), ER_DEFAULT(err_code), errmsg);
         goto err;
       }
     }
@@ -2136,7 +2316,7 @@ be equal for the Statement-format replication to work";
       /* Fatal error */
       errmsg= "The slave I/O thread stops because a fatal error is encountered \
 when it try to get the value of TIME_ZONE global variable from master.";
-      sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+      snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
       goto err;
     }
     if (master_res)
@@ -2181,7 +2361,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
         errmsg= "The slave I/O thread stops because a fatal error is encountered "
           "when it tries to SET @master_heartbeat_period on master.";
         err_code= ER_SLAVE_FATAL_ERROR;
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         mysql_free_result(mysql_store_result(mysql));
         goto err;
       }
@@ -2241,7 +2421,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
           errmsg= "The slave I/O thread stops because a fatal error is encountered "
             "when it tried to SET @master_binlog_checksum on master.";
           err_code= ER_SLAVE_FATAL_ERROR;
-          sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+          snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
           mysql_free_result(mysql_store_result(mysql));
           goto err;
         }
@@ -2275,7 +2455,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
         errmsg= "The slave I/O thread stops because a fatal error is encountered "
           "when it tried to SELECT @master_binlog_checksum.";
         err_code= ER_SLAVE_FATAL_ERROR;
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         mysql_free_result(mysql_store_result(mysql));
         goto err;
       }
@@ -2332,7 +2512,7 @@ past_checksum:
         errmsg= "The slave I/O thread stops because a fatal error is "
           "encountered when it tries to request filtering of events marked "
           "with the @@skip_replication flag.";
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         goto err;
       }
     }
@@ -2364,7 +2544,7 @@ past_checksum:
         /* Fatal error */
         errmsg= "The slave I/O thread stops because a fatal error is "
           "encountered when it tries to set @mariadb_slave_capability.";
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         goto err;
       }
     }
@@ -2416,7 +2596,7 @@ after_set_capability:
         errmsg= "The slave I/O thread stops because master does not support "
           "MariaDB global transaction id. A fatal error is encountered when "
           "it tries to SELECT @@GLOBAL.gtid_domain_id.";
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         goto err;
       }
     }
@@ -2430,7 +2610,7 @@ after_set_capability:
       err_code= ER_OUTOFMEMORY;
       errmsg= "The slave I/O thread stops because a fatal out-of-memory "
         "error is encountered when it tries to compute @slave_connect_state.";
-      sprintf(err_buff, "%s Error: Out of memory", errmsg);
+      snprintf(err_buff, sizeof(err_buff), "%s Error: Out of memory", errmsg);
       goto err;
     }
     query_str.append(STRING_WITH_LEN("'"), system_charset_info);
@@ -2454,7 +2634,7 @@ after_set_capability:
         /* Fatal error */
         errmsg= "The slave I/O thread stops because a fatal error is "
           "encountered when it tries to set @slave_connect_state.";
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         goto err;
       }
     }
@@ -2467,7 +2647,7 @@ after_set_capability:
       err_code= ER_OUTOFMEMORY;
       errmsg= "The slave I/O thread stops because a fatal out-of-memory "
         "error is encountered when it tries to set @slave_gtid_strict_mode.";
-      sprintf(err_buff, "%s Error: Out of memory", errmsg);
+      snprintf(err_buff, sizeof(err_buff), "%s Error: Out of memory", errmsg);
       goto err;
     }
 
@@ -2490,7 +2670,7 @@ after_set_capability:
         /* Fatal error */
         errmsg= "The slave I/O thread stops because a fatal error is "
           "encountered when it tries to set @slave_gtid_strict_mode.";
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         goto err;
       }
     }
@@ -2503,7 +2683,7 @@ after_set_capability:
       err_code= ER_OUTOFMEMORY;
       errmsg= "The slave I/O thread stops because a fatal out-of-memory error "
         "is encountered when it tries to set @slave_gtid_ignore_duplicates.";
-      sprintf(err_buff, "%s Error: Out of memory", errmsg);
+      snprintf(err_buff, sizeof(err_buff), "%s Error: Out of memory", errmsg);
       goto err;
     }
 
@@ -2526,7 +2706,7 @@ after_set_capability:
         /* Fatal error */
         errmsg= "The slave I/O thread stops because a fatal error is "
           "encountered when it tries to set @slave_gtid_ignore_duplicates.";
-        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
         goto err;
       }
     }
@@ -2541,7 +2721,7 @@ after_set_capability:
         err_code= ER_OUTOFMEMORY;
         errmsg= "The slave I/O thread stops because a fatal out-of-memory "
           "error is encountered when it tries to compute @slave_until_gtid.";
-        sprintf(err_buff, "%s Error: Out of memory", errmsg);
+        snprintf(err_buff, sizeof(err_buff), "%s Error: Out of memory", errmsg);
         goto err;
       }
       query_str.append(STRING_WITH_LEN("'"), system_charset_info);
@@ -2565,7 +2745,7 @@ after_set_capability:
           /* Fatal error */
           errmsg= "The slave I/O thread stops because a fatal error is "
             "encountered when it tries to set @slave_until_gtid.";
-          sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+          snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg, mysql_error(mysql));
           goto err;
         }
       }
@@ -3821,9 +4001,8 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
   mysql_mutex_assert_owner(&rli->data_lock);
   DBUG_ASSERT(!rli->belongs_to_client());
 
-  int type= ev->get_type_code();
-  if (sql_delay && type != ROTATE_EVENT &&
-      type != FORMAT_DESCRIPTION_EVENT && type != START_EVENT_V3)
+  Log_event_type type= ev->get_type_code();
+  if (sql_delay && Log_event::is_group_event(type))
   {
     // The time when we should execute the event.
     time_t sql_delay_end=
@@ -5591,6 +5770,15 @@ pthread_handler_t handle_slave_sql(void *arg)
     DBUG_ASSERT(debug_sync_service);
     DBUG_ASSERT(!debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
   };);
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("wsrep_async_slave_node_dropped_error",
+    if (WSREP(thd))
+    {
+      wsrep_node_dropped= TRUE;
+      goto err_before_start;
+    }
+  );
+#endif /* WITH_WSREP */
 #endif
 
   rli->parallel.reset();
@@ -5764,8 +5952,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->data_lock);
 #ifdef WITH_WSREP
   wsrep_open(thd);
-  if (WSREP_ON_)
-    wsrep_wait_ready(thd);
+  if (WSREP_ON_ && !wsrep_wait_ready(thd))
+    goto err;
   if (wsrep_before_command(thd))
   {
     WSREP_WARN("Slave SQL wsrep_before_command() failed");
@@ -5988,21 +6176,25 @@ err_during_init:
   */
   if (WSREP(thd) && wsrep_node_dropped && wsrep_restart_slave)
   {
-    if (wsrep_ready_get())
-    {
-      WSREP_INFO("Slave error due to node temporarily non-primary"
-                 "SQL slave will continue");
       wsrep_node_dropped= FALSE;
       mysql_mutex_unlock(&rli->run_lock);
-      goto wsrep_restart_point;
-    }
-    else
-    {
       WSREP_INFO("Slave error due to node going non-primary");
       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
                  "automatically restarted when node joins back to cluster");
-      wsrep_restart_slave_activated= TRUE;
-    }
+      if (wsrep_wait_ready(thd))
+      {
+        wsrep_close(thd);
+        delete serial_rgi;
+        if (thd_initialized)
+          server_threads.erase(thd);
+        delete thd;
+        goto wsrep_restart_point;
+      }
+      else
+      {
+        /* The node is being shutdown. Fallthrough. */
+        mysql_mutex_lock(&rli->run_lock);
+      }
   }
   wsrep_close(thd);
 #endif /* WITH_WSREP */
@@ -7422,7 +7614,7 @@ dbug_gtid_accept:
 
         crc= my_checksum(crc, (const uchar *) buf,
                          event_len - BINLOG_CHECKSUM_LEN);
-        int4store(&buf[event_len - BINLOG_CHECKSUM_LEN], crc);
+        int4store(const_cast<uchar *>(& buf[event_len - BINLOG_CHECKSUM_LEN]), crc);
       }
     }
     if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))

@@ -190,8 +190,7 @@ The following specify which files/extra groups are read (specified before remain
  The transaction completion type. One of: NO_CHAIN, CHAIN,
  RELEASE
  --concurrent-insert[=name] 
- Use concurrent insert with MyISAM. One of: NEVER, AUTO, 
- ALWAYS
+ Use concurrent insert with MyISAM. One of: NEVER, AUTO, ALWAYS
  --console           Write error output on screen; don't remove the console
  window on windows.
  --core-file         Write core on crashes
@@ -216,9 +215,8 @@ The following specify which files/extra groups are read (specified before remain
  changed every N days. This behavior can be overridden
  using the password expiration options in ALTER USER.
  --default-regex-flags=name 
- Default flags for the regex library. Any combination of: 
- DOTALL, DUPNAMES, EXTENDED, EXTENDED_MORE, EXTRA, 
- MULTILINE, UNGREEDY
+ Default flags for the regex library. Any combination of: DOTALL,
+ DUPNAMES, EXTENDED, EXTENDED_MORE, EXTRA, MULTILINE, UNGREEDY
  Use 'ALL' to set all combinations.
  --default-storage-engine=name 
  The default storage engine for new tables
@@ -503,8 +501,8 @@ The following specify which files/extra groups are read (specified before remain
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
  --log-isam[=name]   Log all MyISAM changes to file.
- --log-output=name   How logs should be written. Any combination of: NONE, 
- FILE, TABLE
+ --log-output=name   How logs should be written. Any combination of: NONE, FILE,
+ TABLE
  Use 'ALL' to set all combinations.
  --log-queries-not-using-indexes 
  Log queries that are executed without benefit of any
@@ -529,11 +527,10 @@ The following specify which files/extra groups are read (specified before remain
  Log only certain types of queries to the slow log. If
  variable empty all kind of queries are logged.  All types
  are bound by slow_query_time, except 'not_using_index'
- which is always logged if enabled. Any combination of: 
- admin, filesort, filesort_on_disk, 
- filesort_priority_queue, full_join, full_scan, 
- not_using_index, query_cache, query_cache_miss, tmp_table,
- tmp_table_on_disk
+ which is always logged if enabled. Any combination of: admin,
+ filesort, filesort_on_disk, filesort_priority_queue, full_join,
+ full_scan, not_using_index, query_cache, query_cache_miss,
+ tmp_table, tmp_table_on_disk
  Use 'ALL' to set all combinations.
  --log-slow-max-warnings=# 
  Max numbers of warnings printed to slow query log per
@@ -564,8 +561,8 @@ The following specify which files/extra groups are read (specified before remain
  log_slow_disabled_statements
  (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
- Verbosity level for the slow log. Any combination of: 
- innodb, query_plan, explain, engine, warnings, full
+ Verbosity level for the slow log. Any combination of: innodb,
+ query_plan, explain, engine, warnings, full
  Use 'ALL' to set all combinations.
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
@@ -681,8 +678,8 @@ The following specify which files/extra groups are read (specified before remain
  MySQL tables
  --myisam-recover-options[=name] 
  Specifies how corrupted tables should be automatically
- repaired. Any combination of: DEFAULT, BACKUP, FORCE, 
- QUICK, BACKUP_ALL, OFF
+ repaired. Any combination of: DEFAULT, BACKUP, FORCE, QUICK,
+ BACKUP_ALL, OFF
  Use 'ALL' to set all combinations.
  --myisam-repair-threads=# 
  If larger than 1, when repairing a MyISAM table all
@@ -714,21 +711,19 @@ The following specify which files/extra groups are read (specified before remain
  connection before aborting the write
  --note-verbosity=name 
  Verbosity level for note-warnings given to the user. See
- also @@sql_notes.. Any combination of: basic, 
- unusable_keys, explain
+ also @@sql_notes.. Any combination of: basic, unusable_keys,
+ explain
  Use 'ALL' to set all combinations.
  --old               Use compatible behavior from previous MariaDB version.
  See also --old-mode
  --old-alter-table[=name] 
  Alias for alter_algorithm. Deprecated. Use
- --alter-algorithm instead.. One of: DEFAULT, COPY, 
- INPLACE, NOCOPY, INSTANT
+ --alter-algorithm instead.. One of: DEFAULT, COPY, INPLACE,
+ NOCOPY, INSTANT
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
- MySQL versions. Any combination of: 
- NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
- ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
- IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
- NO_NULL_COLLATION_IDS
+ MySQL versions. Any combination of: NO_DUP_KEY_WARNINGS_WITH_IGNORE,
+ NO_PROGRESS_INFO, ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, IGNORE_INDEX_ONLY_FOR_JOIN,
+ COMPAT_5_1_CHECKSUM, NO_NULL_COLLATION_IDS
  Use 'ALL' to set all combinations.
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
@@ -802,21 +797,17 @@ The following specify which files/extra groups are read (specified before remain
  Fine-tune the optimizer behavior. Takes a comma-separated
  list of option=value pairs, where value is on, off, or
  default, and options are: index_merge, index_merge_union,
- index_merge_sort_union, index_merge_intersection, 
- index_merge_sort_intersection, engine_condition_pushdown,
- index_condition_pushdown, derived_merge, 
+ index_merge_sort_union, index_merge_intersection, index_merge_sort_intersection,
+ engine_condition_pushdown, index_condition_pushdown, derived_merge,
  derived_with_keys, firstmatch, loosescan, materialization,
- in_to_exists, semijoin, partial_match_rowid_merge, 
- partial_match_table_scan, subquery_cache, mrr, 
- mrr_cost_based, mrr_sort_keys, outer_join_with_cache, 
- semijoin_with_cache, join_cache_incremental, 
- join_cache_hashed, join_cache_bka, 
- optimize_join_buffer_size, table_elimination, 
- extended_keys, exists_to_in, orderby_uses_equalities, 
- condition_pushdown_for_derived, split_materialized, 
- condition_pushdown_for_subquery, rowid_filter, 
- condition_pushdown_from_having, not_null_range_scan, 
- hash_join_cardinality, cset_narrowing
+ in_to_exists, semijoin, partial_match_rowid_merge, partial_match_table_scan,
+ subquery_cache, mrr, mrr_cost_based, mrr_sort_keys, outer_join_with_cache,
+ semijoin_with_cache, join_cache_incremental, join_cache_hashed,
+ join_cache_bka, optimize_join_buffer_size, table_elimination,
+ extended_keys, exists_to_in, orderby_uses_equalities, condition_pushdown_for_derived,
+ split_materialized, condition_pushdown_for_subquery, rowid_filter,
+ condition_pushdown_from_having, not_null_range_scan, hash_join_cardinality,
+ cset_narrowing
  --optimizer-trace=name 
  Controls tracing of the Optimizer:
  optimizer_trace=option=val[,option=val...], where option
@@ -1014,8 +1005,8 @@ The following specify which files/extra groups are read (specified before remain
  adding more plugins every time.
  --plugin-maturity=name 
  The lowest desirable plugin maturity. Plugins less mature
- than that will not be installed or loaded. One of: 
- unknown, experimental, alpha, beta, gamma, stable
+ than that will not be installed or loaded. One of: unknown,
+ experimental, alpha, beta, gamma, stable
  -P, --port=#        Port number to use for connection or 0 to default to,
  my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default
  (3306), whatever comes first
@@ -1387,19 +1378,15 @@ The following specify which files/extra groups are read (specified before remain
  --sort-buffer-size=# 
  Each thread that needs to do a sort allocates a buffer of
  this size
- --sql-mode=name     Sets the sql mode. Any combination of: REAL_AS_FLOAT, 
- PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, 
- IGNORE_BAD_TABLE_OPTIONS, ONLY_FULL_GROUP_BY, 
- NO_UNSIGNED_SUBTRACTION, NO_DIR_IN_CREATE, POSTGRESQL, 
- ORACLE, MSSQL, DB2, MAXDB, NO_KEY_OPTIONS, 
- NO_TABLE_OPTIONS, NO_FIELD_OPTIONS, MYSQL323, MYSQL40, 
- ANSI, NO_AUTO_VALUE_ON_ZERO, NO_BACKSLASH_ESCAPES, 
- STRICT_TRANS_TABLES, STRICT_ALL_TABLES, NO_ZERO_IN_DATE, 
- NO_ZERO_DATE, ALLOW_INVALID_DATES, 
- ERROR_FOR_DIVISION_BY_ZERO, TRADITIONAL, 
- NO_AUTO_CREATE_USER, HIGH_NOT_PRECEDENCE, 
- NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH, 
- EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT, 
+ --sql-mode=name     Sets the sql mode. Any combination of: REAL_AS_FLOAT, PIPES_AS_CONCAT,
+ ANSI_QUOTES, IGNORE_SPACE, IGNORE_BAD_TABLE_OPTIONS, ONLY_FULL_GROUP_BY,
+ NO_UNSIGNED_SUBTRACTION, NO_DIR_IN_CREATE, POSTGRESQL, ORACLE,
+ MSSQL, DB2, MAXDB, NO_KEY_OPTIONS, NO_TABLE_OPTIONS, NO_FIELD_OPTIONS,
+ MYSQL323, MYSQL40, ANSI, NO_AUTO_VALUE_ON_ZERO, NO_BACKSLASH_ESCAPES,
+ STRICT_TRANS_TABLES, STRICT_ALL_TABLES, NO_ZERO_IN_DATE, NO_ZERO_DATE,
+ ALLOW_INVALID_DATES, ERROR_FOR_DIVISION_BY_ZERO, TRADITIONAL,
+ NO_AUTO_CREATE_USER, HIGH_NOT_PRECEDENCE, NO_ENGINE_SUBSTITUTION,
+ PAD_CHAR_TO_FULL_LENGTH, EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT,
  TIME_ROUND_FRACTIONAL
  Use 'ALL' to set all combinations.
  --sql-safe-updates  If set to 1, UPDATEs and DELETEs need either a key in the
@@ -1530,9 +1517,8 @@ The following specify which files/extra groups are read (specified before remain
  Allocation block size for transactions to be stored in
  binary log
  --transaction-isolation=name 
- Default transaction isolation level. One of: 
- READ-UNCOMMITTED, READ-COMMITTED, REPEATABLE-READ, 
- SERIALIZABLE
+ Default transaction isolation level. One of: READ-UNCOMMITTED,
+ READ-COMMITTED, REPEATABLE-READ, SERIALIZABLE
  --transaction-prealloc-size=# 
  Persistent buffer for transactions to be stored in binary
  log
@@ -1547,9 +1533,8 @@ The following specify which files/extra groups are read (specified before remain
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
  --use-stat-tables=name 
- Specifies how to use system statistics tables. One of: 
- NEVER, COMPLEMENTARY, PREFERABLY, 
- COMPLEMENTARY_FOR_QUERIES, PREFERABLY_FOR_QUERIES
+ Specifies how to use system statistics tables. One of: NEVER,
+ COMPLEMENTARY, PREFERABLY, COMPLEMENTARY_FOR_QUERIES, PREFERABLY_FOR_QUERIES
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS

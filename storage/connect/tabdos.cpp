@@ -2694,7 +2694,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
             for (; i < Dcm; i++)
               safe_strcat(fmt, sizeof(fmt), "0");
 
-          len = sprintf(Buf, fmt, field - i, Value->GetShortValue());
+          len = snprintf(Buf, field + 1, fmt, field - i, Value->GetShortValue());
           break;
         case TYPE_INT:
           safe_strcpy(fmt, sizeof(fmt), (Ldz) ? "%0*d" : "%*.d");
@@ -2704,7 +2704,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
             for (; i < Dcm; i++)
               safe_strcat(fmt,sizeof(fmt), "0");
 
-          len = sprintf(Buf, fmt, field - i, Value->GetIntValue());
+          len = snprintf(Buf, field + 1, fmt, field - i, Value->GetIntValue());
           break;
         case TYPE_TINY:
           safe_strcpy(fmt, sizeof(fmt), (Ldz) ? "%0*d" : "%*.d");
@@ -2714,7 +2714,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
             for (; i < Dcm; i++)
               safe_strcat(fmt, sizeof(fmt), "0");
 
-          len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
+          len = snprintf(Buf, field + 1, fmt, field - i, Value->GetTinyValue());
           break;
         case TYPE_DOUBLE:
         case TYPE_DECIM:

@@ -134,6 +134,13 @@ SET GLOBAL wsrep_mode = DEFAULT;
 --connection node_1
 DROP TABLE t;
 
+# Remove the backup target directories. mariabackup refuses to back up into a
+# non-empty directory, so leaving these behind makes the backups fail silently
+# on the next run (e.g. with --repeat) and the expected log messages never
+# appear.
+--rmdir $MYSQLTEST_VARDIR/tmp/backup
+--rmdir $MYSQLTEST_VARDIR/tmp/backup2
+
 --source include/auto_increment_offset_restore.inc
 
 --source include/galera_end.inc

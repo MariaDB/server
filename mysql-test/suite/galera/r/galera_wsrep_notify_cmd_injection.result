@@ -1,0 +1,10 @@
+connection node_2;
+connection node_1;
+SELECT 1;
+1
+1
+connection node_1;
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('Notification command failed');
+call mtr.add_suppression('Unsafe characters in cluster member');
+FOUND 3 /Unsafe characters in cluster member/ in mysqld.1.err

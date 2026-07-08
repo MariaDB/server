@@ -80,7 +80,7 @@ X
             "attached_condition": "t2.a < 100"
           },
           "buffer_type": "flat",
-          "buffer_size": "18Kb",
+          "buffer_size": "18KiB",
           "join_type": "BNLH",
           "attached_condition": "t2.b = t1.b",
           "r_loops": 500,
@@ -172,7 +172,7 @@ X
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "256Kb",
+          "buffer_size": "256KiB",
           "join_type": "BNLH",
           "attached_condition": "t2.a = t1.a and concat(t1.col1,t1.col2,t1.col3) = concat(t2.col1,t2.col2,t2.col3)",
           "r_loops": 1000,

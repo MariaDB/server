@@ -613,7 +613,7 @@ extern const LEX_CSTRING Diag_condition_item_names[];
   These states are bit coded with HARD. For each state there must be a pair
   <state_even_num>, and <state_odd_num>_HARD.
 */
-enum killed_state
+enum killed_state : uint32_t
 {
   NOT_KILLED= 0,
   KILL_HARD_BIT= 1,                             /* Bit for HARD KILL */
@@ -3289,7 +3289,16 @@ public:
       void reset(THD *thd)
       {
         tv_sec= thd->query_start();
-        tv_usec= (long) thd->query_start_sec_part();
+
+        /*
+          The type of tv_usec depends on the system and on macOS
+          it is __darwin_suseconds_t.  Using decltype is system
+          agnostic because its result is whatever the underlying
+          type of tv_usec is.  This should be more portable than
+          assuming that the left hand side is (long) (the previous
+          cast value).
+         */
+        tv_usec= static_cast<decltype(tv_usec)>(thd->query_start_sec_part());
       }
     } start_time;
 
@@ -5462,7 +5471,7 @@ public:
       1) Non-leader threads use COND_wakeup_ready to wait for the leader thread
          to complete binlog commit.
       2) The leader thread uses COND_wakeup_ready to await ACKs from the
-         replica before signalling the non-leader threads to wake up.
+         slave before signalling the non-leader threads to wake up.
 
     With wait_point=AFTER_COMMIT, there is no overlap as binlogging has
     finished, so COND_wakeup_ready is safe to re-use.
@@ -5936,6 +5945,9 @@ public:
     cursor result set materialization.
   */
   bool is_cursor_execution() const;
+
+  uint gconcat_max_len()
+  { return (uint) MY_MIN(variables.group_concat_max_len, variables.max_allowed_packet); }
 };
 
 

@@ -416,7 +416,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
   /*********************************************************************/
   for (i = 0; i < imax; i++) {
     if (i >= hmax) {
-      sprintf(buf, "COL%.3d", i+1);
+      snprintf(buf, sizeof(buf), "COL%.3d", i+1);
       p = buf;
     } else
       p = colname[i];

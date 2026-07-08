@@ -521,7 +521,8 @@ my_bool _ma_bitmap_flush_all(MARIA_SHARE *share)
     {
       char tmp[MAX_BITMAP_INFO_LENGTH];      
       size_t len;
-      len= _ma_get_bitmap_description(bitmap, bitmap->map, bitmap->page, tmp);
+      len= _ma_get_bitmap_description(bitmap, bitmap->map, bitmap->page, tmp,
+                                       sizeof(tmp));
       (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
                                      (uchar*) tmp, len);
     }
@@ -962,9 +963,10 @@ void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
 size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
                                   uchar *bitmap_data,
                                   pgcache_page_no_t page,
-                                  char *out)
+                                  char *out, size_t out_size)
 {
   uchar *pos, *end;
+  char *out_end= out + out_size;
   size_t count=0, dot_printed= 0, len;
   char buff[80], last[80];
 
@@ -982,7 +984,7 @@ size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
         if (memcmp(buff, last, count))
         {
           memcpy(last, buff, count);
-          len= sprintf(out, "%8lu: ", (ulong) (page - count));
+          len= snprintf(out, out_end - out, "%8lu: ", (ulong) (page - count));
           memcpy(out+len, buff, count);
           out+= len + count + 1;
           out[-1]= '\n';
@@ -998,7 +1000,7 @@ size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
       page++;
     }
   }
-  len= sprintf(out, "%8lu: ", (ulong) (page - count));
+  len= snprintf(out, out_end - out, "%8lu: ", (ulong) (page - count));
   memcpy(out+len, buff, count);
   out[len + count]= '\n';
   out[len + count + 1]= 0;

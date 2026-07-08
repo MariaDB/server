@@ -195,6 +195,12 @@ SELECT @@skip_grant_tables AS EXPECT_0;
 --let $restart_parameters = --skip-grant-tables
 --source include/restart_mysqld.inc
 
---echo #
 --echo # End of 10.10 tests
+
 --echo #
+--echo # MDEV-38811 crash in information_schema.table_constraints when --skip-grant-tables
+--echo #
+--sorted_result
+select * from information_schema.table_constraints;
+
+--echo # End of 10.11 tests

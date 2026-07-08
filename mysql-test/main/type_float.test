@@ -898,3 +898,53 @@ CREATE TABLE t1 (a DOUBLE(0,999999999999999999999999999999));
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+--echo #
+--echo # MDEV-38158 Incorrect query result
+--echo #
+
+CREATE TABLE t1 (c1 VARCHAR(20) UNIQUE);
+INSERT INTO t1 VALUES (-7222412721392380250);
+
+# The non aggregate FLOAT operand is copied through the aggregation temp
+# table.  That copy used to keep only FLT_DIG significant digits, so the
+# value no longer matched the aggregate and the difference over a one row
+# group was not zero.
+SELECT CAST(c1 AS FLOAT) - MIN(CAST(c1 AS FLOAT)) AS d FROM t1 GROUP BY c1;
+SELECT CAST(c1 AS FLOAT) - MIN(CAST(c1 AS FLOAT)) AS d FROM t1;
+SELECT MIN(CAST(c1 AS FLOAT)) - CAST(c1 AS FLOAT) AS d FROM t1;
+
+# DOUBLE was already correct and must stay correct.
+SELECT CAST(c1 AS DOUBLE) - MIN(CAST(c1 AS DOUBLE)) AS d FROM t1;
+
+# The copied FLOAT keeps full precision, so f + MIN(f) equals 2 * f.
+SELECT CAST(c1 AS FLOAT) + MIN(CAST(c1 AS FLOAT)) = 2 * CAST(c1 AS FLOAT) AS eq
+FROM t1;
+
+DROP TABLE t1;
+
+# A NULL FLOAT or DOUBLE operand copies through the aggregation temp table
+# as NULL, not as zero.  This covers the null branch of the copy.
+CREATE TABLE t1 (c1 VARCHAR(20), KEY(c1));
+INSERT INTO t1 VALUES (-7222412721392380250), (NULL);
+--sorted_result
+SELECT CAST(c1 AS FLOAT) - MIN(CAST(c1 AS FLOAT)) AS d FROM t1 GROUP BY c1;
+--sorted_result
+SELECT CAST(c1 AS DOUBLE) - MIN(CAST(c1 AS DOUBLE)) AS d FROM t1 GROUP BY c1;
+DROP TABLE t1;
+
+# With several rows per group the copy must hold the value of the current
+# group, so the non aggregate FLOAT equals the group MIN and every difference
+# is zero.
+CREATE TABLE t1 (c1 VARCHAR(20), KEY(c1));
+INSERT INTO t1 VALUES
+  (-7222412721392380250), (-7222412721392380250),
+  (123456789), (123456789), (123456789),
+  (-0.0009765625);
+--sorted_result
+SELECT CAST(c1 AS FLOAT) - MIN(CAST(c1 AS FLOAT)) AS d FROM t1 GROUP BY c1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

@@ -1,4 +1,5 @@
 /* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
+   Copyright (C) 2025-2026 MariaDB plc <http://www.mariadb.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -101,6 +102,7 @@ extern bool wsrep_trx_fragment_unit_update   UPDATE_ARGS;
 
 extern bool wsrep_max_ws_size_check          CHECK_ARGS;
 extern bool wsrep_max_ws_size_update         UPDATE_ARGS;
+extern bool wsrep_max_ws_rows_check          CHECK_ARGS;
 
 extern bool wsrep_reject_queries_update      UPDATE_ARGS;
 

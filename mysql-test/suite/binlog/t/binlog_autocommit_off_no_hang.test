@@ -9,7 +9,7 @@
 # released.
 #
 # References:
-#   DBAAS-7828: Primary/replica: configuration change of "autocommit=0" can
+#   DBAAS-7828: Master/slave: configuration change of "autocommit=0" can
 #               not be applied
 #
 

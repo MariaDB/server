@@ -33,7 +33,7 @@ create temporary table t2 like t1;
 # read the values from the master table
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
 eval load data local infile '$MYSQLD_DATADIR/test/rpl_misc_functions.outfile' into table t2;
-# compare them with the replica; the SELECT below should return no row
+# compare them with the slave; the SELECT below should return no row
 select * from t1, t2 where (t1.id=t2.id) and not(t1.i=t2.i and t1.r1=t2.r1 and t1.r2=t2.r2 and t1.p=t2.p);
 
 connection master;

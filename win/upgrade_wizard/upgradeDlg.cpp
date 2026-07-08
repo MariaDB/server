@@ -196,7 +196,7 @@ void CUpgradeDlg::PopulateServicesList()
         if (service_props.version_major)
         {
           char ver[64];
-          sprintf(ver, "%d.%d.%d", service_props.version_major, 
+          snprintf(ver, sizeof(ver), "%d.%d.%d", service_props.version_major,
             service_props.version_minor, service_props.version_patch);
           props.version= ver;
         }
@@ -221,7 +221,7 @@ void CUpgradeDlg::PopulateServicesList()
   else
   {
     char message[128];
-    sprintf(message, 
+    snprintf(message, sizeof(message),
       "There is no service that can be upgraded to " PRODUCT_NAME " %d.%d.%d",
       m_MajorVersion, m_MinorVersion, m_PatchVersion);
     MessageBox(message, PRODUCT_NAME " Upgrade Wizard", MB_ICONINFORMATION);
@@ -254,7 +254,7 @@ BOOL CUpgradeDlg::OnInitDialog()
   GetMyVersion(&m_MajorVersion, &m_MinorVersion, &m_PatchVersion);
   char windowTitle[64];
 
-  sprintf(windowTitle, PRODUCT_NAME " %d.%d.%d Upgrade Wizard",
+  snprintf(windowTitle, sizeof(windowTitle), PRODUCT_NAME " %d.%d.%d Upgrade Wizard",
     m_MajorVersion, m_MinorVersion, m_PatchVersion);
   SetWindowText(windowTitle);
 
@@ -401,7 +401,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
     if(!AssignProcessToJobObject(m_JobObject, pi.hProcess))
     {
       char errmsg[128];
-	  sprintf(errmsg, "AssignProcessToJobObject failed, error %d",
+	  snprintf(errmsg, sizeof(errmsg), "AssignProcessToJobObject failed, error %d",
         GetLastError());
       ErrorExit(errmsg);
     }

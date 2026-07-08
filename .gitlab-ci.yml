@@ -217,16 +217,18 @@ centos9:
     GIT_SUBMODULE_STRATEGY: normal
   script:
     - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+    - dnf -y install 'dnf-command(config-manager)'
+    - dnf config-manager --set-enabled crb
     - yum install -y yum-utils rpm-build openssl-devel libeatmydata ccache
-    # Install missing dependencies
-    - yum install -y https://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/Judy-devel-1.0.5-28.el9.x86_64.rpm
-    - yum install -y https://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/bison-devel-3.7.4-5.el9.x86_64.rpm
-    - yum install -y https://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/multilib-rpm-config-1-19.el9.noarch.rpm
+    - yum install -y gcc gcc-c++ cmake make bison ncurses-devel
+    - yum install -y zlib-devel libaio-devel systemd-devel pcre2-devel
+    - yum install -y libevent-devel libxml2-devel snappy-devel lz4-devel
+    - yum install -y libcurl-devel pam-devel libzstd-devel liburing-devel
+    - yum install -y lzo-devel bzip2-devel readline-devel xz-devel cracklib-devel
+    - yum install -y Judy-devel bison-devel multilib-rpm-config
     # Configure ccache
     - source /etc/profile.d/ccache.sh
     - export CCACHE_DIR="$(pwd)/.ccache"; ccache --zero-stats
-    # This repository does not have any .spec files, so install dependencies based on CentOS spec file
-    - yum-builddep -y mariadb-server
     - mkdir builddir; cd builddir
     - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - eatmydata make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log

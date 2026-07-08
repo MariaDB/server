@@ -8,7 +8,7 @@
 # The rest of defaults should work out of the box.
 
 ##
-## mysqld options _MANDATORY_ for correct opration of the cluster
+## mariadbd options _MANDATORY_ for correct operation of the cluster
 ##
 [mysqld]
 
@@ -87,8 +87,9 @@ wsrep_auto_increment_control=1
 # retry autoinc insert, which failed for duplicate key error
 wsrep_drupal_282555_workaround=0
 
-# enable "strictly synchronous" semantics for read operations
-wsrep_causal_reads=0
+# Syncronization causality setting, (0 - disabled)
+# same as deprecated and removed wsrep_causal_reads=0.
+wsrep_sync_wait=0
 
 # Command to call when node status or cluster membership changes.
 # Will be passed all or some of the following options:

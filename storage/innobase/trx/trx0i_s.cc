@@ -134,11 +134,7 @@ struct trx_i_s_cache_t {
 /** This is the intermediate buffer where data needed to fill the
 INFORMATION SCHEMA tables is fetched and later retrieved by the C++
 code in handler/i_s.cc. */
-static trx_i_s_cache_t	trx_i_s_cache_static;
-/** This is the intermediate buffer where data needed to fill the
-INFORMATION SCHEMA tables is fetched and later retrieved by the C++
-code in handler/i_s.cc. */
-trx_i_s_cache_t*	trx_i_s_cache = &trx_i_s_cache_static;
+static trx_i_s_cache_t cache;
 
 /** @return the heap number of a record lock
 @retval 0xFFFF for table locks */
@@ -1046,8 +1042,11 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 
 static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 {
-  LockMutexGuard g{SRW_LOCK_CALL};
+  /* these are protected by cache->rw_lock.wr_lock() */
   trx_i_s_cache_clear(cache);
+  /* this flag may be set by fetch_data_into_cache_low() below */
+  cache->is_truncated= false;
+  LockMutexGuard g{SRW_LOCK_CALL};
 
   /* Capture the state of transactions */
   trx_sys.trx_list.for_each([cache](trx_t &trx) {
@@ -1060,51 +1059,30 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
       trx.mutex_unlock();
     }
   });
-  cache->is_truncated= false;
 }
 
 
 /*******************************************************************//**
 Update the transactions cache if it has not been read for some time.
-Called from handler/i_s.cc.
-@return 0 - fetched, 1 - not */
-int
-trx_i_s_possibly_fetch_data_into_cache(
-/*===================================*/
-	trx_i_s_cache_t*	cache)	/*!< in/out: cache */
+@retval false when fetched or cached
+@retval true if fetched but the cache was truncated */
+bool trx_i_s_possibly_fetch_data_into_cache()
 {
-	if (!can_cache_be_updated(cache)) {
-
-		return(1);
-	}
-
-	/* We need to read trx_sys and record/table lock queues */
-	fetch_data_into_cache(cache);
-
-	/* update cache last read time */
-	cache->last_read = my_interval_timer();
-
-	return(0);
+  bool is_truncated= false;
+  cache.rw_lock.wr_lock(SRW_LOCK_CALL);
+  if (can_cache_be_updated(&cache))
+  {
+    /* We need to read trx_sys and record/table lock queues */
+    fetch_data_into_cache(&cache);
+    /* update cache last read time */
+    cache.last_read= my_interval_timer();
+    is_truncated= cache.is_truncated;
+  }
+  cache.rw_lock.wr_unlock();
+  return is_truncated;
 }
 
-/*******************************************************************//**
-Returns TRUE if the data in the cache is truncated due to the memory
-limit posed by TRX_I_S_MEM_LIMIT.
-@return TRUE if truncated */
-bool
-trx_i_s_cache_is_truncated(
-/*=======================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
-{
-	return(cache->is_truncated);
-}
-
-/*******************************************************************//**
-Initialize INFORMATION SCHEMA trx related cache. */
-void
-trx_i_s_cache_init(
-/*===============*/
-	trx_i_s_cache_t*	cache)	/*!< out: cache to init */
+void trx_i_s_cache_init()
 {
 	/* The latching is done in the following order:
 	acquire trx_i_s_cache_t::rw_lock, rwlock
@@ -1114,80 +1092,44 @@ trx_i_s_cache_init(
 	acquire trx_i_s_cache_t::rw_lock, rdlock
 	release trx_i_s_cache_t::rw_lock */
 
-	cache->rw_lock.SRW_LOCK_INIT(trx_i_s_cache_lock_key);
+	cache.rw_lock.SRW_LOCK_INIT(trx_i_s_cache_lock_key);
 
-	cache->last_read = 0;
+	cache.last_read = 0;
 
-	table_cache_init(&cache->innodb_trx, sizeof(i_s_trx_row_t));
-	table_cache_init(&cache->innodb_locks, sizeof(i_s_locks_row_t));
-	table_cache_init(&cache->innodb_lock_waits,
+	table_cache_init(&cache.innodb_trx, sizeof(i_s_trx_row_t));
+	table_cache_init(&cache.innodb_locks, sizeof(i_s_locks_row_t));
+	table_cache_init(&cache.innodb_lock_waits,
 			 sizeof(i_s_lock_waits_row_t));
 
-	cache->locks_hash.create(LOCKS_HASH_CELLS_NUM);
+	cache.locks_hash.create(LOCKS_HASH_CELLS_NUM);
 
-	cache->storage = ha_storage_create(CACHE_STORAGE_INITIAL_SIZE,
+	cache.storage = ha_storage_create(CACHE_STORAGE_INITIAL_SIZE,
 					   CACHE_STORAGE_HASH_CELLS);
 
-	cache->mem_allocd = 0;
+	cache.mem_allocd = 0;
 
-	cache->is_truncated = false;
+	cache.is_truncated = false;
 }
 
-/*******************************************************************//**
-Free the INFORMATION SCHEMA trx related cache. */
-void
-trx_i_s_cache_free(
-/*===============*/
-	trx_i_s_cache_t*	cache)	/*!< in, own: cache to free */
+void trx_i_s_cache_free()
 {
-	cache->rw_lock.destroy();
-
-	cache->locks_hash.free();
-	ha_storage_free(cache->storage);
-	table_cache_free(&cache->innodb_trx);
-	table_cache_free(&cache->innodb_locks);
-	table_cache_free(&cache->innodb_lock_waits);
+  cache.rw_lock.destroy();
+  cache.locks_hash.free();
+  ha_storage_free(cache.storage);
+  table_cache_free(&cache.innodb_trx);
+  table_cache_free(&cache.innodb_locks);
+  table_cache_free(&cache.innodb_lock_waits);
 }
 
-/*******************************************************************//**
-Issue a shared/read lock on the tables cache. */
-void
-trx_i_s_cache_start_read(
-/*=====================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
+void trx_i_s_cache_start_read() noexcept
 {
-	cache->rw_lock.rd_lock(SRW_LOCK_CALL);
+  cache.rw_lock.rd_lock(SRW_LOCK_CALL);
 }
 
-/*******************************************************************//**
-Release a shared/read lock on the tables cache. */
-void
-trx_i_s_cache_end_read(
-/*===================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
+void trx_i_s_cache_end_read() noexcept
 {
-	cache->last_read = my_interval_timer();
-	cache->rw_lock.rd_unlock();
-}
-
-/*******************************************************************//**
-Issue an exclusive/write lock on the tables cache. */
-void
-trx_i_s_cache_start_write(
-/*======================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
-{
-	cache->rw_lock.wr_lock(SRW_LOCK_CALL);
-}
-
-/*******************************************************************//**
-Release an exclusive/write lock on the tables cache. */
-void
-trx_i_s_cache_end_write(
-/*====================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
-{
-	cache->rw_lock.wr_unlock();
+  cache.last_read= my_interval_timer();
+  cache.rw_lock.rd_unlock();
 }
 
 /*******************************************************************//**
@@ -1197,55 +1139,33 @@ static
 i_s_table_cache_t*
 cache_select_table(
 /*===============*/
-	trx_i_s_cache_t*	cache,	/*!< in: whole cache */
 	enum i_s_table		table)	/*!< in: which table */
 {
 	switch (table) {
 	case I_S_INNODB_TRX:
-		return &cache->innodb_trx;
+		return &cache.innodb_trx;
 	case I_S_INNODB_LOCKS:
-		return &cache->innodb_locks;
+		return &cache.innodb_locks;
 	case I_S_INNODB_LOCK_WAITS:
-		return &cache->innodb_lock_waits;
+		return &cache.innodb_lock_waits;
 	}
 
 	ut_error;
 	return NULL;
 }
 
-/*******************************************************************//**
-Retrieves the number of used rows in the cache for a given
-INFORMATION SCHEMA table.
-@return number of rows */
-ulint
-trx_i_s_cache_get_rows_used(
-/*========================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache */
-	enum i_s_table		table)	/*!< in: which table */
+ulint trx_i_s_cache_get_rows_used(i_s_table table)
 {
-	i_s_table_cache_t*	table_cache;
-
-	table_cache = cache_select_table(cache, table);
-
-	return(table_cache->rows_used);
+  return cache_select_table(table)->rows_used;
 }
 
-/*******************************************************************//**
-Retrieves the nth row (zero-based) in the cache for a given
-INFORMATION SCHEMA table.
-@return row */
-void*
-trx_i_s_cache_get_nth_row(
-/*======================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache */
-	enum i_s_table		table,	/*!< in: which table */
-	ulint			n)	/*!< in: row number */
+void *trx_i_s_cache_get_nth_row(i_s_table table, ulint n)
 {
 	i_s_table_cache_t*	table_cache;
 	ulint			i;
 	void*			row;
 
-	table_cache = cache_select_table(cache, table);
+	table_cache = cache_select_table(table);
 
 	ut_a(n < table_cache->rows_used);
 

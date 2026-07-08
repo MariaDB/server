@@ -229,7 +229,7 @@ exit:
         if (result == result_true)
         {
           c_op= (c_op & ~v_mask) | v_t_found;
-          int4store(sav_cur_func, c_op);
+          int4store(const_cast<char *>(sav_cur_func), c_op);
         }
         else
         {
@@ -241,7 +241,7 @@ exit:
         if (result == result_false)
         {
           c_op= (c_op & ~v_mask) | v_f_found;
-          int4store(sav_cur_func, c_op);
+          int4store(const_cast<char *>(sav_cur_func), c_op);
         }
         else
         {

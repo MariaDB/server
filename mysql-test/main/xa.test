@@ -6,11 +6,10 @@
 
 # Save the initial number of concurrent sessions
 let $count_sessions=1;
+disable_service_connection;
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
---disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
---enable_query_log
 
 create table t1 (a int) engine=innodb;
 xa start 'test1';
@@ -808,6 +807,7 @@ xa end 'c:foo';
 xa prepare 'c:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'c:bar';

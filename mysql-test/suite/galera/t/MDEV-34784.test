@@ -1,0 +1,71 @@
+#
+# Testing that foreign key constraint dependencies are correctly
+# recorded in write set preventing harmfull parallel applying.
+#
+# In this scenario foreign reference column in child table is left
+# NULL in a DML, and therefore the FK parent table is not appended
+# in the key set. DDL execution on parent table will require table
+# lock on FK child table
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+CREATE TABLE parent (
+    id INT PRIMARY KEY,
+    KEY (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+    id INT PRIMARY KEY,
+    parent_id INT DEFAULT NULL,
+    FOREIGN KEY (parent_id) 
+        REFERENCES parent(id)
+) ENGINE=InnoDB;
+
+
+# Set up sync point for TOI applying in node 2
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads=2;
+
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_toi";
+
+# replicate ALTER
+--connection node_1
+ALTER TABLE parent ADD COLUMN (j INT);
+
+# wait for ALTER to reach applying state
+--connection node_2
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
+
+#
+# Expect the INSERT to depend on the ALTER,
+# therefore it should wait for the ALTER to
+# finish before it can be applied.
+# If bug is present, the wait condition will
+# timeout
+#
+--let $expected_apply_waits = `SELECT VARIABLE_VALUE+1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_apply_waits'`
+
+--connection node_1
+# note, the FK column will have NULL value
+INSERT INTO child(id) values (1);
+
+# check that the INSERT depends on ALTER and waits for ALTER to complete first
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_apply_waits FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_apply_waits'
+--source include/wait_condition.inc
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_toi";
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+SET DEBUG_SYNC = "RESET";
+SET GLOBAL DEBUG_DBUG = '';
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+
+--connection node_1
+DROP TABLE child;
+DROP TABLE parent;
+

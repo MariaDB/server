@@ -269,7 +269,7 @@ from t1, json_table(t1.json, '$' columns (value varchar(32) PATH '$.value')) T;
 show create table tj1;
 Table	Create Table
 tj1	CREATE TABLE `tj1` (
-  `value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+  `value` varchar(32) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop table tj1;
@@ -1100,7 +1100,7 @@ name  VARCHAR(10) PATH '$.name'
   )
 ) AS jt;
 collation(name)
-utf8mb4_general_ci
+latin1_swedish_ci
 SELECT collation(name)
 FROM json_table('[{"name":"Jeans"}]', '$[*]'
   COLUMNS(
@@ -1108,7 +1108,7 @@ name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
   )
 ) AS jt;
 collation(name)
-utf8mb4_general_ci
+latin1_swedish_ci
 SELECT collation(name)
 FROM json_table('[{"name":"Jeans"}]', '$[*]'
   COLUMNS(
@@ -1116,7 +1116,7 @@ name  VARCHAR(10) BINARY PATH '$.name'
   )
 ) AS jt;
 collation(name)
-utf8mb4_bin
+latin1_bin
 CREATE VIEW v1 AS
 SELECT *
 FROM json_table('[{"name":"Jeans"}]', '$[*]'
@@ -1129,7 +1129,7 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
 SELECT collation(name) FROM v1;
 collation(name)
-utf8mb4_general_ci
+latin1_swedish_ci
 DROP VIEW v1;
 CREATE VIEW v1 AS
 SELECT *
@@ -1143,7 +1143,7 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
 SELECT collation(name) FROM v1;
 collation(name)
-utf8mb4_general_ci
+latin1_swedish_ci
 DROP VIEW v1;
 CREATE VIEW v1 AS
 SELECT *
@@ -1280,4 +1280,22 @@ Second Element	{
     "value": 2
   }
 DROP VIEW test_view;
+#
+# MDEV-36764: Unexpected collation when using json_table
+#
+CREATE DATABASE collation_testing CHARACTER SET='utf8mb4' COLLATE='utf8mb4_uca1400_ai_ci';
+USE collation_testing;
+CREATE TABLE table_with_longtext_column (column_with_json LONGTEXT);
+INSERT INTO table_with_longtext_column VALUES ('[{"property": "value"}]');
+SELECT COLLATION(column_with_json) FROM table_with_longtext_column;
+COLLATION(column_with_json)
+utf8mb4_uca1400_ai_ci
+SELECT COLLATION(JSON_VALUE(column_with_json, "$.value")) FROM table_with_longtext_column;
+COLLATION(JSON_VALUE(column_with_json, "$.value"))
+utf8mb4_uca1400_ai_ci
+SELECT COLLATION(virtual_table_from_json.property) FROM JSON_TABLE((SELECT column_with_json FROM table_with_longtext_column),'$[*]' COLUMNS (property varchar(100) path '$.property')) AS virtual_table_from_json;
+COLLATION(virtual_table_from_json.property)
+utf8mb4_uca1400_ai_ci
+DROP TABLE table_with_longtext_column;
+DROP DATABASE collation_testing;
 # End of 10.11 test

@@ -29,14 +29,14 @@ insert into t1 values(2,20,"nn mm ll kk jj >< ii hh gg ff ee dd cc bb aa");
 insert into t1 values(3,30,"cc dd ee ff gg >< hh ii jj kk ll mm nn oo pp");
 insert into t1 values(4,40,"ee ff gg hh ii >< jj kk ll mm nn oo pp qq rr");
 insert into t1 values(5,50,"AA BB CC DD EE >< FF GG HH II JJ KK LL MM NN");
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
-select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') s from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') s from t1;
 drop table t1;
 
 --source ../../include/mroonga/unload_mroonga_functions.inc

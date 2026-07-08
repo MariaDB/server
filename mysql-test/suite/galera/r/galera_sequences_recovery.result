@@ -9,22 +9,141 @@ INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
+connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1_ctrl;
+SET GLOBAL innodb_log_checkpoint_now=1;
 connection node_2;
 BEGIN;
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
 INSERT INTO t1(f2) values (2);
+# Crash and restart the node, losing the transaction (1)
 Killing server ...
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_1;
+connection node_2;
+# Wait for the next_not_cached_value = 11 FROM s (1)
 SELECT NEXTVAL(s);
 NEXTVAL(s)
 12
+SELECT LASTVAL(s);
+LASTVAL(s)
+12
+SET GLOBAL innodb_log_checkpoint_now=1;
 connection node_1;
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+COMMIT;
+SET GLOBAL innodb_log_checkpoint_now=1;
+SELECT LASTVAL(s);
+LASTVAL(s)
+31
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+10
+SELECT * FROM t1;
+f1	f2
+1	1
+3	1
+5	1
+7	1
+21	1
+23	1
+25	1
+27	1
+29	1
+31	1
+connection node_2;
+# Wait for the next_not_cached_value = 42 FROM s
+SELECT LASTVAL(s);
+LASTVAL(s)
+12
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+42
+SELECT * FROM t1;
+f1	f2
+1	1
+3	1
+5	1
+7	1
+21	1
+23	1
+25	1
+27	1
+29	1
+31	1
+SET GLOBAL innodb_log_checkpoint_now=1;
+connection node_1;
+DROP TABLE t1;
+DROP SEQUENCE s;
+SET GLOBAL innodb_log_checkpoint_now=1;
+connection node_1;
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+connection node_1;
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+connection node_1_ctrl;
+SET GLOBAL innodb_log_checkpoint_now=1;
+connection node_2;
+BEGIN;
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+INSERT INTO t1(f2) values (2);
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SET GLOBAL innodb_log_checkpoint_now=1;
+SET SESSION wsrep_sync_wait=0;
+# Wait for the next_not_cached_value = 31 FROM s (2a)
+SELECT next_not_cached_value = 31 FROM s;
+next_not_cached_value = 31
+1
+connection node_2;
+# Crash and restart the node, losing the transaction (2)
+Killing server ...
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_1;
+connection node_2;
+# Wait for the next_not_cached_value = 31 FROM s (2)
+SELECT LASTVAL(s);
+LASTVAL(s)
+NULL
+connection node_1;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+15
 COMMIT;
 SELECT LASTVAL(s);
 LASTVAL(s)
@@ -36,15 +155,22 @@ f1	f2
 5	1
 7	1
 9	1
+11	1
+13	1
+15	1
+17	1
+19	1
 21	1
 23	1
 25	1
 27	1
 29	1
+SET GLOBAL innodb_log_checkpoint_now=1;
 connection node_2;
+# Wait for the next_not_cached_value = 31 FROM s
 SELECT LASTVAL(s);
 LASTVAL(s)
-12
+NULL
 SELECT NEXTVAL(s);
 NEXTVAL(s)
 32
@@ -55,43 +181,49 @@ f1	f2
 5	1
 7	1
 9	1
+11	1
+13	1
+15	1
+17	1
+19	1
+21	1
+23	1
+25	1
+27	1
+29	1
+SET GLOBAL innodb_log_checkpoint_now=1;
+connection node_1;
+# Wait for the next_not_cached_value = 41 FROM s
+SELECT LASTVAL(s);
+LASTVAL(s)
+29
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+41
+SET GLOBAL innodb_log_checkpoint_now=1;
+connection node_2;
+# Wait for the next_not_cached_value = 52 FROM s
+SELECT LASTVAL(s);
+LASTVAL(s)
+32
+SELECT * from t1;
+f1	f2
+1	1
+3	1
+5	1
+7	1
+9	1
+11	1
+13	1
+15	1
+17	1
+19	1
 21	1
 23	1
 25	1
 27	1
 29	1
 connection node_1;
-DROP TABLE t1;
-DROP SEQUENCE s;
-connection node_1;
-CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
-CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
-connection node_1;
-BEGIN;
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-connection node_2;
-BEGIN;
-INSERT INTO t1(f2) values (2);
-INSERT INTO t1(f2) values (2);
-INSERT INTO t1(f2) values (2);
-INSERT INTO t1(f2) values (2);
-INSERT INTO t1(f2) values (2);
-INSERT INTO t1(f2) values (2);
-Killing server ...
-connection node_1;
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-INSERT INTO t1(f2) values (1);
-COMMIT;
-SELECT LASTVAL(s);
-LASTVAL(s)
-19
 SELECT * FROM t1;
 f1	f2
 1	1
@@ -104,29 +236,10 @@ f1	f2
 15	1
 17	1
 19	1
-connection node_2;
-SELECT NEXTVAL(s);
-NEXTVAL(s)
-22
-SELECT * FROM t1;
-f1	f2
-1	1
-3	1
-5	1
-7	1
-9	1
-11	1
-13	1
-15	1
-17	1
-19	1
-connection node_1;
-SELECT LASTVAL(s);
-LASTVAL(s)
-19
-SELECT NEXTVAL(s);
-NEXTVAL(s)
-33
-connection node_1;
+21	1
+23	1
+25	1
+27	1
+29	1
 DROP TABLE t1;
 DROP SEQUENCE s;

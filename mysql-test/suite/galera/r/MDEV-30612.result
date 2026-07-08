@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t(a INT) ENGINE=INNODB;
+PREPARE s FROM 'CREATE TRIGGER tr AFTER DELETE ON t FOR EACH ROW SET @a=1';
+EXECUTE s;
+EXECUTE s;
+ERROR HY000: Trigger 'test.tr' already exists
+DROP TRIGGER tr;
+DROP TABLE t;
+disconnect node_2;
+disconnect node_1;

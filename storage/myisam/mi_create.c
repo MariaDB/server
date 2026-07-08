@@ -589,13 +589,16 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   */
   if (ci->index_file_name)
   {
-    char *iext= strrchr(ci->index_file_name, '.');
+    const char *iext= strrchr(ci->index_file_name, '.');
     int have_iext= iext && !strcmp(iext, MI_NAME_IEXT);
     if (options & HA_OPTION_TMP_TABLE)
     {
       char *path;
-      /* chop off the table name, tempory tables use generated name */
-      if ((path= strrchr(ci->index_file_name, FN_LIBCHAR)))
+      /*
+        chop off the table name, tempory tables use generated name
+        TODO: Following is safe but should be done other way if possible
+      */
+      if ((path= strrchr((char *)ci->index_file_name, FN_LIBCHAR)))
         *path= '\0';
       fn_format(kfilename, name, ci->index_file_name, MI_NAME_IEXT,
                 MY_REPLACE_DIR | MY_UNPACK_FILENAME |
@@ -618,7 +621,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   }
   else
   {
-    char *iext= strrchr(name, '.');
+    const char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MI_NAME_IEXT);
     fn_format(kfilename, name, "", MI_NAME_IEXT, MY_UNPACK_FILENAME |
               (internal_table ? 0 : MY_RETURN_REAL_PATH) |
@@ -659,14 +662,17 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     {
       if (ci->data_file_name)
       {
-        char *dext= strrchr(ci->data_file_name, '.');
+        const char *dext= strrchr(ci->data_file_name, '.');
         int have_dext= dext && !strcmp(dext, MI_NAME_DEXT);
 
         if (options & HA_OPTION_TMP_TABLE)
         {
           char *path;
-          /* chop off the table name, tempory tables use generated name */
-          if ((path= strrchr(ci->data_file_name, FN_LIBCHAR)))
+          /*
+            chop off the table name, tempory tables use generated name
+            TODO: Following is safe but should be done other way if possible
+          */
+          if ((path= strrchr((char *)ci->data_file_name, FN_LIBCHAR)))
             *path= '\0';
           fn_format(dfilename, name, ci->data_file_name, MI_NAME_DEXT,
                     MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_APPEND_EXT);

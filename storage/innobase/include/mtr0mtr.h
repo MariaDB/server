@@ -441,6 +441,10 @@ public:
   /** @return whether the log and memo are empty */
   bool is_empty() const { return !get_savepoint() && m_log.empty(); }
 
+  /** @return whether no redo log has been written in this
+  mini-transaction */
+  bool has_no_log() const { return m_log.empty(); }
+
   /** Write an OPT_PAGE_CHECKSUM record. */
   inline void page_checksum(const buf_page_t &bpage);
 

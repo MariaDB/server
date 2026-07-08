@@ -54,7 +54,7 @@ if ($seq_no_before_restart == $seq_no_after_restart)
 
 --let assert_text= Query to truncate the MEMORY table should be the contents of the new event
 --let assert_count= 1
---let assert_select= TRUNCATE TABLE
+--let assert_select= ^TRUNCATE TABLE .+generated.+memory table
 --source include/assert_grep.inc
 
 --echo # Ensuring slave MEMORY table is empty

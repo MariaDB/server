@@ -78,12 +78,12 @@ SHOW GRANTS FOR user_super_replslave@localhost;
 --echo #
 
 --echo #
---echo # Should automatically get BINLOG MONITOR and REPLICA MONITOR
+--echo # Should automatically get BINLOG MONITOR and SLAVE MONITOR
 --echo #
 SHOW GRANTS FOR user_replclient@localhost;
 
 --echo #
---echo # Should automatically get REPLICA MONITOR
+--echo # Should automatically get SLAVE MONITOR
 --echo #
 SHOW GRANTS FOR user_replslave@localhost;
 

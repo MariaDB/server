@@ -54,6 +54,24 @@ ALTER online TABLE t1 MODIFY COLUMN `f4`  VARCHAR(500) , ALGORITHM=INSTANT, LOCK
 drop table t1;
 # End of 10.5 tests
 #
+# MDEV-34951: InnoDB index corruption when renaming key name with same letter to upper case.
+#
+# Tests on partitioned tables
+# partitioned table with index 'idx' (lowercase)
+CREATE TABLE t_part (a INT, KEY idx(a)) ENGINE=InnoDB
+PARTITION BY HASH(a) PARTITIONS 1;
+# non-partitioned table with index 'IDX' (uppercase)
+CREATE TABLE t_nonpart (a INT, KEY IDX(a)) ENGINE=InnoDB;
+INSERT INTO t_part VALUES (1);
+# Exchange partition
+# ALTER TABLE should fail. Without fix, ALTER TABLE succeeds, SELECT fails.
+ALTER TABLE t_part EXCHANGE PARTITION p0 WITH TABLE t_nonpart;
+ERROR HY000: Tables have different definitions
+SELECT * FROM t_nonpart;
+a
+DROP TABLE t_part, t_nonpart;
+# End of 10.6 tests
+#
 # MDEV-22165 CONVERT PARTITION: move in partition from existing table
 #
 create or replace table tp1 (a int);

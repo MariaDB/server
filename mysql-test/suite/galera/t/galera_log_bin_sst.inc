@@ -53,12 +53,18 @@ ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 # Force SST
 #
 --echo Cleaning var directory ...
+--disable_query_log
 --remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
+if (`SELECT count(*) FROM information_schema.engines WHERE
+      (support = 'YES' OR support = 'DEFAULT') AND
+      engine = 'PERFORMANCE_SCHEMA'`){
+  --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
+}
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+--enable_query_log
 
 --connection node_2
 

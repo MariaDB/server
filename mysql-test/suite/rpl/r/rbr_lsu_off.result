@@ -1,8 +1,8 @@
 include/master-slave.inc
 [connection master]
 #
-# MDEV-33957 UPDATE fails on replica replicating blob virtual column in
-#            NOBLOB mode when replica logging is off
+# MDEV-33957 UPDATE fails on slave replicating blob virtual column in
+#            NOBLOB mode when slave logging is off
 #
 connection slave;
 select @@log_slave_updates;

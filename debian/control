@@ -17,7 +17,6 @@ Build-Depends: bison,
                libboost-dev,
                libboost-filesystem-dev [amd64],
                libboost-regex-dev [amd64],
-               libboost-system-dev [amd64],
                libboost-thread-dev [amd64],
                libbz2-dev,
                libcrack2-dev (>= 2.9.0),
@@ -674,8 +673,7 @@ Description: MariaDB database core server files
 
 Package: mariadb-server
 Architecture: any
-Suggests: mailx,
-          mariadb-test,
+Suggests: mariadb-test,
           netcat-openbsd
 Recommends: libhtml-template-perl,
             pv
@@ -798,7 +796,7 @@ Description: Backup tool for MariaDB server
  Based on Xtrabackup, but improved to work with MariaDB server.
  This backup tool is guaranteed to be compatible with MariaDB server.
  .
- Please refer to the MariaDB Knowledge Base on more information on
+ Please refer to the MariaDB Documentation on more information on
  how to use this tool.
 
 Package: mariadb-plugin-connect

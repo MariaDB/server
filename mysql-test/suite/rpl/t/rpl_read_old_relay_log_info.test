@@ -44,5 +44,30 @@ if (`SELECT "$master_file" != "" OR
   --die log coordinates changed
 }
 
+--echo #
+--echo # MDEV-38020: Master & relay log info files read 2^31 and above incorrectly
+--echo #
+
+--connection server_2
+--source include/stop_slave.inc
+
+# Create a relay-log.info file with a position value > 2^31
+--let $MYSQLD_DATADIR= `select @@datadir`
+--remove_file $MYSQLD_DATADIR/relay-log.info
+--write_file $MYSQLD_DATADIR/relay-log.info
+./slave-relay-bin.000001
+2147483648
+
+0
+EOF
+
+--let $rpl_server_number= 2
+--let $rpl_server_parameters= --skip-slave-start
+--source include/rpl_restart_server.inc
+
+--let $assert_text= relay_log_pos should be 2147483648 after restart
+--let $assert_cond= [SHOW SLAVE STATUS, Relay_Log_Pos, 1] = 2147483648
+--source include/assert.inc
+
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

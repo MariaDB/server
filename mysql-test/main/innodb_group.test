@@ -2,12 +2,7 @@
 # Tests involving GROUP BY, aggregate functions and InnoDB
 #
 
-
 --source include/have_innodb.inc
-
---echo #
---echo # Start of 10.1 tests
---echo #
 
 --echo #
 --echo # MDEV-10556 Assertion `0' failed in virtual void Item_sum_field::set_result_field(Field*)
@@ -17,6 +12,15 @@ CREATE TABLE t1 (i INT) ENGINE=InnoDB;
 SELECT DISTINCT STDDEV(1) FROM t1 GROUP BY i ORDER BY BENCHMARK(0, BIT_XOR(i));
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.1 tests
+
 --echo #
+--echo # MDEV-39131 Wrong Results in Identical Queries Involving Grouping and Bitwise NOT (~)
+--echo #
+create table t0(c0 double) engine=myisam ;
+select count(*), ~0 from t0;
+alter table t0 engine=innodb;
+select count(*), ~0 from t0;
+drop table t0;
+
+--echo # End of 10.11 tests

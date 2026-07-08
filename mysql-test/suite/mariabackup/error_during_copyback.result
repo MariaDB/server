@@ -8,3 +8,12 @@ SELECT * FROM t;
 i
 1
 DROP TABLE t;
+#
+# MDEV-38562: mariabackup exits with success (0) despite "No space left on device" errors
+#
+# Simulate close() failure (Disk Full / ENOSPC)
+# Verify that "completed OK!" is NOT in the log
+NOT FOUND /completed OK!/ in backup.log
+# Verify that "FATAL ERROR" is in the log
+FOUND 1 /FATAL ERROR/ in backup.log
+# End of 10.6 tests

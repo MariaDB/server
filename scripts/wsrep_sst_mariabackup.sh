@@ -22,7 +22,7 @@ set -ue
 # This is a reference script for mariadb-backup-based state snapshot transfer.
 
 # Documentation:
-# https://mariadb.com/kb/en/mariabackup-overview/
+# https://mariadb.com/docs/server/server-usage/backup-and-restore/mariadb-backup/mariadb-backup-overview
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common
@@ -279,7 +279,7 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -q0"
             fi
-            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $SST_PORT"
+            tcmd="$tcmd $(safe WSREP_SST_OPT_HOST_UNESCAPED) $SST_PORT"
         fi
     else
         tfmt='socat'
@@ -404,14 +404,14 @@ get_transfer()
                 # CA verification
                 verify_ca_matches_cert "$tpem" "$tcert" "$tcap"
                 if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-                    CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                    CN_option=",commonname='$(safe WSREP_SST_OPT_REMOTE_USER)'"
                 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
                 then
                     CN_option=",commonname=''"
                 elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
                     CN_option=',commonname=localhost'
                 else
-                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
+                    CN_option=",commonname='$(safe WSREP_SST_OPT_HOST_UNESCAPED)'"
                 fi
                 tcmd="$tcmd,cert='$tpem',key='$tkey'"
                 if [ -n "$tcert" ]; then
@@ -757,11 +757,11 @@ cleanup_at_exit()
 
 setup_ports()
 {
-    SST_PORT="$WSREP_SST_OPT_PORT"
+    SST_PORT="$(safe WSREP_SST_OPT_PORT)"
     if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
-        REMOTEIP="$WSREP_SST_OPT_HOST"
-        lsn="$WSREP_SST_OPT_LSN"
-        sst_ver="$WSREP_SST_OPT_SST_VER"
+        REMOTEIP="$(safe WSREP_SST_OPT_HOST)"
+        lsn="$(safe WSREP_SST_OPT_LSN)"
+        sst_ver="$(safe WSREP_SST_OPT_SST_VER)"
     fi
 }
 
@@ -1117,7 +1117,8 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Using '$itmpdir' as mariadb-backup working directory"
 
         if [ -n "$WSREP_SST_OPT_USER" ]; then
-           INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
+           WSREP_SST_OPT_USER_SAFE="$(safe WSREP_SST_OPT_USER)"
+           INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER_SAFE'"
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then

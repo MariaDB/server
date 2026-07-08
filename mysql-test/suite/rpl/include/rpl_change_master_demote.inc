@@ -12,8 +12,8 @@
 
 --echo ##############################################
 --echo # Connection semantics change:
---echo #  * True primary is now connection 'slave'
---echo #  * True replica is now connection 'master'
+--echo #  * True master is now connection 'slave'
+--echo #  * True slave is now connection 'master'
 --echo ##############################################
 
 --connection master
@@ -73,8 +73,8 @@ SELECT VARIABLE_NAME, GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHER
 
 --echo ##############################################
 --echo # Connection semantics change:
---echo #  * True primary is back to connection 'master'
---echo #  * True replica is back to connection 'slave'
+--echo #  * True master is back to connection 'master'
+--echo #  * True slave is back to connection 'slave'
 --echo ##############################################
 
 --connection master

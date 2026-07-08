@@ -1037,6 +1037,20 @@ public:
     ut_ad(!latch_owner);
     latch_owner= pthread_self();
   }
+
+  /** Try to acquire the allocation latch in exclusive mode
+  @return whether the latch was acquired */
+  bool x_lock_try() noexcept
+  {
+    if (latch.wr_lock_try())
+    {
+      ut_ad(!latch_owner);
+      latch_owner= pthread_self();
+      return true;
+    }
+    return false;
+  }
+
   /** Release the allocation latch from exclusive mode */
   void x_unlock()
   {
@@ -1101,9 +1115,6 @@ struct fil_node_t final
   /** size of the file in database pages (0 if not known yet);
   the possible last incomplete megabyte may be ignored if space->id == 0 */
   uint32_t size;
-  /** initial size of the file in database pages;
-  FIL_IBD_FILE_INITIAL_SIZE by default */
-  uint32_t init_size;
   /** maximum size of the file in database pages (0 if unlimited) */
   uint32_t max_size;
   /** whether the file is currently being extended */

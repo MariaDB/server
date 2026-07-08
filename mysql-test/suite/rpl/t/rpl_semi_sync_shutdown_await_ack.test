@@ -2,44 +2,44 @@
 
 #
 # Purpose:
-#   This test validates that data is consistent between a primary and replica
-# in semi-sync mode when the primary is issued `SHUTDOWN WAIT FOR SLAVES`
-# during an active communication. More specifically, the primary should not
-# kill the Ack_thread until it is sure a replica has received all binlog
-# data, i.e. once the primary receives the ACK. If a primary is issued a
+#   This test validates that data is consistent between a master and slave
+# in semi-sync mode when the master is issued `SHUTDOWN WAIT FOR SLAVES`
+# during an active communication. More specifically, the master should not
+# kill the Ack_thread until it is sure a slave has received all binlog
+# data, i.e. once the master receives the ACK. If a master is issued a
 # shutdown before receiving an ACK, it should wait until either 1) the ACK is
 # received, or 2) the configured timeout (rpl_semi_sync_master_timeout) is
 # reached.
 #
 # Methodology:
-#   Using a topology consisting of one primary with two replicas, all in
+#   Using a topology consisting of one master with two slaves, all in
 # semi-sync mode, we use DEBUG_DBUG to simulate an error or delay on the
-# replicas during an active communication while the primary is issued
+# slaves during an active communication while the master is issued
 # `SHUTDOWN WAIT FOR SLAVES`. We create four test cases to ensure the
 # Ack_thread is not prematurely killed due to the shutdown.
-#   Test Case 1) If both replicas simulate a delay that is within the allowed
-#                timeout, the primary should delay killing the Ack_thread
+#   Test Case 1) If both slaves simulate a delay that is within the allowed
+#                timeout, the master should delay killing the Ack_thread
 #                until an ACK is received.
-#   Test Case 2) If both replicas simulate an error before sending an ACK, the
-#                primary should delay killing the Ack_thread until the
+#   Test Case 2) If both slaves simulate an error before sending an ACK, the
+#                master should delay killing the Ack_thread until the
 #                the timeout is reached.
-#   Test Case 3) If one replica simulates a delay within the allowed timeout
+#   Test Case 3) If one slave simulates a delay within the allowed timeout
 #                and the other simulates an error before sending an ACK, the
-#                primary should delay killing the Ack_thread until it
+#                master should delay killing the Ack_thread until it
 #                receives an ACK from the delayed slave.
-#   Test Case 4) If a replica errors before sending an ACK, it will cause the
+#   Test Case 4) If a slave errors before sending an ACK, it will cause the
 #                IO thread to stop and handle the error. During error handling,
-#                if semi-sync is active, the replica will form a new connection
-#                with the primary to kill the active connection. However, if
-#                the primary is shutting down, it may kill the new connection,
+#                if semi-sync is active, the slave will form a new connection
+#                with the master to kill the active connection. However, if
+#                the master is shutting down, it may kill the new connection,
 #                thereby leaving the active semi-sync connection in-tact. The
 #                slave should notice this, and not issue a `QUIT` command to
-#                the primary, which would otherwise be sent to kill an active
+#                the master, which would otherwise be sent to kill an active
 #                connection. This test case validates that the slave does not
 #                send a `QUIT` in this case.
 #   Test Case 5) If a waiting-for-ACK user thread is killed (disconnected)
-#                during SHUTDOWN WAIT FOR ALL SLAVES, ensure the primary will
-#                still await the ACK from the replica before killing the
+#                during SHUTDOWN WAIT FOR ALL SLAVES, ensure the master will
+#                still await the ACK from the slave before killing the
 #                Ack_thread.
 #
 # References:
@@ -62,7 +62,7 @@
 
 --connection server_1
 
---echo # Slaves which simulate an error will produce a timeout on the primary
+--echo # Slaves which simulate an error will produce a timeout on the master
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
@@ -109,8 +109,8 @@ while (`SELECT $i <= $slave_last`)
 --echo #############################
 
 --echo #
---echo # Test Case 1) If both replicas simulate a delay that is within the
---echo # allowed timeout, the primary should delay killing the Ack_thread
+--echo # Test Case 1) If both slaves simulate a delay that is within the
+--echo # allowed timeout, the master should delay killing the Ack_thread
 --echo # until an ACK is received.
 --echo #
 --let server_2_sync_slave_reply=1
@@ -123,8 +123,8 @@ while (`SELECT $i <= $slave_last`)
 --source rpl_semi_sync_shutdown_await_ack.inc
 
 --echo #
---echo # Test Case 2) If both replicas simulate an error before sending an ACK,
---echo # the primary should delay killing the Ack_thread until the
+--echo # Test Case 2) If both slaves simulate an error before sending an ACK,
+--echo # the master should delay killing the Ack_thread until the
 --echo # timeout is reached.
 --echo #
 --let server_2_sync_slave_reply=0
@@ -137,9 +137,9 @@ while (`SELECT $i <= $slave_last`)
 --source rpl_semi_sync_shutdown_await_ack.inc
 
 --echo #
---echo # Test Case 3) If one replica simulates a delay within the allowed
+--echo # Test Case 3) If one slave simulates a delay within the allowed
 --echo # timeout and the other simulates an error before sending an ACK, the
---echo # primary should delay killing the Ack_thread until it receives an
+--echo # master should delay killing the Ack_thread until it receives an
 --echo # ACK from the delayed slave.
 --echo #
 --let server_2_sync_slave_reply=0
@@ -152,13 +152,13 @@ while (`SELECT $i <= $slave_last`)
 --source rpl_semi_sync_shutdown_await_ack.inc
 
 --echo #
---echo # Test Case 4) If a replica errors before sending an ACK, it will cause
+--echo # Test Case 4) If a slave errors before sending an ACK, it will cause
 --echo # the IO thread to stop and handle the error. During error handling, if
---echo # semi-sync is active, the replica will form a new connection with the
---echo # primary to kill the active connection. However, if the primary is
+--echo # semi-sync is active, the slave will form a new connection with the
+--echo # master to kill the active connection. However, if the master is
 --echo # shutting down, it may kill the new connection, thereby leaving the
 --echo # active semi-sync connection in-tact. The slave should notice this, and
---echo # not issue a `QUIT` command to the primary, which would otherwise be
+--echo # not issue a `QUIT` command to the master, which would otherwise be
 --echo # sent to kill an active connection. This test case validates that the
 --echo # slave does not send a `QUIT` in this case.
 --echo #
@@ -176,8 +176,8 @@ while (`SELECT $i <= $slave_last`)
 #
 --echo #
 --echo # Test Case 5) If a waiting-for-ACK user thread is killed (disconnected)
---echo # during SHUTDOWN WAIT FOR ALL SLAVES, ensure the primary will still
---echo # await the ACK from the replica before killing the Ack_receiver thread
+--echo # during SHUTDOWN WAIT FOR ALL SLAVES, ensure the master will still
+--echo # await the ACK from the slave before killing the Ack_receiver thread
 --echo #
 --connection server_1
 insert into t1 values (1);

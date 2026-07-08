@@ -796,10 +796,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     error= -1;				// Error on read
     goto err;
   }
-  sprintf(name, ER_THD(thd, ER_LOAD_INFO),
-          (ulong) info.records, (ulong) info.deleted,
-	  (ulong) (info.records - info.copied),
-          (long) thd->get_stmt_da()->current_statement_warn_count());
+  snprintf(name, sizeof(name), ER_THD(thd, ER_LOAD_INFO),
+           (ulong) info.records, (ulong) info.deleted,
+	   (ulong) (info.records - info.copied),
+           (long) thd->get_stmt_da()->current_statement_warn_count());
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;

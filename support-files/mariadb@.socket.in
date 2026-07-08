@@ -2,7 +2,7 @@
 [Unit]
 Description=MariaDB @VERSION@ database server (socket activation multi-instance %I))
 Documentation=man:mariadbd(8)
-Documentation=https://mariadb.com/kb/en/library/systemd/
+Documentation=https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 
 [Install]
 WantedBy=sockets.target

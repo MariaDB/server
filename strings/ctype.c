@@ -388,7 +388,8 @@ tailoring_append(MY_XML_PARSER *st,
   if (MY_XML_OK == my_charset_file_tailoring_realloc(i, newlen))
   {
     char *dst= i->tailoring + i->tailoring_length;
-    sprintf(dst, fmt, (int) len, attr);
+    snprintf(dst, i->tailoring_alloced_length - i->tailoring_length,
+             fmt, (int) len, attr);
     i->tailoring_length+= strlen(dst);
     return MY_XML_OK;
   }
@@ -407,7 +408,8 @@ tailoring_append2(MY_XML_PARSER *st,
   if (MY_XML_OK == my_charset_file_tailoring_realloc(i, newlen))
   {
     char *dst= i->tailoring + i->tailoring_length;
-    sprintf(dst, fmt, (int) len1, attr1, (int) len2, attr2);
+    snprintf(dst, i->tailoring_alloced_length - i->tailoring_length,
+             fmt, (int) len1, attr1, (int) len2, attr2);
     i->tailoring_length+= strlen(dst);
     return MY_XML_OK;
   }
@@ -830,10 +832,11 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
     if (sizeof(loader->error) > 32 + strlen(errstr))
     {
       /* We cannot use my_snprintf() here. See previous comment. */
-      sprintf(loader->error, "at line %d pos %d: %s",
-                my_xml_error_lineno(&p)+1,
-                (int) my_xml_error_pos(&p),
-                my_xml_error_string(&p));
+      snprintf(loader->error, sizeof(loader->error),
+               "at line %d pos %d: %s",
+               my_xml_error_lineno(&p)+1,
+               (int) my_xml_error_pos(&p),
+               my_xml_error_string(&p));
     }
   }
   return rc;

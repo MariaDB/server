@@ -7,6 +7,11 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+# This test asserts exact GTID positions (e.g. 4294967295-1-3) and an empty
+# initial state. The galera wsrep GTID domain seqno is cluster-global state, so
+# the cluster must start clean on every run (e.g. with --repeat). Force a
+# server restart before the test.
+--source include/force_restart.inc
 
 --echo # On node_1
 --connection node_1

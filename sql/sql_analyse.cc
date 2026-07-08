@@ -555,12 +555,12 @@ void field_decimal::add()
   }
 }
 
-
 void field_longlong::add()
 {
   char buff[MAX_FIELD_WIDTH];
-  longlong num = item->val_int();
-  uint length = (uint) (longlong10_to_str(num, buff, -10) - buff);
+  longlong numlong = item->val_int();
+  double num = (double) numlong;
+  uint length = (uint) (longlong10_to_str(numlong, buff, -10) - buff);
   TREE_ELEMENT *element;
 
   if (item->null_value)
@@ -568,12 +568,12 @@ void field_longlong::add()
     nulls++;
     return;
   }
-  if (num == 0)
+  if (num == 0.0)
     empty++;
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
+    if (!(element = tree_insert(&tree, (void*) &numlong, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
       delete_tree(&tree, 0);
@@ -592,7 +592,8 @@ void field_longlong::add()
   if (!found)
   {
     found = 1;
-    min_arg = max_arg = sum = num;
+    min_arg = max_arg = numlong;
+    sum = num;
     sum_sqr = num * num;
     min_length = max_length = length;
   }
@@ -604,10 +605,10 @@ void field_longlong::add()
       min_length = length;
     if (length > max_length)
       max_length = length;
-    if (compare_longlong(&num, &min_arg) < 0)
-      min_arg = num;
-    if (compare_longlong(&num, &max_arg) > 0)
-      max_arg = num;
+    if (compare_longlong(&numlong, &min_arg) < 0)
+      min_arg = numlong;
+    if (compare_longlong(&numlong, &max_arg) > 0)
+      max_arg = numlong;
   }
 } // field_longlong::add
 
@@ -615,8 +616,9 @@ void field_longlong::add()
 void field_ulonglong::add()
 {
   char buff[MAX_FIELD_WIDTH];
-  longlong num = item->val_int();
-  uint length = (uint) (longlong10_to_str(num, buff, 10) - buff);
+  ulonglong numlong = item->val_int();
+  double num= (double) numlong;
+  uint length = (uint) (longlong10_to_str(numlong, buff, 10) - buff);
   TREE_ELEMENT *element;
 
   if (item->null_value)
@@ -629,7 +631,7 @@ void field_ulonglong::add()
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
+    if (!(element = tree_insert(&tree, (void*) &numlong, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
       delete_tree(&tree, 0);
@@ -648,7 +650,8 @@ void field_ulonglong::add()
   if (!found)
   {
     found = 1;
-    min_arg = max_arg = sum = num;
+    min_arg = max_arg = numlong;
+    sum = num;
     sum_sqr = num * num;
     min_length = max_length = length;
   }
@@ -660,10 +663,10 @@ void field_ulonglong::add()
       min_length = length;
     if (length > max_length)
       max_length = length;
-    if (compare_ulonglong((ulonglong*) &num, &min_arg) < 0)
-      min_arg = num;
-    if (compare_ulonglong((ulonglong*) &num, &max_arg) > 0)
-      max_arg = num;
+    if (compare_ulonglong(&numlong, &min_arg) < 0)
+      min_arg = numlong;
+    if (compare_ulonglong(&numlong, &max_arg) > 0)
+      max_arg = numlong;
   }
 } // field_ulonglong::add
 
@@ -1193,8 +1196,12 @@ bool analyse::change_columns(THD *thd, List<Item> &field_list)
   func_items[7]= new (mem_root) Item_proc_string(thd, "Avg_value_or_avg_length", 255);
   func_items[8]= new (mem_root) Item_proc_string(thd, "Std", 255);
   func_items[8]->set_maybe_null();
+  /*
+   * TODO MDEV-39586 need to set output_str_length for cursor retrieval
+   * earlier because currently its always 0.
+   */
   func_items[9]= new (mem_root) Item_proc_string(thd, "Optimal_fieldtype",
-                                                  MY_MAX(64,
+                                                  MY_MAX(1024,
                                                          output_str_length));
 
   for (uint i = 0; i < array_elements(func_items); i++)

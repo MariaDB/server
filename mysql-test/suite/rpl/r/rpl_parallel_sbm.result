@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 #
-# MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Replicas
+# MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel Slaves
 #
 connection slave;
 include/stop_slave.inc
@@ -55,7 +55,7 @@ connection slave;
 include/sync_with_master_sql_delay_debug_sync.inc
 set debug_sync= "now WAIT_FOR at_sql_delay";
 set debug_sync= "now SIGNAL continue_sql_thread";
-# Waiting for replica to get blocked by the table lock
+# Waiting for slave to get blocked by the table lock
 # Sleeping 1s to increment SBM
 # Ensuring Seconds_Behind_Master increases after sleeping..
 # ..done
@@ -99,7 +99,7 @@ include/start_slave.inc
 # MDEV-30619: Parallel Slave SQL Thread Can Update Seconds_Behind_Master with Active Workers
 #
 connection slave;
-# Ensure the replica is fully idle before starting transactions
+# Ensure the slave is fully idle before starting transactions
 # Lock t1 on slave so the first received transaction does not complete/commit
 LOCK TABLES t1 WRITE;
 connection master;

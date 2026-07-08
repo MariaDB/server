@@ -462,6 +462,7 @@ typedef struct st_vio Vio;
 #define MAX_INT_WIDTH           10      /* Max width for a LONG w.o. sign */
 #define MAX_BIGINT_WIDTH        20      /* Max width for a LONGLONG */
 #define MAX_CHAR_WIDTH		255	/* Max length for a CHAR column */
+#define MYSQL_UDF_MAX_RESULT_LENGTH 255 /* Max length for a UDF result */
 #define MAX_BLOB_WIDTH		16777216	/* Default width for blob */
 
 typedef struct st_net {

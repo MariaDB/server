@@ -176,7 +176,7 @@ CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom)) transactional=0 r
 INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
 drop table t1, t2;
 
-CREATE TABLE t1 (`geometry` geometry NOT NULL default '',SPATIAL KEY `gndx` (`geometry`)) transactional=0 row_format=page DEFAULT CHARSET=latin1;
+CREATE TABLE t1 (`geometry` geometry NOT NULL,SPATIAL KEY `gndx` (`geometry`)) transactional=0 row_format=page DEFAULT CHARSET=latin1;
 
 INSERT INTO t1 (geometry) VALUES
 (PolygonFromText('POLYGON((-18.6086111000 -66.9327777000, -18.6055555000
@@ -195,7 +195,7 @@ drop table t1;
 # Bug#17877 - Corrupted spatial index
 #
 CREATE TABLE t1 (
-  c1 geometry NOT NULL default '',
+  c1 geometry NOT NULL,
   SPATIAL KEY i1 (c1)
 ) transactional=0 row_format=page DEFAULT CHARSET=latin1;
 INSERT INTO t1 (c1) VALUES (
@@ -209,7 +209,7 @@ CHECK TABLE t1 EXTENDED;
 DROP TABLE t1;
 #
 CREATE TABLE t1 (
-  c1 geometry NOT NULL default '',
+  c1 geometry NOT NULL,
   SPATIAL KEY i1 (c1)
 ) transactional=0 row_format=page DEFAULT CHARSET=latin1;
 INSERT INTO t1 (c1) VALUES (

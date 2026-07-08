@@ -11,6 +11,8 @@ INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+COMMIT;
+set global innodb_log_checkpoint_now=ON;
 Killing server ...
 connection node_1;
 Performing --wsrep-recover ...
@@ -23,7 +25,6 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 5
 connection node_2;
-SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 5

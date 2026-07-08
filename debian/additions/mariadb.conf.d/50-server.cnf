@@ -60,15 +60,17 @@ bind-address            = 127.0.0.1
 # /etc/mysql/conf.d/mariadb.conf.d/50-mysqld_safe.cnf
 # Enable this if you want to have error logging into a separate file
 #log_error = /var/log/mysql/error.log
+
 # Enable the slow query log to see queries with especially long duration
 #log_slow_query_file    = /var/log/mysql/mariadb-slow.log
+#slow_query_log         = 1
 #log_slow_query_time    = 10
 #log_slow_verbosity     = query_plan,explain
 #log-queries-not-using-indexes
 #log_slow_min_examined_row_limit = 1000
 
 # The following can be used as easy to replay backup logs or for replication.
-# note: if you are setting up a replica, see README.Debian about other
+# note: if you are setting up a replication slave, see README.Debian about other
 #       settings you may need to change.
 #server-id              = 1
 #log_bin                = /var/log/mysql/mysql-bin.log
@@ -80,7 +82,7 @@ expire_logs_days        = 10
 #
 
 # For documentation, please read
-# https://mariadb.com/kb/en/securing-connections-for-client-and-server/
+# https://mariadb.com/docs/server/security/encryption/data-in-transit-encryption/securing-connections-for-client-and-server
 #ssl-ca = /etc/mysql/cacert.pem
 #ssl-cert = /etc/mysql/server-cert.pem
 #ssl-key = /etc/mysql/server-key.pem
@@ -102,7 +104,7 @@ collation-server      = utf8mb4_general_ci
 # InnoDB is enabled by default with a 10MB datafile in /var/lib/mysql/.
 # Read the manual for more InnoDB related options. There are many!
 # Most important is to give InnoDB 80 % of the system RAM for buffer use:
-# https://mariadb.com/kb/en/innodb-system-variables/#innodb_buffer_pool_size
+# https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-system-variables#innodb_buffer_pool_size
 #innodb_buffer_pool_size = 8G
 
 # this is only for embedded server

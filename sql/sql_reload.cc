@@ -469,7 +469,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
  /*
    If the query was killed then this function must fail.
  */
- return result || (thd ? thd->killed : 0);
+ return result || (thd ? thd->killed > NOT_KILLED : 0);
 }
 
 

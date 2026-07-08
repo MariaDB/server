@@ -138,7 +138,7 @@ create table t1_433a (f1a char (5)) engine = <engine_to_be_used>;
 CREATE TRIGGER trg3 BEFORE INSERT on t1_433 for each row
 set new.f1 = 'Trigger 3.5.4.3';
 Drop trigger t1.433.trg3;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.trg3' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.433.trg3' at line 1
 Drop trigger db_drop3.t1.433.trg3;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.433.trg3' at line 1
 Drop trigger mysql.trg3;

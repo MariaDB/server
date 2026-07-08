@@ -9,7 +9,7 @@
 # after the file mariadb.service itself is parsed.
 #
 # For more info about custom unit files, see systemd.unit(5) or
-# https://mariadb.com/kb/en/mariadb/systemd/
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 #
 # Copyright notice:
 #
@@ -21,7 +21,7 @@
 [Unit]
 Description=MariaDB @VERSION@ database server
 Documentation=man:mariadbd(8)
-Documentation=https://mariadb.com/kb/en/library/systemd/
+Documentation=https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 After=network.target
 
 [Install]
@@ -58,6 +58,9 @@ ProtectSystem=full
 
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
+
+# Restrict modifications of cgroups from the MariaDB service context.
+ProtectControlGroups=true
 
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
@@ -129,7 +132,7 @@ PrivateTmp=false
 # Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
 # this is the same value as used in SysV init scripts in the past
 # Galera might need a longer timeout, check the KB if you want to change this:
-# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 TimeoutStartSec=900
 TimeoutStopSec=900
 
@@ -159,7 +162,7 @@ LimitNOFILE=32768
 
 # Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
 # (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
-# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD="
 
 # Flush caches. previously [mysqld_safe] flush-caches=1
 # ExecStartPre=sync

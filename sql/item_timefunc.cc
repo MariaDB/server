@@ -629,11 +629,12 @@ static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
 	str->append(hours_i < 12 ? "AM" : "PM",2);
 	break;
       case 'r':
-	length= sprintf(intbuff, ((l_time->hour % 24) < 12) ?
-                    "%02d:%02d:%02d AM" : "%02d:%02d:%02d PM",
-		    (l_time->hour+11)%12+1,
-		    l_time->minute,
-		    l_time->second);
+	length= snprintf(intbuff, sizeof(intbuff),
+                     ((l_time->hour % 24) < 12) ?
+                     "%02d:%02d:%02d AM" : "%02d:%02d:%02d PM",
+		     (l_time->hour+11)%12+1,
+		     l_time->minute,
+		     l_time->second);
 	str->append(intbuff, length);
 	break;
       case 'S':
@@ -641,8 +642,8 @@ static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
 	str->append_zerofill(l_time->second, 2);
 	break;
       case 'T':
-	length= sprintf(intbuff, "%02d:%02d:%02d",
-		    l_time->hour, l_time->minute, l_time->second);
+	length= snprintf(intbuff, sizeof(intbuff), "%02d:%02d:%02d",
+		     l_time->hour, l_time->minute, l_time->second);
 	str->append(intbuff, length);
 	break;
       case 'U':
@@ -2177,6 +2178,8 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
         goto error;
       break;
     case 'P':                                   // PM or P.M.
+      if (ptr + 1 == end)
+        goto error;
       next_char= my_toupper(system_charset_info, *(ptr+1));
       if (next_char == 'M')
       {
@@ -2184,7 +2187,7 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
         ptr+= 1;
         tmp_len+= 2;
       }
-      else if (next_char == '.' &&
+      else if (next_char == '.' && ptr + 3 < end &&
                my_toupper(system_charset_info, *(ptr+2)) == 'M' &&
                my_toupper(system_charset_info, *(ptr+3)) == '.')
       {
@@ -3387,7 +3390,7 @@ Sql_mode_dependency Item_time_typecast::value_depends_on_sql_mode() const
 bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd))
-                    & ~TIME_TIME_ONLY & ~TIME_INTERVAL_DAY;
+               & ~TIME_TIME_ONLY & ~TIME_INTERVAL_DAY & ~TIME_INTERVAL_hhmmssff;
   // Force truncation
   Date *d= new(ltime) Date(thd, args[0], Date::Options(date_conv_mode_t(tmp)));
   return (null_value= !d->is_valid_date());
@@ -3397,7 +3400,7 @@ bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 bool Item_datetime_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd))
-                    & ~TIME_TIME_ONLY & ~TIME_INTERVAL_DAY;
+               & ~TIME_TIME_ONLY & ~TIME_INTERVAL_DAY & ~TIME_INTERVAL_hhmmssff;
   // Force rounding if the current sql_mode says so
   Datetime::Options opt(date_conv_mode_t(tmp), thd);
   Datetime *dt= new(ltime) Datetime(thd, args[0], opt,
@@ -3576,8 +3579,9 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
     check_time_range(ltime, decimals, &unused);
     char buf[28];
     char *ptr= longlong10_to_str(hour.value(), buf, hour.is_unsigned() ? 10 : -10);
-    int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u",
-                                         (uint) minute, (uint) sec.sec());
+    int len = (int)(ptr - buf) + snprintf(ptr, buf + sizeof(buf) - ptr,
+                                          ":%02u:%02u",
+                                          (uint) minute, (uint) sec.sec());
     ErrConvString err(buf, len, &my_charset_bin);
     thd->push_warning_truncated_wrong_value("time", err.ptr());
   }
@@ -3934,7 +3938,13 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 
 bool Item_func_last_day::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  Datetime::Options opt(date_conv_mode_t(fuzzydate & ~TIME_TIME_ONLY),
+  /*
+    LAST_DAY() builds a DATETIME from args[0], which can never be an interval.
+    Suppress the interval flags(in addition to TIME_TIME_ONLY) so that a numeric
+    argument is parsed as a DATETIME rather than as an hhmmss/DDhhmmss interval.
+  */
+  Datetime::Options opt(date_conv_mode_t(fuzzydate) & ~TIME_TIME_ONLY
+                        & ~TIME_INTERVAL_hhmmssff & ~TIME_INTERVAL_DAY,
                         time_round_mode_t(fuzzydate));
   Datetime *d= new(ltime) Datetime(thd, args[0], opt);
   if ((null_value= (!d->is_valid_datetime() || ltime->month == 0)))

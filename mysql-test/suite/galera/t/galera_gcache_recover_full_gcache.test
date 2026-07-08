@@ -5,6 +5,15 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/big_test.inc
+--source include/have_log_bin.inc
+--source include/force_restart.inc
+
+# Remove if exists earlier log and start position, they might
+# be there if test using galera_wsrep_recover.inc failed
+--error 0,1,2
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_recover.log
+--error 0,1,2
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_start_position.log
 
 SET SESSION wsrep_sync_wait = 0;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;
@@ -27,6 +36,10 @@ INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+COMMIT;
+# Force checkpoint so that below select count is consistent
+set global innodb_log_checkpoint_now=ON;
+
 --source include/kill_galera.inc
 
 --connection node_1
@@ -45,12 +58,16 @@ INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 --connection node_1
 --source include/wait_until_connected_again.inc
 --source include/galera_wait_ready.inc
---let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
 
 SELECT COUNT(*) FROM t1;
 
 --connection node_2
-SET SESSION wsrep_sync_wait = 15;
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
 SELECT COUNT(*) FROM t1;
 
 --let $diff_servers = 1 2

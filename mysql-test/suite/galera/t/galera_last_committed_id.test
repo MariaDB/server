@@ -3,6 +3,10 @@
 #
 
 --source include/galera_cluster.inc
+# This test asserts exact wsrep GTID values (e.g. 100-1-2). The galera wsrep
+# GTID domain seqno is cluster-global state, so the cluster must start clean on
+# every run (e.g. with --repeat). Force a server restart before the test.
+--source include/force_restart.inc
 
 # Returns domain-server-0 if no transactions have been run
 

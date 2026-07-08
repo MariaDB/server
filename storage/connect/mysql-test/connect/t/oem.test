@@ -1,0 +1,26 @@
+--source include/not_embedded.inc
+
+if (!$HA_CONNECT_SO) {
+  skip needs dynamic CONNECT plugin;
+}
+
+let path=`select @@plugin_dir`;
+
+--echo #
+--echo # MDEV-39281 CONNECT OEM tables don't check subtype length
+--echo #
+
+--replace_result $path /plugin-dir/ $HA_CONNECT_SO ha_connect.so
+--error ER_UNKNOWN_ERROR
+evalp create table xtab engine=connect
+table_type=oem module='$HA_CONNECT_SO' subtype='testing123456789012345678901234567890';
+
+evalp create table xtab (a int) engine=connect
+table_type=oem module='$HA_CONNECT_SO' subtype='testing123456789012345678901234567890';
+
+--replace_result $path /plugin-dir/ $HA_CONNECT_SO ha_connect.so
+--error ER_UNKNOWN_ERROR
+select * from xtab;
+drop table xtab;
+
+--echo # End of 10.6 tests

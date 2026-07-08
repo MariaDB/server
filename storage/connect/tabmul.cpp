@@ -717,8 +717,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 			if (rc != ERROR_FILE_NOT_FOUND) {
 				char buf[512];
 
-				FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-					            FORMAT_MESSAGE_IGNORE_INSERTS,
+				FormatMessage(FORMAT_MESSAGE_FLAGS,
 					NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
 				snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), buf);
 				return -1;
@@ -957,7 +956,7 @@ void DIRCOL::SetTimeValue(PGLOBAL g, FILETIME& ftime)
 	SYSTEMTIME stp;
 
 	if (FileTimeToSystemTime(&ftime, &stp)) {
-		sprintf(tsp, "%04d-%02d-%02d %02d:%02d:%02d",
+		snprintf(tsp, sizeof(tsp), "%04d-%02d-%02d %02d:%02d:%02d",
 			stp.wYear, stp.wMonth, stp.wDay, stp.wHour, stp.wMinute, stp.wSecond);
 
 		if (Value->GetType() != TYPE_STRING) {
@@ -1060,8 +1059,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 		if (rc != ERROR_FILE_NOT_FOUND) {
 			char buf[512];
 
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
+			FormatMessage(FORMAT_MESSAGE_FLAGS,
 				NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
 			snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), buf);
 			return -1;
@@ -1102,8 +1100,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 		if (rc != ERROR_FILE_NOT_FOUND) {
 			char buf[512];
 
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
+			FormatMessage(FORMAT_MESSAGE_FLAGS,
 				NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
 			snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), buf);
 			return -1;
@@ -1412,9 +1409,7 @@ int TDBDHR::GetMaxSize(PGLOBAL g)
           n = 0;
           break;
         default:
-          FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS,
-                        NULL, rc, 0,
+          FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                         (LPTSTR)&filename, sizeof(filename), NULL);
           snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), filename);
         } // endswitch rc
@@ -1504,9 +1499,7 @@ int TDBDHR::ReadDB(PGLOBAL g)
         rc = RC_EF;
         break;
       default:
-        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                      NULL, erc,  0,
+        FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, erc,  0,
                       (LPTSTR)&filename, sizeof(filename), NULL);
         snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), filename);
         rc = RC_FX;

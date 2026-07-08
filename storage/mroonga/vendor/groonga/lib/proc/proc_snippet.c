@@ -208,6 +208,8 @@ func_snippet(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
                                  GRN_TEXT_LEN(keyword_set_args[i * KEYWORD_SET_SIZE + 1]),
                                  GRN_TEXT_VALUE(keyword_set_args[i * KEYWORD_SET_SIZE + 2]),
                                  GRN_TEXT_LEN(keyword_set_args[i * KEYWORD_SET_SIZE + 2]));
+          if (rc)
+            goto exit;
         }
       } else {
         unsigned int n_keywords = n_args_without_option - N_REQUIRED_ARGS;
@@ -218,6 +220,8 @@ func_snippet(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
                                  GRN_TEXT_LEN(keyword_args[i]),
                                  NULL, 0,
                                  NULL, 0);
+          if (rc)
+            goto exit;
         }
       }
       snippets = snippet_exec(ctx, snip, text, user_data,

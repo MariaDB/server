@@ -2660,27 +2660,36 @@ dberr_t fseg_free_page(fseg_header_t *seg_header, fil_space_t *space,
 }
 
 /** Determine whether a page is allocated.
-@param space   tablespace
-@param page    page number
+@param space       tablespace
+@param page        page number
+@param caller_mtr  mini-transaction from caller
 @return error code
 @retval DB_SUCCESS             if the page is marked as free
 @retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
-dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
+dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page,
+                               mtr_t *caller_mtr)
 {
-  mtr_t mtr;
+  mtr_t local_mtr;
+  mtr_t *mtr;
   uint32_t dpage= xdes_calc_descriptor_page(space->zip_size(), page);
   const unsigned zip_size= space->zip_size();
   dberr_t err= DB_SUCCESS;
 
-  mtr.start();
-  if (!space->is_owner())
-    mtr.x_lock_space(space);
+  mtr= caller_mtr;
+  if (!mtr)
+  {
+    local_mtr.start();
+    if (!space->is_owner())
+      local_mtr.x_lock_space(space);
+    mtr= &local_mtr;
+  }
+  ut_ad(space->is_owner());
 
   if (page >= space->free_limit || page >= space->size_in_header);
   else if (const buf_block_t *b=
            buf_page_get_gen(page_id_t(space->id, dpage), space->zip_size(),
                             RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED,
-                            &mtr, &err))
+                            mtr, &err))
   {
     if (!dpage &&
         (space->free_limit !=
@@ -2697,7 +2706,8 @@ dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
         : DB_SUCCESS_LOCKED_REC;
   }
 
-  mtr.commit();
+  if (!caller_mtr)
+    local_mtr.commit();
   return err;
 }
 

@@ -18,7 +18,7 @@ select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
 #
 # MDEV-25141 JSON_TABLE: SELECT into outfile bypasses file privilege check
 #
---error ER_ACCESS_DENIED_ERROR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q;
 
 connection default;

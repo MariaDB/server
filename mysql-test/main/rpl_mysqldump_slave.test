@@ -160,7 +160,7 @@ change master to master_use_gtid=slave_pos;
 
 connection master;
 
---echo # Ensuring the binlog dump thread is killed on primary...
+--echo # Ensuring the binlog dump thread is killed on master...
 --disable_query_log
 --let $binlog_dump_thd_tid= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Binlog Dump'`
 if ($binlog_dump_thd_tid)

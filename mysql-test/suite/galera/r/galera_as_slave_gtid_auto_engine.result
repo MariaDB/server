@@ -25,6 +25,7 @@ connection node_1;
 connection node_2;
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 #cleanup
 connection node_1;
 set global wsrep_on=OFF;
@@ -37,5 +38,8 @@ set global wsrep_on=ON;
 connection node_3;
 reset master;
 connection node_2;
-DROP TABLE mysql.gtid_slave_pos_InnoDB;
 CALL mtr.add_suppression("The automatically created table");
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;

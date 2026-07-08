@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1(id int not null primary key auto_increment, b int) ENGINE=InnoDB;
+INSERT INTO t1(b) SELECT * from seq_1_to_100;
+INSERT INTO t1(b) SELECT * from seq_1_to_100;
+INSERT INTO t1(b) SELECT * from seq_1_to_100;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+# Execute mysqldump using new galera-info parameter
+# Confirm that desired output is done
+include/assert_grep.inc [wsrep_start_position]
+connection node_1;
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_2;
+disconnect node_1;

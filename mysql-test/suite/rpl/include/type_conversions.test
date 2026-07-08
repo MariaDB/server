@@ -1,4 +1,5 @@
 # File containing different lossy and non-lossy type conversions.
+--source include/have_debug.inc
 
 # Integral conversion testing, we do not reduce the test using
 # transitivity of conversions since the implementation is not using a
@@ -1266,6 +1267,28 @@ source suite/rpl/include/check_type.inc;
 let $source_temp_format=;
 let $target_temp_format=;
 --echo # End of MDEV-17098
+
+--echo #
+--echo # MDEV-39240 Invalid / MDEV-32188-only TIMESTAMPs
+--echo #
+--connection master
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,rpl_pack_simulate_negation';
+let $source_type= TIMESTAMP(0);
+let $target_type= TIMESTAMP(0);
+
+let $source_value= '0000-00-00 00:00:00'; # ~0 = Y2106 Epochalypse II
+let $target_value= FROM_UNIXTIME((1<<31) - 1); # Y2038 Epochalypse I
+let $can_convert = 1;
+source suite/rpl/include/check_type.inc;
+
+let $source_value= FROM_UNIXTIME(1); # ~1 = not at an Epochalypse
+let $can_convert = 0;
+source suite/rpl/include/check_type.inc;
+
+--connection master
+SET @@GLOBAL.debug_dbug= @save_dbug;
+--echo # End of MDEV-39240
 
 
 --source include/rpl_reset.inc

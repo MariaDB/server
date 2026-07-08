@@ -866,7 +866,7 @@ class Year
 protected:
   uint m_year;
   bool m_truncated;
-  uint year_precision(const Item *item) const;
+  static uint year_precision(const Item *item);
 public:
   Year(): m_year(0), m_truncated(false) { }
   Year(longlong value, bool unsigned_flag, uint length);
@@ -3268,8 +3268,9 @@ public:
   void aggregate_attributes_int(Item **items, uint nitems)
   {
     collation= DTCollation_numeric();
-    fix_char_length(find_max_char_length(items, nitems));
     unsigned_flag= count_unsigned(items, nitems) > 0;
+    fix_char_length(find_max_decimal_int_part(items, nitems) +
+                    (unsigned_flag ? 0 : 1));
     decimals= 0;
   }
   void aggregate_attributes_real(Item **items, uint nitems)
@@ -6147,6 +6148,7 @@ public:
                                  uchar **pos, ulong len) const override;
 
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item_copy *create_item_copy(THD *thd, Item *item) const override;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *)
@@ -6202,6 +6204,7 @@ public:
                                  uchar **pos, ulong len) const override;
 
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item_copy *create_item_copy(THD *thd, Item *item) const override;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *)

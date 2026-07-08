@@ -1,5 +1,14 @@
 #!/usr/bin/env perl
 # Call mtr in out-of-source build
+
+use Cwd qw(cwd abs_path);
 $ENV{MTR_BINDIR} = '@CMAKE_BINARY_DIR@';
+my $dir= cwd();
+my $new_dir= abs_path('@CMAKE_SOURCE_DIR@');
+if ($dir eq $new_dir . '/mysql-test')
+{
+    print stderr "Something went wrong. Do 'git checkout mysql-test/mariadb-test-run.pl' and try again";
+    exit 1;
+}
 chdir('@CMAKE_SOURCE_DIR@/mysql-test');
 exit(system($^X, '@CMAKE_SOURCE_DIR@/mysql-test/mariadb-test-run.pl', @ARGV) >> 8);

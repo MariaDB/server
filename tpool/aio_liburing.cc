@@ -44,7 +44,7 @@ public:
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with ENOMEM:"
                         " try larger memory locked limit, ulimit -l"
-                        ", or https://mariadb.com/kb/en/systemd/#configuring-limitmemlock"
+                        ", or https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd#configuring-limitmemlock"
                         " under systemd"
 #ifdef HAVE_IO_URING_MLOCK_SIZE
                         " (%zd bytes required)", ME_ERROR_LOG | ME_WARNING,

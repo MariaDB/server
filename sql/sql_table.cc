@@ -7225,8 +7225,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
          new_key < new_key_end;
          new_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7276,8 +7275,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     /* Search an old key with the same name. */
     for (table_key= table->key_info; table_key < table_key_end; table_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -7309,8 +7307,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
         continue;
       }
 
-      DBUG_ASSERT(
-          lex_string_cmp(system_charset_info, &old_key->name, &new_key->name));
+      DBUG_ASSERT(cmp(&old_key->name, &new_key->name));
 
       ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
       ha_alter_info->rename_keys.push_back(
@@ -7575,8 +7572,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (new_key >= new_key_end)
@@ -7616,8 +7612,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     /* Search a key with the same name. */
     for (table_key= table->s->key_info; table_key < table_key_end; table_key++)
     {
-      if (!lex_string_cmp(system_charset_info, &table_key->name,
-                          &new_key->name))
+      if (!cmp(&table_key->name, &new_key->name))
         break;
     }
     if (table_key >= table_key_end)
@@ -9426,6 +9421,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   {
     Alter_drop *drop;
     drop_it.rewind();
+    List<LEX_CSTRING> dropped_fk;
     while ((drop=drop_it++)) {
       switch (drop->type) {
       case Alter_drop::KEY:
@@ -9455,7 +9451,17 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           {
             if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
                               drop->name) == 0)
+            {
+              List_iterator<LEX_CSTRING> check_it(dropped_fk);
+              while (LEX_CSTRING *dropped_name = check_it++)
+              {
+                if (my_strcasecmp(system_charset_info, dropped_name->str,
+                                  f_key->foreign_id->str) == 0)
+                  goto fk_not_found;
+              }
+              dropped_fk.push_back(f_key->foreign_id);
               goto fk_found;
+            }
           }
           goto fk_not_found;
         fk_found:
@@ -9750,6 +9756,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     when a foreign key has the same table as child and parent.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_parent_key_it(fk_parent_key_list);
+  List<FOREIGN_KEY_INFO> keys_to_remove;
 
   while ((f_key= fk_parent_key_it++))
   {
@@ -9772,10 +9779,31 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
                           &table->s->db) == 0) &&
           (lex_string_cmp(table_alias_charset, f_key->foreign_table,
                           &table->s->table_name) == 0))
-        fk_parent_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
 
+  IF_DBUG(uint removed= 0,);
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it(keys_to_remove);
+  while ((f_key = remove_it++))
+  {
+    fk_parent_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_parent_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_parent_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+  DBUG_ASSERT(keys_to_remove.elements == removed);
+  IF_DBUG(removed= 0,);
   /*
     If there are FKs in which this table is parent which were not
     dropped we need to prevent ALTER deleting rows from the table,
@@ -9846,6 +9874,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     by this ALTER TABLE.
   */
   List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+  keys_to_remove.empty();
 
   while ((f_key= fk_key_it++))
   {
@@ -9858,9 +9887,30 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
           (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
                          drop->name) == 0))
-        fk_key_it.remove();
+      {
+        keys_to_remove.push_back(f_key);
+        break;
+      }
     }
   }
+
+  /* Remove the identified keys */
+  List_iterator<FOREIGN_KEY_INFO> remove_it2(keys_to_remove);
+  while ((f_key = remove_it2++))
+  {
+    fk_key_it.rewind();
+    while (FOREIGN_KEY_INFO *fk= fk_key_it++)
+    {
+      if (fk == f_key)
+      {
+        fk_key_it.remove();
+        IF_DBUG(removed++,);
+        break;
+      }
+    }
+  }
+
+  DBUG_ASSERT(keys_to_remove.elements == removed);
 
   fk_key_it.rewind();
   while ((f_key= fk_key_it++))
@@ -12351,8 +12401,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
-  if (!ignore) /* for now, InnoDB needs the undo log for ALTER IGNORE */
-    to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  static_assert(int{HA_EXTRA_BEGIN_ALTER_IGNORE_COPY} ==
+                int{HA_EXTRA_BEGIN_COPY} + 1, "");
+  to->file->extra(ha_extra_function(int{HA_EXTRA_BEGIN_COPY} + ignore));
 
   while (likely(!(error= info.read_record())))
   {
@@ -12455,6 +12506,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
 
   if (error > 0 && !from->s->tmp_table)
   {
+    /* Abort the operation which invoked extra(HA_EXTRA_BEGIN_COPY)
+    or extra(HA_EXTRA_BEGIN_ALTER_IGNORE_COPY) */
+    to->file->extra(HA_EXTRA_ABORT_COPY);
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }
@@ -12466,13 +12520,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     error= 1;
   }
   bulk_insert_started= 0;
-  if (!ignore && error <= 0)
+  if (error <= 0)
   {
-    int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    Abort_on_warning_instant_set save_abort_on_warning(thd, false);
+    int alt_error= to->file->extra(HA_EXTRA_END_COPY);
     if (alt_error > 0)
     {
       error= alt_error;
-      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
+      to->file->extra(HA_EXTRA_ABORT_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }

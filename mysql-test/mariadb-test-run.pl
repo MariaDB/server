@@ -25,7 +25,7 @@
 #  Tool used for executing a suite of .test files
 #
 #  See the "MySQL Test framework manual" for more information
-#  https://mariadb.com/kb/en/library/mysqltest/
+#  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 #
 #
 ##############################################################################
@@ -1645,6 +1645,7 @@ sub command_line_setup {
 
   # Add leak suppressions
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
+     . ($ENV{LSAN_OPTIONS} ? ":$ENV{LSAN_OPTIONS}" : "")
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
@@ -1796,7 +1797,7 @@ sub collect_mysqld_features {
   my $args;
   mtr_init_args(\$args);
   mtr_add_arg($args, "--no-defaults");
-  mtr_add_arg($args, "--datadir=.");
+  mtr_add_arg($args, "--datadir=%s", $opt_vardir);
   mtr_add_arg($args, "--basedir=%s", $basedir);
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");

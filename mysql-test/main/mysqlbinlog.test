@@ -716,3 +716,11 @@ SET SESSION binlog_row_image= default;
 
 --remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+
+--echo #
+--echo # MDEV-39404 Gtid_log_event crash
+--echo #
+--error 1
+--exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/mdev-39404-binlog.000001 2>& 1
+
+--echo # End of 10.6 tests

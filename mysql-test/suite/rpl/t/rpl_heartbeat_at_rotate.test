@@ -14,7 +14,7 @@
 #
 #
 # References:
-#   MDEV-29881: Replica stops with "Found invalid event in binary log"
+#   MDEV-29881: Slave stops with "Found invalid event in binary log"
 #
 --source include/have_debug.inc
 --source include/have_debug_sync.inc

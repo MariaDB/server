@@ -31,7 +31,7 @@ TRUNCATE TABLE t1;
 
 --connection con1
 # CTAS gets BF aborted.
---error ER_QUERY_INTERRUPTED, ER_LOCK_DEADLOCK
+--error ER_QUERY_INTERRUPTED
 --reap
 
 # Cleanup
@@ -56,7 +56,7 @@ TRUNCATE TABLE t1;
 
 --connection con1
 # CTAS gets BF aborted.
---error ER_QUERY_INTERRUPTED, ER_LOCK_DEADLOCK
+--error ER_QUERY_INTERRUPTED
 --reap
 
 # Cleanup

@@ -135,8 +135,8 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 
 --
 -- Alternately, following is the position of the binary logging from SHOW MASTER STATUS at point of backup.
--- Use this when creating a replica of the primary server where the backup was made.
--- The new server will be connecting to the primary server where the backup was taken.
+-- Use this when creating a slave of the master server where the backup was made.
+-- The new server will be connecting to the master server where the backup was taken.
 --
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
@@ -144,7 +144,7 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 --
 -- The following is the SQL position of the replication taken from SHOW SLAVE STATUS at the time of backup.
 -- Use this position when creating a clone of, or replacement server, from where the backup was taken.
--- This new server will connects to the same primary server(s).
+-- This new server will connects to the same master server(s).
 --
 
 -- A corresponding to the below dump-slave CHANGE-MASTER settings to the slave gtid state is printed later in the file.
@@ -196,8 +196,8 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 
 --
 -- Alternately, following is the position of the binary logging from SHOW MASTER STATUS at point of backup.
--- Use this when creating a replica of the primary server where the backup was made.
--- The new server will be connecting to the primary server where the backup was taken.
+-- Use this when creating a slave of the master server where the backup was made.
+-- The new server will be connecting to the master server where the backup was taken.
 --
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
@@ -207,7 +207,7 @@ CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START
 --
 -- The following is the SQL position of the replication taken from SHOW SLAVE STATUS at the time of backup.
 -- Use this position when creating a clone of, or replacement server, from where the backup was taken.
--- This new server will connects to the same primary server(s).
+-- This new server will connects to the same master server(s).
 --
 
 -- A corresponding to the below dump-slave CHANGE-MASTER settings to the slave gtid state is printed later in the file.
@@ -245,7 +245,7 @@ connection slave;
 include/stop_slave.inc
 change master to master_use_gtid=slave_pos;
 connection master;
-# Ensuring the binlog dump thread is killed on primary...
+# Ensuring the binlog dump thread is killed on master...
 /*M!999999\- enable the sandbox mode */ 
 -- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
 -- SET GLOBAL gtid_slave_pos='0-1-1005';

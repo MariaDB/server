@@ -199,7 +199,7 @@ COMMIT; # IO thread gets killed here.
 
 # MDEV-14357
 # As the prior transaction will be ignored on slave because its domain id is
-# ignored, the replica's gtid_slave_pos will be updated to have seen it,
+# ignored, the slave's gtid_slave_pos will be updated to have seen it,
 # despite its eventual failure to queue the whole transaction to the relay log.
 # So for test consistency, we need to synchronize the SQL thread with this
 # position; otherwise, when restarting the server after resetting

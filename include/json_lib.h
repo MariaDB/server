@@ -2,6 +2,7 @@
 #define JSON_LIB_INCLUDED
 
 #include <my_sys.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,6 +30,7 @@ enum json_errors {
   JE_ESCAPING= -6,     /* Error in the escaping. */
 
   JE_DEPTH= -7,        /* The limit on the JSON depth was overrun. */
+  JE_KILLED= -8,       /* Killed during processing */
 };
 
 
@@ -228,7 +230,7 @@ typedef struct st_json_engine_t
 
   int stack[JSON_DEPTH_LIMIT]; /* Keeps the stack of nested JSON structures. */
   int stack_p;                 /* The 'stack' pointer. */
-  volatile uchar *killed_ptr;
+  volatile const uint32_t *killed_ptr;
 } json_engine_t;
 
 

@@ -276,8 +276,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			char  buf[256];
 			DWORD rc = GetLastError();
 
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-										FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+			FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 				            (LPTSTR)buf, sizeof(buf), NULL);
 			snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR)": %s", rc,
 							 soname, buf);

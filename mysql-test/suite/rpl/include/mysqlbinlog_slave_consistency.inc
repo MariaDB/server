@@ -1,8 +1,8 @@
 # This file provides the structure to run a single test that ensures the
-# mariadb-binlog command line tool is consistent with replicas for event
+# mariadb-binlog command line tool is consistent with slaves for event
 # filtering. The test is configured using the following input parameters, where
 # each is nullable (i.e. it will not be used to configure mariadb-binlog or
-# the replica).
+# the slave).
 #
 # param $do_domain_ids     : A list of domain ids to include in replication
 # param $ignore_domain_ids : A list of domain ids to exclude from replication
@@ -12,8 +12,8 @@
 # param $stop_position     : The GTID positions that mark the end of an event
 #                            stream in a particular domain
 #
-# param $con1              : The connection name of the primary server
-# param $con2              : The connection name of the replica server
+# param $con1              : The connection name of the master server
+# param $con2              : The connection name of the slave server
 # param $strict_mode       : Uses input and checks for out of order GTIDs
 # param $strict_mode_err   : A boolean that provides expectations for strict
 #                            mode to error

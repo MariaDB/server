@@ -8,13 +8,15 @@
 # Steps:
 #    0 - Stop the slave and execute CHANGE MASTER command with
 #        master_delay= 10
-#    1 - On slave introduce a sleep of 15 seconds and check that the
+#    1 - Restart the slave and, after a brief moment, assert no ongoing delay.
+#    2 - On the slave, introduce a sleep of 15 seconds and check that the
 #        Seconds_Behind_Master is within specified master_delay limit. It should
 #        not be more that "10" seconds.
 #
 # ==== References ====
 #
 # MDEV-13895: GTID and Master_Delay causes excessive initial delay
+# MDEV-38825: Slave delays when there is "nothing" to replicate
 
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
@@ -25,6 +27,11 @@ CREATE TABLE t1 (i INT);
 --source include/stop_slave.inc
 CHANGE MASTER TO MASTER_DELAY= 10;
 --source include/start_slave.inc
+
+--sleep 3
+# Should be NULL and idle
+--let $status_items= SQL_Remaining_Delay, Slave_SQL_Running_State
+--source include/show_slave_status.inc
 
 --connection master
 INSERT INTO t1 VALUES (1);

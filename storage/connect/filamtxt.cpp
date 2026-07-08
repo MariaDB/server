@@ -1859,13 +1859,13 @@ int BINFAM::ReadBuffer(PGLOBAL g)
 	// Read the prefix giving the row length
 	if (!fread(&Recsize, sizeof(size_t), 1, Stream)) {
 		if (!feof(Stream)) {
-			snprintf(g->Message, sizeof(g->Message), "Error reading line prefix\n");
+			snprintf(g->Message, sizeof(g->Message), "Error reading line prefix");
 			return RC_FX;
 		} else
 			return RC_EF;
 
 	} else if (Recsize > (unsigned)Buflen) {
-		snprintf(g->Message, sizeof(g->Message), "Record too big (Recsize=%zd Buflen=%d)\n", Recsize, Buflen);
+		snprintf(g->Message, sizeof(g->Message), "Record too big (Recsize=%zd Buflen=%d)", Recsize, Buflen);
 		return RC_FX;
 	}	// endif Recsize
 

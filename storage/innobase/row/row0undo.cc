@@ -171,7 +171,7 @@ row_undo_search_clust_to_pcur(
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(!node->table->skip_alter_undo);
+	ut_ad(node->table->skip_alter_undo != dict_table_t::NO_UNDO);
 
 	mtr_start(&mtr);
 

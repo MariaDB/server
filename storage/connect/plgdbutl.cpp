@@ -1008,7 +1008,7 @@ bool WritePrivateProfileInt(LPCSTR sec, LPCSTR key, int n, LPCSTR ini)
   {
   char buf[12];
 
-  sprintf(buf, "%d", n);
+  snprintf(buf, sizeof(buf), "%d", n);
   return WritePrivateProfileString(sec, key, buf, ini);
   } // end of WritePrivateProfileInt
 
@@ -1115,7 +1115,7 @@ char *GetAmName(PGLOBAL g, AMT am, void *memp)
 		case TYPE_AM_MAC:   strcpy(amn, "MAC");   break;
     case TYPE_AM_OEM:   strcpy(amn, "OEM");   break;
     case TYPE_AM_OUT:   strcpy(amn, "OUT");   break;
-    default:           sprintf(amn, "OEM(%d)", am);
+    default:           snprintf(amn, 16, "OEM(%d)", am);
     } // endswitch am
 
   return amn;

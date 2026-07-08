@@ -5,6 +5,8 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_DELAY= 10;
 include/start_slave.inc
+SQL_Remaining_Delay = 'NULL'
+Slave_SQL_Running_State = 'Slave has read all relay log; waiting for more updates'
 connection master;
 INSERT INTO t1 VALUES (1);
 include/sync_slave_io_with_master.inc

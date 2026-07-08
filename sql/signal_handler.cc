@@ -198,7 +198,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   my_safe_printf_stderr("%s",
                         "Sorry, we probably made a mistake, and this is a bug.\n\n"
                         "Your assistance in bug reporting will enable us to fix this for the next release.\n"
-                        "To report this bug, see https://mariadb.com/kb/en/reporting-bugs about how to report\n"
+                        "To report this bug, see https://mariadb.com/docs/general-resources/community/community/bug-tracking/reporting-bugs about how to report\n"
                         "a bug on https://jira.mariadb.org/.\n\n"
                         "Please include the information from the server start above, to the end of the\n"
                         "information below.\n\n");
@@ -218,7 +218,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   {
     my_safe_printf_stderr("%s",
       "The information page at "
-      "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mariadbd/\n"
+      "https://mariadb.com/docs/server/reference/product-development/mariadb-fault-finding/how-to-produce-a-full-stack-trace-for-mariadbd"
       "contains instructions to obtain a better version of the backtrace below.\n"
       "Following these instructions will help MariaDB developers provide a fix quicker.\n\n"
       "Attempting backtrace. Include this in the bug report.\n"

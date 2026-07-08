@@ -1,6 +1,6 @@
 #
 #   This test ensures that, when a GTID event is constructed by reading its
-# content from a binlog file, the reader (e.g. replica, in this test) cannot
+# content from a binlog file, the reader (e.g. slave, in this test) cannot
 # read beyond the length of the GTID event. That is, we ensure that the
 # structure indicated by its flags and extra_flags are consistent with the
 # actual content of the event.

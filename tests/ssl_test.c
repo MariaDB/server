@@ -56,7 +56,7 @@ int main(int argc, char **argv)
   num = atoi(argv[2]);
   while (count < num)
   {
-    sprintf(qbuf,SELECT_QUERY,count);
+    snprintf(qbuf,sizeof(qbuf),SELECT_QUERY,count);
     if(mysql_query(sock,qbuf))
     {
       fprintf(stderr,"Query failed (%s)\n",mysql_error(sock));

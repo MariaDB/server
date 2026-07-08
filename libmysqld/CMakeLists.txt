@@ -162,7 +162,7 @@ ENDIF()
 IF(TARGET libfmt)
   ADD_DEPENDENCIES(sql_embedded libfmt)
 ENDIF()
-TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY})
+TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY} pcre2-8)
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a

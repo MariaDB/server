@@ -17,3 +17,10 @@ check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
+#
+# MDEV-39707 Assertion `lsn != 0' failed
+#
+SET @old_save_page= @@global.innodb_saved_page_number_debug;
+SET GLOBAL innodb_saved_page_number_debug=23;
+SET GLOBAL innodb_fil_make_page_dirty_debug=0;
+SET GLOBAL innodb_saved_page_number_debug= @old_save_page;

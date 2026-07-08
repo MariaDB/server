@@ -2086,8 +2086,23 @@ SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
 DROP TABLE t2_fed, t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
 
-DROP SERVER s;
-
 --echo # End of 10.5 tests
 
+--echo #
+--echo # MDEV-28374 UBSAN signed integer overflow PROCEDURE ANALYSE
+--echo #
+
+CREATE TABLE t (a BIGINT);
+INSERT INTO t VALUES ('-9223372036854775808');
+INSERT INTO t SELECT * FROM t;
+SELECT * FROM t PROCEDURE ANALYSE(2);
+
+CREATE TABLE t_fed ENGINE=FEDERATED CONNECTION='s/t';
+SELECT * FROM t_fed PROCEDURE ANALYSE(2);
+
+DROP TABLE t, t_fed;
+
+DROP SERVER s;
 source include/federated_cleanup.inc;
+
+--echo # End of 10.11 tests

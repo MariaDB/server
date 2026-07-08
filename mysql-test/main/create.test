@@ -1945,3 +1945,20 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 SET NAMES DEFAULT;
 
 --echo # End of 10.5 Test
+
+--echo #
+--echo # MDEV-39002: Diagnostics area assertion failure upon CREATE TABLE
+--echo #
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a INT, b VARCHAR(8) DEFAULT (IFNULL(a,''))) CHARSET swe7;
+
+--echo # Test Item_func_case_abbreviation2 (IF, NVL2, IFNULL) with collation mismatch in DEFAULT
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (IFNULL(_latin1'x', _swe7'y'))) CHARSET utf8;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (IF(1, _latin1'x', _swe7'y'))) CHARSET utf8;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CREATE TABLE t1 (a VARCHAR(8) CHARSET latin1, b VARCHAR(8) DEFAULT (NVL2(1, _latin1'x', _swe7'y'))) CHARSET utf8;
+
+--echo End of 10.11 tests

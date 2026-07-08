@@ -19,12 +19,16 @@ SET GLOBAL wsrep_IGNORE_apply_errors=1;
 SET SESSION wsrep_dirty_reads=1;
 SHOW CREATE TABLE t1;
 FLUSH HOSTS;
+--echo # This will cause inconsistency
 --error ER_TABLE_EXISTS_ERROR
 CREATE TABLE t1 (f1 INT) ENGINE=InnoDB;
-# This will cause inconsistency
---error ER_GALERA_REPLICATION_NOT_SUPPORTED
+--echo # Wait until inconsistent node_2 leaves from cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+# Both are possible
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED, ER_LOCK_WAIT_TIMEOUT
 FLUSH HOSTS;
-SHOW WARNINGS;
 
 --connection node_1
 --echo # Wait until inconsistent node_2 leaves from cluster

@@ -2751,7 +2751,7 @@ int spider_db_mbase::set_wait_timeout(
   sql_str.init_calc_mem(SPD_MID_DB_MBASE_SET_WAIT_TIMEOUT_1);
   sql_str.length(0);
   timeout_str_length =
-    my_sprintf(timeout_str, (timeout_str, "%d", wait_timeout));
+    snprintf(timeout_str, sizeof(timeout_str), "%d", wait_timeout);
   if (sql_str.reserve(SPIDER_SQL_WAIT_TIMEOUT_LEN + timeout_str_length))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   sql_str.q_append(SPIDER_SQL_WAIT_TIMEOUT_STR, SPIDER_SQL_WAIT_TIMEOUT_LEN);
@@ -3750,7 +3750,7 @@ int spider_db_mbase_util::append_wait_timeout(
   DBUG_ENTER("spider_db_mbase_util::append_wait_timeout");
   DBUG_PRINT("info",("spider this=%p", this));
   timeout_str_length =
-    my_sprintf(timeout_str, (timeout_str, "%d", wait_timeout));
+    snprintf(timeout_str, sizeof(timeout_str), "%d", wait_timeout);
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_WAIT_TIMEOUT_LEN +
     timeout_str_length))
   {
@@ -7784,7 +7784,7 @@ int spider_mbase_handler::append_key_column_types(
     key_count++
   ) {
     field = key_part->field;
-    key_name_length = my_sprintf(tmp_buf, (tmp_buf, "c%u", key_count));
+    key_name_length = snprintf(tmp_buf, sizeof(tmp_buf), "c%u", key_count);
     if (str->reserve(key_name_length + SPIDER_SQL_SPACE_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(tmp_buf, key_name_length);
@@ -7864,7 +7864,7 @@ int spider_mbase_handler::append_key_join_columns_for_bka(
     field = key_part->field;
     key_name_length =
       mysql_share->column_name_str[field->field_index].length();
-    length = my_sprintf(tmp_buf, (tmp_buf, "c%u", key_count));
+    length = snprintf(tmp_buf, sizeof(tmp_buf), "c%u", key_count);
     if (str->reserve(length + table_alias_lengths[0] + key_name_length +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
       table_alias_lengths[1] + SPIDER_SQL_PF_EQUAL_LEN + SPIDER_SQL_AND_LEN))
@@ -7896,8 +7896,8 @@ int spider_mbase_handler::append_tmp_table_and_sql_for_bka(
     table_dot_alias_lengths[2];
   tgt_table_name_str.init_calc_mem(SPD_MID_MBASE_HANDLER_APPEND_TMP_TABLE_AND_SQL_FOR_BKA_1);
   tgt_table_name_str.length(0);
-  create_tmp_bka_table_name(tmp_table_name, &tmp_table_name_length,
-    first_link_idx);
+  create_tmp_bka_table_name(tmp_table_name, sizeof(tmp_table_name),
+    &tmp_table_name_length, first_link_idx);
   if ((error_num = append_table_name_with_adjusting(&tgt_table_name_str,
     first_link_idx, SPIDER_SQL_TYPE_SELECT_SQL)))
   {
@@ -7992,6 +7992,7 @@ int spider_mbase_handler::reuse_tmp_table_and_sql_for_bka()
 
 void spider_mbase_handler::create_tmp_bka_table_name(
   char *tmp_table_name,
+  size_t tmp_table_name_size,
   int *tmp_table_name_length,
   int link_idx
 ) {
@@ -8013,9 +8014,9 @@ void spider_mbase_handler::create_tmp_bka_table_name(
     memcpy(tmp_table_name, mysql_share->db_names_str[link_idx].c_ptr(),
       mysql_share->db_names_str[link_idx].length());
     tmp_table_name += mysql_share->db_names_str[link_idx].length();
-    length = my_sprintf(tmp_table_name, (tmp_table_name,
+    length = snprintf(tmp_table_name, tmp_table_name_size,
       "%s%s%p%s", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider,
-      SPIDER_SQL_UNDERSCORE_STR));
+      SPIDER_SQL_UNDERSCORE_STR);
     *tmp_table_name_length += length;
     tmp_table_name += length;
     memcpy(tmp_table_name,
@@ -8031,8 +8032,8 @@ void spider_mbase_handler::create_tmp_bka_table_name(
     memcpy(tmp_table_name, mysql_share->db_names_str[link_idx].c_ptr(),
       mysql_share->db_names_str[link_idx].length());
     tmp_table_name += mysql_share->db_names_str[link_idx].length();
-    length = my_sprintf(tmp_table_name, (tmp_table_name,
-      "%s%s%p", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider));
+    length = snprintf(tmp_table_name, tmp_table_name_size,
+      "%s%s%p", SPIDER_SQL_DOT_STR, SPIDER_SQL_TMP_BKA_STR, spider);
     *tmp_table_name_length += length;
   }
   DBUG_VOID_RETURN;
@@ -9602,7 +9603,7 @@ int spider_mbase_handler::append_key_column_values_with_name(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
 
-    key_name_length = my_sprintf(tmp_buf, (tmp_buf, "c%u", key_count));
+    key_name_length = snprintf(tmp_buf, sizeof(tmp_buf), "c%u", key_count);
     if (str->reserve(SPIDER_SQL_SPACE_LEN + key_name_length +
       SPIDER_SQL_COMMA_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -11019,8 +11020,8 @@ int spider_mbase_handler::append_multi_range_cnt(
   char range_cnt_str[SPIDER_SQL_INT_LEN];
   DBUG_ENTER("spider_mbase_handler::append_multi_range_cnt");
   DBUG_PRINT("info",("spider this=%p", this));
-  range_cnt_length = my_sprintf(range_cnt_str, (range_cnt_str, "%u",
-    multi_range_cnt));
+  range_cnt_length = snprintf(range_cnt_str, sizeof(range_cnt_str), "%u",
+    multi_range_cnt);
   if (with_comma)
   {
     if (str->reserve(range_cnt_length + SPIDER_SQL_COMMA_LEN))
@@ -11066,8 +11067,8 @@ int spider_mbase_handler::append_multi_range_cnt_with_name(
   char range_cnt_str[SPIDER_SQL_INT_LEN];
   DBUG_ENTER("spider_mbase_handler::append_multi_range_cnt_with_name");
   DBUG_PRINT("info",("spider this=%p", this));
-  range_cnt_length = my_sprintf(range_cnt_str, (range_cnt_str, "%u",
-    multi_range_cnt));
+  range_cnt_length = snprintf(range_cnt_str, sizeof(range_cnt_str), "%u",
+    multi_range_cnt);
   if (str->reserve(range_cnt_length + SPIDER_SQL_SPACE_LEN +
     SPIDER_SQL_ID_LEN + SPIDER_SQL_COMMA_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -12285,8 +12286,8 @@ int spider_mbase_handler::set_sql_for_exec(
       tgt_table_name_str.length(0);
       if (result_list->tmp_table_join && spider->bka_mode != 2)
       {
-        create_tmp_bka_table_name(tmp_table_name, &tmp_table_name_length,
-          link_idx);
+        create_tmp_bka_table_name(tmp_table_name, sizeof(tmp_table_name),
+          &tmp_table_name_length, link_idx);
         append_table_name_with_adjusting(&tgt_table_name_str, link_idx,
           SPIDER_SQL_TYPE_TMP_SQL);
         table_names[0] = tmp_table_name;
