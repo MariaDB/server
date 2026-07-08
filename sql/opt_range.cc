@@ -15797,11 +15797,15 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min()
     }
 
     /*
+      The reason that next_min has more complexity than next_max() is
+      for NULLs handling.  In MariaDB, NULLs appear first in a result
+      and by default sort as less-than every other value.
+
       If the min/max argument field is NULL, skip subsequent rows in the same
       group with NULL in it. Notice that:
-      - if the first row in a group doesn't have a NULL in the field, no row
-      in the same group has (because NULL < any other value),
-      - min_max_arg_part->field->ptr points to some place in 'record'.
+       - if the first row in a group doesn't have a NULL in the field, no row
+         in the same group has (because NULL < any other value),
+       - min_max_arg_part->field->ptr points to some place in 'record'.
     */
     if (min_max_arg_part && min_max_arg_part->field->is_null())
     {
