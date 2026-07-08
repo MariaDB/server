@@ -77,10 +77,10 @@ create or replace server srv foreign data wrapper foo options
 (host "localhost", port "12345");
 create or replace server srv foreign data wrapper mysql options
 (host "localhost", port "bar321");
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"bar321")' at line 2
+ERROR HY000: Incorrect value 'bar321' for option 'PORT'
 create or replace server srv foreign data wrapper mysql options
 (host "localhost", port "123bar");
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"123bar")' at line 2
+ERROR HY000: Incorrect value '123bar' for option 'PORT'
 create or replace server srv foreign data wrapper mysql options
 (host "localhost", port "0");
 show create server nonexist;
@@ -153,21 +153,42 @@ rename table mysql.plugin_save to mysql.plugin;
 #
 ## Error code depends on length of long
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 4294967295);
-ERROR 22003: port value is out of range in 'INT'
+ERROR HY000: Incorrect value '4294967295' for option 'PORT'
+show warnings;
+Level	Code	Message
+Error	1912	Incorrect value '4294967295' for option 'PORT'
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483647);
 select * from mysql.servers;
 Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
-ALTER SERVER s OPTIONS (PORT 4294967295);
-ERROR 22003: port value is out of range in 'INT'
+ALTER SERVER s OPTIONS (PORT '4294967295');
+ERROR HY000: Incorrect value '4294967295' for option 'PORT'
 select * from mysql.servers;
 Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
-drop server s;
+CREATE OR REPLACE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT '4294967295');
+ERROR HY000: Incorrect value '4294967295' for option 'PORT'
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
+DROP SERVER s;
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483648);
-ERROR 22003: port value is out of range in 'INT'
-CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 18446744073709551615);
-ERROR 22003: port value is out of range in 'INT'
+ERROR HY000: Incorrect value '2147483648' for option 'PORT'
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-5)' at line 1
+CREATE SERVER s FOREIGN DATA WRAPPER mysqL OPTIONS (HOST '',PORT '1', PORT '2');
+SHOW CREATE SERVER s;
+Server	Create Server
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER `mysqL` OPTIONS (HOST '', PORT '2');
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					2		mysqL		{"HOST": "", "PORT": "2"}
+ALTER SERVER s options (PORT '7', PORT '8');
+SHOW CREATE SERVER s;
+Server	Create Server
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER `mysqL` OPTIONS (HOST '', PORT '8');
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					8		mysqL		{"HOST": "", "PORT": "8"}
+DROP SERVER s;
 # End of 10.11 tests

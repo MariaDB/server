@@ -71,11 +71,11 @@ show create server srv;
 create or replace server srv foreign data wrapper foo options
 (host "localhost", port "12345");
 
---error ER_PARSE_ERROR
+--error ER_BAD_OPTION_VALUE
 create or replace server srv foreign data wrapper mysql options
 (host "localhost", port "bar321");
 
---error ER_PARSE_ERROR
+--error ER_BAD_OPTION_VALUE
 create or replace server srv foreign data wrapper mysql options
 (host "localhost", port "123bar");
 
@@ -166,19 +166,28 @@ rename table mysql.plugin_save to mysql.plugin;
 --echo # MDEV-36230 SIGSEGV in store_server_fields on CREATE SERVER
 --echo #
 --echo ## Error code depends on length of long
---error ER_DATA_OUT_OF_RANGE
+--error ER_BAD_OPTION_VALUE
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 4294967295);
+show warnings;
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483647);
 select * from mysql.servers;
---error ER_DATA_OUT_OF_RANGE
-ALTER SERVER s OPTIONS (PORT 4294967295);
+--error ER_BAD_OPTION_VALUE
+ALTER SERVER s OPTIONS (PORT '4294967295');
 select * from mysql.servers;
-drop server s;
---error ER_DATA_OUT_OF_RANGE
+--error ER_BAD_OPTION_VALUE
+CREATE OR REPLACE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT '4294967295');
+select * from mysql.servers;
+DROP SERVER s;
+--error ER_BAD_OPTION_VALUE
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483648);
---error ER_DATA_OUT_OF_RANGE
-CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 18446744073709551615);
 --error ER_PARSE_ERROR
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
+CREATE SERVER s FOREIGN DATA WRAPPER mysqL OPTIONS (HOST '',PORT '1', PORT '2');
+SHOW CREATE SERVER s;
+select * from mysql.servers;
+ALTER SERVER s options (PORT '7', PORT '8');
+SHOW CREATE SERVER s;
+select * from mysql.servers;
+DROP SERVER s;
 
 --echo # End of 10.11 tests

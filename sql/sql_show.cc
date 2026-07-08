@@ -1571,12 +1571,15 @@ bool mysql_show_create_server(THD *thd, LEX_CSTRING *name)
   bool first= true;
   while (option)
   {
-    if (!first)
-      buffer.append(STRING_WITH_LEN(", "));
-    buffer.append(option->name);
-    buffer.append(STRING_WITH_LEN(" "));
-    append_unescaped(&buffer, option->value.str, option->value.length);
-    first= false;
+    if (option->value.str)
+    {
+      if (!first)
+        buffer.append(STRING_WITH_LEN(", "));
+      buffer.append(option->name);
+      buffer.append(STRING_WITH_LEN(" "));
+      append_unescaped(&buffer, option->value.str, option->value.length);
+      first= false;
+    }
     option= option->next;
   }
   buffer.append(STRING_WITH_LEN(");"));
