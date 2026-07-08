@@ -53,10 +53,19 @@ update mysql.innodb_table_stats set last_update="2020-01-01" where database_name
 set global innodb_stats_persistent= @save_innodb_stats_persistent;
 alter table mysql.time_zone_name ORDER BY Name;
 
-CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(Host 'localhost');
+# single quotes in option values must be escaped; Db/Username map to Database/User;
+# a server name with special chars must be quoted; multiple servers must dump with
+# correct option separators
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql
+  OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
+CREATE SERVER `s'2` FOREIGN DATA WRAPPER 'my''sql'
+  OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
 
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+# an aggregate UDF must round-trip as CREATE AGGREGATE FUNCTION
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE AGGREGATE FUNCTION avgcost RETURNS REAL SONAME "$UDF_EXAMPLE_SO";
 
 
 #
@@ -117,7 +126,9 @@ delete from mysql.time_zone;
 delete from mysql.time_zone_name;
 delete from mysql.time_zone_leap_second;
 DROP FUNCTION IF EXISTS metaphon;
+DROP FUNCTION IF EXISTS avgcost;
 DROP SERVER s1;
+DROP SERVER `s'2`;
 set time_zone= @@global.time_zone;
 
 --echo # Restore from mysqldump
@@ -138,8 +149,10 @@ CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
 #
 
 DROP FUNCTION IF EXISTS metaphon;
+DROP FUNCTION IF EXISTS avgcost;
 
 DROP SERVER s1;
+DROP SERVER `s'2`;
 
 # EITS && innodb stats
 DELETE FROM mysql.column_stats WHERE db_name='mysql' and table_name in ('tz', 'gtid_slave_pos');

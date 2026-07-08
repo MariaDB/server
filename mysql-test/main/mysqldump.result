@@ -5802,7 +5802,7 @@ USE `test`;
 /*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
-/*!50032 DROP TRIGGER IF EXISTS tt1_t1 */;
+/*!50032 DROP TRIGGER IF EXISTS `tt1_t1` */;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER tt1_t1 BEFORE INSERT ON t1 FOR EACH ROW 
 SET NEW.b=NEW.a + 10 

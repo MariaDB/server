@@ -3660,7 +3660,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   if (opt_drop_trigger)
     fprintf(sql_file, "/*!50032 DROP TRIGGER IF EXISTS %s */;\n",
-    (*show_trigger_row)[0]);
+          quote_name((*show_trigger_row)[0], name_buff, 0));
 
   fprintf(sql_file,
           "DELIMITER ;;\n"
@@ -3717,6 +3717,7 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
 {
   MYSQL_ROW row;
   char *query_str;
+  char name_buff[NAME_LEN*4+3];
   int db_cl_altered= FALSE;
 
   DBUG_ENTER("dump_trigger");
@@ -3744,7 +3745,7 @@ static int dump_trigger(FILE *sql_file, MYSQL_RES *show_create_trigger_rs,
 
     if (opt_drop_trigger)
       fprintf(sql_file, "/*!50032 DROP TRIGGER IF EXISTS %s */;\n",
-          row[0]);
+          quote_name(row[0],name_buff,0));
 
     query_str= cover_definer_clause(row[2], strlen(row[2]),
                                     C_STRING_WITH_LEN("50017"),
@@ -4816,6 +4817,7 @@ static int dump_all_plugins()
   /* Name, Status, Type, Library, License */
   while ((row= mysql_fetch_row(tableres)))
   {
+    char name_buff[NAME_LEN*2+3];
     if (strcmp("ACTIVE", row[1]) != 0)
       continue;
     /* Should we be skipping builtins? */
@@ -4824,11 +4826,14 @@ static int dump_all_plugins()
     if (opt_replace_into)
     {
       fprintf(md_result_file, "/*M!100401 UNINSTALL PLUGIN IF EXIST %s */;\n",
-              row[0]);
+              quote_name(row[0], name_buff, 0));
     }
-    fprintf(md_result_file,
-       "INSTALL PLUGIN %s %s SONAME '%s';\n", row[0],
-       opt_ignore ? "/*M!100401 IF NOT EXISTS */" : "", row[3]);
+    fprintf(md_result_file, "INSTALL PLUGIN %s %s SONAME ",
+       quote_name(row[0], name_buff, 0),
+       opt_ignore ? "/*M!100401 IF NOT EXISTS */" : "");
+    unescape(md_result_file, row[3], strlen(row[3]));
+    fputs(";\n", md_result_file);
+    check_io(md_result_file);
   }
   mysql_free_result(tableres);
 
@@ -4853,6 +4858,7 @@ static int dump_all_udfs()
   /* Name, ret, dl, type*/
   while ((row= mysql_fetch_row(tableres)))
   {
+    char name_buff[NAME_LEN*2+3];
     retresult= atoi(row[1]);
     if (retresult < 0 || array_elements(udf_types) <= (size_t) retresult)
     {
@@ -4864,13 +4870,17 @@ static int dump_all_udfs()
     if (opt_replace_into)
     {
       fprintf(md_result_file, "/*!50701 DROP FUNCTION IF EXISTS %s */;\n",
-              row[0]);
+              quote_name(row[0], name_buff, 0));
     }
     fprintf(md_result_file,
-            "CREATE %s%sFUNCTION %s%s RETURNS %s SONAME '%s';\n",
+            "CREATE %s%sFUNCTION %s%s RETURNS %s SONAME ",
             opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
-            (strcmp("AGGREGATE", row[2])==0 ? "AGGREGATE " : ""),
-            opt_ignore ? "IF NOT EXISTS " : "", row[0], udf_types[retresult], row[2]);
+            (strcmp("aggregate", row[3])==0 ? "AGGREGATE " : ""),
+            opt_ignore ? "IF NOT EXISTS " : "",
+            quote_name(row[0], name_buff, 0), udf_types[retresult]);
+    unescape(md_result_file, row[2], strlen(row[2]));
+    fputs(";\n", md_result_file);
+    check_io(md_result_file);
   }
   mysql_free_result(tableres);
 
@@ -4889,28 +4899,37 @@ static int dump_all_servers()
   MYSQL_RES *tableres;
   MYSQL_FIELD *f;
   unsigned int num_fields, i;
-  my_bool comma_prepend= 0;
-  const char *qstring;
+  char name_buff[NAME_LEN*2+3];
 
-  if (mysql_query_with_error_report(mysql, &tableres, "SELECT * FROM mysql.servers"))
+  /* alias Db/Username to the Database/User option keywords, emitted as-is below */
+  if (mysql_query_with_error_report(mysql, &tableres,
+        "SELECT Server_name, Host, Db AS `Database`, Username AS `User`, "
+        "Password, Port, Socket, Wrapper, Owner FROM mysql.servers"))
     return 1;
   num_fields= mysql_num_fields(tableres);
   while ((row= mysql_fetch_row(tableres)))
   {
-    fprintf(md_result_file,"CREATE %sSERVER %s%s FOREIGN DATA WRAPPER %s OPTIONS (",
+    my_bool comma_prepend= 0;
+    fprintf(md_result_file,"CREATE %sSERVER %s%s FOREIGN DATA WRAPPER ",
             opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
-            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "", row[0], row[7]);
+            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "",
+            quote_name(row[0], name_buff, 0));
+    unescape(md_result_file, row[7], strlen(row[7]));
+    fprintf(md_result_file," OPTIONS (");
     for (i= 1; i < num_fields; i++)
     {
       if (i == 7 || row[i][0] == '\0') /* Wrapper or empty string */
         continue;
       f= &tableres->fields[i];
-      qstring= (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING) ? "'" : "";
-      fprintf(md_result_file, "%s%s %s%s%s",
-              (comma_prepend ? ", " : ""), f->name, qstring, row[i], qstring);
+      fprintf(md_result_file, "%s%s ", (comma_prepend ? ", " : ""), f->name);
+      if (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING)
+        unescape(md_result_file, row[i], strlen(row[i]));
+      else
+        fputs(row[i], md_result_file);
       comma_prepend= 1;
     }
     fputs(");\n", md_result_file);
+    check_io(md_result_file);
   }
   mysql_free_result(tableres);
 
@@ -6218,6 +6237,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
+  char name_buff[FN_REFLEN*2+3];
 
   if (mysql_query_with_error_report(mysql_con, &slave,
                                     multi_source ?
@@ -6270,8 +6290,9 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
       if (use_gtid)
       {
         if (multi_source)
-          fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO "
-                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix, row[0]);
+          fprintf(md_result_file, "%sCHANGE MASTER %s TO "
+                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix,
+                  quote_for_equal(row[0], name_buff));
         else
           fprintf(md_result_file, "%sCHANGE MASTER TO "
                   "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix);
@@ -6279,21 +6300,24 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
 
       /* SHOW MASTER STATUS reports file and position */
       if (multi_source)
-        fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
-                nogtid_comment_prefix, row[0]);
+        fprintf(md_result_file, "%sCHANGE MASTER %s TO ",
+                nogtid_comment_prefix, quote_for_equal(row[0], name_buff));
       else
         fprintf(md_result_file, "%sCHANGE MASTER TO ", nogtid_comment_prefix);
       
       if (opt_include_master_host_port)
       {
         if (row[1 + multi_source])
-          fprintf(md_result_file, "MASTER_HOST='%s', ", row[1 + multi_source]);
+          fprintf(md_result_file, "MASTER_HOST=%s, ",
+                  quote_for_equal(row[1 + multi_source], name_buff));
         if (row[3])
-          fprintf(md_result_file, "MASTER_PORT=%s, ", row[3 + multi_source]);
+          fprintf(md_result_file, "MASTER_PORT=%llu, ",
+                  atoll(row[3 + multi_source]));
       }
       fprintf(md_result_file,
-              "MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
-              row[9 + multi_source], row[21 + multi_source]);
+              "MASTER_LOG_FILE=%s, MASTER_LOG_POS=%llu;\n",
+              quote_for_equal(row[9 + multi_source], name_buff),
+              atoll(row[21 + multi_source]));
 
       check_io(md_result_file);
     }
@@ -7169,24 +7193,25 @@ int main(int argc, char **argv)
     }
   }
 
-  if (opt_system & OPT_SYSTEM_PLUGINS)
-    dump_all_plugins();
+  if ((opt_system & OPT_SYSTEM_PLUGINS) && dump_all_plugins() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_USERS)
-    dump_all_users_roles_and_grants();
+  if ((opt_system & OPT_SYSTEM_USERS) &&
+      dump_all_users_roles_and_grants() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_UDFS)
-    dump_all_udfs();
+  if ((opt_system & OPT_SYSTEM_UDFS) && dump_all_udfs() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_SERVERS)
-    dump_all_servers();
+  if ((opt_system & OPT_SYSTEM_SERVERS) && dump_all_servers() && !first_error)
+    first_error= EX_MYSQLERR;
 
   /* These must be last as they explicitly change the current database to mysql */
-  if (opt_system & OPT_SYSTEM_STATS)
-    dump_all_stats();
+  if ((opt_system & OPT_SYSTEM_STATS) && dump_all_stats() && !first_error)
+    first_error= EX_MYSQLERR;
 
-  if (opt_system & OPT_SYSTEM_TIMEZONES)
-    dump_all_timezones();
+  if ((opt_system & OPT_SYSTEM_TIMEZONES) && dump_all_timezones() && !first_error)
+    first_error= EX_MYSQLERR;
 
   if (opt_master_data && master_set_gtid_pos[0])
     do_print_set_gtid_slave_pos(master_set_gtid_pos, TRUE);
