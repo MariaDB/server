@@ -59,20 +59,20 @@ create server srv foreign data wrapper mysql options
 (host "localhost", port 12345, wait_what "it's all good");
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `mysql` OPTIONS (host 'localhost', port '12345', wait_what 'it''s all good');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `mysql` OPTIONS (`host` 'localhost', `port` '12345', `wait_what` 'it''s all good');
 create or replace server srv foreign data wrapper Foo options
 (host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (`host` 'somewhere.else', `port` '54321', `wait_what` 'it''s all good', `foo` 'bar');
 alter server srv options (socket "sock", port 123, foo "", bar ')"{');
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (`host` 'somewhere.else', `wait_what` 'it''s all good', `socket` 'sock', `port` '123', `foo` '', `bar` ')"{');
 alter server srv options (socket "sock", port 123, bar "quux");
 show create server srv;
 Server	Create Server
-srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (host 'somewhere.else', wait_what 'it''s all good', foo '', socket 'sock', port '123', bar 'quux');
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER `Foo` OPTIONS (`host` 'somewhere.else', `wait_what` 'it''s all good', `foo` '', `socket` 'sock', `port` '123', `bar` 'quux');
 create or replace server srv foreign data wrapper foo options
 (host "localhost", port "12345");
 create or replace server srv foreign data wrapper mysql options
@@ -179,16 +179,25 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE SERVER s FOREIGN DATA WRAPPER mysqL OPTIONS (HOST '',PORT '1', PORT '2');
 SHOW CREATE SERVER s;
 Server	Create Server
-s	CREATE SERVER `s` FOREIGN DATA WRAPPER `mysqL` OPTIONS (HOST '', PORT '2');
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER `mysqL` OPTIONS (`HOST` '', `PORT` '2');
 select * from mysql.servers;
 Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 s					2		mysqL		{"HOST": "", "PORT": "2"}
 ALTER SERVER s options (PORT '7', PORT '8');
 SHOW CREATE SERVER s;
 Server	Create Server
-s	CREATE SERVER `s` FOREIGN DATA WRAPPER `mysqL` OPTIONS (HOST '', PORT '8');
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER `mysqL` OPTIONS (`HOST` '', `PORT` '8');
 select * from mysql.servers;
 Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 s					8		mysqL		{"HOST": "", "PORT": "8"}
 DROP SERVER s;
 # End of 10.11 tests
+#
+# MDEV-40312 SHOW CREATE SERVER incorrect quoting
+#
+create server s1 foreign data wrapper 'my''sql' options (`ho``st` 'va''lue');
+show create server s1;
+Server	Create Server
+s1	CREATE SERVER `s1` FOREIGN DATA WRAPPER `my'sql` OPTIONS (`ho``st` 'va''lue');
+drop server s1;
+# End of 11.8 tests

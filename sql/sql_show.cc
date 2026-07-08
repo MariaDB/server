@@ -1575,7 +1575,7 @@ bool mysql_show_create_server(THD *thd, LEX_CSTRING *name)
     {
       if (!first)
         buffer.append(STRING_WITH_LEN(", "));
-      buffer.append(option->name);
+      append_identifier(thd, &buffer, &option->name);
       buffer.append(STRING_WITH_LEN(" "));
       append_unescaped(&buffer, option->value.str, option->value.length);
       first= false;
