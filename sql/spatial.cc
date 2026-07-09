@@ -2669,8 +2669,7 @@ bool Gis_multi_line_string::get_mbr(MBR *mbr, const char **end) const
 
   while (n_line_strings--)
   {
-    data+= WKB_HEADER_SIZE;
-    if (!(data= get_mbr_for_points(mbr, data, 0)))
+    if (!(data= get_mbr_for_points(mbr, data + WKB_HEADER_SIZE, 0)))
       return 1;
   }
   *end= data;
@@ -2732,6 +2731,8 @@ int Gis_multi_line_string::geom_length(double *len, const char **end) const
   {
     double ls_len;
     Gis_line_string ls;
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
     data+= WKB_HEADER_SIZE;
     ls.set_data_ptr(data, (uint32) (m_data_end - data));
     if (ls.geom_length(&ls_len, &line_end))
@@ -3176,6 +3177,8 @@ int Gis_multi_polygon::area(double *ar,  const char **end_of_data) const
     double p_area;
     Gis_polygon p;
 
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
     data+= WKB_HEADER_SIZE;
     p.set_data_ptr(data, (uint32) (m_data_end - data));
     if (p.area(&p_area, &data))
@@ -3203,6 +3206,8 @@ int Gis_multi_polygon::centroid(String *result) const
 
   while (n_polygons--)
   {
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
     data+= WKB_HEADER_SIZE;
     p.set_data_ptr(data, (uint32) (m_data_end - data));
     if (p.area(&cur_area, &data) ||
