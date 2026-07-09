@@ -18,9 +18,7 @@ MY_ADD_TESTS(base64 bitmap byte_order crc32 dynstring lf my_atomic my_getopt
   waiting_threads
   LINK_LIBRARIES mysys)
 MY_ADD_TESTS(my_vsnprintf LINK_LIBRARIES strings mysys)
-ADD_DEFINITIONS(${SSL_DEFINES})
 MY_ADD_TESTS(aes LINK_LIBRARIES  mysys mysys_ssl)
-INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIRS})
 MY_ADD_TESTS(ma_dyncol LINK_LIBRARIES  mysys)
 
 IF(WIN32)
