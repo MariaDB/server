@@ -395,12 +395,14 @@ TO_DAYS('2007-10-07')
 --------------------------
 47. UNIX_TIMESTAMP()
 --------------------------
+set time_zone='+0:00';
 SELECT UNIX_TIMESTAMP(TIMESTAMP '2015-11-13 10:20:19');
 UNIX_TIMESTAMP(TIMESTAMP '2015-11-13 10:20:19')
 1447410019
 SELECT UNIX_TIMESTAMP(TIMESTAMP '2015-11-13 10:20:19') FROM t;
 UNIX_TIMESTAMP(TIMESTAMP '2015-11-13 10:20:19')
 1447410019
+set time_zone=@@global.time_zone;
 --------------------------
 51. WEEK()
 --------------------------
