@@ -251,9 +251,10 @@ SELECT TO_DAYS('2007-10-07') FROM t;
 --echo 47. UNIX_TIMESTAMP()
 --echo --------------------------
 
+set time_zone='+0:00';
 SELECT UNIX_TIMESTAMP(TIMESTAMP '2015-11-13 10:20:19');
 SELECT UNIX_TIMESTAMP(TIMESTAMP '2015-11-13 10:20:19') FROM t;
-
+set time_zone=@@global.time_zone;
 --echo --------------------------
 --echo 51. WEEK()
 --echo --------------------------
