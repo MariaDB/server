@@ -350,7 +350,7 @@ int Geometry::as_wkt(String *wkt, const char **end)
   if (get_data_as_wkt(wkt, end))
     return 1;
   if (get_class_info() != &geometrycollection_class)
-    wkt->qs_append(')');
+    wkt->append(')'); // NOT qs_append, get_data_as_wkt consumed reserved space
   return 0;
 }
 
@@ -3494,7 +3494,7 @@ bool Gis_geometry_collection::get_data_as_wkt(String *txt,
     goto exit;
   }
 
-  txt->qs_append('(');
+  txt->append('(');
   while (n_objects--)
   {
     uint32 wkb_type;
@@ -3512,7 +3512,7 @@ bool Gis_geometry_collection::get_data_as_wkt(String *txt,
     if (n_objects && txt->append(STRING_WITH_LEN(","), 512))
       return 1;
   }
-  txt->qs_append(')');
+  txt->append(')');
 exit:
   *end= data;
   return 0;

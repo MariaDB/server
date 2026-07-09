@@ -3582,5 +3582,9 @@ select st_centroid(x'0000000001060000000100000001030000');
 # similar on multilinestring
 select  glength(x'0000000001050000000100000001020000');
 
+--echo #
+--echo # MDEV-40329 Binary_string::qs_append(char): Assertion `str_length + (uint32) (1) <= Alloced_length' failed in AsText
+--echo #
+select astext(concat(x'00000000', repeat(x'010700000001000000', 200), x'010100000000000000000000000000000000000000')) as oops;
 
 --echo # End of 10.6 tests
