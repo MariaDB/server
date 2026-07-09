@@ -652,6 +652,8 @@ void test_update_many(uint *column_numbers, uint *column_values,
                                       update_count);
   res= (DYNAMIC_COLUMN_VALUE *)malloc(sizeof(DYNAMIC_COLUMN_VALUE) *
                                       result_count);
+  if (!val || !upd || !res)
+    BAIL_OUT("malloc failed (out of memory)");
 
 
   for (i= 0; i < column_count; i++)

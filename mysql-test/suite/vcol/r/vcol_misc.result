@@ -591,3 +591,13 @@ DROP TABLE t;
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.11 tests
+#
+SET character_set_connection=ucs2;
+CREATE TABLE t1 (d1 date not null, d2 date, gd text as (concat(d1,if(d1 <> d2, date_format(d2, 'to %y-%m-%d '), ''))) );
+SELECT (SELECT 1 FROM foo) FROM t1;
+ERROR 42S02: Table 'test.foo' doesn't exist
+INSERT INTO t1 (d1) VALUES ('2009-07-02');
+DROP TABLE t1;
+# End of 10.11 tests

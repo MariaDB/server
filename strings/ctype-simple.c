@@ -658,8 +658,12 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
 
   if (negative)
   {
-    if (i  > (ulonglong) LONGLONG_MIN)
+    if (i  >= (ulonglong) LONGLONG_MIN)
+    {
+      if (i == (ulonglong) LONGLONG_MIN)
+        return LONGLONG_MIN;
       overflow = 1;
+    }
   }
   else if (i > (ulonglong) LONGLONG_MAX)
     overflow = 1;

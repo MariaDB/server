@@ -24,3 +24,12 @@ FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_temp_blocks_decrypted';
 CAST(variable_value AS INT) > @old_decrypted
 1
+set @old_encrypt_tables= @@innodb_encrypt_tables;
+CREATE TEMPORARY TABLE t3 (c INT)ENCRYPTED=NO ENGINE=InnoDB;
+Warnings:
+Warning	1478	Ignoring encryption parameter during temporary table creation.
+SET GLOBAL innodb_encrypt_tables='FORCE';
+TRUNCATE TABLE t3;
+Warnings:
+Warning	1478	Ignoring encryption parameter during temporary table creation.
+SET GLOBAL innodb_encrypt_tables= @old_encrypt_tables;
