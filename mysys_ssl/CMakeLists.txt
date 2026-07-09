@@ -14,12 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
-                    ${CMAKE_SOURCE_DIR}/mysys_ssl
-                    ${SSL_INCLUDE_DIRS})
-
-IF(SSL_DEFINES)
-ADD_DEFINITIONS(${SSL_DEFINES})
-ENDIF()
+                    ${CMAKE_SOURCE_DIR}/mysys_ssl)
 
 SET(MYSYS_SSL_HIDDEN_SOURCES
     my_sha1.cc
@@ -45,5 +40,5 @@ IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)
 ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(mysys_ssl ${MYSYS_SSL_SOURCES})
-TARGET_LINK_LIBRARIES(mysys_ssl dbug strings ${SSL_LIBRARIES})
+TARGET_LINK_LIBRARIES(mysys_ssl dbug strings MariaDB::OpenSSL)
 DTRACE_INSTRUMENT(mysys_ssl)
