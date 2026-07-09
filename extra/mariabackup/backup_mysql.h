@@ -2,6 +2,7 @@
 #define XTRABACKUP_BACKUP_MYSQL_H
 
 #include <mysql.h>
+#include <cstdint>
 #include <string>
 #include <unordered_set>
 #include "datasink.h"
@@ -97,4 +98,6 @@ bool
 write_slave_info(ds_ctxt *datasink, MYSQL *connection);
 
 ulonglong get_current_lsn(MYSQL *connection);
+
+uint64_t get_log_flushed_lsn(MYSQL *connection) noexcept;
 #endif
