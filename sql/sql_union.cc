@@ -1344,6 +1344,14 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   */
   result= sel_result;
     
+  /* A unit cleanup() tore down but left "prepared" must be re-prepared,
+     else set_row() walks its stale item_list (NULL fields) on re-fix. */
+  if (prepared && cleaned)
+  {
+    unclean();
+    types.empty();
+    reinit_exec_mechanism();
+  }
   if (prepared)
   {
     if (describe)
