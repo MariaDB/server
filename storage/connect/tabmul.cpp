@@ -1171,13 +1171,16 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
     if (lstat(Fpath, &Fileinfo) < 0) {
       snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
+      closedir(dir);
       return -1;
     } else if (S_ISDIR(Fileinfo.st_mode) && *Entry->d_name != '.') {
       // Look in the name sub-directory
       strcat(strcat(Direc, Entry->d_name), "/");
 
-      if ((k= FindInDir(g)) < 0)
+      if ((k= FindInDir(g)) < 0) {
+        closedir(dir);
         return k;
+      }
       else
         n += k;
 
