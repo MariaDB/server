@@ -2723,8 +2723,8 @@ my_mb_wc_filename(CHARSET_INFO *cs __attribute__((unused)),
     }
   }
   
-  if (s + 4 > e)
-    return MY_CS_TOOSMALL4;
+  if (s + 5 > e)
+    return MY_CS_TOOSMALL5;
 
   if ((byte1= hexlo(byte1)) >= 0 &&
       (byte2= hexlo(byte2)) >= 0)

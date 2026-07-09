@@ -3723,6 +3723,7 @@ bool Vcol_expr_context::init()
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
   thd->stmt_arena= thd;
 
+  table->map= 1;
   inited= true;
   return false;
 }

@@ -6046,7 +6046,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           if (select->join)
           {
             marker= select->cur_pos_in_select_list;
-            select->join->non_agg_fields.push_back(this, thd->mem_root);
+            if (!thd->lex->in_sum_func)
+              select->join->non_agg_fields.push_back(this, thd->mem_root);
           }
           else
           {

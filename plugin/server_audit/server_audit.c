@@ -839,7 +839,8 @@ static struct connection_info *get_loc_info(MYSQL_THD thd)
   return (struct connection_info *) THDVAR(thd, loc_info);
   */
   struct connection_info *ci= (struct connection_info *) THDVAR(thd, loc_info);
-  if ((size_t) ci->user_length > sizeof(ci->user))
+  /* THDVAR can return NULL if the plugin was previously uninstalled (MDEV-34074). */
+  if (ci && (size_t) ci->user_length > sizeof(ci->user))
   {
     ci->user_length= 0;
     ci->host_length= 0;
@@ -2073,7 +2074,9 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     cn= get_loc_info(thd);
   }
 
-  update_connection_info(thd, cn, event_class, ev, &after_action);
+  /* Without loc_info (see get_loc_info) the session is not audited. */
+  if (cn)
+    update_connection_info(thd, cn, event_class, ev, &after_action);
 
   if (!logging)
   {
@@ -2631,7 +2634,7 @@ static void log_current_query(MYSQL_THD thd)
   if (!thd)
     return;
   cn= get_loc_info(thd);
-  if (!ci_needs_setup(cn) && cn->query_length)
+  if (cn && !ci_needs_setup(cn) && cn->query_length)
   {
     cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),

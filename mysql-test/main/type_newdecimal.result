@@ -3065,4 +3065,57 @@ SELECT (-299 / 450) AS neg_div;
 neg_div
 0
 SET @@SESSION.div_precision_increment=@old_prec_incr;
+#
+# MDEV-23444 ASAN dynamic-stack-buffer-overflow or Assertion `precision > 0' failed in decimal_bin_size with div_precision_increment=0
+#
+SET @save_div_precision_increment= @@div_precision_increment;
+SET div_precision_increment= 0;
+SELECT * FROM (SELECT AVG(@x := 0)) sq;
+AVG(@x := 0)
+0
+SELECT * FROM (SELECT WEEKDAY (0)/0) AS a0;
+WEEKDAY (0)/0
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+CREATE TABLE t (c INT);
+SET @a=(MOD (-1,62)) / (695 * 312);
+INSERT INTO t VALUES (@a:=0),(@a:=@a+1),(@a:=@a+1);
+CREATE VIEW c AS SELECT 2 DIV 3/3,2 DIV(3/3),(2 DIV 3)/3;
+SELECT 2 LIKE 3 IN (0,1),2 LIKE (3 IN (0,1)),(2 LIKE 3) IN (0,1) UNION SELECT * FROM c;
+2 LIKE 3 IN (0,1)	2 LIKE (3 IN (0,1))	(2 LIKE 3) IN (0,1)
+1	0	1
+0	2	0
+SELECT DAYOFWEEK( MAX( 'A' ) ) AS c13
+UNION SELECT LAST_INSERT_ID( GROUP_CONCAT( IFNULL( '2025' , '2025' ) ) ) AS c16 ;
+c13
+NULL
+9
+Warnings:
+Warning	1292	Incorrect datetime value: 'A'
+SELECT 1 FROM t GROUP BY WEEKDAY(c)/0;
+1
+1
+Warnings:
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t`.`c` at row 2
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t`.`c` at row 3
+SELECT c FROM t ORDER BY WEEKDAY(c)/0;
+c
+0
+1
+2
+Warnings:
+Warning	1292	Incorrect datetime value: '0' for column `test`.`t`.`c` at row 1
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t`.`c` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t`.`c` at row 1
+SET SESSION div_precision_increment=-2;
+Warnings:
+Warning	1292	Truncated incorrect div_precision_increment value: '-2'
+SELECT * FROM (SELECT AVG(@x :=0)) sq;
+AVG(@x :=0)
+0
+SET div_precision_increment= @save_div_precision_increment;
+DROP VIEW c;
+DROP TABLE t;
 # End of 10.11 tests
