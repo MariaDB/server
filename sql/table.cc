@@ -9084,6 +9084,24 @@ Item_subselect *TABLE_LIST::containing_subselect()
 */
 bool TABLE_LIST::process_index_hints(TABLE *tbl)
 {
+    /*
+    A TABLESAMPLE clause forces a sampling scan of the table and
+    index-based access can bias the result. Ignore any index hints
+    (old- or new-style) entirely and make sure no key is considered
+    usable, regardless of what the hints say.
+  */
+  if (tbl->pos_in_table_list && tbl->pos_in_table_list->tablesample_clause)
+  {
+    tbl->keys_in_use_for_query.clear_all();
+    tbl->keys_in_use_for_group_by.clear_all();
+    tbl->keys_in_use_for_order_by.clear_all();
+    tbl->keys_in_use_for_rowid_filter.clear_all();
+    tbl->covering_keys.clear_all();
+    tbl->force_index= tbl->force_index_join= tbl->force_index_group=
+        tbl->force_index_order= false;
+    return false;
+  }
+
   /* initialize the result variables */
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by= 
     tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=

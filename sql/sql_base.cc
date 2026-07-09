@@ -8558,6 +8558,14 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                             table_list->alias);
         }
 
+        if (table_list->tablesample_clause && (get_table_category(
+          table_list->db, table_list->table_name) != TABLE_CATEGORY_USER || 
+          table_list->tablesample_clause->fix_tablesample_fields(thd)))
+        {
+            my_error(ER_SYNTAX_ERROR, MYF(0));
+            DBUG_RETURN(1);
+        }
+
         if (!table_list->opt_hints_table ||
             !table_list->opt_hints_table->update_index_hint_maps(thd, table))
         {
@@ -8610,6 +8618,14 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         table->maybe_null= table_list->maybe_null_exec;
         table->pos_in_table_list= table_list;
 
+        if (table_list->tablesample_clause && (get_table_category(
+          table_list->db, table_list->table_name) != TABLE_CATEGORY_USER || 
+          table_list->tablesample_clause->fix_tablesample_fields(thd)))
+        {
+            my_error(ER_SYNTAX_ERROR, MYF(0));
+            DBUG_RETURN(1);
+        }
+
         if (!table_list->opt_hints_table ||
             !table_list->opt_hints_table->update_index_hint_maps(thd, table))
         {
@@ -8629,6 +8645,12 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
        table_list;
        table_list= table_list->next_local)
   {
+    if (table_list->tablesample_clause && table_list->is_view_or_derived())
+    {
+      my_error(ER_SYNTAX_ERROR, MYF(0));
+      DBUG_RETURN(1);
+    }
+
     if (table_list->is_merged_derived() && table_list->merge_underlying_list)
     {
       Query_arena *arena, backup;
@@ -8651,24 +8673,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
       DBUG_ASSERT(item == table_list->jtbm_subselect->optimizer);
-    }
-
-    if (table_list->tablesample_clause) {
-      if (table_list->is_view_or_derived() ||
-        get_table_category(table_list->db, table_list->table_name) != TABLE_CATEGORY_USER ||
-        table_list->tablesample_clause->fix_tablesample_fields(thd))
-      {
-        my_error(ER_SYNTAX_ERROR, MYF(0));
-        DBUG_RETURN(1);
-      }
-
-      // disable usage of indexes in presence of tablesample clause
-      // because it will cause the optimizer to choose an unwanted access
-      // path, wrong join strategy etc
-      table_list->table->keys_in_use_for_query.clear_all();
-      table_list->table->keys_in_use_for_group_by.clear_all();
-      table_list->table->keys_in_use_for_order_by.clear_all();
-      table_list->table->keys_in_use_for_rowid_filter.clear_all();
     }
   }
 

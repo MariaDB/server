@@ -71,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "sql_tablesample.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -16886,6 +16887,7 @@ void JOIN_TAB::estimate_scan_time()
   handler *file= table->file;
   double row_copy_cost, copy_cost;
   ALL_READ_COST * const cost= &cached_scan_and_compare_cost;
+  Lex_tablesample *sampling_info;
   cost->reset();
 
   cached_covering_key= MAX_KEY;
@@ -16918,9 +16920,42 @@ void JOIN_TAB::estimate_scan_time()
       }
       else
       {
-        cost->row_cost= file->ha_scan_time(records);
-        read_time= file->cost(cost->row_cost);
-        row_copy_cost= 0;              // Included in ha_scan_time
+        sampling_info= table->pos_in_table_list->tablesample_clause;
+        if (unlikely(sampling_info && sampling_info->get_sampling_method() ==
+          tablesample_method_enum::TABLESAMPLE_SYSTEM))
+        {
+          cached_covering_key= table->s->primary_key;
+          if (cached_covering_key != MAX_KEY)
+          {
+            if (file->is_clustering_key(cached_covering_key))
+            {
+              cost->index_cost=
+                file->ha_keyread_clustered_time(cached_covering_key, records, records, 0);
+              read_time= file->cost(cost->index_cost);
+              row_copy_cost= file->ROW_COPY_COST;
+            }
+            else
+            {
+              cost->index_cost=
+                file->ha_keyread_time(cached_covering_key, records, records, 0);
+              cost->row_cost= file->ha_rnd_pos_time(records);
+              read_time= file->cost(cost->row_cost) + file->cost(cost->index_cost);
+              row_copy_cost= 0; // included in ha_rnd_pos_time
+            }
+          }
+          else
+          {
+            cost->row_cost= file->ha_scan_time(records);
+            read_time= file->cost(cost->row_cost);
+            row_copy_cost= 0;              // Included in ha_scan_time
+          }
+        }
+        else
+        {
+          cost->row_cost= file->ha_scan_time(records);
+          read_time= file->cost(cost->row_cost);
+          row_copy_cost= 0;              // Included in ha_scan_time
+        }
       }
     }
   }

@@ -22,7 +22,8 @@
 
 enum tablesample_method_enum
 {
-  TABLESAMPLE_SYSTEM= 0,
+  TABLESAMPLE_NONE= 0,
+  TABLESAMPLE_SYSTEM,
   TABLESAMPLE_BERNOULLI
 };
 
@@ -31,8 +32,10 @@ class THD;
 class Lex_tablesample: public Sql_alloc
 {
 private:
-  enum tablesample_method_enum sampling_method;
+  enum tablesample_method_enum sampling_method=
+    tablesample_method_enum::TABLESAMPLE_NONE;
   Item *sampling_percentage;
+  double percentage= 0.0;
 
 public:
   Lex_tablesample(enum tablesample_method_enum method, Item *percentage) :
@@ -46,14 +49,25 @@ public:
     if(err)
       DBUG_RETURN(1);
     if (sampling_percentage->const_item())
-      {
-        double d= sampling_percentage->val_real();
-        if (d < 0.0 || d > 100.0)
-          DBUG_RETURN(1);
-      }
-      
-      DBUG_RETURN(0);
+    {
+      double d= sampling_percentage->val_real();
+      if (d < 0.0 || d > 100.0)
+        DBUG_RETURN(1);
+      percentage= d / 100.0;
     }
+
+    DBUG_RETURN(0);
+  }
+
+  double get_sampling_percentage_fraction() const
+  {
+    return percentage;
+  }
+
+  tablesample_method_enum get_sampling_method() const
+  {
+    return sampling_method;
+  }
 };
 
 #endif
