@@ -1081,3 +1081,113 @@ delimiter ;$$
 call sp();
 drop procedure sp;
 drop table t1;
+
+--echo # Case 2
+
+--delimiter $$
+create procedure sp () as
+ cursor c1 is select 1;
+
+ cursor refreshed(a INT) is select  1;
+ dummy INT;
+ r_refreshed refreshed%rowtype;
+begin
+ open refreshed(0);
+end
+$$
+
+--delimiter ;
+
+call sp();
+drop procedure sp;
+
+--echo # case 3
+
+--delimiter $$
+create procedure sp () as
+ cursor c1 is select 1;
+
+ dummy INT;
+ cursor refreshed(a INT) is select  1;
+ r_refreshed refreshed%rowtype;
+begin
+ open refreshed(0);
+end
+$$
+
+--delimiter ;
+
+call sp();
+drop procedure sp;
+
+--echo # case 4
+
+--delimiter $$
+create procedure sp () as
+ cursor c1 is select 1;
+
+ dummy INT;
+ cursor refreshed(a INT) is select  1;
+ dummy2 INT;
+ r_refreshed refreshed%rowtype;
+ cursor c2 is select 1;
+begin
+ open refreshed(0);
+end
+$$
+
+--delimiter ;
+
+call sp();
+drop procedure sp;
+
+--echo # case 5
+
+--delimiter $$
+create procedure sp () as
+ cursor c1 is select 1;
+
+ dummy INT;
+ cursor refreshed(a INT) is select  1;
+ cursor refreshed1 is select  1;
+ dummy2 INT;
+ r_refreshed refreshed%rowtype;
+ r_refreshed_1 refreshed1%rowtype;
+ cursor c2 is select 1;
+begin
+ open refreshed(0);
+end
+$$
+
+--delimiter ;
+
+call sp();
+drop procedure sp;
+
+--echo # case 6
+
+--delimiter $$
+create procedure sp () as
+ cursor c1 is select 1;
+
+ dummy INT;
+ cursor refreshed0 is select  1;
+ cursor refreshed_1(a INT, b INT) is select  1;
+ cursor refreshed(a INT) is select  1;
+ cursor refreshed_2(a INT, b INT) is select  1;
+ cursor refreshed1 is select  1;
+ dummy2 INT;
+ r_refreshed refreshed%rowtype;
+ r_refreshed_1 refreshed1%rowtype;
+ cursor c2 is select 1;
+begin
+ open refreshed(0);
+end
+$$
+
+--delimiter ;
+
+call sp();
+drop procedure sp;
+
+--echo # End of tests for MDEV-37086

@@ -1050,3 +1050,77 @@ $$
 call sp();
 drop procedure sp;
 drop table t1;
+# Case 2
+create procedure sp () as
+cursor c1 is select 1;
+cursor refreshed(a INT) is select  1;
+dummy INT;
+r_refreshed refreshed%rowtype;
+begin
+open refreshed(0);
+end
+$$
+call sp();
+drop procedure sp;
+# case 3
+create procedure sp () as
+cursor c1 is select 1;
+dummy INT;
+cursor refreshed(a INT) is select  1;
+r_refreshed refreshed%rowtype;
+begin
+open refreshed(0);
+end
+$$
+call sp();
+drop procedure sp;
+# case 4
+create procedure sp () as
+cursor c1 is select 1;
+dummy INT;
+cursor refreshed(a INT) is select  1;
+dummy2 INT;
+r_refreshed refreshed%rowtype;
+cursor c2 is select 1;
+begin
+open refreshed(0);
+end
+$$
+call sp();
+drop procedure sp;
+# case 5
+create procedure sp () as
+cursor c1 is select 1;
+dummy INT;
+cursor refreshed(a INT) is select  1;
+cursor refreshed1 is select  1;
+dummy2 INT;
+r_refreshed refreshed%rowtype;
+r_refreshed_1 refreshed1%rowtype;
+cursor c2 is select 1;
+begin
+open refreshed(0);
+end
+$$
+call sp();
+drop procedure sp;
+# case 6
+create procedure sp () as
+cursor c1 is select 1;
+dummy INT;
+cursor refreshed0 is select  1;
+cursor refreshed_1(a INT, b INT) is select  1;
+cursor refreshed(a INT) is select  1;
+cursor refreshed_2(a INT, b INT) is select  1;
+cursor refreshed1 is select  1;
+dummy2 INT;
+r_refreshed refreshed%rowtype;
+r_refreshed_1 refreshed1%rowtype;
+cursor c2 is select 1;
+begin
+open refreshed(0);
+end
+$$
+call sp();
+drop procedure sp;
+# End of tests for MDEV-37086
