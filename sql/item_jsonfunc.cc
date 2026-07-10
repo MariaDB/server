@@ -6639,6 +6639,7 @@ void Item_func_is_json::print(String *str, enum_query_type query_type)
 bool Item_func_member_of::val_bool()
 {
   DBUG_ASSERT(fixed());
+  THD *thd;
 
   /* 1. Evaluate args[1] (the JSON document/array) to check if it is SQL NULL */
   String *js_doc= args[1]->val_json(&tmp_js_doc);
@@ -6648,6 +6649,9 @@ bool Item_func_member_of::val_bool()
     return false;
   }
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   /*
     2. Validate args[1] (the JSON document/array) is well-formed JSON.
     This prevents the composed JSON_CONTAINS item from raising its own warning.
@@ -6656,6 +6660,7 @@ bool Item_func_member_of::val_bool()
   */
   json_scan_start(&je_val, js_doc->charset(), (const uchar *) js_doc->ptr(),
                   (const uchar *) js_doc->ptr() + js_doc->length());
+  je_val.killed_ptr= (uint32_t *) &thd->killed;
   while (json_scan_next(&je_val) == 0) /* no-op */ ;
   if (je_val.s.error)
   {
@@ -6675,6 +6680,7 @@ bool Item_func_member_of::val_bool()
     }
     json_scan_start(&je_val, js_cand->charset(), (const uchar *) js_cand->ptr(),
                     (const uchar *) js_cand->ptr() + js_cand->length());
+    je_val.killed_ptr= (uint32_t *) &thd->killed;
     while (json_scan_next(&je_val) == 0) /* no-op */ ;
     if (je_val.s.error)
     {
