@@ -39,18 +39,16 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root, TABLE *table,
                                      uint metadata,
                                      const Field *target) const override;
-  // const Type_handler *type_handler_for_comparison() const override;
-  // const Type_handler *type_handler_for_tmp_table(const Item *item) const
-  //   override;
-  // bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING
-  // &func_name,
-  //       Type_handler_hybrid_field_type *handler, Type_all_attributes *func,
-  //       Item **items, uint nitems) const override;
+  const Type_handler *type_handler_for_comparison() const override;
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const override;
+  bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &func_name,
+        Type_handler_hybrid_field_type *handler, Type_all_attributes *func,
+        Item **items, uint nitems) const override;
 
-  // virtual Item *create_typecast_item(THD *thd, Item *item,
-  //                 const Type_cast_attributes &attr) const override;
+  virtual Item *create_typecast_item(THD *thd, Item *item,
+                  const Type_cast_attributes &attr) const override;
 
-  // Item *make_constructor_item(THD *thd, List<Item> *args) const override;
+  Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
@@ -110,6 +108,33 @@ public:
     to->set_data_type_name(Type_handler_json::name_on_client);
   }
   uint size_of() const override { return sizeof(*this); }
+  
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const override;
+
 };
 
-#endif // SQL_TYPE_JSON_INCLUDED
+class Item_json_typecast : public Item_char_typecast
+{
+public: 
+  Item_json_typecast(THD *thd, Item *a, CHARSET_INFO *cs_arg):
+    Item_char_typecast(thd, a, -1, cs_arg) {}
+
+  const Type_handler *type_handler() const override
+  { return &type_handler_json; }
+
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_json")};
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *to) override;
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_json_typecast>(thd, this); }
+
+  void print(String *str, enum_query_type query_type) override;
+};
+
+#endif // SQL_TYPE_JSON_PLUGIN_INCLUDED

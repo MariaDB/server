@@ -104,6 +104,81 @@ t1	CREATE TABLE `t1` (
   `a` json DEFAULT json_object('now',1) CHECK (json_valid(`a`))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+SELECT CAST('{"a":1}' AS JSON);
+CAST('{"a":1}' AS JSON)
+{"a":1}
+SELECT CAST('[]' AS JSON);
+CAST('[]' AS JSON)
+[]
+SELECT CAST('xxx' AS JSON);
+CAST('xxx' AS JSON)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'xxx'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect JSON value: 'xxx'
+SELECT CAST(NULL AS JSON);
+CAST(NULL AS JSON)
+NULL
+SELECT CAST('{"a":1}' AS JSON);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST('{"a":1}' AS JSON)	251 (format=json)	7	7	Y	0	0	8
+CAST('{"a":1}' AS JSON)
+{"a":1}
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 SELECT CAST('{"x":1}' AS JSON);
+SELECT * FROM t1;
+a
+{"x":1}
+INSERT INTO t1 SELECT CAST('bad' AS JSON);
+ERROR 22007: Truncated incorrect JSON value: 'bad'
+DROP TABLE t1;
+SELECT CAST('{}' AS JSON CHARACTER SET utf8);
+ERROR HY000: Data type 'JSON' doesn't support CHARACTER SET attribute.
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('{"ok":1}'), ('bad');
+SELECT a FROM t1 WHERE CAST(a AS JSON) IS NOT NULL;
+a
+{"ok":1}
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'bad'
+DROP TABLE t1;
+SELECT CAST('{"a":1}' AS JSON) UNION ALL SELECT CAST('{"b":2}' AS JSON);
+CAST('{"a":1}' AS JSON)
+{"a":1}
+{"b":2}
+EXPLAIN EXTENDED SELECT CAST('{}' AS JSON);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast('{}' as json charset latin1) AS `CAST('{}' AS JSON)`
+EXPLAIN EXTENDED SELECT `JSON`('{}');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast('{}' as json charset latin1) AS ```JSON``('{}')`
+SELECT `JSON`('{"a":1}');
+`JSON`('{"a":1}')
+{"a":1}
+SELECT `JSON`('[]');
+`JSON`('[]')
+[]
+SELECT `JSON`('not-json');
+`JSON`('not-json')
+NULL
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'not-json'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect JSON value: 'not-json'
+select cast('{a:1}' as text);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'text)' at line 1
+select cast('{a:1}' as json);
+cast('{a:1}' as json)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect JSON value: '{a:1}'
 #
 # Start of 10.5 tests
 #
@@ -140,7 +215,7 @@ SELECT a, JSON_COMPACT(a), COALESCE(a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	test	t1	t1	a	a	251 (type=json)	4294967295	9	Y	144	0	192
 def					JSON_COMPACT(a)	251 (format=json)	4294967295	9	Y	128	0	192
-def					COALESCE(a)	251	4294967295	9	Y	128	39	192
+def					COALESCE(a)	251 (format=json)	4294967295	9	Y	128	39	192
 a	JSON_COMPACT(a)	COALESCE(a)
 {"a":"b"}	{"a":"b"}	{"a":"b"}
 SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;

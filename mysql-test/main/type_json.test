@@ -67,10 +67,61 @@ select * from t1;
 show create table t1;
 drop table t1;
 
-#--error ER_PARSE_ERROR
-#select cast('{a:1}' as text);
-#--error ER_PARSE_ERROR
-#select cast('{a:1}' as json);
+# Casting
+
+# Basic valid cast
+SELECT CAST('{"a":1}' AS JSON);
+SELECT CAST('[]' AS JSON);
+
+
+# null with warning
+SELECT CAST('xxx' AS JSON);
+SHOW WARNINGS;
+
+# Null
+SELECT CAST(NULL AS JSON);
+
+--enable_metadata
+SELECT CAST('{"a":1}' AS JSON);
+--disable_metadata
+
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 SELECT CAST('{"x":1}' AS JSON);
+SELECT * FROM t1;
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 SELECT CAST('bad' AS JSON);
+DROP TABLE t1;
+
+
+# test failing to assign charset even it's utf8
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+SELECT CAST('{}' AS JSON CHARACTER SET utf8);
+
+
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('{"ok":1}'), ('bad');
+SELECT a FROM t1 WHERE CAST(a AS JSON) IS NOT NULL;
+DROP TABLE t1;
+
+SELECT CAST('{"a":1}' AS JSON) UNION ALL SELECT CAST('{"b":2}' AS JSON);
+
+EXPLAIN EXTENDED SELECT CAST('{}' AS JSON);
+EXPLAIN EXTENDED SELECT `JSON`('{}');
+
+
+# test make_constructor_item
+
+SELECT `JSON`('{"a":1}');
+SELECT `JSON`('[]');
+
+# Invalid JSON returns NULL and throws a warning
+SELECT `JSON`('not-json');
+SHOW WARNINGS;
+
+--error ER_PARSE_ERROR
+select cast('{a:1}' as text);
+
+select cast('{a:1}' as json);
 
 --echo #
 --echo # Start of 10.5 tests
