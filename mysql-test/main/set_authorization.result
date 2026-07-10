@@ -149,3 +149,21 @@ set session authorization root@localhost;
 -- 
 
 # End of 12.0 tests
+#
+# MDEV-40336 SET AUTHORIZATION un-expired passwords
+#
+create user u1@localhost;
+alter user u1@localhost password expire;
+connect con1,localhost,u1;
+select 1;
+ERROR HY000: You must SET PASSWORD before executing this statement
+set session authorization u1@localhost;
+ERROR HY000: You must SET PASSWORD before executing this statement
+set password=password('');
+select 2;
+2
+2
+disconnect con1;
+connection default;
+drop user u1@localhost;
+# End of 12.3 tests

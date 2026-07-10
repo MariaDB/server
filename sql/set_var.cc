@@ -995,6 +995,9 @@ int set_var_authorization::check(THD *thd)
   if (thd->in_active_multi_stmt_transaction())
     my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "SESSION AUTHORIZATION");
   else
+  if (thd->security_ctx->password_expired)
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+  else
     return 0;
 
   return 1;
