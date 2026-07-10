@@ -1,69 +1,97 @@
-# Code status:
+# MariaDB Server
 
-* [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
+MariaDB Server is one of the most widely deployed open source relational
+ databases. It is built by a global community of contributors together with
+the MariaDB Foundation and MariaDB plc, and it powers workloads from small
+applications to large-scale production systems.
 
-## MariaDB: The innovative open source database
+MariaDB began as a fork of MySQL, led by the original MySQL developers,
+and it maintains a high degree of MySQL compatibility. It has since grown
+into a database with its own capabilities, including native vector search,
+multiple pluggable storage engines, synchronous clustering, and analytical
+features, while remaining a straightforward migration target for existing
+MySQL deployments.
 
-MariaDB was designed as a drop-in replacement for MySQL(R) with more 
-features, new storage engines, fewer bugs, and better performance.
+## Key features
 
-MariaDB is brought to you by the MariaDB Foundation and the MariaDB Corporation.
-Please read the CREDITS file for details about the MariaDB Foundation,
-and who is developing MariaDB.
+* **Native vector search**. A built-in VECTOR data type with approximate
+  nearest-neighbour indexing (HNSW), available since MariaDB 11.8 with
+  no extension required.
+* **Pluggable storage engines**. InnoDB (default for transactional workloads),
+  Aria, MyRocks, ColumnStore for analytics, Spider for sharding, and S3
+  for archival, among others.
+* **Replication and clustering**. Asynchronous, semi-synchronous, and
+  parallel replication with global transaction IDs, plus Galera synchronous
+  multi-primary clustering.
+* **Advanced SQL**. Common table expressions and recursive CTEs, window
+  functions, system-versioned (temporal) tables, sequences, and a broad set
+  of JSON functions.
+* **MySQL and Oracle compatibility**. Wire-protocol and syntax compatibility
+  with MySQL, plus an Oracle SQL mode supporting PL/SQL-style stored routines.
+* **Spatial and full-text search**. GIS data types and functions, and built-in
+  full-text indexing.
+* **Security**. Role-based access control, pluggable authentication (ed25519,
+  PAM, GSSAPI, and more), data-at-rest encryption, and TLS for connections.
 
-MariaDB is developed by many of the original developers of MySQL who
-now work for the MariaDB Corporation, the MariaDB Foundation and by
-many people in the community.
+## Documentation
 
-MySQL, which is the base of MariaDB, is a product and trademark of Oracle
-Corporation, Inc. For a list of developers and other contributors,
-see the Credits appendix.  You can also run 'SHOW authors' to get a
-list of active contributors.
+* [Project home, community, and getting involved](https://mariadb.org)
+* [Reference manual and release notes](https://mariadb.com/docs/)
+* [MariaDB compared to MySQL](https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/mariadb-vs-mysql-features)
 
-A description of the MariaDB project and a manual can be found at:
+## Releases
 
-https://mariadb.org
+MariaDB Server follows a yearly long-term support (LTS) model alongside
+quarterly rolling releases. Binary LTS releases are maintained for three years
+and are recommended for production; rolling releases deliver new features
+sooner with a shorter support window.
 
-https://mariadb.com/docs/
+For the current version and full history, see
+ [Releases](https://github.com/MariaDB/server/releases) and
+ the [MariaDB release calendar](https://mariadb.org/mariadb/all-releases/).
 
-https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/mariadb-vs-mysql-features
+## Installing
 
-https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/mariadb-vs-mysql-compatibility
+Packages and installation instructions for all supported platforms are
+available at [https://mariadb.org/download/](https://mariadb.org/download/).
 
-https://mariadb.com/docs/release-notes
+## Building from source
 
-# Getting the code, building it and testing it
+To build MariaDB from source and run the test suite, follow the
+[developer guide](https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/)
 
-Refer to the following guide: https://mariadb.org/get-involved/getting-started-for-developers/get-code-build-test/
-which outlines how to build the source code correctly and run the MariaDB testing framework,
-as well as which branch to target for your contributions.
+It covers building the code correctly, running the MariaDB testing framework,
+and choosing the right branch to target for contributions.
 
-# Help
+## Contributing
 
-More help is available from the Maria Discuss mailing list
-https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/ and MariaDB's Zulip
-instance, https://mariadb.zulipchat.com/
+Contributions are welcome, from code and documentation to bug reports and
+reviews. See [CONTRIBUTING.md](CONTRIBUTING.md) to
+get started, and [CODING_STANDARDS.md](CODING_STANDARDS.md)
+for code style. Contributors and community members are recognised in
+[CREDITS](CREDITS).
 
-# Licensing
+## Getting help
 
-***************************************************************************
+* [Zulip chat](https://mariadb.zulipchat.com/)
+* [Maria Discuss mailing list](https://lists.mariadb.org/postorius/lists/discuss.lists.mariadb.org/)
+* [Bug reports](https://jira.mariadb.org)
+* Security vulnerabilities: see [SECURITY.md](SECURITY.md)
 
-MariaDB is specifically available only under version 2 of the GNU
-General Public License (GPLv2). (I.e. Without the "any later version"
-clause.) This is inherited from MySQL. Please see the README file in
-the MySQL distribution for more information.
+## Licensing
 
-License information can be found in the COPYING file. Third party
-license information can be found in the THIRDPARTY file.
+MariaDB Server is licensed under version 2 of the GNU General Public
+License (GPLv2), without the "any later version" clause. This is inherited from
+MySQL. License information is in the [COPYING](COPYING)
+file, and third-party license information is in the
+[THIRDPARTY](THIRDPARTY) file.
 
-***************************************************************************
+## About MariaDB Foundation
 
-# Bug Reports
+MariaDB is brought to you by the MariaDB Foundation and MariaDB plc.
+The MariaDB Foundation is the custodian of the MariaDB Server codebase,
+ensuring it stays open and that anyone can contribute.
+See [CREDITS](CREDITS) for details on the Foundation
+and the people developing MariaDB.
 
-Bug and/or error reports regarding MariaDB should be submitted at:
-https://jira.mariadb.org
-
-For reporting security vulnerabilities, see our [security-policy](https://mariadb.org/about/security-policy/).
-
-The code for MariaDB, including all revision history, can be found at:
-https://github.com/MariaDB/server
+MySQL, the base of MariaDB, is a product and trademark of Oracle Corporation, Inc.
