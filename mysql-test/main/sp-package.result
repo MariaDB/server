@@ -1,0 +1,206 @@
+#
+# Start of 11.4 tests
+#
+SET sql_mode='';
+CREATE OR REPLACE PACKAGE pkg
+PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg
+-- variable declarations
+DECLARE a INT DEFAULT 11;
+DECLARE b INT DEFAULT 10;
+-- routine declarations
+PROCEDURE p1()
+BEGIN
+SELECT CURRENT_USER;
+END;
+FUNCTION f1() RETURNS INT
+BEGIN
+RETURN a;
+END;
+-- initialization section
+SET a=a-b;
+END;
+$$
+SHOW CREATE PACKAGE pkg;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg		CREATE DEFINER=`root`@`localhost` PACKAGE `pkg` PROCEDURE p1();
+FUNCTION f1() RETURNS INT;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW CREATE PACKAGE BODY pkg;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pkg		CREATE DEFINER=`root`@`localhost` PACKAGE BODY `pkg` DECLARE a INT DEFAULT 11;
+DECLARE b INT DEFAULT 10;
+-- routine declarations
+PROCEDURE p1()
+BEGIN
+SELECT CURRENT_USER;
+END;
+FUNCTION f1() RETURNS INT
+BEGIN
+RETURN a;
+END;
+-- initialization section
+SET a=a-b;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CALL pkg.p1();
+CURRENT_USER
+root@localhost
+SELECT pkg.f1();
+pkg.f1()
+1
+DROP PACKAGE pkg;
+#
+# MDEV-33428 Error messages ER_PACKAGE_ROUTINE_* are not good enough
+#
+#
+# Routines declared in CREATE PACKAGE missing in CREATE PACKAGE BODY
+#
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+PROCEDURE p2() BEGIN SELECT 0; END;
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+CREATE PACKAGE test2
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY test2
+FUNCTION f2() RETURNS INT BEGIN RETURN 10; END;
+END;
+$$
+ERROR HY000: FUNCTION `test.test2.f1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+FUNCTION p1() RETURNS INT BEGIN RETURN 10; END;
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+PROCEDURE p1(a INT) BEGIN SELECT 0; END; -- Notice different prototype
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
+DROP PACKAGE test2;
+#
+# Forward declarations in CREATE PACKAGE BODY with missing implementations
+#
+CREATE PACKAGE test2
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY test2
+PROCEDURE p1() BEGIN SELECT 0; END;
+PROCEDURE p2();
+END;
+$$
+ERROR HY000: PROCEDURE `test.test2.p2` has a forward declaration but is not defined
+CREATE PACKAGE BODY test2
+FUNCTION f1() RETURNS INT;
+PROCEDURE p1() BEGIN SELECT 0; END;
+END;
+$$
+ERROR HY000: FUNCTION `test.test2.f1` has a forward declaration but is not defined
+DROP PACKAGE test2;
+#
+# End of 11.4 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+#
+# Testing fixed ROW type with package routines
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(32));
+PROCEDURE p1(r ROW(a INT, b VARCHAR(32)));
+PROCEDURE p2();
+END;
+$$
+CREATE PACKAGE BODY pkg
+FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(32))
+BEGIN
+RETURN ROW(1,'b1');
+END;
+PROCEDURE p1(r ROW(a INT, b VARCHAR(32)))
+BEGIN
+SELECT r.a, r.b;
+END;
+PROCEDURE p2()
+BEGIN
+CALL p1(f1());
+END; 
+END;
+$$
+CALL pkg.p1(pkg.f1());
+r.a	r.b
+1	b1
+CALL pkg.p2;
+r.a	r.b
+1	b1
+DROP PACKAGE pkg;
+#
+# Testing "ROW TYPE OF table" with package routines
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS ROW TYPE OF t1;
+PROCEDURE p1(r ROW TYPE OF t1);
+PROCEDURE p2();
+END;
+/
+CREATE PACKAGE BODY pkg
+FUNCTION f1() RETURNS ROW TYPE OF t1
+BEGIN
+DECLARE r ROW TYPE OF t1;
+SELECT * INTO r FROM t1;
+RETURN r;
+END;
+PROCEDURE p1(r ROW TYPE OF t1)
+BEGIN
+SELECT CONCAT(r.a, ' ', r.b);
+END;
+PROCEDURE p2()
+BEGIN
+CALL p1(f1());
+END;
+END;
+/
+CALL pkg.p1(pkg.f1());
+CONCAT(r.a, ' ', r.b)
+1 b1
+CALL pkg.p2;
+CONCAT(r.a, ' ', r.b)
+1 b1
+DROP PACKAGE pkg;
+DROP TABLE t1;
+# End of 11.7 tests
+#
+# MDEV-36067 Assertion failure in TABLE_SHARE::init_from_sql_statement_string
+#
+rename table mysql.proc to test.proc_backup;
+select * from information_schema.tables where
+table_schema='sys' and table_name='x$schema_table_lock_waits';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+rename table test.proc_backup to mysql.proc;
+# End of 11.8 tests

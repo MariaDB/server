@@ -1,0 +1,24 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+INSTALL SONAME 'ha_spider';
+# set spider_internal_xa=1; # no use
+
+--connection master
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+XA START 'x';
+INSERT INTO t VALUES (1),(2);
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';
+
+--sync_slave_with_master
+
+--connection master
+DROP TABLE t;
+
+--connection slave
+--disable_query_log
+--source ../../include/clean_up_spider.inc
+--source include/rpl_end.inc

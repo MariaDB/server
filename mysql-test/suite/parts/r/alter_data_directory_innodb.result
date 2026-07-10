@@ -13,7 +13,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -25,7 +25,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
@@ -34,12 +34,14 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
 SET @TMP = @@GLOBAL.INNODB_FILE_PER_TABLE;
 SET GLOBAL INNODB_FILE_PER_TABLE=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t ADD PRIMARY KEY pk(a), ALGORITHM=INPLACE;
 Warnings:
 Warning	1280	Name 'pk' ignored for PRIMARY key.
@@ -48,24 +50,26 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
 SET GLOBAL INNODB_FILE_PER_TABLE=@TMP;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t REORGANIZE PARTITION p1,p2 INTO (
 PARTITION p1 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB,
 PARTITION p2 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB
 );
 Warnings:
-Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
-Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	DATA DIRECTORY option ignored for InnoDB partition
+Warning	1982	DATA DIRECTORY option ignored for InnoDB partition
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`a`)
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)

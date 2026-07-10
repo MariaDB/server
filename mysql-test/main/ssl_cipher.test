@@ -2,7 +2,13 @@
 # Various tests that require setting of a specific ssl_cipher
 # which currently doesn't work in OpenSSL 1.1.1
 #
+
+--disable_query_log
+CALL mtr.add_suppression("are insecure");
+--enable_query_log
+
 --source include/have_ssl_communication.inc
+--source include/count_sessions.inc
 
 if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
   skip OpenSSL 1.1.1;
@@ -38,6 +44,7 @@ connection con4;
 SHOW STATUS LIKE 'Ssl_cipher';
 disconnect con4;
 connection default;
+--source include/wait_until_count_sessions.inc
 drop user ssl_user1@localhost, ssl_user2@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
 
 #
@@ -51,7 +58,7 @@ EOF
 --exec $MYSQL_TEST --ssl-cipher=AES256-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using a list of ciphers
 --exec $MYSQL_TEST --ssl-cipher=UNKNOWN-CIPHER:AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
-# Test to connect using a specifi cipher
+# Test to connect using a specific cipher
 --exec $MYSQL_TEST --ssl-cipher=AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using an unknown cipher
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
@@ -88,6 +95,7 @@ select 'is still running; no cipher request crashed the server' as result from d
 create user mysqltest_1@localhost;
 grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
 --exec $MYSQL -umysqltest_1 --ssl-cipher=AES256-SHA -e "show status like 'ssl_cipher'" 2>&1
+--source include/wait_until_count_sessions.inc
 drop user mysqltest_1@localhost;
 
 #
@@ -101,3 +109,26 @@ SHOW STATUS LIKE 'Ssl_cipher';
 SELECT VARIABLE_VALUE like '%AES128-SHA%' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher_list';
 disconnect ssl_con;
 connection default;
+
+# MDEV-31369 Disable TLS v1.0 and 1.1 for MariaDB
+call mtr.add_suppression("TLSv1.0 and TLSv1.1 are insecure");
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= TLSv1.0 and TLSv1.1 are insecure
+--source include/search_pattern_in_file.inc
+
+#
+# Server is configured with ciphers that are not compatible with the server certificate (std_data/cacert.pem is RSA)
+#
+let $restart_parameters=--ssl-cipher=ECDHE-ECDSA-AES128-GCM-SHA256;
+source include/restart_mysqld.inc;
+
+# Connections are rejected as client attempts tls by default
+--error 1
+--exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'ssl_version'"
+
+# Connections are rejected if client explicitly specifies tls
+--error 1
+--exec $MYSQL --host=localhost --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-verify-server-cert -e "SHOW STATUS LIKE 'ssl_version'"
+
+# Connections can be made with --skip-ssl
+--exec $MYSQL --host=localhost --skip-ssl -e "SHOW STATUS LIKE 'ssl_version'"

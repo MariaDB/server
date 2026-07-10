@@ -9,7 +9,7 @@ t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
   `c2` tinyint(4) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -21,11 +21,9 @@ t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
   `c2` tinyint(4) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -34,9 +32,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
-  `c2` tinyint(4),
+  `c2` tinyint(4) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -50,7 +48,7 @@ t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
   `c2` smallint(6) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -62,11 +60,9 @@ t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
   `c2` smallint(6) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -75,9 +71,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
-  `c2` smallint(6),
+  `c2` smallint(6) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -91,7 +87,7 @@ t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
   `c2` mediumint(9) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -103,11 +99,9 @@ t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
   `c2` mediumint(9) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -116,9 +110,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
-  `c2` mediumint(9),
+  `c2` mediumint(9) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -132,7 +126,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -144,11 +138,9 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -157,9 +149,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` int(11),
+  `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -173,7 +165,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -185,11 +177,9 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -198,9 +188,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` int(11),
+  `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -214,7 +204,7 @@ t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
   `c2` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -226,11 +216,9 @@ t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
   `c2` bigint(20) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -239,9 +227,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
-  `c2` bigint(20),
+  `c2` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -255,7 +243,7 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -267,11 +255,9 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -280,9 +266,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
-  `c2` double,
+  `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -296,7 +282,7 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -308,11 +294,9 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -321,9 +305,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
-  `c2` double,
+  `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -337,7 +321,7 @@ t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
   `c2` float DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -349,11 +333,9 @@ t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
   `c2` float DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -362,9 +344,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
-  `c2` float,
+  `c2` float DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -378,7 +360,7 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -390,11 +372,9 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -403,9 +383,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
-  `c2` decimal(10,0),
+  `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -419,7 +399,7 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -431,11 +411,9 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -444,9 +422,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
-  `c2` decimal(10,0),
+  `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -460,7 +438,7 @@ t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
   `c2` tinyint(4) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -472,11 +450,9 @@ t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
   `c2` tinyint(4) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -485,9 +461,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) NOT NULL,
-  `c2` tinyint(4),
+  `c2` tinyint(4) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -501,7 +477,7 @@ t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
   `c2` smallint(6) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -513,11 +489,9 @@ t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
   `c2` smallint(6) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -526,9 +500,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) NOT NULL,
-  `c2` smallint(6),
+  `c2` smallint(6) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -542,7 +516,7 @@ t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
   `c2` mediumint(9) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -554,11 +528,9 @@ t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
   `c2` mediumint(9) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -567,9 +539,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) NOT NULL,
-  `c2` mediumint(9),
+  `c2` mediumint(9) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -583,7 +555,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -595,11 +567,9 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -608,9 +578,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` int(11),
+  `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -624,7 +594,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -636,11 +606,9 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -649,9 +617,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` int(11),
+  `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -665,7 +633,7 @@ t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
   `c2` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -677,11 +645,9 @@ t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
   `c2` bigint(20) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -690,9 +656,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) NOT NULL,
-  `c2` bigint(20),
+  `c2` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -706,7 +672,7 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -718,11 +684,9 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -731,9 +695,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
-  `c2` double,
+  `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -747,7 +711,7 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -759,11 +723,9 @@ t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
   `c2` double DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -772,9 +734,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double NOT NULL,
-  `c2` double,
+  `c2` double DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -788,7 +750,7 @@ t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
   `c2` float DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -800,11 +762,9 @@ t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
   `c2` float DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -813,9 +773,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float NOT NULL,
-  `c2` float,
+  `c2` float DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -829,7 +789,7 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -841,11 +801,9 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -854,9 +812,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
-  `c2` decimal(10,0),
+  `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test
@@ -870,7 +828,7 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 SET DEFAULT 10;
 INSERT INTO t1(c1) VALUES(1);
 SELECT * FROM t1 ORDER BY c1;
@@ -882,11 +840,9 @@ t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
   `c2` decimal(10,0) DEFAULT 10,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
 INSERT IGNORE INTO t1(c1) VALUES(2);
-Warnings:
-Warning	1364	Field 'c2' doesn't have a default value
 SELECT * FROM t1 ORDER BY c1;
 c1	c2
 1	10
@@ -895,9 +851,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) NOT NULL,
-  `c2` decimal(10,0),
+  `c2` decimal(10,0) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SHOW TABLES;
 Tables_in_test

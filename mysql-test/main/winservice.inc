@@ -9,7 +9,7 @@ let $sc_exe= C:\Windows\System32\sc.exe;
 let $ddir= $MYSQLTEST_VARDIR/tmp/$datadir_name;
 let $service_name=$service_name_prefix$MASTER_MYPORT;
 
-
+use mysql;
 error 0,1;
 rmdir $ddir;
 
@@ -21,7 +21,7 @@ exec $sc_exe delete $service_name;
 source include/shutdown_mysqld.inc;
 echo # run mysql_install_db with --service parameter;
 --disable_result_log
-exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --port=$MASTER_MYPORT --password=$password --service=$service_name -R;
+exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --port=$MASTER_MYPORT --password=$password --service=$service_name --verbose-bootstrap -R;
 --enable_result_log
 
 echo # Start service;
@@ -72,4 +72,3 @@ rmdir $ddir;
 #restart original server
 connection default;
 source include/start_mysqld.inc;
-

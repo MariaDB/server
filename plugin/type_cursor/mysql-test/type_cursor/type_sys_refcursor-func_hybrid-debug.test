@@ -1,0 +1,328 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+DELIMITER $$;
+CREATE FUNCTION f1cs1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  RETURN c0;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo #  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Hybrid functions
+--echo #
+
+--echo #
+--echo # SET var=COALESCE()
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  DECLARE c2 SYS_REFCURSOR;
+  SELECT 'p1-0' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+  OPEN c2 FOR SELECT 1;
+  SELECT 'p1-1' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+  SET c0= COALESCE(c1, c2);
+  SELECT 'p1-2' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+  SET c2= NULL;
+  SELECT 'p1-3' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+  SET c0= NULL;
+  SELECT 'p1-4' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # SET var=CASE
+--echo #
+
+SET sql_mode=ORACLE;
+
+DELIMITER /;
+CREATE PROCEDURE p1(task VARCHAR(32)) AS
+  c0 SYS_REFCURSOR;
+  c1 SYS_REFCURSOR;
+  c2 SYS_REFCURSOR;
+  v INT;
+BEGIN
+  IF task LIKE '%open_c0%' THEN
+    OPEN c0 FOR SELECT 1;
+  END IF;
+  SELECT 'p1-1' AS stage, c0, c1, c2, CURSOR_REF_COUNT(0) AS cnt_0, CURSOR_REF_COUNT(1) AS cnt_1;
+  OPEN c1 FOR SELECT 11 FROM DUAL;
+  SELECT 'p1-2' AS stage, c0, c1, c2, CURSOR_REF_COUNT(0) AS cnt_0, CURSOR_REF_COUNT(1) AS cnt_1;
+  c2:= CASE WHEN c0 IS NULL THEN c1 ELSE c0 END;
+  SELECT 'p1-3' AS stage, c0, c1, c2, CURSOR_REF_COUNT(0) AS cnt_0, CURSOR_REF_COUNT(1) AS cnt_1;
+  FETCH c2 INTO v;
+  SELECT v;
+END;
+/
+CREATE PROCEDURE p2(task VARCHAR(32)) AS
+BEGIN
+  SELECT 'p2-0' AS stage, CURSOR_REF_COUNT(0) AS cnt_0;
+  CALL p1(task);
+  SELECT 'p2-1' AS stage, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+DELIMITER ;/
+CALL p2('');
+CALL p2('open_c0');
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # COALESCE in select list
+--echo #
+
+let $select= SELECT
+  COALESCE(f1cs1(),f1cs1()) AS cl_f1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+eval EXECUTE IMMEDIATE '$select';
+eval EXECUTE IMMEDIATE 'EXPLAIN EXTENDED $select';
+
+let $select= SELECT
+  COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+  COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+eval EXECUTE IMMEDIATE '$select';
+eval EXECUTE IMMEDIATE 'EXPLAIN EXTENDED $select';
+
+
+--echo #
+--echo # COALESCE in WHERE
+--echo #
+
+let $select= SELECT
+  COALESCE(f1cs1(),f1cs1()) AS c_f1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5
+WHERE
+  COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+  COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3
+FROM seq_1_to_5
+WHERE
+  COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+  COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3,
+  CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+  COALESCE(f1cs1(),f1cs1()) IS NOT NULL AND
+  COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5
+WHERE
+  COALESCE(f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+--echo #
+--echo # IFNULL in select list
+--echo #
+
+let $select= SELECT
+  IFNULL(f1cs1(),f1cs1()) AS cl_f1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+eval EXECUTE IMMEDIATE '$select';
+eval EXECUTE IMMEDIATE 'EXPLAIN EXTENDED $select';
+
+let $select= SELECT
+  IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+  IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+eval EXECUTE IMMEDIATE '$select';
+eval EXECUTE IMMEDIATE 'EXPLAIN EXTENDED $select';
+
+
+--echo #
+--echo # IFNULL in WHERE
+--echo #
+
+let $select= SELECT
+  IFNULL(f1cs1(),f1cs1()) AS c_f1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5
+WHERE
+  IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+  IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3
+FROM seq_1_to_5
+WHERE
+  IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+  IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3,
+  CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+  IFNULL(f1cs1(),f1cs1()) IS NOT NULL AND
+  IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+--echo #
+--echo # LAST_VALUE in select list
+--echo #
+
+let $select= SELECT
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+let $select= SELECT
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3,
+  CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+--echo #
+--echo # LAST_VALUE in WHERE
+--echo #
+
+let $select= SELECT
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3,
+  CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+  LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3,
+  CURSOR_REF_COUNT(4) AS cnt_4,
+  CURSOR_REF_COUNT(5) AS cnt_5,
+  CURSOR_REF_COUNT(6) AS cnt_6
+FROM seq_1_to_5
+WHERE
+  LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+
+let $select= SELECT
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+  LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+  CURSOR_REF_COUNT(0) AS cnt_0,
+  CURSOR_REF_COUNT(1) AS cnt_1,
+  CURSOR_REF_COUNT(2) AS cnt_2,
+  CURSOR_REF_COUNT(3) AS cnt_3,
+  CURSOR_REF_COUNT(4) AS cnt_4,
+  CURSOR_REF_COUNT(5) AS cnt_5,
+  CURSOR_REF_COUNT(6) AS cnt_6,
+  CURSOR_REF_COUNT(7) AS cnt_7,
+  CURSOR_REF_COUNT(8) AS cnt_8
+FROM seq_1_to_5
+WHERE
+  LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL AND
+  LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+eval $select;
+eval EXPLAIN EXTENDED $select;
+
+#
+# Cleanup
+# 
+
+DROP FUNCTION f1cs1;

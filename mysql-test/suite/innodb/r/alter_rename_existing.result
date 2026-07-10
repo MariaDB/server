@@ -24,7 +24,7 @@ t2	CREATE TABLE `t2` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `b` char(10) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * from t2;
 a	b
 1	one
@@ -36,6 +36,8 @@ ERROR HY000: Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME' (errno: 184 "
 # Create another t1, but in the system tablespace.
 #
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a SERIAL, b CHAR(20)) ENGINE=InnoDB;
 INSERT INTO t1(b) VALUES('one'), ('two'), ('three');
 SHOW CREATE TABLE t1;
@@ -44,7 +46,7 @@ t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `b` char(20) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT name, space=0 FROM information_schema.innodb_sys_tables WHERE name = 'test/t1';
 name	space=0
 test/t1	1
@@ -58,6 +60,8 @@ ALTER TABLE t1 ADD COLUMN d INT, ALGORITHM=COPY;
 # while a blocking t1.ibd file exists.
 #
 SET GLOBAL innodb_file_per_table=ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 ERROR HY000: Tablespace for table 'test/#sql-ib' exists. Please DISCARD the tablespace before IMPORT
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
@@ -75,7 +79,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
   `d` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT name, space=0 FROM information_schema.innodb_sys_tables WHERE name = 'test/t1';
 name	space=0
 test/t1	0
@@ -93,3 +97,5 @@ a	b
 2	two
 3	three
 DROP TABLE t1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release

@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.version_malloc_library)
 1
 1 Expected
 SELECT version_malloc_library = @@SESSION.version;
-ERROR 42S22: Unknown column 'version_malloc_library' in 'field list'
+ERROR 42S22: Unknown column 'version_malloc_library' in 'SELECT'
 Expected error 'Readonly variable'

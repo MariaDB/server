@@ -108,9 +108,9 @@ drop table t1, t2;
 --echo # handler::unlock_row() in InnoDB does nothing.
 --echo # Thus in order to reproduce the condition that led to the
 --echo # warning, one needs to relax isolation by either
---echo # setting a weaker tx_isolation value, or by turning on
+--echo # setting a weaker transaction_isolation value, or by turning on
 --echo # the unsafe replication switch.
-set @@session.tx_isolation="read-committed";
+set @@session.transaction_isolation="read-committed";
 
 --echo # Prepare data. We need a table with a unique index,
 --echo # for join_read_key to be used. The other column
@@ -182,7 +182,7 @@ select * from t1;
 commit;
 --echo #
 --echo # Have a one more record in t2 to show that 
---echo # if join_read_key cache is purned, the current
+--echo # if join_read_key cache is purged, the current
 --echo # row under the cursor is unlocked (provided, this row didn't 
 --echo # match the partial WHERE clause, of course).
 --echo # Sic: the result of this test dependent on the order of retrieval
@@ -236,7 +236,7 @@ connection default;
 commit;
 
 disconnect con1;
-set @@session.tx_isolation=default;
+set @@session.transaction_isolation=default;
 drop table t1;
 
 --echo #

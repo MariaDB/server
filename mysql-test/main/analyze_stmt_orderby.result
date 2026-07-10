@@ -35,6 +35,9 @@ analyze format=json
 update t2 set b=b+1 order by b limit 5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -51,9 +54,11 @@ ANALYZE
         "access_type": "ALL",
         "rows": 10000,
         "r_rows": 10000,
-        "r_filtered": 100,
-        "r_total_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED
+        "r_total_filtered": 100,
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
+        "r_engine_stats": REPLACED,
+        "r_filtered": 100
       }
     }
   }
@@ -90,6 +95,9 @@ analyze format=json
 update t2 set a=a+1 where a<10;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -104,10 +112,12 @@ ANALYZE
         "used_key_parts": ["a"],
         "rows": 9,
         "r_rows": 10,
-        "r_filtered": 100,
-        "r_total_time_ms": "REPLACED",
+        "r_total_filtered": 100,
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
         "r_engine_stats": REPLACED,
-        "attached_condition": "t2.a < 10"
+        "attached_condition": "t2.a < 10",
+        "r_filtered": 100
       }
     }
   }
@@ -139,6 +149,9 @@ analyze format=json
 delete from t2 order by b limit 5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -155,9 +168,11 @@ ANALYZE
         "access_type": "ALL",
         "rows": 10000,
         "r_rows": 10000,
-        "r_filtered": 100,
-        "r_total_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED
+        "r_total_filtered": 100,
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
+        "r_engine_stats": REPLACED,
+        "r_filtered": 100
       }
     }
   }
@@ -176,6 +191,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "filesort": {
       "sort_key": "t2.b",
       "temporary_table": {
@@ -184,7 +200,9 @@ EXPLAIN
             "table": {
               "table_name": "t0",
               "access_type": "ALL",
+              "loops": 1,
               "rows": 10,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "attached_condition": "t0.a is not null"
             }
@@ -198,7 +216,9 @@ EXPLAIN
               "key_length": "5",
               "used_key_parts": ["a"],
               "ref": ["test.t0.a"],
+              "loops": 10,
               "rows": 1,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -211,8 +231,12 @@ analyze format=json
 select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -229,15 +253,18 @@ ANALYZE
             "table": {
               "table_name": "t0",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 10,
               "r_rows": 10,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
-              "r_filtered": 100,
-              "attached_condition": "t0.a is not null"
+              "r_total_filtered": 100,
+              "attached_condition": "t0.a is not null",
+              "r_filtered": 100
             }
           },
           {
@@ -249,13 +276,16 @@ ANALYZE
               "key_length": "5",
               "used_key_parts": ["a"],
               "ref": ["test.t0.a"],
+              "loops": 10,
               "r_loops": 10,
               "rows": 1,
               "r_rows": 0.4,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -278,6 +308,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "read_sorted_file": {
@@ -286,7 +317,9 @@ EXPLAIN
             "table": {
               "table_name": "t0",
               "access_type": "ALL",
+              "loops": 1,
               "rows": 10,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "attached_condition": "t0.a is not null"
             }
@@ -302,7 +335,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t0.a"],
+          "loops": 10,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -313,8 +348,12 @@ analyze format=json
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -332,15 +371,18 @@ ANALYZE
             "table": {
               "table_name": "t0",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 10,
               "r_rows": 10,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
-              "r_filtered": 100,
-              "attached_condition": "t0.a is not null"
+              "r_total_filtered": 100,
+              "attached_condition": "t0.a is not null",
+              "r_filtered": 100
             }
           }
         }
@@ -354,13 +396,16 @@ ANALYZE
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t0.a"],
+          "loops": 10,
           "r_loops": 10,
           "rows": 1,
           "r_rows": 0.4,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100
         }
       }
@@ -383,8 +428,12 @@ analyze format=json
 select MAX(b) from t2 where mod(a,2)=0 group by c;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -401,15 +450,18 @@ ANALYZE
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 1000,
               "r_rows": 1000,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
-              "r_filtered": 50,
-              "attached_condition": "t2.a MOD 2 = 0"
+              "r_total_filtered": 50,
+              "attached_condition": "t2.a MOD 2 = 0",
+              "r_filtered": 50
             }
           }
         ]
@@ -444,8 +496,12 @@ analyze format=json
 select distinct max(t3.b) Q from t0, t3 where t0.a=t3.a group by t0.a order by null;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "duplicate_removal": {
@@ -455,13 +511,16 @@ ANALYZE
             "table": {
               "table_name": "t0",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 10,
               "r_rows": 10,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           },
@@ -470,13 +529,16 @@ ANALYZE
               "table": {
                 "table_name": "t3",
                 "access_type": "ALL",
+                "loops": 10,
                 "r_loops": 1,
                 "rows": 10,
                 "r_rows": 10,
+                "cost": "REPLACED",
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
                 "r_engine_stats": REPLACED,
                 "filtered": 100,
+                "r_total_filtered": 100,
                 "r_filtered": 100
               },
               "buffer_type": "flat",
@@ -514,8 +576,12 @@ where t5.a=t6.a and t6.b > 0 and t5.a <= 5
 group by t5.a order by sum limit 1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -541,15 +607,18 @@ ANALYZE
                 "table": {
                   "table_name": "t6",
                   "access_type": "ALL",
+                  "loops": 1,
                   "r_loops": 1,
                   "rows": 5,
                   "r_rows": 5,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "r_engine_stats": REPLACED,
                   "filtered": 100,
-                  "r_filtered": 80,
-                  "attached_condition": "t6.b > 0 and t6.a <= 5"
+                  "r_total_filtered": 80,
+                  "attached_condition": "t6.b > 0 and t6.a <= 5",
+                  "r_filtered": 80
                 }
               },
               {
@@ -557,13 +626,16 @@ ANALYZE
                   "table": {
                     "table_name": "t5",
                     "access_type": "ALL",
+                    "loops": 5,
                     "r_loops": 1,
                     "rows": 7,
                     "r_rows": 7,
+                    "cost": "REPLACED",
                     "r_table_time_ms": "REPLACED",
                     "r_other_time_ms": "REPLACED",
                     "r_engine_stats": REPLACED,
                     "filtered": 100,
+                    "r_total_filtered": 100,
                     "r_filtered": 100
                   },
                   "buffer_type": "flat",
@@ -592,6 +664,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "filesort": {
       "sort_key": "count(distinct t5.b)",
       "temporary_table": {
@@ -603,7 +676,9 @@ EXPLAIN
                 "table": {
                   "table_name": "t6",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
+                  "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "t6.b > 0 and t6.a <= 5"
                 }
@@ -613,7 +688,9 @@ EXPLAIN
                   "table": {
                     "table_name": "t5",
                     "access_type": "ALL",
+                    "loops": 5,
                     "rows": 7,
+                    "cost": "COST_REPLACED",
                     "filtered": 100
                   },
                   "buffer_type": "flat",
@@ -655,8 +732,12 @@ analyze format=json
 select col1 f1, col2 f2, col1 f3 from t2 group by f1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -667,13 +748,16 @@ ANALYZE
           "key": "idx",
           "key_length": "5",
           "used_key_parts": ["col1"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 7,
           "r_rows": 20,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100,
           "using_index_for_group_by": true
         }

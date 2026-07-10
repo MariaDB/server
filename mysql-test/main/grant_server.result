@@ -12,11 +12,11 @@ connection con1;
 CREATE SERVER IF NOT EXISTS server_1
 FOREIGN DATA WRAPPER mysql
 OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 DROP SERVER server_1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 disconnect con1;
 connection default;
 DROP USER user1@localhost;
@@ -39,7 +39,8 @@ disconnect con1;
 connection default;
 DROP USER user1@localhost;
 #
-# Test that SERVER DDL statements are allowed with SUPER
+# Test that SERVER DDL statements are not allowed with SUPER
+# but only with FEDERATED ADMIN
 #
 CREATE USER user1@localhost IDENTIFIED BY '';
 GRANT SUPER ON *.* TO user1@localhost;
@@ -51,6 +52,15 @@ connection con1;
 CREATE SERVER IF NOT EXISTS server_1
 FOREIGN DATA WRAPPER mysql
 OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
+disconnect con1;
+connection default;
+REVOKE SUPER ON *.* FROM user1@localhost;
+GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
+connect  con1,localhost,user1,,;
+CREATE SERVER IF NOT EXISTS server_1
+FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
 ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
 DROP SERVER server_1;
 disconnect con1;
@@ -59,3 +69,26 @@ DROP USER user1@localhost;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-38601 SHOW CREATE SERVER does not require FEDERATED ADMIN
+#
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'remote_user', HOST 'localhost', PASSWORD 'secret', DATABASE 'test2');
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE FEDERATED ADMIN ON *.* FROM user1@localhost;
+connect  con1,localhost,user1,,;
+SHOW CREATE SERVER srv;
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
+disconnect con1;
+connection default;
+GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
+connect  con1,localhost,user1,,;
+SHOW CREATE SERVER srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER mysql OPTIONS (USER 'remote_user', HOST 'localhost', PASSWORD 'secret', DATABASE 'test2');
+disconnect con1;
+connection default;
+DROP SERVER srv;
+DROP USER user1@localhost;
+# End of 11.8 tests

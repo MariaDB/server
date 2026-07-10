@@ -6,7 +6,7 @@
 let $datadir=`select @@datadir`;
 
 # Table declared as having 2 partitions
-# create table t1 (x int)  egine=myisam
+# create table t1 (x int)  engine=myisam
 #    partition by range columns (x)
 #      ( partition p0 values less than (100), partition p1 values less than (1000));
 #

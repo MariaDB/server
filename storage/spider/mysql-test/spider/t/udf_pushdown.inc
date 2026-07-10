@@ -2,14 +2,18 @@
 --echo ##### test SELECTs #####
 --connection master_1
 --disable_ps2_protocol
+--disable_view_protocol
 SELECT * FROM ta_l WHERE id = plusone(1);
 SELECT * FROM ta_l WHERE id IN (plusone(1), plusone(2)) AND a = plusone(32);
+--enable_view_protocol
 --enable_ps2_protocol
 
 if ($USE_CHILD_GROUP2)
 {
   --connection child2_1
+  --disable_view_protocol
   SELECT argument FROM mysql.general_log WHERE argument LIKE "%select%" AND argument NOT LIKE "%argument%";
+  --enable_view_protocol
   --disable_query_log
   TRUNCATE TABLE mysql.general_log;
   --enable_query_log

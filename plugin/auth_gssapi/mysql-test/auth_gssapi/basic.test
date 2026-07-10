@@ -1,6 +1,3 @@
---replace_regex /name '[^']+'/name 'localhost'/
-INSTALL SONAME 'auth_gssapi';
-
 #
 # CREATE USER without 'AS' clause
 #
@@ -42,5 +39,3 @@ CREATE USER nosuchuser IDENTIFIED WITH gssapi AS 'nosuchuser@EXAMPLE.COM';
 connect (con1,localhost,nosuchuser,,);
 --enable_query_log
 DROP USER nosuchuser;
-
-UNINSTALL SONAME 'auth_gssapi';

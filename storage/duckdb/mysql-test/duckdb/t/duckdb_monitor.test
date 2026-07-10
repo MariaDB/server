@@ -1,0 +1,94 @@
+--source ../include/have_duckdb.inc
+
+#
+# DuckDB monitoring status variables test.
+#
+# We test plugin-level status variables (Duckdb_*).
+# AliSQL Com_duckdb_* counters are server-side and not available in MariaDB.
+#
+
+# restart to reset status counters
+--source include/restart_mysqld.inc
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS db_duckdb_monitor CHARACTER SET utf8mb4;
+USE db_duckdb_monitor;
+--enable_query_log
+
+CREATE TABLE t1(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=duckdb;
+CREATE TABLE t2(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=duckdb;
+CREATE TABLE t3(id INT PRIMARY KEY, v VARCHAR(255)) ENGINE=innodb;
+
+# Save baseline commit count (CREATE TABLEs cause autocommits)
+--let $base_commit = query_get_value(SHOW STATUS LIKE 'Duckdb_commit', Value, 1)
+
+--echo #
+--echo # 1) INSERT: rows_insert increments per row (dml_in_batch=OFF)
+--echo #
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e');
+INSERT INTO t2 VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e');
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+
+--echo #
+--echo # 2) DELETE: rows_delete increments via direct_delete_rows
+--echo #
+SHOW STATUS LIKE 'Duckdb_rows_delete';
+DELETE FROM t1 WHERE id IN (1,2);
+SHOW STATUS LIKE 'Duckdb_rows_delete';
+
+--echo #
+--echo # 3) UPDATE: rows_update increments via direct_update_rows
+--echo #
+SHOW STATUS LIKE 'Duckdb_rows_update';
+UPDATE t1 SET v = 'x' WHERE id IN (3,4);
+SHOW STATUS LIKE 'Duckdb_rows_update';
+
+--echo #
+--echo # 4) INSERT SELECT: rows_insert increments
+--echo #
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+INSERT INTO t1 SELECT * FROM t2;
+SHOW STATUS LIKE 'Duckdb_rows_insert';
+
+--echo #
+--echo # 5) Duckdb_commit increments on explicit COMMIT
+--echo #
+--disable_query_log
+--eval SELECT @commits_before := $base_commit
+--let $commits_before = query_get_value(SHOW STATUS LIKE 'Duckdb_commit', Value, 1)
+--enable_query_log
+BEGIN;
+INSERT INTO t1 VALUES(6,'f');
+COMMIT;
+--let $commits_after = query_get_value(SHOW STATUS LIKE 'Duckdb_commit', Value, 1)
+--disable_query_log
+--eval SELECT $commits_after - $commits_before AS commit_delta
+--enable_query_log
+
+--echo #
+--echo # 6) Duckdb_rollback increments on explicit ROLLBACK
+--echo #
+SHOW STATUS LIKE 'Duckdb_rollback';
+BEGIN;
+INSERT INTO t1 VALUES(7,'g');
+ROLLBACK;
+SHOW STATUS LIKE 'Duckdb_rollback';
+
+--echo #
+--echo # 7) Final state: batch counters should be 0 (dml_in_batch=OFF)
+--echo #
+SHOW STATUS LIKE 'Duckdb_rows_insert_in_batch';
+SHOW STATUS LIKE 'Duckdb_rows_update_in_batch';
+SHOW STATUS LIKE 'Duckdb_rows_delete_in_batch';
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+
+--disable_query_log
+DROP DATABASE db_duckdb_monitor;
+--enable_query_log
+
+--source ../include/cleanup_duckdb.inc

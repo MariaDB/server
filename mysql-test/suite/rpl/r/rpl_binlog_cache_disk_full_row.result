@@ -1,0 +1,51 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @save_binlog_stmt_cache_size= @@GLOBAL.binlog_stmt_cache_size;
+SET GLOBAL binlog_stmt_cache_size= 4096;
+CALL mtr.add_suppression('"No space left on device".*An incident event is written to binary log');
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=MyISAM;
+FLUSH GLOBAL STATUS;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+Variable_name	Value
+Binlog_stmt_cache_disk_use	0
+Binlog_stmt_cache_use	0
+INSERT INTO t1 VALUES (0, CONCAT("?", "-", REPEAT("x", 200)));
+INSERT INTO t1 SELECT a+1, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+2, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+4, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+8, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+16, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+32, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+64, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+INSERT INTO t1 SELECT a+128, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+Variable_name	Value
+Binlog_stmt_cache_disk_use	2
+Binlog_stmt_cache_use	9
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,simulate_disk_full_at_flush_pending";
+INSERT INTO t1 SELECT a+256, CONCAT(a, "-", REPEAT("x", 200)) FROM t1;
+ERROR HY000: Error writing file '<FILENAME>' (Errcode: 28 "No space left on device")
+SET SESSION debug_dbug= @old_dbug;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+Variable_name	Value
+Binlog_stmt_cache_disk_use	3
+Binlog_stmt_cache_use	10
+SELECT IF(COUNT(*) > 256 AND COUNT(*) < 512,
+"ok",
+CONCAT("ERROR! Row count ", COUNT(*), " not as expected for partially executed query"))
+AS check_result
+FROM t1;
+check_result
+ok
+ALTER TABLE t1 COMMENT '<mumble>';
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+256
+connection master;
+SET GLOBAL binlog_stmt_cache_size= @save_binlog_stmt_cache_size;
+DROP TABLE t1;
+include/rpl_end.inc

@@ -1,0 +1,49 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+# works without primary key
+CREATE TABLE src (c INT, d DATE, PRIMARY KEY(c));
+INSERT INTO src VALUES (42, '2024-08-27'), (73, '2024-07-12');
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+SET spider_same_server_link=1;
+
+# works without primary key
+CREATE TABLE dst (c INT, d DATE, PRIMARY KEY(c)) ENGINE=INNODB;
+INSERT INTO dst VALUES (555, '1999-12-12');
+
+# requires primary key, but it is ok if the data node tables have no
+# primary key and the corresponding column has duplicate values.
+# possibly a bug, e.g. an unnecessary requirement.
+evalp CREATE TABLE t (c INT, d DATE, PRIMARY KEY(c)) ENGINE=SPIDER
+COMMENT='table "src dst", srv "s_2_1 s_1"';
+--disable_view_protocol
+SELECT spider_copy_tables('t', '0', '1');
+--enable_view_protocol
+
+SELECT * FROM dst;
+
+--connection child2_1
+DROP TABLE src;
+DROP DATABASE auto_test_remote;
+
+--connection master_1
+
+DROP TABLE t;
+SELECT * FROM dst;
+DROP TABLE dst;
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

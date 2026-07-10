@@ -73,7 +73,7 @@ static WinIoInit win_io_init;
 
 
 SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
-                 unsigned long long offset)
+              unsigned long long offset)
 {
   OVERLAPPED ov{};
   ULARGE_INTEGER uli;
@@ -95,8 +95,8 @@ SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
   return -1;
 }
 
-SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
-                  unsigned long long offset)
+SSIZE_T pwrite(const native_file_handle &h, const void *buf, size_t count,
+               unsigned long long offset)
 {
   OVERLAPPED ov{};
   ULARGE_INTEGER uli;
@@ -142,7 +142,7 @@ public:
     pool->submit_task(&cb->m_internal_task);
   }
 
-  virtual int submit_io(aiocb *aiocb) override
+  int submit_io(aiocb *aiocb) override
   {
     aiocb->m_internal_task.m_func = simulated_aio_callback;
     aiocb->m_internal_task.m_arg = aiocb;
@@ -152,13 +152,60 @@ public:
     return 0;
   }
 
-  virtual int bind(native_file_handle &fd) override { return 0; }
-  virtual int unbind(const native_file_handle &fd) override { return 0; }
+  int bind(native_file_handle &fd) override { return 0; }
+  int unbind(const native_file_handle &fd) override { return 0; }
+  const char *get_implementation() const override { return "simulated"; }
 };
 
 aio *create_simulated_aio(thread_pool *tp)
 {
   return new simulated_aio(tp);
+}
+
+void aio::finish_synchronous(aiocb *cb)
+{
+  if (!cb->m_err && cb->m_ret_len != cb->m_len)
+  {
+    /* partial read/write */
+    cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
+    cb->m_len-= (unsigned int) cb->m_ret_len;
+    cb->m_offset+= cb->m_ret_len;
+    synchronous(cb);
+  }
+}
+
+/**
+  Process the cb synchronously
+*/
+void aio::synchronous(aiocb *cb)
+{
+  intptr_t ret_len;
+  int err= 0;
+  switch (cb->m_opcode)
+  {
+  case aio_opcode::AIO_PREAD:
+    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  case aio_opcode::AIO_PWRITE:
+    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  default:
+    abort();
+  }
+
+  if (ret_len < 0)
+  {
+#ifdef _WIN32
+    err= GetLastError();
+#else
+    err= errno;
+#endif
+    ret_len= 0;
+  }
+  cb->m_ret_len = ret_len;
+  cb->m_err = err;
+  if (ret_len)
+    finish_synchronous(cb);
 }
 
 } // namespace tpool

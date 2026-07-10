@@ -1,5 +1,5 @@
---- tbl_opt_checksum.result	2013-01-22 22:05:05.246633000 +0400
-+++ tbl_opt_checksum.reject	2013-01-23 02:50:58.739513998 +0400
+--- tbl_opt_checksum.result
++++ tbl_opt_checksum.reject
 @@ -5,12 +5,12 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

@@ -3,7 +3,7 @@ set @start_autocommit= @@global.autocommit;
 set default_storage_engine= innodb;
 set @@global.autocommit= 0;
 CREATE USER test@localhost;
-grant CREATE, SELECT, UPDATE on *.* to test@localhost;
+grant CREATE, SELECT, UPDATE, INSERT on *.* to test@localhost;
 CREATE USER test2@localhost;
 grant CREATE, SELECT, UPDATE on *.* to test2@localhost;
 CREATE TABLE t1 (
@@ -148,7 +148,7 @@ a	b	c	d	e
 03	03	343	7	03_03_343
 03	06	343	8	03_06_343
 03	07	343	9	03_07_343
-SELECT a,count(b) FROM t1 GROUP BY a ORDER BY a LOCK IN SHARE MODE SKIP LOCKED;
+SELECT a,count(b) FROM t1 force index (a) GROUP BY a ORDER BY a LOCK IN SHARE MODE SKIP LOCKED;
 a	count(b)
 01	5
 03	3

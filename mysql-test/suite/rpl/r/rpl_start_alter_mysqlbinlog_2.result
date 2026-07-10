@@ -21,7 +21,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT @@gtid_binlog_state;
 @@gtid_binlog_state
 0-1-8
@@ -40,7 +40,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 # reset the binlog
 RESET MASTER;
@@ -49,6 +49,10 @@ connection server_2;
 SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
 SET GLOBAL binlog_alter_two_phase = ON;
 connection server_3;
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression("The table mysql.gtid_slave_pos was removed. This change will not take full effect until all SQL threads have been restarted");
+SET STATEMENT sql_log_bin=0 FOR
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET @save_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
 SET @slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
 SET @slave_parallel_mode= @@GLOBAL.slave_parallel_mode;
@@ -76,7 +80,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -91,7 +95,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master_node;
 drop table t1;
 # innodb
@@ -107,7 +111,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -122,7 +126,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master_node;
 drop table t1;
 # aria
@@ -138,7 +142,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -153,7 +157,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 connection master_node;
 drop table t1;
 # concurrent alter Myisam
@@ -231,7 +235,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -246,7 +250,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master_node;
 drop table t1;
 # innodb
@@ -262,7 +266,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -277,7 +281,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master_node;
 drop table t1;
 # aria
@@ -293,7 +297,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 # Failed Alter
 insert into t1 values(1,1, NULL);
 alter table t1 change a a int unique;
@@ -308,7 +312,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 connection master_node;
 drop table t1;
 # concurrent alter Myisam
@@ -409,10 +413,12 @@ SET GLOBAL gtid_slave_pos= '';
 connection server_1;
 SET GLOBAL binlog_alter_two_phase=@save_binlog_alter_two_phase;
 SET GLOBAL gtid_domain_id= 0;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection server_2;
 SET GLOBAL gtid_domain_id= 0;
 SET GLOBAL binlog_alter_two_phase=@save_binlog_alter_two_phase;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 disconnect server_1;
 disconnect server_2;

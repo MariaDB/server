@@ -13,8 +13,8 @@ select * from mysql57_virtual;
 a	b	c
 1	2	4
 2	3	5
-alter online table mysql57_virtual comment "I am now a MariaDB table";
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+alter online table mysql57_virtual comment "I am now a MariaDB table", algorithm=nocopy;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=COPY
 alter table mysql57_virtual comment "I am now a MariaDB table";
 SHOW CREATE TABLE mysql57_virtual;
 Table	Create Table
@@ -34,5 +34,5 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` + 1) STORED,
   `c` int(11) GENERATED ALWAYS AS (`a` + 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;

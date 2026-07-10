@@ -4,6 +4,7 @@
 
 --source include/no_valgrind_without_big.inc
 --source include/protocol.inc
+--source include/test_db_charset_latin1.inc
 
 #
 # Simple select test
@@ -1462,17 +1463,26 @@ select distinct fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2nr orde
 
 explain select t3.t2nr,fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2nr order by t3.t2nr,fld3;
 
-#
-# Some test with ORDER BY and limit
-#
+--echo #
+--echo # Some test with ORDER BY and limit
+--echo #
+
+explain select count(*) from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+explain select sum(t1.price+t3.price) from t3 as t1,t3 where t1.period=t3.period order by t3.period;
 
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+set @save_join_cache_level=@@join_cache_level;
+set @@join_cache_level=0;
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+set @@join_cache_level=@save_join_cache_level;
 
-#
-# Search with a constant table.
-#
+--echo #
+--echo # Search with a constant table.
+--echo #
 
 select period from t1;
 select period from t1 where period=1900;
@@ -1533,9 +1543,8 @@ INSERT INTO t4 (companynr, companyname) VALUES (68,'company 10');
 INSERT INTO t4 (companynr, companyname) VALUES (50,'company 11');
 INSERT INTO t4 (companynr, companyname) VALUES (00,'Unknown');
 --enable_query_log
-
 #
-# Test of stright join to force a full join.
+# Test of straight join to force a full join.
 #
 
 select STRAIGHT_JOIN t2.companynr,companyname from t4,t2 where t2.companynr=t4.companynr group by t2.companynr;
@@ -1565,12 +1574,17 @@ explain select companynr,companyname from t2 left join t4 using (companynr) wher
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr is null;
 delete from t2 where fld1=999999;
 
-#
-# Test left join optimization
+--echo #
+--echo # Test left join optimization
+--echo #
 
+set @save_join_cache_level=@@join_cache_level;
+set @@join_cache_level=0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 and t4.companynr > 0;
+set @@join_cache_level=@save_join_cache_level;
+explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
 
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0;
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0;
@@ -1584,15 +1598,15 @@ explain select companynr,companyname from t4 left join t2 using (companynr) wher
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0 or companynr > 0;
 explain select companynr,companyname from t4 left join t2 using (companynr) where ifnull(companynr,1)>0;
 
-#
-# Joins with forms.
-#
+--echo #
+--echo # Joins with forms.
+--echo #
 
 select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 
 #
-# Search using 'or' with the same referens group.
+# Search using 'or' with the same reference group.
 # An interval search will be done first with the first table and after that
 # the other table is referenced with a key with a 'test if key in use' for
 # each record
@@ -1846,10 +1860,15 @@ select wss_type from t1 where wss_type ='102935229216544104';
 select wss_type from t1 where wss_type ='102935229216544093';
 select wss_type from t1 where wss_type =102935229216544093;
 drop table t1;
+--disable_cursor_protocol
 select 1+2,"aaaa",3.13*2.0 into @a,@b,@c;
+--enable_cursor_protocol
 select @a;
 select @b;
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @c;
+--enable_cursor_protocol
 
 #
 # Test of removing redundant braces in the FROM part
@@ -1864,7 +1883,7 @@ insert into t1 values ();
 # ,
 select * from (t1 as t2 left join t1 as t3 using (a)), t1;
 select * from t1, (t1 as t2 left join t1 as t3 using (a));
-# stright_join
+# straight_join
 select * from (t1 as t2 left join t1 as t3 using (a)) straight_join t1;
 select * from t1 straight_join (t1 as t2 left join t1 as t3 using (a));
 # inner join on
@@ -1889,7 +1908,7 @@ select * from t1 natural left join (t1 as t2 left join t1 as t3 using (a));
 select * from (t1 as t2 left join t1 as t3 using (a)) right join t1 on t1.a>1;
 --sorted_result
 select * from t1 right join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
-# right [outer] joing using
+# right [outer] join using
 select * from (t1 as t2 left join t1 as t3 using (a)) right outer join t1 using ( a );
 select * from t1 right outer join (t1 as t2 left join t1 as t3 using (a)) using ( a );
 # natural right join
@@ -2199,7 +2218,10 @@ INSERT INTO t1
       (SELECT * FROM t1 WHERE a = 50 AND b = 3);
 select found_rows();
 SELECT * FROM t1;
+# Check after fix MDEV-31522
+--disable_cursor_protocol
 select count(*) from t1;
+--enable_cursor_protocol
 select found_rows();
 select count(*) from t1 limit 2,3;
 select found_rows();
@@ -3143,7 +3165,7 @@ CREATE TABLE t2(i int, a int, INDEX si(i), INDEX ai(a));
 CREATE TABLE t3(a int PRIMARY KEY, c char(4), INDEX ci(c));
 
 INSERT INTO t1 VALUES 
-  (1,10,19), (2,20,22), (4,41,42), (9,93,95), (7, 77,79),
+  (1,10,19), (2,20,22), (4,41,42), (9,39,95), (7, 77,79),
   (6,63,67), (5,55,58), (3,38,39), (8,81,89);
 INSERT INTO t2 VALUES
   (21,210), (41,410), (82,820), (83,830), (84,840),
@@ -3164,6 +3186,11 @@ EXPLAIN
 SELECT t3.a FROM t1,t2,t3
   WHERE t1.id = 8 AND t2.i BETWEEN t1.b AND t1.e AND
         t3.a=t2.a AND t3.c IN ('bb','ee') ;
+
+EXPLAIN
+SELECT t3.a FROM t1,t2 FORCE INDEX (si),t3
+  WHERE t1.id = 9 AND t2.i BETWEEN t1.b AND t1.e AND 
+        t3.a=t2.a AND t3.c IN ('bb','ee');
 
 EXPLAIN 
 SELECT t3.a FROM t1,t2 FORCE INDEX (si),t3
@@ -3565,51 +3592,48 @@ DROP VIEW v1;
 # On DATETIME-like literals with trailing garbage, BETWEEN fudged in a
 # DATETIME comparator, while greater/less-than used bin-string comparisons.
 # Should correctly be compared as DATE or DATETIME, but throw a warning:
-#enable after fix MDEV-27871
---disable_view_protocol
 select str_to_date('2007-10-09','%Y-%m-%d') between '2007/10/01 00:00:00 GMT'
-                                                and '2007/10/20 00:00:00 GMT';
-select str_to_date('2007-10-09','%Y-%m-%d') > '2007/10/01 00:00:00 GMT-6';
-select str_to_date('2007-10-09','%Y-%m-%d') <= '2007/10/20 00:00:00 GMT-6';
-select str_to_date('2007-10-09','%Y-%m-%d') <= '2007/10/2000:00:00 GMT-6';
+                                                and '2007/10/20 00:00:00 GMT' as exp;
+select str_to_date('2007-10-09','%Y-%m-%d') > '2007/10/01 00:00:00 GMT-6' as exp;
+select str_to_date('2007-10-09','%Y-%m-%d') <= '2007/10/20 00:00:00 GMT-6' as exp;
+select str_to_date('2007-10-09','%Y-%m-%d') <= '2007/10/2000:00:00 GMT-6' as exp;
 
 # We have all we need -- and trailing garbage:
 # (leaving out a leading zero in first example to prove it's a
 # value-comparison, not a string-comparison!)
-select str_to_date('2007-10-01','%Y-%m-%d') = '2007-10-1 00:00:00 GMT-6';
-select str_to_date('2007-10-01','%Y-%m-%d') = '2007-10-01 x00:00:00 GMT-6';
-select str_to_date('2007-10-01','%Y-%m-%d %H:%i:%s') = '2007-10-01 00:00:00 GMT-6';
-select str_to_date('2007-10-01','%Y-%m-%d %H:%i:%s') = '2007-10-01 00:x00:00 GMT-6';
+select str_to_date('2007-10-01','%Y-%m-%d') = '2007-10-1 00:00:00 GMT-6' as exp;
+select str_to_date('2007-10-01','%Y-%m-%d') = '2007-10-01 x00:00:00 GMT-6' as exp;
+select str_to_date('2007-10-01','%Y-%m-%d %H:%i:%s') = '2007-10-01 00:00:00 GMT-6' as exp;
+select str_to_date('2007-10-01','%Y-%m-%d %H:%i:%s') = '2007-10-01 00:x00:00 GMT-6' as exp;
 # no time at all:
-select str_to_date('2007-10-01','%Y-%m-%d %H:%i:%s') = '2007-10-01 x12:34:56 GMT-6';
+select str_to_date('2007-10-01','%Y-%m-%d %H:%i:%s') = '2007-10-01 x12:34:56 GMT-6' as exp;
 # partial time:
-select str_to_date('2007-10-01 12:34:00','%Y-%m-%d %H:%i:%s') = '2007-10-01 12:34x:56 GMT-6';
+select str_to_date('2007-10-01 12:34:00','%Y-%m-%d %H:%i:%s') = '2007-10-01 12:34x:56 GMT-6' as exp;
 # fail, different second part:
-select str_to_date('2007-10-01 12:34:56','%Y-%m-%d %H:%i:%s') = '2007-10-01 12:34x:56 GMT-6';
+select str_to_date('2007-10-01 12:34:56','%Y-%m-%d %H:%i:%s') = '2007-10-01 12:34x:56 GMT-6' as exp;
 # correct syntax, no trailing nonsense -- this one must throw no warning:
-select str_to_date('2007-10-01 12:34:56','%Y-%m-%d %H:%i:%s') = '2007-10-01 12:34:56';
+select str_to_date('2007-10-01 12:34:56','%Y-%m-%d %H:%i:%s') = '2007-10-01 12:34:56' as exp;
 # no warning, but failure (different hour parts):
-select str_to_date('2007-10-01','%Y-%m-%d') = '2007-10-01 12:00:00';
+select str_to_date('2007-10-01','%Y-%m-%d') = '2007-10-01 12:00:00' as exp;
 # succeed:
-select str_to_date('2007-10-01 12','%Y-%m-%d %H') = '2007-10-01 12:00:00';
+select str_to_date('2007-10-01 12','%Y-%m-%d %H') = '2007-10-01 12:00:00' as exp;
 # succeed, but warn for "trailing garbage" (":34"):
-select str_to_date('2007-10-01 12:34','%Y-%m-%d %H') = '2007-10-01 12:00:00';
+select str_to_date('2007-10-01 12:34','%Y-%m-%d %H') = '2007-10-01 12:00:00' as exp;
 # invalid date (Feb 30) succeeds
-select str_to_date('2007-02-30 12:34','%Y-%m-%d %H:%i') = '2007-02-30 12:34';
+select str_to_date('2007-02-30 12:34','%Y-%m-%d %H:%i') = '2007-02-30 12:34' as exp;
 # 0-day for both, just works in default SQL mode.
-select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
+select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34' as exp;
 # 0-day, succeed
 select str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01 00:00:00'
-                                                and '2007/10/20 00:00:00';
+                                                and '2007/10/20 00:00:00' as exp;
 set SQL_MODE=TRADITIONAL;
 # 0-day throws warning in traditional mode, and fails
-select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
-select str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34';
+select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34' as exp;
+select str_to_date('2007-10-01 12:34','%Y-%m-%d %H:%i') = '2007-10-00 12:34' as exp;
 # different code-path: get_datetime_value() with 0-day
-select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34';
+select str_to_date('2007-10-00 12:34','%Y-%m-%d %H:%i') = '2007-10-01 12:34' as exp;
 select str_to_date('2007-10-00','%Y-%m-%d') between '2007/09/01'
-                                                and '2007/10/20';
---enable_view_protocol
+                                                and '2007/10/20' as exp;
 set SQL_MODE=DEFAULT;
 select str_to_date('2007-10-00','%Y-%m-%d') between '' and '2007/10/20';
 select str_to_date('','%Y-%m-%d') between '2007/10/01' and '2007/10/20';
@@ -3621,15 +3645,12 @@ select str_to_date('1','%Y-%m-%d') = '1';
 select str_to_date('1','%Y-%m-%d') = '1';
 select str_to_date('','%Y-%m-%d') = '';
 
-#enable after fix MDEV-27871
---disable_view_protocol
-select str_to_date('2000-01-01','%Y-%m-%d') between '1000-01-01' and '2001-01-01';
-select str_to_date('2000-01-01','%Y-%m-%d') between '1000-01-01' and NULL;
-select str_to_date('2000-01-01','%Y-%m-%d') between NULL and '2001-01-01';
-select str_to_date('2000-01-01','%Y-%m-%d') between '2001-01-01' and NULL;
-select str_to_date('2000-01-01','%Y-%m-%d') between NULL and '1000-01-01';
-select str_to_date('2000-01-01','%Y-%m-%d') between NULL and NULL;
---enable_view_protocol
+select str_to_date('2000-01-01','%Y-%m-%d') between '1000-01-01' and '2001-01-01' as exp;
+select str_to_date('2000-01-01','%Y-%m-%d') between '1000-01-01' and NULL as exp;
+select str_to_date('2000-01-01','%Y-%m-%d') between NULL and '2001-01-01' as exp;
+select str_to_date('2000-01-01','%Y-%m-%d') between '2001-01-01' and NULL as exp;
+select str_to_date('2000-01-01','%Y-%m-%d') between NULL and '1000-01-01' as exp;
+select str_to_date('2000-01-01','%Y-%m-%d') between NULL and NULL as exp;
 
 #
 # Bug #30666: Incorrect order when using range conditions on 2 tables or more
@@ -3739,6 +3760,7 @@ DROP TABLE t1;
 #
 # Bug #32942 now() - interval '7200' second is NOT pre-calculated, causing "full table scan"
 #
+--disable_cursor_protocol
 --disable_ps2_protocol
 --disable_view_protocol
 CREATE TABLE t1 (a INT, b INT);
@@ -3756,6 +3778,7 @@ SHOW STATUS LIKE 'Handler_read%';
 DROP TABLE t1, t2;
 --enable_view_protocol
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 #
 # Bug#40953 SELECT query throws "ERROR 1062 (23000): Duplicate entry..." error
@@ -3832,10 +3855,12 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (2),(3);
 
 --echo # Should not crash
+--disable_cursor_protocol
 --error ER_SUBQUERY_NO_1_ROW
 SELECT 1 FROM t1 WHERE a <> 1 AND NOT
 ROW(1,a) <=> ROW(1,(SELECT 1 FROM t1))
 INTO @var0;
+--enable_cursor_protocol
 
 DROP TABLE t1;
  
@@ -4743,16 +4768,14 @@ DROP TABLE t1;
 CREATE TABLE t1(a VARCHAR(16383) CHARACTER SET UTF32, KEY k(a));
 INSERT INTO t1 VALUES ('abc'), ('def'), ('FFF'), ('abc'), ('FFF');
 
-# big_tables are deprecated after some version
---disable_warnings
-SET SESSION big_tables=ON;
+set tmp_memory_table_size=0;
 SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
 
 PREPARE stmt FROM 'SELECT DISTINCT COUNT(DISTINCT a) FROM t1';
 EXECUTE stmt;
 EXECUTE stmt;
 
---enable_warnings
+set tmp_memory_table_size=default;
 DROP TABLE t1;
 
 --echo #
@@ -4798,3 +4821,5 @@ DROP TABLE t1;
 DROP VIEW v1, v2;
 
 --echo End of 10.0 tests
+
+--source include/test_db_charset_restore.inc

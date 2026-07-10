@@ -28,7 +28,7 @@
 void my_rnd_init(struct my_rnd_struct *rand_st, ulong seed1, ulong seed2)
 {
 #ifdef HAVE_valgrind
-  bzero((char*) rand_st,sizeof(*rand_st));      /* Avoid UMC varnings */
+  bzero((char*) rand_st,sizeof(*rand_st));      /* Avoid UMC warnings */
 #endif
   rand_st->max_value= 0x3FFFFFFFL;
   rand_st->max_value_dbl=(double) rand_st->max_value;
@@ -64,25 +64,3 @@ double my_rnd(struct my_rnd_struct *rand_st)
   return (((double) seed1)/rand_st->max_value_dbl);
 }
 
-
-/**
-  Generate a random number using the OpenSSL/yaSSL supplied
-  random number generator if available.
-
-  @param rand_st [INOUT] Structure used for number generation
-                         only if none of the SSL libraries are
-                         available.
-
-  @retval                Generated random number.
-*/
-
-double my_rnd_ssl(struct my_rnd_struct *rand_st)
-{
-#if defined(HAVE_OPENSSL)
-  rc= RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
-  if (rc)
-    return (double)res / (double)UINT_MAX;
-#endif /* defined(HAVE_OPENSSL) */
-
-  return my_rnd(rand_st);
-}

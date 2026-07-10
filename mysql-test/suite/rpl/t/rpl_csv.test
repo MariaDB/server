@@ -1,0 +1,16 @@
+--source include/have_csv.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo *** MDEV-35233: RBR does not work with CSV tables
+CREATE TABLE t (a INT NOT NULL) ENGINE=CSV;
+INSERT INTO t VALUES (1),(2);
+DELETE FROM t where a=1;
+
+--sync_slave_with_master
+SELECT * FROM t ORDER BY a;
+
+# Cleanup
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

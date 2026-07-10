@@ -1,10 +1,33 @@
 connect  test,localhost,root,,;
 connection test;
+change_user foo,bar,;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: YES)
+change_user foo,,;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: NO)
+change_user root,,test;
+change_user foo,bar,;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: YES)
+change_user foo,bar,;
 ERROR 08S01: Unknown command
+change_user root,,test;
 ERROR 08S01: Unknown command
 disconnect test;
 connection default;
-that's all
+# End of 10.0 tests
+#
+# MDEV-36405 Session tracking does not report changes from COM_CHANGE_USER
+#
+change_user
+change_user root,,test;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- autocommit: ON
+-- character_set_client: latin1
+-- character_set_connection: latin1
+-- character_set_results: latin1
+-- redirect_url: 
+-- time_zone: SYSTEM
+
+-- Tracker : SESSION_TRACK_SCHEMA
+-- test
+
+# End of 12.0 tests

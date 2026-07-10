@@ -6,14 +6,14 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `i1` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP INDEX IF EXISTS i1 ON t1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP INDEX IF EXISTS i1 ON t1;
 Warnings:
 Note	1091	Can't DROP INDEX `i1`; check that it exists
@@ -22,7 +22,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE OR REPLACE INDEX i1 ON t1(a);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -30,7 +30,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `i1` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE OR REPLACE INDEX i1 ON t1(a,b);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -38,7 +38,15 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   KEY `i1` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE OR REPLACE INDEX IF NOT EXISTS i1 ON t1(b,a);
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+#
+# MDEV-35021 Behavior for RTREE indexes changed, assertion fails
+#
+create table t (f int not null);
+create index ind using rtree on t (f);
+ERROR HY000: Incorrect arguments to RTREE INDEX
+drop table t;
+# End of 11.7 tests

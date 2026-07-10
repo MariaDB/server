@@ -22,7 +22,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	t1
 Non_unique	0
@@ -41,9 +41,9 @@ Ignored	NO
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
-Character set:       latin1_swedish_ci (8)
-Data records:                   10  Deleted blocks:                 0
-Recordlength:                   12
+Character set:       ? (0)
+Data records:                     10  Deleted blocks:                      0
+Recordlength:                     12
 
 table description:
 Key Start Len Index   Type
@@ -52,8 +52,8 @@ select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,ORDINAL_POSITION,COLUMN
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
 def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI			NEVER	NULL
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
-def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED	CREATE_OPTIONS
+def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO	
 select   * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
@@ -81,7 +81,7 @@ NULL
 maria
 sachin
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 #duplicate entry test;
 insert into t1 values(2);
 ERROR 23000: Duplicate entry '2' for key 'a'
@@ -129,9 +129,9 @@ insert into t1 values(1),(2),(3),(4),(5),(8),(7);
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
-Character set:       latin1_swedish_ci (8)
-Data records:                    7  Deleted blocks:                 0
-Recordlength:                   12
+Character set:       ? (0)
+Data records:                      7  Deleted blocks:                      0
+Recordlength:                     12
 
 table description:
 Key Start Len Index   Type
@@ -148,13 +148,13 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1,2);
 ERROR 23000: Duplicate entry '1' for key 'a'
 insert into t1 values(2,2);
 ERROR 23000: Duplicate entry '2' for key 'a'
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 #now try to change db_row_hash_1 column;
 alter table t1 drop column db_row_hash_1;
 ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
@@ -175,7 +175,7 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 #now add some column with name db_row_hash;
 alter table t1 add column db_row_hash_1 int unique;
 show create table t1;
@@ -186,7 +186,7 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_1` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(45,1,55),(46,1,55);
 ERROR 23000: Duplicate entry '55' for key 'db_row_hash_1'
 insert into t1 values(45,1,55),(45,1,55);
@@ -209,7 +209,7 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_2` int(11) DEFAULT NULL,
   `db_row_hash_3` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -225,7 +225,7 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # try to change the blob unique name;
 alter table t1 change column a aa blob ;
 show create table t1;
@@ -238,7 +238,7 @@ t1	CREATE TABLE `t1` (
   `aa` blob DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -256,7 +256,7 @@ t1	CREATE TABLE `t1` (
   `aa` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -276,7 +276,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`),
   UNIQUE KEY `clm` (`clm_changed`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -295,7 +295,7 @@ t1	CREATE TABLE `t1` (
   `clm_changed` blob DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -329,7 +329,7 @@ insert into t1 values(7,1);
 ERROR 23000: Duplicate entry '1' for key 'b'
 drop table t1;
 #table with multiple  long blob column and varchar text column ;
-create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique);
+create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique) charset=latin1;
 insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555),
 ('sachin',341,'fdf','gfgfgfg','hghgr'),('maria',345,'frter','dasd','utyuty'),
 (123456789034567891,353534,53453453453456,64565464564564,45435345345345),
@@ -365,8 +365,8 @@ t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
-Data records:                    8  Deleted blocks:                 0
-Recordlength:                 3040
+Data records:                      8  Deleted blocks:                      0
+Recordlength:                   3040
 
 table description:
 Key Start Len Index   Type
@@ -382,11 +382,11 @@ def	test	t1	c	3	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI			NE
 def	test	t1	d	4	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text	UNI			NEVER	NULL
 def	test	t1	e	5	NULL	YES	varchar	3000	3000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(3000)	UNI			NEVER	NULL
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
-def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED	CREATE_OPTIONS
+def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO	
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
@@ -405,11 +405,11 @@ a	b	c	d	e
 maria	345	frter	dasd	utyuty
 sachin	341	fdf	gfgfgfg	hghgr
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 select db_row_hash_2 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_2' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_2' in 'SELECT'
 select db_row_hash_3 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_3' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_3' in 'SELECT'
 #duplicate entry test;
 insert into t1 values(21,2,3,42,51);
 ERROR 23000: Duplicate entry '3' for key 'c'
@@ -462,7 +462,7 @@ t1	CREATE TABLE `t1` (
 insert into t1 values(1,2,3,4,5,6);
 ERROR 23000: Duplicate entry '1' for key 'a'
 select db_row_hash_1 , db_row_hash_2, db_row_hash_3 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 #now try to change db_row_hash_1 column;
 alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
 ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
@@ -671,7 +671,7 @@ t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 #now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
-unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h));
+unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h)) charset=latin1;
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
 ('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb')
 ,(null,null,null,null,null,null,null,null),(null,null,null,null,null,null,null,null);
@@ -722,8 +722,8 @@ t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
 Character set:       latin1_swedish_ci (8)
-Data records:                    9  Deleted blocks:                 0
-Recordlength:                 5059
+Data records:                      9  Deleted blocks:                      0
+Recordlength:                   5059
 
 table description:
 Key Start Len Index   Type
@@ -742,21 +742,21 @@ def	test	t1	f	6	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL
 def	test	t1	g	7	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)				NEVER	NULL
 def	test	t1	h	8	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text				NEVER	NULL
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
-def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
-def	test	t1	0	test	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED	CREATE_OPTIONS
+def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO	
+def	test	t1	0	test	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO	
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
@@ -786,11 +786,11 @@ NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 maria	6	maria	maria	maria	maria	6	maria
 mariadb	7	mariadb	mariadb	mariadb	mariadb	8	mariadb
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 select db_row_hash_2 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_2' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_2' in 'SELECT'
 select db_row_hash_3 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_3' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_3' in 'SELECT'
 #duplicate entry test;
 #duplicate keys entry;
 insert into t1 values(1,1,1,0,0,0,0,0);
@@ -806,7 +806,7 @@ ERROR 23000: Duplicate entry '1-1-1-1' for key 'e'
 insert into t1 values(1,1,1,1,1,1,1,1);
 ERROR 23000: Duplicate entry '1-1-1' for key 'a'
 select db_row_hash_1,db_row_hash_2,db_row_hash_3,db_row_hash_4,db_row_hash_5 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
 ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
 alter table t1 add column dg int , add column ef int , drop column db_row_hash_1;
@@ -1095,7 +1095,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
@@ -1133,7 +1133,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `e` (`e`),
   UNIQUE KEY `a` (`a`,`c`) USING HASH,
   UNIQUE KEY `b` (`b`,`d`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -1170,7 +1170,7 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 33	3
 44	4
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1;
-ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'field list'
+ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'SELECT'
 #bug
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2;
 DB_ROW_HASH_1	DB_ROW_HASH_2
@@ -1191,24 +1191,24 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 44	4
 44	4
 select * from t1 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
-ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY'
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 DB_ROW_HASH_1	DB_ROW_HASH_2
 11	1
-22	2
-33	3
-44	4
+11	1
+11	1
 11	1
 22	2
-33	3
-44	4
-11	1
+22	2
+22	2
 22	2
 33	3
-44	4
-11	1
-22	2
 33	3
+33	3
+33	3
+44	4
+44	4
+44	4
 44	4
 select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
 DB_ROW_HASH_1	DB_ROW_HASH_2
@@ -1217,7 +1217,7 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 33	3
 44	4
 select DB_ROW_HASH_1 from t1,t2 where t1.DB_ROW_HASH_1 = t2.DB_ROW_HASH_2;
-ERROR 42S22: Unknown column 't1.DB_ROW_HASH_1' in 'where clause'
+ERROR 42S22: Unknown column 't1.DB_ROW_HASH_1' in 'WHERE'
 select DB_ROW_HASH_1 from t1 inner join t2 on t1.a = t2.DB_ROW_HASH_2;
 DB_ROW_HASH_1
 11
@@ -1238,10 +1238,11 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3000)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 value(concat(repeat('s',3000),'1'));
 insert into t1 value(concat(repeat('s',3000),'2'));
 ERROR 23000: Duplicate entry 'sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss...' for key 'a'
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 create table t1(a varchar(4000), b longblob , c varchar(5000), d longblob, 
@@ -1261,7 +1262,7 @@ t1	CREATE TABLE `t1` (
   `d` longblob DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3500),`b`) USING HASH,
   UNIQUE KEY `c` (`c`(4500),`d`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	NULL	3500	NULL	YES	HASH			NO
@@ -1281,7 +1282,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`),
   UNIQUE KEY `b` (`b`) USING HASH,
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1,23,1,33);
 insert into t1 values(2,23,1,33);
 ERROR 23000: Duplicate entry '23' for key 'b'
@@ -1294,7 +1295,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH,
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t2 values(1,1);
 insert into t2 values(2,1);
 drop table t2;
@@ -1308,7 +1309,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob NOT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1);
 insert into t1 values(3);
 insert into t1 values(1);
@@ -1335,7 +1336,7 @@ t1	CREATE TABLE `t1` (
   `c` blob NOT NULL,
   UNIQUE KEY `a` (`a`) USING HASH,
   UNIQUE KEY `b` (`b`,`c`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1, 2, 3);
 insert into t1 values (2, 1, 3);
 insert into t1 values (2, 1, 3);
@@ -1353,7 +1354,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`(65535)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #64 indexes
 create table t1 ( a63 blob unique, a62 blob unique, a61 blob unique, a60 blob unique, a59 blob unique, a58 blob unique, a57 blob unique, a56 blob unique, a55 blob unique, a54 blob unique, a53 blob unique, a52 blob unique, a51 blob unique, a50 blob unique, a49 blob unique, a48 blob unique, a47 blob unique, a46 blob unique, a45 blob unique, a44 blob unique, a43 blob unique, a42 blob unique, a41 blob unique, a40 blob unique, a39 blob unique, a38 blob unique, a37 blob unique, a36 blob unique, a35 blob unique, a34 blob unique, a33 blob unique, a32 blob unique, a31 blob unique, a30 blob unique, a29 blob unique, a28 blob unique, a27 blob unique, a26 blob unique, a25 blob unique, a24 blob unique, a23 blob unique, a22 blob unique, a21 blob unique, a20 blob unique, a19 blob unique, a18 blob unique, a17 blob unique, a16 blob unique, a15 blob unique, a14 blob unique, a13 blob unique, a12 blob unique, a11 blob unique, a10 blob unique, a9 blob unique, a8 blob unique, a7 blob unique, a6 blob unique, a5 blob unique, a4 blob unique, a3 blob unique, a2 blob unique, a1 blob unique, a blob unique);;
@@ -1372,7 +1373,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(a blob);
 alter table t1 add index(a);
@@ -1383,7 +1384,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(a text, key(a));
 Warnings:
@@ -1392,8 +1393,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
-  KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(a varchar(4000));
 alter table t1 add index(a);
@@ -1403,8 +1404,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(4000) DEFAULT NULL,
-  KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (pk int, a int, b int, primary key(pk), key(pk,a));
 alter table t1 modify a text;
@@ -1419,7 +1420,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `pk` (`pk`,`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-19705: Assertion `tmp >= 0' failed in best_access_path
@@ -1452,4 +1453,26 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
 ERROR HY000: AUTO_INCREMENT column `b` cannot be used in the UNIQUE index `a`
+#
+# MDEV-35620 UBSAN: runtime error: applying zero offset to null pointer in _ma_unique_hash, skip_trailing_space, my_hash_sort_mb_nopad_bin and my_strnncollsp_utf8mb4_bin
+#
+# Disable result log. The exact result is not important.
+# We just need to make sure UBSAN nullptr-with-offset is not reported.
+SELECT DISTINCT user,authentication_string FROM mysql.user;
+SELECT DISTINCT USER,PASSWORD FROM mysql.user;
+SELECT DISTINCT USER,plugin FROM mysql.user;
+# Enabling result log again.
+create or replace table t1 (t text) engine=aria;
+insert into t1 values ('');
+insert into t1 values (NULL);
+select distinct t from t1;
+t
+
+NULL
+alter table t1 ENGINE=MyISAM;
+select distinct t from t1;
+t
+
+NULL
+DROP TABLE t1;
 # End of 10.5 tests

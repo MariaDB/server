@@ -1,0 +1,16 @@
+--source include/have_debug.inc
+
+SET @code=1;
+SET sql_mode=ORACLE;
+SET names utf8mb4;
+
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+--source sp-assoc-array-package-00.inc
+--source sp-assoc-array-package-01.inc
+
+# Please uncomment after this bug gets fixed:
+# MDEV-39045 SHOW PROCEDURE CODE crashes in a package with a body wide assoc array
+#--source sp-assoc-array-package-04.inc

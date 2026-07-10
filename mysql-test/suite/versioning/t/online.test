@@ -5,8 +5,8 @@
 set system_versioning_alter_history=keep;
 
 create or replace table t (a int);
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t add system versioning, lock=none;
+alter table t drop system versioning;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t add system versioning, algorithm=inplace;
 alter table t add system versioning, lock=shared;

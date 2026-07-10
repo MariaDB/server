@@ -5,6 +5,7 @@
 --source include/galera_cluster.inc
 --source include/have_openssl.inc
 --source include/have_ssl_communication.inc
+--source include/force_restart.inc
 
 --let $galera_version=26.4.8
 source ../../wsrep/include/check_galera_version.inc;
@@ -31,22 +32,22 @@ let $ssl_cert = $MYSQLTEST_VARDIR/tmp/ssl_cert.pem;
 let $ssl_key = $MYSQLTEST_VARDIR/tmp/ssl_key.pem;
 let $ssl_ca = $MYSQLTEST_VARDIR/tmp/ssl_ca.pem;
 
-copy_file std_data/galera_certs/galera.root.crt $ssl_ca;
-copy_file std_data/galera_certs/galera.1.crt $ssl_cert;
-copy_file std_data/galera_certs/galera.1.key $ssl_key;
+copy_file std_data/cacert.pem $ssl_ca;
+copy_file std_data/client-cert.pem $ssl_cert;
+copy_file std_data/client-key.pem $ssl_key;
 
 --connection node_2
 --source include/shutdown_mysqld.inc
 --let $restart_noprint=1
---let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1 --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera_certs/galera.root.crt;socket.ssl_cert=$MYSQLTEST_VARDIR/tmp/ssl_cert.pem;socket.ssl_key=$MYSQLTEST_VARDIR/tmp/ssl_key.pem
+--let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1 --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/cacert.pem;socket.ssl_cert=$MYSQLTEST_VARDIR/tmp/ssl_cert.pem;socket.ssl_key=$MYSQLTEST_VARDIR/tmp/ssl_key.pem
 --source include/start_mysqld.inc
 --source include/galera_wait_ready.inc
 
 # Set certificate and key and reload by setting directly `wsrep_provider_options`
 remove_file $ssl_cert;
 remove_file $ssl_key;
-copy_file std_data/galera_certs/galera.2.crt $ssl_cert;
-copy_file std_data/galera_certs/galera.2.key $ssl_key;
+copy_file std_data/client-cert.pem $ssl_cert;
+copy_file std_data/client-key.pem $ssl_key;
 SET GLOBAL wsrep_provider_options = 'socket.ssl_reload=1';
 
 --connection node_3
@@ -66,6 +67,13 @@ FLUSH SSL;
 remove_file $ssl_ca;
 remove_file $ssl_cert;
 remove_file $ssl_key;
+
+--connection node_3
+call mtr.add_suppression("WSREP: Handshake failed: unexpected eof while reading");
+--connection node_2
+call mtr.add_suppression("WSREP: Handshake failed: unexpected eof while reading");
+--connection node_1
+call mtr.add_suppression("WSREP: Handshake failed: unexpected eof while reading");
 
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

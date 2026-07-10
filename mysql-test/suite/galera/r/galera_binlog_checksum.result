@@ -27,4 +27,5 @@ i
 1
 connection node_1;
 DROP TABLE t1;
+SET @@global.wsrep_mode=DEFAULT;
 # End of tests.

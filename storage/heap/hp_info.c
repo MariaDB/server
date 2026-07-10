@@ -40,6 +40,10 @@ int heap_info(reg1 HP_INFO *info,reg2 HEAPINFO *x, int flag )
   x->errkey          = info->errkey;
   x->create_time     = info->s->create_time;
   if (flag & HA_STATUS_AUTO)
-    x->auto_increment= info->s->auto_increment + 1;
+  {
+    x->auto_increment= info->s->auto_increment+1;
+    if (!x->auto_increment)			/* This shouldn't happen */
+      x->auto_increment= ~(ulonglong) 0;
+  }
   DBUG_RETURN(0);
 } /* heap_info */

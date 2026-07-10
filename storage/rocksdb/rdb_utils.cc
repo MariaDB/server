@@ -115,7 +115,7 @@ const char *rdb_find_in_string(const char *str, const char *pattern,
     }
   }
 
-  // Return the character after the found pattern or the null terminateor
+  // Return the character after the found pattern or the null terminator
   // if the pattern wasn't found.
   return str;
 }
@@ -229,7 +229,7 @@ static const std::array<char, 16> rdb_hexdigit = {{'0', '1', '2', '3', '4', '5',
 
 /*
   Convert data into a hex string with optional maximum length.
-  If the data is larger than the maximum length trancate it and append "..".
+  If the data is larger than the maximum length truncate it and append "..".
 */
 std::string rdb_hexdump(const char *data, const std::size_t data_len,
                         const std::size_t maxsize) {

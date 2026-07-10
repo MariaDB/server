@@ -52,10 +52,10 @@ affected rows: 1
 # Do not display the column value itself, just its length.
 #
 SELECT LENGTH(c1) FROM t1;
-LENGTH(c1)	67108864
 LENGTH(c1)	33554432
 LENGTH(c1)	4194304
 LENGTH(c1)	524288
+LENGTH(c1)	67108864
 affected rows: 4
 #
 # Grow the rows by updating.
@@ -68,8 +68,8 @@ info: Rows matched: 4  Changed: 4  Warnings: 0
 # Do not display the column value itself, just its length.
 #
 SELECT LENGTH(c1) FROM t1;
-LENGTH(c1)	134217728
 LENGTH(c1)	1048576
+LENGTH(c1)	134217728
 LENGTH(c1)	67108864
 LENGTH(c1)	8388608
 affected rows: 4

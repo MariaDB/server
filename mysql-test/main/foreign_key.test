@@ -142,3 +142,13 @@ DROP TABLE tfk;
 DROP TABLE tpk;
 
 
+--echo #
+--echo # MDEV-33223 Assertion `dst_size > 4' failed in size_t Identifier_chain2::make_sep_name_opt_casedn(char*, size_t, int, bool) const
+--echo #
+
+CREATE DATABASE x;
+USE x;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t (i INT, j INT, CONSTRAINT fk2 FOREIGN KEY(i) REFERENCES p (i)) ENGINE=InnoDB;
+DROP DATABASE x;
+USE test;

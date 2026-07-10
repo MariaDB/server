@@ -121,7 +121,7 @@ created. Thus we can easily see if this record was changed by the
 creating transaction. Because we already have clustered record we can
 access roll_ptr. Using this roll_ptr we can fetch undo record.
 We can now check that undo_no of the undo record is less than undo_no of the
-trancaction which created a view when cursor was created. We see this
+transaction which created a view when cursor was created. We see this
 clustered record only in case when record undo_no is less than undo_no
 in the view. If this is not true we build based on undo_rec previous
 version of the record. This record is found because purge can't remove
@@ -160,7 +160,7 @@ may be pointing to garbage (an undo log record discarded by purge),
 but it will never be dereferenced, because the purge view is older
 than any active transaction.
 
-For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
+For details see: row_undo_mod_sec_is_unsafe() and row_purge_poss_sec()
 */
 
 
@@ -172,7 +172,7 @@ For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
 */
 inline void ReadViewBase::snapshot(trx_t *trx)
 {
-  trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
+  m_low_limit_no= trx_sys.snapshot_ids(m_ids, m_low_limit_id);
   if (m_ids.empty())
   {
     m_up_limit_id= m_low_limit_id;

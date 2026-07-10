@@ -276,7 +276,7 @@ drop table t_keyword;
 --echo # Test behaviour with a simple select.
 --echo #
 
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 insert into t1 values
   (1, 'Alice', 'Fowler', 5),
   (2, 'John', 'Doe', 6),
@@ -349,8 +349,15 @@ order by first_name, last_name
 offset 1 rows
 fetch first 3 rows with ties;
 
+--source include/analyze-format.inc
+analyze FORMAT=JSON
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
+offset 2 rows
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name, score
 offset 2 rows
 fetch first 3 rows only;
 
@@ -360,7 +367,7 @@ offset 2 rows
 fetch first 3 rows with ties;
 
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
 offset 3 rows
 fetch first 3 rows only;
 
@@ -546,7 +553,7 @@ drop view v3;
 --echo #
 --echo # Test with ties when an index is used to provide the order by.
 --echo #
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 
 create index t1_name on t1 (first_name, last_name);
 
@@ -614,7 +621,12 @@ where first_name != 'John'
 order by first_name
 fetch first 2 rows with ties;
 
-
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
 
 select first_name, last_name
 from t1
@@ -769,6 +781,7 @@ fetch first 1 row with ties;
 --echo # Test union-like operator with multiple fetch first clauses.
 --echo #
 select * from t1 order by 1 fetch first 3 rows with ties;
+--replace_column 1 # 3 # 4 #
 select * from t1 order by first_name desc fetch first 3 rows with ties;
 
 --sorted_result
@@ -1082,3 +1095,77 @@ SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 3 ROWS WITH TIES;
  
 # Cleanup
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-37901: Wrong result with Loose Scan on QUICK_GROUP_MIN_MAX_SELECT WITH TIES
+--echo #
+
+--source include/have_sequence.inc
+
+create table t1 (
+  country varchar(100),
+  city varchar(100),
+  user_score int,
+  index (country, city, user_score)
+);
+
+insert into t1
+select 'China', 'Shenzhen', seq from seq_10_to_100;
+insert into t1
+select 'India', 'New Delhi', seq from seq_10_to_100;
+insert into t1
+select 'Sri Lanka', 'Colombo', seq from seq_10_to_100;
+analyze table t1 persistent for all;
+
+insert into t1
+select 'Finland', 'Espoo', seq from seq_10_to_200;
+insert into t1
+select 'Greece', 'Chania', seq from seq_10_to_20;
+insert into t1
+select 'Estonia', 'Narva', seq from seq_10_to_20;
+insert into t1
+select 'Russia', 'St Petersburg', seq from seq_10_to_20;
+
+--echo # Must use "Using index for group-by":
+explain
+select country, city, min(user_score)
+from t1
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+
+--echo # Must not use "Using index for group-by":
+explain
+select country, city, sum(user_score)
+from t1
+where user_score between 9 and 199
+group by country, concat(city,'AA')
+order by country
+fetch first 5 rows with ties;
+
+select country, city, sum(user_score)
+from t1
+where user_score between 9 and 199
+group by country, concat(city,'AA')
+order by country
+fetch first 5 rows with ties;
+
+--echo # both using index and index with group by should produce same result
+
+select country, city, min(user_score)
+from t1
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+
+select country, city, min(user_score)
+from t1 use index()
+where user_score between 9 and 199
+group by country, city
+order by country
+fetch first 5 rows with ties;
+
+drop table t1;

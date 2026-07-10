@@ -99,6 +99,28 @@ static int unlock_external(THD *thd, TABLE **table,uint count);
 static int thr_lock_errno_to_mysql[]=
 { 0, ER_LOCK_ABORTED, ER_LOCK_WAIT_TIMEOUT, ER_LOCK_DEADLOCK };
 
+
+extern const char *read_only_mode_names[];
+
+/*
+  Give an error in case if users violates read only state
+*/
+
+void mariadb_error_read_only()
+{
+  char msg[60];
+  int read_only= opt_readonly;
+  DBUG_ASSERT(read_only);
+  if (unlikely(read_only == 0))
+    read_only= 1;                     // If global readonly changed during call
+
+  strxnmov(msg, sizeof(msg), "--read-only=",
+           read_only_mode_names[read_only],
+           NullS);
+  my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), msg);
+}
+
+
 /**
   Perform semantic checks for mysql_lock_tables.
   @param thd The current thread
@@ -112,13 +134,10 @@ static int
 lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
 {
   uint system_count, i;
-  bool ignore_read_only, log_table_write_query;
-
+  bool log_table_write_query;
   DBUG_ENTER("lock_tables_check");
 
   system_count= 0;
-  ignore_read_only=
-    (thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL;
   log_table_write_query= (is_log_table_write_query(thd->lex->sql_command)
                          || ((flags & MYSQL_LOCK_LOG_TABLE) != 0));
 
@@ -143,8 +162,8 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
         or hold any type of lock in a session,
         since this would be a DOS attack.
       */
-      if ((t->reginfo.lock_type >= TL_FIRST_WRITE)
-          || (thd->lex->sql_command == SQLCOM_LOCK_TABLES))
+      if ((t->reginfo.lock_type >= TL_FIRST_WRITE) ||
+          (thd->lex->sql_command == SQLCOM_LOCK_TABLES))
       {
         my_error(ER_CANT_LOCK_LOG_TABLE, MYF(0));
         DBUG_RETURN(1);
@@ -153,7 +172,8 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
 
     if (t->reginfo.lock_type >= TL_FIRST_WRITE)
     {
-      if (t->s->table_category == TABLE_CATEGORY_SYSTEM)
+      if (t->s->table_category == TABLE_CATEGORY_SYSTEM ||
+          t->s->table_category == TABLE_CATEGORY_STATISTICS)
         system_count++;
 
       if (t->db_stat & HA_READ_ONLY)
@@ -178,19 +198,46 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
 
     /*
       Prevent modifications to base tables if READ_ONLY is activated.
-      In any case, read only does not apply to temporary tables.
+      In any case, read only does not apply to temporary tables or slave
+      threads.
     */
-    if (!(flags & MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY) && !t->s->tmp_table)
+    if (unlikely(opt_readonly) &&
+        !(flags & MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY) && !t->s->tmp_table &&
+        !thd->slave_thread)
     {
-      if (t->reginfo.lock_type >= TL_FIRST_WRITE &&
-          !ignore_read_only && opt_readonly && !thd->slave_thread)
+      switch (opt_readonly)
       {
-        my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
-        DBUG_RETURN(1);
+      case READONLY_OFF:                     // Impossible
+        DBUG_ASSERT(0);
+        break;
+      case READONLY_ON:                       // Compatibility
+        if (!(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
+            t->reginfo.lock_type >= TL_FIRST_WRITE)
+        {
+          mariadb_error_read_only();
+          DBUG_RETURN(1);
+        }
+        break;
+      case READONLY_NO_LOCK:
+        if (!(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
+            (thd->lex->sql_command == SQLCOM_LOCK_TABLES ||
+             t->reginfo.lock_type >= TL_BLOCKS_READONLY))
+        {
+          mariadb_error_read_only();
+          DBUG_RETURN(1);
+        }
+        break;
+      case READONLY_NO_LOCK_NO_ADMIN:
+        if (thd->lex->sql_command == SQLCOM_LOCK_TABLES ||
+            t->reginfo.lock_type >= TL_BLOCKS_READONLY)
+        {
+          mariadb_error_read_only();
+          DBUG_RETURN(1);
+        }
+        break;
       }
     }
   }
-
   /*
     Locking of system tables is restricted:
     locking a mix of system and non-system tables in the same lock
@@ -386,10 +433,10 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
   DBUG_PRINT("info", ("count %d", count));
   for (i=1 ; i <= count ; i++, tables++)
   {
-    DBUG_ASSERT((*tables)->reginfo.lock_type >= TL_READ);
+    DBUG_ASSERT((*tables)->reginfo.lock_type >= TL_READ_SKIP_LOCKED);
     lock_type=F_WRLCK;				/* Lock exclusive */
     if ((*tables)->db_stat & HA_READ_ONLY ||
-	((*tables)->reginfo.lock_type >= TL_READ &&
+	((*tables)->reginfo.lock_type >= TL_READ_SKIP_LOCKED &&
 	 (*tables)->reginfo.lock_type < TL_FIRST_WRITE))
       lock_type=F_RDLCK;
 
@@ -816,9 +863,8 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     enum thr_lock_type lock_type;
     THR_LOCK_DATA **locks_start;
 
-    if (!((likely(!table->s->tmp_table) ||
-           (table->s->tmp_table == TRANSACTIONAL_TMP_TABLE)) &&
-          (!(flags & GET_LOCK_SKIP_SEQUENCES) || table->s->sequence == 0)))
+    if ((table->s->tmp_table && table->s->tmp_table != TRANSACTIONAL_TMP_TABLE)
+       || (flags & GET_LOCK_SKIP_SEQUENCES && table->s->sequence != NULL))
       continue;
     lock_type= table->reginfo.lock_type;
     DBUG_ASSERT(lock_type != TL_WRITE_DEFAULT && lock_type != TL_READ_DEFAULT);
@@ -882,7 +928,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
                  or this connection was killed.
 */
 
-bool lock_schema_name(THD *thd, const char *db)
+bool lock_schema_name(THD *thd, const Lex_ident_db_normalized &db)
 {
   MDL_request_list mdl_requests;
   MDL_request global_request;
@@ -899,7 +945,7 @@ bool lock_schema_name(THD *thd, const char *db)
     return TRUE;
   MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
                    MDL_STATEMENT);
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::SCHEMA, db, "", MDL_EXCLUSIVE,
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::SCHEMA, db.str, "", MDL_EXCLUSIVE,
                    MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);
@@ -936,14 +982,14 @@ bool lock_schema_name(THD *thd, const char *db)
 */
 
 bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
-                       const char *db, const char *name)
+                      const LEX_CSTRING &db, const LEX_CSTRING &name)
 {
   MDL_request_list mdl_requests;
   MDL_request global_request;
   MDL_request schema_request;
   MDL_request mdl_request;
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db).ok_for_lower_case_names());
 
   if (thd->locked_tables_mode)
   {
@@ -952,16 +998,16 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
     return TRUE;
   }
 
-  DBUG_ASSERT(name);
+  DBUG_ASSERT(name.str);
   DEBUG_SYNC(thd, "before_wait_locked_pname");
 
   if (thd->has_read_only_protection())
     return TRUE;
   MDL_REQUEST_INIT(&global_request, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
                    MDL_STATEMENT);
-  MDL_REQUEST_INIT(&schema_request, MDL_key::SCHEMA, db, "",
+  MDL_REQUEST_INIT(&schema_request, MDL_key::SCHEMA, db.str, "",
                    MDL_INTENTION_EXCLUSIVE, MDL_TRANSACTION);
-  MDL_REQUEST_INIT(&mdl_request, mdl_type, db, name, MDL_EXCLUSIVE,
+  MDL_REQUEST_INIT(&mdl_request, mdl_type, db.str, name.str, MDL_EXCLUSIVE,
                    MDL_TRANSACTION);
 
   mdl_requests.push_front(&mdl_request);
@@ -1063,8 +1109,6 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
   if (!m_state)
   {
     MDL_deadlock_and_lock_abort_error_handler mdl_deadlock_handler;
-    MDL_request mdl_request;
-    bool result;
 
     if (thd->current_backup_stage != BACKUP_FINISHED)
     {
@@ -1083,22 +1127,20 @@ bool Global_read_lock::lock_global_read_lock(THD *thd)
                                                  MDL_BACKUP_FTWRL1));
     DBUG_ASSERT(! thd->mdl_context.is_lock_owner(MDL_key::BACKUP, "", "",
                                                  MDL_BACKUP_FTWRL2));
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1,
-                     MDL_EXPLICIT);
 
     do
     {
       mdl_deadlock_handler.init();
       thd->push_internal_handler(&mdl_deadlock_handler);
-      result= thd->mdl_context.acquire_lock(&mdl_request,
-                                            thd->variables.lock_wait_timeout);
+      m_mdl_global_read_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
+          MDL_key::BACKUP, "", "", MDL_BACKUP_FTWRL1,
+          MDL_EXPLICIT, thd->variables.lock_wait_timeout);
       thd->pop_internal_handler();
     } while (mdl_deadlock_handler.need_reopen());
 
-    if (result)
+    if (!m_mdl_global_read_lock)
       DBUG_RETURN(true);
 
-    m_mdl_global_read_lock= mdl_request.ticket;
     m_state= GRL_ACQUIRED;
   }
   /*
@@ -1133,16 +1175,14 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
   {
     thd->global_disable_checkpoint= 0;
     if (!--global_disable_checkpoint)
-    {
-      ha_checkpoint_state(0);                   // Enable checkpoints
-    }
+       ha_disable_internal_writes(0);                   // Enable checkpoints
   }
 
   thd->mdl_context.release_lock(m_mdl_global_read_lock);
 
 #ifdef WITH_WSREP
   if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT &&
-      wsrep_locked_seqno != WSREP_SEQNO_UNDEFINED)
+      thd->wsrep_desynced_backup_stage)
   {
     Wsrep_server_state& server_state= Wsrep_server_state::instance();
     if (server_state.state() == Wsrep_server_state::s_donor ||
@@ -1159,8 +1199,10 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
       WSREP_DEBUG("unlock_global_read_lock: waiting for flow control for %s",
                   wsrep_thd_query(thd));
       server_state.resume_and_resync();
+      DEBUG_SYNC(thd, "wsrep_unlock_global_read_lock_after_resume_and_resync");
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     }
+    thd->wsrep_desynced_backup_stage= false;
   }
 #endif /* WITH_WSREP */
 
@@ -1217,11 +1259,13 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
        server_state.state() != Wsrep_server_state::s_synced))
   {
     paused_seqno= server_state.pause();
+    thd->wsrep_desynced_backup_stage= true;
   }
   else if (WSREP_NNULL(thd) &&
            server_state.state() == Wsrep_server_state::s_synced)
   {
     paused_seqno= server_state.desync_and_pause();
+    thd->wsrep_desynced_backup_stage= true;
   }
   else
   {
@@ -1232,6 +1276,7 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   {
     wsrep_locked_seqno= paused_seqno.get();
   }
+  DEBUG_SYNC(thd, "wsrep_global_read_lock_block_commit_after_pause");
 #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);
 }

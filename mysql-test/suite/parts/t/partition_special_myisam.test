@@ -30,6 +30,7 @@ let $debug= 0;
 
 # The server must support partitioning.
 --source include/have_partition.inc
+--source include/test_db_charset_latin1.inc
 
 #------------------------------------------------------------------------------#
 # Engine specific settings and requirements
@@ -80,3 +81,4 @@ DROP TABLE t1;
 --disconnect con3
 --disconnect con2
 --connection default
+--source include/test_db_charset_restore.inc

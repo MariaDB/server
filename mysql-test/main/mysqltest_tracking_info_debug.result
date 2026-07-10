@@ -7,7 +7,7 @@ set @save_session_track_system_variables=@@session_track_system_variables;
 # is declared to never be null in my_strdup
 #
 # check that that parser problems do not lead to crash
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 set debug_dbug="+d,dbug_session_tracker_parse_error";
 SET GLOBAL session_track_system_variables='query_cache_size';
 ERROR HY001: Out of memory; restart server and try again (needed 1 bytes)

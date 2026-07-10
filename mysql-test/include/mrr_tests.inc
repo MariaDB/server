@@ -75,7 +75,7 @@ select b,filler from t3 where (b>='c-1011=w' and b<= 'c-1018=w') or
 drop table if exists t4;
 --enable_warnings
 create table t4 (a varchar(10), b int, c char(10), filler char(200),
-                 key idx1 (a, b, c));
+                 key idx1 (a, b, c)) charset=latin1;
 
 # insert buffer_size * 1.5 all-NULL tuples
 insert into t4 (filler) select concat('NULL-', 15-a) from t2 order by a limit 15;

@@ -15,6 +15,8 @@
 
 #include "mysys_priv.h"
 
+#include "../strings/ctype-uca.h"
+
 /*
   Include all compiled character sets into the client
   If a client don't want to use all of them, he can define his own
@@ -181,9 +183,11 @@ extern struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci;
 
 #endif /* HAVE_UCA_COLLATIONS */
 
+
 my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 {
   CHARSET_INFO *cs;
+  MY_CHARSET_LOADER loader;
 
   add_compiled_collation(&my_charset_bin);
   add_compiled_collation(&my_charset_filename);
@@ -307,6 +311,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 #ifdef HAVE_CHARSET_utf8mb3
   add_compiled_collation(&my_charset_utf8mb3_general_ci);
   add_compiled_collation(&my_charset_utf8mb3_general_nopad_ci);
+  add_compiled_collation(&my_charset_utf8mb3_general1400_as_ci);
   add_compiled_collation(&my_charset_utf8mb3_bin);
   add_compiled_collation(&my_charset_utf8mb3_nopad_bin);
   add_compiled_collation(&my_charset_utf8mb3_general_mysql500_ci);
@@ -352,6 +357,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf8mb4_bin);
   add_compiled_collation(&my_charset_utf8mb4_general_nopad_ci);
   add_compiled_collation(&my_charset_utf8mb4_nopad_bin);
+  add_compiled_collation(&my_charset_utf8mb4_general1400_as_ci);
 #ifdef HAVE_UCA_COLLATIONS
   add_compiled_collation(&my_charset_utf8mb4_unicode_ci);
   add_compiled_collation(&my_charset_utf8mb4_german2_uca_ci);
@@ -470,6 +476,24 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   /* Copy compiled charsets */
   for (cs=compiled_charsets; cs->coll_name.str; cs++)
     add_compiled_extra_collation((struct charset_info_st *) cs);
-  
+
+  /*
+    my_charset_loader_init_mysys() initializes
+    MY_CHARSET_LOADER::add_collation to the function
+    add_collation() defined in charset.c
+    Let's reset it to add_compiled_collation().
+  */
+  my_charset_loader_init_mysys(&loader);
+  loader.add_collation= add_compiled_collation;
+
+  if (my_uca1400_collation_definitions_add(&loader))
+    return TRUE;
+
+  if (mysql_uca0900_utf8mb4_collation_definitions_add(&loader))
+    return TRUE;
+
+  if (mysql_utf8mb4_0900_bin_add(&loader))
+    return TRUE;
+
   return FALSE;
 }

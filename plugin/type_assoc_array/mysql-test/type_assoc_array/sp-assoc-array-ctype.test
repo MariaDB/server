@@ -1,0 +1,377 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+--echo #
+--echo # Using a key expression with a different character set
+--echo # than the one specified in the INDEX BY clause.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE latin1_swedish_ci;
+  assoc assoc_t:= assoc_t('á' => 10);
+BEGIN
+  assoc('ó'):=20;
+  SELECT assoc('A') AS c1; -- should find 10
+  SELECT assoc('Á') AS c1; -- should find 10
+  SELECT assoc('O') AS c1; -- should find 20
+  SELECT assoc('Ó') AS c1; -- should find 20
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Check that methods (exists, delete, next)
+--echo # work when the passed key has a different character set
+--echo # than the key character set specified in INDEX BY
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE latin1_swedish_ci;
+  assoc_latin1 assoc_t:= assoc_t('ß'=>0xDF,'á'=>0xE1,'é'=>0xE9,'ó'=>0xF3,'ú'=>0xFA);
+  key_utf8mb4 VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci;
+BEGIN
+  key_utf8mb4:='ó';
+  SELECT assoc_latin1.exists(key_utf8mb4);
+  assoc_latin1.delete(key_utf8mb4);
+  SELECT assoc_latin1.exists(key_utf8mb4);
+
+  CREATE TEMPORARY TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY,
+                             k VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci,
+                             val INT);
+  key_utf8mb4:= assoc_latin1.first;
+  WHILE key_utf8mb4 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k, val) VALUES (key_utf8mb4, assoc_latin1(key_utf8mb4));
+    key_utf8mb4:= assoc_latin1.NEXT(key_utf8mb4);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+  DROP TEMPORARY TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning arrays with different key character sets and collations
+--echo # Dumping using a key variable of different characters set and collations
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_latin1_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE latin1_swedish_ci;
+  TYPE assoc_utf8mb4_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci;
+  assoc_latin1 assoc_latin1_t;
+  assoc_utf8mb4 assoc_utf8mb4_t;
+  key_latin1 VARCHAR(10) COLLATE latin1_swedish_ci;
+  key_utf8mb4 VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci;
+BEGIN
+  SELECT '# Populating assoc_latin1' AS ``;
+  assoc_latin1('ß'):=0xDF;
+  assoc_latin1('á'):=0xE1;
+  assoc_latin1('é'):=0xE9;
+  assoc_latin1('ó'):=0xF3;
+  assoc_latin1('ú'):=0xFA;
+
+  SELECT '# Copying to assoc_utf8mb4 from assoc_latin1' AS ``;
+  assoc_utf8mb4:=assoc_latin1;
+
+  CREATE TEMPORARY TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY,
+                             k VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci,
+                             val INT);
+
+  SELECT '# Dumping assoc_latin1 using key_latin1. The expected order: á é ó ú ß' AS ``;
+  key_latin1:= assoc_latin1.first;
+  WHILE key_latin1 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k, val) VALUES (key_latin1, assoc_latin1(key_latin1));
+    key_latin1:= assoc_latin1.NEXT(key_latin1);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+  TRUNCATE TABLE t1;
+
+  SELECT '# Dumping assoc_latin1 using key_utf8mb4. The expected order: á é ó ú ß' AS ``;
+  key_utf8mb4:= assoc_latin1.first;
+  WHILE key_utf8mb4 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k, val) VALUES (key_utf8mb4, assoc_latin1(key_utf8mb4));
+    key_utf8mb4:= assoc_latin1.NEXT(key_utf8mb4);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+  TRUNCATE TABLE t1;
+
+
+  SELECT '# Dumping assoc_utf8mb4 using key_utf8mb4. The expected order: á é ó ß ú' AS ``;
+  key_utf8mb4:= assoc_utf8mb4.first;
+  WHILE key_utf8mb4 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k,val) VALUES (key_utf8mb4, assoc_utf8mb4(key_utf8mb4));
+    key_utf8mb4:= assoc_utf8mb4.NEXT(key_utf8mb4);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+  TRUNCATE TABLE t1;
+
+  SELECT '# Dumping assoc_utf8mb4 using key_latin1. The expected order: á é ó ß ú' AS ``;
+  key_latin1:= assoc_utf8mb4.first;
+  WHILE key_latin1 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k,val) VALUES (key_latin1, assoc_utf8mb4(key_latin1));
+    key_latin1:= assoc_utf8mb4.NEXT(key_latin1);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+  TRUNCATE TABLE t1;
+
+  DROP TEMPORARY TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Assigning arrays with different key character sets and collations
+--echo # Some values can cause a collision during the assignment, e.g.:
+--echo # 'ü' is not equal to 'y' in utf8mb4_uca1400_as_ci
+--echo # 'ü' is     equal to 'y' in latin1_swedish_ci
+--echo # 'y' disappears after the assignment, because it sorts after 'ü' in utf8mb4_uca1400_as_ci
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_latin1_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE latin1_swedish_ci;
+  TYPE assoc_utf8mb4_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE utf8mb4_uca1400_as_ci;
+  assoc_latin1 assoc_latin1_t;
+  assoc_utf8mb4 assoc_utf8mb4_t:= assoc_utf8mb4_t('å'=>0xC5,'ö'=>0xF6,'ü'=>0xFC,
+                                                  'y'=>0x79,'z'=>0x7A);
+  key_utf8mb4 VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci;
+BEGIN
+  SELECT '# Copying to assoc_latin1 from assoc_utf8mb4' AS ``;
+  assoc_latin1:= assoc_utf8mb4;
+  SHOW WARNINGS;
+  SELECT assoc_utf8mb4.count, assoc_latin1.count;
+
+  CREATE TEMPORARY TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY,
+                             k VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci,
+                             val INT);
+
+  SELECT '# Dumping assoc_utf8mb4 using key_utf8mb4' AS ``;
+  key_utf8mb4:= assoc_utf8mb4.first;
+  WHILE key_utf8mb4 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k, val) VALUES (key_utf8mb4, assoc_utf8mb4(key_utf8mb4));
+    key_utf8mb4:= assoc_utf8mb4.NEXT(key_utf8mb4);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+  TRUNCATE TABLE t1;
+
+  SELECT '# Dumping assoc_latin1 using key_utf8mb4' AS ``;
+  key_utf8mb4:= assoc_latin1.first;
+  WHILE key_utf8mb4 IS NOT NULL
+  LOOP
+    INSERT INTO t1 (k, val) VALUES (key_utf8mb4, assoc_latin1(key_utf8mb4));
+    key_utf8mb4:= assoc_latin1.NEXT(key_utf8mb4);
+  END LOOP;
+  SELECT id, k, HEX(val) AS val FROM t1;
+
+  DROP TEMPORARY TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Copying to a shorter key data type
+--echo # Oracle does not allow this: expression is of wrong type
+--echo # MariaDB allows but returns an error if some key does not fit
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_latin1_t IS TABLE OF INT INDEX BY VARCHAR(1) COLLATE latin1_swedish_ci;
+  TYPE assoc_utf8mb4_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE utf8mb4_uca1400_as_ci;
+  assoc_latin1 assoc_latin1_t;
+  assoc_utf8mb4 assoc_utf8mb4_t:= assoc_utf8mb4_t('å'=>0xC5,'öö'=>0xF6,'ü'=>0xFC,
+                                                  'y'=>0x79,'zz'=>0x7A);
+  key_utf8mb4 VARCHAR(10) COLLATE utf8mb4_uca1400_ai_ci;
+BEGIN
+  SELECT '# Copying to assoc_latin1 from assoc_utf8mb4' AS ``;
+  assoc_latin1:= assoc_utf8mb4;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_STRING_LENGTH
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using 2-byte characters in the key
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t:= assoc_t('áááááááááá' => 10);
+BEGIN
+  SELECT assoc('AAAAAAAAAA'); -- should find
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using 3-byte characters in the key
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t:= assoc_t('ḁḁḁḁḁḁḁḁḁḁ' => 10);
+BEGIN
+  SELECT assoc('AAAAAAAAAA'); -- should find
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using 4-byte characters in the key
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t;
+BEGIN
+  assoc('🅰🅰🅰🅰🅰🅰🅰🅰🅰🅰'):=10;
+  SELECT assoc('AAAAAAAAAA'); -- should find
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Passing a too long key
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t:= assoc_t('ááááááááááá' => 10);
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_STRING_LENGTH
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using a key which cannot be converted to the key character set
+--echo # The non-convertable part is inside the VARCHAR length
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE latin1_swedish_ci;
+  assoc assoc_t:= assoc_t('áááááááááя' => 10); -- Nine á + я
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANNOT_CONVERT_CHARACTER
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Using a key which cannot be converted to the key data type
+--echo # The non-convertable part is outside the VARCHAR length
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE latin1_swedish_ci;
+  assoc assoc_t:= assoc_t('ááááááááááя' => 10); -- Ten á + я
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_STRING_LENGTH
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A binary key re-interpretting as utf8mb4
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t;
+BEGIN
+  assoc(0x61616161616161616161):=10;
+  SELECT assoc('AAAAAAAAAA') AS c1, assoc(0x41414141414141414141) AS c2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A binary key re-interpretting as utf8mb4
+--echo # with a bad utf8mb4 sequence inside the VARCHAR length
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t;
+BEGIN
+  assoc(0x616161616161616161FF):=10; -- Nine 0x61 + 0xFF
+END;
+$$
+DELIMITER ;$$
+--error ER_INVALID_CHARACTER_STRING
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A binary key re-interpretting as utf8mb4
+--echo # with a bad utf8mb4 sequence outside the VARCHAR length
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(10) COLLATE uca1400_ai_ci;
+  assoc assoc_t;
+BEGIN
+  assoc(0x61616161616161616161FF):=10; -- Ten 0x61 + 0xFF
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_STRING_LENGTH
+CALL p1;
+DROP PROCEDURE p1;

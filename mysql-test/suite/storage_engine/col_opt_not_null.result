@@ -728,7 +728,9 @@ DROP TABLE t1;
 #
 # date and time columns
 #
-DROP TABLE IF EXISTS t1;
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE t1 (d DATE <CUSTOM_COL_OPTIONS> NOT NULL,
 dt DATETIME <CUSTOM_COL_OPTIONS> NOT NULL,
 ts TIMESTAMP <CUSTOM_COL_OPTIONS> NOT NULL,
@@ -738,7 +740,7 @@ y4 YEAR(4) <CUSTOM_COL_OPTIONS> NOT NULL,
 y2 YEAR(2) <CUSTOM_COL_OPTIONS> NOT NULL
 ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	#	#	#	
@@ -914,7 +916,7 @@ DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (c YEAR(2) <CUSTOM_COL_OPTIONS> NOT NULL) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(2)	NO		NULL	
@@ -925,8 +927,8 @@ CREATE TABLE t1 (c YEAR(2) <CUSTOM_COL_OPTIONS> NOT NULL,
 c2 YEAR(2) <CUSTOM_COL_OPTIONS> NOT NULL DEFAULT '12'
 ) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(2)	NO		NULL	

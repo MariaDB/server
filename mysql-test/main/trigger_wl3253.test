@@ -304,8 +304,8 @@ DROP TABLE t1;
 
 --echo #
 --echo # Test 16.
---echo # Check that the trigger in the clause FOLLOWS/PRECEDES can refences
---echo # only to the trigger for the same ACTION/TIMINMG
+--echo # Check that the trigger in the clause FOLLOWS/PRECEDES can reference
+--echo # only to the trigger for the same ACTION/TIMING
 --echo #
 
 CREATE TABLE t1 (a INT);
@@ -344,7 +344,7 @@ CREATE TRIGGER tr2_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a:=2;
 CREATE TRIGGER tr1_bu BEFORE UPDATE ON t1 FOR EACH ROW SET @a:=3;
 
 # dump tables and triggers
---exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --compact --no-autocommit=0 test
 
 DROP TABLE t1;
 
@@ -361,7 +361,7 @@ CREATE TRIGGER tr1_1_bi BEFORE INSERT ON t1 FOR EACH ROW FOLLOWS tr1_bi SET @a:=
 
 --echo # Expected order of triggers in the dump is: tr0_bi, tr1_bi, tr1_1_bi, tr2_i.
 # dump tables and triggers
---exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact test
 
 DROP TABLE t1;
 
@@ -377,7 +377,7 @@ CREATE TRIGGER tr1_bu BEFORE UPDATE ON t1 FOR EACH ROW SET @a:=3;
 SET TIMESTAMP=DEFAULT;
 
 # dump tables and triggers
---exec $MYSQL_DUMP --compact --no-create-info --xml test
+--exec $MYSQL_DUMP --compact --no-create-info --no-autocommit=0 --xml test
 
 DROP TABLE t1;
 

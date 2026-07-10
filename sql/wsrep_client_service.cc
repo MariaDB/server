@@ -95,9 +95,11 @@ int Wsrep_client_service::prepare_data_for_replication()
     size_t transactional_data_len= 0;
     size_t stmt_data_len= 0;
 
-    // Write transactional cache
+    // Write transactional cache from the last remembered position
     if (transactional_cache &&
-        wsrep_write_cache(m_thd, transactional_cache, &transactional_data_len))
+        wsrep_write_cache(m_thd, transactional_cache,
+                          m_thd->wsrep_sr().log_position(),
+                          &transactional_data_len))
     {
       WSREP_ERROR("rbr write fail, data_len: %zu",
                   data_len);
@@ -105,8 +107,8 @@ int Wsrep_client_service::prepare_data_for_replication()
       DBUG_RETURN(1);
     }
 
-    // Write stmt cache
-    if (stmt_cache && wsrep_write_cache(m_thd, stmt_cache, &stmt_data_len))
+    // Write stmt cache fully as it's only written upon transaction commit
+    if (stmt_cache && wsrep_write_cache(m_thd, stmt_cache, 0u, &stmt_data_len))
     {
       WSREP_ERROR("rbr write fail, data_len: %zu",
                   data_len);
@@ -243,7 +245,8 @@ size_t Wsrep_client_service::bytes_generated() const
   if (cache)
   {
     size_t pending_rows_event_length= 0;
-    if (Rows_log_event* ev= m_thd->binlog_get_pending_rows_event(true))
+    auto *cache_mngr= m_thd->binlog_get_cache_mngr();
+    if (auto* ev= binlog_get_pending_rows_event(cache_mngr, true))
     {
       pending_rows_event_length= ev->get_data_size();
     }
@@ -281,11 +284,18 @@ enum wsrep::provider::status Wsrep_client_service::replay()
     original THD state during replication event applying.
    */
   THD *replayer_thd= new THD(true, true);
+  // Replace the security context of the replayer with the security context
+  // of the original THD. Since security context class doesn't have proper
+  // copy constructors, we need to store the original one and set it back
+  // before destruction so that THD destruction doesn't cause double-free
+  // on the replaced security context.
+  Security_context old_ctx = replayer_thd->main_security_ctx;
+  replayer_thd->main_security_ctx = m_thd->main_security_ctx;
   replayer_thd->thread_stack= m_thd->thread_stack;
   replayer_thd->real_id= pthread_self();
   replayer_thd->prior_thr_create_utime=
       replayer_thd->start_utime= microsecond_interval_timer();
-  replayer_thd->set_command(COM_SLEEP);
+  replayer_thd->mark_connection_idle();
   replayer_thd->reset_for_next_command(true);
 
   enum wsrep::provider::status ret;
@@ -297,6 +307,13 @@ enum wsrep::provider::status Wsrep_client_service::replay()
     replayer_service.replay_status(ret);
   }
 
+  // In Galera we allow only InnoDB sequences, thus
+  // sequence table updates are in writeset.
+  // Binlog cache needs reset so that binlog_close
+  // does not write cache to binlog file yet.
+  binlog_reset_cache(m_thd);
+
+  replayer_thd->main_security_ctx = old_ctx;
   delete replayer_thd;
   DBUG_RETURN(ret);
 }
@@ -359,7 +376,7 @@ int Wsrep_client_service::bf_rollback()
               wsrep_thd_transaction_state_str(m_thd),
               m_thd->killed);
 
-  /* If client is quiting all below will be done in THD::cleanup()
+  /* If client is quitting all below will be done in THD::cleanup()
      TODO: why we need this any other case?  */
   if (m_thd->wsrep_cs().state() != wsrep::client_state::s_quitting)
   {

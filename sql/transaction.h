@@ -16,10 +16,6 @@
 #ifndef TRANSACTION_H
 #define TRANSACTION_H
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface                      /* gcc class implementation */
-#endif
-
 #include <m_string.h>
 
 class THD;
@@ -38,6 +34,9 @@ bool trans_rollback_stmt(THD *thd);
 bool trans_savepoint(THD *thd, LEX_CSTRING name);
 bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name);
 bool trans_release_savepoint(THD *thd, LEX_CSTRING name);
+#ifdef WITH_WSREP
+bool trans_savepoint_exists(THD *thd, LEX_CSTRING name);
+#endif /* WITH_WSREP */
 
 void trans_reset_one_shot_chistics(THD *thd);
 

@@ -9,11 +9,6 @@
 # of the log tables (which are CSV-based). By connect mysql; show tables;
 --source include/have_csv.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
-SET global secure_auth=0;
-
 #connect (con1,localhost,root,,"");
 #show tables;
 connect (con1,localhost,root,,mysql);
@@ -61,42 +56,20 @@ connect (fail_con,localhost,test,zorro,test2);
 --error ER_ACCESS_DENIED_ERROR
 connect (fail_con,localhost,test,zorro,);
 
-# check if old password version also works
 source include/switch_to_mysql_user.inc;
-update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
-flush privileges;
-show grants for test@localhost;
-update mysql.user set plugin='mysql_old_password' where user='test';
-flush privileges;
-show grants for test@localhost;
-
-connect (con10,localhost,test,gambling2,);
-connect (con5,localhost,test,gambling2,mysql);
-set password="";
---error ER_PASSWD_LENGTH
-set password='gambling3';
-set password=old_password('gambling3');
-show tables;
-connect (con6,localhost,test,gambling3,test);
-show tables;
-
-connection default;
-disconnect con10;
-disconnect con5;
-disconnect con6;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (fail_con,localhost,test,,test2);
+connect (fail_con,localhost,test,,test2,,,auth=mysql_old_password:mysql_native_password);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (fail_con,localhost,test,,);
+connect (fail_con,localhost,test,,,,,auth=mysql_old_password:mysql_native_password);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (fail_con,localhost,test,zorro,test2);
+connect (fail_con,localhost,test,zorro,test2,,,auth=mysql_old_password:mysql_native_password);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (fail_con,localhost,test,zorro,);
+connect (fail_con,localhost,test,zorro,,,,auth=mysql_old_password:mysql_native_password);
 
 source include/switch_to_mysql_global_priv.inc;
 # remove user 'test' so that other tests which may use 'test'
@@ -251,11 +224,6 @@ let $wait_condition =
 --connect (default,localhost,root,,test)
 
 --echo
---echo # -- Waiting for connections to close...
-let $count_sessions=1;
---source include/wait_until_count_sessions.inc
-
---echo
 DROP USER mysqltest_u1@localhost;
 
 --echo
@@ -267,7 +235,10 @@ DROP USER mysqltest_u1@localhost;
 --echo # -- Bug#35074: max_used_connections is not correct.
 --echo
 
-FLUSH STATUS;
+let $count_sessions=1;
+--source include/wait_until_count_sessions.inc
+
+FLUSH GLOBAL STATUS;
 
 --echo
 SHOW STATUS LIKE 'max_used_connections';
@@ -368,7 +339,6 @@ FLUSH PRIVILEGES;
 # A couple of plugin tests - for builtin plugins only
 #
 CREATE USER mysqltest_up1 IDENTIFIED VIA mysql_native_password using '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB';
-CREATE USER mysqltest_up2 IDENTIFIED VIA mysql_old_password using '09301740536db389';
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
@@ -376,13 +346,6 @@ connect(pcon1,localhost,mysqltest_up1,foo,,$MASTER_MYPORT,);
 connect(pcon2,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
 select user(), current_user();
 disconnect pcon2;
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,);
-connect(pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
-select user(), current_user();
-disconnect pcon4;
 
 #
 # lp:683112 Maria 5.2 incorrectly reports "(using password: NO)"
@@ -406,7 +369,6 @@ connection default;
 #
 source include/switch_to_mysql_user.inc;
 update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
-update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
                   where user like 'mysqltest_up_';
 flush privileges;
@@ -415,18 +377,11 @@ connect(pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
 select user(), current_user();
 disconnect pcon6;
 
-connect(pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
-select user(), current_user();
-disconnect pcon7;
 connection default;
 
 source include/switch_to_mysql_global_priv.inc;
 
 DROP USER mysqltest_up1@'%';
-DROP USER mysqltest_up2@'%';
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
@@ -453,8 +408,6 @@ delimiter ;|
 call p1(2);
 drop procedure p1;
 
-SET global secure_auth=default;
-
 --echo #
 --echo # MDEV-19282: Log more specific warning with log_warnings=2 if
 --echo # connection is aborted prior to authentication
@@ -462,7 +415,7 @@ SET global secure_auth=default;
 --echo # connection is aborted prior to authentication
 --echo #
 
-flush status;
+flush global status;
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 
 SET GLOBAL log_warnings=2;
@@ -508,3 +461,53 @@ SET GLOBAL log_warnings=default;
 SET GLOBAL connect_timeout= @save_connect_timeout;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-33990: SHOW STATUS counts ER_CON_COUNT_ERROR as
+--echo # Connection_errors_internal
+--echo #
+
+flush status;
+
+show global status like 'Connection_errors%';
+show global status like 'Threads_connected';
+
+set @max_con.save= @@max_connections;
+set global max_connections= 10;
+
+--disable_result_log
+--disable_query_log
+--let $n= 12
+while ($n)
+{
+  --error 0,ER_CON_COUNT_ERROR
+  --connect (con$n,localhost,root)
+  if ($mysql_errno) {
+    --echo # ERROR $mysql_errno
+  }
+  --dec $n
+}
+
+connection default;
+let $n= 10;
+let $c= 12;
+while ($n)
+{
+  disconnect con$c;
+  --dec $n
+  --dec $c
+}
+
+# Wait until all connections has terminated to ensure
+# that Connection_errors is correct
+
+let $status_var=Threads_connected;
+let $status_var_value= 1;
+--source include/wait_for_status_var.inc
+
+--enable_result_log
+--enable_query_log
+show global status like 'Connection_errors%';
+set global max_connections= @max_con.save;
+
+--echo # End of 10.5 tests

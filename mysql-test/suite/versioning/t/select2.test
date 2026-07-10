@@ -22,13 +22,17 @@ insert into t1 (x, y) values
   (8, 108),
   (9, 109);
 set @t0= now(6);
+--disable_cursor_protocol
 --enable_prepare_warnings
 select sys_start from t1 limit 1 into @x0;
 --disable_prepare_warnings
+--enable_cursor_protocol
+
 delete from t1 where x = 3;
 delete from t1 where x > 7;
 
 insert into t1(x, y) values(3, 33);
+--disable_cursor_protocol
 --enable_prepare_warnings
 select sys_start from t1 where x = 3 and y = 33 into @t1;
 --disable_prepare_warnings
@@ -36,6 +40,7 @@ if($MTR_COMBINATION_TRX_ID) {
   set @x1= @t1;
   select trt_commit_ts(@x1) into @t1;
 }
+--enable_cursor_protocol
 
 select x, y from t1;
 select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
@@ -131,8 +136,10 @@ select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
+--disable_view_protocol
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 select * from t1 for system_time as of now() for update;
+--enable_view_protocol
 
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
 select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
@@ -160,7 +167,7 @@ insert into t1 values (1);
 create trigger read_end after update on t1
   for each row set @end = old.row_end;
 update t1 set a=2;
---replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+--replace_result 18446744073709551615 MAX_RESULT $sys_time_max_replace MAX_RESULT
 select @end;
 
 create or replace table t1 (a int) with system versioning;

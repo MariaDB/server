@@ -6,8 +6,6 @@
 set default_storage_engine=innodb;
 set @old_dbug=@@global.debug_dbug;
 # Ensure that the history list length will actually be decremented by purge.
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
 
@@ -79,8 +77,6 @@ DROP TABLE t1;
 #
 # BUG#22082762 RE-ENABLE SUPPORT FOR ADDING VIRTUAL INDEX WHILE DROPPING VIRTUAL COLUMN
 #
---source include/count_sessions.inc
-
 connect (con1,localhost,root,,);
 connection default;
 
@@ -133,9 +129,8 @@ CREATE TABLE t1 (a INT, b INT, c INT GENERATED ALWAYS AS(a+b));
 
 INSERT INTO t1(a, b) VALUES (1, 1), (2, 2), (3, 3), (4, 4);
 
-connection con1;
---echo # disable purge
-BEGIN; SELECT * FROM t0;
+connect (stop_purge,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 connection default;
 DELETE FROM t1 WHERE a = 1;
@@ -150,13 +145,14 @@ send ALTER TABLE t1 ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=NONE;
 connection con1;
 SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
 
+BEGIN;
 DELETE FROM t1 WHERE a = 3;
 
 UPDATE t1 SET a = 7, b = 7 WHERE a = 4;
 
 INSERT INTO t1(a, b) VALUES (8, 8);
 
---echo # enable purge
+disconnect stop_purge;
 COMMIT;
 
 --echo # wait for purge to process the deleted/updated records.
@@ -260,12 +256,6 @@ disconnect truncate;
 connection default;
 DROP TABLE t1, t2;
 
---disable_ps2_protocol
---enable_ps2_protocol
---disable_ps2_protocol
---enable_ps2_protocol
---source include/wait_until_count_sessions.inc
 set debug_sync=reset;
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

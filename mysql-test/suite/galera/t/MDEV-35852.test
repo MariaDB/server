@@ -1,0 +1,9 @@
+--source include/galera_cluster.inc
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+--error ER_DELAYED_NOT_SUPPORTED
+INSERT DELAYED INTO t VALUES ();
+DROP TABLE t;
+
+--error ER_NO_SUCH_TABLE
+INSERT DELAYED t1 () VALUES ();

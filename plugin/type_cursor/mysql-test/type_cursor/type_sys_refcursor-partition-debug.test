@@ -1,0 +1,24 @@
+--source include/have_partition.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+# CURSOR_REC_COUNT() is not deterministic
+
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  CREATE TABLE t1 (
+    num TINYINT(1) NOT NULL
+  )
+  PARTITION BY LIST (num)
+  (
+    PARTITION p0 VALUES IN (CURSOR_REC_COUNT(1)),
+    PARTITION px DEFAULT
+  );
+END
+/
+DELIMITER ;/

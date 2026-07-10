@@ -189,3 +189,18 @@ call sp;
 show create table t1;
 drop procedure sp;
 drop table t1;
+
+--echo #
+--echo # MDEV-33768: Memory leak found in the test main.constraints run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
+--echo # This test case was added by reviewer's request.
+--echo #
+PREPARE stmt FROM 'CREATE TABLE t1 (a INT)';
+EXECUTE stmt;
+DROP TABLE t1;
+EXECUTE stmt;
+--error ER_TABLE_EXISTS_ERROR
+EXECUTE stmt;
+
+--echo # Clean up
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;

@@ -67,7 +67,7 @@ let $rows= `select count(*) from t2  /* must be 2 or 0 */`;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --let $binlog_killed_pos=query_get_value(SHOW BINLOG EVENTS, Pos, 6)
---let $binlog_killed_end_log_pos=query_get_value(SHOW BINLOG EVENTS, End_log_pos, 6)
+--let $binlog_killed_end_log_pos=query_get_value(SHOW BINLOG EVENTS, Pos, 7)
 --exec $MYSQL_BINLOG --force-if-open --start-position=$binlog_killed_pos --stop-position=$binlog_killed_end_log_pos $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/kill_query_calling_sp.binlog
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --disable_result_log
@@ -363,7 +363,7 @@ drop function bug27563;
 # keep binlogging for this piece of test in a new file
 FLUSH LOGS;
 
-# Connection con3 as transaction generator thoughout the test
+# Connection con3 as transaction generator throughout the test
 connect (con3, localhost, root,,);
 
 connection con3;

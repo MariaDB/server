@@ -206,14 +206,13 @@ drop table t1;
 #
 # MDEV-24739: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete
 #
-SELECT *
-FROM mysql.help_relation
-WHERE NOT (help_topic_id != 8 AND help_keyword_id != 0 OR help_keyword_id = 2 OR help_topic_id < 1900);
-help_topic_id	help_keyword_id
-SELECT *
-FROM mysql.help_relation ignore index (help_topic_id)
-WHERE (help_topic_id = 8 OR help_keyword_id = 0) AND help_keyword_id != 2 AND help_topic_id >= 1900;
-help_topic_id	help_keyword_id
+CREATE TABLE r (t INT, k INT, PRIMARY KEY(k,t), KEY(t));
+INSERT INTO r VALUES (5,1), (5,2), (10,2), (16,2), (100,2), (400, 5), (300, 10), (600, 42) ;
+SELECT * FROM r WHERE NOT (t != 8 AND k != 0 OR k = 2 OR t < 1900);
+t	k
+SELECT * FROM r ignore index (t) WHERE (t = 8 OR k = 0) AND k != 2 AND t >= 1900;
+t	k
+DROP TABLE r;
 #
 # MDEV-24953: 10.5.9 crashes with large IN() list
 #
@@ -225,19 +224,19 @@ user_id int(10) unsigned NOT NULL DEFAULT 0,
 PRIMARY KEY (notification_type_id,item_id,item_parent_id,user_id)
 );
 insert into t1 values (1,1,1,1), (2,2,2,2), (3,3,3,3);
+insert into t1 select seq,seq,seq,seq from seq_10_to_30;
 # Run crashing query
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	3	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	5	Using where
 drop table t1;
 #
 # MDEV-25069: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete #2
 #
-SELECT *
-FROM mysql.help_relation
-WHERE
-(help_topic_id < '2' OR help_topic_id != 8 OR help_topic_id < 1) AND
-help_keyword_id = help_topic_id;
-help_topic_id	help_keyword_id
+CREATE TABLE r (t INT, k INT, PRIMARY KEY(k,t), KEY(t));
+INSERT INTO r VALUES (5,1), (5,2), (10,2), (16,2), (100,2), (400, 5), (300, 10), (600, 42) ;
+SELECT * FROM r WHERE (t < '2' OR t != 8 OR t < 1) AND k = t;
+t	k
+DROP TABLE r;
 #
 # MDEV-29242: Assertion `computed_weight == weight' failed SEL_ARG::verify_weight
 #
@@ -247,3 +246,116 @@ SELECT id FROM t1 WHERE id IS NULL OR id NOT BETWEEN 1 AND 4;
 id
 5
 DROP TABLE t1;
+#
+# MDEV-34620: Many index_merge variants made and discarded for a big OR
+#
+CREATE TABLE t1 (
+a1 int NOT NULL,
+a2 int NOT NULL,
+filler char(100),
+KEY key1 (a1,a2),
+KEY key2 (a2,a1)
+);
+insert into t1 (a1,a2) values (1,1),(2,2),(3,3);
+set @query= concat(
+"explain select * from t1 where\n",
+(select
+group_concat(concat("a1=", seq, " and a2=", seq, " ") separator "\nor " )
+from seq_1_to_30)
+);
+set optimizer_trace=1;
+prepare s from @query;
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	key1,key2	NULL	NULL	NULL	3	Using where
+set @trace=json_extract((select trace from information_schema.optimizer_trace), '$**.range_analysis');
+# Observe that "key1" is a a part of several index_merge_union:
+select json_pretty(json_search(@trace, 'all', 'key1'));
+json_pretty(json_search(@trace, 'all', 'key1'))
+[
+    "$[0].potential_range_indexes[0].index",
+    "$[0].analyzing_range_alternatives.range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[0].indexes_to_merge[0].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[0].indexes_to_merge[1].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[0].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[1].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[2].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[2].indexes_to_merge[0].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[2].indexes_to_merge[1].range_scan_alternatives[0].index"
+]
+#
+# Now, same as above but for a long IN-list
+#
+set @query= concat(
+"explain select * from t1 where\n",
+(select
+group_concat(concat("a1=", seq, " and a2=", seq, " ") separator "\nor " )
+from seq_1_to_120)
+);
+set optimizer_trace=1;
+prepare s from @query;
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	key1,key2	NULL	NULL	NULL	3	Using where
+set @trace=json_extract((select trace from information_schema.optimizer_trace), '$**.range_analysis');
+# Observe that there are NO index_merge_union candidates. Only one potential range scan:
+select json_pretty(json_search(@trace, 'all', 'key1'));
+json_pretty(json_search(@trace, 'all', 'key1'))
+[
+    "$[0].potential_range_indexes[0].index",
+    "$[0].analyzing_range_alternatives.range_scan_alternatives[0].index"
+]
+drop table t1;
+#
+# MDEV-37510: Crash in sel_arg_and_weight_heuristic
+#
+SET @save_optimizer_trace=@@optimizer_trace;
+SET @save_optimizer_max_sel_arg_weight=@@optimizer_max_sel_arg_weight;
+SET optimizer_trace= 'enabled=on';
+SET optimizer_max_sel_arg_weight=1;
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(10), c3 VARCHAR(10));
+CREATE TABLE t2 (c1 INT, c2 VARCHAR(10), c3 VARCHAR(10));
+INSERT INTO t1 values (2, 'two', 'prime'), (3, 'three', 'prime');
+INSERT INTO t2 values (2, 'two', '2_table'), (4, 'four', '2_table');
+select * from
+t1
+JOIN
+(
+SELECT c1, c2, c3 FROM t2
+UNION
+SELECT c1, c2, c3 FROM t2
+) dt1
+ON ((t1.c1 = dt1.c1 OR dt1.c1 IS NULL) AND
+(t1.c2 = dt1.c2 OR dt1.c3 IS NULL));
+c1	c2	c3	c1	c2	c3
+2	two	prime	2	two	2_table
+set @trace= (select trace from information_schema.optimizer_trace);
+set @json= json_detailed(json_extract(@trace, '$**.setup_range_conditions'));
+select left(@json, 2500);
+left(@json, 2500)
+[
+    [
+        {
+            "sel_arg_weight_heuristic": 
+            {
+                "key1_type": 2,
+                "key2_type": 2,
+                "key1_weight": 1,
+                "key2_weight": 1
+            }
+        },
+        {
+            "sel_arg_weight_heuristic": 
+            {
+                "key1_type": 2,
+                "key2_field": "c3",
+                "key1_weight": 1,
+                "key2_weight": 1
+            }
+        }
+    ]
+]
+DROP TABLE t1, t2;
+SET optimizer_trace=@save_optimizer_trace;
+SET optimizer_max_sel_arg_weight=@save_optimizer_max_sel_arg_weight;
+# end of 11.4 tests

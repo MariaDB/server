@@ -1,0 +1,8 @@
+install soname 'ha_spider';
+--error ER_BAD_TABLE_ERROR
+DROP TABLE non_existing_table;
+# Test that create or replace a non existing spider table work
+create or replace table non_existing_table (c int) engine=Spider;
+drop table non_existing_table;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

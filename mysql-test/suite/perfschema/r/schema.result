@@ -73,7 +73,6 @@ setup_actors
 setup_consumers
 setup_instruments
 setup_objects
-setup_timers
 socket_instances
 socket_summary_by_event_name
 socket_summary_by_instance
@@ -1066,7 +1065,7 @@ objects_summary_global_by_type	CREATE TABLE `objects_summary_global_by_type` (
 show create table performance_timers;
 Table	Create Table
 performance_timers	CREATE TABLE `performance_timers` (
-  `TIMER_NAME` enum('CYCLE','NANOSECOND','MICROSECOND','MILLISECOND','TICK') NOT NULL COMMENT 'Time name, used in the setup_timers table.',
+  `TIMER_NAME` enum('CYCLE','NANOSECOND','MICROSECOND','MILLISECOND') NOT NULL COMMENT 'Timer name',
   `TIMER_FREQUENCY` bigint(20) DEFAULT NULL COMMENT 'Number of timer units per second. Dependent on the processor speed.',
   `TIMER_RESOLUTION` bigint(20) DEFAULT NULL COMMENT 'Number of timer units by which timed values increase each time.',
   `TIMER_OVERHEAD` bigint(20) DEFAULT NULL COMMENT 'Minimum timer overhead, determined during initialization by calling the timer 20 times and selecting the smallest value. Total overhead will be at least double this, as the timer is called at the beginning and end of each timed event.'
@@ -1109,12 +1108,6 @@ setup_objects	CREATE TABLE `setup_objects` (
   `OBJECT_NAME` varchar(64) NOT NULL DEFAULT '%' COMMENT 'Name of the instrumented object, either the literal or % for any object.',
   `ENABLED` enum('YES','NO') NOT NULL DEFAULT 'YES' COMMENT 'Whether the object''s events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.',
   `TIMED` enum('YES','NO') NOT NULL DEFAULT 'YES' COMMENT 'Whether the object''s events are timed or not. Can be modified.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
-show create table setup_timers;
-Table	Create Table
-setup_timers	CREATE TABLE `setup_timers` (
-  `NAME` varchar(64) NOT NULL COMMENT 'Type of instrument the timer is used for.',
-  `TIMER_NAME` enum('CYCLE','NANOSECOND','MICROSECOND','MILLISECOND','TICK') NOT NULL COMMENT 'Timer applying to the instrument type. Can be modified.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 show create table socket_instances;
 Table	Create Table

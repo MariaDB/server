@@ -23,7 +23,8 @@
 #define LOG_SLOW_VERBOSITY_QUERY_PLAN     (1U << 1)
 #define LOG_SLOW_VERBOSITY_EXPLAIN        (1U << 2)
 #define LOG_SLOW_VERBOSITY_STORAGE_ENGINE (1U << 3) /* Replaces InnoDB */
-#define LOG_SLOW_VERBOSITY_FULL           (1U << 4)
+#define LOG_SLOW_VERBOSITY_WARNINGS       (1U << 4)
+#define LOG_SLOW_VERBOSITY_FULL           (1U << 5)
 
 #define LOG_SLOW_VERBOSITY_ENGINE         (LOG_SLOW_VERBOSITY_FULL | \
                                            LOG_SLOW_VERBOSITY_INNODB | \

@@ -79,7 +79,7 @@ CREATE TABLE federated.t1 (
 `name` varchar(32) NOT NULL default ''
     )
 ENGINE="FEDERATED" DEFAULT CHARSET=latin1
-CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+CONNECTION='mariadb://root@127.0.0.1:SLAVE_PORT/federated/t1';
 INSERT INTO federated.t1 (id, name) VALUES (1, 'foo');
 INSERT INTO federated.t1 (id, name) VALUES (2, 'fee');
 INSERT INTO federated.t1 (id, `group`) VALUES (3, 42);
@@ -108,7 +108,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(20) NOT NULL,
   `name` varchar(32) NOT NULL DEFAULT ''
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1'
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `CONNECTION`='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1'
 INSERT INTO federated.t2 (id, name) VALUES (1, 'foo');
 INSERT INTO federated.t2 (id, name) VALUES (2, 'fee');
 SELECT * FROM federated.t2 ORDER BY id, name;
@@ -2243,12 +2243,13 @@ connection master;
 CREATE TABLE t1(id VARCHAR(20) NOT NULL, PRIMARY KEY(id)) ENGINE=FEDERATED 
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 # Dump table t1 using mysqldump tool
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `id` varchar(20) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `CONNECTION`='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE t1;
 connection slave;
@@ -2355,11 +2356,55 @@ pk
 3
 DROP TABLE t2_fed, t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
-DROP SERVER s;
 # End of 10.5 tests
+#
+# MDEV-28374 UBSAN signed integer overflow PROCEDURE ANALYSE
+#
+CREATE TABLE t (a BIGINT);
+INSERT INTO t VALUES ('-9223372036854775808');
+INSERT INTO t SELECT * FROM t;
+SELECT * FROM t PROCEDURE ANALYSE(2);
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t.a	-9223372036854775808	-9223372036854775808	20	20	0	0	-9223372036854776000.0000	0.0000	BIGINT(20) NOT NULL
+CREATE TABLE t_fed ENGINE=FEDERATED CONNECTION='s/t';
+SELECT * FROM t_fed PROCEDURE ANALYSE(2);
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+test.t_fed.a	-9223372036854775808	-9223372036854775808	20	20	0	0	-9223372036854776000.0000	0.0000	BIGINT(20) NOT NULL
+DROP TABLE t, t_fed;
+DROP SERVER s;
+#
+# MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
+#
+create server s foreign data wrapper mysql options
+(host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+CREATE VIEW v AS SELECT * FROM t1_fed;
+SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
+a
+DROP VIEW v;
+DROP TABLE t1_fed, t1, t2;
+DROP SERVER s;
+# End of 11.0 tests
+#
+# MDEV-35184 Corruption errors upon creation or usage of Federated table with vector key
+#
+create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+create table t1 (a vector(1) not null, vector(a));
+create table t1_fed1 engine=federated connection = 's/t1';
+ERROR HY000: Table storage engine 'FEDERATEDX' does not support the create option 'VECTOR'
+create table t1_fed2 (a vector(1) not null, vector(a)) engine=federated connection = 's/t1';
+ERROR HY000: Table storage engine 'FEDERATEDX' does not support the create option 'VECTOR'
+drop table t1;
+drop server s;
+# End of 11.8 tests
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+# End of 10.11 tests

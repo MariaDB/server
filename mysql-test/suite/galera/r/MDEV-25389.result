@@ -15,3 +15,4 @@ SET GLOBAL wsrep_slave_threads=1;
 SELECT @@wsrep_slave_threads;
 @@wsrep_slave_threads
 1
+connection node_2;

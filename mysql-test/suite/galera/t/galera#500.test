@@ -3,7 +3,12 @@
 # thrown from gcomm background thread, the provider terminates properly
 # and wsrep_ready becomes 0.
 #
+# Not to be run with ASAN. Provider leaks memory when gcomm
+# thread is aborted forcifully and ASAN crashes during leak report
+# after provider is unloaded.
+#
 
+--source include/not_asan.inc
 --source include/have_innodb.inc
 --source include/galera_cluster.inc
 --source include/galera_have_debug_sync.inc
@@ -40,6 +45,6 @@ SET SESSION wsrep_on=0;
 --source include/restart_mysqld.inc
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: exception from gcomm, backend must be restarted: Gcomm backend termination was requested by setting gmcast.isolate=2.");
+CALL mtr.add_suppression("WSREP: exception from gcomm, backend must be restarted: Gcomm backend termination was requested by setting gmcast\\.isolate=2\\.");
 
 --source include/auto_increment_offset_restore.inc

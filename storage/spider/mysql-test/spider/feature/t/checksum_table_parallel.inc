@@ -53,7 +53,9 @@ eval CREATE TABLE tbl_a (
     PRIMARY KEY (pkey)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+--enable_ps_protocol
 INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
 INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
 
@@ -74,10 +76,12 @@ send_eval $MASTER_1_CHECKSUM_TABLE;
 
 --connection child2_1_2
 SELECT SLEEP(1);
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 
 --connection child2_2_2
 eval $CHILD2_2_SELECT_ARGUMENT1;
+--enable_view_protocol
 
 --connection child2_1
 UNLOCK TABLES;

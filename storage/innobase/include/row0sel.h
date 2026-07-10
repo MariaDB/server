@@ -115,8 +115,8 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len);	/*!< in: MySQL key value length */
-
+	ulint		key_len)	/*!< in: MySQL key value length */
+	MY_ATTRIBUTE((nonnull(1,4,5)));
 
 /** Search for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and
@@ -182,9 +182,8 @@ dberr_t row_check_index(row_prebuilt_t *prebuilt, ulint *n_rows)
 @param[in] index	index starting with an AUTO_INCREMENT column
 @return	the largest AUTO_INCREMENT value
 @retval	0	if no records were found */
-ib_uint64_t
-row_search_max_autoinc(dict_index_t* index)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+uint64_t row_search_max_autoinc(dict_index_t *index) noexcept
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** A structure for caching column values for prefetched rows */
 struct sel_buf_t{

@@ -1,5 +1,4 @@
 --source include/have_sequence.inc
---source include/have_innodb.inc
 
 #
 # Test sequences with views

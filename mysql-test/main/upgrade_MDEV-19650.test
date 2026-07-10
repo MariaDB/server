@@ -1,4 +1,4 @@
-
+-- source include/hostname_is_not_localhost.inc
 -- source include/mysql_upgrade_preparation.inc
 
 call mtr.add_suppression("Cannot load from mysql.proc. The table is probably corrupted");
@@ -101,8 +101,8 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Run mysql_upgrade
 --exec $MYSQL_UPGRADE  2>&1
---file_exists $MYSQLD_DATADIR/mysql_upgrade_info
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 --echo # check new definitions mysql_upgrade
 

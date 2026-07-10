@@ -1,1 +1,1 @@
---large-pages
+--large-pages --loose-innodb-buffer-pool-size-max=16m

@@ -41,6 +41,13 @@ enum enum_vio_type
   VIO_TYPE_SSL
   /* see also vio_type_names[] */
 };
+
+enum enum_vio_state
+{
+  VIO_STATE_NOT_INITIALIZED, VIO_STATE_ACTIVE, VIO_STATE_SHUTDOWN,
+  VIO_STATE_CLOSED
+};
+
 #define FIRST_VIO_TYPE VIO_CLOSED
 #define LAST_VIO_TYPE VIO_TYPE_SSL
 
@@ -134,11 +141,6 @@ int vio_getnameinfo(const struct sockaddr *sa,
                     int flags);
 
 #ifdef HAVE_OPENSSL
-/* apple deprecated openssl in MacOSX Lion */
-#ifdef __APPLE__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 #define HEADER_DES_LOCL_H dummy_something
 #define YASSL_MYSQL_COMPATIBLE
 #ifndef YASSL_PREFIX
@@ -184,7 +186,7 @@ struct st_VioSSLFd
 		      const char *ca_file,const char *ca_path,
 		      const char *cipher, enum enum_ssl_init_error *error,
 		      const char *crl_file, const char *crl_path,
-		      ulonglong tls_version);
+		      ulonglong tls_version, const char *passphrase);
 void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 #endif /* HAVE_OPENSSL */
 
@@ -244,6 +246,7 @@ struct st_vio
   struct sockaddr_storage local;	/* Local internet address */
   struct sockaddr_storage remote;	/* Remote internet address */
   enum enum_vio_type	type;		/* Type of connection */
+  enum enum_vio_state	state;		/* State of the connection */
   const char		*desc;		/* String description */
   char                  *read_buffer;   /* buffer for vio_read_buff */
   char                  *read_pos;      /* start of unfetched data in the

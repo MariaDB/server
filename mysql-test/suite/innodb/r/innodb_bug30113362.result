@@ -1,3 +1,6 @@
+SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+SET @old_innodb_adaptive_hash_index = @@innodb_adaptive_hash_index;
+SET @old_innodb_stats_persistent = @@innodb_stats_persistent;
 SET GLOBAL innodb_adaptive_hash_index = false;
 SET GLOBAL innodb_stats_persistent = false;
 connect  purge_control,localhost,root,,;
@@ -37,7 +40,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1856
+1792
 connection con2;
 DELETE FROM t1 WHERE a00 = 'cnm';
 COMMIT;
@@ -80,7 +83,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1856
+1792
 DELETE FROM t1 WHERE a00 = 'dpn';
 COMMIT;
 INSERT INTO t1 SET a00 = 'dpn';
@@ -117,6 +120,9 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1856
+1792
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
+SET GLOBAL innodb_stats_persistent = @old_innodb_stats_persistent;

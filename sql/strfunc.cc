@@ -57,7 +57,7 @@ ulonglong find_set(const TYPELIB *lib,
   *err_len= 0;
   if (str != end)
   {
-    const char *start= str;    
+    const char *start= str;
     for (;;)
     {
       const char *pos= start;
@@ -79,7 +79,7 @@ ulonglong find_set(const TYPELIB *lib,
       else
         for (; pos != end && *pos != field_separator; pos++) ;
       var_len= (uint) (pos - start);
-      uint find= cs ? find_type2(lib, start, var_len, cs) :
+      uint find= cs ? find_type2(lib, start, var_len, 0, cs) :
                       find_type(lib, start, var_len, (bool) 0);
       if (unlikely(!find))
       {
@@ -126,8 +126,8 @@ uint find_type(const TYPELIB *lib, const char *find, size_t length,
   const char *j;
   for (uint pos=0 ; (j=lib->type_names[pos++]) ; )
   {
-    for (i=find ; i != end && 
-	   my_toupper(system_charset_info,*i) == 
+    for (i=find ; i != end &&
+	   my_toupper(system_charset_info,*i) ==
 	   my_toupper(system_charset_info,*j) ; i++, j++) ;
     if (i == end)
     {
@@ -146,25 +146,30 @@ uint find_type(const TYPELIB *lib, const char *find, size_t length,
 
   SYNOPSIS
    find_type2()
-   lib			TYPELIB (struct of pointer to values + count)
-   x			String to find
+   lib                  TYPELIB (struct of pointer to values + count)
+   x                    String to find
    length               String length
-   cs			Character set + collation to use for comparison
+   part_match           Allow prefix matching of typelib.
+   cs                   Character set + collation to use for comparison
 
   NOTES
 
   RETURN
     0	No matching value
-    >0  Offset+1 in typelib for matched string
+        *part_match will be set if there was multiple prefix matches.
+    >0  Offset+1 in typelib for matched string. *part_match has random value
 */
 
-uint find_type2(const TYPELIB *typelib, const char *x, size_t length,
-                CHARSET_INFO *cs)
+uint find_type2(const TYPELIB *typelib, const char *x,
+                size_t length, my_bool *part_match, CHARSET_INFO *cs)
 {
-  int pos;
+  int found_count= 0, found_pos= 0;
   const char *j;
   DBUG_ENTER("find_type2");
   DBUG_PRINT("enter",("x: '%.*s'  lib: %p", (int)length, x, typelib));
+
+  if (part_match)
+    *part_match= 0;
 
   if (!typelib->count)
   {
@@ -172,15 +177,21 @@ uint find_type2(const TYPELIB *typelib, const char *x, size_t length,
     DBUG_RETURN(0);
   }
 
-  for (pos=0 ; (j=typelib->type_names[pos]) ; pos++)
+  for (uint pos=0 ; (j=typelib->type_names[pos]) ; pos++)
   {
-    if (!cs->strnncoll(x, length,
-                       j, typelib->type_lengths[pos]))
-      DBUG_RETURN(pos+1);
+    if (!cs->strnncoll(j, typelib->type_lengths[pos], x, length, part_match))
+    {
+      if (!part_match)
+        DBUG_RETURN(pos+1);
+      found_count++;
+      found_pos= pos;
+    }
   }
-  DBUG_PRINT("exit",("Couldn't find type"));
-  DBUG_RETURN(0);
-} /* find_type */
+  if (!part_match)
+    DBUG_RETURN(0);
+  *part_match= found_count > 0;
+  DBUG_RETURN(found_count == 1 ? found_pos+1 : 0);
+} /* find_type2 */
 
 
 /*
@@ -225,29 +236,71 @@ void unhex_type2(TYPELIB *interval)
 
   SYNOPSIS
     check_word()
-    lib		TYPELIB
-    val		String to check
-    end		End of input
-    end_of_word	Store value of last used byte here if we found word
+    cs           Character set
+    lib          TYPELIB
+    val          String to check
+    end          End of input
+    end_of_word  points to the first character after the matched string
+
+  NOTES
+    works for multi-byte characters
+  - matches the longest prefix, whether it's letters, digits or punctuation
+    (e.g. see month names for Japanese and Vietnamese)
+  - cs is utf8mb4_general_ci, because that's the charset of strings in sql_locale.cc
+    If multiple entries match as prefixes of the same length, the result is
+    considered ambiguous (returns 0) unless one of them is an exact match.
 
   RETURN
-    0	 No matching value
-    > 1  lib->type_names[#-1] matched
-	 end_of_word will point to separator character/end in 'val'
+    0  No matching value
+    > 0  lib->type_names[#-1] matched
+   end_of_word will point to separator character/end in 'val'
 */
 
-uint check_word(TYPELIB *lib, const char *val, const char *end,
-		const char **end_of_word)
+uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
+                const char *end, const char **end_of_word)
 {
-  int res;
-  const char *ptr;
-
-  /* Fiend end of word */
-  for (ptr= val ; ptr < end && my_isalpha(&my_charset_latin1, *ptr) ; ptr++)
-    ;
-  if ((res=find_type(lib, val, (uint) (ptr - val), 1)) > 0)
-    *end_of_word= ptr;
-  return res;
+  uint prefix_match= 0, prefix_len= 0, exact= 0;
+  for (uint i=0; i < lib->count; i++)
+  {
+    const char *s= lib->type_names[i], *e= s + lib->type_lengths[i], *v= val;
+    my_wc_t wcv_prev;
+    int lv_prev=0;
+    while (v < end && s < e)
+    {
+      my_wc_t wcs, wcv;
+      int ls, lv;
+      if ((ls= cs->mb_wc(&wcs, (const uchar*) s, (const uchar*) e)) <= 0 ||
+          (lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end)) <= 0)
+        return 0; // invalid character
+      if (cs->strnncoll(s, ls, v, lv))
+        break;
+      lv_prev= lv;
+      wcv_prev= wcv;
+      s+= ls;
+      v+= lv;
+    }
+    if (lv_prev == 1 && my_isspace(cs, wcv_prev))
+      v--; // don't include an endspace
+    else if (lv_prev > 1 || (lv_prev == 1 && my_isalnum(cs, wcv_prev)))
+    {
+      my_wc_t wcv;
+      int lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end);
+      if (lv > 1 || (lv == 1 && my_isalnum(cs, wcv)))
+        continue; // won't break mid-word
+    }
+    // prefix match of the name
+    if ((uint) (v - val) > prefix_len || s >= e)
+    {
+      exact= s >= e;
+      prefix_match= i + 1;
+      prefix_len= (uint) (v - val);
+    }
+    else if (prefix_len && (uint) (v - val) == prefix_len && !exact)
+      prefix_match= 0; // ambiguous
+  }
+  if (prefix_match)
+    *end_of_word= val + prefix_len;
+  return prefix_match;
 }
 
 

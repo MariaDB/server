@@ -2,7 +2,7 @@ connection node_2;
 connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_3,  127.0.0.1, root, , test, $NODE_MYPORT_3;
 connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_1;
 connection node_2;
@@ -45,7 +45,7 @@ SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_sync_wait = DEFAULT;
 SET DEBUG_SYNC = 'now SIGNAL continue';
 connection node_2;
-ERROR HY000: Got error 6 "No such device or address" during COMMIT
+ERROR HY000: Error while appending streaming replication fragment(provider status: Not connected to Primary Component)
 connection node_2a;
 SET DEBUG_SYNC = 'RESET';
 connection node_1a;
@@ -74,15 +74,15 @@ connection node_3a;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_sync_wait = DEFAULT;
 connection node_1a;
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
 connection node_2a;
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
 connection node_3a;
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
 connection node_1;

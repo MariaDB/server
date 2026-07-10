@@ -19,6 +19,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
 #include <mrn_err.h>
@@ -137,10 +138,18 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *init, UDF_ARGS *args, char *messa
   st_mrn_snip_info *snip_info = NULL;
   bool can_open_snippet = TRUE;
   init->ptr = NULL;
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "mroonga_snippet(): Mroonga isn't initialized");
+    goto error;
+  }
   if (args->arg_count < 11 || (args->arg_count - 11) % 3)
   {
-    sprintf(message, "Incorrect number of arguments for mroonga_snippet(): %u",
-            args->arg_count);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "Incorrect number of arguments for mroonga_snippet(): %u",
+             args->arg_count);
     goto error;
   }
   if (args->arg_type[0] != STRING_RESULT) {
@@ -173,8 +182,9 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *init, UDF_ARGS *args, char *messa
   }
   for (i = 6; i < args->arg_count; i++) {
     if (args->arg_type[i] != STRING_RESULT) {
-      sprintf(message, "mroonga_snippet() requires string for %uth argument",
-              i);
+      snprintf(message, MYSQL_ERRMSG_SIZE,
+               "mroonga_snippet() requires string for %uth argument",
+               i);
       goto error;
     }
   }
@@ -205,10 +215,10 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *init, UDF_ARGS *args, char *messa
       snip_info->use_shared_db = false;
     }
     if (!snip_info->db) {
-      sprintf(message,
-              "mroonga_snippet(): failed to %s: %s",
-              action,
-              snip_info->ctx->errbuf);
+      snprintf(message, MYSQL_ERRMSG_SIZE,
+               "mroonga_snippet(): failed to %s: %s",
+               action,
+               snip_info->ctx->errbuf);
       goto error;
     }
   }
@@ -240,7 +250,7 @@ error:
 }
 
 MRN_API char *mroonga_snippet(UDF_INIT *init, UDF_ARGS *args, char *result,
-                              unsigned long *length, char *is_null, char *error)
+                              unsigned long *length, uchar *is_null, uchar *error)
 {
   st_mrn_snip_info *snip_info = (st_mrn_snip_info *) init->ptr;
   grn_ctx *ctx = snip_info->ctx;

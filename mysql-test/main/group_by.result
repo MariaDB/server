@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 SELECT 1 FROM (SELECT 1) as a  GROUP BY SUM(1);
 ERROR HY000: Invalid use of group function
 CREATE TABLE t1 (
@@ -552,12 +551,12 @@ a	b
 3	1
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using temporary; Using filesort
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using temporary
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	
 drop table t1,t2;
 SET @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int, b int);
@@ -790,7 +789,7 @@ SELECT n+1 AS n FROM t1 GROUP BY n;
 n
 2
 Warnings:
-Warning	1052	Column 'n' in group statement is ambiguous
+Warning	1052	Column 'n' in GROUP BY is ambiguous
 DROP TABLE t1;
 create table t1(f1 varchar(5) key);
 insert into t1 values (1),(2);
@@ -877,10 +876,10 @@ c2
 aaa
 aaa
 Warnings:
-Warning	1052	Column 'c2' in group statement is ambiguous
+Warning	1052	Column 'c2' in GROUP BY is ambiguous
 show warnings;
 Level	Code	Message
-Warning	1052	Column 'c2' in group statement is ambiguous
+Warning	1052	Column 'c2' in GROUP BY is ambiguous
 select t1.c1 as c2 from t1, t2 where t1.c2 = t2.c4
 group by t1.c1;
 c2
@@ -890,7 +889,8 @@ Level	Code	Message
 drop table t1, t2;
 CREATE TABLE t1 (a tinyint(3), b varchar(255), PRIMARY KEY  (a));
 INSERT INTO t1 VALUES (1,'-----'), (6,'Allemagne'), (17,'Autriche'), 
-(25,'Belgique'), (54,'Danemark'), (62,'Espagne'), (68,'France');
+(25,'Belgique'), (54,'Danemark'), (62,'Espagne'), (68,'France'),
+(100,"No land"), (101,"No land");
 CREATE TABLE t2 (a tinyint(3), b tinyint(3), PRIMARY KEY  (a), KEY b (b));
 INSERT INTO t2 VALUES (1,1), (2,1), (6,6), (18,17), (15,25), (16,25),
 (17,25), (10,54), (5,62),(3,68);
@@ -1028,7 +1028,7 @@ FROM t1 AS t1_outer GROUP BY t1_outer.b;
 ERROR 42000: 'test.t1_outer.a' isn't in GROUP BY
 SELECT 1 FROM t1 as t1_outer GROUP BY a 
 HAVING (SELECT t1_outer.b FROM t1 AS t1_inner LIMIT 1);
-ERROR 42S22: Unknown column 'test.t1_outer.b' in 'field list'
+ERROR 42S22: Unknown column 'test.t1_outer.b' in 'SELECT'
 SELECT (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner LIMIT 1) 
 FROM t1 AS t1_outer GROUP BY t1_outer.b;
 (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner LIMIT 1)
@@ -1070,7 +1070,7 @@ SELECT 1 FROM t1 GROUP BY b HAVING ROW (b,b) = ROW (1,1);
 1
 1
 SELECT 1 FROM t1 GROUP BY b HAVING a = 2;
-ERROR 42S22: Unknown column 'a' in 'having clause'
+ERROR 42S22: Unknown column 'a' in 'HAVING'
 SELECT 1 FROM t1 GROUP BY SUM(b);
 ERROR HY000: Invalid use of group function
 SELECT b FROM t1 AS t1_outer GROUP BY a HAVING t1_outer.a IN 
@@ -1350,7 +1350,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,i2	PRIMARY	4	NULL	1	Using where; Using index
 EXPLAIN SELECT a FROM t1 WHERE a < 2 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,i2	PRIMARY	4	NULL	1	Using where; Using index
+1	SIMPLE	t1	range	PRIMARY,i2	i2	4	NULL	1	Using where; Using index for group-by
 EXPLAIN SELECT a FROM t1 IGNORE INDEX (PRIMARY,i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	144	
@@ -1576,7 +1576,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT a FROM t1 FORCE INDEX FOR JOIN (i2) 
 FORCE INDEX FOR GROUP BY (i2) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	i2	4	NULL	145	Using index for group-by
+1	SIMPLE	t1	index	NULL	i2	9	NULL	144	Using index
 EXPLAIN SELECT a FROM t1 USE INDEX () IGNORE INDEX (i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	144	
@@ -1699,7 +1699,7 @@ NULL	1
 1	2
 EXPLAIN SELECT a from t2 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	5	NULL	7	Using index for group-by
+1	SIMPLE	t2	range	NULL	a	5	NULL	6	Using index for group-by
 SELECT a from t2 GROUP BY a;
 a
 NULL
@@ -1712,6 +1712,18 @@ b
 NULL
 1
 2
+insert into t2 SELECT NULL, NULL from seq_1_to_10;
+EXPLAIN SELECT b from t2 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	NULL	a	5	NULL	9	Using index for group-by
+# Expect: Using index for group-by
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+EXPLAIN SELECT b from t2 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	NULL	a	5	NULL	6	Using index for group-by
 DROP TABLE t1;
 DROP TABLE t2;
 CREATE TABLE t1 ( a INT, b INT );
@@ -1905,6 +1917,8 @@ Extra	Using filesort
 SELECT SUBSTRING(a,1,10), LENGTH(a), GROUP_CONCAT(b) FROM t1 GROUP BY a;
 SUBSTRING(a,1,10)	LENGTH(a)	GROUP_CONCAT(b)
 1111111111	1300	one,two
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 EXPLAIN 
 SELECT SUBSTRING(a,1,10), LENGTH(a) FROM t1 GROUP BY a;
 id	1
@@ -1920,6 +1934,8 @@ Extra	Using temporary; Using filesort
 SELECT SUBSTRING(a,1,10), LENGTH(a) FROM t1 GROUP BY a;
 SUBSTRING(a,1,10)	LENGTH(a)
 1111111111	1300
+Warnings:
+Warning	4202	1 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 DROP TABLE t1;
 #
 # Bug#57688 Assertion `!table || (!table->write_set || bitmap_is_set(table->write_set, field
@@ -1957,8 +1973,8 @@ SELECT a, AVG(t1.b),
 FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	10	NULL	9	Using index
-3	DEPENDENT SUBQUERY	t12	ref	a	a	10	func,func	2	Using index condition
-2	DEPENDENT SUBQUERY	t11	ref	a	a	10	func,func	2	Using index condition
+3	DEPENDENT SUBQUERY	t12	ref	a	a	10	func,func	1	Using index condition
+2	DEPENDENT SUBQUERY	t11	ref	a	a	10	func,func	1	Using index condition
 SELECT a, AVG(t1.b),
 (SELECT t11.c FROM t1 t11 WHERE t11.a = t1.a AND t11.b = AVG(t1.b)) AS t11c,
 (SELECT t12.c FROM t1 t12 WHERE t12.a = t1.a AND t12.b = AVG(t1.b)) AS t12c
@@ -2440,7 +2456,7 @@ CREATE TABLE t1 (
 a int,
 b varchar(1),
 KEY (b,a)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES
 (1,NULL),(0,'a'),(1,NULL),(0,'a'), (1,'a'),(0,'a'),(2,'a'),(1,'a');
 ANALYZE TABLE t1;
@@ -2450,7 +2466,7 @@ test.t1	analyze	status	OK
 
 EXPLAIN SELECT SQL_BUFFER_RESULT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	b	b	9	NULL	2	Using where; Using index for group-by; Using temporary
+1	SIMPLE	t1	range	b	b	9	NULL	1	Using where; Using index for group-by; Using temporary
 
 SELECT SQL_BUFFER_RESULT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
 MIN(a)	b
@@ -2458,7 +2474,7 @@ MIN(a)	b
 
 EXPLAIN SELECT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	b	b	9	NULL	2	Using where; Using index for group-by
+1	SIMPLE	t1	range	b	b	9	NULL	1	Using where; Using index for group-by
 
 SELECT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
 MIN(a)	b
@@ -2559,7 +2575,7 @@ DROP TABLE t1,t2;
 # MDEV-5104 crash in Item_field::used_tables with broken order by
 #
 (select 1 order by x(y)) order by 1;
-ERROR 42S22: Unknown column 'y' in 'order clause'
+ERROR 42S22: Unknown column 'y' in 'ORDER BY'
 # End of 5.3 tests
 #
 # Bug#49771: Incorrect MIN (date) when minimum value is 0000-00-00
@@ -2715,6 +2731,8 @@ f1	f2
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 	NULL
 NULL	NULL
+Warnings:
+Warning	4202	116 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 SET @@sort_buffer_size = @old_sort_buff_size;
 DROP TABLE t1;
 #
@@ -2987,3 +3005,152 @@ drop table t20, t21, t22;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-29351 SIGSEGV when doing forward reference of item in select list
+#
+CREATE TABLE t1 (a INT);
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+ERROR 42S22: Unknown column 'c' in 'SET'
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+ERROR 42S22: Unknown column 'c' in 'SET'
+DROP TABLE t1;
+#
+# MDEV-35238: Wrong results from a tables with a single record and an aggregate
+#
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=myisam;
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+1+0	min(1)
+1	NULL
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible WHERE noticed after reading const tables"
+    }
+  }
+}
+INSERT INTO t1 VALUES (NULL);
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+1+0	min(1)
+1	NULL
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "pseudo_bits_condition": "if(uuid_short(),NULL,1)",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=myisam;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (a int NOT NULL) ENGINE=myisam;
+INSERT INTO t2 VALUES (10);
+SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+1+0	MIN(t1.a)
+1	1
+explain format=json SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "pseudo_bits_condition": "10 = rand()",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1,t2;
+# End of 10.5 tests
+#
+# Test new group_min_max optimization
+#
+create table t1 (a int, b int, c int, key(a,b,c));
+insert into t1 select mod(seq,23),mod(seq,13), mod(seq,5) from seq_1_to_10000;
+explain select a from t1 where a in (1,2,3) group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index for group-by
+explain select a from t1 where a in (1,2,3) or a = 22 group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using where; Using index for group-by
+explain select a from t1 where a in (1,2,3) and a < 3 group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index for group-by
+explain select a,b from t1 where (a) in (1,2,3) and b in (5,6,7) group by a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	9	Using where; Using index for group-by
+explain select a,b from t1 where (a,b) in ((1,1),(2,2),(3,3)) group by a,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	3	Using where; Using index for group-by
+explain select a,b,c from t1 where (a,b) in ((1,1),(2,2),(3,3)) and c=3 group by a,b,c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	15	NULL	3	Using where; Using index for group-by
+# Will not use index for group-by
+explain select a from t1 where a in (1,2,3) and b>1 group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	983	Using where; Using index
+explain select a from t1 where a in (1,2,3) and c=1 group by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	1161	Using where; Using index
+drop table t1;
+# End of 11.4 tests
+#
+# MDEV-38709 ASAN heap-buffer-overflow in my_convert_using_func
+#
+CREATE TABLE t1 (a varchar(1024));
+INSERT INTO t1 VALUES
+('LOXRI'),('willing'),('bright'),('behavior'),('RUQIW'),('z'),('RFRYY'),
+('KQFQA'),('b'),('ZKUAX'),('l'),('z'),('t-shirt'),('o'),('o'),('c'),('MOUYN'),
+('v'),('precise'),('QCOHK'),('c'),('any'),('hers'),('e'),('we'),('mood'),
+('AVBWK'),('h'),('frequent'),('AUZDU'),('z'),('sculpture'),('passion'),('n'),
+('b'),('sodium'),('j'),('power'),('y'),('CHJYX'),('YYULQ'),('h'),('HRMPR'),
+('p'),('a'),('r'),('m'),('s'),('different'),('QABLI'),('s'),('p'),('train'),
+('cause'),('MYEFD'),('fierce'),('r'),('l'),('x'),('monthly'),('x'),('t'),
+('RQWBD'),('panic'),('HDRLD'),('m'),('j'),('r'),('convert'),('simple'),('y'),
+('b'),('f'),('flip'),('l'),('desire'),('film');
+CREATE TABLE t2 (b varchar(1024));
+INSERT INTO t2 VALUES
+('c'),('BPYFY'),('i'),('l'),('n'),('programming'),('r'),('then'),('t'),
+('MVAUI'),('XQGSK'),('i'),('regret'),('m'),('XIDWZ'),('KORLB'),('agree'),
+('relatively'),('frequency'),('certainly');
+SELECT a, b AS b1, b AS b2 FROM t1 JOIN t2 WHERE a IS NOT NULL GROUP BY a, b1, b2 LIMIT 1000,10;
+a	b1	b2
+v	r	r
+v	regret	regret
+v	relatively	relatively
+v	t	t
+v	then	then
+v	XIDWZ	XIDWZ
+v	XQGSK	XQGSK
+we	agree	agree
+we	BPYFY	BPYFY
+we	c	c
+DROP TABLE t1, t2;
+# End of 11.8 tests

@@ -1727,15 +1727,15 @@ grn_io_hash_calculate_entry_size(uint32_t key_size, uint32_t value_size,
 {
   if (flags & GRN_OBJ_KEY_VAR_SIZE) {
     if (flags & GRN_OBJ_KEY_LARGE) {
-      return (uintptr_t)((grn_io_hash_entry_large *)0)->value + value_size;
+      return offsetof(grn_io_hash_entry_large, value) + value_size;
     } else {
-      return (uintptr_t)((grn_io_hash_entry_normal *)0)->value + value_size;
+      return offsetof(grn_io_hash_entry_normal, value) + value_size;
     }
   } else {
     if (key_size == sizeof(uint32_t)) {
-      return (uintptr_t)((grn_plain_hash_entry *)0)->value + value_size;
+      return offsetof(grn_plain_hash_entry, value) + value_size;
     } else {
-      return (uintptr_t)((grn_rich_hash_entry *)0)->key_and_value
+      return offsetof(grn_rich_hash_entry, key_and_value)
           + key_size + value_size;
     }
   }
@@ -1865,12 +1865,12 @@ grn_tiny_hash_calculate_entry_size(uint32_t key_size, uint32_t value_size,
 {
   uint32_t entry_size;
   if (flags & GRN_OBJ_KEY_VAR_SIZE) {
-    entry_size = (uintptr_t)((grn_tiny_hash_entry *)0)->value + value_size;
+    entry_size = offsetof(grn_tiny_hash_entry, value) + value_size;
   } else {
     if (key_size == sizeof(uint32_t)) {
-      entry_size = (uintptr_t)((grn_plain_hash_entry *)0)->value + value_size;
+      entry_size = offsetof(grn_plain_hash_entry, value) + value_size;
     } else {
-      entry_size = (uintptr_t)((grn_rich_hash_entry *)0)->key_and_value
+      entry_size = offsetof(grn_rich_hash_entry, key_and_value)
           + key_size + value_size;
     }
   }
@@ -2815,7 +2815,7 @@ grn_rc
 grn_hash_delete(grn_ctx *ctx, grn_hash *hash, const void *key, uint32_t key_size,
                 grn_table_delete_optarg *optarg)
 {
-  uint32_t h, i, m, s;
+  uint32_t h, i, s;
   grn_rc rc = grn_hash_error_if_truncated(ctx, hash);
   if (rc != GRN_SUCCESS) {
     return rc;
@@ -2836,7 +2836,6 @@ grn_hash_delete(grn_ctx *ctx, grn_hash *hash, const void *key, uint32_t key_size
   {
     grn_id e, *ep;
     /* lock */
-    m = *hash->max_offset;
     for (i = h; ; i += s) {
       if (!(ep = grn_hash_idx_at(ctx, hash, i))) { return GRN_NO_MEMORY_AVAILABLE; }
       if (!(e = *ep)) { break; }

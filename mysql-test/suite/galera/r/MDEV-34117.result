@@ -1,0 +1,127 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (c INT);
+INSERT INTO t1 VALUES (0),(0);
+CREATE TABLE t2 (c INT);
+SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
+SET SESSION wsrep_trx_fragment_size=2;
+DROP TABLE mysql.wsrep_streaming_log;
+ERROR 42000: DROP command denied to user 'root'@'localhost' for table `mysql`.`wsrep_streaming_log`
+CREATE TRIGGER tgr AFTER INSERT ON t2 FOR EACH ROW UPDATE t1 SET c=c+1;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * FROM t1;
+c
+2
+2
+SELECT * FROM t2;
+c
+1
+2
+SET wsrep_trx_fragment_unit=DEFAULT;
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;
+DROP TRIGGER tgr;
+DROP TABLE t1, t2;
+connection node_2;
+SET GLOBAL wsrep_on=OFF;
+SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
+ERROR 42000: Variable 'wsrep_trx_fragment_unit' can't be set to the value of 'STATEMENTS'
+SELECT @@wsrep_trx_fragment_unit;
+@@wsrep_trx_fragment_unit
+bytes
+SELECT @@wsrep_trx_fragment_size;
+@@wsrep_trx_fragment_size
+0
+SET SESSION wsrep_trx_fragment_size = 2;
+ERROR 42000: Variable 'wsrep_trx_fragment_size' can't be set to the value of '2'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_trx_fragment_size' to a value other than 0 because wsrep is switched off.
+Error	1231	Variable 'wsrep_trx_fragment_size' can't be set to the value of '2'
+SELECT @@wsrep_trx_fragment_unit;
+@@wsrep_trx_fragment_unit
+bytes
+SELECT @@wsrep_trx_fragment_size;
+@@wsrep_trx_fragment_size
+0
+DROP TABLE mysql.wsrep_streaming_log;
+SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
+ERROR 42000: Variable 'wsrep_trx_fragment_unit' can't be set to the value of 'STATEMENTS'
+SET SESSION wsrep_trx_fragment_size = 2;
+ERROR 42000: Variable 'wsrep_trx_fragment_size' can't be set to the value of '2'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_trx_fragment_size' to a value other than 0 because wsrep is switched off.
+Error	1231	Variable 'wsrep_trx_fragment_size' can't be set to the value of '2'
+SELECT @@wsrep_trx_fragment_unit;
+@@wsrep_trx_fragment_unit
+bytes
+SELECT @@wsrep_trx_fragment_size;
+@@wsrep_trx_fragment_size
+0
+SET SESSION wsrep_trx_fragment_size = 0;
+SELECT @@wsrep_trx_fragment_unit;
+@@wsrep_trx_fragment_unit
+bytes
+SELECT @@wsrep_trx_fragment_size;
+@@wsrep_trx_fragment_size
+0
+SET GLOBAL wsrep_on=ON;
+SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
+ERROR 42000: Variable 'wsrep_trx_fragment_unit' can't be set to the value of 'STATEMENTS'
+SET SESSION wsrep_trx_fragment_size = 2;
+ERROR 42000: Variable 'wsrep_trx_fragment_size' can't be set to the value of '2'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_trx_fragment_size' to a value other than 0 because streaming table mysql.wsrep_streaming_log does not exists.
+Error	1231	Variable 'wsrep_trx_fragment_size' can't be set to the value of '2'
+SELECT @@wsrep_trx_fragment_unit;
+@@wsrep_trx_fragment_unit
+bytes
+SELECT @@wsrep_trx_fragment_size;
+@@wsrep_trx_fragment_size
+0
+SET GLOBAL wsrep_on=OFF;
+CREATE TABLE IF NOT EXISTS mysql.wsrep_streaming_log
+(
+node_uuid CHAR(36),
+trx_id BIGINT,
+seqno BIGINT,
+flags INT NOT NULL,
+frag LONGBLOB NOT NULL,
+PRIMARY KEY (node_uuid, trx_id, seqno)
+) ENGINE=InnoDB STATS_PERSISTENT=0 CHARSET=latin1;
+SET GLOBAL wsrep_on=ON;
+connection node_1;
+CREATE TABLE t1 (c INT);
+INSERT INTO t1 VALUES (0),(0);
+CREATE TABLE t2 (c INT);
+SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
+SET SESSION wsrep_trx_fragment_size=2;
+CREATE TRIGGER tgr AFTER INSERT ON t2 FOR EACH ROW UPDATE t1 SET c=c+1;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * FROM t1;
+c
+2
+2
+SELECT * FROM t2;
+c
+1
+2
+connection node_2;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * FROM t1;
+c
+4
+4
+SELECT * FROM t2;
+c
+1
+2
+1
+2
+connection node_1;
+SET wsrep_trx_fragment_unit=DEFAULT;
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;
+DROP TRIGGER tgr;
+DROP TABLE t1, t2;

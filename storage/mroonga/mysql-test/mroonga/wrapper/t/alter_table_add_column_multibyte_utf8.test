@@ -32,7 +32,7 @@ SET NAMES utf8;
 
 CREATE TABLE users (
   id int unsigned PRIMARY KEY AUTO_INCREMENT
-) DEFAULT CHARSET=utf8 COMMENT='Engine "InnoDB"';
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci COMMENT='Engine "InnoDB"';
 ALTER TABLE users
   ADD COLUMN 名前 text,
   ADD FULLTEXT INDEX (名前);
@@ -46,7 +46,10 @@ SELECT * FROM users;
 SELECT * FROM users
          WHERE MATCH (名前) AGAINST ('+たなか' IN BOOLEAN MODE);
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+--enable_cursor_protocol
 
 DROP TABLE users;
 

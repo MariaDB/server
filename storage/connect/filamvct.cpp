@@ -3077,8 +3077,7 @@ bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
 
   if (of.LowPart == INVALID_SET_FILE_POINTER &&
            (drc = GetLastError()) != NO_ERROR) {
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
     snprintf(g->Message, sizeof(g->Message), MSG(SFP_ERROR), buf);
     return true;
@@ -3114,8 +3113,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
       strncpy(buf, MSG(BAD_BYTE_READ), 256);
     else {
       drc = GetLastError();
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                    FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+      FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
       } // endelse brc
 
@@ -3168,8 +3166,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
       strncpy(buf, MSG(BAD_BYTE_NUM), 256);
     else {
       drc = GetLastError();
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                    FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+      FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
       } // endelse brc
 
@@ -3396,8 +3393,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
  err:
   rc = GetLastError();
   snprintf(g->Message, sizeof(g->Message), MSG(EMPTY_FILE), p, filename);
-  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+  FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                 (LPTSTR)filename, sizeof(filename), NULL);
   safe_strcat(g->Message, sizeof(g->Message), filename);
 
@@ -3532,8 +3528,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = GetLastError();
     snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
     safe_strcat(g->Message, sizeof(g->Message), filename);
     } // endif Hfile
@@ -3984,8 +3979,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   if (Tfile == INVALID_HANDLE_VALUE) {
     DWORD rc = GetLastError();
     snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, MODE_DELETE, tempname);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-              FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
     safe_strcat(g->Message, sizeof(g->Message), tempname);
     return true;

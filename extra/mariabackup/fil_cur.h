@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_dir.h>
 #include "read_filt.h"
+#include "mtr0types.h"
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "xtrabackup.h"
@@ -45,7 +46,9 @@ struct xb_fil_cur_t {
 	xb_read_filt_t*	read_filter;	/*!< read filter */
 	xb_read_filt_ctxt_t	read_filter_ctxt;
 					/*!< read filter context */
-	byte*		buf;		/*!< read buffer */
+	byte*		buf;		/*!< read buffer of XB_FIL_CUR_PAGES */
+	byte*		tmp_page;	/*!< buffer for decrypting a page */
+	byte*		tmp_frame;	/*!< buffer for decompressing a page */
 	size_t		buf_size;	/*!< buffer size in bytes */
 	size_t		buf_read;	/*!< number of read bytes in buffer
 					after the last cursor read */

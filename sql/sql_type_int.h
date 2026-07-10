@@ -152,8 +152,14 @@ public:
 class ULonglong_null: public ULonglong, public Null_flag
 {
 public:
+  ULonglong_null()
+   :ULonglong(0), Null_flag(true)
+  { }
   ULonglong_null(ulonglong nr, bool is_null)
    :ULonglong(nr), Null_flag(is_null)
+  { }
+  explicit ULonglong_null(ulonglong nr)
+   :ULonglong(nr), Null_flag(false)
   { }
 
   /*
@@ -321,7 +327,7 @@ public:
   Value range: -ULONGLONG_MAX .. +ULONGLONG_MAX.
 
   Provides a wider range for negative numbers than Longlong_hybrid does.
-  Usefull to store intermediate results of an expression whose value
+  Useful to store intermediate results of an expression whose value
   is further needed to be negated. For example, these methods:
     - Item_func_mul::int_op()
     - Item_func_int_div::val_int()

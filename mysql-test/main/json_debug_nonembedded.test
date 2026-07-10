@@ -8,6 +8,10 @@
 SET @saved_dbug = @@debug_dbug;
 SET debug_dbug='+d,json_check_min_stack_requirement';
 
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT * from JSON_TABLE('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+
 SET @json1= '{"key1":"val1"}';
 SET @json2= '{"key1":"val1"}';
 
@@ -15,8 +19,42 @@ SET @json2= '{"key1":"val1"}';
 --error ER_STACK_OVERRUN_NEED_MORE
 SELECT JSON_OVERLAPS(@json1, @json2);
 
+SET @schema_array= '{
+                     "type":"array",
+                     "items": {"type":"number"},
+                     "maxItems": 4,
+                     "minItems": 2}';
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_SCHEMA_VALID(@schema_array, '[1, 2, 3]');
+
 SET @@debug_dbug= @saved_dbug;
 
 --echo #
 --echo # End of 10.9 test
 --echo #
+
+--echo #
+--echo # MDEV-39212: JSON_MERGE_PATCH depth crash
+--echo #
+
+SET @saved_dbug = @@debug_dbug;
+SET debug_dbug='+d,json_check_min_stack_requirement';
+
+SET @deep = CONCAT(REPEAT('{"a":', 10000), '1', REPEAT('}', 10000));
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH('1', @deep);
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH('[1,2,3]', @deep);
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH('{}', '1', @deep);
+
+SET @@debug_dbug= @saved_dbug;
+
+--echo # End of 12.3 tests

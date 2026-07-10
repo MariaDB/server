@@ -28,6 +28,7 @@ connection conn_2;
 describe federated.t1;
 
 connection conn_3;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
 --replace_column 7 X 8 X 9 X 10 X 11 X 12 X 13 X 14 X
 show table status from federated;
 
@@ -35,6 +36,7 @@ disconnect conn_2;
 connect (conn_4,127.0.0.1,root,,,$MASTER_MYPORT);
 
 connection conn_4;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
 --replace_column 7 X 8 X 9 X 10 X 11 X 12 X 13 X 14 X
 show table status from federated;
 

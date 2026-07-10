@@ -1,10 +1,10 @@
 drop table if exists t1, t2;
 create table t1 (
 a int, b char(10), c char(10), filler char(10), primary key(a, b(2)), unique key (a, c(2))
-) character set utf8 engine = innodb;
+) character set utf8 collate utf8_general_ci engine = innodb;
 create table t2 (
 a int, b char(10), c char(10), filler char(10), primary key(a, b(2)), unique key (a, c(2))
-) character set ucs2 engine = innodb;
+) character set ucs2 collate ucs2_general_ci engine = innodb;
 insert into t1 values (1,'abcdefg','abcdefg','one');
 insert into t1 values (2,'ijkilmn','ijkilmn','two');
 insert into t1 values (3,'qrstuvw','qrstuvw','three');
@@ -55,10 +55,10 @@ drop table t1;
 drop table t2;
 create table t1 (
 a int, b varchar(10), c varchar(10), filler varchar(10), primary key(a, b(2)), unique key (a, c(2))
-) character set utf8 engine = innodb;
+) character set utf8 collate utf8_general_ci engine = innodb;
 create table t2 (
 a int, b varchar(10), c varchar(10), filler varchar(10), primary key(a, b(2)), unique key (a, c(2))
-) character set ucs2 engine = innodb;
+) character set ucs2 collate ucs2_general_ci engine = innodb;
 insert into t1 values (1,'abcdefg','abcdefg','one');
 insert into t1 values (2,'ijkilmn','ijkilmn','two');
 insert into t1 values (3,'qrstuvw','qrstuvw','three');

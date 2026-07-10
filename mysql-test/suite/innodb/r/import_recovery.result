@@ -1,0 +1,80 @@
+#
+# MDEV-26137 ALTER TABLE IMPORT enhancement
+#
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t1` is set as discarded.');
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t2` is set as discarded.');
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t3` is set as discarded.');
+call mtr.add_suppression('InnoDB: ./test/t3.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't3' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Expected tablespace id \\d+ but found \\d+ in the file ./test/t3.ibd");
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t3.ibd' could not be found in the doublewrite buffer.");
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t4` is set as discarded.');
+call mtr.add_suppression('InnoDB: ./test/t4.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't4' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t4.ibd' could not be found in the doublewrite buffer.");
+# Recovery from crashes
+## t1: Creation of stub succeeds; server crashes; second import attempt succeeds
+## t2: Creation of stub succeeds; server crashes; drop table
+## t3: Creation of stub succeeds; server crashes; ibd corrupted; second import attempt fails; drop table
+## t4: Did not copy .cfg; creation of stub succeeds; server crashes; ibd corrupted; second import attempt fails; drop table
+CREATE TABLE t (a int) ENGINE=InnoDB;
+INSERT INTO t VALUES(42);
+FLUSH TABLES t FOR EXPORT;
+UNLOCK TABLES;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+connect  hang1,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t1 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+connect  hang2,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t2 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+connect  hang3,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t3 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+connect  hang4,localhost,root;
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+ALTER TABLE t4 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+# corrupting the 0th page
+# Restart mysqld after the crash and reconnect.
+# restart
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t1;
+a
+42
+ALTER TABLE t3 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`t3` : Data structure corruption
+ALTER TABLE t4 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x15, .ibd file contains 0x1010115.)
+DROP TABLE t, t1, t2, t3, t4;
+# Recovery from corruption only, no server restart
+## t5: Recovery from corruption, with cfg
+## t6: Recovery from corruption, without cfg
+call mtr.add_suppression('InnoDB: ./test/t5.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't5' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t5.ibd' could not be found in the doublewrite buffer.");
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t6.ibd' could not be found in the doublewrite buffer.");
+call mtr.add_suppression("mariadbd.*: Index for table 't6' is corrupt; try to repair it");
+CREATE TABLE t (a int) ENGINE=InnoDB;
+INSERT INTO t VALUES(42);
+FLUSH TABLES t FOR EXPORT;
+UNLOCK TABLES;
+# corrupting the 0th page
+ALTER TABLE t5 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`t5` : Data structure corruption
+ALTER TABLE t6 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x15, .ibd file contains 0x1010115.)
+DROP TABLE t, t5, t6;

@@ -24,7 +24,8 @@ reset slave all;
 connection server_1;
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
-     master_user='root', MASTER_USE_GTID=CURRENT_POS;
+     master_user='root', master_ssl_verify_server_cert=0,
+     MASTER_USE_GTID=SLAVE_POS, master_demote_to_slave=1;
 source include/start_slave.inc;
 source include/wait_for_slave_to_start.inc;
 
@@ -38,7 +39,7 @@ save_master_pos;
 connection server_3;
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
-     MASTER_USE_GTID=CURRENT_POS;
+     MASTER_USE_GTID=SLAVE_POS;
 source include/start_slave.inc;
 sync_with_master;
 
@@ -56,14 +57,14 @@ reset slave all;
 connection server_2;
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
-     master_user = 'root', MASTER_USE_GTID=CURRENT_POS;
+     master_user = 'root', MASTER_USE_GTID=SLAVE_POS, master_demote_to_slave=1;
 source include/start_slave.inc;
 
 connection server_3;
 source include/stop_slave.inc;
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
-     MASTER_USE_GTID=CURRENT_POS;
+     MASTER_USE_GTID=SLAVE_POS;
 source include/start_slave.inc;
 
 connection server_1;

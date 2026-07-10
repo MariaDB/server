@@ -1,0 +1,6 @@
+--plugin-load-add=$SERVER_AUDIT_SO
+--loose-server_audit_file_path='server_audit_timestamp.log'
+--loose-server_audit_output_type=file
+--loose-server_audit_events='query'
+--loose-server-audit-timestamp-format=CMD-LINE-%Y-%m-%d
+--timezone=GMT+2

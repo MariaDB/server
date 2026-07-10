@@ -1,0 +1,65 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # String functions
+--echo #
+
+# CONCAT
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  SELECT CONCAT(c0);
+END;
+$$
+DELIMITER ;$$
+
+
+# CONCAT_WS
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE c0 SYS_REFCURSOR;
+  SELECT CONCAT_WS(',', c0, c0);
+END;
+$$
+DELIMITER ;$$
+
+
+# Concatenation operator ||
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+DECLARE
+  c0 SYS_REFCURSOR;
+BEGIN
+  SELECT  c0 || ' ' || ' ' || c0;
+END;
+$$
+DELIMITER ;$$
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # String sum functions
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  SELECT GROUP_CONCAT(c0) FROM seq_1_to_4;
+END;
+/
+DELIMITER ;/
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CALL p1;
+DROP PROCEDURE p1;

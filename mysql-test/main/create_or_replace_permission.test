@@ -61,11 +61,9 @@ CREATE OR REPLACE USER u1@localhost;
 CREATE OR REPLACE ROLE developer;
 
 connection default;
+disconnect user_a;
 SELECT CURRENT_USER;
-REVOKE ALL ON db1.* FROM mysqltest_1@localhost;
-DROP DATABASE IF EXISTS db2;
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;
-
 
 set global sql_mode=default;

@@ -13,9 +13,6 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                         /* gcc class implementation */
-#endif
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -23,72 +20,7 @@
 #include "sql_cursor.h"
 #include "probes_mysql.h"
 #include "sql_parse.h"                        // mysql_execute_command
-
-/****************************************************************************
-  Declarations.
-****************************************************************************/
-
-/**
-  Materialized_cursor -- an insensitive materialized server-side
-  cursor. The result set of this cursor is saved in a temporary
-  table at open. The cursor itself is simply an interface for the
-  handler of the temporary table.
-*/
-
-class Materialized_cursor: public Server_side_cursor
-{
-  MEM_ROOT main_mem_root;
-  /* A fake unit to supply to select_send when fetching */
-  SELECT_LEX_UNIT fake_unit;
-  TABLE *table;
-  List<Item> item_list;
-  ulong fetch_limit;
-  ulong fetch_count;
-  bool is_rnd_inited;
-public:
-  Materialized_cursor(select_result *result, TABLE *table);
-
-  int send_result_set_metadata(THD *thd, List<Item> &send_result_set_metadata);
-  virtual bool is_open() const { return table != 0; }
-  virtual int open(JOIN *join __attribute__((unused)));
-  virtual void fetch(ulong num_rows);
-  virtual void close();
-  bool export_structure(THD *thd, Row_definition_list *defs)
-  {
-    return table->export_structure(thd, defs);
-  }
-  virtual ~Materialized_cursor();
-
-  void on_table_fill_finished();
-};
-
-
-/**
-  Select_materialize -- a mediator between a cursor query and the
-  protocol. In case we were not able to open a non-materialzed
-  cursor, it creates an internal temporary HEAP table, and insert
-  all rows into it. When the table reaches max_heap_table_size,
-  it's converted to a MyISAM table. Later this table is used to
-  create a Materialized_cursor.
-*/
-
-class Select_materialize: public select_unit
-{
-  select_result *result; /**< the result object of the caller (PS or SP) */
-public:
-  Materialized_cursor *materialized_cursor;
-  Select_materialize(THD *thd_arg, select_result *result_arg):
-    select_unit(thd_arg), result(result_arg), materialized_cursor(0) {}
-  virtual bool send_result_set_metadata(List<Item> &list, uint flags);
-  bool send_eof() { return false; }
-  bool view_structure_only() const
-  {
-    return result->view_structure_only();
-  }
-};
-
-
-/**************************************************************************/
+#include "sp_instr.h"                         // sp_lex_cursor
 
 /**
   Attempt to open a materialized cursor.
@@ -97,6 +29,10 @@ public:
   @param[in]  result        result class of the caller used as a destination
                             for the rows fetched from the cursor
   @param[out] pcursor       a pointer to store a pointer to cursor in
+  @param[in]  cursor_name   the name of SP cursor
+  @param[in]  return_type   the return type of the SP cursor, or
+                            nullptr (in case of non-SP cursor or in case
+                            when SP cursor does not have RETURN clause)
 
   @retval
     0                 the query has been successfully executed; in this
@@ -107,7 +43,9 @@ public:
 */
 
 int mysql_open_cursor(THD *thd, select_result *result,
-                      Server_side_cursor **pcursor)
+                      Server_side_cursor **pcursor,
+                      const Lex_ident_column &cursor_name,
+                      const Virtual_tmp_table *return_type)
 {
   sql_digest_state *parent_digest;
   PSI_statement_locker *parent_locker;
@@ -115,13 +53,21 @@ int mysql_open_cursor(THD *thd, select_result *result,
   Select_materialize *result_materialize;
   LEX *lex= thd->lex;
   int rc;
+  const CSET_STRING query_backup= thd->query_string;
 
-  if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result)))
+  if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result,
+                                                  cursor_name, return_type)))
     return 1;
 
   save_result= lex->result;
 
   lex->result= result_materialize;
+
+  if (const sp_lex_cursor *clex= lex->get_lex_for_cursor())
+  {
+    const LEX_CSTRING tmp_query= get_cursor_query(clex->get_expr_str());
+    thd->set_query((char*) tmp_query.str, tmp_query.length);
+  }
 
   MYSQL_QUERY_EXEC_START(thd->query(),
                          thd->thread_id,
@@ -136,6 +82,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
   /* Mark that we can't use query cache with cursors */
   thd->query_cache_is_applicable= 0;
   rc= mysql_execute_command(thd);
+  thd->update_server_status();
   thd->lex->restore_set_statement_var();
   thd->m_digest= parent_digest;
   thd->m_statement_psi= parent_locker;
@@ -189,6 +136,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
   }
 
 end:
+  thd->set_query(query_backup);
   delete result_materialize;
   return rc;
 }
@@ -273,8 +221,9 @@ int Materialized_cursor::send_result_set_metadata(
     Item_ident *ident= static_cast<Item_ident *>(item_dst);
     Send_field send_field(thd, item_org);
 
-    ident->db_name= thd->strmake_lex_cstring(send_field.db_name);
-    ident->table_name= thd->strmake_lex_cstring(send_field.table_name);
+    ident->db_name= Lex_ident_db(thd->strmake_lex_cstring(send_field.db_name));
+    ident->table_name= Lex_ident_table(thd->strmake_lex_cstring(
+                                              send_field.table_name));
   }
 
   /*
@@ -425,6 +374,27 @@ void Materialized_cursor::on_table_fill_finished()
 /***************************************************************************
  Select_materialize
 ****************************************************************************/
+
+int Select_materialize::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
+{
+  int rc= select_unit::prepare(list, u);
+  if (rc)
+    return rc;
+  if (m_return_type)
+  {
+    /*
+      We're opening a REF CURSOR with the RETURN clause, e.g.:
+        TYPE cur0_t IS REF CURSOR RETURN t1%ROWTYPE;
+        c0 cur0_t;
+        OPEN c0 FOR SELECT * FROM t1;
+    */
+    if (m_return_type->check_assignability_from(list, m_cursor_name.str,
+                                                "OPEN..FOR"))
+      return true;
+  }
+  return false;
+}
+
 
 bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
 {

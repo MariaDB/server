@@ -282,7 +282,7 @@ my_bool _mi_read_pack_info(MI_INFO *info, pbool fix_keys)
       keyinfo->keylength+= (uint16) diff_length;
       keyinfo->minlength+= (uint16) diff_length;
       keyinfo->maxlength+= (uint16) diff_length;
-      keyinfo->seg[keyinfo->flag & HA_FULLTEXT ?
+      keyinfo->seg[keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
                    FT_SEGS : keyinfo->keysegs].length= (uint16) rec_reflength;
     }
     if (share->ft2_keyinfo.seg)
@@ -1412,7 +1412,7 @@ uint _mi_pack_get_block_info(MI_INFO *myisam, MI_BIT_BUFF *bit_buff,
 
 
 /*
-  Rutines for bit buffer
+  Routines for bit buffer
   Note: buffer must be 6 byte bigger than longest row
 */
 

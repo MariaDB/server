@@ -58,4 +58,4 @@ drop table tempty;
 drop table mysql_json_test;
 drop table mysql_json_test_big;
 
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info

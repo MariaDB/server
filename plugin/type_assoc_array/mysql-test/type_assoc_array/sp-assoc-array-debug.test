@@ -1,0 +1,26 @@
+-- source include/have_debug.inc
+
+SET sql_mode=ORACLE;
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+SET debug_dbug='d,assoc_array';
+
+CREATE DATABASE test1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+USE test1;
+--source sp-assoc-array-debug-p00.inc
+--source sp-assoc-array-debug-p01.inc
+DROP DATABASE test1;
+USE test;
+
+CREATE DATABASE test1 CHARACTER SET latin1;
+USE test1;
+--source sp-assoc-array-debug-p00.inc
+--source sp-assoc-array-debug-p01.inc
+DROP DATABASE test1;
+USE test;
+
+SET debug_dbug=DEFAULT;

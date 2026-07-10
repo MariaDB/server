@@ -1,0 +1,43 @@
+--source include/have_ssl_communication.inc
+--source include/require_openssl_client.inc
+--source include/have_tlsv13.inc
+
+#
+# BUG - SSL_CIPHER SYSTEM VARIABLE CANNOT CONFIGURE TLSV1.3 AND TLSV1.2 CIPHERS AT THE SAME TIME
+#
+# If users specify TLSv1.3 and TLSv1.2 ciphers, it will only configure the
+# TLSv1.3 ciphers correctly but then it will keep all TLSv1.2 ciphers enabled.
+#
+# This is a potential security vulnerability because users trying to restrict
+# secure TLSv1.3 and TLSv1.2 ciphers will unintentionally have insecure TLSv1.2
+# ciphers enabled on the database.
+#
+let $restart_parameters=--ssl-cipher=TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES256-GCM-SHA384;
+source include/restart_mysqld.inc;
+
+--exec $MYSQL --host=localhost --ssl-cipher=TLS_AES_128_GCM_SHA256 --tls-version=TLSv1.3 -e "SHOW STATUS LIKE 'Ssl_cipher%';"
+--exec $MYSQL --host=localhost --ssl-cipher=ECDHE-RSA-AES256-GCM-SHA384 --tls-version=TLSv1.2 -e "SHOW STATUS LIKE 'Ssl_cipher%';"
+
+# Check that other ciphers are correctly not supported by the server
+--replace_regex /sslv3 alert handshake failure/ssl\/tls alert handshake failure/
+--error 1
+--exec $MYSQL --host=localhost --ssl-cipher=TLS_AES_256_GCM_SHA384 --tls-version=TLSv1.3 -e "SHOW STATUS LIKE 'Ssl_cipher';" 2>&1
+
+--replace_regex /sslv3 alert handshake failure/ssl\/tls alert handshake failure/
+--error 1
+--exec $MYSQL --host=localhost --ssl-cipher=ECDHE-RSA-AES128-GCM-SHA256 --tls-version=TLSv1.2 -e "SHOW STATUS LIKE 'Ssl_cipher';" 2>&1
+
+# TLSv1.3 ciphers are still supported if only TLSv1.2 ciphers are passed to --ssl-cipher
+let $restart_parameters=--ssl-cipher=ECDHE-RSA-AES256-GCM-SHA384;
+source include/restart_mysqld.inc;
+--exec $MYSQL --host=localhost --ssl-cipher=TLS_AES_128_GCM_SHA256 --tls-version=TLSv1.3 -e "SHOW STATUS LIKE 'Ssl_cipher';"
+--exec $MYSQL --host=localhost --ssl-cipher=ECDHE-RSA-AES256-GCM-SHA384 --tls-version=TLSv1.2 -e "SHOW STATUS LIKE 'Ssl_cipher';"
+--error 1
+--exec $MYSQL --host=localhost --ssl-cipher=ECDHE-RSA-AES128-GCM-SHA256 --tls-version=TLSv1.2 -e "SHOW STATUS LIKE 'Ssl_cipher';"
+
+# TLSv1.2 ciphers are not supported if only TLSv1.3 ciphers are passed to --ssl-cipher
+let $restart_parameters=--ssl-cipher=TLS_AES_128_GCM_SHA256;
+source include/restart_mysqld.inc;
+--exec $MYSQL --host=localhost --ssl-cipher=TLS_AES_128_GCM_SHA256 --tls-version=TLSv1.3 -e "SHOW STATUS LIKE 'Ssl_cipher%';"
+--error 1
+--exec $MYSQL --host=localhost --ssl-cipher=ECDHE-RSA-AES128-GCM-SHA256 --tls-version=TLSv1.2 -e "SHOW STATUS LIKE 'Ssl_cipher';"

@@ -51,3 +51,14 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP TABLE t4;
+
+
+--echo #
+--echo # MDEV-28288 System versioning doesn't support correct work for
+--echo #            engine=connect and doesn't always give any warnings/errors
+--echo #
+--error ER_VERS_NOT_SUPPORTED
+create table t2 (
+  x int,
+  y int
+) engine=connect table_type=FIX file_name='test.txt' with system versioning;

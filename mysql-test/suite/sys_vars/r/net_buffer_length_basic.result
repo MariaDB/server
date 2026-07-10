@@ -132,10 +132,10 @@ SELECT @@net_buffer_length;
 @@net_buffer_length
 16384
 SELECT local.net_buffer_length;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.net_buffer_length;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT net_buffer_length = @@session.net_buffer_length;
-ERROR 42S22: Unknown column 'net_buffer_length' in 'field list'
+ERROR 42S22: Unknown column 'net_buffer_length' in 'SELECT'
 connection default;
 SET @@global.net_buffer_length = @start_global_value;

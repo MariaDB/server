@@ -2,28 +2,28 @@ connection node_2;
 connection node_1;
 connection node_1;
 CREATE SEQUENCE seq NOCACHE ENGINE=InnoDB;
-SELECT NEXTVAL(seq) = 1;
-NEXTVAL(seq) = 1
+SELECT NEXTVAL(seq);
+NEXTVAL(seq)
 1
 connection node_2;
-SELECT NEXTVAL(seq) = 2;
-NEXTVAL(seq) = 2
-1
+SELECT NEXTVAL(seq);
+NEXTVAL(seq)
+2
 connection node_1;
-SELECT NEXTVAL(seq) = 3;
-NEXTVAL(seq) = 3
-1
+SELECT NEXTVAL(seq);
+NEXTVAL(seq)
+3
 SELECT SETVAL(seq, 100);
 SETVAL(seq, 100)
 100
 connection node_2;
-SELECT NEXTVAL(seq) = 101;
-NEXTVAL(seq) = 101
-1
+SELECT NEXTVAL(seq);
+NEXTVAL(seq)
+101
 connection node_1;
-SELECT NEXTVAL(seq) = 102;
-NEXTVAL(seq) = 102
-1
+SELECT NEXTVAL(seq);
+NEXTVAL(seq)
+102
 DROP SEQUENCE seq;
 CREATE TABLE t1(f1 INT);
 CREATE SEQUENCE seq_transaction NOCACHE ENGINE=InnoDB;
@@ -35,15 +35,15 @@ NEXTVAL(seq_transaction)
 INSERT INTO t1 VALUES (NEXTVAL(seq_transaction));
 COMMIT;
 connection node_2;
-SELECT COUNT(*) = 2 FROM t1;
-COUNT(*) = 2
-1
-SELECT NEXTVAL(seq_transaction) = 3;
-NEXTVAL(seq_transaction) = 3
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+SELECT NEXTVAL(seq_transaction);
+NEXTVAL(seq_transaction)
+3
 connection node_1;
-SELECT NEXTVAL(seq_transaction) = 4;
-NEXTVAL(seq_transaction) = 4
-1
+SELECT NEXTVAL(seq_transaction);
+NEXTVAL(seq_transaction)
+4
 DROP SEQUENCE seq_transaction;
 DROP TABLE t1;

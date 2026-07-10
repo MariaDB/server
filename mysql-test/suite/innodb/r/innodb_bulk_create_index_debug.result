@@ -85,7 +85,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -218,7 +218,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -351,7 +351,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -407,7 +407,6 @@ SET i = i + 1;
 END WHILE;
 COMMIT;
 END|
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1(
 class   INT,
 id      INT,
@@ -421,7 +420,6 @@ affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 RENAME TABLE t1 TO t0;
 # Test Blob
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1(
 a INT PRIMARY KEY,
 b TEXT,
@@ -467,7 +465,6 @@ class	id	title
 SELECT * FROM t1 WHERE title = 'a10010';
 class	id	title
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1(
 class   INT,
 id      INT,
@@ -487,7 +484,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE title = 'a10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx_title	idx_title	103	const	1	Using index condition
+1	SIMPLE	t1	ref	idx_title	idx_title	403	const	1	Using index condition
 SELECT * FROM t1 WHERE title = 'a10';
 class	id	title
 10	10	a10
@@ -501,7 +498,6 @@ SELECT * FROM t1 WHERE title = 'a10010';
 class	id	title
 DROP TABLE t1;
 # Test Blob
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1(
 a INT PRIMARY KEY,
 b TEXT,

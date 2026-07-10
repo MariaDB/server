@@ -1,0 +1,61 @@
+create table t1 (
+col1 varchar(32), 
+col2 varchar(32), 
+key(col1),
+key(col2)
+) collate utf8mb3_general_ci;
+insert into t1
+select 
+concat('A-', seq),
+concat('A-', seq)
+from seq_1_to_100;
+set
+@tmp_ot= @@optimizer_trace,
+@tmp_os=@@optimizer_switch,
+optimizer_switch='sargable_casefold=on',
+optimizer_trace=1;
+explain select * from t1 where 'abc'=upper(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	99	const	1	Using index condition
+select 
+json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
+from information_schema.optimizer_trace;
+JS
+[
+    {
+        "before": "'abc' = ucase(t1.col1)",
+        "after": "'abc' = t1.col1"
+    }
+]
+explain select * from t1 where ucase(col2)=upper(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+select 
+json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
+from information_schema.optimizer_trace;
+JS
+[
+    {
+        "before": "ucase(t1.col2) = ucase(t1.col1)",
+        "after": "t1.col2 = t1.col1"
+    }
+]
+explain
+select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	col1	col1	99	NULL	3	Using index condition
+# Will show the rewrite:
+select 
+json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
+from information_schema.optimizer_trace;
+JS
+[
+    {
+        "before": "ucase(t1.col1) in ('A-3','A-4','a-5')",
+        "after": "t1.col1 in ('A-3','A-4','a-5')"
+    }
+]
+set 
+optimizer_trace=@tmp_ot,
+optimizer_switch=@tmp_os;
+drop table t1;

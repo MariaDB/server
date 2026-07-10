@@ -200,15 +200,13 @@ ulonglong my_timer_milliseconds(void)
   struct timeb ft;
   ftime(&ft);
   return (ulonglong)ft.time * 1000 + (ulonglong)ft.millitm;
-#elif defined(HAVE_TIME)
-  return (ulonglong) time(NULL) * 1000;
 #elif defined(_WIN32)
    FILETIME ft;
    GetSystemTimeAsFileTime( &ft );
    return ((ulonglong)ft.dwLowDateTime +
                   (((ulonglong)ft.dwHighDateTime) << 32))/10000;
 #else
-  return 0;
+  return (ulonglong) time(NULL) * 1000;
 #endif
 }
 
@@ -338,7 +336,7 @@ static ulonglong my_timer_init_resolution(ulonglong (*this_timer)(void),
 static ulonglong my_timer_init_frequency(MY_TIMER_INFO *mti)
 {
   int i;
-  ulonglong time1, time2, time3, time4;
+  ulonglong time1, time2, time3, time4, denominator;
   time1= my_timer_cycles();
   time2= my_timer_microseconds();
   time3= time2; /* Avoids a Microsoft/IBM compiler warning */
@@ -349,7 +347,8 @@ static ulonglong my_timer_init_frequency(MY_TIMER_INFO *mti)
   }
   time4= my_timer_cycles() - mti->cycles.overhead;
   time4-= mti->microseconds.overhead;
-  return (mti->microseconds.frequency * (time4 - time1)) / (time3 - time2);
+  denominator = ((time3 - time2) == 0) ? 1 : time3 - time2;
+  return (mti->microseconds.frequency * (time4 - time1)) / denominator;
 }
 
 /*
@@ -368,29 +367,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* cycles */
   mti->cycles.frequency= 1000000000;
-#if defined _WIN32 || defined __i386__ || defined __x86_64__
-  mti->cycles.routine= MY_TIMER_ROUTINE_RDTSC;
-#elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_IA64;
-#elif defined(__GNUC__) && defined(__ia64__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_IA64;
-#elif defined __GNUC__ && defined __powerpc__
-  mti->cycles.routine= MY_TIMER_ROUTINE_PPC_GET_TIMEBASE;
-#elif defined(__GNUC__) && defined(__sparcv9) && defined(_LP64) && (__GNUC__>2)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC64;
-#elif defined(__GNUC__) && defined(__sparc__) && !defined(_LP64) && (__GNUC__>2)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC32;
-#elif defined(__GNUC__) && defined(__s390__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_S390;
-#elif defined(__GNUC__) && defined (__aarch64__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_AARCH64;
-#elif defined(__GNUC__) && defined (__riscv)
-  mti->cycles.routine= MY_TIMER_ROUTINE_RISCV;
-#elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
-  mti->cycles.routine= MY_TIMER_ROUTINE_GETHRTIME;
-#else
-  mti->cycles.routine= 0;
-#endif
+  mti->cycles.routine= MY_TIMER_ROUTINE_CYCLES;
 
   if (!mti->cycles.routine || !my_timer_cycles())
   {
@@ -456,10 +433,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->milliseconds.routine= MY_TIMER_ROUTINE_FTIME;
 #elif defined(_WIN32)
   mti->milliseconds.routine= MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME;
-#elif defined(HAVE_TIME)
-  mti->milliseconds.routine= MY_TIMER_ROUTINE_TIME;
 #else
-  mti->milliseconds.routine= 0;
+  mti->milliseconds.routine= MY_TIMER_ROUTINE_TIME;
 #endif
   if (!mti->milliseconds.routine || !my_timer_milliseconds())
   {
@@ -604,7 +579,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
   &&  mti->microseconds.routine
   &&  mti->cycles.routine)
   {
-    ulonglong time3, time4;
+    ulonglong time3, time4, denominator;
     time1= my_timer_cycles();
     time2= my_timer_milliseconds();
     time3= time2; /* Avoids a Microsoft/IBM compiler warning */
@@ -614,8 +589,9 @@ void my_timer_init(MY_TIMER_INFO *mti)
       if (time3 - time2 > 10) break;
     }
     time4= my_timer_cycles();
+    denominator = ((time4 - time1) == 0) ? 1 : time4 - time1;
     mti->milliseconds.frequency=
-    (mti->cycles.frequency * (time3 - time2)) / (time4 - time1);
+    (mti->cycles.frequency * (time3 - time2)) / denominator;
   }
 
 /*
@@ -629,7 +605,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
   &&  mti->microseconds.routine
   &&  mti->cycles.routine)
   {
-    ulonglong time3, time4;
+    ulonglong time3, time4, denominator;
     time1= my_timer_cycles();
     time2= my_timer_ticks();
     time3= time2; /* Avoids a Microsoft/IBM compiler warning */
@@ -643,8 +619,9 @@ void my_timer_init(MY_TIMER_INFO *mti)
       if (time3 - time2 > 10) break;
     }
     time4= my_timer_cycles();
+    denominator = ((time4 - time1) == 0) ? 1 : time4 - time1;
     mti->ticks.frequency=
-    (mti->cycles.frequency * (time3 - time2)) / (time4 - time1);
+    (mti->cycles.frequency * (time3 - time2)) / denominator;
   }
 }
 
@@ -797,7 +774,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
    Any clock-based timer can be affected by NPT (ntpd program),
    which means:
    - full-second correction can occur for leap second
-   - tiny corrections can occcur approimately every 11 minutes
+   - tiny corrections can occur approximately every 11 minutes
      (but I think they only affect the RTC which isn't the PIT).
 
    We define "precision" as "frequency" and "high precision" is

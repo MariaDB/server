@@ -94,7 +94,7 @@ static const uchar *const CZ_SORT_TABLE[] = {
 };
 
 /*
-	These define the valuse for the double chars that need to be
+	These define the values for the double chars that need to be
 	sorted as they were single characters -- in Czech these are
 	'ch', 'Ch' and 'CH'.
 */
@@ -142,8 +142,6 @@ static const struct wordvalue doubles[] = {
 	We append 0 to the end.
  */
 
-#define ADD_TO_RESULT(dest, len, totlen, value)			\
-{ if ((totlen) < (len)) { dest[totlen++]= value; } }
 #define IS_END(p, src, len)	(((char *)p - (char *)src) >= (len))
 
 #define NEXT_CMP_VALUE(src, p, store, pass, value, len)		\
@@ -220,14 +218,20 @@ while (1)						\
 static int my_strnncoll_czech(CHARSET_INFO *cs __attribute__((unused)),
 			      const uchar *s1, size_t len1, 
 			      const uchar *s2, size_t len2,
-                              my_bool s2_is_prefix)
+                              my_bool *s2_is_prefix)
 {
   int v1, v2;
   const uchar *p1, * p2, * store1, * store2;
   int pass1 = 0, pass2 = 0;
-
-  if (s2_is_prefix && len1 > len2)
-    len1=len2;
+  if (s2_is_prefix)
+  {
+    *s2_is_prefix= 0;
+    if (len1 > len2)
+    {
+      *s2_is_prefix= 1;
+      len1= len2;
+    }
+  }
 
   p1 = s1;	p2 = s2;
   store1 = s1;	store2 = s2;
@@ -238,7 +242,11 @@ static int my_strnncoll_czech(CHARSET_INFO *cs __attribute__((unused)),
     NEXT_CMP_VALUE(s1, p1, store1, pass1, v1, (int)len1);
     NEXT_CMP_VALUE(s2, p2, store2, pass2, v2, (int)len2);
     if ((diff = v1 - v2))
+    {
+      if (s2_is_prefix)
+        *s2_is_prefix= 0;
       return diff;
+    }
   }
   while (v1);
   return 0;
@@ -277,12 +285,13 @@ my_strnxfrmlen_czech(CHARSET_INFO *cs
   the length of the strings being specified
 */
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)), 
                   uchar *dest, size_t len,
                   uint nweights_arg __attribute__((unused)),
                   const uchar *src, size_t srclen, uint flags)
 {
+  uint warnings= 0;
   int value;
   const uchar *p, * store;
   int pass = 0;
@@ -297,15 +306,27 @@ my_strnxfrm_czech(CHARSET_INFO *cs __attribute__((unused)),
     int add= (1 << pass) & flags; /* If this level is needed */
     NEXT_CMP_VALUE(src, p, store, pass, value, (int)srclen);
     if (add)
-      ADD_TO_RESULT(dest, len, totlen, value);
+    {
+      if (totlen < len)
+        dest[totlen++]= value;
+      else
+      {
+        warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
+        if (value >= 0x01 || pass < 3)
+          warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
+        break;
+      }
+    }
   }
   while (value);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len > totlen)
   {
-    memset(dest + totlen, ' ', len - totlen);
+    memset(dest + totlen, 0x00, len - totlen);
     totlen= len;
   }
-  return totlen;
+  DBUG_ASSERT(src <= p);
+  return my_strnxfrm_ret_construct(totlen, (pass * srclen) + p - src,
+                                   warnings);
 }
 
 #undef IS_END
@@ -385,7 +406,7 @@ static my_bool my_like_range_czech(CHARSET_INFO *cs __attribute__((unused)),
     { continue; }
     if (value <= 2)			/* End of pass or end of string */
     { break; }
-    if (value == 255)		/* Double char too compicated */
+    if (value == 255)		/* Double char too complicated */
     { break; }
 
     *min_str++= *max_str++ = *ptr;
@@ -591,12 +612,14 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
   my_strnxfrmlen_czech,
   my_like_range_czech,
   my_wildcmp_bin,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_simple,
   my_propagate_simple,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 struct charset_info_st my_charset_latin2_czech_cs =
@@ -615,19 +638,17 @@ struct charset_info_st my_charset_latin2_czech_cs =
     NULL,		/* uca          */
     tab_8859_2_uni,	/* tab_to_uni   */
     idx_uni_8859_2,	/* tab_from_uni */
-    &my_unicase_default,/* caseinfo     */
+    NULL,               /* casefold     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     4,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */
     0xAE,               /* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    4,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S4,
     &my_charset_8bit_handler,
     &my_collation_latin2_czech_cs_handler
 };

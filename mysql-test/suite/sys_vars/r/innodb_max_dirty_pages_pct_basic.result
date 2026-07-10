@@ -25,7 +25,7 @@ SELECT @@innodb_max_dirty_pages_pct;
 @@innodb_max_dirty_pages_pct
 90.000000
 SELECT local.innodb_max_dirty_pages_pct;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET global innodb_max_dirty_pages_pct = 0;
 SELECT @@global.innodb_max_dirty_pages_pct;
 @@global.innodb_max_dirty_pages_pct

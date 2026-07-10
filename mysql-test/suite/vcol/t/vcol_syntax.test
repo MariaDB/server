@@ -168,6 +168,8 @@ drop table t1;
 --echo #
 create table t (f1 int, f2 int, fv int generated always as (case user() when 'foo' or 'bar' then f1 else f2 end) virtual);
 select * from t;
+insert into t (f1,f2) values(1,1);
+select * from t;
 create table tmp as select * from information_schema.tables where table_name = 't';
 select * from t;
 
@@ -184,4 +186,14 @@ insert into t values (0, 0, 0);
 insert into t values (1, 1, 1);
 
 drop trigger tr;
+drop table t;
+
+--echo #
+--echo # MDEV-29932 Invalid expr in cleanup_session_expr() upon INSERT DELAYED
+--echo #
+create table t (f timestamp default from_unixtime(1), g timestamp as (from_unixtime(2)));
+insert delayed into t values ();
+flush table t;
+select unix_timestamp(f), unix_timestamp(g) from t;
+# Cleanup
 drop table t;

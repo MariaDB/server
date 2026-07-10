@@ -7,7 +7,7 @@
 #
 # Testing of atomic create table with crashes in a lot of different places
 #
-# This is very similar to the alter_table.test, but includes testing of
+# This is very similar to the alter_table.inc, but includes testing of
 # triggers in with ALTER TABLE .. RENAME.
 #
 

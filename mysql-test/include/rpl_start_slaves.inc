@@ -19,7 +19,7 @@
 #
 #   $slave_timeout
 #     Set the timeout when waiting for slave threads to stop and
-#     start, respectively.  See include/wait_for_slave_param.inc
+#     start, respectively. See include/wait_for_slave_param.inc
 
 
 --let $include_filename= rpl_start_slaves.inc

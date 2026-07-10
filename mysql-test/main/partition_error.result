@@ -782,16 +782,16 @@ SUBPARTITION BY HASH(TO_DAYS(purchased))
 DATA DIRECTORY = '/tmp/not-existing' 
 INDEX DIRECTORY = '/tmp/not-existing');
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL,
   `purchased` date DEFAULT NULL
-) ENGINE=<curr_engine> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=<curr_engine> DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (year(`purchased`))
 SUBPARTITION BY HASH (to_days(`purchased`))
 (PARTITION `p0` VALUES LESS THAN MAXVALUE ENGINE = <curr_engine>)
@@ -805,14 +805,14 @@ DATA DIRECTORY = '/tmp/not-existing'
 INDEX DIRECTORY = '/tmp/not-existing',
 SUBPARTITION sp1));
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL,
   `purchased` date DEFAULT NULL
-) ENGINE=<curr_engine> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=<curr_engine> DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (year(`purchased`))
 SUBPARTITION BY HASH (to_days(`purchased`))
 (PARTITION `p0` VALUES LESS THAN MAXVALUE
@@ -825,14 +825,14 @@ PARTITION BY RANGE(YEAR(purchased))
 DATA DIRECTORY = '/tmp/not-existing' 
 INDEX DIRECTORY = '/tmp/not-existing');
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL,
   `purchased` date DEFAULT NULL
-) ENGINE=<curr_engine> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=<curr_engine> DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (year(`purchased`))
 (PARTITION `p0` VALUES LESS THAN MAXVALUE ENGINE = <curr_engine>)
 DROP TABLE t1;
@@ -934,7 +934,7 @@ partitions 3
 (partition x1 tablespace ts1,
 partition x2 tablespace ts2,
 partition x3 tablespace ts3);
-ERROR 42S22: Unknown column 'd' in 'partition function'
+ERROR 42S22: Unknown column 'd' in 'PARTITION BY'
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1156,7 +1156,7 @@ partition by range (a)
 subpartition by hash (a+d)
 (partition x1 values less than (1) (subpartition x11, subpartition x12),
 partition x2 values less than (2) (subpartition x21, subpartition x22));
-ERROR 42S22: Unknown column 'd' in 'partition function'
+ERROR 42S22: Unknown column 'd' in 'PARTITION BY'
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1176,7 +1176,7 @@ partition by range (a+d)
 partitions 2
 (partition x1 values less than (4) tablespace ts1,
 partition x2 values less than (8) tablespace ts2);
-ERROR 42S22: Unknown column 'd' in 'partition function'
+ERROR 42S22: Unknown column 'd' in 'PARTITION BY'
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1375,7 +1375,7 @@ partition by list (a+d)
 partitions 2
 (partition x1 values in (4) tablespace ts1,
 partition x2 values in (8) tablespace ts2);
-ERROR 42S22: Unknown column 'd' in 'partition function'
+ERROR 42S22: Unknown column 'd' in 'PARTITION BY'
 CREATE TABLE t1 (
 a int not null,
 b int not null,
@@ -1440,7 +1440,7 @@ partition x2 values in (5))' at line 8
 CREATE TABLE t1 (a int)
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (x1));
-ERROR 42S22: Unknown column 'x1' in 'partition function'
+ERROR 42S22: Unknown column 'x1' in 'PARTITION BY'
 CREATE TABLE t1(a int)
 PARTITION BY RANGE (a) (PARTITION p1 VALUES LESS THAN(5));
 insert into t1 values (10);
@@ -1793,7 +1793,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `p1` VALUES IN (1)
@@ -1823,7 +1823,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `p1` VALUES IN (1)
@@ -1860,7 +1860,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `inx_a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pUpTo10` VALUES LESS THAN (10)

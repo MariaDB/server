@@ -7,7 +7,7 @@ create table t (a int primary key, b blob default '');
 select a, (2*a) AS a from t group by a;
 a	a
 Warnings:
-Warning	1052	Column 'a' in group statement is ambiguous
+Warning	1052	Column 'a' in GROUP BY is ambiguous
 drop table t;
 select 1 + "2 a";
 1 + "2 a"
@@ -18,8 +18,8 @@ create table t (a int primary key, b blob default '');
 select a, (2*a) AS a from t group by a;
 a	a
 Warnings:
-Warning	1052	Column 'a' in group statement is ambiguous
-Warning	1052	Column 'a' in group statement is ambiguous
+Warning	1052	Column 'a' in GROUP BY is ambiguous
+Warning	1052	Column 'a' in GROUP BY is ambiguous
 drop table t;
 select 1 + "2 a";
 1 + "2 a"
@@ -30,5 +30,5 @@ create table t (a int primary key, b blob default '');
 select a, (2*a) AS a from t group by a;
 a	a
 Warnings:
-Warning	1052	Column 'a' in group statement is ambiguous
+Warning	1052	Column 'a' in GROUP BY is ambiguous
 drop table t;

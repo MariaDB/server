@@ -486,7 +486,7 @@ typedef struct _format {  /* Format descriptor block                   */
 /***********************************************************************/
 typedef struct _tabptr {                                   /* start=P1 */
   struct _tabptr *Next;
-  int   Num;                                             /* alignement */
+  int   Num;                                              /* alignment */
   void *Old[50];
   void *New[50];                  /* old and new values of copied ptrs */
   } TABPTR, *PTABPTR;
@@ -535,7 +535,7 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_KEY      = 11,         /* Field key property            */
            FLD_DEFAULT  = 12,         /* Field default value           */
            FLD_EXTRA    = 13,         /* Field extra info              */
-           FLD_PRIV     = 14,         /* Field priviledges             */
+           FLD_PRIV     = 14,         /* Field privileges              */
            FLD_DATEFMT  = 15,         /* Field date format             */
            FLD_FORMAT   = 16,         /* Field format                  */
            FLD_CAT      = 17,         /* Table catalog                 */

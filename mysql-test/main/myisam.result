@@ -1,6 +1,6 @@
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
-SET SQL_WARNINGS=1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1 (
 STRING_DATA char(255) default NULL,
 KEY string_data (STRING_DATA)
@@ -348,11 +348,11 @@ t1	1	c_2	2	a	A	5	NULL	NULL		BTREE			NO
 explain select * from t1,t2 where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	a	a	4	test.t2.a	3	
 explain select * from t1,t2 force index(a) where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	a	a	4	test.t2.a	3	
 explain select * from t1 force index(a),t2 force index(a) where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	2	
@@ -388,10 +388,10 @@ t1	1	c_2	2	a	A	5	NULL	NULL		BTREE			NO
 explain select * from t1,t2 force index(c) where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	a	a	4	test.t2.a	3	
 explain select * from t1 where a=0 or a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
 explain select * from t1 force index (a) where a=0 or a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
@@ -454,9 +454,6 @@ select * from t1 where a='807780' and b='477' and c='165';
 a	b	c
 807780	477	165
 drop table t1;
-DROP TABLE IF EXISTS t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1 (a varchar(150) NOT NULL, KEY (a));
 INSERT t1 VALUES ("can \tcan");
 INSERT t1 VALUES ("can   can");
@@ -579,7 +576,7 @@ t1c1	t2c1
 UNLOCK TABLES;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (`a` int(11) NOT NULL default '0', `b` int(11) NOT NULL default '0', UNIQUE KEY `a` USING RTREE (`a`,`b`)) ENGINE=MyISAM;
-Got one of the listed errors
+ERROR HY000: Incorrect arguments to RTREE INDEX
 create table t1 (a int, b varchar(200), c text not null) checksum=1;
 create table t2 (a int, b varchar(200), c text not null) checksum=0;
 insert t1 values (1, "aaa", "bbb"), (NULL, "", "ccccc"), (0, NULL, "");
@@ -644,6 +641,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select count(*) from t1 where a is null;
 count(*)
 2
+insert into t1 values (1,''), (2,'');
+explain select count(*) from t1 where a is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx	idx	4	const	2	Using where
+set statement optimizer_scan_setup_cost= 0 for explain select count(*) from t1 where a is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	idx	NULL	NULL	NULL	4	Using where
 drop table t1;
 create table t1 (c1 int, c2 varchar(4) not null default '',
 key(c2(3))) default charset=utf8;
@@ -1264,10 +1268,7 @@ explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  '
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	v	v	13	const	#	Using where; Using index
 alter table t1 add unique(v);
-ERROR 23000: Duplicate entry '{ ' for key 'v_2'
-show warnings;
-Level	Code	Message
-Error	1062	Duplicate entry 'a\0001' for key 'v_2'
+ERROR 23000: Duplicate entry 'a ' for key 'v_2'
 alter table t1 add key(v);
 Warnings:
 Note	1831	Duplicate index `v_2`. This is deprecated and will be disallowed in a future release
@@ -1672,7 +1673,7 @@ create table t1 (v char(10) character set utf8);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
@@ -1724,7 +1725,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set statement sql_mode='' for
@@ -2402,9 +2403,9 @@ KEY (c2)
 
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Packed
-Character set:       utf8mb3_general_ci (33)
-Data records:                    0  Deleted blocks:                 0
-Recordlength:                   94
+Character set:       ? (0)
+Data records:                      0  Deleted blocks:                      0
+Recordlength:                     94
 
 table description:
 Key Start Len Index   Type
@@ -2532,6 +2533,7 @@ DROP TABLE t1, t2, t3;
 #
 # BUG#51307 - widespread corruption with partitions and insert...select
 #
+call mtr.add_suppression("Enabling keys got errno 12 on test.t1, retrying");
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 a	a
@@ -2691,8 +2693,8 @@ KEY (d)
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Fixed length
 Character set:       latin1_swedish_ci (8)
-Data records:                    0  Deleted blocks:                 0
-Recordlength:                   13
+Data records:                      0  Deleted blocks:                      0
+Recordlength:                     13
 
 table description:
 Key Start Len Index   Type
@@ -2759,10 +2761,10 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 select distinct c from t;
 c
-NULL
-
-bar
 foo
+bar
+
+NULL
 select c from t;
 c
 foo
@@ -2807,3 +2809,45 @@ drop table t;
 #
 # End of 10.8 tests
 #
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY(pk), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,5);
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='index_merge_sort_intersection=on';
+SELECT pk FROM t1 WHERE pk > 2 AND a IS NULL;
+pk
+SET @@optimizer_switch= @save_optimizer_switch;
+drop table t1;
+#
+# MDEV-30104 Server crashes in handler_rowid_filter_check upon ANALYZE TABLE
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (pk INT, f CHAR(8), PRIMARY KEY(pk), KEY(f)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'o'),(2,'x');
+ANALYZE TABLE t1, t2, t3, t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON 1) ON 2 IN (SELECT pk FROM t4 WHERE f < 's');
+a	b	c
+1	NULL	NULL
+2	NULL	NULL
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+DROP TABLE t1, t2, t3, t4;
+#
+# End of 11.0 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

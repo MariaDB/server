@@ -54,7 +54,7 @@ COUNT(@@GLOBAL.innodb_lock_wait_timeout)
 1
 1 Expected
 SELECT innodb_lock_wait_timeout = @@SESSION.innodb_lock_wait_timeout;
-ERROR 42S22: Unknown column 'innodb_lock_wait_timeout' in 'field list'
+ERROR 42S22: Unknown column 'innodb_lock_wait_timeout' in 'SELECT'
 set @@global.innodb_lock_wait_timeout=100;
 set @@global.innodb_lock_wait_timeout=DEFAULT;
 select @@global.innodb_lock_wait_timeout;

@@ -1,0 +1,10 @@
+--source include/have_partition.inc
+SET sql_mode='';
+INSTALL SONAME 'ha_spider';
+CREATE TABLE t (c INT) ENGINE=Spider PARTITION BY KEY(c) (PARTITION p);
+UNINSTALL SONAME IF EXISTS 'ha_spider';
+--error ER_UNKNOWN_STORAGE_ENGINE
+INSERT INTO t SELECT 1;
+drop table t;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

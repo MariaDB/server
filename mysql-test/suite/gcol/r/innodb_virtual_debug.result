@@ -1,4 +1,6 @@
 set default_storage_engine=innodb;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 CREATE TABLE `t` (
 `a` VARCHAR(100),
 `b` VARCHAR(100),
@@ -46,14 +48,14 @@ t	CREATE TABLE `t` (
   `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t;
 a	b	c	h
 0	3	3	mm
 18	1	19	mm
 28	1	29	mm
 NULL	NULL	NULL	mx
-ALTER TABLE t FORCE, LOCK=NONE;
+ALTER TABLE t FORCE, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: online rebuild with indexed virtual columns. Try LOCK=SHARED
 disconnect con1;
 DROP TABLE t;
@@ -85,7 +87,7 @@ t	CREATE TABLE `t` (
   `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx_1` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT c FROM t;
 c
 NULL
@@ -145,3 +147,4 @@ DROP TABLE t1;
 disconnect con1;
 connection default;
 SET DEBUG_SYNC=RESET;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

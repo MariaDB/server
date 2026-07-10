@@ -1,0 +1,24 @@
+-- source include/mysql_upgrade_preparation.inc
+
+#
+# MDEV-31925 mysqld_upgrade --check-if-upgrade-is-needed leaks files
+#
+
+# Run mysql_upgrade with --check-if-upgrade-is-needed
+--echo Running mysql_upgrade with --check-if-upgrade-is-needed
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed 2>&1
+
+# Check if temporary files related to mysql_upgrade are cleared
+--echo Checking for absence of temporary files by mysql_upgrade
+--perl
+
+# Use the temporary directory path from the MySQL configuration
+my $tmpdir = "$ENV{MYSQL_TMP_DIR}";
+
+die "Test failed: Found temporary file left by mysql_upgrade\n" if (glob("$tmpdir/mysql_upgrade-*"));
+print "No temporary files found\n";
+EOF
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+--echo End of 10.4 tests

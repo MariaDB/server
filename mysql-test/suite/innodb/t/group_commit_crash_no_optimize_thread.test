@@ -51,7 +51,7 @@ while ($numtests)
   START TRANSACTION;
   insert into t1 select * from t2;
   # Write file to make mysql-test-run.pl expect crash
-  --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+  --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
   eval call setcrash($numtests);
 

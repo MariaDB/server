@@ -31,7 +31,21 @@ ELSE()
   SET(MYSQLD_USER "mysql")
   SET(MYSQLD_GROUP "mysql")
   SET(ini_file_extension "cnf")
-  SET(HOSTNAME "uname -n")
+
+  # Define directly here, as cmake/install_layout.cmake has no LOGDIR to be inherited
+  SET(su_user "su mysql mysql")
+  IF(RPM MATCHES "(suse|sles)")
+    SET(logdir "/var/log/mysql")
+  ELSEIF(RPM)
+    SET(logdir "/var/log/mariadb")
+  ELSE()
+    SET(logdir "/var/log/mysql")
+  ENDIF()
+  IF(DEB)
+    SET(su_user "#su mysql mysql")
+  ENDIF()
+  get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+  SET(mysqlunixdir ${MYSQL_UNIX_DIR})
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise
@@ -46,12 +60,12 @@ IF(WITH_WSREP AND NOT WITHOUT_SERVER)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep.cnf.sh
                  ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension} @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension}
-          DESTINATION ${inst_location} COMPONENT IniFiles)
+          DESTINATION ${inst_location} COMPONENT server-galera)
 ENDIF()
 
 IF(UNIX AND NOT WITHOUT_SERVER)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  SET(SCRIPTS mysqld_multi.server mysql-log-rotate binary-configure mini-benchmark)
+  SET(SCRIPTS mysqld_multi.server mariadb.logrotate binary-configure mini-benchmark)
   IF(WITH_WSREP)
     SET(SCRIPTS ${SCRIPTS} wsrep_notify)
   ENDIF()
@@ -135,8 +149,14 @@ IF(UNIX AND NOT WITHOUT_SERVER)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
     IF(WITH_WSREP)
+      CONFIGURE_FILE(galera.conf.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/galera.conf @ONLY)
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/galera.conf
+              DESTINATION ${inst_location}/mariadb.service.d
+              COMPONENT server-galera)
+
       INSTALL(FILES use_galera_new_cluster.conf
-              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
+              DESTINATION ${inst_location}/systemd COMPONENT server-galera)
     ENDIF()
     INSTALL(FILES
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
@@ -171,6 +191,11 @@ IF(UNIX AND NOT WITHOUT_SERVER)
               ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
 
+      IF(WITH_WSREP)
+          INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/galera.conf
+                  DESTINATION ${INSTALL_SYSTEMD_UNITDIR}/mariadb.service.d
+                  COMPONENT server-galera)
+      ENDIF()
       # http://public.kitware.com/Bug/view.php?id=14782
       IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
         INSTALL(FILES use_galera_new_cluster.conf
@@ -198,7 +223,14 @@ IF(UNIX AND NOT WITHOUT_SERVER)
   ENDIF()
 
   IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_TMPUSERS) AND INSTALL_SYSTEMD_TMPFILESDIR)
-    get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    IF(MYSQL_DATADIR STREQUAL INSTALL_RUNDATADIR)
+      SET(DISABLE_RUNDATADIR "#")
+    ENDIF()
+    get_filename_component(MYSQL_UNIX_ADDRDIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    IF(MYSQL_UNIX_ADDRDIR STREQUAL MYSQL_DATADIR OR MYSQL_UNIX_ADDRDIR STREQUAL INSTALL_RUNDATADIR)
+      SET(DISABLE_MYSQL_UNIX_ADDRDIR "#")
+    ENDIF()
+
     CONFIGURE_FILE(tmpfiles.conf.in
             ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
@@ -207,8 +239,9 @@ IF(UNIX AND NOT WITHOUT_SERVER)
   ENDIF()
 
   IF (INSTALL_SYSCONFDIR)
-    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
-            RENAME mysql COMPONENT SupportFiles)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.logrotate
+            DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
+            RENAME mariadb COMPONENT SupportFiles)
     IF(NOT HAVE_SYSTEMD)
       INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
               DESTINATION  ${INSTALL_SYSCONFDIR}/init.d

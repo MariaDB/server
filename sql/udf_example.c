@@ -60,6 +60,21 @@
 **
 ** Function 'myfunc_argument_name' returns name of argument.
 **
+** Aggregate function 'avgcost' returns the weighted average cost from
+** (quantity, price) pairs: sum of (price * quantity) divided by total
+** quantity across all rows.
+**
+** Aggregate function 'avg2' returns sum/count given (count, sum) pairs;
+** demonstrates an aggregate that also supports the remove operation
+** (usable as a window function).
+**
+** Function 'is_const' returns "const" if its argument is a constant
+** expression (known at query parse time), and "not const" otherwise.
+**
+** Function 'check_const_len' verifies that strlen() of its argument matches
+** the length reported by the server, returning "Correct length",
+** "Wrong length", or "Not constant".
+**
 ** On the end is a couple of functions that converts hostnames to ip and
 ** vice versa.
 **
@@ -85,6 +100,9 @@
 ** CREATE FUNCTION reverse_lookup RETURNS STRING SONAME "udf_example.so";
 ** CREATE AGGREGATE FUNCTION avgcost RETURNS REAL SONAME "udf_example.so";
 ** CREATE FUNCTION myfunc_argument_name RETURNS STRING SONAME "udf_example.so";
+** CREATE AGGREGATE FUNCTION avg2 RETURNS REAL SONAME "udf_example.so";
+** CREATE FUNCTION is_const RETURNS STRING SONAME "udf_example.so";
+** CREATE FUNCTION check_const_len RETURNS STRING SONAME "udf_example.so";
 **
 ** After this the functions will work exactly like native MySQL functions.
 ** Functions should be created only once.
@@ -98,6 +116,10 @@
 ** DROP FUNCTION reverse_lookup;
 ** DROP FUNCTION avgcost;
 ** DROP FUNCTION myfunc_argument_name;
+** DROP FUNCTION udf_sequence;
+** DROP FUNCTION avg2;
+** DROP FUNCTION is_const;
+** DROP FUNCTION check_const_len;
 **
 ** The CREATE FUNCTION and DROP FUNCTION update the func@mysql table. All
 ** Active function will be reloaded on every restart of server
@@ -117,32 +139,14 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
 
-#ifdef STANDARD
-/* STANDARD is defined, don't use any mysql functions */
+#include <my_global.h>
+#include <my_pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#ifdef _WIN32
-typedef unsigned __int64 ulonglong;	/* Microsofts 64 bit types */
-typedef __int64 longlong;
-#else
-typedef unsigned long long ulonglong;
-typedef long long longlong;
-#endif /*_WIN32*/
-#else
-#include "mariadb.h"
-#include <my_sys.h>
-#if defined(MYSQL_SERVER)
-#include <m_string.h>		/* To get strmov() */
-#else
-/* when compiled as standalone */
-#include <string.h>
-#define strmov(a,b) stpcpy(a,b)
-#define bzero(a,b) memset(a,0,b)
-#endif
-#endif
-#include <mysql.h>
 #include <ctype.h>
+#include <assert.h>
+#include <mysql.h>
 
 
 #ifdef HAVE_DLOPEN
@@ -156,33 +160,33 @@ static pthread_mutex_t LOCK_hostname;
 my_bool metaphon_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
 void metaphon_deinit(UDF_INIT *initid);
 char *metaphon(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	       unsigned long *length, char *is_null, char *error);
+	       unsigned long *length, uchar *is_null, uchar *error);
 my_bool myfunc_double_init(UDF_INIT *, UDF_ARGS *args, char *message);
-double myfunc_double(UDF_INIT *initid, UDF_ARGS *args, char *is_null,
-		     char *error);
+double myfunc_double(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null,
+		     uchar *error);
 my_bool myfunc_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
-longlong myfunc_int(UDF_INIT *initid, UDF_ARGS *args, char *is_null,
-		    char *error);
+longlong myfunc_int(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null,
+		    uchar *error);
 my_bool udf_sequence_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
  void udf_sequence_deinit(UDF_INIT *initid);
-longlong udf_sequence(UDF_INIT *initid, UDF_ARGS *args, char *is_null,
-		   char *error);
+longlong udf_sequence(UDF_INIT *initid, UDF_ARGS *args, uchar *is_null,
+		      uchar *error);
 my_bool avgcost_init( UDF_INIT* initid, UDF_ARGS* args, char* message );
 void avgcost_deinit( UDF_INIT* initid );
-void avgcost_reset( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
-void avgcost_clear( UDF_INIT* initid, char* is_null, char *error );
-void avgcost_add( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
-double avgcost( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
+void avgcost_reset( UDF_INIT* initid, UDF_ARGS* args, uchar* is_null, uchar *error );
+void avgcost_clear( UDF_INIT* initid, uchar* is_null, uchar *error );
+void avgcost_add( UDF_INIT* initid, UDF_ARGS* args, uchar* is_null, uchar *error );
+double avgcost( UDF_INIT* initid, UDF_ARGS* args, uchar* is_null, uchar *error );
 my_bool avg2_init( UDF_INIT* initid, UDF_ARGS* args, char* message );
 void avg2_deinit( UDF_INIT* initid );
-void avg2_reset( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
-void avg2_clear( UDF_INIT* initid, char* is_null, char *error );
-void avg2_add( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
-void avg2_remove( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
-double avg2( UDF_INIT* initid, UDF_ARGS* args, char* is_null, char *error );
+void avg2_reset( UDF_INIT* initid, UDF_ARGS* args, uchar *is_null, uchar *error );
+void avg2_clear( UDF_INIT* initid, uchar* is_null, uchar *error );
+void avg2_add( UDF_INIT* initid, UDF_ARGS* args, uchar *is_null, uchar *error );
+void avg2_remove( UDF_INIT* initid, UDF_ARGS* args, uchar* is_null, uchar *error );
+double avg2( UDF_INIT* initid, UDF_ARGS* args, uchar* is_null, uchar *error );
 my_bool is_const_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
 char *is_const(UDF_INIT *initid, UDF_ARGS *args, char *result, unsigned long
-               *length, char *is_null, char *error);
+               *length, uchar *is_null, uchar *error);
 
 
 /*************************************************************************
@@ -292,7 +296,7 @@ static char codes[26] =  {
 
 char *metaphon(UDF_INIT *initid __attribute__((unused)),
                UDF_ARGS *args, char *result, unsigned long *length,
-               char *is_null, char *error __attribute__((unused)))
+               uchar *is_null, uchar *error __attribute__((unused)))
 {
   const char *word=args->args[0];
   const char *w_end;
@@ -568,7 +572,7 @@ my_bool myfunc_double_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 
 double myfunc_double(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
-                     char *is_null, char *error __attribute__((unused)))
+                     uchar *is_null, uchar *error __attribute__((unused)))
 {
   unsigned long val = 0;
   unsigned long v = 0;
@@ -607,8 +611,8 @@ double myfunc_double(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
 /* This function returns the sum of all arguments */
 
 longlong myfunc_int(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
-                    char *is_null __attribute__((unused)),
-                    char *error __attribute__((unused)))
+                    uchar *is_null __attribute__((unused)),
+                    uchar *error __attribute__((unused)))
 {
   longlong val = 0;
   uint i;
@@ -654,7 +658,7 @@ my_bool udf_sequence_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count > 1)
   {
-    strmov(message,"This function takes none or 1 argument");
+    strcpy(message,"This function takes none or 1 argument");
     return 1;
   }
   if (args->arg_count)
@@ -662,10 +666,10 @@ my_bool udf_sequence_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
   if (!(initid->ptr=(char*) malloc(sizeof(longlong))))
   {
-    strmov(message,"Couldn't allocate memory");
+    strcpy(message,"Couldn't allocate memory");
     return 1;
   }
-  bzero(initid->ptr,sizeof(longlong));
+  memset(initid->ptr, 0,sizeof(longlong));
   /* 
     udf_sequence() is a non-deterministic function : it has different value 
     even if called with the same arguments.
@@ -681,8 +685,8 @@ void udf_sequence_deinit(UDF_INIT *initid)
 }
 
 longlong udf_sequence(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
-                      char *is_null __attribute__((unused)),
-                      char *error __attribute__((unused)))
+                      uchar *is_null __attribute__((unused)),
+                      uchar *error __attribute__((unused)))
 {
   ulonglong val=0;
   if (args->arg_count)
@@ -712,11 +716,11 @@ longlong udf_sequence(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
 my_bool lookup_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
 void lookup_deinit(UDF_INIT *initid);
 char *lookup(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	     unsigned long *length, char *null_value, char *error);
+	     unsigned long *length, uchar *null_value, uchar *error);
 my_bool reverse_lookup_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
 void reverse_lookup_deinit(UDF_INIT *initid);
 char *reverse_lookup(UDF_INIT *initid, UDF_ARGS *args, char *result,
-		     unsigned long *length, char *null_value, char *error);
+		     unsigned long *length, uchar *null_value, uchar *error);
 
 
 /****************************************************************************
@@ -731,10 +735,10 @@ my_bool lookup_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 1 || args->arg_type[0] != STRING_RESULT)
   {
-    strmov(message,"Wrong arguments to lookup;  Use the source");
+    strcpy(message,"Wrong arguments to lookup;  Use the source");
     return 1;
   }
-  initid->max_length=11;
+  initid->max_length=15;              /* "xxx.xxx.xxx.xxx" */
   initid->maybe_null=1;
 #if !defined(HAVE_GETHOSTBYADDR_R) || !defined(HAVE_SOLARIS_STYLE_GETHOST)
   (void) pthread_mutex_init(&LOCK_hostname,MY_MUTEX_INIT_SLOW);
@@ -749,9 +753,9 @@ void lookup_deinit(UDF_INIT *initid __attribute__((unused)))
 #endif
 }
 
-char *lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
-             char *result, unsigned long *res_length, char *null_value,
-             char *error __attribute__((unused)))
+char *lookup(UDF_INIT *initid, UDF_ARGS *args,
+             char *result, unsigned long *res_length, uchar *null_value,
+             uchar *error __attribute__((unused)))
 {
   uint length;
   char name_buff[256];
@@ -762,6 +766,7 @@ char *lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
   struct hostent tmp_hostent;
 #endif
   struct in_addr in;
+  const char *ip_str;
 
   if (!args->args[0] || !(length=args->lengths[0]))
   {
@@ -790,7 +795,12 @@ char *lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
   pthread_mutex_unlock(&LOCK_hostname);
 #endif
   memcpy(&in, *hostent->h_addr_list, sizeof(in.s_addr));
-  *res_length= (ulong) (strmov(result, inet_ntoa(in)) - result);
+  ip_str= inet_ntoa(in);
+  *res_length= (ulong) strlen(ip_str);
+  if (*res_length > initid->max_length)
+    *res_length= initid->max_length;
+  memcpy(result, ip_str, *res_length);
+  result[*res_length]= 0;
   return result;
 }
 
@@ -810,11 +820,11 @@ my_bool reverse_lookup_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
       INT_RESULT;
   else
   {
-    strmov(message,
+    strcpy(message,
 	   "Wrong number of arguments to reverse_lookup;  Use the source");
     return 1;
   }
-  initid->max_length=32;
+  initid->max_length=255;             /* POSIX host name maximum */
   initid->maybe_null=1;
 #if !defined(HAVE_GETHOSTBYADDR_R) || !defined(HAVE_SOLARIS_STYLE_GETHOST)
   (void) pthread_mutex_init(&LOCK_hostname,MY_MUTEX_INIT_SLOW);
@@ -829,9 +839,9 @@ void reverse_lookup_deinit(UDF_INIT *initid __attribute__((unused)))
 #endif
 }
 
-char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
+char *reverse_lookup(UDF_INIT *initid, UDF_ARGS *args,
                      char *result, unsigned long *res_length,
-                     char *null_value, char *error __attribute__((unused)))
+                     uchar *null_value, uchar *error __attribute__((unused)))
 {
 #if defined(HAVE_GETHOSTBYADDR_R) && defined(HAVE_SOLARIS_STYLE_GETHOST)
   char name_buff[256];
@@ -849,11 +859,11 @@ char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
       *null_value=1;
       return 0;
     }
-    sprintf(result,"%d.%d.%d.%d",
-	    (int) *((longlong*) args->args[0]),
-	    (int) *((longlong*) args->args[1]),
-	    (int) *((longlong*) args->args[2]),
-	    (int) *((longlong*) args->args[3]));
+    snprintf(result, MYSQL_UDF_MAX_RESULT_LENGTH, "%d.%d.%d.%d",
+	     (int) *((longlong*) args->args[0]),
+	     (int) *((longlong*) args->args[1]),
+	     (int) *((longlong*) args->args[2]),
+	     (int) *((longlong*) args->args[3]));
   }
   else
   {					/* string argument */
@@ -893,7 +903,12 @@ char *reverse_lookup(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
   }
   pthread_mutex_unlock(&LOCK_hostname);
 #endif
-  *res_length=(ulong) (strmov(result,hp->h_name) - result);
+  length= (uint) strlen(hp->h_name);
+  if (length >= initid->max_length)   /* leave room for NUL */
+    length= initid->max_length - 1;
+  memcpy(result, hp->h_name, length);
+  result[length]= 0;
+  *res_length= (ulong) length;
   return result;
 }
 
@@ -954,7 +969,7 @@ avgcost_init( UDF_INIT* initid, UDF_ARGS* args, char* message )
 
   if (!(data = (struct avgcost_data*) malloc(sizeof(struct avgcost_data))))
   {
-    strmov(message,"Couldn't allocate memory");
+    strcpy(message,"Couldn't allocate memory");
     return 1;
   }
   data->totalquantity	= 0;
@@ -974,7 +989,7 @@ avgcost_deinit( UDF_INIT* initid )
 
 /* This is only for MySQL 4.0 compatibility */
 void
-avgcost_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
+avgcost_reset(UDF_INIT* initid, UDF_ARGS* args, uchar* is_null, uchar* message)
 {
   avgcost_clear(initid, is_null, message);
   avgcost_add(initid, args, is_null, message);
@@ -983,8 +998,8 @@ avgcost_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
 /* This is needed to get things to work in MySQL 4.1.1 and above */
 
 void
-avgcost_clear(UDF_INIT* initid, char* is_null __attribute__((unused)),
-              char* message __attribute__((unused)))
+avgcost_clear(UDF_INIT* initid, uchar* is_null __attribute__((unused)),
+              uchar* message __attribute__((unused)))
 {
   struct avgcost_data* data = (struct avgcost_data*)initid->ptr;
   data->totalprice=	0.0;
@@ -995,8 +1010,8 @@ avgcost_clear(UDF_INIT* initid, char* is_null __attribute__((unused)),
 
 void
 avgcost_add(UDF_INIT* initid, UDF_ARGS* args,
-            char* is_null __attribute__((unused)),
-            char* message __attribute__((unused)))
+            uchar* is_null __attribute__((unused)),
+            uchar* message __attribute__((unused)))
 {
   if (args->args[0] && args->args[1])
   {
@@ -1043,7 +1058,7 @@ avgcost_add(UDF_INIT* initid, UDF_ARGS* args,
 
 double
 avgcost( UDF_INIT* initid, UDF_ARGS* args __attribute__((unused)),
-         char* is_null, char* error __attribute__((unused)))
+         uchar* is_null, uchar* error __attribute__((unused)))
 {
   struct avgcost_data* data = (struct avgcost_data*)initid->ptr;
   if (!data->count || !data->totalquantity)
@@ -1101,7 +1116,7 @@ avg2_init( UDF_INIT* initid, UDF_ARGS* args, char* message )
 
   if (!(data = (struct avg2_data*) malloc(sizeof(struct avg2_data))))
   {
-    strmov(message,"Couldn't allocate memory");
+    strcpy(message,"Couldn't allocate memory");
     return 1;
   }
   data->count	= 0;
@@ -1121,7 +1136,8 @@ avg2_deinit( UDF_INIT* initid )
 
 /* This is only for MySQL 4.0 compatibility */
 void
-avg2_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
+avg2_reset(UDF_INIT* initid, UDF_ARGS* args, uchar* is_null,
+           uchar* message)
 {
   avgcost_clear(initid, is_null, message);
   avgcost_add(initid, args, is_null, message);
@@ -1130,8 +1146,8 @@ avg2_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
 /* This is needed to get things to work in MySQL 4.1.1 and above */
 
 void
-avg2_clear(UDF_INIT* initid, char* is_null __attribute__((unused)),
-              char* message __attribute__((unused)))
+avg2_clear(UDF_INIT* initid, uchar* is_null __attribute__((unused)),
+           uchar* message __attribute__((unused)))
 {
   struct avg2_data* data = (struct avg2_data*)initid->ptr;
   data->sum=	0.0;
@@ -1141,8 +1157,8 @@ avg2_clear(UDF_INIT* initid, char* is_null __attribute__((unused)),
 
 void
 avg2_add(UDF_INIT* initid, UDF_ARGS* args,
-            char* is_null __attribute__((unused)),
-            char* message __attribute__((unused)))
+         uchar* is_null __attribute__((unused)),
+         uchar* message __attribute__((unused)))
 {
   if (args->args[0] && args->args[1])
   {
@@ -1158,8 +1174,8 @@ avg2_add(UDF_INIT* initid, UDF_ARGS* args,
 
 void
 avg2_remove(UDF_INIT* initid, UDF_ARGS* args,
-               char* is_null __attribute__((unused)),
-               char* message __attribute__((unused)))
+            uchar* is_null __attribute__((unused)),
+            uchar* message __attribute__((unused)))
 {
   if (args->args[0] && args->args[1])
   {
@@ -1174,8 +1190,8 @@ avg2_remove(UDF_INIT* initid, UDF_ARGS* args,
 
 
 double
-avg2( UDF_INIT* initid, UDF_ARGS* args __attribute__((unused)),
-         char* is_null, char* error __attribute__((unused)))
+avg2(UDF_INIT* initid, UDF_ARGS* args __attribute__((unused)),
+     uchar* is_null, uchar* error __attribute__((unused)))
 {
   struct avg2_data* data = (struct avg2_data*)initid->ptr;
   if (!data->count)
@@ -1191,15 +1207,15 @@ avg2( UDF_INIT* initid, UDF_ARGS* args __attribute__((unused)),
 my_bool myfunc_argument_name_init(UDF_INIT *initid, UDF_ARGS *args,
 				  char *message);
 char *myfunc_argument_name(UDF_INIT *initid, UDF_ARGS *args, char *result,
-			   unsigned long *length, char *null_value,
-			   char *error);
+			   unsigned long *length, uchar *null_value,
+			   uchar *error);
 
 my_bool myfunc_argument_name_init(UDF_INIT *initid, UDF_ARGS *args,
 				  char *message)
 {
   if (args->arg_count != 1)
   {
-    strmov(message,"myfunc_argument_name_init accepts only one argument");
+    strcpy(message,"myfunc_argument_name_init accepts only one argument");
     return 1;
   }
   initid->max_length= args->attribute_lengths[0];
@@ -1210,8 +1226,8 @@ my_bool myfunc_argument_name_init(UDF_INIT *initid, UDF_ARGS *args,
 
 char *myfunc_argument_name(UDF_INIT *initid __attribute__((unused)),
                            UDF_ARGS *args, char *result,
-                           unsigned long *length, char *null_value,
-                           char *error __attribute__((unused)))
+                           unsigned long *length, uchar *null_value,
+                           uchar *error __attribute__((unused)))
 {
   if (!args->attributes[0])
   {
@@ -1232,7 +1248,7 @@ my_bool is_const_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 1)
   {
-    strmov(message, "IS_CONST accepts only one argument");
+    strcpy(message, "IS_CONST accepts only one argument");
     return 1;
   }
   initid->ptr= (char*)((args->args[0] != NULL) ? (size_t)1 : (size_t)0);
@@ -1241,12 +1257,12 @@ my_bool is_const_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 char * is_const(UDF_INIT *initid, UDF_ARGS *args __attribute__((unused)),
                 char *result, unsigned long *length,
-                char *is_null, char *error __attribute__((unused)))
+                uchar *is_null,uchar *error __attribute__((unused)))
 {
   if (initid->ptr != 0) {
-    sprintf(result, "const");
+    snprintf(result, MYSQL_UDF_MAX_RESULT_LENGTH, "const");
   } else {
-    sprintf(result, "not const");
+    snprintf(result, MYSQL_UDF_MAX_RESULT_LENGTH, "not const");
   }
   *is_null= 0;
   *length= (uint) strlen(result);
@@ -1259,7 +1275,7 @@ my_bool check_const_len_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 1)
   {
-    strmov(message, "CHECK_CONST_LEN accepts only one argument");
+    strcpy(message, "CHECK_CONST_LEN accepts only one argument");
     return 1;
   }
   if (args->args[0] == 0)
@@ -1280,9 +1296,9 @@ my_bool check_const_len_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 char * check_const_len(UDF_INIT *initid, UDF_ARGS *args __attribute__((unused)),
                 char *result, unsigned long *length,
-                char *is_null, char *error __attribute__((unused)))
+                uchar *is_null,uchar *error __attribute__((unused)))
 {
-  strmov(result, initid->ptr);
+  strcpy(result, initid->ptr);
   *length= (uint) strlen(result);
   *is_null= 0;
   return result;

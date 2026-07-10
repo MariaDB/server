@@ -151,11 +151,11 @@ SELECT @@max_statement_time;
 @@max_statement_time
 1.000000
 SELECT local.max_statement_time;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.max_statement_time;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT max_statement_time = @@session.max_statement_time;
-ERROR 42S22: Unknown column 'max_statement_time' in 'field list'
+ERROR 42S22: Unknown column 'max_statement_time' in 'SELECT'
 #
 # Check that one can use max_statement_time as a field
 #

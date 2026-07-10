@@ -30,7 +30,7 @@ kill $t3_tid;
 connection slave1;
 commit;
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 update t1 set a=1 where a=2;
 set @@global.slave_parallel_threads = @save.slave_parallel_threads;
 set @@global.slave_parallel_mode = @save.slave_parallel_mode;
@@ -78,7 +78,7 @@ include/wait_for_slave_param.inc [Last_Errno]
 connection slave1;
 commit;
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 update t1 set a=1 where a=2;
 set @@global.slave_parallel_threads = @save.slave_parallel_threads;
 set @@global.slave_parallel_mode = @save.slave_parallel_mode;
@@ -127,7 +127,7 @@ include/wait_for_slave_param.inc [Last_Errno]
 connection slave1;
 commit;
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1032]
 update t1 set a=1 where a=2;
 set @@global.slave_parallel_threads = @save.slave_parallel_threads;
 set @@global.slave_parallel_mode = @save.slave_parallel_mode;

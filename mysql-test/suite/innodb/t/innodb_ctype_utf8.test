@@ -32,6 +32,21 @@ let $coll_pad='utf8_bin';
 SET NAMES utf8mb3 COLLATE utf8mb3_unicode_nopad_ci;
 --source include/ctype_nopad_prefix_unique.inc
 
+--source include/ctype_utf8mb3_uca_char.inc
+
+--echo #
+--echo # MDEV-30050 Inconsistent results of DISTINCT with NOPAD
+--echo #
+
+CREATE OR REPLACE TABLE t1 (c CHAR(100) COLLATE utf8mb3_unicode_nopad_ci);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('ss'),('ß');
+SELECT DISTINCT c FROM t1;
+set statement tmp_memory_table_size=0 for
+SELECT DISTINCT c FROM t1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # End 10.4 tests
 --echo #

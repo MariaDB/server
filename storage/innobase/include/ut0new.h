@@ -165,6 +165,7 @@ ut_allocator::get_mem_key()):
   happens then that means that the list of predefined names must be extended.
 Keep this list alphabetically sorted. */
 extern PSI_memory_key	mem_key_ahi;
+extern PSI_memory_key	mem_key_binlog;
 extern PSI_memory_key	mem_key_buf_buf_pool;
 extern PSI_memory_key	mem_key_dict_stats_bg_recalc_pool_t;
 extern PSI_memory_key	mem_key_dict_stats_index_map_t;
@@ -173,6 +174,7 @@ extern PSI_memory_key	mem_key_other;
 extern PSI_memory_key	mem_key_row_log_buf;
 extern PSI_memory_key	mem_key_row_merge_sort;
 extern PSI_memory_key	mem_key_std;
+extern PSI_memory_key	mem_key_trx_sys_t_rw_trx_ids;
 
 /** Setup the internal objects needed for UT_NEW() to operate.
 This must be called before the first call to UT_NEW(). */
@@ -277,7 +279,6 @@ public:
 
 #ifdef UNIV_PFS_MEMORY
 	/** Default constructor. */
-	explicit
 	ut_allocator(PSI_memory_key key = PSI_NOT_INSTRUMENTED)
 		: m_key(key)
 	{
@@ -850,6 +851,7 @@ constexpr const char* const auto_event_names[] =
   "fil0crypt",
   "fil0fil",
   "fsp0file",
+  "fsp_binlog",
   "fts0ast",
   "fts0blex",
   "fts0config",
@@ -861,6 +863,7 @@ constexpr const char* const auto_event_names[] =
   "fts0sql",
   "fts0tlex",
   "gis0sea",
+  "innodb_binlog",
   "ha_innodb",
   "handler0alter",
   "hash0hash",
@@ -1071,9 +1074,8 @@ static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 {
 	void *ptr = my_large_malloc(&n_bytes, MYF(0));
 
-	ut_dontdump(ptr, n_bytes, true);
-
 	if (ptr) {
+		ut_dontdump(ptr, n_bytes, true);
 		os_total_large_mem_allocated += n_bytes;
 	}
 	return ptr;

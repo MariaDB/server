@@ -20,7 +20,7 @@
 #include "my_atomic.h"
 
 CREATE_NOSYMLINK_FUNCTION(
-  open_nosymlinks(const char *pathname, int flags, int mode),
+  open_nosymlinks(const char *pathname, int flags, mode_t mode),
   openat(dfd, filename, O_NOFOLLOW | flags, mode),
   open(pathname, O_NOFOLLOW | flags, mode)
 );
@@ -94,6 +94,9 @@ int my_close(File fd, myf MyFlags)
 #else
   err= my_win_close(fd);
 #endif
+
+  DBUG_EXECUTE_IF("my_close_fail", { errno=28; err=-1; });
+
   if (err)
   {
     DBUG_PRINT("error",("Got error %d on close",err));

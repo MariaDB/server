@@ -39,6 +39,9 @@
 #############################################################
 #                 Save initial value                        #
 #############################################################
+SET @global_collation_database = @@global.collation_database;
+SET @session_collation_database = @@session.collation_database;
+
 SET @global_start_value = @@global.character_set_database;
 SET @@global.character_set_database=@@character_set_client;
 SELECT @@global.character_set_database;
@@ -275,8 +278,8 @@ SELECT @@session.character_set_database =
 ####################################
 #     Restore initial value        #
 ####################################
-SET @@global.character_set_database = @global_start_value;
-SET @@session.character_set_database = @session_start_value;
+SET @@global.collation_database = @global_collation_database;
+SET @@session.collation_database = @session_collation_database;
 
 #############################################################
 #               END OF character_set_database TESTS         #

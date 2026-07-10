@@ -6,9 +6,7 @@ if (!$TEST_VERSIONING_SO)
 --source include/have_partition.inc
 --source include/default_charset.inc
 
---disable_query_log
---eval install plugin test_versioning soname '$TEST_VERSIONING_SO'
---enable_query_log
+install plugin test_versioning soname 'test_versioning';
 
 set default_storage_engine= innodb;
 
@@ -440,8 +438,8 @@ DELIMITER ;$$
 --echo # String literals resolve to TIMESTAMP
 --echo #
 
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2107-12-30 00:00:00';
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2107-12-30 00:00:00';
 DROP TABLE t1, t2;
 
 
@@ -631,3 +629,21 @@ alter table xx;
 --disconnect con1
 --connection default
 drop table t1;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on master or slave upon CREATE OR REPLACE for partitioned table
+--echo #
+create table t1 (
+  a int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time (row_start, row_end)
+) engine=innodb with system versioning
+ partition by hash (a);
+create or replace table t1 (b int) engine=innodb with system versioning partition by system_time;
+show create table t1;
+drop table t1;
+
+--echo # End of 11.8 tests

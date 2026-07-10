@@ -1,6 +1,6 @@
 
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2022, MariaDB Corporation.
+# Copyright (c) 2014, 2023, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -48,6 +48,13 @@ IF(UNIX)
     IF(HAVE_LIBNUMA)
       LINK_LIBRARIES(numa)
     ENDIF()
+    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch|AARCH|p(ower)?pc|x86_|amd|loongarch|riscv)64")
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" ON)
+      ELSE() # Disable by default on ISA that are not covered by our CI
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" OFF)
+      ENDIF()
+    ENDIF()
   ENDIF()
 ENDIF()
 
@@ -71,7 +78,7 @@ ADD_FEATURE_INFO(INNODB_ROOT_GUESS WITH_INNODB_ROOT_GUESS
 
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
-  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
+  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG -DLOG_LATCH_DEBUG)
 ENDIF()
 ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
 
@@ -88,7 +95,7 @@ ENDIF()
 
 IF(NOT MSVC)
   # Work around MDEV-18417, MDEV-18656, MDEV-18417
-  IF(WITH_ASAN AND CMAKE_COMPILER_IS_GNUCC AND
+  IF(WITH_ASAN AND CMAKE_C_COMPILER_ID STREQUAL "GNU" AND
      CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
     SET_SOURCE_FILES_PROPERTIES(trx/trx0rec.cc PROPERTIES COMPILE_FLAGS -O1)
   ENDIF()
@@ -124,7 +131,6 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
 	btr/btr0btr.cc
@@ -132,8 +138,6 @@ SET(INNOBASE_SOURCES
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
 	btr/btr0sea.cc
-	btr/btr0defragment.cc
-	buf/buf0block_hint.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
 	buf/buf0dblwr.cc
@@ -151,7 +155,6 @@ SET(INNOBASE_SOURCES
 	dict/dict0mem.cc
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
-	dict/dict0defrag_bg.cc
 	dict/drop.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
@@ -162,6 +165,7 @@ SET(INNOBASE_SOURCES
 	fsp/fsp0file.cc
 	fsp/fsp0space.cc
 	fsp/fsp0sysspace.cc
+	fsp/fsp_binlog.cc
 	fut/fut0lst.cc
 	ha/ha0storage.cc
 	fts/fts0fts.cc
@@ -179,6 +183,7 @@ SET(INNOBASE_SOURCES
 	fts/fts0plugin.cc
 	handler/ha_innodb.cc
 	handler/handler0alter.cc
+	handler/innodb_binlog.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
 	include/btr0btr.h
@@ -186,11 +191,9 @@ SET(INNOBASE_SOURCES
 	include/btr0bulk.h
 	include/btr0cur.h
 	include/btr0cur.inl
-	include/btr0defragment.h
 	include/btr0pcur.h
 	include/btr0pcur.inl
 	include/btr0sea.h
-	include/btr0sea.inl
 	include/btr0types.h
 	include/buf0buddy.h
 	include/buf0buf.h
@@ -211,7 +214,6 @@ SET(INNOBASE_SOURCES
 	include/dict0boot.h
 	include/dict0crea.h
 	include/dict0crea.inl
-	include/dict0defrag_bg.h
 	include/dict0dict.h
 	include/dict0dict.inl
 	include/dict0load.h
@@ -220,7 +222,6 @@ SET(INNOBASE_SOURCES
 	include/dict0pagecompress.h
 	include/dict0pagecompress.inl
 	include/dict0stats.h
-	include/dict0stats.inl
 	include/dict0stats_bg.h
 	include/dict0types.h
 	include/dyn0buf.h
@@ -238,6 +239,7 @@ SET(INNOBASE_SOURCES
 	include/fsp0space.h
 	include/fsp0sysspace.h
 	include/fsp0types.h
+	include/fsp_binlog.h
 	include/fts0ast.h
 	include/fts0blex.h
 	include/fts0fts.h
@@ -257,14 +259,12 @@ SET(INNOBASE_SOURCES
 	include/gis0rtree.inl
 	include/gis0type.h
 	include/ha_prototypes.h
-	include/ha0ha.h
-	include/ha0ha.inl
 	include/ha0storage.h
 	include/ha0storage.inl
 	include/handler0alter.h
+	include/innodb_binlog.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h
-	include/ibuf0ibuf.inl
 	include/lock0iter.h
 	include/lock0lock.h
 	include/lock0lock.inl
@@ -360,11 +360,9 @@ SET(INNOBASE_SOURCES
 	include/ut0pool.h
 	include/ut0rbt.h
 	include/ut0rnd.h
-	include/ut0rnd.inl
 	include/ut0sort.h
 	include/ut0stage.h
 	include/ut0ut.h
-	include/ut0ut.inl
 	include/ut0vec.h
 	include/ut0vec.inl
 	include/ut0wqueue.h
@@ -428,39 +426,31 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
 
-OPTION(WITH_PMEM "Support redo log in persistent memory" OFF)
-FIND_PACKAGE(PMEM)
-IF(PMEM_FOUND)
-  INCLUDE_DIRECTORIES(${PMEM_INCLUDES})
-  ADD_COMPILE_FLAGS(log/log0log.cc log/log0recv.cc
-    buf/buf0flu.cc mtr/mtr0mtr.cc trx/trx0trx.cc srv/srv0start.cc
-    COMPILE_FLAGS "-DHAVE_PMEM")
-  SET(PMEM_LIBRARY ${PMEM_LIBRARIES})
-ELSE()
-  IF(WITH_PMEM)
-    MESSAGE(FATAL_ERROR "WITH_PMEM=ON cannot be satisfied")
-  ENDIF()
+IF(WITH_INNODB_PMEM)
+  ADD_DEFINITIONS(-DHAVE_PMEM)
+  SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} include/cache.h sync/cache.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_OUTPUT_NAME ha_innodb
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
-	${ZLIB_LIBRARY}
-	${PMEM_LIBRARY}
+	${ZLIB_LIBRARIES}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
-	${LINKER_SCRIPT})
+	${LINKER_SCRIPT}
+	tpool
+	)
 
 IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
-ADD_DEFINITIONS(${SSL_DEFINES} ${TPOOL_DEFINES})
 
+ADD_DEFINITIONS(${SSL_DEFINES})
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
-IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
    AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5.2.0")
   ADD_COMPILE_FLAGS(
       btr/btr0btr.cc
@@ -475,6 +465,42 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
       srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
       )
+ENDIF()
+
+# clang ~16+ with return values being uninitialized is resolved by basic optimization
+# compiler flags. The inlining of these function means the uninitalized paths are
+# elimated from mach_read_from_2 (per MDEV-36316) and i_s_dict_fill_sys_columns MDEV-36327
+IF(WITH_MSAN AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    SET_SOURCE_FILES_PROPERTIES(
+        btr/btr0btr.cc
+        btr/btr0bulk.cc
+        data/data0data.cc
+        dict/dict0load.cc
+        dict/dict0mem.cc
+        fil/fil0crypt.cc
+        fil/fil0pagecompress.cc
+        fsp/fsp0fsp.cc
+        fut/fut0lst.cc
+        gis/gis0rtree.cc
+        handler/ha_innodb.cc
+        handler/i_s.cc
+        ibuf/ibuf0ibuf.cc
+        log/log0recv.cc
+        page/page0cur.cc
+        page/page0page.cc
+        page/page0zip.cc
+        rem/rem0rec.cc
+        row/row0import.cc
+        row/row0mysql.cc
+        row/row0purge.cc
+        row/row0uins.cc
+        row/row0undo.cc
+        row/row0upd.cc
+        trx/trx0purge.cc
+        trx/trx0rec.cc
+        trx/trx0trx.cc
+        trx/trx0undo.cc
+        PROPERTIES COMPILE_FLAGS -Og)
 ENDIF()
 
 # Older gcc version insist on -mhtm flag for including the
@@ -500,14 +526,17 @@ IF(MSVC)
   # on generated file.
   TARGET_COMPILE_OPTIONS(innobase PRIVATE "/wd4065")
 ENDIF()
-IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
-   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
-  ADD_COMPILE_FLAGS(pars/pars0grm.cc fts/fts0pars.cc
-    COMPILE_FLAGS "-Wno-unused-but-set-variable")
+
+OPTION(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY "Enable innodb_enable_xap_unlock_unmodified_for_primary_debug system variable even for release build" OFF)
+IF(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+  ADD_COMPILE_FLAGS(
+     lock/lock0lock.cc
+     handler/ha_innodb.cc
+     COMPILE_FLAGS "-DINNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY")
 ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
-  TARGET_LINK_LIBRARIES(innobase tpool mysys)
+  TARGET_LINK_LIBRARIES(innobase mysys)
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 ENDIF()
 

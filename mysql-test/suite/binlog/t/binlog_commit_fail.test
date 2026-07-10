@@ -1,0 +1,135 @@
+# Tests of commit time failures.
+# At committing of an auto-commit statement a failure to commit in its
+# binlog branch should rollback at least the transactional part of the statement.
+#
+# References:
+# MDEV-35506 commit policy of one-phase-commit even at errored-out binlogging leads to assert
+# MDEV-36027 Errored-out CREATE-SELECT does not binlog results of non-transactional table modification
+
+source include/have_innodb.inc;
+source include/have_binlog_format_row.inc;
+
+set @@session.gtid_domain_id=1;
+set @save_gtid_stric_mode=@@global.gtid_strict_mode;
+
+create table ta (a int) engine=aria;
+create table ti (a int) engine=innodb;
+create table ti_pk (a int primary key) engine=innodb;
+create table t  (a int) engine=innodb;
+delimiter |;
+create function f_i()
+returns integer
+begin
+  insert into ti set a=1;
+return 1;
+end |
+create function f_ia(arg int)
+returns integer
+begin
+  insert into ti_pk set a=1;
+  insert into ta set a=1;
+  insert into ti_pk set a=arg;
+  return 1;
+end |
+delimiter ;|
+
+call mtr.add_suppression("Error writing file");
+
+# Naturally all empty now
+select count(*) as zero from t;
+select count(*) as zero from ta;
+select count(*) as zero from ti;
+
+# Force manual value assignement to gtid::seq_no while in the strict mode
+# so that the value is rejected. Despite the errorred out statement
+# being at its commit phase it will eventually be rolled back.
+# Side effects of non-transactional engines, like Aria, are displayed.
+--echo # 1. simple Innodb test
+set @@global.gtid_strict_mode=0; set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+# mask possible allowed seq_no shift
+--replace_regex /GTID 1-1-[0-9]+/GTID VALUE/
+--error ER_GTID_STRICT_OUT_OF_ORDER
+insert into t set a=1;
+
+--echo # observe effective rollback
+select count(*) as zero from t;
+
+--echo # 2. simple Aira test
+set @@global.gtid_strict_mode=0; set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+--replace_regex /GTID 1-1-[0-9]+/GTID VALUE/
+--error ER_GTID_STRICT_OUT_OF_ORDER
+insert into ta values (1),(2);
+
+--echo # note no rollback
+select count(*) as '*NON-zero*' from ta;
+# local cleanup
+delete from ta;
+
+--echo # 3. multi-engine test
+# A. non-transactional top-level
+set @@global.gtid_strict_mode=0; set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+--replace_regex /GTID 1-1-[0-9]+/GTID VALUE/
+--error ER_GTID_STRICT_OUT_OF_ORDER
+insert into ta set a=f_i();
+--echo # note no rollback..
+select count(*) as one from ta;
+--echo # ..except transactional engine
+select count(*) as zero from ti;
+delete from ta;
+
+# B. non-transactional in the leaf
+set @@global.gtid_strict_mode=0; set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+--replace_regex /GTID 1-1-[0-9]+/GTID VALUE/
+--error ER_GTID_STRICT_OUT_OF_ORDER
+insert into t set a=f_ia(0);
+
+--echo # note no rollback..
+select count(*) as one from ta;
+--echo # ..except transactional engine
+select count(*) as zero from t;
+select count(*) as zero from ti_pk;
+delete from ta;
+
+--echo # 4. create-table-select-f()
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+# A. two phase commit branch
+set @@global.gtid_strict_mode=0; set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+--replace_regex /GTID 1-1-[0-9]+/GTID VALUE/
+--error ER_GTID_STRICT_OUT_OF_ORDER
+create table f_x (a int) select f_i() as a;
+--echo # rollback indeed takes place in the pure transactional case
+select count(*) as zero from ti;
+
+# B. one phase commit branch
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+set @@global.gtid_strict_mode=0; set @@session.gtid_seq_no=1;
+set @@global.gtid_strict_mode=1;
+--replace_regex /GTID 1-1-[0-9]+/GTID VALUE/
+--error ER_GTID_STRICT_OUT_OF_ORDER
+create table t_x (a int) engine=aria select f_ia(0) as a;
+--error ER_NO_SUCH_TABLE
+select * from t_x;
+
+--echo # **TODO**: fix MDEV-36027
+--echo # **TODO**: the empty binlog is buggy ..
+--source include/show_binlog_events.inc
+--echo # .. as non-transactional `ta` (and `t_x` sic!) are modified
+select count(*) as one from ta;
+select count(*) as zero from ti;
+
+delete from ta;
+--echo #.
+
+# cleanup
+
+set  @@global.gtid_strict_mode=@save_gtid_stric_mode;
+drop function f_i;
+drop function f_ia;
+drop table t, ta, ti, ti_pk;

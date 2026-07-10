@@ -29,6 +29,7 @@ Created 2012-02-08 by Sunny Bains.
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "buf0flu.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "dict0load.h"
@@ -44,9 +45,11 @@ Created 2012-02-08 by Sunny Bains.
 #include "lzo/lzo1x.h"
 #include "snappy-c.h"
 #include "log.h"
+#include "table.h"
+#include "ha_innodb.h"
 
 #include "scope.h"
-
+#include "dict0crea.h"
 #include <vector>
 
 #ifdef HAVE_MY_AES_H
@@ -66,7 +69,7 @@ struct row_stats_t {
 						found in the index */
 
 	ulint		m_n_purged;		/*!< Number of records purged
-						optimisatically */
+						optimistically */
 
 	ulint		m_n_rows;		/*!< Number of rows */
 
@@ -116,7 +119,6 @@ struct row_import {
 	row_import() UNIV_NOTHROW
 		:
 		m_table(NULL),
-		m_version(0),
 		m_hostname(NULL),
 		m_table_name(NULL),
 		m_autoinc(0),
@@ -192,10 +194,62 @@ struct row_import {
 
 	dberr_t match_flags(THD *thd) const ;
 
+	ulint find_fts_idx_offset() const
+	{
+	  for (ulint i= 0; i < m_n_indexes; i++)
+	  {
+            const char* index_name=
+              reinterpret_cast<const char*>(m_indexes[i].m_name);
+	    if (!strcmp(index_name, FTS_DOC_ID_INDEX.str))
+              return i;
+	  }
+	  return ULINT_UNDEFINED;
+	}
+
+        const row_index_t *find_index_by_name(const char *name) const
+	{
+	  for (ulint i= 0; i < m_n_indexes; i++)
+	  {
+            const char* index_name=
+              reinterpret_cast<const char*>(m_indexes[i].m_name);
+	    if (!strcmp(index_name, name))
+              return &m_indexes[i];
+	  }
+	  return nullptr;
+	}
+
+	/** @return whether cfg file has FTS_DOC_ID
+	& FTS_DOC_ID_INDEX*/
+	bool has_hidden_fts() const
+	{
+          if (m_missing) return false;
+          ulint col_offset= find_col(FTS_DOC_ID.str);
+	  if (col_offset == ULINT_UNDEFINED) return false;
+
+          const dict_col_t *col= &m_cols[col_offset];
+	  if (col->mtype != DATA_INT
+              || (col->prtype & ~(DATA_NOT_NULL
+		                  | DATA_UNSIGNED | DATA_BINARY_TYPE
+				  | DATA_FTS_DOC_ID))
+	      || col->len != sizeof(doc_id_t))
+            return false;
+
+	  return find_index_by_name(FTS_DOC_ID_INDEX.str) != nullptr;
+	}
+
+        /** Need to check whether the table need to add system
+        generated fts column and system generated fts document index
+        @param table table to be imported
+        @return whether the table has to add system generated
+        fts column and fts index */
+        bool need_hidden_fts(dict_table_t *table) const
+        {
+          return has_hidden_fts() && !table->fts_doc_id_index &&
+		 m_n_cols == static_cast<ulint>(table->n_cols + 1) &&
+                 m_n_indexes == UT_LIST_GET_LEN(table->indexes) + 1;
+        }
 
 	dict_table_t*	m_table;		/*!< Table instance */
-
-	ulint		m_version;		/*!< Version of config file */
 
 	byte*		m_hostname;		/*!< Hostname where the
 						tablespace was exported */
@@ -215,7 +269,7 @@ struct row_import {
 	dict_col_t*	m_cols;			/*!< Column data */
 
 	byte**		m_col_names;		/*!< Column names, we store the
-						column naems separately becuase
+						column names separately because
 						there is no field to store the
 						value in dict_col_t */
 
@@ -239,13 +293,14 @@ struct fil_iterator_t {
 	byte*		io_buffer;		/*!< Buffer to use for IO */
 	fil_space_crypt_t *crypt_data;		/*!< Crypt data (if encrypted) */
 	byte*           crypt_io_buffer;        /*!< IO buffer when encrypted */
+	byte*           crypt_tmp_buffer;       /*!< Temporary buffer for crypt use */
 };
 
 /** Use the page cursor to iterate over records in a block. */
 class RecIterator {
 public:
 	/** Default constructor */
-	RecIterator() UNIV_NOTHROW
+	RecIterator() noexcept : m_mtr{nullptr}
 	{
 		memset(&m_cur, 0x0, sizeof(m_cur));
 		/* Make page_cur_delete_rec() happy. */
@@ -330,7 +385,7 @@ public:
 
 /** Class that purges delete marked records from indexes, both secondary
 and cluster. It does a pessimistic delete. This should only be done if we
-couldn't purge the delete marked reocrds during Phase I. */
+couldn't purge the delete marked records during Phase I. */
 class IndexPurge {
 public:
 	/** Constructor
@@ -341,7 +396,7 @@ public:
 		trx_t*		trx,
 		dict_index_t*	index) UNIV_NOTHROW
 		:
-		m_trx(trx),
+		m_mtr{trx},
 		m_index(index),
 		m_n_rows(0)
 	{
@@ -389,7 +444,6 @@ protected:
 	IndexPurge &operator=(const IndexPurge&);
 
 private:
-	trx_t*			m_trx;		/*!< User transaction */
 	mtr_t			m_mtr;		/*!< Mini-transaction */
 	btr_pcur_t		m_pcur;		/*!< Persistent cursor */
 	dict_index_t*		m_index;	/*!< Index to be processed */
@@ -549,7 +603,7 @@ protected:
 
 		if (m_xdes != 0) {
 			const xdes_t*	xdesc = xdes(page_no, m_xdes);
-			ulint		pos = page_no % FSP_EXTENT_SIZE;
+			uint32_t	pos = page_no % FSP_EXTENT_SIZE;
 
 			return xdes_is_free(xdesc, pos);
 		}
@@ -685,7 +739,8 @@ struct FetchIndexRootPages : public AbstractCallback {
 	/** Constructor
 	@param trx covering (user) transaction
 	@param table table definition in server .*/
-	FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
+	FetchIndexRootPages(const dict_table_t* table = nullptr,
+			    trx_t* trx = nullptr)
 		:
 		AbstractCallback(trx, UINT32_MAX),
 		m_table(table), m_index(0, 0) UNIV_NOTHROW { }
@@ -700,17 +755,45 @@ struct FetchIndexRootPages : public AbstractCallback {
 	dberr_t run(const fil_iterator_t& iter,
 		    buf_block_t* block) UNIV_NOTHROW override;
 
-	/** Called for each block as it is read from the file.
+	/** Check that fsp flags and row formats match.
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
 	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW override;
+
+	/** Get row format from the header and the root index page. */
+	enum row_type get_row_format(const buf_block_t &block)
+	{
+		if (!page_is_comp(block.page.frame))
+			return ROW_TYPE_REDUNDANT;
+		/* With full_crc32 we cannot tell between dynamic or
+		compact, and return not_used. We cannot simply return
+		dynamic or compact, as the client of this function
+		will not be able to tell whether it is dynamic because
+		of this or the other branch below. Returning default
+		would also work if it is immediately handled, but is
+		still more ambiguous than not_used, which is not a
+		row_format at all. */
+		if (fil_space_t::full_crc32(m_space_flags))
+			return ROW_TYPE_NOT_USED;
+		if (!(m_space_flags & FSP_FLAGS_MASK_ATOMIC_BLOBS))
+			return ROW_TYPE_COMPACT;
+		if (FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags))
+			return ROW_TYPE_COMPRESSED;
+		return ROW_TYPE_DYNAMIC;
+	}
 
 	/** Update the import configuration that will be used to import
 	the tablespace. */
 	dberr_t build_row_import(row_import* cfg) const UNIV_NOTHROW;
 
-	/** Table definition in server. */
+	/** Table definition in server. When the table is being
+	created, there's no table yet so m_table is nullptr */
 	const dict_table_t*	m_table;
+
+	/** Table row format. Only used when a (stub) table is being
+	created in which case m_table is null, for obtaining row
+	format from the .ibd for the stub table. */
+	enum row_type m_row_format;
 
 	/** Index information */
 	Index			m_index;
@@ -923,7 +1006,7 @@ private:
 		rec_t*		rec,
 		const rec_offs*	offsets) UNIV_NOTHROW;
 
-	/** In the clustered index, adjist the BLOB pointers as needed.
+	/** In the clustered index, adjust the BLOB pointers as needed.
 	Also update the BLOB reference, write the new space id.
 	@param rec record to update
 	@param offsets column offsets for the record
@@ -1051,7 +1134,7 @@ row_import::get_n_rows(
 	return(index->m_stats.m_n_rows);
 }
 
-/** Get the number of rows for which purge failed uding the convert phase.
+/** Get the number of rows for which purge failed during the convert phase.
 @param name index name
 @return number of rows for which purge failed. */
 ulint
@@ -1081,7 +1164,6 @@ row_import::find_col(
 			return(i);
 		}
 	}
-
 	return(ULINT_UNDEFINED);
 }
 
@@ -1160,6 +1242,16 @@ row_import::match_index_columns(
 
 			err = DB_ERROR;
 		}
+
+		if (cfg_field->descending != field->descending) {
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"Index %s field %s is %s which does "
+				"not match with .cfg file",
+				index->name(), field->name(),
+				field->descending ? "DESC" : "ASC");
+			err = DB_ERROR;
+		}
 	}
 
 	return(err);
@@ -1182,7 +1274,7 @@ row_import::match_table_columns(
 		ulint		cfg_col_index;
 
 		col_name = dict_table_get_col_name(
-			m_table, dict_col_get_no(col));
+			m_table, dict_col_get_no(col)).str;
 
 		cfg_col_index = find_col(col_name);
 
@@ -1554,7 +1646,7 @@ dberr_t IndexPurge::next() noexcept
 
 	if (!btr_pcur_is_after_last_on_page(&m_pcur)) {
 		return(DB_SUCCESS);
-	} else if (trx_is_interrupted(m_trx)) {
+	} else if (trx_is_interrupted(m_mtr.trx)) {
 		/* Check after every page because the check
 		is expensive. */
 		return(DB_INTERRUPTED);
@@ -1802,14 +1894,39 @@ PageConverter::update_records(
 	bool	clust_index = m_index->m_srv_index == m_cluster_index;
 
 	/* This will also position the cursor on the first user record. */
+	rec_t* rec = m_rec_iter.open(block, m_index->m_srv_index);
 
-	if (!m_rec_iter.open(block, m_index->m_srv_index)) {
+	if (!rec) {
 		return DB_CORRUPTION;
 	}
 
+	ulint deleted;
+
+	if (!page_has_prev(block->page.frame)
+	    && m_index->m_srv_index->is_instant()) {
+		/* Expect to find the hidden metadata record */
+		if (page_rec_is_supremum(rec)) {
+			return DB_CORRUPTION;
+		}
+
+		const ulint info_bits = rec_get_info_bits(rec, comp);
+
+		if (!(info_bits & REC_INFO_MIN_REC_FLAG)) {
+			return DB_CORRUPTION;
+		}
+
+		if (!(info_bits & REC_INFO_DELETED_FLAG)
+		    != !m_index->m_srv_index->table->instant) {
+			return DB_CORRUPTION;
+		}
+
+		deleted = 0;
+		goto first;
+	}
+
 	while (!m_rec_iter.end()) {
-		rec_t*	rec = m_rec_iter.current();
-		ibool	deleted = rec_get_deleted_flag(rec, comp);
+		rec = m_rec_iter.current();
+		deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
 		reference and the system fields irrespective of the
@@ -1817,6 +1934,7 @@ PageConverter::update_records(
 		cluster records is required for purge to work later. */
 
 		if (deleted || clust_index) {
+first:
 			m_offsets = rec_get_offsets(
 				rec, m_index->m_srv_index, m_offsets,
 				m_index->m_srv_index->n_core_fields,
@@ -2069,51 +2187,73 @@ updated then its state must be set to BUF_PAGE_NOT_USED.
 @retval DB_SUCCESS or error code. */
 dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 {
-	/* If we already had an old page with matching number
-	in the buffer pool, evict it now, because
-	we no longer evict the pages on DISCARD TABLESPACE. */
-	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
-			 nullptr, BUF_PEEK_IF_IN_POOL,
-			 nullptr, nullptr, false);
+  /* If we already had an old page with matching number in the buffer
+  pool, evict it now, because we no longer evict the pages on
+  DISCARD TABLESPACE. */
+  if (buf_block_t *b= buf_pool.page_fix(block->page.id(), nullptr, nullptr,
+                                        buf_pool_t::FIX_ALSO_FREED))
+  {
+    ut_ad(!b->page.oldest_modification());
+    mysql_mutex_lock(&buf_pool.mutex);
+    b->unfix();
 
-	uint16_t page_type;
+    if (!buf_LRU_free_page(&b->page, true))
+      ut_ad(0);
 
-	if (dberr_t err = update_page(block, page_type)) {
-		return err;
-	}
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
 
-	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
-	byte* frame = get_frame(block);
-	memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
+  uint16_t page_type;
 
-	if (!block->page.zip.data) {
-		buf_flush_init_for_writing(
-			NULL, block->page.frame, NULL, full_crc32);
-	} else if (fil_page_type_is_index(page_type)) {
-		buf_flush_init_for_writing(
-			NULL, block->page.zip.data, &block->page.zip,
-			full_crc32);
-	} else {
-		/* Calculate and update the checksum of non-index
-		pages for ROW_FORMAT=COMPRESSED tables. */
-		buf_flush_update_zip_checksum(
-			block->page.zip.data, block->zip_size());
-	}
+  if (dberr_t err= update_page(block, page_type))
+    return err;
 
-	return DB_SUCCESS;
+  const bool full_crc32= fil_space_t::full_crc32(get_space_flags());
+  byte *frame= get_frame(block);
+  memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
+
+  if (!block->page.zip.data)
+    buf_flush_init_for_writing(nullptr, block->page.frame, nullptr,
+                               full_crc32);
+  else if (fil_page_type_is_index(page_type))
+    buf_flush_init_for_writing(nullptr, block->page.zip.data, &block->page.zip,
+                               full_crc32);
+  else
+    /* Calculate and update the checksum of non-index
+    pages for ROW_FORMAT=COMPRESSED tables. */
+    buf_flush_update_zip_checksum(block->page.zip.data, block->zip_size());
+
+  return DB_SUCCESS;
 }
 
-/*****************************************************************//**
-Clean up after import tablespace. */
-static	MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-row_import_cleanup(
-/*===============*/
-	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
-	dberr_t		err)		/*!< in: error code */
+static void reload_fts_table(row_prebuilt_t *prebuilt,
+                             dict_table_t* table)
 {
+  ut_ad(prebuilt->table != table);
+  /* Reload the table in case of hidden fts column */
+  const table_id_t id= prebuilt->table->id;
+  prebuilt->table->release();
+  dict_sys.remove(prebuilt->table);
+  prebuilt->table=
+    dict_table_open_on_id(id, true, DICT_TABLE_OP_NORMAL);
+  prebuilt->table->space= table->space;
+}
+
+/** Clean up after import tablespace.
+@param  prebuilt  prebuilt from handler
+@param  err       error code
+@param  fts_table constructed table which has system generated
+                  fulltext document id
+@return error code or DB_SUCCESS */
+static
+dberr_t
+row_import_cleanup(row_prebuilt_t* prebuilt,
+                   dberr_t         err,
+                   dict_table_t*   fts_table = nullptr)
+{
+	dict_table_t* table = prebuilt->table;
+
 	if (err != DB_SUCCESS) {
-		dict_table_t* table = prebuilt->table;
 		table->file_unreadable = true;
 		if (table->space) {
 			fil_close_tablespace(table->space_id);
@@ -2130,11 +2270,45 @@ row_import_cleanup(
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
 			index->page = FIL_NULL;
 		}
+
+		prebuilt->trx->rollback();
+	}
+	else {
+		DBUG_EXECUTE_IF("ib_import_before_commit_crash", DBUG_SUICIDE(););
+		prebuilt->trx->commit();
 	}
 
-	DBUG_EXECUTE_IF("ib_import_before_commit_crash", DBUG_SUICIDE(););
+	if (fts_table && fts_table != prebuilt->table) {
 
-	prebuilt->trx->commit();
+		if (err == DB_SUCCESS) {
+			reload_fts_table(prebuilt, fts_table);
+			table= prebuilt->table;
+			ib::warn() << "Added system generated FTS_DOC_ID "
+				   "and FTS_DOC_ID_INDEX while importing "
+				   "the tablespace " << prebuilt->table->name;
+		} else if (fts_table->space) {
+			fil_close_tablespace(fts_table->space_id);
+			fts_table->space = NULL;
+		}
+
+		if (!prebuilt->trx->dict_operation_lock_mode) {
+			dict_sys.lock(SRW_LOCK_CALL);
+		}
+
+		dict_index_t* index = UT_LIST_GET_FIRST(
+					fts_table->indexes);
+		while (index) {
+			dict_index_t* next_index =
+				UT_LIST_GET_NEXT(indexes, index);
+			dict_index_remove_from_cache(fts_table, index);
+			index = next_index;
+		}
+		dict_mem_table_free(fts_table);
+
+		if (!prebuilt->trx->dict_operation_lock_mode) {
+			dict_sys.unlock();
+		}
+	}
 
 	if (prebuilt->trx->dict_operation_lock_mode) {
 		row_mysql_unlock_data_dictionary(prebuilt->trx);
@@ -2144,17 +2318,38 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	return(err);
+	if (err != DB_SUCCESS
+	    || !dict_table_get_first_index(table)->is_gen_clust()) {
+		return err;
+	}
+
+	btr_cur_t cur;
+	mtr_t mtr{prebuilt->trx};
+	mtr.start();
+	err = cur.open_leaf(false, dict_table_get_first_index(table),
+			    BTR_SEARCH_LEAF, &mtr);
+	if (err != DB_SUCCESS) {
+	} else if (const rec_t *rec =
+		   page_rec_get_prev(btr_cur_get_rec(&cur))) {
+		if (page_rec_is_user_rec(rec))
+			table->row_id= mach_read_from_6(rec);
+	}
+	mtr.commit();
+
+	return err;
 }
 
-/*****************************************************************//**
-Report error during tablespace import. */
-static	MY_ATTRIBUTE((nonnull, warn_unused_result))
+/** Report error during tablespace import.
+@param  prebuilt  prebuilt from the handler
+@param  err       error code
+@param  fts_table table definition containing hidden FTS_DOC_ID column
+@return error code or DB_SUCCESS */
+static
 dberr_t
 row_import_error(
-/*=============*/
-	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
-	dberr_t		err)		/*!< in: error code */
+	row_prebuilt_t*	prebuilt,
+	dberr_t		err,
+	dict_table_t*	fts_table=nullptr)
 {
 	if (!trx_is_interrupted(prebuilt->trx)) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -2169,7 +2364,7 @@ row_import_error(
 			table_name, (ulong) err, ut_strerr(err));
 	}
 
-	return row_import_cleanup(prebuilt, err);
+	return row_import_cleanup(prebuilt, err, fts_table);
 }
 
 /*****************************************************************//**
@@ -2208,7 +2403,7 @@ row_import_adjust_root_pages_of_secondary_indexes(
 			/* Update the Btree segment headers for index node and
 			leaf nodes in the root page. Set the new space id. */
 
-			err = btr_root_adjust_on_import(index);
+			err = btr_root_adjust_on_import(trx, index);
 		} else {
 			ib::warn() << "Skip adjustment of root pages for"
 				" index " << index->name << ".";
@@ -2277,55 +2472,6 @@ row_import_adjust_root_pages_of_secondary_indexes(
 	}
 
 	return(err);
-}
-
-/*****************************************************************//**
-Ensure that dict_sys.row_id exceeds SELECT MAX(DB_ROW_ID). */
-MY_ATTRIBUTE((nonnull)) static
-void
-row_import_set_sys_max_row_id(
-/*==========================*/
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt from
-						handler */
-	const dict_table_t*	table)		/*!< in: table to import */
-{
-	const rec_t*		rec;
-	mtr_t			mtr;
-	btr_pcur_t		pcur;
-	row_id_t		row_id	= 0;
-	dict_index_t*		index;
-
-	index = dict_table_get_first_index(table);
-	ut_ad(index->is_primary());
-	ut_ad(dict_index_is_auto_gen_clust(index));
-
-	mtr_start(&mtr);
-
-	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
-	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr)
-	    == DB_SUCCESS) {
-		rec = btr_pcur_move_to_prev_on_page(&pcur);
-
-		if (!rec) {
-			/* The table is corrupted. */
-		} else if (page_rec_is_infimum(rec)) {
-			/* The table is empty. */
-		} else if (rec_is_metadata(rec, *index)) {
-			/* The clustered index contains the metadata
-			record only, that is, the table is empty. */
-		} else {
-			row_id = mach_read_from_6(rec);
-		}
-	}
-
-	mtr_commit(&mtr);
-
-	if (row_id) {
-		/* Update the system row id if the imported index row id is
-		greater than the max system row id. */
-		dict_sys.update_row_id(row_id);
-	}
 }
 
 /*****************************************************************//**
@@ -2421,11 +2567,24 @@ row_import_cfg_read_index_fields(
 		field->prefix_len = mach_read_from_4(ptr) & ((1U << 12) - 1);
 		ptr += sizeof(ib_uint32_t);
 
-		field->fixed_len = mach_read_from_4(ptr) & ((1U << 10) - 1);
+		uint32_t fixed_len = mach_read_from_4(ptr);
+
+		field->descending = bool(fixed_len >> 31);
+
+		field->fixed_len = fixed_len & ((1U << 10) - 1);
 		ptr += sizeof(ib_uint32_t);
 
 		/* Include the NUL byte in the length. */
 		ulint	len = mach_read_from_4(ptr);
+
+		if (len == 0 || len > NAME_LEN + 1) {
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+				0UL, strerror(EINVAL),
+				"while reading .cfg field name length.");
+
+			return(DB_CORRUPTION);
+		}
 
 		byte*	name = UT_NEW_ARRAY_NOKEY(byte, len);
 
@@ -2563,7 +2722,7 @@ row_import_read_index_data(
 		/* The NUL byte is included in the name length. */
 		ulint	len = mach_read_from_4(ptr);
 
-		if (len > OS_FILE_MAX_PATH) {
+		if (len == 0 || len > NAME_LEN + 1) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INNODB_INDEX_CORRUPT,
 				"Index name length (" ULINTPF ") is too long, "
@@ -2751,12 +2910,11 @@ row_import_read_columns(
 
 		ulint		len = mach_read_from_4(ptr);
 
-		/* FIXME: What is the maximum column name length? */
-		if (len == 0 || len > 128) {
-			ib_errf(thd, IB_LOG_LEVEL_ERROR,
-				ER_IO_READ_ERROR,
-				"Column name length " ULINTPF ", is invalid",
-				len);
+		if (len == 0 || len > NAME_LEN + 1) {
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+				0UL, strerror(EINVAL),
+				"while reading .cfg column name length.");
 
 			return(DB_CORRUPTION);
 		}
@@ -2822,6 +2980,15 @@ row_import_read_v1(
 
 	ulint	len = mach_read_from_4(value);
 
+	if (len == 0 || len > HOSTNAME_LENGTH + 1) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+			0UL, strerror(EINVAL),
+			"while reading .cfg hostname length.");
+
+		return(DB_CORRUPTION);
+	}
+
 	/* NUL byte is part of name length. */
 	cfg->m_hostname = UT_NEW_ARRAY_NOKEY(byte, len);
 
@@ -2863,6 +3030,15 @@ row_import_read_v1(
 	}
 
 	len = mach_read_from_4(value);
+
+	if (len == 0 || len > MAX_FULL_NAME_LEN + 1) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
+			0UL, strerror(EINVAL),
+			"while reading .cfg table name length.");
+
+		return(DB_CORRUPTION);
+	}
 
 	/* NUL byte is part of name length. */
 	cfg->m_table_name = UT_NEW_ARRAY_NOKEY(byte, len);
@@ -2991,17 +3167,13 @@ row_import_read_meta_data(
 		return(DB_IO_ERROR);
 	}
 
-	cfg.m_version = mach_read_from_4(row);
-
 	/* Check the version number. */
-	switch (cfg.m_version) {
+	switch (mach_read_from_4(row)) {
 	case IB_EXPORT_CFG_VERSION_V1:
-
 		return(row_import_read_v1(file, thd, &cfg));
 	default:
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			"Unsupported meta-data version number (" ULINTPF "), "
-			"file ignored", cfg.m_version);
+		ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_NOT_SUPPORTED_YET,
+			    "meta-data version");
 	}
 
 	return(DB_ERROR);
@@ -3015,17 +3187,25 @@ row_import_read_meta_data(
 /* decrypt and decompress page if needed */
 static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
                                   uint32_t space_flags, span<byte> page,
-                                  uint32_t space_id, byte *page_compress_buf)
+                                  uint32_t space_id, byte *page_compress_buf,
+                                  byte *tmp_frame)
 {
   auto *data= page.data();
 
   if (space_crypt && space_crypt->should_encrypt())
   {
+    uint page_size= static_cast<uint>(page.size());
+
     if (!buf_page_verify_crypt_checksum(data, space_flags))
       return DB_CORRUPTION;
 
-    if (dberr_t err= fil_space_decrypt(space_id, space_flags, space_crypt,
-                                       data, page.size(), data))
+    dberr_t err=
+      fil_space_decrypt(space_id, space_flags, space_crypt,
+                        tmp_frame, page_size, data);
+
+    memcpy(data, tmp_frame, page_size);
+
+    if (err)
       return err;
   }
 
@@ -3065,7 +3245,136 @@ static size_t get_buf_size()
          );
 }
 
-/* find, parse instant metadata, performing variaous checks,
+/** Add fts index to the table
+@param table fts index to be added on the table */
+static void add_fts_index(dict_table_t *table)
+{
+  dict_index_t *fts_index= dict_mem_index_create(
+    table, FTS_DOC_ID_INDEX.str, DICT_UNIQUE, 2);
+  fts_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
+  fts_index->page= FIL_NULL;
+  fts_index->cached= 1;
+  fts_index->n_uniq= 1;
+  /* Add fields for FTS_DOC_ID_INDEX */
+  dict_index_add_col(
+    fts_index, table,
+    &table->cols[table->n_cols - (DATA_N_SYS_COLS + 1)], 0);
+  dict_index_t *clust_index= UT_LIST_GET_FIRST(table->indexes);
+  for (ulint i= 0; i < clust_index->n_uniq; i++)
+    dict_index_add_col(fts_index, table, clust_index->fields[i].col,
+                       clust_index->fields[i].prefix_len);
+  UT_LIST_ADD_LAST(fts_index->table->indexes, fts_index);
+}
+
+/** Append the hidden fts column and fts doc index to the
+existing table
+@param  table  table to be imported
+@param  thd    thread
+@param  cfg    metadata required by import
+@return table which has fts doc id and fts doc id index */
+static dict_table_t *build_fts_hidden_table(
+  dict_table_t *table, const row_import &cfg)
+{
+  dict_table_t *new_table= dict_table_t::create(
+    {table->name.m_name, strlen(table->name.m_name)},
+    table->space, table->n_t_cols - (DATA_N_SYS_COLS - 1),
+    table->n_v_cols, table->flags,
+    table->flags2);
+
+  new_table->id= table->id;
+  new_table->space_id= table->space_id;
+  const char* col_name= &table->col_names[0];
+  /* Copy columns from old table to new fts table */
+  for (ulint new_i= 0;
+       new_i < ulint(new_table->n_cols - (DATA_N_SYS_COLS + 1));
+       new_i++)
+  {
+    dict_mem_table_add_col(new_table, new_table->heap, col_name,
+			   table->cols[new_i].mtype,
+			   table->cols[new_i].prtype,
+			   table->cols[new_i].len);
+    col_name+= strlen(col_name) + 1;
+  }
+
+  unsigned fts_col_ind= unsigned(table->n_cols - DATA_N_SYS_COLS);
+  fts_add_doc_id_column(new_table, new_table->heap);
+  new_table->cols[fts_col_ind].ind=
+    fts_col_ind & dict_index_t::MAX_N_FIELDS;
+  new_table->cols[fts_col_ind].ord_part= 1;
+  dict_table_add_system_columns(new_table, new_table->heap);
+
+  col_name= &table->v_col_names[0];
+  for (ulint new_i= 0; new_i < new_table->n_v_cols; new_i++)
+  {
+    dict_col_t old_vcol= table->v_cols[new_i].m_col;
+    dict_mem_table_add_v_col(new_table, new_table->heap, col_name,
+                             old_vcol.mtype, old_vcol.prtype,
+                             old_vcol.len, old_vcol.ind + 1,
+                             table->v_cols[new_i].num_base);
+    for (ulint i= 0; i < table->v_cols[new_i].num_base; i++)
+    {
+      dict_col_t *base_col= dict_table_get_nth_col(
+        new_table, table->v_cols[new_i].base_col[i]->ind);
+      new_table->v_cols[new_i].base_col[i]= base_col;
+    }
+    col_name+= strlen(col_name) + 1;
+  }
+
+  bool is_clustered= true;
+  /* Copy indexes from old table to new table */
+  for (dict_index_t *old_index= UT_LIST_GET_FIRST(table->indexes);
+       old_index; is_clustered= false)
+  {
+    dict_index_t *new_index= dict_mem_index_create(
+      new_table, old_index->name, old_index->type,
+      old_index->n_fields + is_clustered);
+
+    new_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
+    new_index->id= old_index->id;
+    new_index->n_uniq= old_index->n_uniq;
+    new_index->type= old_index->type;
+    new_index->cached= 1;
+    new_index->n_user_defined_cols= old_index->n_user_defined_cols;
+    new_index->n_core_null_bytes= old_index->n_core_null_bytes;
+    /* Copy all fields from old index to new index */
+    for (ulint i= 0; i < old_index->n_fields; i++)
+    {
+      dict_field_t *field= dict_index_get_nth_field(old_index, i);
+      dict_col_t *col= field->col;
+      if (col->is_virtual())
+      {
+        dict_v_col_t *v_col= reinterpret_cast<dict_v_col_t*>(col);
+        col= &new_table->v_cols[v_col->v_pos].m_col;
+      }
+      else
+      {
+        unsigned ind= field->col->ind;
+        if (ind >= fts_col_ind) ind++;
+        col= &new_table->cols[ind];
+      }
+      dict_index_add_col(new_index, new_table, col,
+                         field->prefix_len);
+      if (i < old_index->n_uniq) col->ord_part= 1;
+    }
+
+    if (is_clustered)
+    {
+      /* Add fts doc id in clustered index */
+      dict_index_add_col(
+        new_index, new_table, &table->cols[fts_col_ind], 0);
+      new_index->fields[old_index->n_fields].fixed_len= sizeof(doc_id_t);
+    }
+
+    UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
+    old_index= UT_LIST_GET_NEXT(indexes, old_index);
+    if (UT_LIST_GET_LEN(new_table->indexes)
+        == cfg.find_fts_idx_offset())
+      add_fts_index(new_table);
+  }
+  return new_table;
+}
+
+/* find, parse instant metadata, performing various checks,
 and apply it to dict_table_t
 @return DB_SUCCESS or some error */
 static dberr_t handle_instant_metadata(dict_table_t *table,
@@ -3145,11 +3454,16 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     return err;
 
   std::unique_ptr<byte[]> page_compress_buf(new byte[get_buf_size()]);
+  std::unique_ptr<byte[], decltype(&aligned_free)> crypt_tmp_frame(
+      static_cast<byte *>(
+          aligned_malloc(physical_size, CPU_LEVEL1_DCACHE_LINESIZE)),
+      &aligned_free);
 
   if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
                                       {page.get(), static_cast<size_t>
                                        (physical_size)},
-                                      space_id, page_compress_buf.get()))
+                                      space_id, page_compress_buf.get(),
+                                      crypt_tmp_frame.get()))
     return err;
 
   if (table->supports_instant())
@@ -3203,7 +3517,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
                                           {page.get(), static_cast<size_t>
                                            (physical_size)}, space_id,
-                                          page_compress_buf.get()))
+                                          page_compress_buf.get(),
+                                          crypt_tmp_frame.get()))
         return err;
     }
 
@@ -3285,7 +3600,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
                                           {second_page.get(),
                                            static_cast<size_t>(physical_size)},
-                                          space_id, page_compress_buf.get()))
+                                          space_id, page_compress_buf.get(),
+                                          crypt_tmp_frame.get()))
         return err;
 
       if (fil_page_get_type(second_page.get()) != FIL_PAGE_TYPE_BLOB ||
@@ -3368,6 +3684,35 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
 }
 
 /**
+Read the contents of a .cfg file.
+@param[in]  filename  Path to the cfg file
+@param[in]  thd       Connection
+@param[out] cfg   Contents of the .cfg file.
+@return DB_SUCCESS or error code. */
+static dberr_t row_import_read_cfg_internal(const char *filename, THD *thd,
+                                            row_import &cfg)
+{
+  FILE *file= fopen(filename, "rb");
+
+  cfg.m_missing= !file;
+
+  if (!file)
+  {
+    char msg[BUFSIZ];
+    snprintf(msg, sizeof(msg),
+             "Error opening '%s', will attempt to import"
+             " without schema verification", filename);
+    ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
+                (ulong) errno, strerror(errno), msg);
+    return DB_FAIL;
+  }
+
+  dberr_t err= row_import_read_meta_data(file, thd, cfg);
+  fclose(file);
+  return err;
+}
+
+/**
 Read the contents of the <tablename>.cfg file.
 @return DB_SUCCESS or error code. */
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
@@ -3378,38 +3723,60 @@ row_import_read_cfg(
 	THD*		thd,	/*!< in: session */
 	row_import&	cfg)	/*!< out: contents of the .cfg file */
 {
-	dberr_t		err;
 	char		name[OS_FILE_MAX_PATH];
 
 	cfg.m_table = table;
 
 	srv_get_meta_data_filename(table, name, sizeof(name));
 
-	FILE*	file = fopen(name, "rb");
+	return row_import_read_cfg_internal(name, thd, cfg);
+}
 
-	if (file == NULL) {
-		char	msg[BUFSIZ];
 
-		snprintf(msg, sizeof(msg),
-			 "Error opening '%s', will attempt to import"
-			 " without schema verification", name);
+/** Convert the InnoDB ROW_FORMAT from rec_format_enum to row_type.
+@param[in]  from  ROW_FORMAT as a rec_format_enum
+@return the row_type representation of ROW_FORMAT. */
+static enum row_type from_rec_format(const rec_format_enum from)
+{
+  switch (from) {
+  case REC_FORMAT_COMPACT:
+    return ROW_TYPE_COMPACT;
+  case REC_FORMAT_DYNAMIC:
+    return ROW_TYPE_DYNAMIC;
+  case REC_FORMAT_REDUNDANT:
+    return ROW_TYPE_REDUNDANT;
+  case REC_FORMAT_COMPRESSED:
+    return ROW_TYPE_COMPRESSED;
+  }
 
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
-			(ulong) errno, strerror(errno), msg);
+  ut_ad("invalid format" == 0);
+  return ROW_TYPE_NOT_USED;
+}
 
-		cfg.m_missing = true;
-
-		err = DB_FAIL;
-	} else {
-
-		cfg.m_missing = false;
-
-		err = row_import_read_meta_data(file, thd, cfg);
-		fclose(file);
-	}
-
-	return(err);
+/**
+Read the row type from a .cfg file.
+@param  dir_path  Path to the data directory containing the .cfg file
+@param  name      Name of the table
+@param  thd       Connection
+@retval ROW_TYPE_COMPACT    for ROW_FORMAT=COMPACT
+@retval ROW_TYPE_DYNAMIC    for ROW_FORMAT=DYNAMIC
+@retval ROW_TYPE_REDUNDANT  for ROW_FORMAT=REDUNDANT
+@retval ROW_TYPE_COMPRESSED for ROW_FORMAT=COMPRESSED
+@retval ROW_TYPE_NOT_USED to signal error */
+static enum row_type get_row_type_from_cfg(const char* dir_path,
+                                           const char* name, THD* thd)
+{
+  char* filename= fil_make_filepath(dir_path,
+                                    table_name_t(const_cast<char*>(name)),
+                                    CFG, dir_path != nullptr);
+  if (!filename)
+    return ROW_TYPE_NOT_USED;
+  row_import cfg;
+  dberr_t err= row_import_read_cfg_internal(filename, thd, cfg);
+  ut_free(filename);
+  if (err == DB_SUCCESS)
+    return from_rec_format(dict_tf_get_rec_format(cfg.m_flags));
+  return ROW_TYPE_NOT_USED;
 }
 
 /** Update the root page numbers and tablespace ID of a table.
@@ -3542,11 +3909,20 @@ row_import_set_discarded(
 	ulint	flags2 = mach_read_from_4(
 		static_cast<byte*>(dfield_get_data(dfield)));
 
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
 	if (discard->state) {
 		flags2 |= DICT_TF2_DISCARDED;
 	} else {
 		flags2 &= ~DICT_TF2_DISCARDED;
 	}
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
 
 	mach_write_to_4(reinterpret_cast<byte*>(&discard->flags2), flags2);
 
@@ -3677,6 +4053,7 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
   const bool full_crc32 = fil_space_t::full_crc32(m_space_flags);
   bool skip_checksum_check = false;
   ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_sys.rpo);
 
   if (!page_compress_buf)
     return DB_OUT_OF_MEMORY;
@@ -3727,8 +4104,14 @@ page_corrupted:
     if (!buf_page_verify_crypt_checksum(readptr, m_space_flags))
       goto page_corrupted;
 
-    if ((err= fil_space_decrypt(get_space_id(), m_space_flags, iter.crypt_data,
-                                readptr, size, readptr)))
+    dberr_t err= fil_space_decrypt(get_space_id(), m_space_flags,
+                                   iter.crypt_data, iter.crypt_tmp_buffer,
+                                   size, readptr);
+
+    memcpy_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(readptr, iter.crypt_tmp_buffer,
+                                               size);
+
+    if (err)
       goto func_exit;
   }
 
@@ -3749,7 +4132,12 @@ page_corrupted:
            && buf_page_is_corrupted(false, readptr, m_space_flags))
     goto page_corrupted;
 
-  err= this->operator()(block);
+  /* m_table is null iff we are trying to create a (stub) table, in
+  which case we want to get row format for the table creation. */
+  if (m_table)
+    err= this->operator()(block);
+  else
+    m_row_format= get_row_format(*block);
 func_exit:
   free(page_compress_buf);
   return err;
@@ -3766,6 +4154,7 @@ static dberr_t fil_iterate(
 
 	byte* page_compress_buf= static_cast<byte*>(malloc(get_buf_size()));
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (!page_compress_buf) {
 		return DB_OUT_OF_MEMORY;
@@ -4072,19 +4461,21 @@ func_exit:
 	return err;
 }
 
-/********************************************************************//**
-Iterate over all the pages in the tablespace.
-@param table - the table definiton in the server
-@param n_io_buffers - number of blocks to read and write together
-@param callback - functor that will do the page updates
+/**
+Iterate over all or some pages in the tablespace.
+@param dir_path      the path to data dir storing the tablespace
+@param name          the table name
+@param n_io_buffers  number of blocks to read and write together
+@param callback      functor that will do the page queries or updates
 @return	DB_SUCCESS or error code */
 static
 dberr_t
 fil_tablespace_iterate(
 /*===================*/
-	dict_table_t*		table,
-	ulint			n_io_buffers,
-	AbstractCallback&	callback)
+	const char *name,
+	ulint n_io_buffers,
+	AbstractCallback &callback,
+	const char *dir_path)
 {
 	dberr_t		err;
 	pfs_os_file_t	file;
@@ -4092,22 +4483,14 @@ fil_tablespace_iterate(
 
 	ut_a(n_io_buffers > 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_1",
 			return(DB_CORRUPTION););
 
-	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table);
-
-	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
-
-	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
-		? table->data_dir_path : nullptr;
-
-	filepath = fil_make_filepath(data_dir_path,
-				     {table->name.m_name,
-				      strlen(table->name.m_name)},
-				     IBD, data_dir_path != nullptr);
+	table_name_t table_name(const_cast<char*>(name));
+	filepath= fil_make_filepath(dir_path, table_name, IBD,
+				    dir_path != nullptr);
 	if (!filepath) {
 		return(DB_OUT_OF_MEMORY);
 	} else {
@@ -4120,9 +4503,9 @@ fil_tablespace_iterate(
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(true);
-			ib::error() << "Trying to import a tablespace,"
-				" but could not open the tablespace file "
-				    << filepath;
+			sql_print_error("InnoDB: could not open the "
+					"tablespace file %s.\n",
+					filepath);
 			ut_free(filepath);
 			return DB_TABLESPACE_NOT_FOUND;
 		} else {
@@ -4185,17 +4568,21 @@ fil_tablespace_iterate(
 		iter.file_size = file_size;
 		iter.n_io_buffers = n_io_buffers;
 
+		size_t buf_size = (1 + iter.n_io_buffers) * srv_page_size;
+
 		/* Add an extra page for compressed page scratch area. */
 		iter.io_buffer = static_cast<byte*>(
-			aligned_malloc((1 + iter.n_io_buffers)
-				       << srv_page_size_shift, srv_page_size));
+			aligned_malloc(buf_size, srv_page_size));
 
-		iter.crypt_io_buffer = iter.crypt_data
-			? static_cast<byte*>(
-				aligned_malloc((1 + iter.n_io_buffers)
-					       << srv_page_size_shift,
-					       srv_page_size))
-			: NULL;
+		if (iter.crypt_data) {
+			iter.crypt_io_buffer = static_cast<byte *>(
+				aligned_malloc(buf_size, srv_page_size));
+			iter.crypt_tmp_buffer = static_cast<byte *>(
+				aligned_malloc(buf_size, CPU_LEVEL1_DCACHE_LINESIZE));
+		} else {
+			iter.crypt_io_buffer = NULL;
+			iter.crypt_tmp_buffer = NULL;
+		}
 
 		if (block->page.zip.ssize) {
 			ut_ad(iter.n_io_buffers == 1);
@@ -4210,6 +4597,7 @@ fil_tablespace_iterate(
 			fil_space_destroy_crypt_data(&iter.crypt_data);
 		}
 
+		aligned_free(iter.crypt_tmp_buffer);
 		aligned_free(iter.crypt_io_buffer);
 		aligned_free(iter.io_buffer);
 	}
@@ -4234,6 +4622,128 @@ fil_tablespace_iterate(
 	return(err);
 }
 
+/**
+Iterate over all or some pages in the tablespace.
+@param table         the table definiton in the server
+@param n_io_buffers  number of blocks to read and write together
+@param callback      functor that will do the page queries or updates
+@return DB_SUCCESS or error code */
+static dberr_t fil_tablespace_iterate(dict_table_t *table, ulint n_io_buffers,
+                                      AbstractCallback &callback)
+{
+  /* Make sure the data_dir_path is set. */
+  dict_get_and_save_data_dir_path(table);
+  ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
+  const char *data_dir_path= DICT_TF_HAS_DATA_DIR(table->flags)
+    ? table->data_dir_path : nullptr;
+  return fil_tablespace_iterate(table->name.m_name, n_io_buffers, callback,
+                                data_dir_path);
+}
+
+static void row_import_autoinc(dict_table_t *table, row_prebuilt_t *prebuilt,
+                               uint64_t autoinc)
+{
+  if (!table->persistent_autoinc)
+  {
+    ut_ad(!autoinc);
+    return;
+  }
+
+  if (autoinc)
+  {
+    btr_write_autoinc(prebuilt->trx,
+                      dict_table_get_first_index(table), autoinc - 1);
+  autoinc_set:
+    table->autoinc= autoinc;
+    sql_print_information("InnoDB: %.*sQ.%sQ autoinc value set to " UINT64PF,
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(), autoinc);
+  }
+  else if (TABLE *t= prebuilt->m_mysql_table)
+  {
+    if (const Field *ai= t->found_next_number_field)
+    {
+      autoinc= 1 +
+        btr_read_autoinc_with_fallback(table, innodb_col_no(ai),
+                                       t->s->mysql_version,
+                                       innobase_get_int_col_max_value(ai));
+      goto autoinc_set;
+    }
+  }
+}
+
+/** Update the virtual column position in SYS_COLUMNS and SYS_VIRTUAL
+@param  table_id   table identifier
+@param  new_pos    position value
+@param  trx        transaction
+@return DB_SUCCESS or error code */
+dberr_t update_vcol_pos(table_id_t table_id, ulint new_pos, trx_t *trx)
+{
+  DBUG_EXECUTE_IF("ib_import_vcol_update_fail",
+                  return DB_DUPLICATE_KEY;);
+  pars_info_t *info= pars_info_create();
+  pars_info_add_ull_literal(info, "id", table_id);
+  pars_info_add_int4_literal(info, "old_pos", new_pos - 1);
+  return que_eval_sql(info,
+                      "PROCEDURE UPDATE_VCOL () IS\n"
+                      "BEGIN\n"
+		      "UPDATE SYS_COLUMNS SET POS = POS + 1 "
+		      "WHERE TABLE_ID= :id AND POS = :old_pos;\n"
+		      "UPDATE SYS_VIRTUAL SET POS = POS + 1 "
+		      "WHERE TABLE_ID= :id AND POS = :old_pos;\n"
+		      "END\n;", trx);
+}
+
+/**
+1) Update the position of the columns and
+2) Insert the hidden fts doc id in the sys columns table
+3) Insert the hidden fts doc id in the sys indexes and
+sys_fields table
+@param  table   table to be imported
+@param  fts_pos position of fts doc id column
+@param  trx     transaction
+@return DB_SUCCESS or error code */
+static
+dberr_t innodb_insert_hidden_fts_col(dict_table_t* table,
+                                     ulint  fts_pos,
+                                     trx_t* trx)
+{
+  dict_index_t* fts_idx=
+    dict_table_get_index_on_name(table, FTS_DOC_ID_INDEX.str);
+  if (!fts_idx) return DB_ERROR;
+  for (ulint new_i= 0; new_i < table->n_v_cols; new_i++)
+  {
+    ulint pos= dict_create_v_col_pos(
+                 table->v_cols[new_i].v_pos,
+		 table->v_cols[new_i].m_col.ind);
+    if (dberr_t err= update_vcol_pos(table->id, pos, trx))
+      return err;
+  }
+  pars_info_t *info= pars_info_create();
+  pars_info_add_ull_literal(info, "id", table->id);
+  dict_hdr_get_new_id(trx, NULL, &fts_idx->id, NULL);
+  pars_info_add_ull_literal(info, "idx_id", fts_idx->id);
+  pars_info_add_int4_literal(info, "pos", fts_pos);
+  pars_info_add_int4_literal(info, "space", fts_idx->table->space_id);
+  pars_info_add_int4_literal(info, "page_no", fts_idx->page);
+
+  return que_eval_sql(info,
+                      "PROCEDURE ADD_FTS_COL () IS\n"
+		      "BEGIN\n"
+		      "INSERT INTO SYS_COLUMNS VALUES"
+                      "(:id,:pos,'FTS_DOC_ID',6, 1795, 8, 0);\n"
+                      "UPDATE SYS_TABLES SET N_COLS = N_COLS + 1"
+		      " WHERE ID = :id;\n"
+		      "INSERT INTO SYS_INDEXES VALUES"
+		      "(:id, :idx_id, 'FTS_DOC_ID_INDEX', 1,"
+		      " 2, :space, :page_no, 50);\n"
+                      "INSERT INTO SYS_FIELDS VALUES"
+		      "(:idx_id, 1, 'FTS_DOC_ID');\n"
+		      "END;\n", trx);
+}
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
 of the table in the data dictionary.
@@ -4250,8 +4760,9 @@ row_import_for_mysql(
 	trx_t*		trx = prebuilt->trx;
 
 	/* The caller assured that this is not read_only_mode and that no
-	temorary tablespace is being imported. */
+	temporary tablespace is being imported. */
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(!table->is_temporary());
 
 	ut_ad(table->space_id);
@@ -4259,17 +4770,33 @@ row_import_for_mysql(
 	ut_ad(trx);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(!table->is_readable());
+	ut_ad(prebuilt->table == table);
 
-	ibuf_delete_for_discarded_space(table->space_id);
+#ifdef BTR_CUR_HASH_ADAPT
+	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
+	index entries. If we replaced the discarded tablespace with a
+	smaller one here, there could still be some adaptive hash
+	index entries that point to cached garbage pages in the buffer
+	pool, because PageConverter::operator() only evicted those
+	pages that were replaced by the imported pages. We must
+	detach any remaining adaptive hash index entries, because the
+	adaptive hash index must be a subset of the table contents;
+	false positives are not tolerated. */
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index = index->clone_if_needed();
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+	UT_LIST_GET_FIRST(table->indexes)->clear_instant_alter();
 
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
 
 	/* TODO: Do not write any undo log for the IMPORT cleanup. */
 	{
-		mtr_t mtr;
+		mtr_t mtr{trx};
 		mtr.start();
-		trx_undo_assign(trx, &err, &mtr);
+		trx_undo_assign(&mtr, &err);
 		mtr.commit();
 	}
 
@@ -4287,7 +4814,6 @@ row_import_for_mysql(
 
 	row_import	cfg;
 	THD* thd = trx->mysql_thd;
-
 	err = row_import_read_cfg(table, thd, cfg);
 
 	/* Check if the table column definitions match the contents
@@ -4295,8 +4821,16 @@ row_import_for_mysql(
 
 	if (err == DB_SUCCESS) {
 
-		if (dberr_t err = handle_instant_metadata(table, cfg)) {
-			return row_import_error(prebuilt, err);
+		if (cfg.need_hidden_fts(table)) {
+			cfg.m_table = table = build_fts_hidden_table(
+						table, cfg);
+		}
+
+		err = handle_instant_metadata(table, cfg);
+		if (err != DB_SUCCESS) {
+import_error:
+			return row_import_error(
+					prebuilt, err, table);
 		}
 
 		/* We have a schema file, try and match it with our
@@ -4332,7 +4866,7 @@ row_import_for_mysql(
 				"table %s when .cfg file is missing.",
 				table->name.m_name);
 			err = DB_ERROR;
-			return row_import_error(prebuilt, err);
+			goto import_error;
 		}
 
 		FetchIndexRootPages	fetchIndexRootPages(table, trx);
@@ -4361,7 +4895,7 @@ row_import_for_mysql(
 	}
 
 	if (err != DB_SUCCESS) {
-		return row_import_error(prebuilt, err);
+		goto import_error;
 	}
 
 	trx->op_info = "importing tablespace";
@@ -4381,21 +4915,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-#ifdef BTR_CUR_HASH_ADAPT
-	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
-	index entries. If we replaced the discarded tablespace with a
-	smaller one here, there could still be some adaptive hash
-	index entries that point to cached garbage pages in the buffer
-	pool, because PageConverter::operator() only evicted those
-	pages that were replaced by the imported pages. We must
-	detach any remaining adaptive hash index entries, because the
-	adaptive hash index must be a subset of the table contents;
-	false positives are not tolerated. */
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
-		index = index->clone_if_needed();
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -4412,7 +4931,7 @@ row_import_for_mysql(
 				table_name, ut_strerr(err));
 		}
 
-		return row_import_cleanup(prebuilt, err);
+		goto import_error;
 	}
 
 	/* If the table is stored in a remote tablespace, we need to
@@ -4444,9 +4963,10 @@ row_import_for_mysql(
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
-	table->space = fil_ibd_open(
-		2, FIL_TYPE_IMPORT, table->space_id,
-		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
+	table->space = fil_ibd_open(table->space_id,
+				    dict_tf_to_fsp_flags(table->flags),
+				    fil_space_t::VALIDATE_IMPORT,
+				    name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
@@ -4460,12 +4980,6 @@ row_import_for_mysql(
 
 	ut_free(filepath);
 
-	if (err == DB_SUCCESS) {
-		err = ibuf_check_bitmap_on_import(trx, table->space);
-	}
-
-	DBUG_EXECUTE_IF("ib_import_check_bitmap_failure", err = DB_CORRUPTION;);
-
 	if (err != DB_SUCCESS) {
 		return row_import_cleanup(prebuilt, err);
 	}
@@ -4475,19 +4989,20 @@ row_import_for_mysql(
 	dict_index_t*	index = dict_table_get_first_index(table);
 
 	if (!dict_index_is_clust(index)) {
-		return row_import_error(prebuilt, DB_CORRUPTION);
+		err = DB_CORRUPTION;
+		goto import_error;
 	}
 
 	/* Update the Btree segment headers for index node and
 	leaf nodes in the root page. Set the new space id. */
 
-	err = btr_root_adjust_on_import(index);
+	err = btr_root_adjust_on_import(trx, index);
 
 	DBUG_EXECUTE_IF("ib_import_cluster_root_adjust_failure",
 			err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return row_import_error(prebuilt, err);
+		goto import_error;
 	} else if (cfg.requires_purge(index->name)) {
 
 		/* Purge any delete-marked records that couldn't be
@@ -4506,7 +5021,7 @@ row_import_for_mysql(
 	DBUG_EXECUTE_IF("ib_import_cluster_failure", err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return row_import_error(prebuilt, err);
+		goto import_error;
 	}
 
 	/* For secondary indexes, purge any records that couldn't be purged
@@ -4519,14 +5034,7 @@ row_import_for_mysql(
 			err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return row_import_error(prebuilt, err);
-	}
-
-	/* Ensure that the next available DB_ROW_ID is not smaller than
-	any DB_ROW_ID stored in the table. */
-
-	if (prebuilt->clust_index_was_generated) {
-		row_import_set_sys_max_row_id(prebuilt, table);
+		goto import_error;
 	}
 
 	ib::info() << "Phase III - Flush changes to disk";
@@ -4534,9 +5042,9 @@ row_import_for_mysql(
 	/* Ensure that all pages dirtied during the IMPORT make it to disk.
 	The only dirty pages generated should be from the pessimistic purge
 	of delete marked records that couldn't be purged in Phase I. */
-	while (buf_flush_list_space(prebuilt->table->space));
+	while (buf_flush_list_space(table->space));
 
-	for (ulint count = 0; prebuilt->table->space->referenced(); count++) {
+	for (ulint count = 0; table->space->referenced(); count++) {
 		/* Issue a warning every 10.24 seconds, starting after
 		2.56 seconds */
 		if ((count & 511) == 128) {
@@ -4547,38 +5055,103 @@ row_import_for_mysql(
 	}
 
 	ib::info() << "Phase IV - Flush complete";
-	prebuilt->table->space->set_imported();
+	table->space->set_imported();
 
+	err = lock_sys_tables(trx);
+	if (err != DB_SUCCESS) {
+		goto import_error;
+	}
 	/* The dictionary latches will be released in in row_import_cleanup()
 	after the transaction commit, for both success and error. */
 
 	row_mysql_lock_data_dictionary(trx);
 
+	if (prebuilt->table != table) {
+		/* Add fts_doc_id and fts_doc_idx in data dictionary */
+		err = innodb_insert_hidden_fts_col(
+			table, cfg.find_col(FTS_DOC_ID.str), trx);
+                DBUG_EXECUTE_IF("ib_import_fts_error",
+				err= DB_DUPLICATE_KEY;);
+		if (err != DB_SUCCESS) {
+			goto import_error;
+		}
+	}
 	/* Update the root pages of the table's indexes. */
 	err = row_import_update_index_root(trx, table, false);
 
 	if (err != DB_SUCCESS) {
-		return row_import_error(prebuilt, err);
+		goto import_error;
 	}
 
 	err = row_import_update_discarded_flag(trx, table->id, false);
 
 	if (err != DB_SUCCESS) {
-		return row_import_error(prebuilt, err);
+		goto import_error;
 	}
 
 	table->file_unreadable = false;
 	table->flags2 &= ~DICT_TF2_DISCARDED & ((1U << DICT_TF2_BITS) - 1);
 
 	/* Set autoinc value read from .cfg file, if one was specified.
-	Otherwise, keep the PAGE_ROOT_AUTO_INC as is. */
-	if (autoinc) {
-		ib::info() << table->name << " autoinc value set to "
-			<< autoinc;
+	Otherwise, read the PAGE_ROOT_AUTO_INC and set it to table autoinc. */
+	row_import_autoinc(table, prebuilt, autoinc);
 
-		table->autoinc = autoinc--;
-		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
-	}
+	return row_import_cleanup(prebuilt, err, table);
+}
 
-	return row_import_cleanup(prebuilt, err);
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
+/** Prepare the create info to create a new stub table for import.
+@param thd          Connection
+@param name         Table name, format: "db/table_name".
+@param create_info  The create info for creating a stub.
+@return ER_ error code
+@retval 0 on success */
+int prepare_create_stub_for_import(THD *thd, const char *name,
+                                   HA_CREATE_INFO& create_info)
+{
+  DBUG_ENTER("prepare_create_stub_for_import");
+  FetchIndexRootPages fetchIndexRootPages;
+  if (fil_tablespace_iterate(name, IO_BUFFER_SIZE(srv_page_size),
+                             fetchIndexRootPages, fil_path_to_mysql_datadir)
+      != DB_SUCCESS)
+  {
+    const char *ibd_path= fil_make_filepath(
+      fil_path_to_mysql_datadir, table_name_t(const_cast<char*>(name)), IBD,
+      true);
+    if (!ibd_path)
+      return(ER_ENGINE_OUT_OF_MEMORY);
+    sql_print_error("InnoDB: failed to get row format from %s.\n",
+                    ibd_path);
+    DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
+  }
+  create_info.init();
+  /* get the row format from ibd. */
+  create_info.row_type= fetchIndexRootPages.m_row_format;
+  /* if .cfg exists, get the row format from cfg, and compare with
+  ibd, report error if different, except when cfg reports
+  compact/dynamic and ibd reports not_used (indicating either compact
+  or dynamic but not sure) */
+  const enum row_type row_type_from_cfg=
+    get_row_type_from_cfg(fil_path_to_mysql_datadir, name, thd);
+  if (row_type_from_cfg != ROW_TYPE_NOT_USED)
+  {
+    /* if ibd reports not_used but cfg reports compact or dynamic, go
+    with cfg. */
+    if (create_info.row_type != row_type_from_cfg &&
+        !((row_type_from_cfg == ROW_TYPE_COMPACT ||
+           row_type_from_cfg == ROW_TYPE_DYNAMIC) &&
+          create_info.row_type == ROW_TYPE_NOT_USED))
+    {
+      sql_print_error(
+        "InnoDB: cfg and ibd disagree on row format for table %s.\n",
+        name);
+      DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
+    }
+    else
+      create_info.row_type= row_type_from_cfg;
+  }
+  else if (create_info.row_type == ROW_TYPE_NOT_USED)
+    create_info.row_type= ROW_TYPE_DYNAMIC;
+  DBUG_RETURN(0);
 }

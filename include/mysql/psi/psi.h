@@ -54,7 +54,6 @@
 #ifdef _WIN32
 typedef struct thread_attr pthread_attr_t;
 typedef DWORD pthread_t;
-typedef DWORD pthread_key_t;
 #endif
 
 /*
@@ -1626,6 +1625,12 @@ typedef void (*set_thread_os_id_v1_t)(struct PSI_thread *thread);
 typedef struct PSI_thread* (*get_thread_v1_t)(void);
 
 /**
+  Get name of the thread, according to the thread class.
+  The name is returns without the thread/subsystem prefix.
+*/
+typedef const char* (*get_thread_class_name_v1_t)(void);
+
+/**
   Assign a user name to the instrumented thread.
   @param user the user name
   @param user_len the user name length
@@ -2369,7 +2374,7 @@ typedef void (*destroy_prepared_stmt_v1_t)
   (PSI_prepared_stmt *prepared_stmt);
 
 /**
-  repreare a prepare statement.
+  reprepare a prepare statement.
   @param prepared_stmt prepared statement.
 */
 typedef void (*reprepare_prepared_stmt_v1_t)
@@ -2539,6 +2544,8 @@ struct PSI_v1
   set_thread_os_id_v1_t set_thread_os_id;
   /** @sa get_thread_v1_t. */
   get_thread_v1_t get_thread;
+  /** @sa get_thread_name_v1_t. */
+  get_thread_class_name_v1_t get_thread_class_name;
   /** @sa set_thread_user_v1_t. */
   set_thread_user_v1_t set_thread_user;
   /** @sa set_thread_account_v1_t. */

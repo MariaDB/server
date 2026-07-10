@@ -201,15 +201,6 @@ ib_vector_last_const(
 	const ib_vector_t*	vec);	/* in: vector */
 
 /********************************************************************
-Sort the vector elements. */
-UNIV_INLINE
-void
-ib_vector_sort(
-/*===========*/
-	ib_vector_t*	vec,		/* in/out: vector */
-	ib_compare_t	compare);	/* in: the comparator to use for sort */
-
-/********************************************************************
 The default ib_vector_t heap free. Does nothing. */
 UNIV_INLINE
 void

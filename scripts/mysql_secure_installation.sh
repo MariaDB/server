@@ -1,16 +1,16 @@
 #!/bin/sh
 
 # Copyright (c) 2002, 2016, Oracle and/or its affiliates. All rights reserved.
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
@@ -27,7 +27,14 @@ echo_c=
 basedir=
 defaults_file=
 defaults_extra_file=
+defaults_group_suffix=
 no_defaults=
+
+case "$0" in
+  *mysql_secure_installation)
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-secure-installation' instead" 1>&2
+    ;;
+esac
 
 parse_arg()
 {
@@ -52,6 +59,7 @@ parse_arguments()
       --basedir=*) basedir=`parse_arg "$arg"` ;;
       --defaults-file=*) defaults_file="$arg" ;;
       --defaults-extra-file=*) defaults_extra_file="$arg" ;;
+      --defaults-group-suffix=*) defaults_group_suffix="$arg" ;;
       --no-defaults) no_defaults="$arg" ;;
       *)
         if test -n "$pick_args"
@@ -184,7 +192,7 @@ fi
 
 # Now we can get arguments from the group [client] and [client-server]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
+parse_arguments `$print_defaults $defaults_file $defaults_extra_file $defaults_group_suffix $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 set_echo_compat() {
@@ -210,8 +218,8 @@ validate_reply () {
 }
 
 prepare() {
-    touch $config $command
-    chmod 600 $config $command
+    umask 0077
+    touch $config $command $output
 }
 
 do_query() {
@@ -219,6 +227,16 @@ do_query() {
     #sed 's,^,> ,' < $command  # Debugging
     $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output
     return $?
+}
+
+# run with double verbose to get "Query OK, N rows affected" output
+do_verbose_query() {
+    echo "$1" >$command
+    #sed 's,^,> ,' < $command  # Debugging
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args --verbose --verbose <$command >$output
+    rslt=$?
+    grep "^Query OK, [0-9]* rows affected" "$output"
+    return $rslt
 }
 
 # Simple escape mechanism (\-escape any ' and \), suitable for two contexts:
@@ -328,9 +346,9 @@ set_root_password() {
 }
 
 remove_anonymous_users() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='';"
+    do_verbose_query "DELETE FROM mysql.global_priv WHERE User='';"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!"
 	clean_and_exit
@@ -340,9 +358,9 @@ remove_anonymous_users() {
 }
 
 remove_remote_root() {
-    do_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    do_verbose_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!"
     fi
@@ -350,17 +368,17 @@ remove_remote_root() {
 
 remove_test_database() {
     echo " - Dropping test database..."
-    do_query "DROP DATABASE IF EXISTS test;"
+    do_verbose_query "DROP DATABASE IF EXISTS test;"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!  Not critical, keep moving..."
     fi
 
     echo " - Removing privileges on test database..."
-    do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
+    do_verbose_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!  Not critical, keep moving..."
     fi
@@ -405,12 +423,11 @@ prepare
 set_echo_compat
 
 echo
-echo "NOTE: RUNNING ALL PARTS OF THIS SCRIPT IS RECOMMENDED FOR ALL MariaDB"
-echo "      SERVERS IN PRODUCTION USE!  PLEASE READ EACH STEP CAREFULLY!"
+echo "NOTE: MariaDB is secure by default. Running this script is mostly"
+echo "      unecessary and it will likely be removed in a future release,"
+echo "      but it is for now preserved for backwards compatibility."
 echo
-echo "In order to log into MariaDB to secure it, we'll need the current"
-echo "password for the root user. If you've just installed MariaDB, and"
-echo "haven't set the root password yet, you should just press enter here."
+echo "Enter root user password or leave blank:"
 echo
 
 get_root_password
@@ -442,7 +459,7 @@ else
   emptypass=0
   do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.password_last_changed', UNIX_TIMESTAMP(), '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
   if [ $? -eq 0 ]; then
-   echo "Enabled successfully!"
+   echo "Enabled successfully (or at least no errors was emitted)!"
    echo "Reloading privilege tables.."
    reload_privilege_tables
    if [ $? -eq 1 ]; then

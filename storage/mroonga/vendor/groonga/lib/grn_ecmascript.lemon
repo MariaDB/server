@@ -63,7 +63,7 @@ query ::= query LOGICAL_OR query_element.{
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_OR, 2);
 }
 query ::= query NEGATIVE query_element.{
-  int weight;
+  int weight __attribute__((unused));
   GRN_INT32_POP(&efsi->weight_stack, weight);
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_ADJUST, 2);
 }
@@ -72,7 +72,7 @@ query_element ::= QSTRING.
 query_element ::= PARENL query PARENR.
 
 query_element ::= ADJUST query_element.{
-  int weight;
+  int weight __attribute__((unused));
   GRN_INT32_POP(&efsi->weight_stack, weight);
 }
 query_element ::= RELATIVE_OP query_element.{

@@ -1,0 +1,11 @@
+#
+# plugin-load-add=ha_spider
+#
+select * from mysql.plugin;
+name	dl
+select TABLE_NAME from information_schema.TABLES where TABLE_SCHEMA = "information_schema" and TABLE_NAME like "SPIDER_%";
+TABLE_NAME
+SPIDER_ALLOC_MEM
+SPIDER_WRAPPER_PROTOCOLS
+create table t (c int) Engine=SPIDER;
+drop table t;

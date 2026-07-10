@@ -1,9 +1,20 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # Basic CREATE functionality, defaults, metadata
 --echo #
 
 --error ER_WRONG_FIELD_SPEC
 CREATE TABLE t1 (a INET6 AUTO_INCREMENT);
+ 
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a INET6(6));
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a INET6 CHARACTER SET latin1);
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a INET6 REF_SYSTEM_ID=4);
 
 CREATE TABLE t1 (a INET6);
 SHOW CREATE TABLE t1;
@@ -18,7 +29,10 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::1');
 --enable_metadata
 SELECT * FROM t1;
+#check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT CAST('::' AS INET6) AS a;
+--enable_cursor_protocol
 --disable_metadata
 DROP TABLE t1;
 
@@ -63,6 +77,9 @@ SELECT CAST('garbage' AS INET6);
 SELECT CAST(0x01 AS INET6);
 SELECT CAST(REPEAT(0x00,16) AS INET6);
 SELECT CAST(REPEAT(0x11,16) AS INET6);
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+SELECT CAST('::' AS INET6 CHARACTER SET latin1);
 
 CREATE TABLE t1 AS SELECT CAST('::' AS INET6);
 SHOW CREATE TABLE t1;
@@ -485,14 +502,10 @@ INSERT INTO t1 VALUES ('::'),('::1');
 SELECT a, a IS TRUE, a IS FALSE FROM t1 ORDER BY a;
 DROP TABLE t1;
 
-#
-# TODO: Error looks like a bug. This should return rows where a<>'::'.
-# The same problem is repeatable with GEOMETRY.
-#
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::'),('::1'),('::2');
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT * FROM t1 WHERE a;
+SELECT * FROM t1 WHERE NOT a;
 DROP TABLE t1;
 
 
@@ -1411,7 +1424,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
-CREATE TABLE t1 (a INET6, b TIMESTAMP);
+CREATE TABLE t1 (a INET6, b TIMESTAMP NOT NULL DEFAULT NOW() ON UPDATE NOW());
 INSERT INTO t1 (a) VALUES ('::');
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 UPDATE t1 SET b=a;
@@ -1430,6 +1443,8 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a INET6);
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 SELECT
   CAST(a AS BINARY(0)),
@@ -1448,6 +1463,7 @@ SELECT
   CAST(a AS BINARY(16777216))
 FROM t1;
 --disable_metadata
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #
@@ -1645,7 +1661,7 @@ DROP TABLE t1;
 --echo # MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
 --echo #
 
-CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6(6) DEFAULT '::10');
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6 DEFAULT '::10');
 INSERT INTO t1(id) VALUES (1), (2), (3), (4);
 INSERT INTO t1 VALUES (5,'::5'), (6,'::6');
 SELECT * FROM t1 ORDER BY a;
@@ -1655,6 +1671,62 @@ SELECT * FROM v1 ORDER BY a;
 SELECT * FROM t2 ORDER BY a;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-27207 Assertion `!m_null_value' failed in int FixedBinTypeBundle<FbtImpl>::cmp_item_fbt::compare or in cmp_item_inet6::compare
+--echo #
+
+CREATE TABLE t1 (a CHAR,b INET6);
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31719 Wrong result of: WHERE inet6_column IN ('','::1')
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::');
+SELECT * FROM t1 WHERE a IN ('','::1');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-32879 Server crash in my_decimal::operator= or unexpected ER_DUP_ENTRY upon comparison with INET6 and similar types
+--echo #
+
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, GROUP_CONCAT(c) FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, COUNT(c) FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f FROM t1 ORDER BY f;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT 1.00 + (b = a) AS f FROM t1 ORDER BY f;
+SELECT 1.00 + (b BETWEEN a AND '') AS f FROM t1 ORDER BY f;
+SELECT 1.00 + (b IN (a,'')) AS f FROM t1 ORDER BY f;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-32458 ASAN unknown-crash in Inet6::ascii_to_fbt when casting character string to inet6
+--echo #
+
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ('1:0'),('00:');
+SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
@@ -1679,3 +1751,29 @@ DROP TABLE t1;
 SET max_sort_length=DEFAULT;
 
 --echo # End of 10.8 tests
+
+--echo #
+--echo # MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+--echo #
+CREATE OR REPLACE TABLE t1 (c1 BINARY(16), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000001);
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000002);
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
+
+--echo #
+--echo # MDEV-34189 Unexpected error on `WHERE inet6col`
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a INET6, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 SELECT seq,CONCAT('::',seq) FROM seq_0_to_31;
+--source include/boolean_factor.inc
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

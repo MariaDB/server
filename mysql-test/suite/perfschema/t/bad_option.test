@@ -6,6 +6,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/not_as_root.inc
 
 let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
 --error 0,1
@@ -13,7 +14,7 @@ let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
 let SEARCH_FILE= $error_log;
 # Stop the server
 let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --shutdown_server 
 --source include/wait_until_disconnected.inc
 --error 7
@@ -31,7 +32,7 @@ let SEARCH_PATTERN= \[ERROR\].*unknown variable 'performance-schema-enabled=mayb
 # [ERROR] unknown variable 'performance-schema-max_=12'
 let SEARCH_PATTERN= \[ERROR\].*unknown variable 'performance-schema-max_=12';
 --source include/search_pattern_in_file.inc
---echo # Server start with ambigous startup option 'performance-schema-max_=12' : pass
+--echo # Server start with ambiguous startup option 'performance-schema-max_=12' : pass
 # The important points is here:
 # 1. There is no option 'performance-schema-max_' or 'performance-schema-max-' at all.
 # 2. But we have many options where the name starts exact with this pattern.
@@ -61,7 +62,7 @@ let SEARCH_PATTERN= Can.t change dir to .*bad_option_h_param;
 
 --remove_file $error_log
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $restart_file
+--write_line restart $restart_file
 
 # Turn on reconnect
 --enable_reconnect

@@ -13,10 +13,10 @@
 #    2 - Verify that events are successfully written into max extension file.
 #    3 - Try to create a binary log with extension greater than max allowed
 #        value '2147483648', verify ER_NO_UNIQUE_LOGFILE error is reported.
-#    4 - Execute CREATE DATABASE db2 statement and verify server dosn't crash.
+#    4 - Execute CREATE DATABASE db2 statement and verify server doesn't crash.
 #    5 - Execute SHOW BINARY LOG command and verify that it reports
 #        ER_NO_BINARY_LOGGING error.
-#    6 - Restart the server and verify that databse 'db2' exists and it it not
+#    6 - Restart the server and verify that database 'db2' exists and it is not
 #        present in the binary log.
 #
 # ==== References ====

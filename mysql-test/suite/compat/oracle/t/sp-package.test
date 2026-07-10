@@ -366,13 +366,13 @@ SELECT test2.f1();
 UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 --source sp-cache-invalidate.inc
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 SELECT test2.f1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 SELECT test2.f1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 SELECT test2.f1();
 show warnings;
 
@@ -405,13 +405,13 @@ CALL test2.f1();
 UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 --source sp-cache-invalidate.inc
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 CALL test2.p1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 CALL test2.p1();
 show warnings;
---error ER_SP_PROC_TABLE_CORRUPT
+--error ER_SP_DOES_NOT_EXIST
 CALL test2.p1();
 show warnings;
 
@@ -2854,13 +2854,18 @@ END test1;
 $$
 DELIMITER ;$$
 
-
+#
+# A VIEW created with sql_mode=ORACLE, calling a package routine
+#
 SET sql_mode=ORACLE;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
 SELECT * FROM v_test;
 --vertical_results
 SHOW CREATE VIEW v_test;
 --horizontal_results
+#
+# It also works with sql_mode=DEFALT
+#
 SET sql_mode=DEFAULT;
 SELECT * FROM v_test;
 --vertical_results
@@ -2868,10 +2873,24 @@ SHOW CREATE VIEW v_test;
 --horizontal_results
 DROP VIEW v_test;
 
-
+#
+# A VIEW created with sql_mode=DEFAULT, calling a package routine
+#
 SET sql_mode=DEFAULT;
---error ER_SP_DOES_NOT_EXIST
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+#
+# It also works with sql_mode=ORACLE
+#
+--horizontal_results
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+--vertical_results
+SHOW CREATE VIEW v_test;
+--horizontal_results
+DROP VIEW v_test;
 
 
 SET sql_mode=ORACLE;
@@ -3090,3 +3109,87 @@ DROP TABLE t1;
 DROP FUNCTION f1_deterministic;
 DROP FUNCTION f2_not_deterministic;
 DROP PACKAGE pkg1;
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-12252 ROW data type for stored function return values
+--echo #
+
+--echo #
+--echo # Testing fixed ROW type with package routines
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg
+AS
+  FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32));
+  PROCEDURE p1(r ROW(a INT, b VARCHAR(32)));
+  PROCEDURE p2();
+END;
+$$
+CREATE PACKAGE BODY pkg
+AS
+  FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32)) AS
+  BEGIN
+    RETURN ROW(1,'b1');
+  END;
+  PROCEDURE p1(r ROW(a INT, b VARCHAR(32))) AS
+  BEGIN
+    SELECT r.a, r.b;
+  END;
+  PROCEDURE p2() AS
+  BEGIN
+    CALL p1(f1());
+  END; 
+END;
+$$
+DELIMITER ;$$
+CALL pkg.p1(pkg.f1());
+CALL pkg.p2;
+DROP PACKAGE pkg;
+
+
+--echo #
+--echo # Testing table%ROWTYPE with package routines
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER /;
+CREATE PACKAGE pkg
+AS
+  FUNCTION f1 RETURN t1%ROWTYPE;
+  PROCEDURE p1(r t1%ROWTYPE);
+  PROCEDURE p2;
+END;
+/
+CREATE PACKAGE BODY pkg
+AS
+  FUNCTION f1 RETURN t1%ROWTYPE AS
+    r t1%ROWTYPE;
+  BEGIN
+    SELECT * INTO r FROM t1;
+    RETURN r;
+  END;
+  PROCEDURE p1(r t1%ROWTYPE) AS
+  BEGIN
+    SELECT r.a || ' ' || r.b;
+  END;
+  PROCEDURE p2 AS
+  BEGIN
+    p1(f1());
+  END; 
+END;
+/
+DELIMITER ;/
+CALL pkg.p1(pkg.f1());
+CALL pkg.p2;
+DROP PACKAGE pkg;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

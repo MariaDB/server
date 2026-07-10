@@ -20,17 +20,13 @@
 
 /* This file defines structures needed by udf functions */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface
-#endif
-
 enum Item_udftype {UDFTYPE_FUNCTION=1,UDFTYPE_AGGREGATE};
 
 typedef void (*Udf_func_clear)(UDF_INIT *, uchar *, uchar *);
 typedef void (*Udf_func_add)(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 typedef void (*Udf_func_deinit)(UDF_INIT*);
 typedef my_bool (*Udf_func_init)(UDF_INIT *, UDF_ARGS *,  char *);
-typedef void (*Udf_func_any)();
+typedef void *Udf_func_any;
 typedef double (*Udf_func_double)(UDF_INIT *, UDF_ARGS *, uchar *, uchar *);
 typedef longlong (*Udf_func_longlong)(UDF_INIT *, UDF_ARGS *, uchar *,
                                       uchar *);
@@ -147,6 +143,20 @@ class udf_handler :public Sql_alloc
     *null_value= (my_bool) (is_null || error);
   }
   String *val_str(String *str,String *save_str);
+
+  udf_handler(const udf_handler &orig)
+  {
+    u_d = orig.u_d;
+    buffers = orig.buffers;
+    f_args = orig.f_args;
+    initid = orig.initid;
+    num_buffer = orig.num_buffer;
+    error = orig.error;
+    is_null = orig.is_null;
+    initialized = orig.initialized;
+    args = orig.args;
+    not_original = true;
+  }
 };
 
 

@@ -53,7 +53,7 @@ table_global_status::m_share=
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE global_status("
   "VARIABLE_NAME VARCHAR(64) not null comment 'The global status variable name.',"
-  "VARIABLE_VALUE VARCHAR(1024) comment 'The global status variable value.')") },
+  "VARIABLE_VALUE VARCHAR(4096) comment 'The global status variable value.')") },
   true, /* m_perpetual */
   false, /* m_optional */
   &m_share_state
@@ -109,8 +109,8 @@ int table_global_status::rnd_init(bool scan)
     If scan == true, then allocate a new context from mem_root and store in TLS.
     If scan == false, then restore from TLS.
   */
-  m_context= (table_global_status_context *)current_thd->alloc(sizeof(table_global_status_context));
-  new(m_context) table_global_status_context(status_version, !scan);
+  m_context= current_thd->alloc<table_global_status_context>(1);
+  new (m_context) table_global_status_context(status_version, !scan);
   return 0;
 }
 

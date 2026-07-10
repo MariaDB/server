@@ -162,7 +162,7 @@ CREATE TABLE t1 (
   i1 INTEGER NOT NULL,
   i2 INTEGER NOT NULL,
   UNIQUE KEY k1 (c1,i2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t1 SELECT 'A',i1,i1 FROM t0;
 INSERT INTO t1 SELECT 'B',i1,i1 FROM t0;
@@ -176,7 +176,7 @@ CREATE TABLE t2 (
   i1 INTEGER NOT NULL,
   i2 INTEGER NOT NULL,
   UNIQUE KEY k2 (c1,i1,i2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t2 SELECT 'A',i1,i1 FROM t0;
 INSERT INTO t2 SELECT 'B',i1,i1 FROM t0;
@@ -255,13 +255,16 @@ drop table t1,t2;
 --echo #
 --echo # MDEV-30143: Segfault on select query using index for group-by and filesort
 --echo #
-CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB;
+CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('Albania','AXA'),('Australia','AUS'),('American Samoa','AMSA'),('Bahamas','BS');
 
-CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB;
+CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES
 ('BERM','African Methodist Episcopal'),('AUS','Anglican'),('BERM','Anglican'),('BS','Anglican'),('BS','Baptist'),('BS','Methodist');
+-- disable_result_log
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
+-- enable_result_log
 
 let query=
 SELECT t1.a
@@ -272,6 +275,87 @@ eval EXPLAIN $query;
 eval $query;
 
 DROP TABLES t1, t2;
+
+--echo #
+--echo # MDEV-15656: Assertion `is_last_prefix <= 0' failed in
+--echo #             QUICK_GROUP_MIN_MAX_SELECT::get_next
+--echo #
+SET @lru_depth.save= @@innodb_lru_scan_depth;
+SET GLOBAL innodb_lru_scan_depth= 1024;
+
+CREATE TABLE t1 (
+  pk_part1 INT AUTO_INCREMENT,
+  a VARCHAR(4),
+  row_start timestamp(6) default current_timestamp,
+  PRIMARY KEY (pk_part1, row_start)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (a) VALUES
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo'),
+('foo'),('bar'),('foo'),('bar'),('foo');
+
+--connect (con1,localhost,root,,test)
+
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+--let $run= 20
+--disable_result_log
+while ($run)
+{
+  --send
+    SELECT DISTINCT pk_part1 FROM t1;
+  --connection default
+  INSERT INTO t1 (pk_part1) VALUES (NULL);
+  --connection con1
+  --reap
+  --dec $run
+}
+--enable_result_log
+
+--disconnect con1
+--connection default
+DROP TABLE t1;
+SET GLOBAL innodb_lru_scan_depth= @lru_depth.save;
+
+--echo #
+--echo # MDEV-38426: Clustered PK not used for Loose Index Scan optimization
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  col1 int not null,
+  col2 int not null,
+  col3 int,
+  primary key(col1, col2)
+) engine=innodb;
+insert into t1 select
+  A.seq,
+  B.seq,
+  A.seq
+from
+  seq_1_to_10 A,
+  seq_1_to_1000 B;
+analyze table t1;
+
+--echo # This must use Loose Scan:
+explain select distinct col1 from t1;
+
+--echo # This must use Loose Scan:
+explain select col1 from t1 group by col1;
+
+--echo # This must use Loose Scan:
+explain select col1, min(col2) from t1 group by col1;
+
+--echo # This will not use Loose Index Scan as col3 is not in PK:
+explain select col1, min(col2), col3 from t1 group by col1;
+
+drop table t1;
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=

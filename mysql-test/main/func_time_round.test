@@ -181,7 +181,10 @@ SELECT YEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 
+#check after fix MDEV-31555
+--disable_cursor_protocol
 SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+--enable_cursor_protocol
 SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 
@@ -219,7 +222,10 @@ SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT YEARWEEK(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 
+#check after fix MDEV-31555
+--disable_cursor_protocol
 SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+--enable_cursor_protocol
 SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT DAYOFMONTH(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
@@ -269,8 +275,7 @@ INSERT INTO t1_unix_timestamp (a) VALUES
 (980639999.9999999),
 (2147483647),
 (2147483647.9),
-(2147483647.999999),
-(2147483647.9999999);
+(2147483647.999999);
 SELECT a, FROM_UNIXTIME(a) FROM t1_unix_timestamp ORDER BY id;
 DROP TABLE t1_unix_timestamp;
 SET time_zone=DEFAULT;

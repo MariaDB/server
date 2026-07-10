@@ -1,0 +1,47 @@
+--source include/have_binlog_format_statement.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection master
+# Set minimal cache size so smaller transaction can trigger spill to disk.
+SET @save_binlog_stmt_cache_size= @@GLOBAL.binlog_stmt_cache_size;
+SET GLOBAL binlog_stmt_cache_size= 4096;
+
+CALL mtr.add_suppression('"No space left on device".*An incident event is written to binary log');
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+
+FLUSH GLOBAL STATUS;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,load_data_binlog_cache_error";
+--replace_regex /Error writing file '[^']+'/Error writing file '<FILENAME>'/
+--error 3
+LOAD DATA CONCURRENT LOCAL INFILE 'std_data/bug30435_5k.txt'
+  REPLACE INTO TABLE t1 (a);
+SET SESSION debug_dbug= @old_dbug;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+# The actual number of rows left after the disk full error may change as
+# binlog event sizes are modified. So here we just test that we get partial
+# update from the last INSERT..SELECT that gets disk full error.
+SELECT IF(COUNT(*) > 0 AND COUNT(*) < 5000,
+       "ok",
+       CONCAT("ERROR! Row count ", COUNT(*), " not as expected for partially executed query"))
+  AS check_result
+  FROM t1;
+
+--save_master_pos
+
+--connection slave
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+--sync_with_master
+SELECT COUNT(*) FROM t1;
+
+# Cleanup
+
+--connection master
+SET GLOBAL binlog_stmt_cache_size= @save_binlog_stmt_cache_size;
+DROP TABLE t1;
+
+--source include/rpl_end.inc

@@ -16,7 +16,7 @@ let $engine= myisam;
 reset master;
 create database test_rotate_db;
 use test_rotate_db;
---echo #currrent engine=$engine
+--echo #current engine=$engine
 # Create a new table
 --replace_column 2 #
 show binary logs;
@@ -68,10 +68,10 @@ while ($loop_times) {
 
 # try to change the log-bin configs and restart
 --echo # ======= now try to change the log-bin config for mysqld =======
---let $restart_parameters="--log-bin=new_log_bin"
+--let $restart_parameters=--log-bin=new_log_bin
 --echo #begin to restart mysqld
 --source include/restart_mysqld.inc
---let $restart_parameters= ""
+--let $restart_parameters=
 
 --source include/show_binary_logs.inc
 let $loop_times= 10;

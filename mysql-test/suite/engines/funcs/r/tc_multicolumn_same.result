@@ -13,7 +13,7 @@ m1	CREATE TABLE `m1` (
   `c5` bit(1) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -31,7 +31,7 @@ m1	CREATE TABLE `m1` (
   `c5` tinyint(4) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -49,7 +49,7 @@ m1	CREATE TABLE `m1` (
   `c5` smallint(6) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -67,7 +67,7 @@ m1	CREATE TABLE `m1` (
   `c5` mediumint(9) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -85,7 +85,7 @@ m1	CREATE TABLE `m1` (
   `c5` int(11) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -103,7 +103,7 @@ m1	CREATE TABLE `m1` (
   `c5` int(11) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -121,7 +121,7 @@ m1	CREATE TABLE `m1` (
   `c5` bigint(20) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -139,7 +139,7 @@ m1	CREATE TABLE `m1` (
   `c5` decimal(10,0) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -157,7 +157,7 @@ m1	CREATE TABLE `m1` (
   `c5` decimal(10,0) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -175,7 +175,7 @@ m1	CREATE TABLE `m1` (
   `c5` decimal(10,0) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -193,7 +193,7 @@ m1	CREATE TABLE `m1` (
   `c5` decimal(10,0) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -211,7 +211,7 @@ m1	CREATE TABLE `m1` (
   `c5` double NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -229,7 +229,7 @@ m1	CREATE TABLE `m1` (
   `c5` double NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -247,7 +247,7 @@ m1	CREATE TABLE `m1` (
   `c5` double NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -265,7 +265,7 @@ m1	CREATE TABLE `m1` (
   `c5` float NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -283,7 +283,7 @@ m1	CREATE TABLE `m1` (
   `c5` date NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -301,7 +301,7 @@ m1	CREATE TABLE `m1` (
   `c5` time NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -313,13 +313,13 @@ SHOW CREATE TABLE m1;
 Table	Create Table
 m1	CREATE TABLE `m1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `c2` timestamp NOT NULL,
   `c3` timestamp NULL DEFAULT NULL,
-  `c4` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `c5` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `c4` timestamp NOT NULL,
+  `c5` timestamp NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -337,7 +337,7 @@ m1	CREATE TABLE `m1` (
   `c5` datetime NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test
@@ -355,7 +355,7 @@ m1	CREATE TABLE `m1` (
   `c5` year(4) NOT NULL,
   PRIMARY KEY (`c4`),
   UNIQUE KEY `c5` (`c5`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE m1;
 SHOW TABLES;
 Tables_in_test

@@ -1,5 +1,6 @@
 call mtr.add_suppression("Sort aborted.*");
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1 (
 id int(6) DEFAULT '0' NOT NULL,
 idservice int(5),
@@ -795,18 +796,18 @@ col1	col	t2_col
 2	2	2
 3	3	1
 select col1 as col, col from t1 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as c1, t2.col as c2 from t1, t2 where t1.col1=t2.col2
 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as c1, t2.col as c2 from t1, t2 where t1.col1=t2.col2
 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select col1 from t1, t2 where t1.col1=t2.col2 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as t1_col, t2.col2 from t1, t2 where t1.col1=t2.col2
 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as t1_col, t2.col from t1, t2 where t1.col1=t2.col2
 order by col;
 t1_col	col
@@ -858,6 +859,8 @@ xxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxab
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxaa
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 64 bytes
 drop table t1;
 create table t1 (
 `sid` decimal(8,0) default null,
@@ -957,45 +960,45 @@ num
 2
 3
 SELECT a + 1 AS num, num + 1 FROM t1;
-ERROR 42S22: Unknown column 'num' in 'field list'
+ERROR 42S22: Unknown column 'num' in 'SELECT'
 SELECT a + 1 AS num, (select num + 2 FROM t1 LIMIT 1) FROM t1;
 num	(select num + 2 FROM t1 LIMIT 1)
 2	4
 3	5
 SELECT a.a + 1 AS num FROM t1 a JOIN t1 b ON num = b.a;
-ERROR 42S22: Unknown column 'num' in 'on clause'
+ERROR 42S22: Unknown column 'num' in 'ON'
 DROP TABLE t1;
 CREATE TABLE bug25126 (
 val int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY
 );
 UPDATE bug25126 SET MissingCol = MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'field list'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET val = val ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET val = val ORDER BY val;
 UPDATE bug25126 SET val = 1 ORDER BY val;
 UPDATE bug25126 SET val = 1 ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET val = 1 ORDER BY val, MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET val = MissingCol ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET MissingCol = 1 ORDER BY val, MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET MissingCol = 1 ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET MissingCol = val ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET MissingCol = MissingCol ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 DROP TABLE bug25126;
 CREATE TABLE t1 (a int);
 SELECT p.a AS val, q.a AS val1 FROM t1 p, t1 q ORDER BY val > 1;
 val	val1
 SELECT p.a AS val, q.a AS val FROM t1 p, t1 q ORDER BY val;
-ERROR 23000: Column 'val' in order clause is ambiguous
+ERROR 23000: Column 'val' in ORDER BY is ambiguous
 SELECT p.a AS val, q.a AS val FROM t1 p, t1 q ORDER BY val > 1;
-ERROR 23000: Column 'val' in order clause is ambiguous
+ERROR 23000: Column 'val' in ORDER BY is ambiguous
 DROP TABLE t1;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (3), (2), (4), (1);
@@ -1192,7 +1195,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	k2	k3	5	NULL	111	Using where
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	k2	k3	5	NULL	22318	Using where
+1	SIMPLE	t2	range	k2	k2	5	NULL	7341	Using index condition; Using filesort
+EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 6000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	k2	NULL	NULL	NULL	40960	Using where; Using filesort
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 10 AND 12 ORDER BY c3 LIMIT 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	k2	k3	5	NULL	73	Using where
@@ -1221,6 +1227,10 @@ id	c3
 176	14
 186	14
 196	14
+ALTER TABLE t2 DROP INDEX k3, ADD INDEX k3 (c3,c2);
+EXPLAIN SELECT c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	k2	k3	10	NULL	22318	Using where; Using index
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
 a INT,
@@ -1531,9 +1541,9 @@ INSERT INTO t1 (a) VALUES (1), (2);
 INSERT INTO t2 (a,b) VALUES (1,2), (2,3);
 INSERT INTO t3 (c) VALUES (1), (2);
 SELECT
-(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a) as exp
 FROM t3;
-(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+exp
 2
 NULL
 DROP TABLE t1, t2, t3;
@@ -1548,6 +1558,58 @@ UNIQUE KEY a_c (a,c),
 KEY (a));
 INSERT INTO t1 VALUES (1, 10), (2, NULL);
 # Must use ref-or-null on the a_c index
+ANALYZE FORMAT=JSON
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 1,
+          "filesort": {
+            "sort_key": "t1.c",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 1,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ref_or_null",
+              "possible_keys": ["a_c", "a"],
+              "key": "a_c",
+              "key_length": "10",
+              "used_key_parts": ["a", "c"],
+              "ref": ["const", "const"],
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 1,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 50,
+              "r_total_filtered": 100,
+              "attached_condition": "t1.c = 10 or t1.c is null",
+              "r_filtered": 100,
+              "using_index": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2976,17 +3038,17 @@ EXPLAIN
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	6	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 DROP TABLE t1,t2;
 #
 # MDEV-4974 memory leak in 5.5.32-MariaDB-1~wheezy-log
@@ -3065,7 +3127,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	PRIMARY	t3a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
-1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
+1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	41.67	Using where; End temporary
 Warnings:
 Note	1003	select concat('foo',`test`.`t2`.`f2`) AS `field` from `test`.`t2` semi join ((`test`.`t3` `t3a` join `test`.`t3` `t3b`)) where `test`.`t3a`.`f3` < 'foo' or `test`.`t3b`.`f3` <> 'foo' order by concat('foo',`test`.`t2`.`f2`)
 DROP TABLE t1,t2,t3;
@@ -3119,7 +3181,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # See above query
 EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	id_23_date,id_234_date	id_23_date	2	NULL	8	Using where
+1	SIMPLE	t2	ref	id_23_date,id_234_date	id_23_date	2	const,const	8	Using where
 drop table t1,t2;
 #
 # MDEV-8989: ORDER BY optimizer ignores equality propagation
@@ -3188,13 +3250,13 @@ explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t2	index	a	a	5	NULL	25	Using where
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t3.a limit 25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t2	index	a	a	5	NULL	25	Using where
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
@@ -3396,8 +3458,12 @@ INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
 ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -3409,20 +3475,22 @@ ANALYZE
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "r_limit": 5,
-            "r_used_priority_queue": false,
-            "r_output_rows": 100,
-            "r_buffer_size": "REPLACED",
-            "r_sort_mode": "sort_key,packed_addon_fields",
+            "r_used_priority_queue": true,
+            "r_output_rows": 6,
+            "r_sort_mode": "sort_key,rowid",
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 100,
               "r_rows": 100,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -3451,7 +3519,7 @@ CREATE TABLE t2 SELECT * FROM t1;
 EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t1	index	PRIMARY	b	5	NULL	1	Using where
+2	DEPENDENT SUBQUERY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.b	1	Using where
 SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
 c
 1
@@ -3499,11 +3567,10 @@ WHERE books.library_id = 8663 AND
 books.scheduled_for_removal=0 )
 ORDER BY wings.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using filesort
-1	PRIMARY	wings	eq_ref	PRIMARY	PRIMARY	4	test.books.wings_id	1	100.00	
-2	MATERIALIZED	books	ref	library_idx	library_idx	4	const	2	100.00	Using where
+1	PRIMARY	wings	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using filesort
+1	PRIMARY	books	ref	library_idx	library_idx	4	const	2	50.00	Using where; FirstMatch(wings)
 Warnings:
-Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`wings`.`id` = `test`.`books`.`wings_id` order by `test`.`wings`.`id`
+Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`books`.`wings_id` = `test`.`wings`.`id` order by `test`.`wings`.`id`
 set optimizer_switch= @save_optimizer_switch;
 DROP TABLE books, wings;
 #
@@ -3635,8 +3702,8 @@ WHERE
 t2.key1 = t1.a and t2.key1 IS NOT NULL
 ORDER BY
 t2.key2 ASC
-LIMIT 1)
-from t1;
+LIMIT 1) as "con"
+           from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
 2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
@@ -3647,25 +3714,19 @@ WHERE
 t2.key1 = t1.a and t2.key1 IS NOT NULL
 ORDER BY
 t2.key2 ASC
-LIMIT 1)
-from t1;
-(SELECT  concat(id, '-', key1, '-', col1)
-FROM t2
-WHERE
-t2.key1 = t1.a and t2.key1 IS NOT NULL
-ORDER BY
-t2.key2 ASC
-LIMIT 1)
-900-0-123456
-901-1-123456
-902-2-123456
-903-3-123456
-904-4-123456
-905-5-123456
-906-6-123456
-907-7-123456
-908-8-123456
-909-9-123456
+LIMIT 1) as "con"
+           from t1;
+con
+100-0-123456
+101-1-123456
+102-2-123456
+103-3-123456
+104-4-123456
+105-5-123456
+106-6-123456
+107-7-123456
+108-8-123456
+109-9-123456
 drop table t1,t2;
 # End of 10.3 tests
 #
@@ -3705,6 +3766,151 @@ Note	1003	select `test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` A
 set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
 optimizer_use_condition_selectivity=@tmp_o;
 drop table t1,t2,t3,t4;
+#
+# MDEV-32324: Server crashes inside filesort at my_decimal::to_binary
+#
+SELECT 1.000000 two UNION SELECT 1 ORDER BY ( SELECT two LIMIT 1 OFFSET 1 ) ;
+two
+1.000000
+# MDEV-32475: test_if_skip_sort_order() should catch the join types
+#             JT_EQ_REF, JT_CONST and JT_SYSTEM and skip sort order for these
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq+1 FROM seq_1_to_100;
+INSERT INTO t2 VALUES (0, 1),(1, 2);
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# Table t1 must use eq_ref, not index below:
+EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	DEPENDENT SUBQUERY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.b	1	Using where
+DROP TABLE t1,t2;
+#
+# MDEV-29681 Server crashes when optimizing SQL with ORDER BY
+#
+CREATE TABLE t1 (b INT);
+CREATE TABLE t2 (a INT, c INT);
+# First test empty tables
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	/* select#1 */ select NULL AS `b`,NULL AS `a`,NULL AS `c` from ((/* select#2 */ select NULL AS `b`,NULL AS `a`,NULL AS `c` from `test`.`t1` join `test`.`t2` where 0 limit 3)) `__2` order by NULL + 1
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	/* select#1 */ select NULL AS `b`,NULL AS `a`,NULL AS `c` from ((/* select#2 */ select NULL AS `b`,NULL AS `a`,NULL AS `c` from `test`.`t1` join `test`.`t2` where 0 limit 3)) `__2` order by NULL = 2
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3)
+ORDER BY a+1, a-b DESC, c<>a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	/* select#1 */ select NULL AS `b`,NULL AS `a`,NULL AS `c` from ((/* select#2 */ select NULL AS `b`,NULL AS `a`,NULL AS `c` from `test`.`t1` join `test`.`t2` where 0 limit 3)) `__2` order by NULL + 1,NULL - NULL desc,NULL <> NULL
+# Insert some data
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3),(4,4);
+(SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=b, a-10 DESC, b+a, c+a+a+b;
+b	a	c
+1	1	1
+2	2	2
+3	3	3
+(SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=2;
+b	a	c
+1	1	1
+2	2	2
+3	3	3
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3)
+ORDER BY a=b, a-10, b+a, c+a+a+b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select `__2`.`b` AS `b`,`__2`.`a` AS `a`,`__2`.`c` AS `c` from ((/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` limit 3)) `__2` order by `__2`.`a` = `__2`.`b`,`__2`.`a` - 10,`__2`.`b` + `__2`.`a`,`__2`.`c` + `__2`.`a` + `__2`.`a` + `__2`.`b`
+# When there is no LIMIT clause the derived table must be merged
+(SELECT * FROM t1 JOIN t2 ON a=b) ORDER BY a+16, b+a, c<>b;
+b	a	c
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b) ORDER BY a+16 DESC, b+a, c<>b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` order by `test`.`t2`.`a` + 16 desc,`test`.`t1`.`b` + `test`.`t2`.`a`,`test`.`t2`.`c` <> `test`.`t1`.`b`)
+# Test UNIONs:
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+SELECT * FROM t1 JOIN t2 ON a!=b
+LIMIT 3)
+ORDER BY a+16, b+a, c<>b;
+b	a	c
+1	1	1
+2	2	2
+3	3	3
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+SELECT * FROM t1 JOIN t2 ON a!=b
+LIMIT 3)
+ORDER BY a+16, b+a, c<>b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	32	100.00	Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `__3`.`b` AS `b`,`__3`.`a` AS `a`,`__3`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` union /* select#3 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` <> `test`.`t1`.`b` limit 3) `__3` order by `__3`.`a` + 16,`__3`.`b` + `__3`.`a`,`__3`.`c` <> `__3`.`b`
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+SELECT NULL, NULL, NULL
+LIMIT 3)
+ORDER BY b-a-c;
+b	a	c
+1	1	1
+2	2	2
+3	3	3
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+SELECT NULL, NULL, NULL
+LIMIT 3)
+ORDER BY b-a-c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `__3`.`b` AS `b`,`__3`.`a` AS `a`,`__3`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` union /* select#3 */ select NULL AS `NULL`,NULL AS `NULL`,NULL AS `NULL` limit 3) `__3` order by `__3`.`b` - `__3`.`a` - `__3`.`c`
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+SELECT NULL, NULL, NULL
+ORDER BY a LIMIT 3)
+ORDER BY b-a-c LIMIT 1;
+b	a	c
+NULL	NULL	NULL
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+SELECT NULL, NULL, NULL
+ORDER BY a LIMIT 3)
+ORDER BY b-a-c LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `__3`.`b` AS `b`,`__3`.`a` AS `a`,`__3`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` union /* select#3 */ select NULL AS `NULL`,NULL AS `NULL`,NULL AS `NULL` order by `a` limit 3) `__3` order by `__3`.`b` - `__3`.`a` - `__3`.`c` limit 1
+DROP TABLE t1, t2;
 # End of 10.4 tests
 #
 # MDEV-21655: Server crashes in my_qsort2 / Filesort_buffer::sort_buffer
@@ -3751,8 +3957,12 @@ insert into t1 select seq, seq, seq  from seq_1_to_100;
 ANALYZE FORMAT=JSON select * from t1 order by a,b,c;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -3770,13 +3980,16 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 100,
               "r_rows": 100,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -3911,12 +4124,18 @@ a	substr(b, @save_max_sort_length+1)
 3	ABE
 2	AB
 1	A
+Warnings:
+Warning	4202	5 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 analyze format=json
 select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -3934,13 +4153,16 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 5,
               "r_rows": 5,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -3949,6 +4171,8 @@ ANALYZE
     ]
   }
 }
+Warnings:
+Warning	4202	5 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1;
 #
 # Packing sort keys with complex collations
@@ -3962,8 +4186,12 @@ insert into t1 values ('def', 4, 4) , ('efg', 5, 5), ('fgh', 6, 6);
 ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -3981,13 +4209,16 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 6,
               "r_rows": 6,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -4015,8 +4246,12 @@ Warning	1292	Truncated incorrect max_sort_length value: '5'
 ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -4034,13 +4269,16 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 6,
               "r_rows": 6,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -4062,7 +4300,7 @@ drop table t1;
 #
 # MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
 #
-create table t1 (a varchar(200) character set utf8, b int);
+create table t1 (a varchar(200) character set utf8 collate utf8_general_ci, b int);
 insert into t1 select seq, seq from seq_1_to_10;
 select * from t1 order by a;
 a	b
@@ -4082,8 +4320,12 @@ a	b
 analyze format=json select * from t1 order by a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -4101,13 +4343,16 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 10,
               "r_rows": 10,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "r_engine_stats": REPLACED,
               "filtered": 100,
+              "r_total_filtered": 100,
               "r_filtered": 100
             }
           }
@@ -4215,6 +4460,8 @@ CREATE TABLE t1(a VARCHAR(1027), b INT);
 INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
 SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
 SET tmp_memory_table_size= 1056*2;
+Warnings:
+Warning	1292	Truncated incorrect tmp_memory_table_size value: '2112'
 SELECT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 34
@@ -4262,8 +4509,12 @@ ANALYZE FORMAT=JSON
 SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -4271,24 +4522,28 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 50,
           "r_rows": 50,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100
         }
       }
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 50,
           "r_hit_ratio": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 50,
             "r_total_time_ms": "REPLACED",
             "filesort": {
@@ -4305,15 +4560,18 @@ ANALYZE
                     "table": {
                       "table_name": "t2",
                       "access_type": "ALL",
+                      "loops": 1,
                       "r_loops": 50,
                       "rows": 50,
                       "r_rows": 50,
+                      "cost": "REPLACED",
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
                       "r_engine_stats": REPLACED,
                       "filtered": 100,
-                      "r_filtered": 2,
-                      "attached_condition": "t1.b = t2.b"
+                      "r_total_filtered": 2,
+                      "attached_condition": "t1.b = t2.b",
+                      "r_filtered": 2
                     }
                   }
                 ]
@@ -4387,7 +4645,8 @@ CREATE TABLE t1 (a INT, b int, primary key(a));
 CREATE TABLE t2 (a INT, b INT);
 INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
 (2354,7),(321421,3),(535,2),(4535,3);
-INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3);
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000),(3000,3000);
+INSERT INTO t2 select seq,seq from seq_10_to_100;
 # Join order should have the SJM scan table as the first table for both
 # the queries with GROUP BY and ORDER BY clause.
 EXPLAIN SELECT t1.a
@@ -4395,9 +4654,9 @@ FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 ORDER BY t1.a DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	index	PRIMARY	PRIMARY	4	NULL	10	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	97	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4406,50 +4665,53 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
-      {
-        "read_sorted_file": {
-          "filesort": {
-            "sort_key": "t1.a desc",
-            "table": {
-              "table_name": "<subquery2>",
-              "access_type": "ALL",
-              "possible_keys": ["distinct_key"],
-              "rows": 3,
-              "filtered": 100,
-              "materialized": {
-                "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t2",
-                        "access_type": "ALL",
-                        "rows": 3,
-                        "filtered": 100,
-                        "attached_condition": "t2.b = 3 and t2.a is not null"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
       {
         "table": {
           "table_name": "t1",
-          "access_type": "eq_ref",
+          "access_type": "index",
           "possible_keys": ["PRIMARY"],
           "key": "PRIMARY",
           "key_length": "4",
           "used_key_parts": ["a"],
-          "ref": ["test.t2.a"],
-          "rows": 1,
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 97,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 3"
+                  }
+                }
+              ]
+            }
+          }
         }
       }
     ]
@@ -4468,9 +4730,9 @@ FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 GROUP BY t1.a DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	97	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a, group_concat(t1.b)
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4479,49 +4741,54 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "read_sorted_file": {
           "filesort": {
             "sort_key": "t1.a desc",
             "table": {
-              "table_name": "<subquery2>",
+              "table_name": "t1",
               "access_type": "ALL",
-              "possible_keys": ["distinct_key"],
-              "rows": 3,
-              "filtered": 100,
-              "materialized": {
-                "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "nested_loop": [
-                    {
-                      "table": {
-                        "table_name": "t2",
-                        "access_type": "ALL",
-                        "rows": 3,
-                        "filtered": 100,
-                        "attached_condition": "t2.b = 3 and t2.a is not null"
-                      }
-                    }
-                  ]
-                }
-              }
+              "possible_keys": ["PRIMARY"],
+              "loops": 1,
+              "rows": 10,
+              "cost": "COST_REPLACED",
+              "filtered": 100
             }
           }
         }
       },
       {
         "table": {
-          "table_name": "t1",
+          "table_name": "<subquery2>",
           "access_type": "eq_ref",
-          "possible_keys": ["PRIMARY"],
-          "key": "PRIMARY",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
           "key_length": "4",
           "used_key_parts": ["a"],
-          "ref": ["test.t2.a"],
+          "ref": ["func"],
           "rows": 1,
-          "filtered": 100
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 97,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 3"
+                  }
+                }
+              ]
+            }
+          }
         }
       }
     ]
@@ -4572,3 +4839,81 @@ a	b	c
 6	2	26
 6	3	36
 drop table t1;
+#
+# MDEV-38087 Unexpected error `Unknown column '???' in 'GROUP BY'`
+#
+SELECT 1 FROM (select 1) dt GROUP BY -1;
+ERROR 42S22: Unknown column '-1' in 'GROUP BY'
+SELECT 1 FROM (select 1) dt order BY -5;
+ERROR 42S22: Unknown column '-5' in 'ORDER BY'
+SELECT 1 FROM (select 1) dt order BY 50;
+ERROR 42S22: Unknown column '50' in 'ORDER BY'
+# End of 10.11 tests
+#
+# MDEV-38649: Wrong result (missing rows) upon condition pushdown on table with DESC key
+#
+CREATE TABLE t1 (a INT, b INT not null, KEY(b));
+INSERT INTO t1 VALUES (2,8),(9,1),(4,6);
+SELECT a, b FROM t1 WHERE b != 10 and b < 30 ORDER BY b DESC;
+a	b
+2	8
+4	6
+9	1
+SELECT a, b FROM t1 use index() WHERE b != 10 and b < 30 ORDER BY b DESC;
+a	b
+2	8
+4	6
+9	1
+DROP TABLE t1;
+#
+# MDEV-38921: Incorrect ORDER BY Result
+#
+CREATE TABLE t2 (a INT, b INT not null, KEY(b));
+INSERT INTO t2 VALUES (2,8),(9,1),(4,6),(11,13),(15,17);
+SELECT a, b FROM t2 WHERE b != 10 and b < 30 ORDER BY b DESC;
+a	b
+15	17
+11	13
+2	8
+4	6
+9	1
+DROP TABLE t2;
+#
+# MDEV-38934: ICP, Reverse scan: range access will scan whole index for
+#             range w/o max endpoint
+#
+CREATE TABLE t1 (
+a int,
+b int,
+INDEX(a)
+);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10000;
+SELECT COUNT(*) FROM t1 WHERE a > 9900 AND (a+1 > 9901) ORDER BY a DESC;
+COUNT(*)
+100
+FLUSH STATUS;
+SELECT * FROM t1 WHERE a > 9900 AND (a+1 > 9901) ORDER BY a DESC;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_ATTEMPTS	100
+HANDLER_ICP_MATCH	100
+SELECT COUNT(*) FROM t1 WHERE a > 9900 AND (a+1 > 990000) ORDER BY a DESC;
+COUNT(*)
+0
+FLUSH STATUS;
+SELECT * FROM t1 WHERE a > 9900 AND (a+1 > 999000) ORDER BY a DESC;
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_ATTEMPTS	100
+HANDLER_ICP_MATCH	0
+# Another testcase: check that we correctly handle the case
+# where the range starting with +inf has no matches due to ICP,
+# but there are other ranges with matches:
+select * from t1 where (a > 9990 and (a+1)<0) or a=23 order by a desc;
+a	b
+23	23
+DROP TABLE t1;
+#
+# End of 12.3 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

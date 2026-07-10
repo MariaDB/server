@@ -20,8 +20,8 @@
   Implements the user_connect class.
 
   @details
-  To support multi_threading, each query creates and use a PlugDB "user"
-  that is a connection with its personnal memory allocation.
+  To support multi_threading, each query creates and uses a PlugDB "user"
+  that is a connection with its private memory allocation.
 
   @note
 	Author Olivier Bertrand
@@ -30,9 +30,6 @@
 /****************************************************************************/
 /*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2020       */
 /****************************************************************************/
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
 
 #define DONT_DEFINE_VOID
 #define MYSQL_SERVER
@@ -101,9 +98,6 @@ bool user_connect::user_init()
   PACTIVITY ap= NULL;
   PDBUSER   dup= NULL;
 
-  // Areasize= 64M because of VEC tables. Should be parameterisable
-//g= PlugInit(NULL, 67108864);
-//g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests
   g= PlugInit(NULL, (size_t)worksize);
 
   // Check whether the initialization is complete
@@ -113,12 +107,13 @@ bool user_connect::user_init()
       printf("%s\n", g->Message);
 
     (void) PlugExit(g);
+    g= 0;
 
-		if (dup)
-	    free(dup);
+    if (dup)
+      free(dup);
 
     return true;
-    } // endif g->
+  } // endif g->
 
   dup->Catalog= new MYCAT(NULL);
 
@@ -128,17 +123,16 @@ bool user_connect::user_init()
   g->Activityp= ap;
   g->Activityp->Aptr= dup;
 
-	pthread_mutex_lock(&usrmut);
+  pthread_mutex_lock(&usrmut);
   next= to_users;
   to_users= this;
 
   if (next)
     next->previous= this;
 
-	count = 1;
-	pthread_mutex_unlock(&usrmut);
-
-	last_query_id= thdp->query_id;
+  count = 1;
+  pthread_mutex_unlock(&usrmut);
+  last_query_id= thdp->query_id;
   return false;
 } // end of user_init
 

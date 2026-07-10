@@ -11,7 +11,7 @@ table_name	t1
 table_type	BASE TABLE
 engine	BLACKHOLE
 row_format	Fixed
-table_rows	0
+table_rows	2
 data_length	0
 table_comment	
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
@@ -155,7 +155,7 @@ table_name	t1
 table_type	BASE TABLE
 engine	BLACKHOLE
 row_format	Fixed
-table_rows	0
+table_rows	2
 data_length	0
 table_comment	
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';

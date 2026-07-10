@@ -4,10 +4,13 @@
 
 -- source include/have_log_bin.inc
 -- source include/binlog_start_pos.inc
+-- source include/count_sessions.inc
 
 --disable_query_log
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 --enable_query_log
+
+--source include/test_db_charset_latin1.inc
 
 # Deletes all the binary logs
 reset master;
@@ -123,13 +126,13 @@ select "--- reading stdin --" as "";
 --enable_query_log
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+--exec $MYSQL_BINLOG --short-form - < $MYSQL_TEST_DIR/std_data/bug16266.000001
 
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
 # postion is constant to correspond to an event in pre-recorded binlog
---let $binlog_start_pos=79
---exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+--let $binlog_start_pos=274
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/bug16266.000001
 
 drop table t1,t2;
 
@@ -149,7 +152,7 @@ EOF
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug14157.sql
 --remove_file $MYSQLTEST_VARDIR/tmp/bug14157.sql
 
-# resulted binlog, parly consisting of multi-byte utf8 chars,
+# resulted binlog, partly consisting of multi-byte utf8 chars,
 # must be digestable for both client and server. In 4.1 the client
 # should use default-character-set same as the server.
 
@@ -335,7 +338,7 @@ exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/corrupt-relay-bin.000624 > $MYSQLTES
 FLUSH LOGS;
 
 --error 1
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
+--exec $MYSQL_BINLOG --disable-force-if-open $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
 --exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
 
 --echo Bug#31611 Security risk with BINLOG statement
@@ -363,16 +366,19 @@ echo mysql mysqltest1 -uuntrusted < var/tmp/bug31611.sql;
 error 1;
 exec $MYSQL mysqltest1 -uuntrusted < $MYSQLTEST_VARDIR/tmp/bug31611.sql;
 --remove_file $MYSQLTEST_VARDIR/tmp/bug31611.sql
+
 connection unsecure;
 error ER_TABLEACCESS_DENIED_ERROR;
 INSERT INTO t1 VALUES (1,USER());
 
 SELECT * FROM t1;
 connection default;
+disconnect unsecure;
 DROP DATABASE mysqltest1;
+--source include/wait_until_count_sessions.inc
 DROP USER untrusted@localhost;
 
---echo Bug#32580 mysqlbinlog cannot read binlog event with user variables
+--echo # Bug#32580 mysqlbinlog cannot read binlog event with user variables
 
 # Testing that various kinds of events can be read and restored properly.
 
@@ -447,7 +453,7 @@ FLUSH LOGS;
 RESET MASTER;
 FLUSH LOGS;
 
-# The following three test cases were wrtten into binlog_transaction.000001
+# The following three test cases were written into binlog_transaction.000001
 # Test case1: Test if the 'BEGIN' and 'COMMIT' are output for the 'test' database 
 # in transaction1 base on innodb engine tables
 # use test;
@@ -608,7 +614,7 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 #
 # MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
 #
-replace_regex /.*mariadb-binlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mariadb-binlog Ver VER for OS at ARCH/;
+replace_regex /for \S+/for OS/ /\d+/#/ /#[-_A-Za-z0-9]*-MariaDB,/#-MariaDB,/ /\(.*\)/(ARCH)/ /^.*binlog(\.exe)?/mariadb-binlog/;
 exec $MYSQL_BINLOG --version;
 
 --echo #
@@ -637,3 +643,118 @@ FLUSH LOGS;
 --exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
 
 --exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+
+--echo #
+--echo # MDEV-31761: mariadb-binlog prints fractional timestamp part incorrectly
+--echo #
+
+SET SESSION binlog_format= MIXED;
+
+RESET MASTER;
+SET time_zone= '+02:00';
+CREATE TABLE t (a INT,
+                b TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6));
+set SESSION timestamp= 1689978980.012345;
+INSERT INTO t (a) VALUES (1);
+SELECT * from t;
+FLUSH BINARY LOGS;
+SET SESSION timestamp= 1689978980.567890;
+SET SESSION binlog_format= ROW;
+UPDATE t SET a = 2;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+
+# Replay to see that timestamps are applied correctly.
+# The bug was that leading zeros on the fractional part were not included in
+# the mysqlbinlog output, so 1689978980.012345 was applied as 1689978980.12345.
+
+DROP TABLE t;
+--let $datadir= `select @@datadir`
+--exec $MYSQL_BINLOG $datadir/master-bin.000001 | $MYSQL test
+SELECT * FROM t;
+--exec $MYSQL_BINLOG $datadir/master-bin.000002 | $MYSQL test
+SELECT * FROM t;
+DROP TABLE t;
+SET time_zone= default;
+
+
+--echo #
+--echo # MDEV-24959: ER_BINLOG_ROW_LOGGING_FAILED (1534: Writing one row to the row-based binary log failed)
+--echo #
+
+SET SESSION binlog_format= ROW;
+SET SESSION binlog_row_image= MINIMAL;
+
+RESET MASTER;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0 PRIMARY KEY);
+REPLACE INTO t1 () VALUES (),();
+DROP TABLE t1;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+SET SESSION binlog_row_image= default;
+
+--exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--exec $MYSQL_BINLOG --base64-output=decode-rows --verbose $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--let SEARCH_ABORT= NOT FOUND
+--let SEARCH_PATTERN= Number of rows: 2
+--source include/search_pattern_in_file.inc
+
+# There was a bug that mysqlbinlog would get an error while decoding the
+# update rows event with no after image and abort the dump; test that now
+# the dump is complete and includes the final DROP TABLE.
+--let SEARCH_PATTERN= DROP TABLE
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+--let SEARCH_PATTERN= Number of rows: 2
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= DROP TABLE
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= INSERT INTO .* VALUES
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= SET /[*] no columns [*]/
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+
+--echo #
+--echo # MDEV-39404 Gtid_log_event crash
+--echo #
+--error 1
+--exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/mdev-39404-binlog.000001 2>& 1
+
+--echo # End of 10.6 tests
+
+
+--echo #
+--echo # MDEV-33239: mysqlbinlog always stops at timestamp 0xffffffff
+--echo #
+
+RESET MASTER;
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+# The 0xffffffff timestamp is truncated on 32-bit, gives warning.
+--disable_warnings
+SET @@timestamp= 0 + 0xffffffff;
+--enable_warnings
+INSERT INTO t VALUES (2);
+SELECT * FROM t ORDER BY a;
+
+FLUSH BINARY LOGS;
+DROP TABLE t;
+
+# The bug was that mysqlbinlog would stop before the event with timestamp
+# 0xffffffff, so the second insert would be missing from the table.
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL test
+SELECT * FROM t ORDER BY a;
+DROP TABLE t;
+
+
+--source include/test_db_charset_restore.inc

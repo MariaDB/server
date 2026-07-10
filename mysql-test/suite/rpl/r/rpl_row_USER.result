@@ -34,11 +34,11 @@ a	users
 3	tester@localhost
 4	@localhost%
 connection master;
+disconnect m_1;
 DROP DATABASE mysqltest1;
 REVOKE ALL ON mysqltest1.* FROM 'tester'@'%';
 REVOKE ALL ON mysqltest1.* FROM ''@'localhost%';
 DROP USER tester@'%';
 DROP USER ''@'localhost%';
-FLUSH PRIVILEGES;
 connection slave;
 include/rpl_end.inc

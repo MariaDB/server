@@ -19,7 +19,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 connection master;
 
 --echo #
---echo # Check replication of parititioned S3 tables
+--echo # Check replication of partitioned S3 tables
 --echo #
 
 CREATE TABLE t1 (
@@ -94,7 +94,7 @@ connection master;
 
 --echo #
 --echo # Check altering partitioned table to S3 and back
---echo # Checks also rename partitoned table and drop partition
+--echo # Checks also rename partitioned table and drop partition
 --echo #
 
 CREATE TABLE t2 (

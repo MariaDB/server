@@ -7,9 +7,6 @@
 # The test can take hours with valgrind
 --source include/not_valgrind.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 SET @odl_sync_frm = @@global.sync_frm;
 SET @@global.sync_frm = OFF;
 
@@ -25,7 +22,7 @@ DROP TABLE IF EXISTS t1,t2,t3;
 
 CREATE TABLE t1 (
   a int(11) unsigned default NULL,
-  b varchar(255) default NULL,
+  b varchar(250) default NULL,
   UNIQUE KEY a (a),
   KEY b (b)
 );
@@ -48,8 +45,8 @@ while ($i) {
          SET a = NULL WHERE t1.b <> t2.b;
 
 --connection locker
-  ALTER TABLE t2 ADD COLUMN (c INT);
-  ALTER TABLE t2 DROP COLUMN c;
+  ALTER TABLE t2 ADD COLUMN (c INT), LOCK=SHARED;
+  ALTER TABLE t2 DROP COLUMN c, LOCK=SHARED;
 
 --connection writer
 --reap
@@ -69,8 +66,8 @@ while ($i) {
 --send EXECUTE stmt
 
 --connection locker
-  ALTER TABLE t2 ADD COLUMN (c INT);
-  ALTER TABLE t2 DROP COLUMN c;
+  ALTER TABLE t2 ADD COLUMN (c INT), LOCK=SHARED;
+  ALTER TABLE t2 DROP COLUMN c, LOCK=SHARED;
 
 --connection writer
 --reap
@@ -91,7 +88,7 @@ while ($i) {
 
 --connection locker
 --error 0,ER_DUP_FIELDNAME
-  ALTER TABLE t2 ADD COLUMN a int(11) unsigned default NULL;
+  ALTER TABLE t2 ADD COLUMN a int(11) unsigned default NULL, LOCK=SHARED;
   UPDATE t2 SET a=b;
 
 --connection writer
@@ -99,7 +96,7 @@ while ($i) {
 
 --connection locker
 --error 0,ER_CANT_DROP_FIELD_OR_KEY
-  ALTER TABLE t2 DROP COLUMN a;
+  ALTER TABLE t2 DROP COLUMN a, LOCK=SHARED;
 
 --connection writer
 --error 0,ER_BAD_FIELD_ERROR
@@ -116,7 +113,7 @@ while ($i) {
 
 --connection locker
 --error 0,ER_DUP_FIELDNAME
-  ALTER TABLE t2 ADD COLUMN a int(11) unsigned default NULL;
+  ALTER TABLE t2 ADD COLUMN a int(11) unsigned default NULL, LOCK=SHARED;
   UPDATE t2 SET a=b;
 
 --connection writer
@@ -125,7 +122,7 @@ while ($i) {
 
 --connection locker
 --error 0,ER_CANT_DROP_FIELD_OR_KEY
-  ALTER TABLE t2 DROP COLUMN a;
+  ALTER TABLE t2 DROP COLUMN a, LOCK=SHARED;
 
 --connection writer
 --error 0,ER_BAD_FIELD_ERROR
@@ -142,7 +139,3 @@ DROP TABLE t1, t2, t3;
 --disconnect writer
 
 SET @@global.sync_frm = @odl_sync_frm;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-

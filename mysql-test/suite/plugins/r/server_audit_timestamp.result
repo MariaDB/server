@@ -1,0 +1,353 @@
+set global server_audit_logging=on;
+select 1;
+1
+1
+set global server_audit_timestamp_format='CUSTOM-DATE %Y-%m-%d';
+select 2;
+2
+2
+set time_zone='+05:00';
+set global server_audit_timestamp_format='CUSTOM-TZ %H:%i:%s %z';
+select 3;
+3
+3
+set time_zone=DEFAULT;
+set global server_audit_timestamp_format=DEFAULT;
+select 4;
+4
+4
+#
+# Error handling for long timestamp format
+#
+set global server_audit_timestamp_format='%H:%i:%s';
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	%H:%i:%s
+# Attempting to set an excessively long format string.
+set global server_audit_timestamp_format=repeat('A', 130);
+ERROR 42000: Variable 'server_audit_timestamp_format' can't be set to the value of 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+# Value should still be the old one
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	%H:%i:%s
+#
+# Test large expansion (many %M specifiers)
+#
+set global server_audit_timestamp_format='%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M';
+select 5;
+5
+5
+set global server_audit_timestamp_format='CMD-LINE-%Y-%m-%d';
+set global server_audit_logging=off;
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=on',0
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 1',0
+CUSTOM-DATE TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'CUSTOM-DATE %Y-%m-%d\'',0
+CUSTOM-DATE TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 2',0
+CUSTOM-DATE TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set time_zone=\'+05:00\'',0
+CUSTOM-TZ TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'CUSTOM-TZ %H:%i:%s %z\'',0
+CUSTOM-TZ TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 3',0
+CUSTOM-TZ TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set time_zone=DEFAULT',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=DEFAULT',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 4',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'%H:%i:%s\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_timestamp_format\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=repeat(\'A\', 130)',1231
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'show variables like \'server_audit_timestamp_format\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M\'',0
+TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select 5',0
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_timestamp_format=\'CMD-LINE-%Y-%m-%d\'',0
+CMD-LINE-TIMESTAMP,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=off',0
+########################################################################
+# Section 1: Variable basics and boundary conditions
+########################################################################
+# Default value
+set global server_audit_timestamp_format=DEFAULT;
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	%Y%m%d %H:%i:%s
+select @@global.server_audit_timestamp_format;
+@@global.server_audit_timestamp_format
+%Y%m%d %H:%i:%s
+# Session scope is not allowed
+set session server_audit_timestamp_format='test';
+ERROR HY000: Variable 'server_audit_timestamp_format' is a GLOBAL variable and should be set with SET GLOBAL
+# Boundary: exactly 127 chars (max valid length, TIMESTAMP_FORMAT_LENGTH=128)
+set global server_audit_timestamp_format=repeat('B', 127);
+select length(@@global.server_audit_timestamp_format);
+length(@@global.server_audit_timestamp_format)
+127
+# Boundary: exactly 128 chars (should fail, >= TIMESTAMP_FORMAT_LENGTH)
+set global server_audit_timestamp_format=repeat('C', 128);
+ERROR 42000: Variable 'server_audit_timestamp_format' can't be set to the value of 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'
+# Verify value unchanged after failed SET
+select @@global.server_audit_timestamp_format = repeat('B', 127) as 'must be 1';
+must be 1
+1
+# 129 chars also fails
+set global server_audit_timestamp_format=repeat('D', 129);
+ERROR 42000: Variable 'server_audit_timestamp_format' can't be set to the value of 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD'
+# Empty string is accepted
+set global server_audit_timestamp_format='';
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	
+# Restore to default
+set global server_audit_timestamp_format=DEFAULT;
+show variables like 'server_audit_timestamp_format';
+Variable_name	Value
+server_audit_timestamp_format	%Y%m%d %H:%i:%s
+########################################################################
+# Section 2: Comprehensive format specifier coverage
+########################################################################
+set global server_audit_file_path='ts_ext_specifiers.log';
+set global server_audit_logging=on;
+# 2a: Date components %Y-%m-%d
+set global server_audit_timestamp_format='DT=%Y-%m-%d';
+select 'fmt_date';
+fmt_date
+fmt_date
+# 2b: Time components %H:%i:%s
+set global server_audit_timestamp_format='TM=%H:%i:%s';
+select 'fmt_time';
+fmt_time
+fmt_time
+# 2c: 12-hour time %r and AM/PM %p
+set global server_audit_timestamp_format='HR=%r AP=%p';
+select 'fmt_12h';
+fmt_12h
+fmt_12h
+# 2d: Full weekday %W and month name %M
+set global server_audit_timestamp_format='WD=%W MN=%M';
+select 'fmt_names';
+fmt_names
+fmt_names
+# 2e: Abbreviated weekday %a and month %b
+set global server_audit_timestamp_format='AD=%a AB=%b';
+select 'fmt_abbr';
+fmt_abbr
+fmt_abbr
+# 2f: Day of year %j and week number %U
+set global server_audit_timestamp_format='JD=%j WK=%U';
+select 'fmt_jweek';
+fmt_jweek
+fmt_jweek
+# 2g: Literal percent %%
+set global server_audit_timestamp_format='100%% %Y';
+select 'fmt_pct';
+fmt_pct
+fmt_pct
+# 2h: Ordinal day suffix %D
+set global server_audit_timestamp_format='OD=%D';
+select 'fmt_ord';
+fmt_ord
+fmt_ord
+# 2i: Literal text only (no specifiers at all)
+set global server_audit_timestamp_format='STATIC-TEXT';
+select 'fmt_literal';
+fmt_literal
+fmt_literal
+# 2j: ISO 8601 format
+set global server_audit_timestamp_format='%Y-%m-%dT%H:%i:%s';
+select 'fmt_iso';
+fmt_iso
+fmt_iso
+# 2k: 24-hour time format %T
+set global server_audit_timestamp_format='T24=%T';
+select 'fmt_t24';
+fmt_t24
+fmt_t24
+# 2l: Microseconds %f (always 000000 until MDEV-39307 is fixed)
+set global server_audit_timestamp_format='US=%f';
+select 'fmt_usec';
+fmt_usec
+fmt_usec
+# 2m: Timezone offset %z
+set global server_audit_timestamp_format='TZ=%z';
+select 'fmt_tz';
+fmt_tz
+fmt_tz
+set global server_audit_logging=off;
+# Verify each format specifier pattern appears in the audit log
+FOUND 1 /DT=\d{4}-\d{2}-\d{2}.*fmt_date/ in ts_ext_specifiers.log
+FOUND 1 /TM=\d{2}:\d{2}:\d{2}.*fmt_time/ in ts_ext_specifiers.log
+FOUND 1 /HR=\d{2}:\d{2}:\d{2} [AP]M AP=[AP]M.*fmt_12h/ in ts_ext_specifiers.log
+FOUND 1 /WD=\w+ MN=\w+.*fmt_names/ in ts_ext_specifiers.log
+FOUND 1 /AD=\w+ AB=\w+.*fmt_abbr/ in ts_ext_specifiers.log
+FOUND 1 /JD=\d{3} WK=\d{2}.*fmt_jweek/ in ts_ext_specifiers.log
+FOUND 1 /100% \d{4}.*fmt_pct/ in ts_ext_specifiers.log
+FOUND 1 /OD=\d+\w+.*fmt_ord/ in ts_ext_specifiers.log
+FOUND 1 /STATIC-TEXT.*fmt_literal/ in ts_ext_specifiers.log
+FOUND 1 /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*fmt_iso/ in ts_ext_specifiers.log
+FOUND 1 /T24=\d{2}:\d{2}:\d{2}.*fmt_t24/ in ts_ext_specifiers.log
+FOUND 1 /US=000000.*fmt_usec/ in ts_ext_specifiers.log
+FOUND 1 /TZ=[+-]\d{4}.*fmt_tz/ in ts_ext_specifiers.log
+########################################################################
+# Section 3: All event types get custom timestamps
+########################################################################
+set global server_audit_file_path='ts_ext_events.log';
+set global server_audit_events='connect,query,table';
+set global server_audit_timestamp_format='EV=%Y%m%d';
+set global server_audit_logging=on;
+# Query event
+select 'query_event';
+query_event
+query_event
+# Table events (CREATE, INSERT, SELECT, RENAME, DROP)
+create table test.ts_t1 (id int);
+insert into test.ts_t1 values (1);
+select * from test.ts_t1;
+id
+1
+alter table test.ts_t1 rename test.ts_t2;
+drop table test.ts_t2;
+# Connect and disconnect events
+connect con1,localhost,root;
+select 'from_con1';
+from_con1
+from_con1
+disconnect con1;
+connection default;
+set global server_audit_logging=off;
+# Verify each event type has the EV= custom timestamp prefix
+NOT FOUND /^[^E];/ in ts_ext_events.log
+########################################################################
+# Section 4: Edge cases in format strings
+########################################################################
+# 4a: Empty format produces a leading comma (no timestamp field)
+set global server_audit_file_path='ts_ext_empty.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='';
+set global server_audit_logging=on;
+select 'empty_fmt';
+empty_fmt
+empty_fmt
+set global server_audit_logging=off;
+FOUND 1 /^,.*empty_fmt/ in ts_ext_empty.log
+# 4b: Format with embedded commas (breaks CSV field structure)
+set global server_audit_file_path='ts_ext_comma.log';
+set global server_audit_timestamp_format='%Y,%m,%d';
+set global server_audit_logging=on;
+select 'comma_fmt';
+comma_fmt
+comma_fmt
+set global server_audit_logging=off;
+FOUND 1 /\d{4},\d{2},\d{2},.*comma_fmt/ in ts_ext_comma.log
+# 4c: Format with single quotes
+set global server_audit_file_path='ts_ext_quote.log';
+set global server_audit_timestamp_format="ts'%Y'%m";
+set global server_audit_logging=on;
+select 'quote_fmt';
+quote_fmt
+quote_fmt
+set global server_audit_logging=off;
+FOUND 1 /ts'\d{4}'\d{2}.*quote_fmt/ in ts_ext_quote.log
+# 4d: Format with backslashes
+set global server_audit_file_path='ts_ext_bslash.log';
+set global server_audit_timestamp_format='ts\\%Y\\%m';
+set global server_audit_logging=on;
+select 'bslash_fmt';
+bslash_fmt
+bslash_fmt
+set global server_audit_logging=off;
+FOUND 1 /ts.*\d{4}.*bslash_fmt/ in ts_ext_bslash.log
+########################################################################
+# Section 5: Large query exercises big_buffer allocation path
+########################################################################
+set global server_audit_file_path='ts_ext_large.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='LQ=%Y%m%d';
+set global server_audit_logging=on;
+# Query text larger than MAX_AUDIT_QUERY_LENGTH (2048) triggers big_buffer
+select length('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+set global server_audit_logging=off;
+# Verify large query log entry has custom timestamp
+FOUND 1 /LQ=\d{8}.*X{1008}/ in ts_ext_large.log
+# Verify large query is truncated
+NOT FOUND /LQ=\d{8}.*X{1009}/ in ts_ext_large.log
+########################################################################
+# Section 6: Rapid format changes under load
+########################################################################
+set global server_audit_file_path='ts_ext_rapid.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format=DEFAULT;
+set global server_audit_logging=on;
+set global server_audit_logging=off;
+# Verify first rapid change logged correctly
+FOUND 1 /RP10=\d{8}.*rapid_10/ in ts_ext_rapid.log
+# Verify last rapid change logged correctly
+FOUND 1 /RP1=\d{8}.*rapid_1/ in ts_ext_rapid.log
+# Verify a mid-range rapid change
+FOUND 1 /RP5=\d{8}.*rapid_5/ in ts_ext_rapid.log
+########################################################################
+# Section 7: Session timezone must NOT affect audit timestamps
+########################################################################
+set global server_audit_file_path='ts_ext_tz.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='TZT=%z';
+set global server_audit_logging=on;
+# Set session timezone to +10:00 (should NOT affect audit timestamps)
+set time_zone='+10:00';
+select 'tz_session_10';
+tz_session_10
+tz_session_10
+# Change to a very different session timezone
+set time_zone='-11:00';
+select 'tz_session_neg11';
+tz_session_neg11
+tz_session_neg11
+set time_zone=DEFAULT;
+set global server_audit_logging=off;
+# All entries must use the same (global) timezone offset
+FOUND 2 /TZT=\-0200,.*?tz_session/ in ts_ext_tz.log
+########################################################################
+# Section 8: Format with maximum expansion (%M repeated)
+########################################################################
+set global server_audit_file_path='ts_ext_expand.log';
+set global server_audit_events='query';
+# %M expands to full month name (up to 9 chars for "September")
+# 20 repetitions could produce ~200 chars of output
+set global server_audit_timestamp_format='%M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M %M';
+set global server_audit_logging=on;
+select 'big_expand_test';
+big_expand_test
+big_expand_test
+set global server_audit_logging=off;
+# Verify the expanded timestamp logged correctly
+FOUND 1 /\w+ \w+ \w+ \w+ \w+.*big_expand_test/ in ts_ext_expand.log
+########################################################################
+# Section 9: Format persistence across logging on/off cycles
+########################################################################
+set global server_audit_file_path='ts_ext_persist.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='PS=%Y%m%d';
+# Cycle 1
+set global server_audit_logging=on;
+select 'persist_cycle1';
+persist_cycle1
+persist_cycle1
+set global server_audit_logging=off;
+# Cycle 2 - format should be retained without resetting
+set global server_audit_logging=on;
+select 'persist_cycle2';
+persist_cycle2
+persist_cycle2
+set global server_audit_logging=off;
+# Cycle 3 - change format between cycles
+set global server_audit_timestamp_format='P2=%Y%m%d';
+set global server_audit_logging=on;
+select 'persist_cycle3';
+persist_cycle3
+persist_cycle3
+set global server_audit_logging=off;
+FOUND 1 /PS=\d{8}.*persist_cycle1/ in ts_ext_persist.log
+FOUND 1 /PS=\d{8}.*persist_cycle2/ in ts_ext_persist.log
+FOUND 1 /P2=\d{8}.*persist_cycle3/ in ts_ext_persist.log
+########################################################################
+# Cleanup: restore all settings
+########################################################################
+set global server_audit_timestamp_format='CMD-LINE-%Y-%m-%d';
+set global server_audit_events='query';
+set global server_audit_incl_users='';
+set global server_audit_excl_users='';
+set global server_audit_query_log_limit=1024;
+set global server_audit_file_path='server_audit_timestamp.log';

@@ -1,0 +1,103 @@
+#
+# DuckDB UPDATE operations test
+#
+# Setup
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+val VARCHAR(50)
+) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+INSERT INTO t1 VALUES (4, 'four');
+INSERT INTO t1 VALUES (5, 'five');
+# Test 1: UPDATE single row by PK
+UPDATE t1 SET val = 'ONE' WHERE id = 1;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	ONE
+2	two
+3	three
+4	four
+5	five
+# Test 2: UPDATE by non-PK condition
+UPDATE t1 SET val = 'THREE' WHERE val = 'three';
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	ONE
+2	two
+3	THREE
+4	four
+5	five
+# Test 3: UPDATE with range condition
+UPDATE t1 SET val = 'big' WHERE id >= 4;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	ONE
+2	two
+3	THREE
+4	big
+5	big
+# Test 4: UPDATE multiple columns
+UPDATE t1 SET id = 10, val = 'ten' WHERE id = 5;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	ONE
+2	two
+3	THREE
+4	big
+10	ten
+# Test 5: UPDATE all rows
+UPDATE t1 SET val = 'reset';
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	reset
+2	reset
+3	reset
+4	reset
+10	reset
+# Test 6: UPDATE with expression
+UPDATE t1 SET val = CONCAT('id_', id);
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	id_1
+2	id_2
+3	id_3
+4	id_4
+10	id_10
+# Test 7: UPDATE in transaction — COMMIT
+BEGIN;
+UPDATE t1 SET val = 'UPDATED' WHERE id = 2;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	one
+2	UPDATED
+3	three
+COMMIT;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	one
+2	UPDATED
+3	three
+# Test 8: UPDATE in transaction — ROLLBACK
+BEGIN;
+UPDATE t1 SET val = 'UPDATED' WHERE id = 2;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	one
+2	UPDATED
+3	three
+ROLLBACK;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	one
+2	two
+3	three
+# Test 9: UPDATE — no matching rows
+UPDATE t1 SET val = 'ghost' WHERE id = 999;
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	one
+2	two
+3	three

@@ -13,12 +13,6 @@
 # Start a transaction, create a savepoint, 
 # then call a DDL operation on a procedure, and then check
 # that the savepoint is no longer present.
-drop table if exists t1;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop procedure if exists p4;
-drop function if exists f1;
 create table t1 (a int);
 #
 # Test 'CREATE PROCEDURE'.
@@ -125,7 +119,7 @@ drop temporary table t1;
 #
 # For that, start a transaction, use a routine. In a concurrent
 # connection, try to drop or alter the routine. It should place
-# a pending or exclusive lock and block. In another concurrnet
+# a pending or exclusive lock and block. In another concurrent
 # connection, try to use the routine.
 # That should block on the pending exclusive lock.
 #
@@ -469,8 +463,8 @@ drop function f1;
 create function f1() returns varchar(20) return "f1()";
 create function f2() returns varchar(20) return "f2()";
 create view v1 as select f1() as a;
-set @@session.autocommit=0;
 lock table v1 read;
+start transaction;
 select * from v1;
 a
 f1()
@@ -492,6 +486,7 @@ connection con2;
 # Reaping 'drop function f2'...
 connection default;
 unlock tables;
+commit;
 connection con1;
 # Reaping 'drop function f1'...
 connection default;
@@ -500,7 +495,6 @@ ERROR 42000: FUNCTION test.f1 does not exist
 drop function f2;
 ERROR 42000: FUNCTION test.f2 does not exist
 drop view v1;
-set @@session.autocommit=default;
 # 
 # 8) Check the situation when we're preparing or executing a
 # prepared statement, and as part of that try to flush the
@@ -693,11 +687,8 @@ select @exec_count;
 drop procedure p1;
 drop function f1;
 set @@session.max_sp_recursion_depth=default;
-connection con1;
 disconnect con1;
-connection con2;
 disconnect con2;
-connection con3;
 disconnect con3;
 connection default;
 #
@@ -733,10 +724,8 @@ get_lock("test", 10)
 1
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
-BEGIN END	latin1	latin1_swedish_ci	latin1_swedish_ci
-connection con3;
+BEGIN END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 disconnect con3;
-connection con2;
 disconnect con2;
 connection default;
 DROP PROCEDURE p1;
@@ -744,8 +733,6 @@ DROP PROCEDURE p1;
 # Bug#57663 Concurrent statement using stored function and DROP DATABASE
 #           breaks SBR
 #
-DROP DATABASE IF EXISTS db1;
-DROP FUNCTION IF EXISTS f1;
 connect con1, localhost, root;
 connect con2, localhost, root;
 # Test 1: Check that DROP DATABASE block if a function is used
@@ -835,6 +822,4 @@ ERROR 42000: FUNCTION db1.f1 does not exist
 disconnect con2;
 connection default;
 DROP FUNCTION f1;
-#
 # End of 5.5 tests
-#

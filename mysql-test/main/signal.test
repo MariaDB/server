@@ -1553,7 +1553,7 @@ drop procedure test_signal $$
 --echo
 --echo # RETURN statement clears Diagnostics Area, thus
 --echo # the warnings raised in a stored function are not
---echo # visible outsidef the stored function. So, we're using
+--echo # visible outside the stored function. So, we're using
 --echo # @@warning_count variable to check that SIGNAL succeeded.
 --echo
 

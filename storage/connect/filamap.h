@@ -24,32 +24,32 @@ class DllExport MAPFAM : public TXTFAM {
   MAPFAM(PMAPFAM tmfp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_MAP;}
-  virtual int   GetPos(void);
-  virtual int   GetNextPos(void);
-  virtual PTXF  Duplicate(PGLOBAL g)
+  AMT   GetAmType(void) override {return TYPE_AM_MAP;}
+  int   GetPos(void) override;
+  int   GetNextPos(void) override;
+  PTXF  Duplicate(PGLOBAL g) override
                   {return (PTXF)new(g) MAPFAM(this);}
 
   // Methods
-  virtual void  Reset(void);
-  virtual int   GetFileLength(PGLOBAL g);
-  virtual int   Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
-  virtual int   MaxBlkSize(PGLOBAL g, int s) {return s;}
-  virtual int   GetRowID(void);
-  virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos);
-  virtual int   SkipRecord(PGLOBAL g, bool header);
-  virtual bool  OpenTableFile(PGLOBAL g);
-  virtual bool  DeferReading(void) {return false;}
+  void  Reset(void) override;
+  int   GetFileLength(PGLOBAL g) override;
+  int   Cardinality(PGLOBAL g) override {return (g) ? -1 : 0;}
+  int   MaxBlkSize(PGLOBAL g, int s) override {return s;}
+  int   GetRowID(void) override;
+  bool  RecordPos(PGLOBAL g) override;
+  bool  SetPos(PGLOBAL g, int recpos) override;
+  int   SkipRecord(PGLOBAL g, bool header) override;
+  bool  OpenTableFile(PGLOBAL g) override;
+  bool  DeferReading(void) override {return false;}
 	virtual int   GetNext(PGLOBAL g) {return RC_EF;}
-	virtual int   ReadBuffer(PGLOBAL g);
-  virtual int   WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g, bool abort);
-  virtual void  Rewind(void);
+	int   ReadBuffer(PGLOBAL g) override;
+  int   WriteBuffer(PGLOBAL g) override;
+  int   DeleteRecords(PGLOBAL g, int irc) override;
+  void  CloseTableFile(PGLOBAL g, bool abort) override;
+  void  Rewind(void) override;
 
  protected:
-  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+  int   InitDelete(PGLOBAL g, int fpos, int spos) override;
 
   // Members
   char *Memory;               // Pointer on file mapping view.
@@ -70,18 +70,18 @@ class DllExport MBKFAM : public MAPFAM {
   MBKFAM(PMAPFAM tmfp) : MAPFAM(tmfp) {}
 
   // Implementation
-  virtual PTXF Duplicate(PGLOBAL g)
+  PTXF Duplicate(PGLOBAL g) override
                   {return (PTXF)new(g) MBKFAM(this);}
 
   // Methods
-  virtual void Reset(void);
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  MaxBlkSize(PGLOBAL g, int s)
+  void Reset(void) override;
+  int  Cardinality(PGLOBAL g) override;
+  int  MaxBlkSize(PGLOBAL g, int s) override
                 {return TXTFAM::MaxBlkSize(g, s);}
-  virtual int  GetRowID(void);
-  virtual int  SkipRecord(PGLOBAL g, bool header);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual void Rewind(void);
+  int  GetRowID(void) override;
+  int  SkipRecord(PGLOBAL g, bool header) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  void Rewind(void) override;
 
  protected:
   // No additional members
@@ -97,22 +97,22 @@ class DllExport MPXFAM : public MBKFAM {
   MPXFAM(PMAPFAM tmfp) : MBKFAM(tmfp) {}
 
   // Implementation
-  virtual int   GetPos(void);
-  virtual PTXF  Duplicate(PGLOBAL g)
+  int   GetPos(void) override;
+  PTXF  Duplicate(PGLOBAL g) override
                   {return (PTXF)new(g) MPXFAM(this);}
 
   // Methods
-  virtual int   Cardinality(PGLOBAL g) {return TXTFAM::Cardinality(g);}
-  virtual int   MaxBlkSize(PGLOBAL g, int s)
+  int   Cardinality(PGLOBAL g) override {return TXTFAM::Cardinality(g);}
+  int   MaxBlkSize(PGLOBAL g, int s) override
                 {return TXTFAM::MaxBlkSize(g, s);}
-  virtual bool  SetPos(PGLOBAL g, int recpos);
-  virtual int   GetNextPos(void) {return GetPos() + 1;}
-  virtual bool  DeferReading(void) {return false;}
-  virtual int   ReadBuffer(PGLOBAL g);
-  virtual int   WriteBuffer(PGLOBAL g);
+  bool  SetPos(PGLOBAL g, int recpos) override;
+  int   GetNextPos(void) override {return GetPos() + 1;}
+  bool  DeferReading(void) override {return false;}
+  int   ReadBuffer(PGLOBAL g) override;
+  int   WriteBuffer(PGLOBAL g) override;
 
  protected:
-  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+  int   InitDelete(PGLOBAL g, int fpos, int spos) override;
 
   // No additional members
   }; // end of class MPXFAM

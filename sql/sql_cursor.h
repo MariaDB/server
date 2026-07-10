@@ -16,11 +16,8 @@
 #ifndef _sql_cursor_h_
 #define _sql_cursor_h_
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface                              /* gcc class interface */
-#endif
-
 #include "sql_class.h"                          /* Query_arena */
+#include "sql_select.h"
 
 class JOIN;
 
@@ -54,10 +51,17 @@ public:
   virtual int open(JOIN *top_level_join)= 0;
   virtual void fetch(ulong num_rows)= 0;
   virtual void close()= 0;
-  virtual bool export_structure(THD *thd, Row_definition_list *defs)
+  virtual bool export_structure(THD *thd, Row_definition_list *defs) const
   {
     DBUG_ASSERT(0);
     return true;
+  }
+  virtual bool check_assignability_to(const Virtual_tmp_table *table,
+                                      const char *spvar_name,
+                                      const char *op) const
+  {
+    DBUG_ASSERT(0);
+    return false;
   }
   virtual ~Server_side_cursor();
 
@@ -68,7 +72,83 @@ public:
 };
 
 
+/**
+  Materialized_cursor -- an insensitive materialized server-side
+  cursor. The result set of this cursor is saved in a temporary
+  table at open. The cursor itself is simply an interface for the
+  handler of the temporary table.
+*/
+
+class Materialized_cursor: public Server_side_cursor
+{
+  MEM_ROOT main_mem_root;
+  /* A fake unit to supply to select_send when fetching */
+  SELECT_LEX_UNIT fake_unit;
+  TABLE *table;
+  List<Item> item_list;
+  ulong fetch_limit;
+  ulong fetch_count;
+  bool is_rnd_inited;
+public:
+  Materialized_cursor(select_result *result, TABLE *table);
+
+  int send_result_set_metadata(THD *thd, List<Item> &send_result_set_metadata);
+  bool is_open() const override { return table != 0; }
+  int open(JOIN *join __attribute__((unused))) override;
+  void fetch(ulong num_rows) override;
+  void close() override;
+  bool export_structure(THD *thd, Row_definition_list *defs) const override
+  {
+    return table->export_structure(thd, defs);
+  }
+  bool check_assignability_to(const Virtual_tmp_table *table,
+                              const char *spvar_name,
+                              const char *op) const override
+  {
+    return table->check_assignability_from(item_list, spvar_name, op);
+  }
+  ~Materialized_cursor() override;
+
+  void on_table_fill_finished();
+};
+
+
+/**
+  Select_materialize -- a mediator between a cursor query and the
+  protocol. In case we were not able to open a non-materialzed
+  cursor, it creates an internal temporary HEAP table, and insert
+  all rows into it. When the table reaches max_heap_table_size,
+  it's converted to a MyISAM table. Later this table is used to
+  create a Materialized_cursor.
+*/
+
+class Select_materialize: public select_unit
+{
+  select_result *result; /**< the result object of the caller (PS or SP) */
+  const Lex_ident_column &m_cursor_name;
+  const Virtual_tmp_table *m_return_type;
+public:
+  Materialized_cursor *materialized_cursor;
+  Select_materialize(THD *thd_arg, select_result *result_arg,
+                     const Lex_ident_column &cursor_name,
+                     const Virtual_tmp_table *return_type):
+    select_unit(thd_arg), result(result_arg),
+    m_cursor_name(cursor_name),
+    m_return_type(return_type),
+    materialized_cursor(0) {}
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  bool send_eof() override { return false; }
+  bool view_structure_only() const override
+  {
+    return result->view_structure_only();
+  }
+};
+
+
 int mysql_open_cursor(THD *thd, select_result *result,
-                      Server_side_cursor **res);
+                      Server_side_cursor **res,
+                      const Lex_ident_column &cursor_name,
+                      const Virtual_tmp_table *return_type);
 
 #endif /* _sql_cusor_h_ */

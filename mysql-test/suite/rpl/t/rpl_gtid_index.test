@@ -1,0 +1,55 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+
+--source suite/rpl/include/rpl_gtid_index_setup.inc
+
+SET @old_page_size= @@GLOBAL.binlog_gtid_index_page_size;
+SET @old_span_min= @@GLOBAL.binlog_gtid_index_span_min;
+
+--echo *** A fair amount of work with default GTID index settings.
+--let $NUM_POS= 200
+--let $NUM_DOMAIN= 5
+--let $NUM_SERVER= 5
+--let $NUM_SLAVE_CONNECTS= 50
+--let $RND_SEED= 42
+--source suite/rpl/include/rpl_gtid_index.inc
+
+--echo *** A lot of GTIDs with small btree pages to stress the Btree code.
+--let $NUM_POS= 1000
+--let $NUM_DOMAIN= 10
+--let $RND_SEED= 150
+SET GLOBAL binlog_gtid_index_page_size= 64;
+SET GLOBAL binlog_gtid_index_span_min= 1;
+--source suite/rpl/include/rpl_gtid_index.inc
+
+--echo *** Small page size with sparse index.
+--let $NUM_POS= 200
+--let $RND_SEED= 666
+SET GLOBAL binlog_gtid_index_page_size= 64;
+SET GLOBAL binlog_gtid_index_span_min= 2048;
+--source suite/rpl/include/rpl_gtid_index.inc
+
+--echo *** Medium page size.
+--let $NUM_POS= 200
+--let $RND_SEED= 1024
+SET GLOBAL binlog_gtid_index_page_size= 512;
+SET GLOBAL binlog_gtid_index_span_min= 512;
+--source suite/rpl/include/rpl_gtid_index.inc
+
+--echo *** Large page size.
+--let $NUM_POS= 200
+--let $RND_SEED= 12345
+SET GLOBAL binlog_gtid_index_page_size= 16384;
+SET GLOBAL binlog_gtid_index_span_min= 1;
+--source suite/rpl/include/rpl_gtid_index.inc
+
+
+# Cleanup.
+--connection master
+SET GLOBAL binlog_gtid_index_page_size= @old_page_size;
+SET GLOBAL binlog_gtid_index_span_min= @old_span_min;
+--source suite/rpl/include/rpl_gtid_index_cleanup.inc
+
+--source include/rpl_end.inc

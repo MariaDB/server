@@ -1,0 +1,10 @@
+source include/not_windows.inc;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+echo #;
+echo # MDEV-31855 validate ssl certificates using client password in the internal client;
+echo #;
+# connects fine, unix socket is a secure transport
+echo # socket ssl ssl-verify-server-cert;
+exec $XTRABACKUP --protocol=socket --user=root --socket=$MASTER_MYSOCK --backup --target-dir=$targetdir;
+rmdir $targetdir;

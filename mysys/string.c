@@ -133,7 +133,7 @@ my_bool dynstr_trunc(DYNAMIC_STRING *str, size_t n)
   to specified DYNAMIC_STRING.  This function is especially useful when 
   building strings to be executed with the system() function.
 
-  @param str Dynamic String which will have addtional strings appended.
+  @param str Dynamic String which will have additional strings appended.
   @param append String to be appended.
   @param ... Optional. Additional string(s) to be appended.
 

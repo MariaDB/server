@@ -1,0 +1,10 @@
+SET NAMES utf8mb4;
+
+--source strnxfrm_sp_create.inc
+
+CREATE TABLE t1 (str VARBINARY(3));
+CALL populate_t1('simple');
+CALL test_strnxfrm(10,12);
+DROP TABLE t1;
+
+--source strnxfrm_sp_drop.inc

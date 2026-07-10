@@ -28,7 +28,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue';
 connection con1;
 /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
 connection con2;
-/* conneciton con2 */ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
+/* connection con2 */ SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
 FTS_DOC_ID	title
 connection default;
 # make con1 & con2 show up in mysql.slow_log
@@ -61,7 +61,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue';
 connection con1;
 /* connection con1 */ INSERT INTO t1(title) VALUES('mysql database');
 connection con2;
-/* conneciton con2 */ INSERT INTO t2 VALUES(1);
+/* connection con2 */ INSERT INTO t2 VALUES(1);
 connection default;
 SET DEBUG_SYNC = 'RESET';
 # make con1 & con2 show up in mysql.slow_log

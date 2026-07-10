@@ -52,7 +52,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` enum('“S','“s') CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0x9353);
 insert into t1 values (0x9373);
 select hex(c) from t1;
@@ -218,8 +218,8 @@ DROP TABLE t1;
 SELECT @@character_set_connection, HEX(CAST(_utf8'Ã·' AS CHAR));
 @@character_set_connection	HEX(CAST(_utf8'Ã·' AS CHAR))
 sjis	8180
-SELECT STR_TO_DATE(CAST(_utf8'2001Ã·01Ã·01' AS CHAR),CAST(_utf8'%YÃ·%mÃ·%d' AS CHAR));
-STR_TO_DATE(CAST(_utf8'2001Ã·01Ã·01' AS CHAR),CAST(_utf8'%YÃ·%mÃ·%d' AS CHAR))
+SELECT STR_TO_DATE(CAST(_utf8'2001Ã·01Ã·01' AS CHAR),CAST(_utf8'%YÃ·%mÃ·%d' AS CHAR)) as exp;
+exp
 2001-01-01
 CREATE TABLE t1 AS SELECT REPEAT(' ', 64) AS subject, REPEAT(' ',64) AS pattern LIMIT 0;
 SHOW COLUMNS FROM t1;
@@ -691,7 +691,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
   `a` varchar(1) CHARACTER SET sjis COLLATE sjis_japanese_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
 Warning	1366	Incorrect string value: '\x80 ' for column `test`.`t1`.`a` at row 1
@@ -15211,13 +15211,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET sjis COLLATE sjis_japanese_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 41
@@ -15231,13 +15231,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 4141414141
@@ -15250,7 +15250,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 414141
@@ -15263,7 +15263,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 41414141412020202020
@@ -15470,13 +15470,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET sjis COLLATE sjis_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 61
@@ -15490,13 +15490,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET sjis COLLATE sjis_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 6161616161
@@ -15509,7 +15509,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 616161
@@ -15522,7 +15522,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 61616161612020202020
@@ -18835,7 +18835,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('à\'),('à\t');
 INSERT INTO t1 VALUES ('\\à\'),('\\à\t'),('\\à\t\t');
 INSERT INTO t1 VALUES ('''à\'),('à\''');
@@ -18874,7 +18874,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (BINARY('à\')),(BINARY('à\t'));
 INSERT INTO t1 VALUES (BINARY('\\à\')),(BINARY('\\à\t')),(BINARY('\\à\t\t'));
 INSERT INTO t1 VALUES (BINARY('''à\')),(BINARY('à\'''));
@@ -18913,7 +18913,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_BINARY'à\'),(_BINARY'à\t');
 INSERT INTO t1 VALUES (_BINARY'\\à\'),(_BINARY'\\à\t'),(_BINARY'\\à\t\t');
 INSERT INTO t1 VALUES (_BINARY'''à\'),(_BINARY'à\''');
@@ -18964,7 +18964,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
 HEX(a)
@@ -18984,7 +18984,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
 HEX(a)
@@ -19109,20 +19109,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19247,20 +19247,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19386,20 +19386,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19524,20 +19524,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19619,7 +19619,7 @@ ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '.a=1 SELECT 1');
 ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('SET STATEMENT a.',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid sjis character string: '_x81_xAD'
+ERROR HY000: Invalid sjis character string: '_x81'
 #
 # SET SESSION (bad|good.bad|bad.good)=1
 #
@@ -19628,7 +19628,7 @@ ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '.a=1 SELECT 1');
 ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('SET SESSION a.',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid sjis character string: '_x81_xAD'
+ERROR HY000: Invalid sjis character string: '_x81'
 #
 # SET (bad|good.bad|bad.good)=1
 #
@@ -19637,7 +19637,7 @@ ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('SET ', @seq, '.a=1');
 ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('SET a.', @seq, '=1');
-ERROR HY000: Invalid sjis character string: '_x81_xAD'
+ERROR HY000: Invalid sjis character string: '_x81'
 #
 # Oracle SP call: BEGIN (bad|good.bad|bad.good)(params); END
 #
@@ -19647,7 +19647,7 @@ ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '.a(1); END;');
 ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('BEGIN a.',@seq, '(1); END;');
-ERROR HY000: Invalid sjis character string: '_x81_xAD'
+ERROR HY000: Invalid sjis character string: '_x81'
 #
 # Oracle assignment: (bad|good.bad|bad.good):= value
 #
@@ -19656,8 +19656,17 @@ ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT(@seq, '.a:=1');
 ERROR HY000: Invalid sjis character string: '_x81_xAD'
 EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
-ERROR HY000: Invalid sjis character string: '_x81_xAD'
+ERROR HY000: Invalid sjis character string: '_x81'
 SET sql_mode=DEFAULT;
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_sjis'' collate sjis_japanese_nopad_ci, _sjis 0x0001050001) as c1;
+c1
+-1
+select strcmp(_sjis'' collate sjis_nopad_bin, _sjis 0x0001050001) as c1;
+c1
+-1
 #
 # End of 10.5 tests
 #

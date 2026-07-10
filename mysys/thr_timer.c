@@ -35,9 +35,15 @@ static mysql_cond_t  COND_timer;
 static QUEUE timer_queue;
 pthread_t timer_thread;
 
+#if SIZEOF_VOIDP == 4
+/* 32 bit system, using old timestamp */
 #define set_max_time(abs_time) \
   { (abs_time)->MY_tv_sec= INT_MAX32; (abs_time)->MY_tv_nsec= 0; }
-
+#else
+/* 64 bit system. Use 4 byte unsigned timestamp */
+#define set_max_time(abs_time) \
+  { (abs_time)->MY_tv_sec= UINT_MAX32; (abs_time)->MY_tv_nsec= 0; }
+#endif
 
 static void *timer_handler(void *arg __attribute__((unused)));
 
@@ -46,10 +52,11 @@ static void *timer_handler(void *arg __attribute__((unused)));
 */
 
 static int compare_timespec(void *not_used __attribute__((unused)),
-                            uchar *a_ptr, uchar *b_ptr)
+                            const void *a_ptr, const void *b_ptr)
 {
-  return cmp_timespec((*(struct timespec*) a_ptr),
-                      (*(struct timespec*) b_ptr));
+  const struct timespec *ap= a_ptr;
+  const struct timespec *bp= b_ptr;
+  return cmp_timespec((*ap), (*bp));
 }
 
 
@@ -179,6 +186,7 @@ my_bool thr_timer_settime(thr_timer_t *timer_data, ulonglong micro_seconds)
 
   DBUG_ASSERT(timer_data->expired == 1);
 
+  timer_data->timeout= micro_seconds;
   set_timespec_nsec(timer_data->expire_time, micro_seconds*1000);
   timer_data->expired= 0;
 
@@ -298,6 +306,7 @@ static sig_handler process_timers(struct timespec *now)
 static void *timer_handler(void *arg __attribute__((unused)))
 {
   my_thread_init();
+  my_thread_set_name("statement_timer");
 
   mysql_mutex_lock(&LOCK_timer);
   while (likely(thr_timer_inited))
@@ -329,8 +338,7 @@ static void *timer_handler(void *arg __attribute__((unused)))
   }
   mysql_mutex_unlock(&LOCK_timer);
   my_thread_end();
-  pthread_exit(0);
-  return 0;					/* Impossible */
+  return 0;
 }
 
 
@@ -533,7 +541,6 @@ static void run_test()
   mysql_mutex_init(0, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
   mysql_cond_init(0, &COND_thread_count, NULL);
 
-  thr_setconcurrency(3);
   pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
   printf("Main thread: %s\n",my_thread_name());

@@ -48,7 +48,7 @@ lock_rec_locks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	coun
 lock_table_lock_created	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of table locks created
 lock_table_lock_removed	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of table locks removed from the lock queue
 lock_table_locks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Current number of table locks on tables
-lock_row_lock_current_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of row locks currently being waited for (innodb_row_lock_current_waits)
+lock_row_lock_current_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of row locks currently being waited for (innodb_row_lock_current_waits)
 lock_row_lock_time	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Time spent in acquiring row locks, in milliseconds (innodb_row_lock_time)
 lock_row_lock_time_max	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	The maximum time to acquire a row lock, in milliseconds (innodb_row_lock_time_max)
 lock_row_lock_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of times a row lock had to be waited for (innodb_row_lock_waits)
@@ -70,8 +70,6 @@ buffer_pool_pages_free	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	N
 buffer_pages_created	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages created (innodb_pages_created)
 buffer_pages_written	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages written (innodb_pages_written)
 buffer_pages_read	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages read (innodb_pages_read)
-buffer_index_sec_rec_cluster_reads	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of secondary record reads triggered cluster read
-buffer_index_sec_rec_cluster_reads_avoided	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of secondary record reads avoided triggering cluster read
 buffer_data_reads	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Amount of data read in bytes (innodb_data_reads)
 buffer_data_written	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Amount of data written in bytes (innodb_data_written)
 buffer_flush_batch_scanned	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_owner	Total pages scanned as part of flush batch
@@ -88,7 +86,6 @@ buffer_flush_n_to_flush_by_age	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NUL
 buffer_flush_adaptive_avg_time	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for adaptive flushing recently.
 buffer_flush_adaptive_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of adaptive flushes passed during the recent Avg period.
 buffer_LRU_get_free_loops	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Total loops in LRU get free.
-buffer_LRU_get_free_waits	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Total sleep waits in LRU get free.
 buffer_flush_avg_page_rate	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Average number of pages at which flushing is happening
 buffer_flush_lsn_avg_rate	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Average redo generation rate
 buffer_flush_pct_for_dirty	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Percent of IO capacity used to avoid max dirty page limit
@@ -108,7 +105,6 @@ buffer_LRU_batch_num_scan	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NUL
 buffer_LRU_batch_scanned_per_call	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Pages scanned per LRU batch call
 buffer_LRU_batch_flush_total_pages	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Total pages flushed as part of LRU batches
 buffer_LRU_batch_evict_total_pages	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Total pages evicted as part of LRU batches
-buffer_LRU_single_flush_failure_count	Buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times attempt to flush a single page from LRU failed
 buffer_LRU_get_free_search	Buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of searches performed for a clean page
 buffer_LRU_search_scanned	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_owner	Total pages scanned as part of LRU search
 buffer_LRU_search_num_scan	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Number of times LRU search is performed
@@ -118,12 +114,8 @@ buffer_LRU_unzip_search_num_scan	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	N
 buffer_LRU_unzip_search_scanned_per_call	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Page scanned per single LRU unzip search
 buffer_page_read_index_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Index Leaf Pages read
 buffer_page_read_index_non_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Index Non-leaf Pages read
-buffer_page_read_index_ibuf_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Index Leaf Pages read
-buffer_page_read_index_ibuf_non_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Index Non-Leaf Pages read
 buffer_page_read_undo_log	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Undo Log Pages read
 buffer_page_read_index_inode	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Index Inode Pages read
-buffer_page_read_ibuf_free_list	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Free List Pages read
-buffer_page_read_ibuf_bitmap	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Bitmap Pages read
 buffer_page_read_system_page	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of System Pages read
 buffer_page_read_trx_system	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Transaction System Pages read
 buffer_page_read_fsp_hdr	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of File Space Header Pages read
@@ -134,12 +126,8 @@ buffer_page_read_zblob2	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NU
 buffer_page_read_other	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of other/unknown (old version of InnoDB) Pages read
 buffer_page_written_index_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Index Leaf Pages written
 buffer_page_written_index_non_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Index Non-leaf Pages written
-buffer_page_written_index_ibuf_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Index Leaf Pages written
-buffer_page_written_index_ibuf_non_leaf	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Index Non-Leaf Pages written
 buffer_page_written_undo_log	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Undo Log Pages written
 buffer_page_written_index_inode	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Index Inode Pages written
-buffer_page_written_ibuf_free_list	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Free List Pages written
-buffer_page_written_ibuf_bitmap	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Insert Buffer Bitmap Pages written
 buffer_page_written_system_page	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of System Pages written
 buffer_page_written_trx_system	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Transaction System Pages written
 buffer_page_written_fsp_hdr	buffer_page_io	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of File Space Header Pages written
@@ -200,21 +188,13 @@ index_page_reorg_successful	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NU
 index_page_discards	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of index pages discarded
 adaptive_hash_searches	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of successful searches using Adaptive Hash Index
 adaptive_hash_searches_btree	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of searches using B-tree on an index search
-adaptive_hash_pages_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of index pages on which the Adaptive Hash Index is built
+adaptive_hash_pages_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of index pages on which the Adaptive Hash Index is built
 adaptive_hash_pages_removed	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of index pages whose corresponding Adaptive Hash Index entries were removed
-adaptive_hash_rows_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Adaptive Hash Index rows added
+adaptive_hash_rows_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of Adaptive Hash Index rows added
 adaptive_hash_rows_removed	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Adaptive Hash Index rows removed
 adaptive_hash_rows_deleted_no_hash_entry	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of rows deleted that did not have corresponding Adaptive Hash Index entries
 adaptive_hash_rows_updated	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of Adaptive Hash Index rows updated
 file_num_open_files	file_system	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of files currently open (innodb_num_open_files)
-ibuf_merges_insert	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of inserted records merged by change buffering
-ibuf_merges_delete_mark	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of deleted records merged by change buffering
-ibuf_merges_delete	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of purge records merged by change buffering
-ibuf_merges_discard_insert	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of insert merged operations discarded
-ibuf_merges_discard_delete_mark	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of deleted merged operations discarded
-ibuf_merges_discard_delete	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of purge merged  operations discarded
-ibuf_merges	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of change buffer merges
-ibuf_size	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Change buffer size in pages
 innodb_master_thread_sleeps	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times (seconds) master thread sleeps
 innodb_activity_count	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Current server activity count
 innodb_master_active_loops	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times master thread performs its tasks when server is active
@@ -226,14 +206,6 @@ innodb_dict_lru_count_idle	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NU
 innodb_dblwr_writes	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of doublewrite operations that have been performed (innodb_dblwr_writes)
 innodb_dblwr_pages_written	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages that have been written for doublewrite operations (innodb_dblwr_pages_written)
 innodb_page_size	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	InnoDB page size in bytes (innodb_page_size)
-dml_reads	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows read
-dml_inserts	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows inserted
-dml_deletes	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows deleted
-dml_updates	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows updated
-dml_system_reads	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of system rows read
-dml_system_inserts	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of system rows inserted
-dml_system_deletes	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of system rows deleted
-dml_system_updates	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of system rows updated
 ddl_background_drop_indexes	ddl	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of indexes waiting to be dropped after failed index creation
 ddl_online_create_index	ddl	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of indexes being created online
 ddl_pending_alter_table	ddl	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of ALTER TABLE, CREATE INDEX, DROP INDEX in progress

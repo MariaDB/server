@@ -1,0 +1,35 @@
+use mysql;
+# run mysql_install_db with --service parameter
+# Start service
+# -- Upgrade service (online) --
+Phase 1/10: Stopping service
+Phase 2/10: Start and stop server in the old version, to avoid crash recovery (skipped)
+Phase 3/10: Fixing server config file
+Phase 4/10: Starting mysqld for upgrade
+Phase 5/10: Waiting for startup to complete
+Phase 6/10: Running mysql_upgrade
+Phase 7/10: Changing service configuration
+Phase 8/10: Initiating server shutdown
+Phase 9/10: Waiting for shutdown to complete
+Phase 10/10: Starting service
+Service 'SERVICE_NAME' successfully upgraded.
+Log file is written to UPGRADE_LOG
+# upgrade_success(online)=1
+# Service stopped
+# -- Upgrade service (offline) --
+Phase 1/10: Stopping service
+Phase 2/10: Start and stop server in the old version, to avoid crash recovery ,this can take some time
+Phase 3/10: Fixing server config file
+Phase 4/10: Starting mysqld for upgrade
+Phase 5/10: Waiting for startup to complete
+Phase 6/10: Running mysql_upgrade
+Phase 7/10: Changing service configuration
+Phase 8/10: Initiating server shutdown
+Phase 9/10: Waiting for shutdown to complete
+Phase 10/10: Starting service (skipped)
+Service 'SERVICE_NAME' successfully upgraded.
+Log file is written to UPGRADE_LOG
+# upgrade_success(offline)=1
+# Delete service
+connection default;
+# restart

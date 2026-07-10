@@ -14,6 +14,8 @@
 # Change:                                                                      #
 ################################################################################
 
+--source include/have_sequence.inc
+
 if (!$support_virtual_index) {
   let $skip_spatial_index_check=1;
   let $skip_foreign_key_check=1;
@@ -197,11 +199,15 @@ PRIMARY KEY (pk),
 KEY (col_time_key),
 KEY (col_datetime_key));
 
+--disable_warnings
 INSERT INTO c ( col_time_nokey,col_datetime_nokey,col_varchar_nokey) values
 ('14:03:03.042673','2001-11-28 00:50:27.051028', 'c'),
 ('01:46:09.016386','2007-10-09 19:53:04.008332', NULL),
 ('16:21:18.052408','2001-11-08 21:02:12.009395', 'x'),
 ('18:56:33.027423','2003-04-01 00:00:00', 'i');
+
+insert into c (col_time_nokey,col_datetime_nokey,col_varchar_nokey) select '10:10:10', '2021-12-24 01:50:27', 'z' from seq_1_to_10;
+--enable_warnings
 
 --replace_column 9 x 10 x
 EXPLAIN SELECT
@@ -364,7 +370,7 @@ DROP TABLE t1;
 --echo #
 --echo # Test how optimizer picks indexes defined on a GC
 --echo #
-CREATE TABLE t1 (f1 int, gc int AS (f1 + 1) STORED, UNIQUE(gc));
+CREATE TABLE t1 (f1 int, gc bigint AS (f1 + 1) STORED, UNIQUE(gc));
 INSERT INTO t1(f1) VALUES (1),(2),(0),(9),(3),(4),(8),(7),(5),(6);
 ANALYZE TABLE t1;
 --echo # Should use index
@@ -405,7 +411,7 @@ EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7.0;
 DROP TABLE t1;
 --echo # Pick index with proper type
 CREATE TABLE t1 (f1 int,
-  gc_int int AS (f1 + 1) STORED,
+  gc_int bigint AS (f1 + 1) STORED,
   gc_date DATE AS (f1 + 1) STORED,
   KEY gc_int_idx(gc_int),
   KEY gc_date_idx(gc_date));
@@ -423,7 +429,7 @@ ANALYZE TABLE t1;
 
 --sorted_result
 SELECT * FROM t1 WHERE f1 + 1 > 070707;
---echo # INT column & index should be picked
+--echo # BIGINT column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 070707;
 --sorted_result
 SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
@@ -776,9 +782,7 @@ CREATE TABLE t1 (
 );
 
 INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
---disable_ps2_protocol
 SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
---enable_ps2_protocol
 --error ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
 

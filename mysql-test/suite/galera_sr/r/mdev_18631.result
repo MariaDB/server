@@ -5,7 +5,7 @@ connection node_1;
 CREATE TABLE t1(f1 INT PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1), (2), (3);
 connection node_2;
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 SELECT * FROM  t1;
 f1
 1

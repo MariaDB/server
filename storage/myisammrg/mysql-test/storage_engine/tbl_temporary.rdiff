@@ -1,5 +1,5 @@
---- tbl_temporary.result	2013-01-22 22:05:05.246633000 +0400
-+++ tbl_temporary.reject	2013-01-23 02:51:06.599415185 +0400
+--- tbl_temporary.result
++++ tbl_temporary.reject
 @@ -6,6 +6,6 @@
  t1	CREATE TEMPORARY TABLE `t1` (
    `a` int(11) DEFAULT NULL,

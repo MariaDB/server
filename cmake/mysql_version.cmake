@@ -90,14 +90,14 @@ IF(NOT CPACK_PACKAGE_FILE_NAME)
 ENDIF()
 
 SET_IF_UNSET(CPACK_SOURCE_PACKAGE_FILE_NAME "mariadb-${VERSION}")
-SET_IF_UNSET(CPACK_PACKAGE_CONTACT "MariaDB Developers <maria-developers@lists.launchpad.net>")
+SET_IF_UNSET(CPACK_PACKAGE_CONTACT "MariaDB Developers <developers@lists.mariadb.org>")
 SET_IF_UNSET(CPACK_PACKAGE_VENDOR "MariaDB Foundation")
 SET_IF_UNSET(CPACK_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION_SUMMARY}
 
 It is GPL v2 licensed, which means you can use the it free of charge under the
 conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
 
-MariaDB documentation can be found at https://mariadb.com/kb
+MariaDB documentation can be found at https://mariadb.com/docs
 MariaDB bug reports should be submitted through https://jira.mariadb.org
 
 ")

@@ -1,0 +1,119 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/not_windows.inc
+# This test is extremely slow on Valgrind (exceeding 4 hours).
+--source include/not_valgrind.inc
+
+call mtr.add_suppression("InnoDB: Cannot shrink the system tablespace");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: A copy of page \\[page id: space=0, page number=.*\\] in the doublewrite buffer slot .* is beyond the end");
+
+SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG=2;
+SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+SET UNIQUE_CHECKS=0, FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                f3 INT NOT NULL, INDEX(f1),
+                INDEX(f2), INDEX(f3))STATS_PERSISTENT=0 ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+COMMIT;
+DROP TABLE t1;
+--source include/wait_all_purged.inc
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
+
+# Corruption during traversal of extent
+let $restart_parameters=--debug_dbug=+d,traversal_extent_fail;
+--source include/restart_mysqld.inc
+
+--let SEARCH_PATTERN= \[Warning\] InnoDB: Cannot shrink the system tablespace
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# Ran out of buffer pool
+let $restart_parameters=--debug_dbug=+d,shrink_buffer_pool_full;
+--source include/restart_mysqld.inc
+
+--let SEARCH_PATTERN= \[Warning\] InnoDB: Cannot shrink the system tablespace
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# Ran out of mtr log size
+let $restart_parameters=--debug_dbug=+d,mtr_log_max_size;
+--source include/restart_mysqld.inc
+
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot shrink the system tablespace
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# Crash after shrinking the system tablespace
+let $restart_parameters=--debug_dbug=+d,crash_after_sys_truncate;
+--source include/restart_mysqld.inc
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+let $restart_parameters=--innodb_buffer_pool_size=5M;
+--source include/restart_mysqld.inc
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;
+
+--echo #
+--echo # MDEV-38412 System tablespace fails to shrink due to legacy tables
+--echo #
+let bugdir= $MYSQLTEST_VARDIR/tmp/old_datadir;
+--mkdir $bugdir
+let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb_undo_directory=$bugdir;
+# Create a new data directory
+let $restart_parameters=$dirs --debug_dbug=d,create_sys_tablespaces;
+--source include/restart_mysqld.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE SPACE= 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME LIKE 'DUMMY_IND%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE NAME LIKE 'DUMMY_ID%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'DUMMY_ID%';
+
+# Drop the unknown table during slow shutdown
+let $restart_parameters=$dirs --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink --innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE SPACE= 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME LIKE 'DUMMY_IND%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE NAME LIKE 'DUMMY_ID%';
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'DUMMY_ID%';
+
+let SEARCH_PATTERN=InnoDB: Found an unknown table SYS_TABLESPACES;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN=InnoDB: Found orphaned index for table_id .*;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN=InnoDB: Dropping 2 orphaned table;
+--source include/search_pattern_in_file.inc
+
+# Shrink the system tablespace further
+let $restart_parameters=$dirs --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink;
+--source include/restart_mysqld.inc
+
+# Cleanup
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+rmdir $bugdir;

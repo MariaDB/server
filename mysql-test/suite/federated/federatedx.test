@@ -92,7 +92,7 @@ eval CREATE TABLE federated.t1 (
     `name` varchar(32) NOT NULL default ''
     )
   ENGINE="FEDERATED" DEFAULT CHARSET=latin1
-  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+  CONNECTION='mariadb://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
 
 INSERT INTO federated.t1 (id, name) VALUES (1, 'foo');
 INSERT INTO federated.t1 (id, name) VALUES (2, 'fee');
@@ -1505,7 +1505,7 @@ DROP TABLE federated.test;
 # cases this resulted in incorrect (garbage) values of OLD variables
 # and lost changes to NEW variables.
 # Since for federated engine only operation which is affected by wrong
-# fields mark-up is handler::write_row() this file constains coverage
+# fields mark-up is handler::write_row() this file contains coverage
 # for ON INSERT triggers only.
 #
 connection slave;
@@ -2086,8 +2086,61 @@ SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
 DROP TABLE t2_fed, t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
 
-DROP SERVER s;
-
 --echo # End of 10.5 tests
 
+--echo #
+--echo # MDEV-28374 UBSAN signed integer overflow PROCEDURE ANALYSE
+--echo #
+
+CREATE TABLE t (a BIGINT);
+INSERT INTO t VALUES ('-9223372036854775808');
+INSERT INTO t SELECT * FROM t;
+SELECT * FROM t PROCEDURE ANALYSE(2);
+
+CREATE TABLE t_fed ENGINE=FEDERATED CONNECTION='s/t';
+SELECT * FROM t_fed PROCEDURE ANALYSE(2);
+
+DROP TABLE t, t_fed;
+
+DROP SERVER s;
+--echo #
+--echo # MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
+--echo #
+
+evalp create server s foreign data wrapper mysql options
+  (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+CREATE VIEW v AS SELECT * FROM t1_fed;
+
+SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
+
+DROP VIEW v;
+DROP TABLE t1_fed, t1, t2;
+DROP SERVER s;
+
+--echo # End of 11.0 tests
+
+--echo #
+--echo # MDEV-35184 Corruption errors upon creation or usage of Federated table with vector key
+--echo #
+evalp create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+create table t1 (a vector(1) not null, vector(a));
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1_fed1 engine=federated connection = 's/t1';
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1_fed2 (a vector(1) not null, vector(a)) engine=federated connection = 's/t1';
+drop table t1;
+drop server s;
+
+--echo # End of 11.8 tests
+
 source include/federated_cleanup.inc;
+
+--echo # End of 10.11 tests

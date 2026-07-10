@@ -17,6 +17,7 @@
   Allow copying of Aria tables to and from S3 and also delete them from S3
 */
 
+#define VER "1.0"
 #include <my_global.h>
 #include <m_string.h>
 #include "maria_def.h"
@@ -28,9 +29,10 @@
 #include <zlib.h>
 #include <libmarias3/marias3.h>
 #include "s3_func.h"
+#include <welcome_copyright_notice.h>
 
 static const char *op_types[]= {"to_s3", "from_s3", "delete_from_s3", NullS};
-static TYPELIB op_typelib= {array_elements(op_types)-1,"", op_types, NULL};
+static TYPELIB op_typelib= CREATE_TYPELIB_FOR(op_types);
 #define OP_IMPOSSIBLE array_elements(op_types)
 
 static const char *load_default_groups[]= { "aria_s3_copy", 0 };
@@ -41,7 +43,10 @@ static const char *opt_database;
 static const char *opt_s3_bucket="MariaDB";
 static my_bool opt_compression, opt_verbose, opt_force, opt_s3_debug;
 static my_bool opt_s3_use_http;
+static my_bool opt_s3_ssl_no_verify;
+static my_bool opt_s3_no_content_type;
 static ulong opt_operation= OP_IMPOSSIBLE, opt_protocol_version= 1;
+static ulong opt_provider= 0;
 static ulong opt_block_size;
 static ulong opt_s3_port;
 static char **default_argv=0;
@@ -73,6 +78,13 @@ static struct my_option my_long_options[] =
   {"s3_use_http", 'P', "If true, force use of HTTP protocol",
    (char**) &opt_s3_use_http, (char**) &opt_s3_use_http,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_ssl_no_verify", 's', "If true, verification of the S3 endpoint SSL "
+   "certificate is disabled",
+   (char**) &opt_s3_ssl_no_verify, (char**) &opt_s3_ssl_no_verify,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_no_content_type", 'n', "If true, disables the Content-Type header",
+   (char**) &opt_s3_no_content_type, (char**) &opt_s3_no_content_type,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'c', "Use compression", &opt_compression, &opt_compression,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"op", 'o', "Operation to execute. One of 'from_s3', 'to_s3' or "
@@ -85,10 +97,16 @@ static struct my_option my_long_options[] =
    &opt_database, &opt_database, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"s3_block_size", 'B', "Block size for data/index blocks in s3",
    &opt_block_size, &opt_block_size, 0, GET_ULONG, REQUIRED_ARG,
-   4*1024*1024, 64*1024, 16*1024*1024, MALLOC_OVERHEAD, 1024, 0 },
+   4*1024*1024, 64*1024, 16*1024*1024, 0, 1024, 0 },
   {"s3_protocol_version", 'L',
-   "Protocol used to communication with S3. One of \"Auto\", \"Amazon\" or \"Original\".",
+   "Protocol used to communication with S3. One of \"Auto\", \"Legacy\", "
+   "\"Original\", \"Amazon\", \"Path\" or \"Domain\". "
+   "Note: \"Legacy\", \"Original\" and \"Amazon\" are deprecated.",
    &opt_protocol_version, &opt_protocol_version, &s3_protocol_typelib,
+   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_provider", 'R', "Enable S3 provider specific compatibility tweaks "
+   "\"Default\", \"Amazon\", or \"Huawei\".",
+   &opt_provider, &opt_provider, &s3_provider_typelib,
    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force copy even if target exists",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -108,12 +126,6 @@ static struct my_option my_long_options[] =
 
 static bool get_database_from_path(char *to, size_t to_length, const char *path);
 
-
-static void print_version(void)
-{
-  printf("%s  Ver 1.0 for %s on %s\n", my_progname, SYSTEM_TYPE,
-	 MACHINE_TYPE);
-}
 
 static void usage(void)
 {
@@ -195,7 +207,7 @@ static void get_options(int *argc, char ***argv)
     my_exit(-1);
   }
   if (opt_s3_debug)
-    ms3_debug();
+    ms3_debug(1);
 
 } /* get_options */
 
@@ -218,9 +230,33 @@ int main(int argc, char** argv)
 
   ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
 
-  if (opt_protocol_version)
+  /* Provider specific overrides */
+  switch (opt_provider)
   {
-    uint8_t protocol_version= (uint8_t) opt_protocol_version;
+    case 0: /* Default */
+      break;
+    case 1: /* Amazon */
+      opt_protocol_version = 5;
+      break;
+    case 2: /* Huawei */
+      opt_s3_no_content_type = 1;
+      break;
+  }
+
+  if (opt_protocol_version > 2)
+  {
+    uint8_t protocol_version;
+    switch (opt_protocol_version)
+    {
+      case 3: /* Legacy means v1 */
+      case 4: /* Path means v1 */
+        protocol_version= 1;
+        break;
+      case 5: /* Domain means v2 */
+        protocol_version= 2;
+        break;
+    }
+
     ms3_set_option(global_s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
                    &protocol_version);
   }
@@ -232,6 +268,11 @@ int main(int argc, char** argv)
   if (opt_s3_use_http)
     ms3_set_option(global_s3_client, MS3_OPT_USE_HTTP, NULL);
 
+  if (opt_s3_ssl_no_verify)
+    ms3_set_option(global_s3_client, MS3_OPT_DISABLE_SSL_VERIFY, NULL);
+
+  if (opt_s3_no_content_type)
+    ms3_set_option(global_s3_client, MS3_OPT_NO_CONTENT_TYPE, NULL);
 
   for (; *argv ; argv++)
   {

@@ -26,12 +26,47 @@ public:
   ulonglong pages_accessed;              /* Pages accessed from page cache */
   ulonglong pages_updated;               /* Pages changed in page cache */
   ulonglong pages_read_count;            /* Pages read from disk */
-  ulonglong pages_read_time;             /* Time reading pages, in microsec. */
+
+  /* Time spent reading pages, in timer_tracker_frequency() units */
+  ulonglong pages_read_time;
+
+  /* 
+    Number of pages that we've requested to prefetch while running the query.
+    Note that we don't know:
+    - how much time was spent reading these pages (and how to count the time
+      if reading was done in parallel)
+    - whether the pages were read by "us" or somebody else...
+  */
+  ulonglong pages_prefetched;
+
   ulonglong undo_records_read;
-  ulonglong engine_time;                 /* Time spent in engine in microsec */
+
+  ulonglong ahi_searches;  /* Successful adaptive hash lookups */
+  ulonglong ahi_searches_btree;  /* B-tree searches (AHI miss) */
+  ulonglong ahi_rows_added;  /* Rows added to adaptive hash index */
+  ulonglong ahi_pages_added;  /* Pages added to adaptive hash index */
+
+  /* Time spent in engine, in timer_tracker_frequency() units */
+  ulonglong engine_time;
+
+  /*
+    Index Condition Pushdown: number of times condition was checked for index
+    tuple
+  */
+  ulonglong icp_attempts;
+  /*
+    Index Condition Pushdown: number of times condition check evaluated to TRUE
+  */
+  ulonglong icp_match;
   uint      active;                      /* <> 0 if status has to be updated */
+
+  ha_handler_stats()
+  {
+    active= 0;
+  }
+
 #define first_stat pages_accessed
-#define last_stat  engine_time
+#define last_stat  icp_match
   inline void reset()
   {
     bzero((void*) this, sizeof(*this));
@@ -47,6 +82,8 @@ public:
   }
   inline bool has_stats()
   {
+    if (!active)
+      return 0;
     ulonglong *to= &first_stat;
     do
     {

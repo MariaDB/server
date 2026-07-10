@@ -21,6 +21,9 @@ c INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a"' PARTITION BY LIST COLUMNS (c) (
 PARTITION pt1 DEFAULT COMMENT = 'srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a VALUES (1);
 ALTER TABLE tbl_a CHECK PARTITION ALL;
 Table	Op	Msg_type	Msg_text

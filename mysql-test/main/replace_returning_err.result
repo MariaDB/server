@@ -5,7 +5,7 @@ INSERT INTO t1 VALUES(1, 'a'), (2, 'b'), (3, 'c');
 # SIMLPE REPLACE STATEMENT
 #
 REPLACE INTO t2(id2, val2) VALUES(1, 'a') RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 REPLACE INTO t2(id2, val2) values(2, 'b') RETURNING SUM(id2);
 ERROR HY000: Invalid use of group function
 REPLACE INTO t2(id2, val2) VALUES(3, 'c') RETURNING(SELECT id1 FROM t1);
@@ -20,7 +20,7 @@ ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as
 # Multiple rows in single replace statement
 #
 REPLACE INTO t2 VALUES(1, 'a'), (2, 'b') RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 REPLACE INTO t2 VALUES(3, 'c'), (4, 'd') RETURNING MAX(id2);
 ERROR HY000: Invalid use of group function
 REPLACE INTO t2 VALUES(5, 'c'), (6, 'f') RETURNING(SELECT id1 FROM t1);
@@ -35,7 +35,7 @@ ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as
 # REPLACE ... SET
 #
 REPLACE INTO t2 SET id2 = 1, val2 = 'a' RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 REPLACE INTO t2 SET id2 = 2, val2 = 'b' RETURNING COUNT(id2);
 ERROR HY000: Invalid use of group function
 REPLACE INTO t2 SET id2 = 3, val2 = 'c' RETURNING(SELECT id1 FROM t1);
@@ -50,7 +50,7 @@ ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as
 # REPLACE...SELECT
 #
 REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 1 RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING MAX(id2);
 ERROR HY000: Invalid use of group function
 REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING(SELECT id1

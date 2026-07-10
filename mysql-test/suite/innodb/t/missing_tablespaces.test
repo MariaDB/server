@@ -18,6 +18,7 @@ CREATE TABLE `..................................................` (ID INT)
 ENGINE=INNODB;
 
 let $restart_noprint=2;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/shutdown_mysqld.inc
 
 --remove_file $MYSQLTEST_VARDIR/mysqld.1/data/@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e/@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e.ibd

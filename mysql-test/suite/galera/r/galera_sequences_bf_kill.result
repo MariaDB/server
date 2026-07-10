@@ -1,0 +1,152 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (4, next value for s);
+INSERT INTO t1 VALUES (5, next value for s);
+INSERT INTO t1 VALUES (6, next value for s);
+INSERT INTO t1 VALUES (7, next value for s);
+INSERT INTO t1 VALUES (8, next value for s);
+INSERT INTO t1 VALUES (9, next value for s);
+INSERT INTO t1 VALUES (10, next value for s);
+INSERT INTO t1 VALUES (11, next value for s);
+INSERT INTO t1 VALUES (12, next value for s);
+INSERT INTO t1 VALUES (13, next value for s);
+INSERT INTO t1 VALUES (14, next value for s);
+SELECT * FROM t1 WHERE f1 > 0 FOR UPDATE;
+f1	f2
+1	0
+3	0
+4	1
+5	3
+6	5
+7	7
+8	9
+9	11
+10	13
+11	15
+12	17
+13	19
+14	21
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, 2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+connection node_1;
+wsrep_local_replays
+1
+INSERT INTO t1 VALUES (22, next value for s);
+INSERT INTO t1 VALUES (23, next value for s);
+INSERT INTO t1 VALUES (24, next value for s);
+INSERT INTO t1 VALUES (25, next value for s);
+INSERT INTO t1 VALUES (26, next value for s);
+INSERT INTO t1 VALUES (27, next value for s);
+INSERT INTO t1 VALUES (28, next value for s);
+INSERT INTO t1 VALUES (29, next value for s);
+INSERT INTO t1 VALUES (30, next value for s);
+INSERT INTO t1 VALUES (31, next value for s);
+INSERT INTO t1 VALUES (32, next value for s);
+INSERT INTO t1 VALUES (33, next value for s);
+INSERT INTO t1 VALUES (34, next value for s);
+INSERT INTO t1 VALUES (35, next value for s);
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+4	1
+5	3
+6	5
+7	7
+8	9
+9	11
+10	13
+11	15
+12	17
+13	19
+14	21
+22	31
+23	33
+24	35
+25	37
+26	39
+27	41
+28	43
+29	45
+30	47
+31	49
+32	51
+33	53
+34	55
+35	57
+SELECT LASTVAL(s);
+LASTVAL(s)
+57
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+4	1
+5	3
+6	5
+7	7
+8	9
+9	11
+10	13
+11	15
+12	17
+13	19
+14	21
+22	31
+23	33
+24	35
+25	37
+26	39
+27	41
+28	43
+29	45
+30	47
+31	49
+32	51
+33	53
+34	55
+35	57
+SELECT LASTVAL(s);
+LASTVAL(s)
+NULL
+connection node_1;
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+59
+connection node_2;
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+62
+DROP SEQUENCE s;
+DROP TABLE t1;

@@ -57,13 +57,16 @@ public:
   /*** Construction interface ***/
   Json_table_nested_path():
     m_null(TRUE), m_nested(NULL), m_next_nested(NULL)
-  {}
+  {
+    init_json_engine();
+  }
 
   int set_path(THD *thd, const LEX_CSTRING &path);
 
   /*** Methods for performing a scan ***/
   void scan_start(CHARSET_INFO *i_cs, const uchar *str, const uchar *end);
   int scan_next();
+  void init_json_engine();
   bool check_error(const char *str);
 
   /*** Members for getting the values we've scanned to ***/
@@ -140,7 +143,7 @@ public:
   {
   public:
     Json_table_column::enum_on_response m_response;
-    LEX_CSTRING m_default;
+    Item *m_default;
     int respond(Json_table_column *jc, Field *f, uint error_num);
     int print(const char *name, String *str) const;
     bool specified() const { return m_response != RESPONSE_NOT_SPECIFIED; }
@@ -148,13 +151,14 @@ public:
 
   enum_type m_column_type;
   bool m_format_json;
+  /* FORMAT JSON was explicitly specified and should be preserved. */
+  bool m_explicit_format_json;
   json_path_t m_path;
   On_response m_on_error;
   On_response m_on_empty;
   Create_field *m_field;
   Json_table_nested_path *m_nest;
   CHARSET_INFO *m_explicit_cs;
-  CHARSET_INFO *m_defaults_cs;
 
   void set(enum_type ctype)
   {
@@ -163,11 +167,14 @@ public:
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path, CHARSET_INFO *cs);
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
           const Lex_column_charset_collation_attrs_st &cl);
+  bool enable_format_json();
   Json_table_column(Create_field *f, Json_table_nested_path *nest) :
     m_field(f), m_nest(nest), m_explicit_cs(NULL)
   {
     m_on_error.m_response= RESPONSE_NOT_SPECIFIED;
     m_on_empty.m_response= RESPONSE_NOT_SPECIFIED;
+    m_format_json= false;
+    m_explicit_format_json= false;
   }
   int print(THD *tnd, Field **f, String *str);
 };
@@ -195,7 +202,7 @@ public:
   In the current MariaDB code, evaluation of JSON_TABLE is deterministic,
   that is, for a given input string JSON_TABLE will always produce the same
   set of rows in the same order.  However one can think of JSON documents
-  that one can consider indentical which will produce different output.
+  that one can consider identical which will produce different output.
   In order to be feature-proof and withstand changes like:
   - sorting JSON object members by name (like MySQL does)
   - changing the way duplicate object members are handled
@@ -219,8 +226,8 @@ public:
   /*** Name resolution functions ***/
   bool setup(THD *thd, TABLE_LIST *sql_table, SELECT_LEX *s_lex);
 
-  int walk_items(Item_processor processor, bool walk_subquery,
-                 void *argument);
+  int walk_items(Item_processor processor,
+                 void *argument, item_walk_flags flags);
 
   /*** Functions for interaction with the Query Optimizer ***/
   void fix_after_pullout(TABLE_LIST *sql_table,
@@ -263,9 +270,6 @@ public:
   /* SQL Parser: current column in JSON_TABLE (...) syntax */
   Json_table_column *m_cur_json_table_column;
 
-  /* SQL Parser: charset of the current text literal */
-  CHARSET_INFO *m_text_literal_cs;
-
 private:
   /* Context to be used for resolving the first argument. */
   Name_resolution_context *m_context;
@@ -278,7 +282,7 @@ private:
   /*
     Pointer to the list tail where we add the next NESTED PATH.
     It points to the cur_parnt->m_nested for the first nested
-    and prev_nested->m_next_nested for the coesequent ones.
+    and prev_nested->m_next_nested for the consequent ones.
   */
   Json_table_nested_path **last_sibling_hook;
 };
@@ -288,7 +292,6 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc);
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 
 table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
-                                          table_map nest_tables);
+                                          table_map nest_tables, bool *error);
 
 #endif /* JSON_TABLE_INCLUDED */
-

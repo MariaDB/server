@@ -1,0 +1,15 @@
+
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+create table t1 (a int, vcol1 int as (a+1), index(vcol1));
+insert into t1 (a) select seq from seq_1_to_100;
+
+SET SESSION debug_dbug="+d,vcol_subst_simulate_oom";
+--error ER_OUT_OF_RESOURCES
+explain select * from t1 where a+1=2;
+SET @saved_dbug = @@SESSION.debug_dbug;
+
+SET debug_dbug= @saved_dbug;
+drop table t1;

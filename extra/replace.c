@@ -41,12 +41,13 @@
   Written by Monty.
   fill_buffer_retaining() is taken from gnu-grep and modified.
 */
-
+#define VER "1.4"
 #include <my_global.h>
 #include <m_ctype.h>
 #include <my_sys.h>
 #include <m_string.h>
 #include <errno.h>
+#include <welcome_copyright_notice.h>
 
 #define PC_MALLOC		256	/* Bytes for pointers */
 #define PS_MALLOC		512	/* Bytes for data */
@@ -176,8 +177,7 @@ static int static_get_options(int *argc, char***argv)
       case 'I':
       case '?':
 	help=1;					/* Help text written */
-	printf("%s  Ver 1.4 for %s at %s\n",my_progname,SYSTEM_TYPE,
-	       MACHINE_TYPE);
+        print_version();
 	if (version)
 	  break;
 	puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");
@@ -332,7 +332,7 @@ static void free_pointer_array(reg1 POINTER_ARRAY *pa)
 } /* free_pointer_array */
 
 
-	/* Code for replace rutines */
+	/* Code for replace routines */
 
 #define SET_MALLOC_HUNC 64
 
@@ -342,7 +342,7 @@ typedef struct st_rep_set {
   uint	found_len;			/* Best match to date */
   int	found_offset;
   uint  table_offset;
-  uint  size_of_bits;			/* For convinience */
+  uint  size_of_bits;			/* For convenience */
 } REP_SET;
 
 typedef struct st_rep_sets {
@@ -698,7 +698,7 @@ static int init_sets(REP_SETS *sets,uint states)
   return 0;
 }
 
-	/* Make help sets invisible for nicer codeing */
+	/* Make help sets invisible for nicer coding */
 
 static void make_sets_invisible(REP_SETS *sets)
 {

@@ -1,0 +1,29 @@
+#
+# MDEV-32549: Cluster is inconsitent after savepoint
+# statement is rolled back
+#
+--source include/galera_cluster.inc
+--source include/have_aria.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) engine=innodb;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) engine=aria;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t2;
+--error ER_CHECK_NOT_IMPLEMENTED
+SAVEPOINT s1;
+INSERT INTO t1 VALUES (2);
+COMMIT;
+
+--connection node_1
+SELECT * FROM t1;
+
+# If bug is present: only the second INSERT
+# is replicated, causing an inconsistent
+# cluster.
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1,t2;

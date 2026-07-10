@@ -109,14 +109,6 @@ int pthread_cancel(pthread_t thread);
 #define HAVE_PTHREAD_ATTR_SETSTACKSIZE	1
 
 #undef SAFE_MUTEX				/* This will cause conflicts */
-#define pthread_key(T,V)  DWORD V
-#define pthread_key_create(A,B) ((*A=TlsAlloc())==0xFFFFFFFF)
-#define pthread_key_delete(A) TlsFree(A)
-#define my_pthread_setspecific_ptr(T,V) (!TlsSetValue((T),(V)))
-#define pthread_setspecific(A,B) (!TlsSetValue((A),(LPVOID)(B)))
-#define pthread_getspecific(A) (TlsGetValue(A))
-#define my_pthread_getspecific(T,A) ((T) TlsGetValue(A))
-#define my_pthread_getspecific_ptr(T,V) ((T) TlsGetValue(V))
 
 #define pthread_equal(A,B) ((A) == (B))
 #define pthread_mutex_init(A,B)  (InitializeCriticalSection(A),0)
@@ -147,9 +139,6 @@ int pthread_cancel(pthread_t thread);
 #ifndef _REENTRANT
 #define _REENTRANT
 #endif
-#ifdef HAVE_THR_SETCONCURRENCY
-#include <thread.h>			/* Probably solaris */
-#endif
 #ifdef HAVE_SCHED_H
 #include <sched.h>
 #endif
@@ -157,9 +146,6 @@ int pthread_cancel(pthread_t thread);
 #include <synch.h>
 #endif
 
-#define pthread_key(T,V) pthread_key_t V
-#define my_pthread_getspecific_ptr(T,V) my_pthread_getspecific(T,(V))
-#define my_pthread_setspecific_ptr(T,V) pthread_setspecific(T,(void*) (V))
 #define pthread_detach_this_thread()
 #define pthread_handler_t EXTERNC void *
 typedef void *(* pthread_handler)(void *);
@@ -181,7 +167,6 @@ extern int my_pthread_create_detached;
 #define PTHREAD_CREATE_DETACHED &my_pthread_create_detached
 #define PTHREAD_SCOPE_SYSTEM  PTHREAD_SCOPE_GLOBAL
 #define PTHREAD_SCOPE_PROCESS PTHREAD_SCOPE_LOCAL
-#define USE_ALARM_THREAD
 #endif /* defined(PTHREAD_SCOPE_GLOBAL) && !defined(PTHREAD_SCOPE_SYSTEM) */
 
 #if defined(_BSDI_VERSION) && _BSDI_VERSION < 199910
@@ -236,8 +221,6 @@ int sigwait(sigset_t *setp, int *sigp);		/* Use our implementation */
 #undef	HAVE_GETHOSTBYADDR_R			/* No definition */
 #endif
 
-#define my_pthread_getspecific(A,B) ((A) pthread_getspecific(B))
-
 #ifndef HAVE_LOCALTIME_R
 struct tm *localtime_r(const time_t *clock, struct tm *res);
 #endif
@@ -252,17 +235,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #define pthread_condattr_destroy pthread_condattr_delete
 #endif
 
-/* FSU THREADS */
-#if !defined(HAVE_PTHREAD_KEY_DELETE) && !defined(pthread_key_delete)
-#define pthread_key_delete(A) pthread_dummy(0)
-#endif
-
 #if defined(HAVE_PTHREAD_ATTR_CREATE) && !defined(HAVE_SIGWAIT)
-/* This is set on AIX_3_2 and Siemens unix (and DEC OSF/1 3.2 too) */
-#define pthread_key_create(A,B) \
-		pthread_keycreate(A,(B) ?\
-				  (pthread_destructor_t) (B) :\
-				  (pthread_destructor_t) pthread_dummy)
 #define pthread_attr_init(A) pthread_attr_create(A)
 #define pthread_attr_destroy(A) pthread_attr_delete(A)
 #define pthread_attr_setdetachstate(A,B) pthread_dummy(0)
@@ -618,9 +591,6 @@ extern int my_rw_trywrlock(my_rw_lock_t *);
 
 #define GETHOSTBYADDR_BUFF_SIZE 2048
 
-#ifndef HAVE_THR_SETCONCURRENCY
-#define thr_setconcurrency(A) pthread_dummy(0)
-#endif
 #if !defined(HAVE_PTHREAD_ATTR_SETSTACKSIZE) && ! defined(pthread_attr_setstacksize)
 #define pthread_attr_setstacksize(A,B) pthread_dummy(0)
 #endif
@@ -646,9 +616,17 @@ extern pthread_mutexattr_t my_errorcheck_mutexattr;
 #endif
 
 typedef uint64 my_thread_id;
+/**
+  Long-standing formats (such as the client-server protocol and the binary log)
+  hard-coded `my_thread_id` to 32 bits in practice. (Though not all
+  `thread_id`s are typed as such, @ref my_thread_id itself among those.)
+  @see MDEV-35706
+*/
+#define MY_THREAD_ID_MAX UINT32_MAX
 
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);
+extern void my_thread_set_name(const char *);
 extern void my_thread_global_reinit(void);
 extern void my_thread_global_end(void);
 extern my_bool my_thread_init(void);
@@ -667,15 +645,29 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
-#ifndef DBUG_OFF
-#define DEFAULT_THREAD_STACK	(1024*1024L)
-#else
-#define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
+#if !defined(__has_feature)
+#define __has_feature(x) 0
 #endif
-#else
-#define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
-#endif
+#if defined(__clang__) && __has_feature(memory_sanitizer) && !defined(DBUG_OFF)
+/*
+  MSAN in Debug with clang-20.1 required more memory to complete
+  mtr begin/end checks. The result without increase was MSAN
+  errors triggered on a call instruction.
+*/
+#  define DEFAULT_THREAD_STACK	(2L<<20)
+# elif defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+/*
+  Optimized WITH_ASAN=ON executables produced
+  by GCC 12.3.0, GCC 13.2.0, or clang 16.0.6
+  would fail ./mtr main.1st when the stack size is 5 MiB.
+  The minimum is more than 6 MiB for CMAKE_BUILD_TYPE=RelWithDebInfo and
+  more than 10 MiB for CMAKE_BUILD_TYPE=Debug.
+  Let us add some safety margin.
+*/
+#  define DEFAULT_THREAD_STACK	(11L<<20)
+# else
+#  define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
+# endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0
@@ -726,7 +718,7 @@ extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
-int set_mysys_var(struct st_my_thread_var *mysys_var);
+void set_mysys_var(struct st_my_thread_var *mysys_var);
 
 
 /*

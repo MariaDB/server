@@ -20,10 +20,24 @@ let $replace=Access denied for user '$USER';
 connect (fail,localhost,$USER);
 --enable_query_log
 
---replace_result $replace "Access denied for user 'USER'"
+--replace_result $USER USER
 --error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
 change_user $USER;
 
 replace mysql.global_priv select * from global_priv_backup;
 flush privileges;
 drop table global_priv_backup;
+
+
+--echo #
+--echo # MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+--echo #
+
+CREATE USER foo;
+--error ER_SET_PASSWORD_AUTH_PLUGIN
+GRANT EXECUTE ON * TO foo IDENTIFIED WITH unix_socket AS PASSWORD('bar');
+
+# Cleanup
+DROP USER foo;
+
+--echo # End of 10.5 tests

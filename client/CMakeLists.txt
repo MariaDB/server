@@ -16,9 +16,9 @@
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
-  ${PCRE_INCLUDES}
+  ${PCRE_INCLUDE_DIRS}
   ${CMAKE_SOURCE_DIR}/mysys_ssl
-  ${ZLIB_INCLUDE_DIR}
+  ${ZLIB_INCLUDE_DIRS}
   ${SSL_INCLUDE_DIRS}
   ${CMAKE_SOURCE_DIR}/sql
   ${CMAKE_SOURCE_DIR}/strings
@@ -53,12 +53,19 @@ SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
 MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)
 TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.c ../sql-common/my_user.c)
+MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.c)
-SET_SOURCE_FILES_PROPERTIES(mysqlimport.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mariadb-import ${CLIENT_LIB})
+ADD_LIBRARY(import_util STATIC import_util.cc import_util.h)
+IF (PCRE2_DEBIAN_HACK)
+  SET_SOURCE_FILES_PROPERTIES(import_util.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
+ENDIF()
+TARGET_LINK_LIBRARIES(import_util PRIVATE pcre2-posix pcre2-8)
+TARGET_INCLUDE_DIRECTORIES(import_util PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
+TARGET_LINK_LIBRARIES(mariadb-import PRIVATE tpool_min ${CLIENT_LIB} import_util)
+
 
 MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(mariadb-upgrade ${CLIENT_LIB})
@@ -70,7 +77,7 @@ TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc)
+MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
 
 MYSQL_ADD_EXECUTABLE(mariadb-admin mysqladmin.cc ../sql/password.c)
@@ -101,3 +108,6 @@ FOREACH(t mariadb mariadb-test mariadb-check mariadb-dump mariadb-import mariadb
 ENDFOREACH()
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
+IF(WITH_UNIT_TESTS)
+  ADD_SUBDIRECTORY(${PROJECT_SOURCE_DIR}/unittest/client ${PROJECT_BINARY_DIR}/unittest/client)
+ENDIF()

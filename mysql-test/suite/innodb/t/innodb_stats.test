@@ -3,6 +3,7 @@
 #
 
 -- source include/have_innodb.inc
+-- source include/not_embedded.inc
 
 -- disable_warnings
 -- disable_query_log
@@ -63,3 +64,17 @@ CREATE TABLE test_innodb_stats (
 -- disable_query_log
 DROP TABLE test_innodb_stats;
 set @@use_stat_tables= @save_use_stat_tables;
+--enable_query_log
+--echo #
+--echo #  MDEV-31740 InnoDB statistics column length validation failed
+--echo #
+call mtr.add_suppression("InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.last_update");
+ALTER TABLE mysql.innodb_table_stats MODIFY LAST_UPDATE DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP();
+CREATE TABLE t (a INT KEY)Engine=InnoDB STATS_PERSISTENT=1;
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.last_update;
+--source include/search_pattern_in_file.inc
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP();
+CREATE TABLE t2(a INT KEY)ENGINE=InnoDB STATS_PERSISTENT= 1;
+SELECT table_name FROM mysql.innodb_table_stats;
+DROP TABLE t, t2;

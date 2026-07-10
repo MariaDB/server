@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -52,7 +51,7 @@ int spider_udf_set_copy_tables_param_default(
     copy_tables->database_length = SPIDER_THD_db_length(copy_tables->trx->thd);
     if (
       !(copy_tables->database = spider_create_string(
-        SPIDER_THD_db_str(copy_tables->trx->thd),
+        copy_tables->trx->thd->get_db(),
         copy_tables->database_length))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -60,6 +59,10 @@ int spider_udf_set_copy_tables_param_default(
     }
   }
 
+  if (copy_tables->bulk_insert_interval == -1)
+    copy_tables->bulk_insert_interval = 10;
+  if (copy_tables->bulk_insert_rows == -1)
+    copy_tables->bulk_insert_rows = 100;
   if (copy_tables->use_transaction == -1)
     copy_tables->use_transaction = 1;
   if (copy_tables->bg_mode == -1)
@@ -67,135 +70,76 @@ int spider_udf_set_copy_tables_param_default(
   DBUG_RETURN(0);
 }
 
-#define SPIDER_PARAM_STR_LEN(name) name ## _length
-#define SPIDER_PARAM_STR(title_name, param_name) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    if (!copy_tables->param_name) \
-    { \
-      if ((copy_tables->param_name = spider_get_string_between_quote( \
-        start_ptr, TRUE, &param_string_parse))) \
-        copy_tables->SPIDER_PARAM_STR_LEN(param_name) = \
-          strlen(copy_tables->param_name); \
-      else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+#define SPIDER_PARAM_LEN(name) name ## _length
+#define SPIDER_PARAM_STR(title_name, param_name)                        \
+  if (!strncasecmp(parse.start_title, title_name, title_length))        \
+  {                                                                     \
+    DBUG_PRINT("info",("spider " title_name " start"));                 \
+    if (!copy_tables->param_name)                                       \
+    {                                                                   \
+      if ((copy_tables->param_name = spider_create_string(parse.start_value, \
+                                                          value_length))) \
+        copy_tables->SPIDER_PARAM_LEN(param_name) = strlen(copy_tables->param_name); \
+      else {                                                            \
+        error_num= parse.fail(true);                                    \
+        goto error;                                                     \
+      }                                                                 \
       DBUG_PRINT("info",("spider " title_name "=%s", copy_tables->param_name)); \
     } \
     break; \
   }
-#define SPIDER_PARAM_HINT_WITH_MAX(title_name, param_name, check_length, max_size, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, check_length)) \
-  { \
-    DBUG_PRINT("info",("spider " title_name " start")); \
-    DBUG_PRINT("info",("spider max_size=%d", max_size)); \
-    int hint_num = atoi(tmp_ptr + check_length) - 1; \
-    DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
-    DBUG_PRINT("info",("spider copy_tables->param_name=%x", \
-      copy_tables->param_name)); \
-    if (copy_tables->param_name) \
-    { \
-      if (hint_num < 0 || hint_num >= max_size) \
-      { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } else if (copy_tables->param_name[hint_num] != -1) \
-        break; \
-      char *hint_str = spider_get_string_between_quote(start_ptr, FALSE); \
-      if (hint_str) \
-      { \
-        copy_tables->param_name[hint_num] = atoi(hint_str); \
-        if (copy_tables->param_name[hint_num] < min_val) \
-          copy_tables->param_name[hint_num] = min_val; \
-        else if (copy_tables->param_name[hint_num] > max_val) \
-          copy_tables->param_name[hint_num] = max_val; \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
-      DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
-        copy_tables->param_name[hint_num])); \
-    } else { \
-      error_num = param_string_parse.print_param_error(); \
-      goto error; \
-    } \
-    break; \
-  }
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        copy_tables->param_name = atoi(tmp_ptr2); \
-        if (copy_tables->param_name < min_val) \
-          copy_tables->param_name = min_val; \
-        else if (copy_tables->param_name > max_val) \
-          copy_tables->param_name = max_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      copy_tables->param_name = atoi(parse.start_value); \
+      if (copy_tables->param_name < min_val) \
+        copy_tables->param_name = min_val; \
+      else if (copy_tables->param_name > max_val) \
+        copy_tables->param_name = max_val; \
       DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        copy_tables->param_name = atoi(tmp_ptr2); \
-        if (copy_tables->param_name < min_val) \
-          copy_tables->param_name = min_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      copy_tables->param_name = atoi(parse.start_value); \
+      if (copy_tables->param_name < min_val) \
+        copy_tables->param_name = min_val; \
       DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
-  if (!strncasecmp(tmp_ptr, title_name, title_length)) \
+  if (!strncasecmp(parse.start_title, title_name, title_length)) \
   { \
     DBUG_PRINT("info",("spider " title_name " start")); \
     if (copy_tables->param_name == -1) \
     { \
-      if ((tmp_ptr2 = spider_get_string_between_quote( \
-        start_ptr, FALSE))) \
-      { \
-        copy_tables->param_name = \
-          my_strtoll10(tmp_ptr2, (char**) NULL, &error_num); \
-        if (copy_tables->param_name < min_val) \
-          copy_tables->param_name = min_val; \
-        param_string_parse.set_param_value(tmp_ptr2, \
-                                           tmp_ptr2 + \
-                                             strlen(tmp_ptr2) + 1); \
-      } else { \
-        error_num = param_string_parse.print_param_error(); \
-        goto error; \
-      } \
+      copy_tables->param_name = \
+        my_strtoll10(parse.start_value, (char**) NULL, &error_num); \
+      if (copy_tables->param_name < min_val) \
+        copy_tables->param_name = min_val; \
       DBUG_PRINT("info",("spider " title_name "=%lld", \
-        copy_tables->param_name)); \
+                         copy_tables->param_name)); \
     } \
     break; \
   }
+
+static void spider_minus_1(SPIDER_COPY_TABLES *copy_tables)
+{
+  copy_tables->bulk_insert_interval = -1;
+  copy_tables->bulk_insert_rows = -1;
+  copy_tables->use_table_charset = -1;
+  copy_tables->use_transaction = -1;
+  copy_tables->bg_mode = -1;
+}
 
 int spider_udf_parse_copy_tables_param(
   SPIDER_COPY_TABLES *copy_tables,
@@ -204,67 +148,40 @@ int spider_udf_parse_copy_tables_param(
 ) {
   int error_num = 0;
   char *param_string = NULL;
-  char *sprit_ptr;
-  char *tmp_ptr, *tmp_ptr2, *start_ptr;
-  int title_length;
-  SPIDER_PARAM_STRING_PARSE param_string_parse;
+  char *start_param;
+  int title_length, value_length;
+  SPIDER_PARAM_STRING_PARSE parse;
   DBUG_ENTER("spider_udf_parse_copy_tables_param");
-  copy_tables->bulk_insert_interval = -1;
-  copy_tables->bulk_insert_rows = -1;
-  copy_tables->use_table_charset = -1;
-  copy_tables->use_transaction = -1;
-  copy_tables->bg_mode = -1;
-
+  spider_minus_1(copy_tables);
   if (param_length == 0)
     goto set_default;
   DBUG_PRINT("info",("spider create param_string string"));
-  if (
-    !(param_string = spider_create_string(
-      param,
-      param_length))
-  ) {
+  if (!(param_string = spider_create_string(param, param_length)))
+  {
     error_num = HA_ERR_OUT_OF_MEM;
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error_alloc_param_string;
   }
   DBUG_PRINT("info",("spider param_string=%s", param_string));
 
-  sprit_ptr = param_string;
-  param_string_parse.init(param_string, ER_SPIDER_INVALID_UDF_PARAM_NUM);
-  while (sprit_ptr)
+  start_param = param_string;
+  parse.error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
+  while (*start_param != '\0')
   {
-    tmp_ptr = sprit_ptr;
-    while (*tmp_ptr == ' ' || *tmp_ptr == '\r' ||
-      *tmp_ptr == '\n' || *tmp_ptr == '\t')
-      tmp_ptr++;
-
-    if (*tmp_ptr == '\0')
-      break;
-
-    title_length = 0;
-    start_ptr = tmp_ptr;
-    while (*start_ptr != ' ' && *start_ptr != '\'' &&
-      *start_ptr != '"' && *start_ptr != '\0' &&
-      *start_ptr != '\r' && *start_ptr != '\n' &&
-      *start_ptr != '\t')
+    if (parse.locate_param_def(start_param))
     {
-      title_length++;
-      start_ptr++;
-    }
-    param_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
-    if ((error_num = param_string_parse.get_next_parameter_head(
-      start_ptr, &sprit_ptr)))
-    {
+      error_num= parse.fail(false);
       goto error;
     }
+    /* Null the end of the parameter value. */
+    *parse.end_value= '\0';
+    value_length= (int) (parse.end_value - parse.start_value);
 
-    switch (title_length)
+    switch (title_length = (int) (parse.end_title - parse.start_title))
     {
       case 0:
-        error_num = param_string_parse.print_param_error();
-        if (error_num)
-          goto error;
-        continue;
+        error_num= parse.fail(true);
+        goto error;
       case 3:
         SPIDER_PARAM_INT_WITH_MAX("bgm", bg_mode, 0, 1);
         SPIDER_PARAM_INT("bii", bulk_insert_interval, 0);
@@ -272,53 +189,43 @@ int spider_udf_parse_copy_tables_param(
         SPIDER_PARAM_STR("dtb", database);
         SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("utr", use_transaction, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 7:
         SPIDER_PARAM_INT_WITH_MAX("bg_mode", bg_mode, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 8:
         SPIDER_PARAM_STR("database", database);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 15:
         SPIDER_PARAM_INT_WITH_MAX("use_transaction", use_transaction, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 16:
         SPIDER_PARAM_LONGLONG("bulk_insert_rows", bulk_insert_rows, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 17:
         SPIDER_PARAM_INT_WITH_MAX(
           "use_table_charset", use_table_charset, 0, 1);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       case 20:
         SPIDER_PARAM_INT("bulk_insert_interval", bulk_insert_interval, 0);
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
       default:
-        error_num = param_string_parse.print_param_error();
+        error_num= parse.fail(true);
         goto error;
     }
-
-    /* Verify that the remainder of the parameter value is whitespace */
-    if ((error_num = param_string_parse.has_extra_parameter_values()))
-      goto error;
+    /* Restore delim */
+    *parse.end_value= parse.delim_value;
   }
 
 set_default:
-  if ((error_num = spider_udf_set_copy_tables_param_default(
-    copy_tables
-  )))
-    goto error;
-
-  if (param_string)
-    spider_free(spider_current_trx, param_string, MYF(0));
-  DBUG_RETURN(0);
-
+  error_num = spider_udf_set_copy_tables_param_default(copy_tables);
 error:
   if (param_string)
     spider_free(spider_current_trx, param_string, MYF(0));
@@ -338,6 +245,7 @@ int spider_udf_get_copy_tgt_tables(
   char table_key[MAX_KEY_LENGTH];
   SPIDER_COPY_TABLE_CONN *table_conn = NULL, *src_table_conn_prev = NULL,
     *dst_table_conn_prev = NULL;
+  /* This share has only one link. */
   SPIDER_SHARE *tmp_share;
   char **tmp_connect_info;
   uint *tmp_connect_info_length;
@@ -349,7 +257,7 @@ int spider_udf_get_copy_tgt_tables(
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
       SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     my_error(error_num, MYF(0));
     goto error;
@@ -366,7 +274,7 @@ int spider_udf_get_copy_tgt_tables(
   }
   do {
     if (!(table_conn = (SPIDER_COPY_TABLE_CONN *)
-      spider_bulk_malloc(spider_current_trx, 25, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_GET_COPY_TGT_TABLES_1, MYF(MY_WME | MY_ZEROFILL),
         &table_conn, (uint) (sizeof(SPIDER_COPY_TABLE_CONN)),
         &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
         &tmp_connect_info,
@@ -390,9 +298,9 @@ int spider_udf_get_copy_tgt_tables(
 
     if (
       (error_num = spider_get_sys_tables_connect_info(
-        table_tables, tmp_share, 0, mem_root)) ||
+        table_tables, tmp_share, mem_root)) ||
       (error_num = spider_get_sys_tables_link_status(
-        table_tables, tmp_share, 0, mem_root)) ||
+        table_tables, tmp_share->link_statuses, mem_root)) ||
       (error_num = spider_get_sys_tables_link_idx(
         table_tables, &table_conn->link_idx, mem_root))
     ) {
@@ -537,8 +445,7 @@ int spider_udf_get_copy_tgt_tables(
     error_num = spider_sys_index_next_same(table_tables, table_key);
   } while (error_num == 0);
   spider_sys_index_end(table_tables);
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
 
   if (!copy_tables->table_conn[0])
@@ -560,8 +467,7 @@ int spider_udf_get_copy_tgt_tables(
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   if (table_conn)
   {
     spider_free_tmp_dbton_share(tmp_share);
@@ -587,11 +493,10 @@ int spider_udf_get_copy_tgt_conns(
     while (table_conn)
     {
       share = table_conn->share;
-      if (
-        !(table_conn->conn = spider_get_conn(
-          share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
-          SPIDER_CONN_KIND_MYSQL, &error_num))
-      ) {
+      if (!(table_conn->conn=
+                spider_get_conn(share, 0, share->conn_keys[0], trx, NULL,
+                                FALSE, FALSE, &error_num)))
+      {
         my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), share->server_names[0]);
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
       }
@@ -682,7 +587,7 @@ int spider_udf_copy_tables_create_table_list(
   }
 
   if (!(copy_tables->link_idxs[0] = (int *)
-    spider_bulk_malloc(spider_current_trx, 26, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_UDF_COPY_TABLES_CREATE_TABLE_LIST_1, MYF(MY_WME | MY_ZEROFILL),
       &copy_tables->link_idxs[0],
         (uint) (sizeof(int) * copy_tables->link_idx_count[0]),
       &copy_tables->link_idxs[1],
@@ -798,8 +703,8 @@ int spider_udf_bg_copy_exec_sql(
 long long spider_copy_tables_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num, roop_count, all_link_cnt = 0, use_table_charset;
   SPIDER_COPY_TABLES *copy_tables = NULL;
@@ -864,7 +769,7 @@ long long spider_copy_tables_body(
   }
 
   if (!(copy_tables = (SPIDER_COPY_TABLES *)
-    spider_bulk_malloc(spider_current_trx, 27, MYF(MY_WME | MY_ZEROFILL),
+    spider_bulk_malloc(spider_current_trx, SPD_MID_COPY_TABLES_BODY_1, MYF(MY_WME | MY_ZEROFILL),
       &copy_tables, (uint) (sizeof(SPIDER_COPY_TABLES)),
       NullS))
   ) {
@@ -994,8 +899,7 @@ long long spider_copy_tables_body(
   else
     copy_tables->access_charset = system_charset_info;
 
-  bulk_insert_rows = spider_param_udf_ct_bulk_insert_rows(
-    copy_tables->bulk_insert_rows);
+  bulk_insert_rows= copy_tables->bulk_insert_rows;
   for (src_tbl_conn = copy_tables->table_conn[0]; src_tbl_conn;
     src_tbl_conn = src_tbl_conn->next)
   {
@@ -1061,7 +965,12 @@ long long spider_copy_tables_body(
   all_link_cnt =
     copy_tables->link_idx_count[0] + copy_tables->link_idx_count[1];
   if (
-    !(tmp_sql = new spider_string[all_link_cnt]) ||
+    !(tmp_sql = new spider_string[all_link_cnt])
+  ) {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    goto error;
+  }
+  if (
     !(spider = new ha_spider[all_link_cnt])
   ) {
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -1077,7 +986,7 @@ long long spider_copy_tables_body(
   {
     tmp_spider = &spider[roop_count];
     if (!(tmp_spider->dbton_handler = (spider_db_handler **)
-      spider_bulk_alloc_mem(spider_current_trx, 205,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_COPY_TABLES_BODY_2,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &tmp_spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
@@ -1090,15 +999,8 @@ long long spider_copy_tables_body(
     tmp_spider->share = table_conn->share;
     tmp_spider->wide_handler = wide_handler;
     wide_handler->trx = copy_tables->trx;
-/*
-    if (spider_db_append_set_names(table_conn->share))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-      goto error_append_set_names;
-    }
-*/
     tmp_spider->conns = &table_conn->conn;
-    tmp_sql[roop_count].init_calc_mem(122);
+    tmp_sql[roop_count].init_calc_mem(SPD_MID_COPY_TABLES_BODY_3);
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
@@ -1123,7 +1025,7 @@ long long spider_copy_tables_body(
   {
     tmp_spider = &spider[roop_count];
     if (!(tmp_spider->dbton_handler = (spider_db_handler **)
-      spider_bulk_alloc_mem(spider_current_trx, 206,
+      spider_bulk_alloc_mem(spider_current_trx, SPD_MID_COPY_TABLES_BODY_4,
         __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
         &tmp_spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
@@ -1136,15 +1038,8 @@ long long spider_copy_tables_body(
     tmp_spider->share = table_conn->share;
     tmp_spider->wide_handler = wide_handler;
     wide_handler->trx = copy_tables->trx;
-/*
-    if (spider_db_append_set_names(table_conn->share))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
-      goto error_append_set_names;
-    }
-*/
     tmp_spider->conns = &table_conn->conn;
-    tmp_sql[roop_count].init_calc_mem(201);
+    tmp_sql[roop_count].init_calc_mem(SPD_MID_COPY_TABLES_BODY_5);
     tmp_sql[roop_count].set_charset(copy_tables->access_charset);
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
@@ -1169,14 +1064,6 @@ long long spider_copy_tables_body(
     bulk_insert_rows)))
     goto error_db_udf_copy_tables;
 
-/*
-  for (table_conn = copy_tables->table_conn[0];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-  for (table_conn = copy_tables->table_conn[1];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-*/
   if (table_list->table)
   {
     (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
@@ -1197,8 +1084,7 @@ long long spider_copy_tables_body(
     }
     delete [] spider;
   }
-  if (tmp_sql)
-    delete [] tmp_sql;
+  delete [] tmp_sql;
   spider_udf_free_copy_tables_alloc(copy_tables);
 
   DBUG_RETURN(1);
@@ -1206,17 +1092,6 @@ long long spider_copy_tables_body(
 error_db_udf_copy_tables:
 error_create_dbton_handler:
 error_init_dbton_handler:
-/*
-error_append_set_names:
-*/
-/*
-  for (table_conn = copy_tables->table_conn[0];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-  for (table_conn = copy_tables->table_conn[1];
-    table_conn; table_conn = table_conn->next)
-    spider_db_free_set_names(table_conn->share);
-*/
 error:
   if (spider)
   {
@@ -1274,6 +1149,11 @@ my_bool spider_copy_tables_init_body(
   char *message
 ) {
   DBUG_ENTER("spider_copy_tables_init_body");
+  if (!spider_hton_ptr)
+  {
+    strcpy(message, "Plugin 'SPIDER' is not loaded");
+    goto error;
+  }
   if (args->arg_count != 3 && args->arg_count != 4)
   {
     strcpy(message, "spider_copy_tables() requires 3 or 4 arguments");

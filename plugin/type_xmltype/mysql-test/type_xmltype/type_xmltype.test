@@ -1,0 +1,305 @@
+replace_result InnoDB MyISAM;
+
+CREATE TABLE t1(id INT, x xmltype);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a XMLTYPE(6));
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1 (a XMLTYPE REF_SYSTEM_ID=4);
+
+CREATE TABLE t1(id INT, x xmltype  CHARACTER SET utf8mb3) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Checking that contextually typed "binary" attribute works
+CREATE TABLE t1 (a xmltype binary) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE TABLE t1 (a xmltype CHARACTER SET binary);
+
+# Checking that contextually typed COLLATE DEFAULT works
+CREATE TABLE t1 (a xmltype collate default) CHARACTER SET utf8mb4 collate utf8mb4_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1(id INT, x xmltype(10, 2));
+
+--error ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
+CREATE TABLE t1(id INT, x xmltype REF_SYSTEM_ID=1001);
+
+CREATE TABLE t1(id int, x xmltype, INDEX ix(x(12)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1(id INT, x xmltype);
+INSERT INTO t1 VALUES (1, '<one></one>'), (2, '<two></two>'), (3, '<three></three>');
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+CREATE TABLE t2 SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+INSERT INTO t1 VALUES (1, '<one></one>'), (2, '<two></two>'), (3, '<three></three>'), (4, '<four></four>');
+EXPLAIN SELECT * FROM t1 GROUP BY id;
+CREATE TABLE t2 SELECT * FROM t1 GROUP BY id;
+SHOW CREATE TABLE t2;
+
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT id, COALESCE(x, x) as ce FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT id, LEAST(x, x) as ce FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT id, MIN(x), MAX(x) FROM t1 GROUP BY id;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 SELECT DISTINCT(x) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT x FROM t1 UNION SELECT x FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(id int);
+ALTER TABLE t1 ADD COLUMN x xmltype;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE FUNCTION xmi(id int) RETURNS xmltype RETURN '<a></a>';
+
+SELECT xmi(1);
+CREATE TABLE t1 SELECT xmi(10) as x;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP FUNCTION xmi;
+
+delimiter $;
+create procedure p1(in a int)
+  begin
+    declare x xmltype;
+  end $
+delimiter ;$
+SHOW CREATE PROCEDURE p1;
+DROP PROCEDURE p1;
+
+delimiter $;
+create procedure p1(in a int)
+  begin
+    declare x xmltype;
+  end $
+delimiter ;$
+SHOW CREATE PROCEDURE p1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 SELECT cast('<a><b>b</b><c>c</c></a>' as XMLTYPE) as CA;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# check long field
+
+CREATE TABLE t1(id INT, x xmltype);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1, CONCAT("<a>", REPEAT("<b></b>", 16384), "</a>"));
+SELECT LENGTH(x) FROM t1;
+DROP TABLE t1;
+
+EXPLAIN EXTENDED SELECT CAST('a' as xmltype);
+
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET utf8mb4) as c;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT CAST('<a></a>' AS xmltype CHARACTER SET binary) as c;
+
+CREATE OR REPLACE TABLE t1 (a text);
+INSERT INTO t1 VALUES ('<a></a>'),('<b></b>'),('<c></c>');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CAST(a AS char)='a' and CAST(a AS xmltype)='a';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-38548 Xmltype default values inconsistency is not checked.
+--echo #
+
+CREATE TABLE t1(id INT, x xmltype);
+INSERT INTO t1 VALUES (1, "<a></a>");
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT x + 1 from t1;
+DROP TABLE t1;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 (a INT, b XMLTYPE DEFAULT (a+1));
+
+CREATE SEQUENCE s;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t ( a XMLTYPE DEFAULT NEXTVAL(s));
+DROP SEQUENCE s;
+
+CREATE TABLE t1 AS SELECT UpdateXML('<a><b>ccc</b><d></d></a>', '/a', '<e>fff</e>') as x;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(a XMLTYPE);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+INSERT INTO t1 VALUES(1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+INSERT INTO t1 VALUES(11.2);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+INSERT INTO t1 VALUES(11e-2);
+
+--error ER_WRONG_VALUE
+INSERT INTO t1 VALUES("one");
+--error ER_WRONG_VALUE
+INSERT INTO t1 VALUES("<a><b></b>");
+
+INSERT INTO t1 VALUES("<a><b></b></a>");
+--error ER_WRONG_VALUE
+INSERT INTO t1 VALUES("<to>JOHN</to><from></from>");
+
+INSERT INTO t1 VALUES('<note><to>JOHN</to><from></from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <note><to>JOHN</to><from></from></note>');
+--error ER_WRONG_VALUE
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <?xml?> <note><to>JOHN</to><from></from></note>');
+--error ER_WRONG_VALUE
+INSERT INTO t1 VALUES('<note><to>JOHN</to><from></from></note> <?xml version="1.0" ?> ');
+--error ER_WRONG_VALUE
+INSERT INTO t1 VALUES('<?somePI pi content ?> <?xml version="1.0" ?> <note><from>Lisa</from></note>');
+INSERT INTO t1 VALUES('<?somePI pi content ?> <note><from>Lisa</from></note>');
+INSERT INTO t1 VALUES('<?xml version="1.0" ?> <note><?somePI pi content ?><from>Lisa</from></note>');
+
+DROP TABLE t1;
+
+--echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-39570 LeakSanitizer: detected memory leaks after insert with xmltype.
+--echo #
+
+CREATE TABLE t1(a XMLTYPE);
+
+SET @x = CONCAT(REPEAT('<element_with_long_name>', 30), 'leaf',
+                REPEAT('</element_with_long_name>', 30));
+INSERT INTO t1 VALUES(@x);
+ 
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-39575 Protocol::end_statement(): Assertion `0' failed after insert into xmltype union of valid and invalid xml.
+--echo #
+CREATE TABLE t1(x XMLTYPE) Engine=MyISAM;
+--error ER_WRONG_VALUE
+INSERT INTO t1 SELECT '<a/>' UNION SELECT 'a';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-39577 Protocol::end_statement(): Assertion `0' failed with invalid xmltype + sql_mode=''
+--echo #
+set sql_mode='';
+CREATE TABLE t1(x XMLTYPE);
+--error ER_WRONG_VALUE
+INSERT INTO t1 SELECT 'a';
+DROP TABLE t1;
+set sql_mode= DEFAULT;
+
+--echo #
+--echo # MDEV-39573 Server crashes in Item_char_typecast::fix_length_and_dec_internal after select xmltype
+--echo #
+
+SELECT XMLTYPE(1);
+SELECT XMLTYPE("<a></a>");
+
+SELECT CAST(1 AS XMLTYPE);
+SELECT CAST("<a></a>" AS XMLTYPE);
+
+--error ER_NOT_SUPPORTED_YET
+SELECT CAST(1 AS XMLTYPE CHARSET utf32);
+--error ER_NOT_SUPPORTED_YET
+SELECT CAST("<a></a>" AS XMLTYPE CHARSET utf32);
+
+--echo #
+--echo # MDEV-39589 Wrong results with xmltype as a virtual column.
+--echo #
+
+CREATE TABLE t1(a VARCHAR(50), b XMLTYPE AS (a) VIRTUAL);
+INSERT INTO t1(a) VALUES('<yyyyyyyyy>xxxxxxxxxxxxxxxxxxx</yyyyyyyyy>');
+INSERT INTO t1(a) VALUES('a');
+INSERT INTO t1(a) VALUES('b');
+INSERT INTO t1(a) VALUES('<dddddddddd>tttttttttttttttttttttt</dddddddddd>');
+INSERT INTO t1(a) VALUES('e');
+ 
+--disable_view_protocol
+SELECT * FROM t1;
+--enable_view_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-39592 ALTER.. with xmltype silently overwrites row with prior rows data.
+--echo #
+SET sql_mode = '';
+CREATE TABLE t(id INT, s VARCHAR(100));
+INSERT INTO t VALUES (1,'<abc>aaaaaaaaaa</abc>'), (2,'a'), (3,'b'), (4,'<c/>');
+--error ER_WRONG_VALUE
+ALTER TABLE t MODIFY COLUMN s XMLTYPE;
+SELECT id, s FROM t;
+SHOW CREATE TABLE t;
+DROP TABLE t;
+SET sql_mode= default;
+
+--echo #
+--echo # MDEV-39599 heap-use-after-free in escape_string_for_mysql after sp with invalid xml (xmltype))
+--echo #
+SET sql_mode = '';
+ 
+CREATE TABLE t(s VARCHAR(50));
+INSERT INTO t VALUES ('<a/>'), ('a');
+ 
+--delimiter //
+CREATE PROCEDURE sp()
+  BEGIN
+  DECLARE v XMLTYPE;
+  SELECT s INTO v FROM t WHERE s = '<a/>';
+  SELECT s INTO v FROM t WHERE s = 'a';
+  SELECT v;
+END//
+
+--delimiter ;
+
+--error ER_WRONG_VALUE
+CALL sp();
+
+SET sql_mode= default;
+DROP PROCEDURE sp;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-39653 AddressSanitizer: heap-use-after-free in my_mb_wc_latin1/../Field_xmltype::store after invalid xml.
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ 
+CREATE TABLE t2 (x XMLTYPE not null);
+--error ER_WRONG_VALUE
+INSERT IGNORE INTO t2 SELECT i FROM t1;
+
+DROP TABLE t1, t2;
+
+--echo # End of 12.3 tests

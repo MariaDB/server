@@ -1,8 +1,6 @@
 ###### suite/funcs_1/include/myisam_tb2.inc
 
---disable_warnings
-drop table if exists tb2 ;
---enable_warnings
+set old_mode=2_digit_year;
 create table tb2 (
 f59 numeric (0) unsigned,
 f60 numeric (64) unsigned,
@@ -64,6 +62,7 @@ f115 VARBINARY(27) null ,
 f116 VARBINARY(64) null,
 f117 VARBINARY(192) null
 ) engine = myisam;
+set old_mode=default;
 
 # The original columns. They are replaced by varbinary, because the funcs_1 tests should
 # not depend on the optional availability of the geometry feature.

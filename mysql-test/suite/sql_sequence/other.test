@@ -38,7 +38,6 @@ create sequence s1;
 create sequence s2;
 --error ER_NO_DEFAULT_FOR_FIELD
 insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
---error ER_UPDATE_TABLE_USED
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
 --error ER_SEQUENCE_INVALID_DATA
 insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
@@ -159,11 +158,11 @@ DROP SEQUENCE s1;
 --echo #
 
 CREATE SEQUENCE s1 nocache engine=myisam;
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_SUBQUERIES_NOT_SUPPORTED
 CREATE table t1 (a int check (next value for s1 > 0));
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_SUBQUERIES_NOT_SUPPORTED
 CREATE table t1 (a int check (previous value for s1 > 0));
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_SUBQUERIES_NOT_SUPPORTED
 CREATE table t1 (a int check (setval(s1,10)));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
@@ -177,11 +176,8 @@ drop sequence s1;
 CREATE SEQUENCE s;
 CREATE table t1 (a int);
 insert into t1 values (1),(2);
---error ER_ILLEGAL_HA
 DELETE s FROM s;
---error ER_ILLEGAL_HA
 delete t1,s from s,t1;
---error ER_ILLEGAL_HA
 delete s,t1 from t1,s;
 DROP SEQUENCE s;
 DROP TABLE t1;
@@ -385,4 +381,76 @@ DROP VIEW IF EXISTS s;
 DROP VIEW v1;
 DROP SEQUENCE s;
 DROP TABLE t;
+--echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-32541 Assertion `!(thd->server_status & (1U | 8192U))' failed in MDL_context::release_transactional_locks
+--echo #
+create sequence s1;
+create sequence s2;
+--connect (con1,localhost,root,,)
+set session transaction read only;
+start transaction;
+
+--connection default
+start transaction;
+insert into s2 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+
+--connection con1
+select lastval(s1);
+--send select lastval(s2);
+
+--connection default
+set lock_wait_timeout= 1;
+insert into s1 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+
+--connection con1
+--error ER_LOCK_DEADLOCK
+--reap
+--disconnect con1
+--connection default
+drop sequence s1;
+drop sequence s2;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-37906 Server crash or UBSAN errors in Item_func_nextval::update_table upon INSERT DELAYED
+--echo #
+create sequence s engine=myisam;
+create table t (id bigint default(nextval(s))) engine=myisam;
+insert delayed into t () values();
+drop table t;
+drop sequence s;
+
+--echo #
+--echo # MDEV-37345 Item_func_nextval::val_int() crash on INSERT...SELECT with subqueries
+--echo #
+# sequence and prelocking.
+create sequence s;
+create table t1 (a int, b int default(nextval(s)));
+insert into t1 () values ();
+create table t2 (c int);
+create procedure p() update t1 set a = 0;
+--delimiter $
+create trigger tr after insert on t2 for each row
+begin
+  insert into t1 () values ();
+  call p();
+end $
+--delimiter ;
+insert into t2 values ();
+drop table t1, t2, s;
+drop procedure p;
+
+# another one, temporary table, ALTER, recreate sequence
+create sequence s;
+create temporary table t (f int);
+alter table t modify f int default(nextval(s));
+create or replace sequence s;
+insert into t values (default);
+drop sequence s;
+
+--echo # End of 10.11 tests

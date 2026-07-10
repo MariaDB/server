@@ -568,8 +568,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -1399,8 +1408,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -2252,10 +2270,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -3191,7 +3216,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -11797,8 +11822,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -12628,8 +12662,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -13481,10 +13524,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -14420,7 +14470,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -23032,8 +23082,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -23869,8 +23928,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -24722,10 +24790,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -25661,7 +25736,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -34273,8 +34348,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -35110,8 +35194,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -35969,10 +36062,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -36908,7 +37008,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -45520,8 +45620,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -46357,8 +46466,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -47216,10 +47334,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -48161,7 +48286,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -56781,8 +56906,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -57620,8 +57754,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -58481,10 +58624,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -59428,7 +59578,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -68059,8 +68209,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -68895,8 +69054,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -69753,10 +69921,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -70697,7 +70872,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
@@ -79322,8 +79497,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -80158,8 +80342,17 @@ UPDATE IGNORE t5 SET c2=c2+10 WHERE c1 IN (b'001',b'101',b'111');
 SELECT hex(c1),hex(c2) FROM t5;
 hex(c1)	hex(c2)
 1	1
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
@@ -81016,10 +81209,17 @@ hex(c1)	hex(c2)
 1	3
 2	2
 3	3
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
-Warning	1264	Out of range value for column 'c2' at row 2
-Warning	1264	Out of range value for column 'c2' at row 3
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;
 TRUNCATE t6;
 INSERT IGNORE INTO t5 VALUES (95, 46), (31, 438), (61, 152), (78, 123), (88, 411), (122, 118), (0, 177),(75, 42), (108, 67), (79, 349), (59, 188), (69, 206), (49, 345), (118, 380),(111, 368), (94, 468), (56, 379), (77, 133), (29, 399), (9, 363), (23, 36),(116, 390), (119, 368), (87, 351), (123, 411), (24, 398), (34, 202), (28, 499),(30, 83), (5, 178), (60, 343), (4, 245), (104, 280), (106, 446), (127, 403),(44, 307), (68, 454), (57, 135);
@@ -81960,7 +82160,7 @@ hex(c1)	hex(c2)
 8	D
 9	D
 A	A
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 TRUNCATE t5;

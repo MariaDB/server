@@ -14,7 +14,7 @@
 # Modified: HHunger 2009-02-23 Inserted a wait condition right after the       #
 #                              "INSERT ..record_6" to wait for the end of      #
 #                              the insert.                                     #
-#           mleich This test needs some inporovements                          #
+#           mleich This test needs some improvements                          #
 #                                                                              #
 # Description: Test Cases of Dynamic System Variable "concurrent_insert"       #
 #              that checks functionality of this variable                      #
@@ -101,7 +101,7 @@ let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
 --echo ## show processlist info and state ##
 SELECT state,info FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE state= "Waiting for table level lock" AND info LIKE "INSERT INTO t1%";
---echo ## table contents befor UNLOCK ##
+--echo ## table contents before UNLOCK ##
 SELECT * FROM t1;
 UNLOCK TABLES;
 --echo ## table contens after UNLOCK ##

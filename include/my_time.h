@@ -30,15 +30,27 @@ C_MODE_START
 extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
+#if SIZEOF_VOIDP == 4
+/* 32 bit system, using old timestamp */
 #define MY_TIME_T_MAX LONG_MAX
 #define MY_TIME_T_MIN LONG_MIN
-
-/* Time handling defaults */
 #define TIMESTAMP_MAX_YEAR 2038
-#define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
+#define TIMESTAMP_MAX_MONTH 1
+#define TIMESTAMP_MAX_DAY 19
 #define TIMESTAMP_MAX_VALUE INT_MAX32
 #define TIMESTAMP_MIN_VALUE 0
+#else
+/* 64 bit system. Use 4 byte unsigned timestamp */
+#define MY_TIME_T_MAX ((longlong) UINT_MAX32)
+#define MY_TIME_T_MIN 0
+#define TIMESTAMP_MAX_YEAR 2106
+#define TIMESTAMP_MIN_VALUE 0
+#define TIMESTAMP_MAX_VALUE ((longlong) UINT_MAX32)
+#define TIMESTAMP_MAX_MONTH 2
+#define TIMESTAMP_MAX_DAY 7
+#endif /* SIZEOF_VOIDP */
 
+#define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
 /* two-digit years < this are 20..; >= this are 19.. */
 #define YY_PART_YEAR	   70
 
@@ -48,8 +60,8 @@ extern uchar days_in_month[];
 */
 #if SIZEOF_TIME_T > 4 || defined(TIME_T_UNSIGNED)
 # define IS_TIME_T_VALID_FOR_TIMESTAMP(x) \
-    ((x) <= TIMESTAMP_MAX_VALUE && \
-     (x) >= TIMESTAMP_MIN_VALUE)
+  ((ulonglong) (x) <= TIMESTAMP_MAX_VALUE &&     \
+      ((x) >= TIMESTAMP_MIN_VALUE)
 #else
 # define IS_TIME_T_VALID_FOR_TIMESTAMP(x) \
     ((x) >= TIMESTAMP_MIN_VALUE)
@@ -118,6 +130,13 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
   status->nanoseconds= 0;
 }
 
+struct my_timeval
+{
+  longlong tv_sec;
+  ulong tv_usec;
+};
+
+
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
 my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
@@ -157,9 +176,18 @@ double TIME_to_double(const MYSQL_TIME *my_time);
 int check_time_range(struct st_mysql_time *my_time, uint dec, int *warning);
 my_bool check_datetime_range(const MYSQL_TIME *ltime);
 
+/*
+  Accurate only for the past couple of centuries.
+  Also works with 2 digit year 01-99 (1971-2069)
+  Year 0 is ignored as MariaDB uses year 0 as 'not specifed'. This
+  matches how things how leap year was calculated in calc_days_in_year().
+*/
+
+#define isleap(y) (((y) & 3) == 0 && (((y) % 100) != 0 || (((y) % 400) == 0 && y != 0)))
 
 long calc_daynr(uint year,uint month,uint day);
 uint calc_days_in_year(uint year);
+uint calc_days_in_month(uint year, uint month);
 uint year_2000_handling(uint year);
 
 void my_init_time(void);
@@ -181,7 +209,6 @@ void my_init_time(void);
 static inline my_bool validate_timestamp_range(const MYSQL_TIME *t)
 {
   if ((t->year > TIMESTAMP_MAX_YEAR || t->year < TIMESTAMP_MIN_YEAR) ||
-      (t->year == TIMESTAMP_MAX_YEAR && (t->month > 1 || t->day > 19)) ||
       (t->year == TIMESTAMP_MIN_YEAR && (t->month < 12 || t->day < 31)))
     return FALSE;
 
@@ -216,7 +243,7 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 
-int my_timeval_to_str(const struct timeval *tm, char *to, uint dec);
+int my_timeval_to_str(const struct my_timeval *tm, char *to, uint dec);
 
 static inline longlong sec_part_shift(longlong second_part, uint digits)
 {
@@ -230,7 +257,6 @@ static inline longlong sec_part_unshift(longlong second_part, uint digits)
 /* Date/time rounding and truncation functions */
 static inline long my_time_fraction_remainder(long nr, uint decimals)
 {
-  DBUG_ASSERT(decimals <= TIME_SECOND_PART_DIGITS);
   return nr % (long) log_10_int[TIME_SECOND_PART_DIGITS - decimals];
 }
 static inline void my_datetime_trunc(MYSQL_TIME *ltime, uint decimals)
@@ -247,11 +273,6 @@ static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
 #ifdef _WIN32
 #define suseconds_t long
 #endif
-static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
-{
-  tv->tv_usec-= (suseconds_t) my_time_fraction_remainder(tv->tv_usec, decimals);
-}
-
 
 #define hrtime_to_my_time(X) ((my_time_t)hrtime_to_time(X))
 

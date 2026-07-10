@@ -37,9 +37,11 @@ source include/wait_for_slave_sql_to_stop.inc;
 let $error= query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1);
 let $read = query_get_value("SHOW SLAVE STATUS", Read_Master_Log_Pos, 1);
 let $exec = query_get_value("SHOW SLAVE STATUS", Exec_Master_Log_Pos, 1);
+--disable_cursor_protocol
 --disable_query_log
 eval SELECT $read = $exec into @check;
 --enable_query_log
+--enable_cursor_protocol
 eval SELECT "NO$error" AS Last_SQL_Error, @check as `true`;
 select count(*) as one from tm;
 select count(*) as one from ti;
@@ -54,9 +56,9 @@ set @@global.debug_dbug=@saved_dbug;
 # receive the terminal part
 # The test relay on simulation of the incomplete group in the relay log
 
-# Two cases are verified: a mixed transacton and a mixed multi-table update.
+# Two cases are verified: a mixed transaction and a mixed multi-table update.
 #
-# The mixed transacton.
+# The mixed transaction.
 #
 source include/start_slave.inc;
 
@@ -82,16 +84,20 @@ connection slave;
 # slave will catch the killed status, won't shut down immediately
 # but does it eventually having the whole group unfinished (not committed)
 
-source include/wait_for_slave_sql_to_stop.inc;
+# ER_SLAVE_FATAL_ERROR
+--let slave_sql_errno= 1593
+source include/wait_for_slave_sql_error.inc;
 
 # checking: the error and group unfinished
 
 let $error= query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1);
 let $read = query_get_value("SHOW SLAVE STATUS", Read_Master_Log_Pos, 1);
 let $exec = query_get_value("SHOW SLAVE STATUS", Exec_Master_Log_Pos, 1);
+--disable_cursor_protocol
 --disable_query_log
 eval SELECT $read - $exec > 0 into @check;
 --enable_query_log
+--enable_cursor_protocol
 eval SELECT "$error" AS Last_SQL_Error, @check as `true`;
 select count(*) as one  from tm;
 select count(*) as zero from ti;
@@ -120,16 +126,19 @@ connection slave;
 # but does it eventually having the whole group unfinished (not committed)
 # 
 
-source include/wait_for_slave_sql_to_stop.inc;
+--let slave_sql_errno= 1593
+source include/wait_for_slave_sql_error.inc;
 
 # checking: the error and group unfinished 
 
 let $error= query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1);
 let $read = query_get_value("SHOW SLAVE STATUS", Read_Master_Log_Pos, 1);
 let $exec = query_get_value("SHOW SLAVE STATUS", Exec_Master_Log_Pos, 1);
+--disable_cursor_protocol
 --disable_query_log
 eval SELECT $read - $exec > 0 into @check;
 --enable_query_log
+--enable_cursor_protocol
 eval SELECT "$error" AS Last_SQL_Error, @check as `true`;
 select max(a) as two from tm;
 select max(a) as one from ti;

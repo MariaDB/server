@@ -1,0 +1,20 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t (a int, b int, c int, d int, KEY (d)) ENGINE=InnoDB;
+INSERT INTO t (a,b,d) VALUES
+(1,NULL,4),(2,NULL,1),(3,NULL,1),
+(4,NULL,1),(5,NULL,1),(6,NULL,1),
+(7,0,NULL),(8,NULL,NULL);
+ALTER TABLE t ADD UNIQUE (b);
+connection slave;
+ANALYZE TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	OK
+connection master;
+UPDATE t SET c = 1;
+ALTER TABLE t ADD UNIQUE (a);
+connection slave;
+connection master;
+DROP TABLE t;
+include/rpl_end.inc

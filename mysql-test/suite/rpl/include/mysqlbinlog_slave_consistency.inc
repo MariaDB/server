@@ -1,8 +1,8 @@
 # This file provides the structure to run a single test that ensures the
-# mariadb-binlog command line tool is consistent with replicas for event
+# mariadb-binlog command line tool is consistent with slaves for event
 # filtering. The test is configured using the following input parameters, where
 # each is nullable (i.e. it will not be used to configure mariadb-binlog or
-# the replica).
+# the slave).
 #
 # param $do_domain_ids     : A list of domain ids to include in replication
 # param $ignore_domain_ids : A list of domain ids to exclude from replication
@@ -12,8 +12,8 @@
 # param $stop_position     : The GTID positions that mark the end of an event
 #                            stream in a particular domain
 #
-# param $con1              : The connection name of the primary server
-# param $con2              : The connection name of the replica server
+# param $con1              : The connection name of the master server
+# param $con2              : The connection name of the slave server
 # param $strict_mode       : Uses input and checks for out of order GTIDs
 # param $strict_mode_err   : A boolean that provides expectations for strict
 #                            mode to error
@@ -38,14 +38,14 @@ if (!$strict_mode)
 {
     --connection $con2
     set @@global.gtid_strict_mode=0;
-    --let $sql_input_file=include/sql_multisource.inc
+    --let $sql_input_file=suite/rpl/include/sql_multisource.inc
 }
 
 if ($strict_mode)
 {
     --connection $con2
     set @@global.gtid_strict_mode=1;
-    --let $sql_input_file=include/sql_out_of_order_gtid.inc
+    --let $sql_input_file=suite/rpl/include/sql_out_of_order_gtid.inc
 }
 
 --connection $con2
@@ -128,15 +128,17 @@ if (!$slave_sql_errno)
 }
 
 --echo # Stop $con2 so it stops receiving $con1 events.
+--let $rpl_allow_error= 1
 --source include/stop_slave.inc
 
 --connection $con1
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --echo # MYSQL_BINLOG BINLOG_FILE_PARAM $msbl_args 2> MYSQLBINLOG_STDERR | MYSQL
 --exec $MYSQL_BINLOG $BINLOG_FILE_PARAM $msbl_args 2> $MYSQLBINLOG_STDERR | $MYSQL
 
---source include/rpl_check_table_consistency.inc
+--source suite/rpl/include/rpl_check_table_consistency.inc
 
 if ($strict_mode)
 {
@@ -163,13 +165,13 @@ set global gtid_slave_pos="";
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
 
 --connection $con1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 --source include/save_master_gtid.inc
 
 --connection $con2
 --source include/start_slave.inc
---source include/wait_for_slave_to_start.inc
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 RESET SLAVE;
@@ -177,6 +179,7 @@ set global gtid_slave_pos="";
 RESET MASTER;
 
 --connection $con1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection $con2

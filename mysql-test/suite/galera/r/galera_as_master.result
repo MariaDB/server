@@ -52,10 +52,14 @@ DROP TABLE t1, t4;
 SET SQL_LOG_BIN=OFF;
 DROP TABLE t2, t3;
 connection node_3;
+BINLOG_POSITIONS_MATCH
+1
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
 connection node_1;
 set global wsrep_on=OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set global wsrep_on=ON;

@@ -1,7 +1,7 @@
 # ==== Purpose ====
 #
 # Execute a .inc file once for each server that was configured as a
-# slave by rpl_init.inc
+# slave by rpl_init.inc, for example start_slave.inc or stop_slave.inc file.
 #
 #
 # ==== Usage ====
@@ -13,6 +13,20 @@
 # Parameters:
 #   $rpl_source_file
 #     The file that will be sourced.
+#
+#   $rpl_server_count
+#     The number of servers to configure. If this is not set, the largest
+#     number in $rpl_topology will be used.
+#     This parameter is obtained from rpl_init.inc.
+#
+#   $rpl_master_list
+#     This parameter is calculated from within rpl_init.inc.
+#
+#   $rpl_server_count_length
+#     Set to LENGTH($rpl_server_count). So if $rpl_server_count < 10,
+#     then $rpl_server_count_length = 1; if 10 <= $rpl_server_count <
+#     100, then $rpl_server_count_length = 2, etc.
+#     This parameter is calculated from within rpl_change_topology.inc.
 #
 #   $rpl_debug
 #     See include/rpl_init.inc

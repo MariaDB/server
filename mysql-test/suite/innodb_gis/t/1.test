@@ -1,9 +1,9 @@
 #*****************************************************************
-# The Orginal name of the testcase : gis.test 
-# The following are the modification done 
+# The Original name of the testcase : gis.test
+# The following are the modification done
 # 1.SET default_storage_engine=InnoDB;
 # 2.MyiSam to Innodb where ever is required.
-# 3.Spatial index to Index as Innodb does not support 
+# 3.Spatial index to Index as Innodb does not support
 #***************************************************************** 
 --source include/have_innodb.inc
 -- source include/have_geometry.inc
@@ -136,17 +136,20 @@ SELECT fid, ST_AsText(ST_GeometryN(g, 1)) from gis_geometrycollection;
 --replace_column 9 # 10 #
 explain extended SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_point;
 
+--disable_view_protocol
 SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+
 --replace_column 9 # 10 #
 explain extended SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--enable_view_protocol
 
 DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 
@@ -169,7 +172,7 @@ ALTER TABLE t1 ADD fid INT NOT NULL;
 SHOW FIELDS FROM t1;
 DROP TABLE t1;
 
-SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)'))));
+SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)')))) AS val;
 explain extended SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)'))));
 explain extended SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_PointFromText('POINT(1 4)'))));
 SELECT ST_SRID(ST_GeomFromText('LineString(1 1,2 2)',101));
@@ -304,7 +307,7 @@ drop table t1;
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 
 CREATE TABLE `t1` (`object_id` bigint(20) unsigned NOT NULL default '0', `geo`
-geometry NOT NULL default '') ENGINE=InnoDB ;
+geometry NOT NULL) ENGINE=InnoDB ;
 
 SET sql_mode = default;
 
@@ -372,15 +375,15 @@ insert into t1 values ('85984',ST_GeomFromText('MULTIPOLYGON(((-115.006363
 36.248666,-115.263639 36.247466,-115.263839 36.252766,-115.261439
 36.252666,-115.261439 36.247366,-115.247239 36.247066)))'));
 
-# Expected result is 115.31877315203187, but IA64 returns 115.31877315203188
-# due to fused multiply-add instructions.
---replace_result 115.29706047613604 115.2970604672862  36.23335611157958 36.23335610879993
+# Expected results are 115.2970604672862 and 36.23335610879993, but IA64 returns
+# slightly different values due to fused multiply-add instructions.
+--replace_regex /115.2970604[67]\d+/115.2970604672862/ /36.233356111579\d+/36.23335610879993/
 select object_id, ST_geometrytype(geo), ST_ISSIMPLE(GEO), ST_ASTEXT(ST_centroid(geo)) from
 t1 where object_id=85998;
 
-# Expected result is 36.3310176346905, but IA64 returns 36.3310176346904
+# Expected result is 36.34725218253213, but IA64 returns 36.34725217627852
 # due to fused multiply-add instructions.
---replace_result 114.86854470090232 114.86854472054372 36.34725217627852 36.34725218253213
+--replace_result 36.34725217627852 36.34725218253213 -114.86854470090232 -114.86854472054372
 select object_id, ST_geometrytype(geo), ST_ISSIMPLE(GEO), ST_ASTEXT(ST_centroid(geo)) from
 t1 where object_id=85984;
 
@@ -398,14 +401,19 @@ insert into t1 values (ST_pointfromtext('point(1,1)'));
 
 drop table t1;
 
-select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000))));
-select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440))));
+select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000)))) AS val;
+select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440)))) AS val;
 
+--disable_view_protocol
 --enable_metadata
 create table t1 (g GEOMETRY);
 select * from t1;
+#Check after fix MDEV-31540
+--disable_cursor_protocol
 select ST_asbinary(g) from t1;
+--enable_cursor_protocol
 --disable_metadata
+--enable_view_protocol
 drop table t1;
 
 create table t1 (a TEXT, b GEOMETRY NOT NULL, INDEX(b(5)));
@@ -830,11 +838,6 @@ CREATE TABLE t3 (
   col2 POINT
 );
 
-# --error ER_TOO_MANY_KEY_PARTS
---error ER_WRONG_ARGUMENTS
-CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
-
-
 CREATE TABLE t4 (
   col0 INTEGER NOT NULL,
   col1 POINT,
@@ -858,7 +861,7 @@ SELECT ST_ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)));
 --echo #
 --replace_regex /non geometric .* value/non geometric '' value/
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
-SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
+SELECT GEOMETRYCOLLECTION((SELECT @@OLD_MODE));
 
 
 --echo End of 5.1 tests

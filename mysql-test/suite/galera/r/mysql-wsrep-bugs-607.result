@@ -1,7 +1,7 @@
 connection node_2;
 connection node_1;
 #
-# test the order of wsrep XID storage after certifiation failure
+# test the order of wsrep XID storage after certification failure
 #
 connection node_1;
 set session wsrep_sync_wait=0;

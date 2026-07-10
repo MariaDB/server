@@ -284,7 +284,7 @@
     -------
 
     There is a test for MySQL Federated Storage Handler in ./mysql-test/t,
-    federatedd.test It starts both a slave and master database using
+    federated.test It starts both a slave and master database using
     the same setup that the replication tests use, with the exception that
     it turns off replication, and sets replication to ignore the test tables.
     After ensuring that you actually do have support for the federated storage
@@ -380,10 +380,6 @@
 #include "sql_analyse.h"         // append_escaped
 #include <mysql/plugin.h>
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #include "ha_federated.h"
 
 #include "m_string.h"
@@ -396,6 +392,8 @@
 #else
 #define MIN_PORT 0
 #endif
+
+static handlerton *federated_hton;
 
 /* Variables for federated share methods */
 static HASH federated_open_tables;              // To track open tables
@@ -415,8 +413,8 @@ static const uint sizeof_trailing_where= sizeof(" WHERE ") - 1;
 static handler *federated_create_handler(handlerton *hton,
                                          TABLE_SHARE *table,
                                          MEM_ROOT *mem_root);
-static int federated_commit(handlerton *hton, THD *thd, bool all);
-static int federated_rollback(handlerton *hton, THD *thd, bool all);
+static int federated_commit(THD *thd, bool all);
+static int federated_rollback(THD *thd, bool all);
 
 /* Federated storage engine handlerton */
 
@@ -430,11 +428,12 @@ static handler *federated_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *federated_get_key(FEDERATED_SHARE *share, size_t *length,
-                                my_bool not_used __attribute__ ((unused)))
+static const uchar *federated_get_key(const void *share_, size_t *length,
+                                      my_bool)
 {
+  auto share= static_cast<const FEDERATED_SHARE *>(share_);
   *length= share->share_key_length;
-  return (uchar*) share->share_key;
+  return reinterpret_cast<const uchar *>(share->share_key);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -459,6 +458,31 @@ static void init_federated_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
+struct ha_table_option_struct
+{
+  char *connection;
+};
+
+static ha_create_table_option table_option_list[]=
+{
+  HA_TOPTION_STRING("CONNECTION", connection),
+  HA_TOPTION_END
+};
+
+/*
+  Federated doesn't need costs.disk_read_ratio as everything is one a
+  remote server and nothing is cached locally
+*/
+
+static void federated_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    Setting disk_read_ratios to 1.0, ensures we are using the costs
+    from rnd_pos_time() and scan_time()
+  */
+  costs->disk_read_ratio= 1.0;
+}
+
 /*
   Initialize the federated handler.
 
@@ -479,13 +503,15 @@ int federated_db_init(void *p)
   init_federated_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
 
-  handlerton *federated_hton= (handlerton *)p;
+  federated_hton= (handlerton *)p;
   federated_hton->db_type= DB_TYPE_FEDERATED_DB;
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;
   federated_hton->create= federated_create_handler;
   federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  federated_hton->update_optimizer_costs= federated_update_optimizer_costs;
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
+  federated_hton->table_options= table_option_list;
 
   /*
     Support for transactions disabled until WL#2952 fixes it.
@@ -498,7 +524,7 @@ int federated_db_init(void *p)
                        &federated_mutex, MY_MUTEX_INIT_FAST))
     goto error;
   if (!my_hash_init(PSI_INSTRUMENT_ME, &federated_open_tables, &my_charset_bin,
-                    32, 0, 0, (my_hash_get_key) federated_get_key, 0, 0))
+                    32, 0, 0, federated_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -578,15 +604,11 @@ err:
 }
 
 
-static int parse_url_error(FEDERATED_SHARE *share, TABLE *table, int error_num)
+static int parse_url_error(const char *connection, int error_num)
 {
   char buf[FEDERATED_QUERY_BUFFER_SIZE];
-  size_t buf_len;
   DBUG_ENTER("ha_federated parse_url_error");
-
-  buf_len= MY_MIN(table->s->connect_string.length,
-               FEDERATED_QUERY_BUFFER_SIZE-1);
-  strmake(buf, table->s->connect_string.str, buf_len);
+  strmake_buf(buf, connection);
   my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
@@ -652,7 +674,7 @@ error:
 }
 
 /*
-  Parse connection info from table->s->connect_string
+  Parse connection info from share->connection_string
 
   SYNOPSIS
     parse_url()
@@ -707,7 +729,7 @@ error:
 */
 
 static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
-                     uint table_create_flag)
+                     ha_table_option_struct *opt, uint table_create_flag)
 {
   uint error_num= (table_create_flag ?
                    ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE :
@@ -717,11 +739,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
   share->port= 0;
   share->socket= 0;
   DBUG_PRINT("info", ("share at %p", share));
-  DBUG_PRINT("info", ("Length: %u", (uint) table->s->connect_string.length));
-  DBUG_PRINT("info", ("String: '%.*s'", (int) table->s->connect_string.length,
-                      table->s->connect_string.str));
-  share->connection_string= strmake_root(mem_root, table->s->connect_string.str,
-                                       table->s->connect_string.length);
+  share->connection_string= strdup_root(mem_root, safe_str(opt->connection));
 
   DBUG_PRINT("info",("parse_url alloced share->connection_string %p",
                      share->connection_string));
@@ -790,8 +808,6 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
   else
   {
     share->parsed= TRUE;
-    // Add a null for later termination of table name
-    share->connection_string[table->s->connect_string.length]= 0;
     share->scheme= share->connection_string;
     DBUG_PRINT("info",("parse_url alloced share->scheme %p",
                        share->scheme));
@@ -893,7 +909,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATED_SHARE *share, TABLE *table,
   DBUG_RETURN(0);
 
 error:
-  DBUG_RETURN(parse_url_error(share, table, error_num));
+  DBUG_RETURN(parse_url_error(share->connection_string, error_num));
 }
 
 /*****************************************************************************
@@ -908,7 +924,6 @@ ha_federated::ha_federated(handlerton *hton,
   trx_next= 0;
   bzero(&bulk_insert, sizeof(bulk_insert));
 }
-
 
 /*
   Convert MySQL result set row to handler internal format
@@ -994,7 +1009,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     *buf++= '0';
     *buf++= 'x';
-    buf= octet2hex(buf, (char*) ptr, len);
+    buf= octet2hex(buf, ptr, len);
     if (to->append((char*) buff, (uint)(buf - buff)))
       DBUG_RETURN(1);
   }
@@ -1287,7 +1302,10 @@ bool ha_federated::create_where_from_key(String *to,
   bool both_not_null=
     (start_key != NULL && end_key != NULL) ? TRUE : FALSE;
   const uchar *ptr;
-  uint remainder, length;
+#ifndef DBUG_OFF
+  uint remainder;
+#endif
+  uint length;
   char tmpbuff[FEDERATED_QUERY_BUFFER_SIZE];
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
@@ -1314,10 +1332,14 @@ bool ha_federated::create_where_from_key(String *to,
     }
 
     for (key_part= key_info->key_part,
+#ifndef DBUG_OFF
          remainder= key_info->user_defined_key_parts,
+#endif
          length= ranges[i]->length,
          ptr= ranges[i]->key; ;
+#ifndef DBUG_OFF
          remainder--,
+#endif
          key_part++)
     {
       Field *field= key_part->field;
@@ -1499,7 +1521,8 @@ err:
   have pieces that are used for locking, and they are needed to function.
 */
 
-static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
+static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table,
+                                  ha_table_option_struct *option_struct)
 {
   char query_buffer[FEDERATED_QUERY_BUFFER_SIZE];
   Field **field;
@@ -1520,14 +1543,13 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
 
   tmp_share.share_key= table_name;
   tmp_share.share_key_length= (uint) strlen(table_name);
-  if (parse_url(&mem_root, &tmp_share, table, 0))
+  if (parse_url(&mem_root, &tmp_share, table, option_struct, 0))
     goto error;
 
   /* TODO: change tmp_share.scheme to LEX_STRING object */
   if (!(share= (FEDERATED_SHARE *) my_hash_search(&federated_open_tables,
                                                   (uchar*) tmp_share.share_key,
-                                                  tmp_share.
-                                                  share_key_length)))
+                                                  tmp_share. share_key_length)))
   {
     query.set_charset(system_charset_info);
     query.append(STRING_WITH_LEN("SELECT "));
@@ -1633,7 +1655,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_federated::open");
 
-  if (!(share= get_share(name, table)))
+  if (!(share= get_share(name, table, option_struct)))
     DBUG_RETURN(1);
   thr_lock_data_init(&share->lock, &lock, NULL);
 
@@ -1656,7 +1678,7 @@ public:
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&
            sql_errno <= ER_NET_WRITE_INTERRUPTED;
@@ -2375,7 +2397,7 @@ int ha_federated::index_read(uchar *buf, const uchar *key,
 
   NOTES
     This uses an internal result set that is deleted before function
-    returns.  We need to be able to be calable from ha_rnd_pos()
+    returns.  We need to be able to be callable from ha_rnd_pos()
 */
 
 int ha_federated::index_read_idx(uchar *buf, uint index, const uchar *key,
@@ -2439,8 +2461,8 @@ int ha_federated::index_read_idx_with_result_set(uchar *buf, uint index,
 
   if (real_query(sql_query.ptr(), sql_query.length()))
   {
-    sprintf(error_buffer, "error: %d '%s'",
-            mysql_errno(mysql), mysql_error(mysql));
+    snprintf(error_buffer, sizeof(error_buffer), "error: %d '%s'",
+             mysql_errno(mysql), mysql_error(mysql));
     retval= ER_QUERY_ON_FOREIGN_DATA_SOURCE;
     goto error;
   }
@@ -2879,11 +2901,11 @@ int ha_federated::info(uint flag)
                                                       &error);
 
     /*
-      size of IO operations (This is based on a good guess, no high science
-      involved)
+      Size of IO operations. This is used to calculate time to scan a table.
+      See handler.cc::keyread_time
     */
     if (flag & HA_STATUS_CONST)
-      stats.block_size= 4096;
+      stats.block_size= 1500;                   // Typical size of an TCP packet
 
   }
 
@@ -3115,7 +3137,14 @@ int ha_federated::create(const char *name, TABLE *table_arg,
   FEDERATED_SHARE tmp_share; // Only a temporary share, to test the url
   DBUG_ENTER("ha_federated::create");
 
-  retval= parse_url(thd->mem_root, &tmp_share, table_arg, 1);
+  if (table_arg->s->hlindexes())
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "FEDERATED", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
+  tmp_share.connection_string= option_struct->connection;
+  retval= parse_url(thd->mem_root, &tmp_share, table_arg, option_struct, 1);
 
   DBUG_RETURN(retval);
 
@@ -3126,6 +3155,7 @@ int ha_federated::real_connect()
 {
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
+  my_bool my_false= 0;
   DBUG_ENTER("ha_federated::real_connect");
 
   DBUG_ASSERT(mysql == NULL);
@@ -3142,16 +3172,12 @@ int ha_federated::real_connect()
     of table
   */
   /* this sets the csname like 'set names utf8' */
-  mysql_options(mysql,MYSQL_SET_CHARSET_NAME,
-                this->table->s->table_charset->cs_name.str);
+  mysql_options(mysql,MYSQL_SET_CHARSET_NAME, table->s->table_charset->cs_name.str);
+  mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   sql_query.length(0);
-  if (!mysql_real_connect(mysql,
-                          share->hostname,
-                          share->username,
-                          share->password,
-                          share->database,
-                          share->port,
+  if (!mysql_real_connect(mysql, share->hostname, share->username,
+                          share->password, share->database, share->port,
                           share->socket, 0))
   {
     stash_remote_error();
@@ -3258,7 +3284,7 @@ bool ha_federated::get_error_message(int error, String* buf)
   @details    Call @c mysql_store_result() to save a result set then
               append it to the stored results array.
 
-  @param[in]  mysql_arg  MySLQ connection structure.
+  @param[in]  mysql_arg  MySQL connection structure.
 
   @return     Stored result set (MYSQL_RES object).
 */
@@ -3300,10 +3326,10 @@ int ha_federated::external_lock(THD *thd, int lock_type)
 }
 
 
-static int federated_commit(handlerton *hton, THD *thd, bool all)
+static int federated_commit(THD *thd, bool all)
 {
   int return_val= 0;
-  ha_federated *trx= (ha_federated *) thd_get_ha_data(thd, hton);
+  ha_federated *trx= (ha_federated *) thd_get_ha_data(thd, federated_hton);
   DBUG_ENTER("federated_commit");
 
   if (all)
@@ -3318,7 +3344,7 @@ static int federated_commit(handlerton *hton, THD *thd, bool all)
       if (error && !return_val)
         return_val= error;
     }
-    thd_set_ha_data(thd, hton, NULL);
+    thd_set_ha_data(thd, federated_hton, NULL);
   }
 
   DBUG_PRINT("info", ("error val: %d", return_val));
@@ -3326,10 +3352,10 @@ static int federated_commit(handlerton *hton, THD *thd, bool all)
 }
 
 
-static int federated_rollback(handlerton *hton, THD *thd, bool all)
+static int federated_rollback(THD *thd, bool all)
 {
   int return_val= 0;
-  ha_federated *trx= (ha_federated *)thd_get_ha_data(thd, hton);
+  ha_federated *trx= (ha_federated *)thd_get_ha_data(thd, federated_hton);
   DBUG_ENTER("federated_rollback");
 
   if (all)
@@ -3344,7 +3370,7 @@ static int federated_rollback(handlerton *hton, THD *thd, bool all)
       if (error && !return_val)
         return_val= error;
     }
-    thd_set_ha_data(thd, hton, NULL);
+    thd_set_ha_data(thd, federated_hton, NULL);
   }
 
   DBUG_PRINT("info", ("error val: %d", return_val));

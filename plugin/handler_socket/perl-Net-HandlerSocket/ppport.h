@@ -79,7 +79,7 @@ to be installed on your system.
 If this option is given, a copy of each file will be saved with
 the given suffix that contains the suggested changes. This does
 not require any external programs. Note that this does not
-automagially add a dot between the original filename and the
+automatically add a dot between the original filename and the
 suffix. If you want the dot, you have to include it in the option
 argument.
 

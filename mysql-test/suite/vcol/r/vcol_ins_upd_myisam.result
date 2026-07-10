@@ -3,6 +3,7 @@ create table t1 (a int,
 b int as (-a),
 c int as (-a) persistent);
 set sql_warnings = 1;
+set @@optimizer_scan_setup_cost=0;
 #
 # *** INSERT ***
 #

@@ -7,7 +7,7 @@
 --source include/have_binlog_format_row.inc
 
 #
-# Test updating conditionally a non transactinal table in a function
+# Test updating conditionally a non transactional table in a function
 # This verifies that we don't write only a table map for a non transactional,
 # without any row events
 # The original bug caused a crash on the slave when doing a sync_slave

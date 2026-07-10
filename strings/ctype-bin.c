@@ -83,11 +83,23 @@ my_coll_init_8bit_bin(struct charset_info_st *cs,
 static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
                                const uchar *s, size_t slen,
                                const uchar *t, size_t tlen,
-                               my_bool t_is_prefix)
+                               my_bool *t_is_prefix)
 {
-  size_t len=MY_MIN(slen,tlen);
+  size_t len= MY_MIN(slen,tlen);
   int cmp= len ? memcmp(s, t, len) : 0;
-  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+
+  if (!t_is_prefix)
+  {
+    if (cmp)
+      return cmp;
+    return (int) (slen - tlen);
+  }
+  if (cmp)
+  {
+    *t_is_prefix= 0;
+    return cmp;
+  }
+  return !(*t_is_prefix= tlen <= slen);
 }
 
 
@@ -144,11 +156,23 @@ static int my_strnncollsp_nchars_binary(CHARSET_INFO * cs __attribute__((unused)
 static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
                                  const uchar *s, size_t slen,
                                  const uchar *t, size_t tlen,
-                                 my_bool t_is_prefix)
+                                 my_bool *t_is_prefix)
 {
-  size_t len=MY_MIN(slen,tlen);
+  size_t len= MY_MIN(slen,tlen);
   int cmp= len ? memcmp(s, t, len) : 0;
-  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+
+  if (!t_is_prefix)
+  {
+    if (cmp)
+      return cmp;
+    return (int) (slen - tlen);
+  }
+  if (cmp)
+  {
+    *t_is_prefix= 0;
+    return cmp;
+  }
+  return !(*t_is_prefix= tlen <= slen);
 }
 
 
@@ -232,16 +256,7 @@ static int my_strnncollsp_8bit_nopad_bin(CHARSET_INFO * cs
                                          const uchar *a, size_t a_length,
                                          const uchar *b, size_t b_length)
 {
-  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, FALSE);
-}
-
-
-/* This function is used for all conversion functions */
-
-static size_t my_case_str_bin(CHARSET_INFO *cs __attribute__((unused)),
-                              char *str __attribute__((unused)))
-{
-  return 0;
+  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, 0);
 }
 
 
@@ -252,13 +267,6 @@ static size_t my_case_bin(CHARSET_INFO *cs __attribute__((unused)),
   DBUG_ASSERT(srclen <= dstlen);
   memcpy(dst, src, srclen);
   return srclen;
-}
-
-
-static int my_strcasecmp_bin(CHARSET_INFO * cs __attribute__((unused)),
-			     const char *s, const char *t)
-{
-  return strcmp(s,t);
 }
 
 
@@ -290,33 +298,33 @@ int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
-                      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+void my_hash_sort_bin(my_hasher_st *hasher,
+                      CHARSET_INFO *cs __attribute__((unused)),
+                      const uchar *key, size_t len)
 {
-  const uchar *end = key + len;
-  ulong tmp1= *nr1;
-  ulong tmp2= *nr2;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
+  MY_HASH_ADD_STR(hasher, key, len);
+}
 
-  for (; key < end ; key++)
-  {
-    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
-  }
-
-  *nr1= tmp1;
-  *nr2= tmp2;
+/* Default my_hasher_st::m_hash_num implementation */
+void my_hasher_hash_num(struct my_hasher_st *hasher,
+                        const uchar* num, size_t binary_size)
+{
+  my_hash_sort_bin(hasher, NULL, num, binary_size);
 }
 
 
-void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
-                           const uchar *key, size_t len,
-                           ulong *nr1, ulong *nr2)
+void my_hash_sort_8bit_bin(my_hasher_st *hasher,
+                           CHARSET_INFO *cs __attribute__((unused)),
+                           const uchar *key, size_t len)
 {
   /*
      Remove trailing spaces. We have to do this to be able to compare
     'A ' and 'A' as identical
   */
   const uchar *end= skip_trailing_space(key, len);
-  my_hash_sort_bin(cs, key, end - key, nr1, nr2);
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
+  my_hash_sort_bin(hasher, cs, key, end - key);
 }
 
 
@@ -420,32 +428,46 @@ int my_wildcmp_bin(CHARSET_INFO *cs,
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_8bit_bin(CHARSET_INFO *cs,
                      uchar * dst, size_t dstlen, uint nweights,
                      const uchar *src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rcpad;
+  size_t srclen0= srclen;
   set_if_smaller(srclen, dstlen);
   set_if_smaller(srclen, nweights);
   if (srclen && dst != src)
     memcpy(dst, src, srclen);
-  return my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen, dst + dstlen,
-                                         (uint)(nweights - srclen), flags, 0);
+  rcpad= my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen,
+                                         dst + dstlen,
+                                         (uint)(nweights - srclen),
+                                         flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length, srclen,
+            (srclen < srclen0 ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0) |
+            rcpad.m_warnings);
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_8bit_nopad_bin(CHARSET_INFO *cs,
                            uchar * dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rcpad;
+  size_t srclen0= srclen;
   set_if_smaller(srclen, dstlen);
   set_if_smaller(srclen, nweights);
   if (dst != src)
     memcpy(dst, src, srclen);
-  return my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + srclen,
-                                               dst + dstlen,(uint)(nweights - srclen),
+  rcpad= my_strxfrm_pad_desc_and_reverse_nopad(cs,
+                                               dst, dst + srclen,
+                                               dst + dstlen,
+                                               (uint)(nweights - srclen),
                                                flags, 0);
+  return my_strnxfrm_ret_construct(rcpad.m_result_length, srclen,
+            (srclen < srclen0 ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0) |
+            rcpad.m_warnings);
 }
 
 
@@ -520,12 +542,14 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_bin,
-  my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_8bit_bin,
   my_propagate_simple,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -539,12 +563,14 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_bin,
-  my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_bin,
   my_propagate_simple,
   my_min_str_8bit_simple_nopad,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -558,12 +584,14 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_bin,
-  my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_bin,
   my_propagate_simple,
   my_min_str_8bit_simple_nopad,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -577,8 +605,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_mb_wc_bin,
   my_wc_mb_bin,
   my_mb_ctype_8bit,
-  my_case_str_bin,
-  my_case_str_bin,
   my_case_bin,
   my_case_bin,
   my_snprintf_8bit,
@@ -597,7 +623,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_8bit,
   my_copy_8bit,
   my_wc_mb_bin,
-  my_wc_to_printable_generic
+  my_wc_to_printable_generic,
+  my_casefold_multiply_1,
+  my_casefold_multiply_1
 };
 
 
@@ -616,19 +644,17 @@ struct charset_info_st my_charset_bin =
     NULL,			/* uca           */
     NULL,			/* tab_to_uni    */
     NULL,			/* tab_from_uni  */
-    &my_unicase_default,        /* caseinfo     */
+    NULL,                       /* casefold     */
     NULL,			/* state_map    */
     NULL,			/* ident_map    */
     1,				/* strxfrm_multiply */
-    1,                          /* caseup_multiply  */
-    1,                          /* casedn_multiply  */
     1,				/* mbminlen      */
     1,				/* mbmaxlen      */
     0,				/* min_sort_char */
     255,			/* max_sort_char */
     0,                          /* pad char      */
     0,                          /* escape_with_backslash_is_dangerous */
-    1,                          /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_binary_handler
 };

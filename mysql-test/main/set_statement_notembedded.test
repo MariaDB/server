@@ -11,4 +11,14 @@ SET STATEMENT MAX_STATEMENT_TIME=1 FOR SELECT SLEEP(10);
 SHOW STATUS LIKE "max_statement_time_exceeded";
 SELECT @@MAX_STATEMENT_TIME;
 
+--echo #
+--echo # MDEV-31209 Queries with window functions do not obey KILL / max_statement_time
+--echo #
 
+create table t (i int);
+insert into t values(1),(2),(3);
+--error ER_STATEMENT_TIMEOUT
+set statement max_statement_time=0.03 for select max(sleep(0.1)) over( ) from t;
+drop table t;
+
+--echo # End of 10.11 tests

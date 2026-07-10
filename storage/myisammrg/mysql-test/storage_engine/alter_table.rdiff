@@ -1,5 +1,5 @@
---- alter_table.result	2013-01-22 22:05:05.246633000 +0400
-+++ alter_table.reject	2013-01-23 02:50:10.652118538 +0400
+--- alter_table.result
++++ alter_table.reject
 @@ -8,7 +8,7 @@
    `a` int(11) DEFAULT NULL,
    `c` char(8) DEFAULT NULL,

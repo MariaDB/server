@@ -14,7 +14,7 @@ drop table if exists `‚s‚X`;
 --enable_warnings
 
 #
-# Test Displaying Japanese charact using WHERE condtion in sjis encoding
+# Test Displaying Japanese characters using WHERE condition in sjis encoding
 #
 
 SET NAMES sjis;

@@ -1,6 +1,6 @@
 SET @save_timeout = @@GLOBAL.innodb_lock_wait_timeout;
 SET GLOBAL innodb_lock_wait_timeout = 1;
-SET @save_isolation = @@GLOBAL.tx_isolation;
+SET @save_isolation = @@GLOBAL.transaction_isolation;
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
 create table t1 (id int not null, f_id int not null, f int not null,
@@ -192,4 +192,4 @@ disconnect i;
 disconnect j;
 drop table t1, t2, t3, t5, t6, t8, t9;
 SET GLOBAL innodb_lock_wait_timeout = @save_timeout;
-SET GLOBAL tx_isolation = @save_isolation;
+SET GLOBAL transaction_isolation = @save_isolation;

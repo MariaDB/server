@@ -60,10 +60,10 @@ SELECT @@session.query_alloc_block_size;
 ###################################################################
 
 SET @@global.query_alloc_block_size = DEFAULT;
-SELECT @@global.query_alloc_block_size = 16384;
+SELECT @@global.query_alloc_block_size = 32768;
 
 SET @@session.query_alloc_block_size = DEFAULT;
-SELECT @@session.query_alloc_block_size = 16384;
+SELECT @@session.query_alloc_block_size = 32768;
 
 
 --echo '#--------------------FN_DYNVARS_130_03-------------------------#'

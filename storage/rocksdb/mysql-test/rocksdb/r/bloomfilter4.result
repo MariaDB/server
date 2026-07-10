@@ -20,8 +20,6 @@ END IF;
 SET id1_cond = id1_cond + 1;
 END WHILE;
 END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 "Skipping bloom filter"
 SET session rocksdb_skip_bloom_filter_on_read=1;
 CALL select_test();

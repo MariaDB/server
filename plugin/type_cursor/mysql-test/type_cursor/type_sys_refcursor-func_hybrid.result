@@ -1,0 +1,45 @@
+#
+#  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Hybrid functions
+#
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+SELECT LEAST(c0, c1);
+END;
+/
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'least'
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+SELECT GREATEST(c0, c1);
+END;
+/
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation 'greatest'
+#
+# This test covers Item::val_ref_from_item() and its DBUG_ASSERT:
+# A SYS_REFCURSOR expressions is allowed to be mixed only
+# with another SYS_REFCURSOR expression, or with explicit NULL.
+#
+CREATE FUNCTION f1(switch BOOLEAN, f1c0 SYS_REFCURSOR) RETURNS SYS_REFCURSOR
+BEGIN
+RETURN IF(switch, NULL, f1c0);
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE p1c0 SYS_REFCURSOR;
+SELECT f1(FALSE, p1c0) AS c1, f1(TRUE, p1c0) AS c2;
+OPEN p1c0 FOR SELECT 1;
+SELECT f1(FALSE, p1c0) AS c1, f1(TRUE, p1c0) AS c2;
+END;
+/
+CALL p1;
+c1	c2
+NULL	NULL
+c1	c2
+0	NULL
+DROP FUNCTION f1;
+DROP PROCEDURE p1;

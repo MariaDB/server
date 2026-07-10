@@ -1,4 +1,6 @@
-@@ -377,8 +377,6 @@
+--- insert_into_empty.result
++++ insert_into_empty,64k.result
+@@ -446,12 +446,9 @@
  c09 text, c10 text, c11 text, c12 text) ENGINE=InnoDB;
  SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= COMPACT;
  ALTER TABLE t1 FORCE;
@@ -7,3 +9,7 @@
  INSERT IGNORE INTO t1 VALUES
  (1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
  (2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));
+-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ CHECK TABLE t1;
+ Table	Op	Msg_type	Msg_text
+ test.t1	check	status	OK

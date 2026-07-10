@@ -72,9 +72,9 @@ LOAD DATA INFILE <input_file> INTO TABLE t3;
 set rocksdb_bulk_load=0;
 SHOW TABLE STATUS WHERE name LIKE 't%';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
-t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
-t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
+t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
+t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 ANALYZE TABLE t1, t2, t3;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -85,9 +85,9 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 SHOW TABLE STATUS WHERE name LIKE 't%';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
-t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
-t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
+t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
+t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL	partitioned		0	N
 select count(a),count(b) from t1;
 count(a)	count(b)
 2500000	2500000

@@ -1,0 +1,25 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Global temporary space limit reached.*");
+call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
+connection slave;
+STOP SLAVE;
+SET GLOBAL slave_parallel_threads=2, max_tmp_total_space_usage=64*1024;
+START SLAVE;
+connection master;
+CREATE TABLE t1 (
+a bigint primary key auto_increment,
+v blob
+) engine=innodb;
+start transaction;
+insert into t1 (v) select repeat("a", seq) from seq_1000_to_1032;
+insert into t1 (v) select repeat("b", seq) from seq_1000_to_1032;
+insert into t1 (v) select repeat("c", seq) from seq_1000_to_1032;
+commit;
+drop table t1;
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=42]
+connection slave;
+STOP SLAVE;
+SET GLOBAL max_tmp_total_space_usage=default;
+set GLOBAL slave_parallel_threads=default;

@@ -19,9 +19,7 @@ SET default_storage_engine= InnoDB;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 COMMIT;
---disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' FROM t1;
---enable_ps2_protocol
 
 LOAD DATA INFILE 'load.data' INTO TABLE t1;
 SELECT * FROM t1;
@@ -49,7 +47,9 @@ CREATE DATABASE mdev_16708_db;
 USE mdev_16708_db;
 
 --echo # Check that the current database has been changed
+--disable_service_connection
 SELECT DATABASE();
+--enable_service_connection
 
 --echo # Clean up
 USE test;
@@ -84,6 +84,7 @@ DROP TABLE t1;
 --echo # Set up environmentr for the test case
 CREATE TABLE t1 (a INT);
 
+--disable_view_protocol
 BEGIN;
 
 INSERT INTO t1 VALUES (1);
@@ -101,6 +102,7 @@ ROLLBACK TO SAVEPOINT s1;
 SELECT * FROM t1;
 
 RELEASE SAVEPOINT s1;
+--enable_view_protocol
 
 --echo # Clean up
 DROP TABLE t1;
@@ -131,9 +133,10 @@ DROP TABLE t1;
 --echo # Test case 10: Check that the statements 'HELP'
 --echo # is supported by prepared statements
 # avoid existing articles that may get updated.
-INSERT INTO mysql.help_topic VALUES (0, 'Tamagotchi', 0, 'This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
+INSERT INTO mysql.help_topic (help_topic_id, help_category_id, name, description, example, url)
+VALUES (4294967295, 0, 'Tamagotchi','This digital pet is not a KB article', 'no example', 'https://tamagotchi.com/');
 HELP `Tamagotchi`;
-DELETE FROM mysql.help_topic WHERE help_topic_id = 0;
+DELETE FROM mysql.help_topic WHERE help_topic_id = 4294967295;
 
 --echo # Test case 11: Check that the statements CREATE/ALTER/DROP PROCEDURE
 --echo # are supported by prepared statements
@@ -152,7 +155,7 @@ SELECT @a;
 DROP PROCEDURE p1;
 
 --echo # Test case 13: Check that the statements PREPARE FROM/EXECUTE/
---echo # DEALLOCAT PREPARE can be executed as prepared statements.
+--echo # DEALLOCATE PREPARE can be executed as prepared statements.
 PREPARE stmt_1 FROM 'SELECT 1';
 
 --echo # Now execute the prepared statement with the name stmt_1

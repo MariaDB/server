@@ -657,6 +657,76 @@ DROP TEMPORARY TABLE t1;
 --echo # End of 10.2 tests
 --echo #
 
+--echo #
+--echo # MDEV-31523: Using two temporary tables in OPTIMIZE TABLE lead to crash
+--echo #
+
+CREATE TEMPORARY TABLE t1 (c INT) ENGINE=MyISAM;
+CREATE TEMPORARY TABLE t2 (c INT) ENGINE=MyISAM;
+optimize TABLE t1,t2;
+SHOW TABLES;
+--echo # in 11.2 and above here should be listed above used temporary tables
+
+DROP TEMPORARY TABLE t1, t2;
+
+--echo #
+--echo # MDEV-33218: Assertion `active_arena->is_stmt_prepare_or_first_stmt_execute() || active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed. in st_select_lex::fix_prepare_information
+--echo #
+CREATE VIEW v1 AS SELECT 5;
+CREATE PROCEDURE sp() SELECT * FROM v1;
+CREATE TEMPORARY TABLE v1 as SELECT 7;
+--echo # sp() accesses the temporary table v1 that hides the view with the same name
+--echo # Therefore expected output is the row (7)
+CALL sp();
+DROP TEMPORARY TABLE v1;
+--echo # After the temporary table v1 has been dropped the next invocation of sp()
+--echo # accesses the view v1. So, expected output is the row (5)
+CALL sp();
+
+--echo # Clean up
+DROP VIEW v1;
+DROP PROCEDURE sp;
+
+--echo # Another use case is when a temporary table hides a view is dropped
+--echo # inside a stored routine being called.
+
+CREATE VIEW t1 AS SELECT 1;
+
+--delimiter |
+CREATE PROCEDURE p1()
+BEGIN
+  DROP TEMPORARY TABLE t1;
+END
+|
+
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+ CALL p1();
+ RETURN 1;
+END
+|
+
+--delimiter ;
+
+CREATE TEMPORARY TABLE t1 AS SELECT 1 AS a;
+PREPARE stmt FROM 'SELECT f1()';
+EXECUTE stmt;
+--echo # The temporary table t1 has been dropped on first
+--echo # execution of the prepared statement 'stmt',
+--echo # next time this statement is run it results in issuing
+--echo # the error ER_BAD_TABLE_ERROR
+--error ER_BAD_TABLE_ERROR
+EXECUTE stmt;
+
+--echo # Clean up
+DROP VIEW t1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
 #
 # DROP TEMPORARY TABLE fails in the middle
 #
@@ -695,6 +765,60 @@ TRUNCATE TABLE t1;
 UNLOCK TABLES;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.6 tests
+
 --echo #
+--echo # Failed CREATE TEMPORARY ... SELECT must not roll back transaction
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CREATE TEMPORARY TABLE tmp2 (a INT) ENGINE=InnoDB SELECT 'x' AS a;
+SELECT * FROM t ORDER BY pk;
+--error ER_DUP_ENTRY
+INSERT INTO t VALUES (1);
+COMMIT;
+SELECT * FROM t ORDER BY pk;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-38716: Server crashes in TABLE::evaluate_update_default_function
+--echo #
+
+--echo # Test case where ALTER doesn't add any new columns with default values
+CREATE TEMPORARY TABLE tmp_38716 (a timestamp null on update current_timestamp(6), b int);
+ALTER TABLE tmp_38716 FORCE;
+INSERT INTO tmp_38716 VALUES (NULL,1);
+UPDATE tmp_38716 SET b = 2;
+SELECT * from tmp_38716;
+DROP TABLE tmp_38716;
+
+--echo # Test case where ALTER adds a new column with a default value
+CREATE TEMPORARY TABLE tmp_38716_2 (a timestamp null on update current_timestamp(6), b int default 0);
+INSERT INTO tmp_38716_2 (b) VALUES (10);
+ALTER TABLE tmp_38716_2 ADD COLUMN c INT DEFAULT (b+1), FORCE;
+
+--echo # Update should trigger ON UPDATE and set a to current timestamp where b=11
+UPDATE tmp_38716_2 SET b = 11;
+SELECT * from tmp_38716_2 where b=11;
+
+--echo # New row should have a=NULL and c=21
+INSERT INTO tmp_38716_2 (b) VALUES (20);
+SELECT * FROM tmp_38716_2 where b=20;
+
+DROP TABLE tmp_38716_2;
+
+
+--echo #
+--echo # MDEV-38830
+--echo #
+CREATE TEMPORARY TABLE tmp_38830 (c INT KEY);
+INSERT INTO tmp_38830 VALUES (1);
+ALTER TABLE tmp_38830 ADD COLUMN (d TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+UPDATE tmp_38830 SET c=c+1;
+select * from tmp_38830;
+
+DROP TEMPORARY TABLE tmp_38830;

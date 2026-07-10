@@ -16,8 +16,12 @@ test.t1	analyze	status	OK
 select '$out' as X;
 X
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": 1.6664988,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -25,17 +29,20 @@ X
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 10000,
           "r_rows": 10000,
+          "cost": 1.6664988,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
             "pages_accessed": "REPLACED"
           },
           "filtered": 100,
-          "r_filtered": 100,
-          "attached_condition": "t1.pk < 120000"
+          "r_total_filtered": 100,
+          "attached_condition": "t1.pk < 120000",
+          "r_filtered": 100
         }
       }
     ]
@@ -52,6 +59,9 @@ PAGES_ACCESSED_MORE_THAN_ZERO
 select '$out' as X;
 X
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -61,13 +71,15 @@ X
       "access_type": "ALL",
       "rows": 10000,
       "r_rows": 10000,
-      "r_filtered": 100,
-      "r_total_time_ms": "REPLACED",
+      "r_total_filtered": 100,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": {
         "pages_accessed": "REPLACED",
         "pages_updated": "REPLACED"
       },
-      "attached_condition": "t1.pk < 120000"
+      "attached_condition": "t1.pk < 120000",
+      "r_filtered": 100
     }
   }
 }
@@ -82,6 +94,9 @@ PAGES_UPDATED_MORE_THAN_ZERO
 select '$out' as X;
 X
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -91,13 +106,15 @@ X
       "access_type": "ALL",
       "rows": 10000,
       "r_rows": 10000,
-      "r_filtered": 50,
-      "r_total_time_ms": "REPLACED",
+      "r_total_filtered": 50,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "r_engine_stats": {
         "pages_accessed": "REPLACED",
         "pages_updated": "REPLACED"
       },
-      "attached_condition": "t1.pk MOD 2 = 1"
+      "attached_condition": "t1.pk MOD 2 = 1",
+      "r_filtered": 50
     }
   }
 }
@@ -120,8 +137,12 @@ INSERT INTO t2 SELECT seq FROM seq_1_to_10;
 ANALYZE FORMAT=JSON SELECT * FROM t1 WHERE a IN (SELECT s FROM t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "1",
@@ -130,13 +151,16 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 100,
           "r_rows": 100,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100
         }
       },
@@ -150,11 +174,13 @@ ANALYZE
           "used_key_parts": ["s"],
           "ref": ["func"],
           "r_loops": 100,
+          "r_table_loops": 110,
           "rows": 1,
           "r_rows": 0.1,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
+          "r_total_filtered": 100,
           "r_filtered": 100,
           "materialized": {
             "unique": 1,
@@ -165,13 +191,16 @@ ANALYZE
                   "table": {
                     "table_name": "t2",
                     "access_type": "ALL",
+                    "loops": 1,
                     "r_loops": 1,
                     "rows": 10,
                     "r_rows": 10,
+                    "cost": "REPLACED",
                     "r_table_time_ms": "REPLACED",
                     "r_other_time_ms": "REPLACED",
                     "r_engine_stats": REPLACED,
                     "filtered": 100,
+                    "r_total_filtered": 100,
                     "r_filtered": 100
                   }
                 }

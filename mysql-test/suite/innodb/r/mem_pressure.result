@@ -1,0 +1,37 @@
+#
+# MDEV-24670 avoid OOM by linux kernel co-operative memory management
+#
+set @save_dbug=@@debug_dbug;
+set @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
+set GLOBAL innodb_max_purge_lag_wait=0;
+SET @innodb_buffer_pool_size= @@GLOBAL.innodb_buffer_pool_size;
+SET @innodb_buffer_pool_size_min= @@GLOBAL.innodb_buffer_pool_size_auto_min;
+SELECT
+@@GLOBAL.innodb_buffer_pool_size,
+@@GLOBAL.innodb_buffer_pool_size_auto_min,
+@@GLOBAL.innodb_buffer_pool_size_max;
+@@GLOBAL.innodb_buffer_pool_size	@@GLOBAL.innodb_buffer_pool_size_auto_min	@@GLOBAL.innodb_buffer_pool_size_max
+17825792	16777216	25165824
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB CHARSET=latin1;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+SET STATEMENT unique_checks=0, foreign_key_checks=0 FOR
+INSERT INTO t1 SELECT * FROM seq_1_to_1000;
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+DROP TABLE t1;
+SET STATEMENT debug_dbug="d,trigger_garbage_collection" FOR
+SET GLOBAL innodb_buffer_pool_size=@innodb_buffer_pool_size;
+FOUND 1 /Memory pressure event disregarded.*/ in mysqld.1.err
+SET STATEMENT debug_dbug="d,trigger_garbage_collection" FOR
+SET GLOBAL innodb_buffer_pool_size_auto_min=
+CAST(@innodb_buffer_pool_size/2 AS UNSIGNED),
+innodb_buffer_pool_size=@innodb_buffer_pool_size;
+Warnings:
+Warning	1292	Truncated incorrect innodb_buffer_pool_size_auto_min value: '8912896'
+select @@global.innodb_buffer_pool_size < @innodb_buffer_pool_size;
+@@global.innodb_buffer_pool_size < @innodb_buffer_pool_size
+1
+FOUND 1 /InnoDB: Memory pressure event shrunk.*/ in mysqld.1.err
+set debug_dbug=@save_dbug;
+SET GLOBAL innodb_buffer_pool_size= @innodb_buffer_pool_size;
+SET GLOBAL innodb_buffer_pool_size_auto_min=@innodb_buffer_pool_size_min;
+# End of 10.11 tests

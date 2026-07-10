@@ -42,7 +42,7 @@ CREATE TABLE t1 (a UUID, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER S
 INSERT INTO t1 VALUES('12334567-8888-9999-aaaa-000000000000','','');
 # Columns(BINARY(16),
 #         CHAR(16) CHARSET latin1 COLLATE latin1_swedish_ci,
-#         CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+#         CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 RESET MASTER;
@@ -51,7 +51,7 @@ CREATE TABLE t1 (a UUID, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER S
 INSERT INTO t1 VALUES('12334567-8888-9999-aaaa-000000000000','','');
 # Columns(`a` BINARY(16),
 #         `b` CHAR(16) CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c` CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+#         `c` CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = DEFAULT;

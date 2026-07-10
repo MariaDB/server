@@ -2,14 +2,9 @@
 # Testing of table locking
 #
 
+--source include/no_view_protocol.inc
 --source include/have_partition.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 CREATE TABLE t1 (  `id` int(11) NOT NULL default '0', `id2` int(11) NOT NULL default '0', `id3` int(11) NOT NULL default '0', `dummy1` char(30) default NULL, PRIMARY KEY  (`id`,`id2`), KEY `index_id3` (`id3`)) ENGINE=MyISAM;
 insert into t1 (id,id2) values (1,1),(1,2),(1,3);
 LOCK TABLE t1 WRITE;
@@ -247,7 +242,7 @@ table2_rowid SMALLINT NOT NULL
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 LOCK TABLES t1 WRITE, t2 READ;
---echo # Sub-select should not try to aquire a write lock.
+--echo # Sub-select should not try to acquire a write lock.
 DELETE FROM t1 
 WHERE EXISTS 
 ( 
@@ -566,14 +561,8 @@ UNLOCK TABLES;
 DROP TABLE t1, t2;
 disconnect con2;
 
-
---echo #
 --echo # End of 6.0 tests.
---echo #
 
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
 #
 # Test concurrent lock and read locks
 # This gave a warning:

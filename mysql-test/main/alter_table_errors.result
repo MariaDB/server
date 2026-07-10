@@ -1,3 +1,6 @@
+#
+# MDEV-16110 ALTER with ALGORITHM=INPLACE breaks temporary table with virtual columns
+#
 create table t (a int, v int as (a)) engine=innodb;
 alter table t change column a b tinyint, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
@@ -6,7 +9,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 create temporary table t1 (a int, v int as (a));
 alter table t1 change column a b int, algorithm=inplace;
@@ -16,7 +19,7 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create temporary table t2 (a int, v int as (a));
 lock table t2 write;
 alter table t2 change column a b int, algorithm=inplace;
@@ -26,10 +29,28 @@ Table	Create Table
 t2	CREATE TEMPORARY TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop temporary table t1, t2;
+unlock tables;
+#
+# MDEV-18083 ASAN heap-use-after-free in Field::set_warning_truncated_wrong_value upon inserting into temporary table
+#
 create temporary table t1 (a int);
 alter table t1 add column f text;
 insert into t1 values ('x','foo');
 ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`a` at row 1
 drop temporary table t1;
+# End of 10.2 tests
+#
+# MDEV-23507 Wrong duplicate key value printed in ER_DUP_ENTRY
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (8);
+insert into t1 select seq from seq_1_to_100;
+alter table t1 add unique (a);
+ERROR 23000: Duplicate entry '8' for key 'a'
+alter table t1 engine=aria;
+alter table t1 add unique (a);
+ERROR 23000: Duplicate entry '8' for key 'a'
+drop table t1;
+# End of 10.11 tests

@@ -66,7 +66,7 @@ typedef struct my_xml_node_st
 typedef struct my_xpath_lex_st
 {
   int        term;  /* token type, see MY_XPATH_LEX_XXXXX below */
-  const char *beg;  /* beginnign of the token                   */
+  const char *beg;  /* beginning of the token                   */
   const char *end;  /* end of the token                         */
 } MY_XPATH_LEX;
 
@@ -176,8 +176,8 @@ public:
       }
     }
 
-    str->length(0);
-    str->set_charset(collation.collation);
+    // Make sure we never return {Ptr=nullptr, str_length=0}
+    str->copy("", 0, collation.collation);
     for (uint i=0 ; i < numnodes; i++)
     {
       if(active[i])
@@ -221,7 +221,8 @@ public:
     return { STRING_WITH_LEN("xpath_rootelement") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_rootelement>(thd, this); }
 };
 
@@ -237,7 +238,8 @@ public:
     return { STRING_WITH_LEN("xpath_union") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_union>(thd, this); }
 };
 
@@ -277,7 +279,8 @@ public:
     return { STRING_WITH_LEN("xpath_selfbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_selfbyname>(thd, this); }
 };
 
@@ -294,7 +297,8 @@ public:
     return { STRING_WITH_LEN("xpath_childbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_childbyname>(thd, this); }
 };
 
@@ -313,7 +317,8 @@ public:
     return { STRING_WITH_LEN("xpath_descendantbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, this); }
 };
 
@@ -332,7 +337,8 @@ public:
     return { STRING_WITH_LEN("xpath_ancestorbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, this); }
 };
 
@@ -350,7 +356,8 @@ public:
     return { STRING_WITH_LEN("xpath_parentbyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_parentbyname>(thd, this); }
 };
 
@@ -367,7 +374,8 @@ public:
     return { STRING_WITH_LEN("xpath_attributebyname") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_attributebyname>(thd, this); }
 };
 
@@ -387,7 +395,8 @@ public:
     return { STRING_WITH_LEN("xpath_predicate") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_predicate>(thd, this); }
 };
 
@@ -403,7 +412,8 @@ public:
     return { STRING_WITH_LEN("xpath_elementbyindex") };
   }
   bool val_native(THD *thd, Native *nodeset) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, this); }
 };
 
@@ -425,7 +435,7 @@ public:
   {
     return { STRING_WITH_LEN("xpath_cast_bool") };
   }
-  longlong val_int() override
+  bool val_bool() override
   {
     if (args[0]->fixed_type_handler() == &type_handler_xpath_nodeset)
     {
@@ -434,7 +444,8 @@ public:
     }
     return args[0]->val_real() ? 1 : 0;
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_xpath_cast_bool>(thd, this); }
 };
 
@@ -451,7 +462,8 @@ public:
     return { STRING_WITH_LEN("xpath_cast_number") };
   }
   double val_real() override { return args[0]->val_real(); }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_xpath_cast_number>(thd, this); }
 };
 
@@ -471,7 +483,8 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   { max_length= MAX_BLOB_WIDTH; return FALSE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
 };
 
@@ -495,7 +508,8 @@ public:
       return tmp_native_value.element(0).pos + 1;
     return 0;
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_position>(thd, this); }
 };
 
@@ -521,7 +535,8 @@ public:
       return predicate_supplied_context_size;
     return tmp_native_value.elements();
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_count>(thd, this); }
 };
 
@@ -569,7 +584,8 @@ public:
     }
     return sum;
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_sum>(thd, this); }
 };
 
@@ -584,13 +600,13 @@ public:
                             CHARSET_INFO *cs):
     Item_string(thd, str, length, cs)
   { }
-  bool const_item() const { return false ; }
-  bool basic_const_item() const { return false; }
+  bool const_item() const override { return false ; }
+  bool basic_const_item() const override { return false; }
   void set_value(const char *str, uint length, CHARSET_INFO *cs)
   {
     str_value.set(str, length, cs);
   }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
   {
     /*
       Item_string::safe_charset_converter() does not accept non-constants.
@@ -623,7 +639,7 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
-  longlong val_int() override
+  bool val_bool() override
   {
     Item_func *comp= (Item_func*)args[1];
     Item_string_xml_non_const *fake=
@@ -654,7 +670,8 @@ public:
     }
     return 0;
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_to_const_comparator>(thd, this); }
 };
 
@@ -769,7 +786,7 @@ bool Item_nodeset_func_ancestorbyname::val_native(THD *thd, Native *nodeset)
   {
     /*
        Go to the root and add all nodes on the way.
-       Don't add the root if context is the root itelf
+       Don't add the root if context is the root itself
     */
     MY_XML_NODE *self= &nodebeg[flt->num];
     if (need_self && validname(self))
@@ -1033,7 +1050,7 @@ static Item *create_comparator(MY_XPATH *xpath,
     else
       my_printf_error(ER_UNKNOWN_ERROR,
                       "XPATH error: "
-                      "comparison of two nodesets is not supported: '%.32T'",
+                      "comparison of two nodesets is not supported: '%.32sT'",
                       MYF(0), context->beg);
 
     return 0; // TODO: Comparison of two nodesets
@@ -1043,7 +1060,7 @@ static Item *create_comparator(MY_XPATH *xpath,
     /*
      Compare a node set to a scalar value.
      We just create a fake Item_string_xml_non_const() argument,
-     which will be filled to the partular value
+     which will be filled to the particular value
      in a loop through all of the nodes in the node set.
     */
 
@@ -2566,7 +2583,7 @@ static int my_xpath_parse_Number(MY_XPATH *xpath)
   
   SYNOPSYS
     
-    The keywords AND, OR, MOD, DIV are valid identitiers
+    The keywords AND, OR, MOD, DIV are valid identifiers
     when they are in identifier context:
     
     SELECT
@@ -2693,7 +2710,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
         my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.*s'",
                         MYF(0), len, dollar_pos);
       else
-        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.32T'",
+        my_printf_error(ER_UNKNOWN_ERROR, "Unknown XPATH variable at: '%.32sT'",
                         MYF(0), dollar_pos);
     }
   }
@@ -2829,7 +2846,7 @@ bool Item_xml_str_func::fix_fields(THD *thd, Item **ref)
       my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.*s'",
                       MYF(0), clen, xpath.lasttok.beg);
     else
-      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.32T'",
+      my_printf_error(ER_UNKNOWN_ERROR, "XPATH syntax error: '%.32sT'",
                       MYF(0), xpath.lasttok.beg);
 
     return true;

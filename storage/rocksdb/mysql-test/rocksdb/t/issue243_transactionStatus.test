@@ -23,7 +23,7 @@ SELECT * FROM t1;
 SHOW ENGINE rocksdb TRANSACTION STATUS;
 
 #
-# DB operations with Tansaction, insert_count, update_count, delete_count
+# DB operations with Transaction, insert_count, update_count, delete_count
 # and total write_count should be printed
 # Cases: rollback, commit transaction
 #

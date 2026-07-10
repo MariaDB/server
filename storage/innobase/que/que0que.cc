@@ -167,40 +167,6 @@ que_thr_init_command(
 }
 
 /**********************************************************************//**
-Round robin scheduler.
-@return a query thread of the graph moved to QUE_THR_RUNNING state, or
-NULL; the query thread should be executed by que_run_threads by the
-caller */
-que_thr_t*
-que_fork_scheduler_round_robin(
-/*===========================*/
-	que_fork_t*	fork,		/*!< in: a query fork */
-	que_thr_t*	thr)		/*!< in: current pos */
-{
-	fork->trx->mutex_lock();
-
-	/* If no current, start first available. */
-	if (thr == NULL) {
-		thr = UT_LIST_GET_FIRST(fork->thrs);
-	} else {
-		thr = UT_LIST_GET_NEXT(thrs, thr);
-	}
-
-	if (thr) {
-
-		fork->state = QUE_FORK_ACTIVE;
-
-		fork->last_sel_node = NULL;
-		ut_ad(thr->state == QUE_THR_COMPLETED);
-		que_thr_init_command(thr);
-	}
-
-	fork->trx->mutex_unlock();
-
-	return(thr);
-}
-
-/**********************************************************************//**
 Starts execution of a command in a query fork. Picks a query thread which
 is not in the QUE_THR_RUNNING state and moves it to that state. If none
 can be chosen, a situation which may arise in parallelized fetches, NULL
@@ -548,8 +514,7 @@ que_thr_step(
 			for_step(thr);
 		} else if (type == QUE_NODE_PROC) {
 			if (thr->prev_node == que_node_get_parent(node)) {
-				trx->last_sql_stat_start.least_undo_no
-					= trx->undo_no;
+				trx->last_stmt_start = trx->undo_no;
 			}
 
 			proc_step(thr);

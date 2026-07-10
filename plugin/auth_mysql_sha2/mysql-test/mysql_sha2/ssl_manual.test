@@ -1,0 +1,21 @@
+source init.inc;
+
+connect con1, localhost,test1,pwd,,,,TCP SSL;
+call checkme();
+disconnect con1;
+connect con2, localhost,test1,pwd,,,,TCP SSL;
+call checkme();
+disconnect con2;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con3, localhost,test1,wrong_pwd,,,,TCP SSL;
+connect con4, localhost,test2,,,,,TCP SSL;
+call checkme();
+disconnect con4;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con5, localhost,test2 pwd,,,,,TCP SSL;
+
+connection default;
+
+source fini.inc;

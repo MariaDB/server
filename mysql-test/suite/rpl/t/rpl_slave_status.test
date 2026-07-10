@@ -59,7 +59,6 @@ sync_slave_with_master;
 source include/stop_slave.inc;
 START SLAVE;
 source include/wait_for_slave_sql_to_start.inc;
-source include/wait_for_slave_io_to_stop.inc;
 
 --echo ==== Verify that Slave IO thread stopped with error ====
 # 1045 = ER_ACCESS_DENIED_ERROR
@@ -68,7 +67,7 @@ source include/wait_for_slave_io_to_stop.inc;
 
 --echo ==== Cleanup (Note that slave IO thread is not running) ====
 
-# cleanup: slave io thread has is stopped so we reset replication
+# cleanup: slave io thread is stopped so we reset replication
 --source include/stop_slave_sql.inc
 CHANGE MASTER TO MASTER_USER = 'root', MASTER_PASSWORD = '';
 # clear Slave_IO_Errno

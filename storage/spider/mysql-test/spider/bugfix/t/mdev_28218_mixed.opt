@@ -1,0 +1,2 @@
+--plugin-load-add=ha_spider
+--init-file=$MTR_SUITE_DIR/t/mdev_28218_mixed.sql

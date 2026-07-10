@@ -372,7 +372,7 @@ sub calculate {
   $highest = 1; # set hard the highest value ...
   $xhigh = int($highest + .5 * $highest);
   
-  # here to get the max lenght of the test entries ...
+  # here to get the max length of the test entries ...
   # so we can calculate the with of the left border
   foreach $oper (sort keys (%op)) {
     $max_len_lb = length($oper) if (length($oper) > $max_len_lb);
@@ -418,7 +418,7 @@ sub gd {
   $width = $width_greyfield + $left_border + $right_border;
   $height = ($step * ($luukcounter + ($luukcounter * ($#key_order + 1)))) + $down_border + $up_border;
   $b_width = $width - ($left_border + $right_border); # width within the grey field
-  $overlap = 0; # how far each colum can fall over each other ...nice :-)
+  $overlap = 0; # how far each column can fall over each other ...nice :-)
 
   # make the gif image ....
   $im = new GD::Image($width,$height);

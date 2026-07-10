@@ -5,9 +5,3 @@ wsrep-auto-increment-control=ON
 
 [mysqld.2]
 wsrep-auto-increment-control=ON
-
-
-
-
-
-

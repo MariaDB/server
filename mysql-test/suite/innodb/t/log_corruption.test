@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 --source include/no_valgrind_without_big.inc
+--source include/skip_innodb_log_archive.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Upgrade after a crash is not supported");
@@ -19,6 +20,7 @@ call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 fa
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files (1048576|4194304) bytes!");
 call mtr.add_suppression("InnoDB: The change buffer is corrupted");
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=12345!=");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -57,16 +59,24 @@ my $head = pack("Nx[18]", 0);
 my $body = pack("x[8]Nx[10]Nx[16312]", 768, 97937874);
 my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
 print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
-# Dummy pages 1..6.
-$body = pack("x[16338]");
-for (my($page) = 1; $page < 7; $page++)
-{
-    ## FIL_PAGE_OFFSET
-    $head = pack("Nx[18]", $page);
-    $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
-    print OUT pack("N",$ck).$head.pack("x[16350]Nx[4]",$ck);
-}
+
+# Dummy change buffer header page (page 3).
+die unless seek(OUT, 3 * 16384, 0);
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+my $head = pack("NNNx[8]n", 3, 0xffffffff, 0xffffffff, 6);
+my $body = pack("x[62]nnx[16272]", 2, 50);
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Dummy change buffer root page (page 4).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT
+my $head = pack("NNNx[10]", 4, 0xffffffff, 0xffffffff);
+my $body = chr(0) x 16338;
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
 # Dictionary header page (page 7).
+die unless seek(OUT, 7 * 16384, 0);
 ## FIL_PAGE_OFFSET
 $head = pack("Nx[18]", 7);
 ## DICT_HDR_TABLES,DICT_HDR_INDEXES
@@ -163,8 +173,16 @@ die unless seek(OUT, 0x800, 0);
 print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
 close OUT or die;
 EOF
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
+--let $restart_parameters= $dirs --innodb-log-recovery-target=12345
 --source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--let SEARCH_PATTERN= InnoDB: cannot fulfill innodb_log_recovery_target=12345!=
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
+--source include/restart_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');

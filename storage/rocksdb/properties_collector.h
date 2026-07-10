@@ -93,9 +93,9 @@ class Rdb_tbl_card_coll {
    * Cardinality statistics might be calculated using some sampling strategy.
    * This method adjusts gathered statistics according to the sampling
    * strategy used. Note that adjusted cardinality value is just an estimate
-   * and can return a value exeeding number of rows in a table, so the
+   * and can return a value exceeding number of rows in a table, so the
    * returned value should be capped by row count before using it by
-   * an optrimizer or displaying it to a clent.
+   * an optimizer or displaying it to a client.
    */
   void AdjustStats(Rdb_index_stats *stats);
 
@@ -128,7 +128,7 @@ class Rdb_tbl_prop_coll : public rocksdb::TablePropertiesCollector {
   virtual rocksdb::Status Finish(
       rocksdb::UserCollectedProperties *properties) override;
 
-  virtual const char *Name() const override { return "Rdb_tbl_prop_coll"; }
+  const char *Name() const override { return "Rdb_tbl_prop_coll"; }
 
   rocksdb::UserCollectedProperties GetReadableProperties() const override;
 
@@ -193,7 +193,7 @@ class Rdb_tbl_prop_coll_factory
                                  m_table_stats_sampling_pct);
   }
 
-  virtual const char *Name() const override {
+  const char *Name() const override {
     return "Rdb_tbl_prop_coll_factory";
   }
 

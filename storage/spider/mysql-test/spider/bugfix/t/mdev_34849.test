@@ -1,0 +1,52 @@
+--echo #
+--echo # MDEV-34849 SIGSEGV in server_mysql_real_connect, spider_db_connect, __strcmp_evex and __strnlen_evex, ASAN heap-use-after-free in spider_db_connect on INSERT
+--echo #
+
+INSTALL SONAME 'ha_spider';
+
+CREATE TABLE t1 (c INT) ENGINE=Spider;
+CREATE TABLE t2 (c INT) ENGINE=Spider;
+
+# So that t2 is inserted into spider_init_error_tables and in INSERT
+# INTO t2 we go into failure mode in spider_get_share()
+--error 1429
+SELECT * FROM t2;
+
+# Resets the table cache so that the next two queries will call
+# ha_spider::open() on t1 and t2 respectively
+set @old_table_open_cache=@@global.table_open_cache;
+SET GLOBAL table_open_cache=0;
+
+# This causes trx_ha->wait_for_reusing to remain false during the
+# (non-)rollback at the end of the first INSERT INTO t1 statement, so
+# that the second INSERT INTO t1 enters the branch in
+# spider_check_trx_and_get_conn() that does not update spider fields
+# including NULLing its associated connections.
+set autocommit=0;
+
+# Misses the table cache when opening the table. Spider then opens the
+# table so that the next INSERT INTO t1 causes a table cache hit and
+# skips the call to open table with spider
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+/* 1 */ INSERT INTO t1 VALUES (0);
+
+# Spider opens the table and creates a t2 share, assigns it to
+# conn->queued_connect_share, and frees the t2 share on failure
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+/* 2 */ INSERT INTO t2 VALUES (0);
+
+# So that the final INSERT INTO t1 will decide not to return the same
+# error in spider_db_connect(), and move onto using the freed share
+set global spider_connect_error_interval=0;
+
+# Skips call to ha_spider::open(), so it does not create a t1 share
+# nor reassign it to conn->queued_connect_share, causing it to remain
+# the freed t2 share, and using the share results in segv
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+/* 3 */ INSERT INTO t1 VALUES (0);
+
+drop table t1, t2;
+
+set global table_open_cache=@old_table_open_cache;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

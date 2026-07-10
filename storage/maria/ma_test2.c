@@ -44,6 +44,7 @@ static int create_flag= 0, srand_arg= 0, checkpoint= 0;
 static my_bool opt_versioning= 0;
 static uint use_blob= 0, update_count= 0;
 static ulong pagecache_size=8192*32;
+static ulong pagecache_segments= 1;
 static enum data_file_type record_type= DYNAMIC_RECORD;
 
 static uint keys=MARIA_KEYS,recant=1000;
@@ -88,9 +89,10 @@ int main(int argc, char *argv[])
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
-      (init_pagecache(maria_pagecache, pagecache_size, 0, 0,
-		      maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      (multi_init_pagecache(&maria_pagecaches, pagecache_segments,
+                            pagecache_size, 0, 0,
+                            maria_block_size, 0, MY_WME)) ||
+      ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
 		      TRANSLOG_PAGECACHE_SIZE, 0, 0,
 		      TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -258,7 +260,7 @@ int main(int argc, char *argv[])
   {
     ulong blob_length;
     n1=rnd(1000); n2=rnd(100); n3=rnd(5000);
-    sprintf((char*) record,"%6d:%4d:%8d:Pos: %4d    ",n1,n2,n3,write_count);
+    snprintf((char*) record, sizeof(record), "%6d:%4d:%8d:Pos: %4d    ",n1,n2,n3,write_count);
     int4store(record+STANDARD_LENGTH-4,(long) i);
     fix_length(record,(uint) STANDARD_LENGTH+rnd(60));
     put_blob_in_record(record+blob_pos,&blob_buffer, &blob_length);
@@ -289,7 +291,7 @@ int main(int argc, char *argv[])
       for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
       if (!j)
 	for (j=999 ; j>0 && key1[j] == 0 ; j--) ;
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (maria_rkey(file,read_record,0,key,HA_WHOLE_KEY,HA_READ_KEY_EXACT))
       {
 	printf("Test in loop: Can't find key: \"%s\"\n",key);
@@ -329,7 +331,7 @@ int main(int argc, char *argv[])
     for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
     if (j != 0)
     {
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (maria_rkey(file,read_record,0,key,HA_WHOLE_KEY,HA_READ_KEY_EXACT))
       {
 	printf("can't find key1: \"%s\"\n",key);
@@ -373,14 +375,14 @@ int main(int argc, char *argv[])
   for (i=0 ; i < update_count ; i++)
   {
     n1=rnd(1000); n2=rnd(100); n3=rnd(5000);
-    sprintf((char*) record2,"%6d:%4d:%8d:XXX: %4d     ",n1,n2,n3,update);
+    snprintf((char*) record2, sizeof(record2), "%6d:%4d:%8d:XXX: %4d     ",n1,n2,n3,update);
     int4store(record2+STANDARD_LENGTH-4,(long) i);
     fix_length(record2,(uint) STANDARD_LENGTH+rnd(60));
 
     for (j=rnd(1000)+1 ; j>0 && key1[j] == 0 ; j--) ;
     if (j != 0)
     {
-      sprintf((char*) key,"%6d",j);
+      snprintf((char*) key, sizeof(key), "%6d",j);
       if (maria_rkey(file,read_record,0,key,HA_WHOLE_KEY,HA_READ_KEY_EXACT))
       {
 	printf("can't find key1: \"%s\"\n", (char*) key);
@@ -436,7 +438,7 @@ int main(int argc, char *argv[])
       dupp_keys=key1[i]; j=i;
     }
   }
-  sprintf((char*) key,"%6d",j);
+  snprintf((char*) key, sizeof(key), "%6d",j);
   start=keyinfo[0].seg[0].start;
   length=keyinfo[0].seg[0].length;
   if (dupp_keys)
@@ -749,8 +751,8 @@ int main(int argc, char *argv[])
       key_range min_key, max_key;
       if (j > k)
 	swap_variables(int, j, k);
-      sprintf((char*) key,"%6d",j);
-      sprintf((char*) key2,"%6d",k);
+      snprintf((char*) key, sizeof(key), "%6d",j);
+      snprintf((char*) key2, sizeof(key2), "%6d",k);
 
       min_key.key= key;
       min_key.keypart_map= HA_WHOLE_KEY;
@@ -794,11 +796,11 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     char buff[80];
-    get_date(buff,3,info.create_time);
+    get_date(buff,sizeof(buff),3,info.create_time);
     printf("info: Created %s\n",buff);
-    get_date(buff,3,info.check_time);
+    get_date(buff,sizeof(buff),3,info.check_time);
     printf("info: checked %s\n",buff);
-    get_date(buff,3,info.update_time);
+    get_date(buff,sizeof(buff),3,info.update_time);
     printf("info: Modified %s\n",buff);
   }
 
@@ -982,6 +984,7 @@ end:
     goto err;
   }
   file= 0;
+  multi_update_pagecache_stats();
   maria_panic(HA_PANIC_CLOSE);			/* Should close log */
   if (!silent)
   {
@@ -989,7 +992,7 @@ end:
     printf("Write records: %d\nUpdate records: %d\nSame-key-read: %d\nDelete records: %d\n", write_count,update,dupp_keys,opt_delete);
     if (rec_pointer_size)
       printf("Record pointer size:  %d\n",rec_pointer_size);
-    printf("maria_block_size:    %lu\n", maria_block_size);
+    printf("maria_block_size:    %u\n", maria_block_size);
     if (write_cacheing)
       puts("Key cache resized");
     if (write_cacheing)
@@ -1009,12 +1012,12 @@ w_requests: %10lu\n\
 writes:     %10lu\n\
 r_requests: %10lu\n\
 reads:      %10lu\n",
-           (ulong) maria_pagecache->blocks_used,
-           (ulong) maria_pagecache->global_blocks_changed,
-           (ulong) maria_pagecache->global_cache_w_requests,
-           (ulong) maria_pagecache->global_cache_write,
-           (ulong) maria_pagecache->global_cache_r_requests,
-           (ulong) maria_pagecache->global_cache_read);
+           (ulong) pagecache_stats.blocks_used,
+           (ulong) pagecache_stats.global_blocks_changed,
+           (ulong) pagecache_stats.global_cache_w_requests,
+           (ulong) pagecache_stats.global_cache_write,
+           (ulong) pagecache_stats.global_cache_r_requests,
+           (ulong) pagecache_stats.global_cache_read);
   }
   maria_end();
   my_free(blob_buffer);
@@ -1126,6 +1129,10 @@ static void get_options(int argc, char **argv)
     case 'P':
       pack_type=0;			/* Don't use DIFF_LENGTH */
       pack_seg=0;
+      break;
+    case 'p':                           /* Segmented page cache */
+      pagecache_segments= atoi(++pos);
+      pagecache_size*= pagecache_segments;
       break;
     case 'R':				/* Length of record pointer */
       rec_pointer_size=atoi(++pos);

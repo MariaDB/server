@@ -1,0 +1,8 @@
+select * from information_schema.processlist where id=0;
+should be true
+1
+should be true
+1
+show global status like "max_memory_used";
+Variable_name	Value
+Max_memory_used	NULL

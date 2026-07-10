@@ -1,0 +1,23 @@
+
+--echo # Check that limits work with hints & PS protocol
+
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+prepare stmt from
+"DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT ?";
+set @lim= 1;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+set @lim= 3;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+set @lim= 2;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+insert into t2 values (1),(10),(2),(9),(3),(8);
+set @lim= 6;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+
+drop table t2;

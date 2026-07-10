@@ -1065,11 +1065,6 @@ MYSQL_FIELD * STDCALL mysql_fetch_field_direct(MYSQL_RES *res,uint fieldnr)
   return &(res)->fields[fieldnr];
 }
 
-MYSQL_FIELD * STDCALL mysql_fetch_fields(MYSQL_RES *res)
-{
-  return (res)->fields;
-}
-
 MYSQL_ROW_OFFSET STDCALL mysql_row_tell(MYSQL_RES *res)
 {
   return res->data_cursor;
@@ -1215,18 +1210,6 @@ mysql_escape_string(char *to,const char *from,ulong length)
                                         length, &overflow);
 }
 
-ulong STDCALL
-mysql_real_escape_string(MYSQL *mysql, char *to,const char *from,
-			 ulong length)
-{
-  my_bool overflow;
-  if (mysql->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
-    return (ulong) escape_quotes_for_mysql(mysql->charset, to, 0, from, length,
-                                           &overflow);
-  return (ulong) escape_string_for_mysql(mysql->charset, to, 0, from, length,
-                                         &overflow);
-}
-
 void STDCALL
 myodbc_remove_escape(MYSQL *mysql,char *name)
 {
@@ -1331,8 +1314,8 @@ static my_bool reset_stmt_handle(MYSQL_STMT *stmt, uint flags);
 /* A macro to check truncation errors */
 
 #define IS_TRUNCATED(value, is_unsigned, min, max, umax) \
-        ((is_unsigned) ? (((value) > (umax) || (value) < 0) ? 1 : 0) : \
-                         (((value) > (max)  || (value) < (min)) ? 1 : 0))
+  ((is_unsigned) ? (( (value) > (umax)) ? 1 : 0) : \
+                    (((value) > (max)  || (value) < (min)) ? 1 : 0))
 
 #define BIND_RESULT_DONE 1
 /*
@@ -2225,7 +2208,7 @@ int cli_stmt_execute(MYSQL_STMT *stmt)
 	DBUG_RETURN(1);
     }
     length= (ulong) (net->write_pos - net->buff);
-    /* TODO: Look into avoding the following memdup */
+    /* TODO: Look into avoiding the following memdup */
     if (!(param_data= my_memdup(PSI_NOT_INSTRUMENTED, net->buff, length, MYF(0))))
     {
       set_stmt_error(stmt, CR_OUT_OF_MEMORY, unknown_sqlstate, NULL);
@@ -3229,7 +3212,8 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   {
     longlong data= my_strtoll10(value, &endptr, &err);
     *param->error= (IS_TRUNCATED(data, param->is_unsigned,
-                                 INT_MIN32, INT_MAX32, UINT_MAX32) || err > 0);
+                                 (longlong) INT_MIN32, (longlong) INT_MAX32,
+                                 (longlong) UINT_MAX32) || err > 0);
     longstore(buffer, (int32) data);
     break;
   }
@@ -3346,7 +3330,8 @@ static void fetch_long_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
     break;
   case MYSQL_TYPE_LONG:
     *param->error= IS_TRUNCATED(value, param->is_unsigned,
-                                INT_MIN32, INT_MAX32, UINT_MAX32);
+                                (longlong) INT_MIN32, (longlong) INT_MAX32,
+                                (longlong) UINT_MAX32);
     longstore(buffer, (int32) value);
     break;
   case MYSQL_TYPE_LONGLONG:
@@ -3673,9 +3658,7 @@ static void fetch_result_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
   }
   case MYSQL_TYPE_FLOAT:
   {
-    float value;
-    float4get(value,*row);
-    fetch_float_with_conversion(param, field, value, MY_GCVT_ARG_FLOAT);
+    fetch_float_with_conversion(param, field, get_float(*row), MY_GCVT_ARG_FLOAT);
     *row+= 4;
     break;
   }
@@ -4520,13 +4503,11 @@ int STDCALL mysql_stmt_store_result(MYSQL_STMT *stmt)
       max_length
     */
     MYSQL_BIND  *my_bind, *end;
-    MYSQL_FIELD *field;
     bzero((char*) stmt->bind, sizeof(*stmt->bind)* stmt->field_count);
 
-    for (my_bind= stmt->bind, end= my_bind + stmt->field_count,
-           field= stmt->fields;
+    for (my_bind= stmt->bind, end= my_bind + stmt->field_count;
 	 my_bind < end ;
-	 my_bind++, field++)
+	 my_bind++)
     {
       my_bind->buffer_type= MYSQL_TYPE_NULL;
       my_bind->buffer_length=1;
@@ -4952,11 +4933,6 @@ int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
   DBUG_RETURN(0);
 }
 
-
-MYSQL_RES * STDCALL mysql_use_result(MYSQL *mysql)
-{
-  return (*mysql->methods->use_result)(mysql);
-}
 
 my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
 {

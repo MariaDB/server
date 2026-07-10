@@ -47,5 +47,5 @@ COUNT(@@GLOBAL.innodb_log_file_size)
 1
 1 Expected
 SELECT innodb_log_file_size = @@SESSION.innodb_log_file_size;
-ERROR 42S22: Unknown column 'innodb_log_file_size' in 'field list'
+ERROR 42S22: Unknown column 'innodb_log_file_size' in 'SELECT'
 Expected error 'Readonly variable'

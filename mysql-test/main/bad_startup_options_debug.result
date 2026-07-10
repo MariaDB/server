@@ -1,0 +1,7 @@
+#
+# MDEV-34437 SIGSEGV in vio_get_normalized_ip when using extra-port
+#
+FOUND 1 /\[ERROR\] Can't create IP socket: Servname not supported/ in errorlog.err
+FOUND 1 /\[ERROR\] Can't create IP socket: Servname not supported/ in errorlog.err
+# restart
+# End of 10.11 tests

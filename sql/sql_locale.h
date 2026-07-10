@@ -29,10 +29,11 @@ class MY_LOCALE
 {
 public:
   uint  number;
-  const char *name;
+  const Lex_ident_locale name;
   const char *description;
   const bool is_ascii;
   TYPELIB *month_names;
+  TYPELIB *month_names_formatting;
   TYPELIB *ab_month_names;
   TYPELIB *day_names;
   TYPELIB *ab_day_names;
@@ -43,16 +44,23 @@ public:
   const char *grouping;
   MY_LOCALE_ERRMSGS *errmsgs;
   MY_LOCALE(uint number_par,
-            const char *name_par, const char *descr_par, bool is_ascii_par,
-            TYPELIB *month_names_par, TYPELIB *ab_month_names_par,
-            TYPELIB *day_names_par, TYPELIB *ab_day_names_par,
+            const Lex_ident_locale &name_par,
+            const char *descr_par, bool is_ascii_par,
+            TYPELIB *month_names_par,
+            TYPELIB *month_names_par_formatting,
+            TYPELIB *ab_month_names_par,
+            TYPELIB *day_names_par,
+            TYPELIB *ab_day_names_par,
             uint max_month_name_length_par, uint max_day_name_length_par,
             uint decimal_point_par, uint thousand_sep_par,
             const char *grouping_par, MY_LOCALE_ERRMSGS *errmsgs_par) :
     number(number_par),
     name(name_par), description(descr_par), is_ascii(is_ascii_par),
-    month_names(month_names_par), ab_month_names(ab_month_names_par),
-    day_names(day_names_par), ab_day_names(ab_day_names_par),
+    month_names(month_names_par),
+    month_names_formatting(month_names_par_formatting),
+    ab_month_names(ab_month_names_par),
+    day_names(day_names_par),
+    ab_day_names(ab_day_names_par),
     max_month_name_length(max_month_name_length_par),
     max_day_name_length(max_day_name_length_par),
     decimal_point(decimal_point_par),
@@ -62,6 +70,26 @@ public:
   {}
   my_repertoire_t repertoire() const
   { return is_ascii ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_EXTENDED; }
+  /*
+    Get a non-abbreviated month name by index
+    @param month - the month index 0..11
+  */
+  LEX_CSTRING month_name(uint month) const
+  {
+    if (month > 11)
+      return Lex_cstring("##", 2);
+    return Lex_cstring_strlen(month_names->type_names[month]);
+  }
+  /*
+    Get a non-abbreviated weekday name by index
+    @param weekday - the weekday index 0..6
+  */
+  LEX_CSTRING day_name(uint weekday) const
+  {
+    if (weekday > 6)
+      return Lex_cstring("##", 2);
+    return Lex_cstring_strlen(day_names->type_names[weekday]);
+  }
 };
 /* Exported variables */
 
@@ -72,8 +100,10 @@ extern MY_LOCALE *my_default_lc_time_names;
 
 /* Exported functions */
 
-MY_LOCALE *my_locale_by_name(const char *name);
+MY_LOCALE *my_locale_by_name(const LEX_CSTRING &name);
 MY_LOCALE *my_locale_by_number(uint number);
+MY_LOCALE  *my_locale_by_oracle_name(const LEX_CSTRING &name);
 void cleanup_errmsgs(void);
+void init_locale();
 
 #endif /* SQL_LOCALE_INCLUDED */

@@ -21,11 +21,8 @@
   "public" interface to sys_var - server configuration variables.
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface                       /* gcc class implementation */
-#endif
-
 #include <my_getopt.h>
+#include <my_attribute.h>
 
 class sys_var;
 class set_var;
@@ -61,6 +58,13 @@ class sys_var: protected Value_source // for double_from_string_with_check
 public:
   sys_var *next;
   LEX_CSTRING name;
+
+  /*
+    - For non-plugin system variables: always true (static_test_load)
+    - For plugin global var: always false (static_unload)
+    - For plugin session var: true on plugin init, false on plugin
+      deinit
+ */
   bool *test_load;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
@@ -84,12 +88,11 @@ protected:
   typedef bool (*on_update_function)(sys_var *self, THD *thd, enum_var_type type);
 
   int flags;            ///< or'ed flag_enum values
-  const SHOW_TYPE show_val_type; ///< what value_ptr() returns for sql_show.cc
+  SHOW_TYPE show_val_type; ///< what value_ptr() returns for sql_show.cc
   PolyLock *guard;      ///< *second* lock that protects the variable
   ptrdiff_t offset;     ///< offset to the value from global_system_variables
   on_check_function on_check;
   on_update_function on_update;
-  const char *const deprecation_substitute;
 
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
@@ -131,9 +134,11 @@ public:
   int scope() const { return flags & SCOPE_MASK; }
   virtual CHARSET_INFO *charset(THD *thd) const
   {
-    return system_charset_info;
+    return system_charset_info_for_i_s;
   }
   bool is_readonly() const { return flags & READONLY; }
+  void update_flags(int new_flags) { flags = new_flags; }
+  int get_flags() const { return flags; }
   /**
     the following is only true for keycache variables,
     that support the syntax @@keycache_name.variable_name
@@ -240,6 +245,7 @@ protected:
     int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
   virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  virtual const uchar *session_no_lock_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 
   /**
@@ -247,9 +253,11 @@ protected:
     Typically it's the same as session_value_ptr(), but it's different,
     for example, for ENUM, that is printed as a string, but stored as a number.
   */
+  ATTRIBUTE_NO_UBSAN
   uchar *session_var_ptr(THD *thd) const
   { return ((uchar*)&(thd->variables)) + offset; }
 
+  ATTRIBUTE_NO_UBSAN
   uchar *global_var_ptr() const
   { return ((uchar*)&global_system_variables) + offset; }
 
@@ -273,7 +281,7 @@ protected:
 /**
   A base class for everything that can be set with SET command.
   It's similar to Items, an instance of this is created by the parser
-  for every assigmnent in SET (or elsewhere, e.g. in SELECT).
+  for every assignment in SET (or elsewhere, e.g. in SELECT).
 */
 class set_var_base :public Sql_alloc
 {
@@ -326,11 +334,11 @@ public:
 
   set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
           const LEX_CSTRING *base_name_arg, Item *value_arg);
-  virtual bool is_system() { return 1; }
-  int check(THD *thd);
-  int update(THD *thd);
-  int light_check(THD *thd);
-  virtual bool is_var_optimizer_trace() const
+  bool is_system() override { return 1; }
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+  int light_check(THD *thd) override;
+  bool is_var_optimizer_trace() const override
   {
     extern sys_var *Sys_optimizer_trace_ptr;
     return var == Sys_optimizer_trace_ptr;
@@ -346,9 +354,9 @@ public:
   set_var_user(Item_func_set_user_var *item)
     :user_var_item(item)
   {}
-  int check(THD *thd);
-  int update(THD *thd);
-  int light_check(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+  int light_check(THD *thd) override;
 };
 
 /* For SET PASSWORD */
@@ -359,8 +367,19 @@ class set_var_password: public set_var_base
 public:
   set_var_password(LEX_USER *user_arg) :user(user_arg)
   {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+};
+
+/* For SET SESSION AUTHORIZATION */
+
+class set_var_authorization: public set_var_base
+{
+  LEX_USER *user;
+public:
+  set_var_authorization(LEX_USER *user_arg) : user(user_arg) {}
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 /* For SET ROLE */
@@ -371,8 +390,8 @@ class set_var_role: public set_var_base
   privilege_t access;
 public:
   set_var_role(LEX_CSTRING role_arg) : role(role_arg), access(NO_ACL) {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 /* For SET DEFAULT ROLE */
@@ -381,12 +400,12 @@ class set_var_default_role: public set_var_base
 {
   LEX_USER *user, *real_user;
   LEX_CSTRING role;
-  const char *real_role;
+  LEX_CSTRING real_role;
 public:
   set_var_default_role(LEX_USER *user_arg, LEX_CSTRING role_arg) :
     user(user_arg), role(role_arg) {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 /* For SET NAMES and SET CHARACTER SET */
@@ -404,8 +423,8 @@ public:
      character_set_results(result_coll_arg),
      collation_connection(connection_coll_arg)
   {}
-  int check(THD *thd);
-  int update(THD *thd);
+  int check(THD *thd) override;
+  int update(THD *thd) override;
 };
 
 
@@ -431,7 +450,7 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
 sys_var *find_sys_var(THD *thd, const char *str, size_t length= 0,
-                      bool throw_error= false);
+                      bool throw_error= false, bool hash_already_locked= false);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \
@@ -463,6 +482,9 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
+#ifndef EMBEDDED_LIBRARY
+bool validate_redirect_url(char *str, size_t len);
+#endif
 const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
@@ -472,7 +494,7 @@ extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
   *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,
   *Sys_character_set_results_ptr;
 
-CHARSET_INFO *get_old_charset_by_name(const char *old_name);
+CHARSET_INFO *get_old_charset_by_name(const LEX_CSTRING &name);
 
 int sys_var_init();
 uint sys_var_elements();
@@ -485,5 +507,6 @@ void free_engine_list(plugin_ref *list);
 plugin_ref *copy_engine_list(plugin_ref *list);
 plugin_ref *temp_copy_engine_list(THD *thd, plugin_ref *list);
 char *pretty_print_engine_list(THD *thd, plugin_ref *list);
+void check_new_mode_value(THD *thd, ulonglong *v);
 
 #endif

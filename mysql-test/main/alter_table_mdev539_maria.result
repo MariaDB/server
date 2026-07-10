@@ -35,7 +35,7 @@ lineitem	CREATE TABLE `lineitem` (
   KEY `i_l_orderkey` (`l_orderkey`),
   KEY `i_l_orderkey_quantity` (`l_orderkey`,`l_quantity`),
   KEY `i_l_commitdate` (`l_commitDATE`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 alter table lineitem add primary key (l_orderkey, l_linenumber);
 show create table lineitem;
 Table	Create Table
@@ -65,7 +65,7 @@ lineitem	CREATE TABLE `lineitem` (
   KEY `i_l_orderkey` (`l_orderkey`),
   KEY `i_l_orderkey_quantity` (`l_orderkey`,`l_quantity`),
   KEY `i_l_commitdate` (`l_commitDATE`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 drop index `primary` on lineitem;
 select * from lineitem where l_orderkey=1 and l_linenumber=2;
 l_orderkey	l_partkey	l_suppkey	l_linenumber	l_quantity	l_extendedprice	l_discount	l_tax	l_returnflag	l_linestatus	l_shipDATE	l_commitDATE	l_receiptDATE	l_shipinstruct	l_shipmode	l_comment
@@ -105,7 +105,7 @@ lineitem	CREATE TABLE `lineitem` (
   KEY `i_l_orderkey` (`l_orderkey`),
   KEY `i_l_orderkey_quantity` (`l_orderkey`,`l_quantity`),
   KEY `i_l_commitdate` (`l_commitDATE`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select * from lineitem where l_orderkey=1 and l_linenumber=2;
 l_orderkey	l_partkey	l_suppkey	l_linenumber	l_quantity	l_extendedprice	l_discount	l_tax	l_returnflag	l_linestatus	l_shipDATE	l_commitDATE	l_receiptDATE	l_shipinstruct	l_shipmode	l_comment
 1	68	9	2	36	34850.16	0.09	0.06	N	O	1996-04-12	1996-02-28	1996-04-20	TAKE BACK RETURN	MAIL	slyly bold pinto beans detect s
@@ -140,7 +140,7 @@ lineitem	CREATE TABLE `lineitem` (
   KEY `i_l_orderkey` (`l_orderkey`),
   KEY `i_l_orderkey_quantity` (`l_orderkey`,`l_quantity`),
   KEY `i_l_commitdate` (`l_commitDATE`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select * from lineitem where l_orderkey=1 and l_linenumber=2;
 l_orderkey	l_partkey	l_suppkey	l_linenumber	l_quantity	l_extendedprice	l_discount	l_tax	l_returnflag	l_linestatus	l_shipDATE	l_commitDATE	l_receiptDATE	l_shipinstruct	l_shipmode	l_comment
 1	68	9	2	36	34850.16	0.09	0.06	N	O	1996-04-12	1996-02-28	1996-04-20	TAKE BACK RETURN	MAIL	slyly bold pinto beans detect s
@@ -159,7 +159,7 @@ customer	CREATE TABLE `customer` (
   PRIMARY KEY (`c_custkey`),
   UNIQUE KEY `i_c_name` (`c_name`),
   KEY `i_c_nationkey` (`c_nationkey`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select * from customer where c_name='Customer#000000003';
 c_custkey	c_name	c_address	c_nationkey	c_phone	c_acctbal	c_mktsegment	c_comment
 3	Customer#000000003	MG9kdTD2WBHm	1	11-719-748-3364	7498.12	AUTOMOBILE	special packages wake. slyly reg
@@ -185,7 +185,7 @@ customer	CREATE TABLE `customer` (
   `c_comment` varchar(117) DEFAULT NULL,
   PRIMARY KEY (`c_custkey`),
   KEY `i_c_nationkey` (`c_nationkey`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select * from customer where c_name='Customer#000000003';
 c_custkey	c_name	c_address	c_nationkey	c_phone	c_acctbal	c_mktsegment	c_comment
 3	Customer#000000003	MG9kdTD2WBHm	1	11-719-748-3364	7498.12	AUTOMOBILE	special packages wake. slyly reg
@@ -209,7 +209,7 @@ customer	CREATE TABLE `customer` (
   PRIMARY KEY (`c_custkey`),
   UNIQUE KEY `i_c_name` (`c_name`),
   KEY `i_c_nationkey` (`c_nationkey`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select * from customer where c_name='Customer#000000003';
 c_custkey	c_name	c_address	c_nationkey	c_phone	c_acctbal	c_mktsegment	c_comment
 3	Customer#000000003	MG9kdTD2WBHm	1	11-719-748-3364	7498.12	AUTOMOBILE	special packages wake. slyly reg
@@ -227,7 +227,7 @@ customer	CREATE TABLE `customer` (
   `c_comment` varchar(117) DEFAULT NULL,
   UNIQUE KEY `i_c_name` (`c_name`),
   KEY `i_c_nationkey` (`c_nationkey`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 insert into customer values
 (3,'Customer#000000303','MG9kdTD2WBHm',1,'11-719-748-3364',7498.12,'AUTOMOBILE','special packages wake. slyly reg');
 alter ignore table customer add primary key (c_custkey);
@@ -245,7 +245,7 @@ customer	CREATE TABLE `customer` (
   PRIMARY KEY (`c_custkey`),
   UNIQUE KEY `i_c_name` (`c_name`),
   KEY `i_c_nationkey` (`c_nationkey`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select * from customer where c_custkey=3;
 c_custkey	c_name	c_address	c_nationkey	c_phone	c_acctbal	c_mktsegment	c_comment
 3	Customer#000000003	MG9kdTD2WBHm	1	11-719-748-3364	7498.12	AUTOMOBILE	special packages wake. slyly reg

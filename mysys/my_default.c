@@ -39,6 +39,8 @@
 #include <m_string.h>
 #include <m_ctype.h>
 #include <my_dir.h>
+#include <errno.h>
+#include <mysys_err.h>
 #ifdef _WIN32
 #include <winbase.h>
 #endif
@@ -50,12 +52,14 @@
 */
 static char *file_marker= (char*)"----file-marker----";
 my_bool my_defaults_mark_files= FALSE;
+
 my_bool is_file_marker(const char* arg)
 {
   return arg == file_marker;
 }
 
-my_bool my_no_defaults=FALSE, my_print_defaults= FALSE;
+static my_bool my_print_defaults= FALSE;
+my_bool my_no_defaults=FALSE;
 const char *my_defaults_file=0;
 const char *my_defaults_group_suffix=0;
 const char *my_defaults_extra_file=0;
@@ -158,6 +162,7 @@ static int my_search_option_files(const char *conf_file,
   const char **dirs;
   int error= 0;
   DBUG_ENTER("my_search_option_files");
+  DBUG_ASSERT(default_directories);
 
   if (my_defaults_group_suffix)
   {
@@ -196,8 +201,8 @@ static int my_search_option_files(const char *conf_file,
   
   if (my_defaults_file)
   {
-    if ((error= search_default_file_with_ext(ctx, "", "",
-                                             my_defaults_file, 0)) < 0)
+    error= search_default_file_with_ext(ctx, "", "", my_defaults_file, 0);
+    if (error < 0)
       goto err;
     if (error > 0)
     {
@@ -318,6 +323,9 @@ int get_defaults_options(char **argv)
   }
 
   if (! my_defaults_group_suffix)
+    my_defaults_group_suffix= getenv("MARIADB_GROUP_SUFFIX");
+
+  if (! my_defaults_group_suffix)
     my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
 
   if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)
@@ -373,8 +381,8 @@ int load_defaults(const char *conf_file, const char **groups,
 				Points to an null terminated array of pointers
     argc			Pointer to argc of original program
     argv			Pointer to argv of original program
-    default_directories         Pointer to a location where a pointer to the list
-                                of default directories will be stored
+    default_directories         Pointer to a location where a pointer to the
+                                list of default directories will be stored
 
   IMPLEMENTATION
 
@@ -396,6 +404,8 @@ int load_defaults(const char *conf_file, const char **groups,
      
      - 1 is returned if the given conf_file didn't exist. In this case, the
      value pointed to by default_directories is undefined.
+     - 4 is returned --print-defaults was used. The caller should just do
+     exit(0) in this case
 */
 
 
@@ -410,14 +420,14 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   const char **dirs;
   DBUG_ENTER("my_load_defaults");
 
-  init_alloc_root(key_memory_defaults, &alloc, 512, 0, MYF(0));
+  init_alloc_root(key_memory_defaults, &alloc, 4096, 0, MYF(0));
   if ((dirs= init_default_directories(&alloc)) == NULL)
     goto err;
 
   args_used= get_defaults_options(*argv);
 
-  if (my_init_dynamic_array(key_memory_defaults, &args, sizeof(char*), 128, 64,
-                            MYF(0)))
+  if (my_init_dynamic_array(key_memory_defaults, &args, sizeof(char*),
+                            DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(0)))
     goto err;
 
   insert_dynamic(&args, *argv);/* Name MUST be set, even by embedded library */
@@ -427,7 +437,7 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
 
   if (!my_no_defaults)
   {
-    TYPELIB group; // XXX
+    TYPELIB group;
     struct handle_option_ctx ctx;
 
     group.count=0;
@@ -526,7 +536,7 @@ static int search_default_file(struct handle_option_ctx *ctx, const char *dir,
    get_argument()
    keyword		Include directive keyword
    kwlen		Length of keyword
-   ptr			Pointer to the keword in the line under process
+   ptr			Pointer to the keyword in the line under process
    line			line number
 
   RETURN
@@ -673,8 +683,9 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
       continue;
 
     /* Configuration File Directives */
-    if (*ptr == '!')
+    if (*ptr == '!' || *ptr == '?')
     {
+      my_bool ignore_permissions= *ptr == '?';
       if (recursion_level >= max_recursion_level)
       {
         for (end= ptr + strlen(ptr) - 1; 
@@ -702,9 +713,17 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
                                 ptr, name, line)))
 	  goto err;
 
-        if (!(search_dir= my_dir(ptr, MYF(MY_WME | MY_WANT_SORT))))
+        if (!(search_dir= my_dir(ptr, MYF(ignore_permissions ? MY_WANT_SORT :
+                                          MY_WME | MY_WANT_SORT))))
+        {
+          if (ignore_permissions)
+          {
+            if (my_errno == EACCES)
+            continue;                           /* Ignore error */
+            my_error(EE_DIR, MYF(ME_BELL), ptr);
+          }
           goto err;
-
+        }
         for (i= 0; i < search_dir->number_of_files; i++)
         {
           search_file= search_dir->dir_entry + i;
@@ -857,7 +876,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
 static char *remove_end_comment(char *ptr)
 {
   char quote= 0;	/* we are inside quote marks */
-  char escape= 0;	/* symbol is protected by escape chagacter */
+  char escape= 0;	/* symbol is protected by escape character */
 
   for (; *ptr; ptr++)
   {

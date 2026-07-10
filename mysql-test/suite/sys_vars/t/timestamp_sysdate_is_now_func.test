@@ -11,7 +11,7 @@
 #                                                                          #
 # Description: Test Cases of Dynamic System Variable "timestamp"           #
 #              that checks behavior of this variable in the following ways #
-#              * Like timstamp_func, but with set "sysdate-is-now".        #
+#              * Like timestamp_func, but with set "sysdate-is-now".       #
 #                                                                          #
 # Reference: http://dev.mysql.com/doc/refman/5.1/en/set-option.html        #
 #                                                                          #

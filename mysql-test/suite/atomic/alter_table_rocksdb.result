@@ -1,4 +1,5 @@
 set global rocksdb_flush_log_at_trx_commit=1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create database test2;
 RESET MASTER;
 
@@ -1762,3 +1763,4 @@ crash point: ddl_log_alter_after_delete_backup
 "No crash!"
 crash point: ddl_log_alter_after_drop_original_table
 "No crash!"
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

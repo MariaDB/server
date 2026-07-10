@@ -277,6 +277,7 @@ const char *GetFmt(int type, bool un)
     case TYPE_BIGINT: fmt = (un) ? "%llu" : "%lld"; break;
     case TYPE_DOUBLE: fmt = "%.*lf";                break;
     case TYPE_BIN:    fmt = "%*x";                  break;
+    case TYPE_DATE:   fmt = "%llu";                 break;
     default:          fmt = (un) ? "%u" : "%d";     break;
   } // endswitch Type
 
@@ -533,6 +534,7 @@ const char *VALUE::GetXfmt(void)
     case TYPE_BIGINT: fmt = (Unsigned) ? "%*llu" : "%*lld"; break;
     case TYPE_DOUBLE: fmt = "%*.*lf";                       break;
     case TYPE_BIN:    fmt = "%*x";                          break;
+    case TYPE_DATE:   fmt = "%*lld";                        break;
     default:          fmt = (Unsigned) ? "%*u" : "%*d";     break;
     } // endswitch Type
 
@@ -900,7 +902,7 @@ int TYPVAL<double>::ShowValue(char *buf, int len)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetCharString(char *p)
 {
-  sprintf(p, Fmt, Tval);
+  snprintf(p, 32, Fmt, Tval);
   return p;
 } // end of GetCharString
 
@@ -919,7 +921,7 @@ char *TYPVAL<double>::GetCharString(char *p)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetShortString(char *p, int n)
 {
-  sprintf(p, "%*hd", n, (short)Tval);
+  snprintf(p, 32, "%*hd", n, (short)Tval);
   return p;
 } // end of GetShortString
 
@@ -929,7 +931,7 @@ char *TYPVAL<TYPE>::GetShortString(char *p, int n)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetIntString(char *p, int n)
 {
-  sprintf(p, "%*d", n, (int)Tval);
+  snprintf(p, 32, "%*d", n, (int)Tval);
   return p;
 } // end of GetIntString
 
@@ -939,7 +941,7 @@ char *TYPVAL<TYPE>::GetIntString(char *p, int n)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
 {
-  sprintf(p, "%*lld", n, (longlong)Tval);
+  snprintf(p, 32, "%*lld", n, (longlong)Tval);
   return p;
 } // end of GetBigintString
 
@@ -949,7 +951,7 @@ char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
 {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
+  snprintf(p, 32, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
   return p;
 } // end of GetFloatString
 
@@ -959,7 +961,7 @@ char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
 template <class TYPE>
 char *TYPVAL<TYPE>::GetTinyString(char *p, int n)
 {
-  sprintf(p, "%*d", n, (int)(char)Tval);
+  snprintf(p, 32, "%*d", n, (int)(char)Tval);
   return p;
 } // end of GetIntString
 #endif // 0
@@ -1208,7 +1210,7 @@ bool TYPVAL<TYPE>::FormatValue(PVAL vp, PCSZ fmt)
 	// This function is wrong and should never be called
 	assert(false);
   char *buf = (char*)vp->GetTo_Val();        // Not big enough
-  int   n = sprintf(buf, fmt, Tval);
+  int   n = snprintf(buf, vp->GetValLen() + 1, fmt, Tval);
 
   return (n > vp->GetValLen());
 } // end of FormatValue
@@ -1222,7 +1224,7 @@ bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   char c[32];
 
   fmt.Type[0] = *GetFormatType(Type);
-  fmt.Length = sprintf(c, Fmt, Tval);
+  fmt.Length = snprintf(c, sizeof(c), Fmt, Tval);
   fmt.Prec = Prec;
   return false;
 } // end of SetConstFormat
@@ -1432,7 +1434,7 @@ void TYPVAL<PSZ>::SetValue(int n)
 {
   char     buf[16];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%d", n);
+  int      k = snprintf(buf, sizeof(buf), "%d", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1450,7 +1452,7 @@ void TYPVAL<PSZ>::SetValue(uint n)
 {
   char     buf[16];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%u", n);
+  int      k = snprintf(buf, sizeof(buf), "%u", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1486,7 +1488,7 @@ void TYPVAL<PSZ>::SetValue(longlong n)
 {
   char     buf[24];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%lld", n);
+  int      k = snprintf(buf, sizeof(buf), "%lld", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1504,7 +1506,7 @@ void TYPVAL<PSZ>::SetValue(ulonglong n)
 {
   char     buf[24];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%llu", n);
+  int      k = snprintf(buf, sizeof(buf), "%llu", n);
 
   if (k > Len) {
     snprintf(g->Message, sizeof(g->Message), MSG(VALSTR_TOO_LONG), buf, Len);
@@ -1522,7 +1524,7 @@ void TYPVAL<PSZ>::SetValue(double f)
 {
   char    *p, buf[64];
   PGLOBAL& g = Global;
-  int      k = sprintf(buf, "%lf", f);
+  int      k = snprintf(buf, sizeof(buf), "%lf", f);
 
   for (p = buf + k - 1; p >= buf; p--)
     if (*p == '0') {
@@ -1717,7 +1719,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 bool TYPVAL<PSZ>::FormatValue(PVAL vp, PCSZ fmt)
 {
   char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Strp);
+  int   n = snprintf(buf, vp->GetValLen() + 1, fmt, Strp);
 
   return (n > vp->GetValLen());
 } // end of FormatValue
@@ -1773,7 +1775,7 @@ DECVAL::DECVAL(PGLOBAL g, PSZ s, int n, int prec, bool uns)
 } // end of DECVAL constructor
 
 /***********************************************************************/
-/*  DECIMAL: Check whether the numerica value is equal to 0.           */
+/*  DECIMAL: Check whether the numerical value is equal to 0.          */
 /***********************************************************************/
 bool DECVAL::IsZero(void)
 {
@@ -2295,7 +2297,7 @@ char *BINVAL::GetCharString(char *)
   if (!Chrp)
     Chrp = (char*)PlugSubAlloc(Global, NULL, Clen * 2 + 1);
 
-  sprintf(Chrp, GetXfmt(), Len, Binp); 
+  snprintf(Chrp, Clen * 2 + 1, GetXfmt(), Len, Binp);
   return Chrp;
 } // end of GetCharString
 
@@ -2331,7 +2333,7 @@ bool BINVAL::IsEqual(PVAL vp, bool chktype)
 bool BINVAL::FormatValue(PVAL vp, PCSZ fmt)
 {
   char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Len, Binp);
+  int   n = snprintf(buf, vp->GetValLen() + 1, fmt, Len, Binp);
 
   return (n > vp->GetValLen());
 } // end of FormatValue
@@ -2353,7 +2355,7 @@ bool BINVAL::SetConstFormat(PGLOBAL, FORMAT& fmt)
 /*  DTVAL  public constructor for new void values.                     */
 /***********************************************************************/
 DTVAL::DTVAL(PGLOBAL g, int n, int prec, PCSZ fmt)
-     : TYPVAL<int>((int)0, TYPE_DATE)
+  : TYPVAL<dtval_timestamp_t>(0, TYPE_DATE)
 {
   if (!fmt) {
     Pdtp = NULL;
@@ -2369,7 +2371,7 @@ DTVAL::DTVAL(PGLOBAL g, int n, int prec, PCSZ fmt)
 /***********************************************************************/
 /*  DTVAL  public constructor from int.                                */
 /***********************************************************************/
-DTVAL::DTVAL(int n) : TYPVAL<int>(n, TYPE_DATE)
+DTVAL::DTVAL(int n) : TYPVAL<dtval_timestamp_t>(n, TYPE_DATE)
 {
   Pdtp = NULL;
   Len = 19;
@@ -2462,15 +2464,14 @@ struct tm *DTVAL::GetGmTime(struct tm *tm_buffer)
   time_t t = (time_t)Tval;
 
   if (Tval < 0) {
-    int    n;
-
+    longlong   n;
     for (n = 0; t < 0; n += 4)
       t += FOURYEARS;
 
     datm = gmtime_mysql(&t, tm_buffer);
 
     if (datm)
-      datm->tm_year -= n;
+      datm->tm_year -= (int) n;
 
   } else
     datm = gmtime_mysql(&t, tm_buffer);
@@ -2521,10 +2522,10 @@ bool DTVAL::MakeTime(struct tm *ptm)
 
   } // endif t
 
-  Tval= (int) t;
+  Tval= (dtval_timestamp_t) t;
 
   if (trace(2))
-    htrc("MakeTime Ival=%d\n", Tval);
+    htrc("MakeTime Ival=%lld\n", (longlong) Tval);
 
   return false;
 } // end of MakeTime
@@ -2646,7 +2647,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 				// Assuming that this timestamp is in milliseconds
 				SetValue((int)(valp->GetBigintValue() / 1000));
 			}	else
-        SetValue(valp->GetIntValue());
+        SetValue(valp->GetBigintValue());
 
     } else
       Reset();
@@ -2688,7 +2689,7 @@ bool DTVAL::SetValue_char(const char *p, int n)
 
     Null = (Nullable && ndv == 0);
   } else {
-    rc = TYPVAL<int>::SetValue_char(p, n);
+    rc = TYPVAL<dtval_timestamp_t>::SetValue_char(p, n);
     Null = (Nullable && Tval == 0);
   } // endif Pdtp
 
@@ -2711,11 +2712,11 @@ void DTVAL::SetValue_psz(PCSZ p)
     MakeDate(NULL, dval, ndv);
 
     if (trace(2))
-      htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
+      htrc(" setting date: '%s' -> %lld\n", Sdate, (longlong) Tval);
 
     Null = (Nullable && ndv == 0);
   } else {
-    TYPVAL<int>::SetValue_psz(p);
+    TYPVAL<dtval_timestamp_t>::SetValue_psz(p);
     Null = (Nullable && Tval == 0);
   } // endif Pdtp
 
@@ -2740,7 +2741,7 @@ void DTVAL::SetValue_pvblk(PVBLK blk, int n)
 /***********************************************************************/
 /*  DTVAL SetValue: get date as an integer.                            */
 /***********************************************************************/
-void DTVAL::SetValue(int n)
+void DTVAL::SetValue(dtval_timestamp_t n)
 {
   Tval = n;
 
@@ -2774,7 +2775,7 @@ char *DTVAL::GetCharString(char *p)
 
     return Sdate;
   } else
-    sprintf(p, "%d", Tval);
+    snprintf(p, 32, "%lld", (longlong) Tval);
 
 //Null = false;                      ??????????????
   return p;
@@ -2806,7 +2807,7 @@ int DTVAL::ShowValue(char *buf, int len)
 			*buf = '\0';               // DEFAULT VALUE ???
 
   } else
-    rv = TYPVAL<int>::ShowValue(buf, len);
+    rv = TYPVAL<dtval_timestamp_t>::ShowValue(buf, len);
 
 	return rv;
 } // end of ShowValue
@@ -2887,5 +2888,36 @@ bool DTVAL::FormatValue(PVAL vp, PCSZ fmt)
     return true;
 
 } // end of FormatValue
+
+
+void DTVAL::SetBinValue(void* p)
+{
+#if defined(UNALIGNED_OK)
+	// x86 can cast non-aligned memory directly
+	Tval = *(int *)p;
+#else
+        int tmp;
+	memcpy(&tmp, p, sizeof(tmp));
+        Tval= tmp;
+#endif
+	Null = false;
+} // end of SetBinValue
+
+
+bool DTVAL::GetBinValue(void *buf, int buflen, bool go)
+{
+  if (go)
+#if defined(UNALIGNED_OK)
+    // x86 can cast non-aligned memory directly
+    *(int *)buf = (int) Tval;
+#else
+  {
+    int tmp= (int) Tval;
+    memcpy(buf, &tmp, sizeof(tmp));
+  }
+#endif
+  Null = false;
+  return false;
+} // end of GetBinValue
 
 /* -------------------------- End of Value --------------------------- */

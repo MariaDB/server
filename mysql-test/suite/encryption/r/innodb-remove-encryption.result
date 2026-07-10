@@ -1,4 +1,6 @@
 set global innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 call mtr.add_suppression("(mysqld|mariadbd).*: file-key-management-filename is not set");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
 call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");

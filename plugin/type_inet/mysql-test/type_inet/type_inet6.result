@@ -3,12 +3,18 @@
 #
 CREATE TABLE t1 (a INET6 AUTO_INCREMENT);
 ERROR 42000: Incorrect column specifier for column 'a'
+CREATE TABLE t1 (a INET6(6));
+ERROR HY000: Data type 'INET6' doesn't support LENGTH attribute.
+CREATE TABLE t1 (a INET6 CHARACTER SET latin1);
+ERROR HY000: Data type 'INET6' doesn't support CHARACTER SET attribute.
+CREATE TABLE t1 (a INET6 REF_SYSTEM_ID=4);
+ERROR HY000: Data type 'INET6' doesn't support REF_SYSTEM_ID attribute.
 CREATE TABLE t1 (a INET6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	inet6	YES		NULL	
@@ -35,6 +41,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::1');
@@ -64,7 +73,7 @@ t1	CREATE TABLE `t1` (
   `c3` inet6 DEFAULT '::',
   `c4` inet6 DEFAULT 'ffff::ffff',
   `c5` inet6 DEFAULT cast(X'ffffffffffffffffffffffffffffffff' as inet6)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 c1	inet6	YES		::	
@@ -95,6 +104,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -117,6 +129,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -139,6 +154,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -161,6 +179,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -183,6 +204,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INET6 DEFAULT 0x00);
 ERROR 42000: Invalid default value for 'c1'
@@ -217,12 +241,14 @@ CAST(REPEAT(0x00,16) AS INET6)
 SELECT CAST(REPEAT(0x11,16) AS INET6);
 CAST(REPEAT(0x11,16) AS INET6)
 1111:1111:1111:1111:1111:1111:1111:1111
+SELECT CAST('::' AS INET6 CHARACTER SET latin1);
+ERROR HY000: Data type 'INET6' doesn't support CHARACTER SET attribute.
 CREATE TABLE t1 AS SELECT CAST('::' AS INET6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST('::' AS INET6)` inet6 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Text and binary formats, comparison operators
@@ -428,7 +454,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c, c_text)` inet6 DEFAULT NULL,
   `COALESCE(c, c_mediumtext)` inet6 DEFAULT NULL,
   `COALESCE(c, c_longtext)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 LEAST(c, c_char),
@@ -447,7 +473,7 @@ t2	CREATE TABLE `t2` (
   `LEAST(c, c_text)` inet6 DEFAULT NULL,
   `LEAST(c, c_mediumtext)` inet6 DEFAULT NULL,
   `LEAST(c, c_longtext)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
@@ -475,10 +501,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `COALESCE(a, '::')` inet6 DEFAULT NULL,
+  `COALESCE(a, '::')` inet6 NOT NULL,
   `LEAST(a,'::')` inet6 DEFAULT NULL,
   `GREATEST(a,'::')` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 0x00000000000000000000000000000000) FROM t1 ORDER BY a;
 COALESCE(a, 0x00000000000000000000000000000000)
@@ -509,10 +535,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `COALESCE(a, 0x00000000000000000000000000000000)` inet6 DEFAULT NULL,
+  `COALESCE(a, 0x00000000000000000000000000000000)` inet6 NOT NULL,
   `LEAST(a,0x00000000000000000000000000000000)` inet6 DEFAULT NULL,
   `GREATEST(a,0x00000000000000000000000000000000)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 10) FROM t1;
 ERROR HY000: Illegal parameter data types inet6 and int for operation 'coalesce'
@@ -719,8 +745,8 @@ CREATE TABLE t1 AS SELECT CAST(CAST('::' AS INET6) AS CHAR) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(39) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` varchar(39) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('ffff::ffff');
@@ -736,14 +762,14 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CAST(a AS CHAR)` varchar(39) DEFAULT NULL,
-  `CAST(a AS CHAR(39))` varchar(39) DEFAULT NULL,
-  `CAST(a AS CHAR(530))` text DEFAULT NULL,
-  `CAST(a AS CHAR(65535))` text DEFAULT NULL,
-  `CAST(a AS CHAR(66000))` mediumtext DEFAULT NULL,
-  `CAST(a AS CHAR(16777215))` mediumtext DEFAULT NULL,
-  `CAST(a AS CHAR(16777216))` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CAST(a AS CHAR)` varchar(39) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(39))` varchar(39) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(530))` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(65535))` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(66000))` mediumtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(16777215))` mediumtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(16777216))` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 CAST(a AS CHAR)	ffff::ffff
 CAST(a AS CHAR(39))	ffff::ffff
@@ -779,7 +805,7 @@ t2	CREATE TABLE `t2` (
   `cb66000` mediumblob DEFAULT NULL,
   `cb16777215` mediumblob DEFAULT NULL,
   `cb16777216` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CAST(a AS BINARY(4)) AS cb4,
@@ -798,7 +824,7 @@ t2	CREATE TABLE `t2` (
   `cb32` binary(32) DEFAULT NULL,
   `cb530` varbinary(530) DEFAULT NULL,
   `cb65535` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 HEX(cb4),
 HEX(cb),
@@ -856,7 +882,12 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::'),('::1'),('::2');
 SELECT * FROM t1 WHERE a;
-ERROR HY000: Illegal parameter data types inet6 and bigint for operation '<>'
+a
+::1
+::2
+SELECT * FROM t1 WHERE NOT a;
+a
+::
 DROP TABLE t1;
 #
 # GROUP BY
@@ -887,7 +918,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `MIN(a)` inet6 DEFAULT NULL,
   `MAX(a)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SELECT AVG(a) FROM t1;
 ERROR HY000: Illegal parameter data type inet6 for operation 'avg('
@@ -953,7 +984,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING '::1';
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING CAST('::2' AS INET6);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING 0x00000000000000000000000000000003;
@@ -984,9 +1015,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(39) DEFAULT NULL,
-  `c2` varchar(39) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(39) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(39) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_utf8'1', a) AS c1,
@@ -996,10 +1027,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` varchar(40) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_latin1'1', a) AS c1,
@@ -1009,10 +1040,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(40) DEFAULT NULL,
-  `c2` varchar(40) DEFAULT NULL,
-  `c3` varchar(40) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(40) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(40) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(40) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1023,21 +1054,21 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet6 NOT NULL DEFAULT '::'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CAST('::' AS INET6) AS c UNION SELECT '::1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet6 NOT NULL DEFAULT '::'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '::' AS c UNION SELECT CAST('::1' AS INET6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` inet6 NOT NULL DEFAULT '::'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CAST('::' AS INET6) AS c UNION SELECT 0x00000000000000000000000000000001;
 SELECT * FROM t1;
@@ -1283,7 +1314,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=COALESCE(CAST('::1' AS INET6)) AND id>
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::1' and `test`.`t1`.`id` > 0
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::1' and `test`.`t1`.`id` > 0
 DROP TABLE t1;
 #
 # Optimizer: equal field propagation
@@ -1296,14 +1327,14 @@ AND LENGTH(CONCAT(a,RAND()))>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::1' and octet_length(concat(INET6'::1',rand())) > 1
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::1' and octet_length(concat(inet6'::1',rand())) > 1
 EXPLAIN EXTENDED SELECT * FROM t1
 WHERE a=COALESCE(CAST('::1' AS INET6))
 AND LENGTH(a)>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::1'
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::1'
 DROP TABLE t1;
 #
 # Optimizer: equal expression propagation
@@ -1330,7 +1361,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t1 WHERE b IN (SELECT a AS a_inner FROM t1 GROUP BY a_inner);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	17	func	2	Using index; Using where
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	17	func	1	Using index; Using where
 SET @@optimizer_switch=DEFAULT;
 DROP TABLE t1;
 #
@@ -1928,7 +1959,7 @@ a	b
 ::	NULL
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
-CREATE TABLE t1 (a INET6, b TIMESTAMP);
+CREATE TABLE t1 (a INET6, b TIMESTAMP NOT NULL DEFAULT NOW() ON UPDATE NOW());
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
 ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
@@ -2079,9 +2110,9 @@ a	b
 foo	::
 bar	1::1
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Truncated incorrect BOOLEAN value: 'foo'
 Warning	1292	Incorrect inet6 value: 'foo'
-Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+Warning	1292	Truncated incorrect BOOLEAN value: 'bar'
 Warning	1292	Incorrect inet6 value: 'bar'
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 (a VARCHAR(8) NOT NULL);
@@ -2101,15 +2132,15 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `ca` inet6 NOT NULL,
   `cb` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,a)` inet6 NOT NULL,
-  `COALESCE(a,b)` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `COALESCE(a,b)` inet6 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
 SHOW CREATE TABLE t2;
@@ -2117,7 +2148,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `ca` inet6 NOT NULL DEFAULT '::',
   `cb` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2141,7 +2172,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(c, 'foo')` inet6 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 IFNULL(c, 'foo')
 ::
@@ -2152,7 +2183,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(c, '::1')` inet6 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 IFNULL(c, '::1')
 ::
@@ -2232,7 +2263,7 @@ DROP TABLE t1;
 #
 # MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
 #
-CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6(6) DEFAULT '::10');
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a INET6 DEFAULT '::10');
 INSERT INTO t1(id) VALUES (1), (2), (3), (4);
 INSERT INTO t1 VALUES (5,'::5'), (6,'::6');
 SELECT * FROM t1 ORDER BY a;
@@ -2257,6 +2288,119 @@ a	m
 ::10	1
 DROP VIEW v1;
 DROP TABLE t1, t2;
+#
+# MDEV-27207 Assertion `!m_null_value' failed in int FixedBinTypeBundle<FbtImpl>::cmp_item_fbt::compare or in cmp_item_inet6::compare
+#
+CREATE TABLE t1 (a CHAR,b INET6);
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+a	b
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT * FROM t1 WHERE (a,b) IN (('',''),('',''));
+a	b
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+#
+# MDEV-31719 Wrong result of: WHERE inet6_column IN ('','::1')
+#
+CREATE OR REPLACE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::');
+SELECT * FROM t1 WHERE a IN ('','::1');
+a
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+#
+# MDEV-32879 Server crash in my_decimal::operator= or unexpected ER_DUP_ENTRY upon comparison with INET6 and similar types
+#
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, GROUP_CONCAT(c) FROM t1 GROUP BY f;
+f	GROUP_CONCAT(c)
+NULL	2000-01-01 00:00:00.000000,1900-01-01 00:00:00.000000
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f, COUNT(c) FROM t1 GROUP BY f;
+f	COUNT(c)
+NULL	2
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL, c DATETIME(6) NOT NULL);
+INSERT INTO t1 VALUES ('','::','2000-01-01'),('','::','1900-01-01');
+SELECT c + (b = a) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a CHAR(36) NOT NULL, b INET6 NOT NULL);
+INSERT INTO t1 VALUES ('','::'),('','::');
+SELECT 1.00 + (b = a) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+SELECT 1.00 + (b BETWEEN a AND '') AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+SELECT 1.00 + (b IN (a,'')) AS f FROM t1 ORDER BY f;
+f
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+Warning	1292	Incorrect inet6 value: ''
+DROP TABLE t1;
+#
+# MDEV-32458 ASAN unknown-crash in Inet6::ascii_to_fbt when casting character string to inet6
+#
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ('1:0'),('00:');
+SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+c
+Warnings:
+Warning	1292	Incorrect inet6 value: '1:0'
+Warning	1292	Incorrect inet6 value: '00:'
+DROP TABLE t1;
+# End of 10.6 tests
 #
 # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
 #
@@ -2294,3 +2438,279 @@ f::f
 DROP TABLE t1;
 SET max_sort_length=DEFAULT;
 # End of 10.8 tests
+#
+# MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+#
+CREATE OR REPLACE TABLE t1 (c1 BINARY(16), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000001);
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000002);
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+CAST(c1 AS INET6)
+::1
+::2
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+CAST(c1 AS INET6)
+::1
+::2
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+CAST(c1 AS INET6)
+::1
+::2
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+CAST(c1 AS INET6)
+::1
+::2
+DROP TABLE t1;
+# End of 11.4 tests
+#
+# MDEV-34189 Unexpected error on `WHERE inet6col`
+#
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a INET6, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 SELECT seq,CONCAT('::',seq) FROM seq_0_to_31;
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a;
+id	a
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a;
+id	a
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	a
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	a
+-1	NULL
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	a
+-1	NULL
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	a
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	a
+0	::
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	a
+-1	NULL
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	a
+-1	NULL
+1	::1
+2	::2
+3	::3
+4	::4
+5	::5
+6	::6
+7	::7
+8	::8
+9	::9
+10	::10
+11	::11
+12	::12
+13	::13
+14	::14
+15	::15
+16	::16
+17	::17
+18	::18
+19	::19
+20	::20
+21	::21
+22	::22
+23	::23
+24	::24
+25	::25
+26	::26
+27	::27
+28	::28
+29	::29
+30	::30
+31	::31
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	a
+0	::
+DROP TABLE t1;
+# End of 11.8 tests

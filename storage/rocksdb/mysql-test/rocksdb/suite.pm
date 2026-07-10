@@ -18,6 +18,7 @@ my $sst_dump=
   "$::bindir/storage/rocksdb$::multiconfig/sst_dump",
   "$::path_client_bindir/sst_dump");
 return "RocksDB is not compiled, no sst_dump" unless $sst_dump;
+return "doesn't work in embedded" if $::opt_embedded_server;
 $ENV{MARIAROCKS_SST_DUMP}="$sst_dump";
 
 ## Temporarily disable testing under valgrind, due to MDEV-12439

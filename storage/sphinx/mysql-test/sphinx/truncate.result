@@ -1,0 +1,9 @@
+#
+# MDEV-39512 SIGSEGV in ha_sphinx::create on TRUNCATE regression
+#
+create table t (c bigint,c2 bigint,c3 text not null,key k (c3)) engine=sphinx;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+create table t1 like t;
+truncate t1;
+drop table t1, t;

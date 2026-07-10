@@ -1,0 +1,169 @@
+#
+# Test character set narrowing
+#
+
+--source include/have_utf8mb4.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+set
+  @tmp_csetn_os= @@optimizer_switch,
+  optimizer_switch='cset_narrowing=on';
+
+set names utf8mb4;
+create table t1 (
+  mb3name varchar(32),
+  mb3 varchar(32) collate utf8mb3_general_ci,
+  key(mb3)
+);
+insert into t1 select seq, seq from seq_1_to_10000;
+insert into t1 values ('mb3-question-mark', '?');
+insert into t1 values ('mb3-replacement-char', _utf8mb3 0xEFBFBD);
+
+create table t10 (
+  pk int auto_increment primary key,
+  mb4name varchar(32),
+  mb4 varchar(32) character set utf8mb4 collate utf8mb4_general_ci
+);
+
+insert into t10 (mb4name, mb4) values
+  ('mb4-question-mark','?'),
+  ('mb4-replacement-char', _utf8mb4 0xEFBFBD),
+  ('mb4-smiley', _utf8mb4 0xF09F988A),
+  ('1', '1');
+
+analyze table t1,t10 persistent for all;
+--echo #
+--echo # Check that constants are already handled: the following should use
+--echo #  ref/range, because constants are converted into utf8mb3.
+--echo #
+select collation('abc');
+explain select * from t1 force index (mb3) where t1.mb3='abc';
+explain select * from t1 force index (mb3) where t1.mb3 in ('abc','cde','xyz');
+explain select * from t1 force index (mb3) where t1.mb3 between 'abc' and 'acc';
+explain select * from t1 force index (mb3) where t1.mb3 <'000';
+
+--echo # If a constant can't be represented in utf8mb3, an error is produced:
+--error ER_CANT_AGGREGATE_2COLLATIONS
+explain select * from t1 force index (mb3) where t1.mb3='😊';
+
+--echo #
+--echo # Check ref access on mb3_field=mb4_field
+--echo #
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10,t1 where t10.mb4=t1.mb3;
+
+select * from t10,t1 where t10.mb4=t1.mb3;
+
+select * from t10,t1 use index() where t10.mb4=t1.mb3;
+
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10,t1 where t10.mb4<=>t1.mb3;
+
+select * from t10,t1 where t10.mb4<=>t1.mb3;
+
+--source include/explain-no-costs.inc
+set statement optimizer_switch='cset_narrowing=off', join_cache_level=0 for
+explain format=json
+select * from t10,t1 where t10.mb4=t1.mb3;
+
+--echo #
+--echo # Check ref access on mb3_field=mb4_expr
+--echo #
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10,t1 where t1.mb3=concat('',t10.mb4);
+
+select * from t10,t1 where t1.mb3=concat('',t10.mb4);
+
+select * from t10,t1 use index() where t1.mb3=concat('',t10.mb4);
+
+--echo # Check that ref optimizer gets the right constant.
+--echo #  We need a const table for that, because key=const is handled by
+--echo #  coercing the constant.
+--echo #
+--echo # So, we take the smiley:
+select * from t10 where t10.pk=3;
+set optimizer_trace=1;
+
+--echo # And see that we've got the Replacement Character in the ranges:
+explain
+select * from t10, t1 where t10.mb4=t1.mb3 and t10.pk=3;
+
+#Enable after fix MDEV-32034
+--disable_view_protocol
+--source include/explain-no-costs.inc
+select
+  json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as JS
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+select * from t10, t1 where t10.mb4=t1.mb3 and t10.pk=3;
+
+--echo #
+--echo # Will range optimizer handle t1.mb3>t10.mb4? No...
+--echo #
+
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10, t1 where (t1.mb3=t10.mb4 or t1.mb3='hello') and t10.pk=3;
+
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10, t1 where t1.mb3>t10.mb4 and t10.pk=3;
+
+--echo # For comparison, it will handle it when collations match:
+create table t2 (
+  mb4name varchar(32),
+  mb4 varchar(32) collate utf8mb4_general_ci,
+  key(mb4)
+);
+insert into t2 select * from t1;
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10, t2 where t2.mb4>t10.mb4 and t10.pk=3;
+
+--echo #
+--echo # Check multiple equalities
+--echo #
+
+--echo # - ref access lookup keys do use equality substitution,
+--echo # - concat() arguments don't
+#Enable after fix MDEV-32034
+--disable_view_protocol
+--source include/explain-no-costs.inc
+explain format=json
+select straight_join * from t10,t1 force index(mb3),t2
+where
+  t1.mb3=t2.mb4 and t2.mb4=t10.mb4 and concat(t1.mb3, t2.mb4, t10.mb4)<>'Bebebe';
+select json_detailed(json_extract(trace, '$**.condition_processing')) as JS
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+select straight_join * from t10,t1 force index(mb3),t2
+where
+  t1.mb3=t2.mb4 and t2.mb4=t10.mb4 and concat(t1.mb3, t2.mb4, t10.mb4)<>'Bebebe';
+
+--echo # Equality substitution doesn't happen for constants, for both narrowing
+--echo #  and non-narrowing comparisons:
+--source include/explain-no-costs.inc
+explain format=json
+select * from t10,t1,t2
+where
+  t1.mb3=t2.mb4 and t2.mb4=t10.mb4 and t10.mb4='hello' and
+  concat(t1.mb3, t2.mb4, t10.mb4)<>'Bebebe';
+
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.condition_processing')) as JS
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+drop table t2;
+drop table t1, t10;
+
+set optimizer_switch=@tmp_csetn_os;
+

@@ -1,0 +1,56 @@
+connect    active_master, 127.0.0.1, root, , , $SERVER_MYPORT_2;
+connect  inactive_master, 127.0.0.1, root, , , $SERVER_MYPORT_3;
+connect            slave, 127.0.0.1, root, , , $SERVER_MYPORT_1;
+CHANGE MASTER TO master_ssl_verify_server_cert=0,
+master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0;
+START SLAVE SQL_THREAD;
+CHANGE MASTER 'inactive' TO
+master_host='127.0.0.1', master_port=$SERVER_MYPORT_3;
+include/wait_for_slave_sql_to_start.inc
+# Control State
+Connection_name = ''
+Connection_name = 'inactive'
+Slave_IO_Running = 'No'
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'Yes'
+Slave_SQL_Running = 'No'
+# Basic
+$MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_2, MASTER_LOG_FILE='', MASTER_LOG_POS=4;
+CHANGE MASTER 'inactive' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MYPORT_3, MASTER_LOG_FILE='', MASTER_LOG_POS=0;
+
+-- SET GLOBAL gtid_slave_pos='';
+# MDEV-7611 mysqldump --dump-slave always starts stopped slave
+$MYSQL_DUMP --compact --dump-slave test
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER '' TO MASTER_LOG_FILE='', MASTER_LOG_POS=4;
+CHANGE MASTER 'inactive' TO MASTER_LOG_FILE='', MASTER_LOG_POS=0;
+
+-- SET GLOBAL gtid_slave_pos='';
+include/wait_for_slave_sql_to_start.inc
+Connection_name = ''
+Connection_name = 'inactive'
+Slave_IO_Running = 'No'
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'Yes'
+Slave_SQL_Running = 'No'
+# MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
+$MYSQL_DUMP --compact --dump-slave no_such_db
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER '' TO MASTER_LOG_FILE='', MASTER_LOG_POS=4;
+CHANGE MASTER 'inactive' TO MASTER_LOG_FILE='', MASTER_LOG_POS=0;
+
+include/wait_for_slave_sql_to_start.inc
+Connection_name = ''
+Connection_name = 'inactive'
+Slave_IO_Running = 'No'
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'Yes'
+Slave_SQL_Running = 'No'
+# Cleanup
+STOP SLAVE SQL_THREAD;
+disconnect active_master;
+disconnect inactive_master;
+include/wait_for_slave_sql_to_stop.inc
+disconnect slave;

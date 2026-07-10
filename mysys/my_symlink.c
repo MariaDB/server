@@ -45,7 +45,7 @@ int (*mysys_test_invalid_symlink)(const char *filename)= always_valid;
 int my_readlink(char *to, const char *filename, myf MyFlags)
 {
 #ifndef HAVE_READLINK
-  strmov(to,filename);
+  strnmov(to, filename, FN_REFLEN);
   return 1;
 #else
   int result=0;
@@ -58,7 +58,7 @@ int my_readlink(char *to, const char *filename, myf MyFlags)
     if ((my_errno=errno) == EINVAL)
     {
       result= 1;
-      strmov(to,filename);
+      strnmov(to, filename, FN_REFLEN);
     }
     else
     {
@@ -115,7 +115,6 @@ int my_is_symlink(const char *filename __attribute__((unused)))
   struct stat stat_buff;
   if (lstat(filename, &stat_buff))
     return 0;
-  MSAN_STAT_WORKAROUND(&stat_buff);
   return !!S_ISLNK(stat_buff.st_mode);
 #elif defined (_WIN32)
   DWORD dwAttr = GetFileAttributes(filename);
@@ -127,28 +126,35 @@ int my_is_symlink(const char *filename __attribute__((unused)))
 }
 
 /*
-  Resolve all symbolic links in path
-  'to' may be equal to 'filename'
+  Resolve all symbolic links in path.
 
-  to is guaranteed to never set to a string longer than FN_REFLEN
-  (including the end \0)
+  If path is relative, assume current directory and replace with absolute.
+  If filename is empty string, resolve path to current directory.
+
+  Resolved path is placed in the 'to' buffer, and is guaranteed to never
+  be longer than FN_REFLEN (including the end \0); 'to' may be equal to
+  'filename'.
 
   On error returns -1, unless error is file not found, in which case it
-  is 1.
+  is 1; 'to' will then be populated with a fallback value as specified by
+  my_load_path() with null own_path_prefix; symlinks will not be
+  resolved.
 
   Sets my_errno to specific error number.
 */
 
 int my_realpath(char *to, const char *filename, myf MyFlags)
 {
-#if defined(HAVE_REALPATH) && !defined(HAVE_BROKEN_REALPATH)
+#if defined(HAVE_REALPATH)
   int result=0;
   char buff[BUFF_LEN];
   char *ptr;
+  static const char cur_dir[] = {FN_CURLIB, '\0'};
   DBUG_ENTER("my_realpath");
 
   DBUG_PRINT("info",("executing realpath"));
-  if ((ptr=realpath(filename,buff)))
+  /* realpath won't accept empty string - use "." instead */
+  if ((ptr=realpath(filename[0] ? filename : cur_dir, buff)))
     strmake(to, ptr, FN_REFLEN-1);
   else
   {

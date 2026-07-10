@@ -60,7 +60,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	binary(1)	YES		NULL	
 c1	binary(1)	YES		NULL	
-c2	binary(1)	YES		0	
+c2	binary(1)	YES		x'30'	
 pk	int(11)	NO	PRI	NULL	auto_increment
 INSERT INTO t1 (c,c1,c2) VALUES (NULL,NULL,NULL);
 INSERT INTO t1 (c,c1,c2) VALUES (0,0,0);
@@ -183,7 +183,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	varbinary(64)	YES		NULL	
 c1	varbinary(64)	YES		NULL	
-c2	varbinary(64)	YES		test	
+c2	varbinary(64)	YES		x'74657374'	
 pk	int(11)	NO	PRI	NULL	auto_increment
 INSERT INTO t1 (c,c1,c2) VALUES (NULL,NULL,NULL);
 INSERT INTO t1 (c,c1,c2) VALUES ('test','test','test');
@@ -564,7 +564,7 @@ c1 CHAR(1) NULL,
 c20 CHAR(20) NULL,
 c255 CHAR(255) NULL,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	YES		NULL	
@@ -651,14 +651,14 @@ v1 VARCHAR(1) NULL,
 v64 VARCHAR(64) NULL,
 v65000 VARCHAR(65000) NULL,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -804,9 +804,11 @@ DROP TABLE t1;
 ########################
 set @col_opt_nullsave_time_zone=@@time_zone;
 set time_zone='UTC';
-DROP TABLE IF EXISTS t1;
 set @save_time_zone=@@time_zone;
 set time_zone='UTC';
+set old_mode=2_digit_year;
+Warnings:
+Warning	1287	'2_DIGIT_YEAR' is deprecated and will be removed in a future release
 CREATE TABLE t1 (
 d DATE NULL,
 dt DATETIME NULL,
@@ -818,7 +820,7 @@ y2 YEAR(2) NULL,
 pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	YES		NULL	
@@ -1003,9 +1005,9 @@ c2 YEAR(2) NULL DEFAULT '12',
 pk INT AUTO_INCREMENT PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(2)	YES		NULL	
@@ -1330,12 +1332,12 @@ d53_10	double(53,10)	YES		NULL
 pk	double	NO	PRI	NULL	
 INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (12345.12345,12345.12345,0.9,123456789.123,56789.987,11111111.111,8.0,0.0123456789,1234566789123456789,99999999999999999.99999999,1);
 SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1;
-f	12345.1
 d	11111111.111
 d10_10	0.0123456789
 d1_0	8
 d53	1234566789123456800
 d53_10	100000000000000000.0000000000
+f	12345.1
 f0	12345.1
 f20_3	56789.988
 f23_0	123457000
@@ -1358,7 +1360,6 @@ Warnings:
 Warning	1264	Out of range value for column 'd53' at row 1
 Warning	1264	Out of range value for column 'd53_10' at row 1
 SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1;
-f	12345.1
 d	0
 d	11111111.111
 d	1e81
@@ -1375,6 +1376,7 @@ d53_10	0.0000000000
 d53_10	100000000000000000.0000000000
 d53_10	10000000000000000000000000000000000000000000.0000000000
 f	0
+f	12345.1
 f	1e38
 f0	0
 f0	12345.1
@@ -1390,7 +1392,6 @@ r1_1	0.9
 r1_1	0.9
 INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (-999999999999999999999999,-99999999999.999999999999,-0.9,-999.99999999999999999999,-99999999999999999.999,-999999999999999999999999999999999999999999999999999999999999-0.999,-9,-.9999999999,-999999999999999999999999999999.99999999999999999999999,-9999999999999999999999999999999999999999999.9999999999,4);
 SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1;
-f	12345.1
 d	-1e60
 d	0
 d	11111111.111
@@ -1413,6 +1414,7 @@ d53_10	100000000000000000.0000000000
 d53_10	10000000000000000000000000000000000000000000.0000000000
 f	-1e24
 f	0
+f	12345.1
 f	1e38
 f0	-100000000000
 f0	0
@@ -1441,12 +1443,12 @@ CONCAT('', MAX(d1_0)),
 CONCAT('', MAX(d10_10)),
 CONCAT('', MAX(d53)),
 CONCAT('', MAX(d53_10)) FROM t1;
-CONCAT('', MAX(f))	1e38
 CONCAT('', MAX(d))	1e81
 CONCAT('', MAX(d10_10))	0.9999999999
 CONCAT('', MAX(d1_0))	9
 CONCAT('', MAX(d53))	100000000000000000000000000000000000000000000000000000
 CONCAT('', MAX(d53_10))	10000000000000000000000000000000000000000000.0000000000
+CONCAT('', MAX(f))	1e38
 CONCAT('', MAX(f0))	1e38
 CONCAT('', MAX(f20_3))	99999998430674940.000
 CONCAT('', MAX(f23_0))	1e38
@@ -1475,7 +1477,6 @@ Warning	1264	Out of range value for column 'd10_10' at row 1
 Warning	1264	Out of range value for column 'd53' at row 1
 Warning	1264	Out of range value for column 'd53_10' at row 1
 SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1;
-f	12345.1
 d	-1e60
 d	0
 d	11111111.111
@@ -1503,6 +1504,7 @@ d53_10	10000000000000000000000000000000000000000000.0000000000
 d53_10	10000000000000000000000000000000000000000000.0000000000
 f	-1e24
 f	0
+f	12345.1
 f	1e38
 f	3.40282e38
 f0	-100000000000
@@ -1550,7 +1552,6 @@ Warning	1264	Out of range value for column 'd10_10' at row 1
 Warning	1264	Out of range value for column 'd53' at row 1
 Warning	1264	Out of range value for column 'd53_10' at row 1
 SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1;
-f	12345.1
 d	-1e60
 d	0
 d	11111111.111
@@ -1583,6 +1584,7 @@ d53_10	10000000000000000000000000000000000000000000.0000000000
 d53_10	10000000000000000000000000000000000000000000.0000000000
 f	-1e24
 f	0
+f	12345.1
 f	1e38
 f	3.40282e38
 f	3.40282e38
@@ -2114,7 +2116,7 @@ t17m TEXT(17000000) NULL,
 tt TINYTEXT NULL,
 m MEDIUMTEXT NULL,
 l LONGTEXT NULL
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

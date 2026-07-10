@@ -27,6 +27,7 @@ SET(MY_WARNING_FLAGS
   -Wenum-conversion
   -Wextra
   -Wformat-security
+  -Winconsistent-missing-override
   -Wmissing-braces
   -Wno-format-truncation
   -Wno-init-self
@@ -34,22 +35,45 @@ SET(MY_WARNING_FLAGS
   -Wno-null-conversion
   -Wno-unused-parameter
   -Wno-unused-private-field
-  -Woverloaded-virtual
   -Wnon-virtual-dtor
+  -Woverloaded-virtual
   -Wvla
   -Wwrite-strings
+  -Wcast-function-type-strict
+  )
+
+IF(NOT (WITH_MSAN OR WITH_ASAN OR WITH_UBSAN))
+  SET(MY_WARNING_FLAGS ${MY_WARNING_FLAGS} -Wframe-larger-than=16384)
+ENDIF()
+
+# Warning flags that are in testing before moving
+# to MY_WARNING_FLAGS if stable.
+SET(MY_WARNING_FLAGS_NON_FATAL
   )
 
 FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
-SET(MY_ERROR_FLAGS -Werror)
+FOREACH(F ${MY_WARNING_FLAGS_NON_FATAL})
+  MY_CHECK_AND_SET_COMPILER_FLAG(-W${F} DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=${F} DEBUG RELWITHDEBINFO)
+ENDFOREACH()
 
-IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+SET(MY_ERROR_FLAGS -Werror -fno-operator-names -Wsuggest-override)
+
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=non-virtual-dtor) # gcc bug 7302
 ENDIF()
+
+FOREACH(LANG C CXX)
+  IF(CMAKE_${LANG}_COMPILER_ID MATCHES "Clang")
+    MY_CHECK_AND_SET_COMPILER_FLAG(-Werror=uninitialized-explicit-init)
+    MY_CHECK_AND_SET_COMPILER_FLAG(-Werror=uninitialized-const-reference)
+    SET(CMAKE_${LANG}_FLAGS "${CMAKE_${LANG}_FLAGS} -Werror=uninitialized")
+  ENDIF()
+ENDFOREACH()
 
 IF(MYSQL_MAINTAINER_MODE MATCHES "OFF|WARN")
   RETURN()

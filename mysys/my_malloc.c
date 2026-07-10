@@ -26,7 +26,7 @@ struct my_memory_header
   PSI_memory_key m_key;
 };
 typedef struct my_memory_header my_memory_header;
-#define HEADER_SIZE 24
+#define HEADER_SIZE MY_ALIGN(sizeof(my_memory_header), 16)
 
 #define USER_TO_HEADER(P) ((my_memory_header*)((char *)(P) - HEADER_SIZE))
 #define HEADER_TO_USER(P) ((char*)(P) + HEADER_SIZE)
@@ -45,11 +45,15 @@ typedef struct my_memory_header my_memory_header;
           1 - failure, abort the allocation
 */
 
-static MALLOC_SIZE_CB update_malloc_size= 0;
+static void dummy(long long size __attribute__((unused)),
+                  my_bool is_thread_specific __attribute__((unused)))
+{}
+
+MALLOC_SIZE_CB update_malloc_size= dummy;
 
 void set_malloc_size_cb(MALLOC_SIZE_CB func)
 {
-  update_malloc_size= func;
+  update_malloc_size= func ? func : dummy;
 }
     
     
@@ -62,6 +66,7 @@ void set_malloc_size_cb(MALLOC_SIZE_CB func)
 
   @return A pointer to the allocated memory block, or NULL on failure.
 */
+ATTRIBUTE_MALLOC
 void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
 {
   my_memory_header *mh;
@@ -103,11 +108,8 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
     int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
     mh->m_size= size | flag;
     mh->m_key= PSI_CALL_memory_alloc(key, size, & mh->m_owner);
-    if (update_malloc_size)
-    {
-      mh->m_size|=2;
-      update_malloc_size(size + HEADER_SIZE, flag);
-    }
+    mh->m_size|=2;
+    update_malloc_size(size + HEADER_SIZE, flag);
     point= HEADER_TO_USER(mh);
     if (my_flags & MY_ZEROFILL)
       bzero(point, size);
@@ -172,7 +174,7 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
   {
     mh->m_size= size | old_flags;
     mh->m_key= PSI_CALL_memory_realloc(key, old_size, size, & mh->m_owner);
-    if (update_malloc_size && (old_flags & 2))
+    if (old_flags & 2)
       update_malloc_size((longlong)size - (longlong)old_size, old_flags & 1);
     point= HEADER_TO_USER(mh);
   }
@@ -203,7 +205,7 @@ void my_free(void *ptr)
   old_flags= mh->m_size & 3;
   PSI_CALL_memory_free(mh->m_key, old_size, mh->m_owner);
 
-  if (update_malloc_size && (old_flags & 2))
+  if (old_flags & 2)
     update_malloc_size(- (longlong) old_size - HEADER_SIZE, old_flags & 1);
 
 #ifndef SAFEMALLOC

@@ -48,7 +48,7 @@ namespace myrocks {
 #endif  // interface
 
 /*
-  Introduce C-style pseudo-namespaces, a handy way to make code more readble
+  Introduce C-style pseudo-namespaces, a handy way to make code more readable
   when calling into a legacy API, which does not have any namespace defined.
   Since we cannot or don't want to change the API in any way, we can use this
   mechanism to define readability tokens that look like C++ namespaces, but are

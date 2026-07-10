@@ -432,7 +432,7 @@ static my_bool thr_find_all_keys_exec(MI_SORT_PARAM *sort_param)
     }
     if ((sort_keys= (uchar**) my_malloc(PSI_INSTRUMENT_ME,
                     (size_t)(keys * (sort_length + sizeof(char*)) +
-                   ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
+                   (sort_param->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
       if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek,
@@ -529,9 +529,18 @@ pthread_handler_t thr_find_all_keys(void *arg)
 {
   MI_SORT_PARAM *sort_param= (MI_SORT_PARAM*) arg;
   my_bool error= FALSE;
+
   /* If my_thread_init fails */
-  if (my_thread_init() || thr_find_all_keys_exec(sort_param))
+  if (my_thread_init())
     error= TRUE;
+  else
+  {
+    HA_CHECK *check= sort_param->check_param;
+    if (check->init_repair_thread)
+      check->init_repair_thread(check->init_repair_thread_arg);
+    if (thr_find_all_keys_exec(sort_param))
+      error= TRUE;
+  }
 
   /*
      Thread must clean up after itself.
@@ -726,8 +735,8 @@ static int write_keys(MI_SORT_PARAM *info, register uchar **sort_keys,
   if (!buffpek)
     DBUG_RETURN(1);                             /* Out of memory */
 
-  my_qsort2((uchar*) sort_keys,(size_t) count, sizeof(uchar*),
-            (qsort2_cmp) info->key_cmp, info);
+  my_qsort2(sort_keys, count, sizeof(uchar *),
+            info->key_cmp, info);
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, my_tmpdir(info->tmpdir), "ST",
                        DISK_BUFFER_SIZE, info->sort_info->param->myf_rw))
@@ -772,8 +781,8 @@ static int write_keys_varlen(MI_SORT_PARAM *info,
   if (!buffpek)
     DBUG_RETURN(1);                             /* Out of memory */
 
-  my_qsort2((uchar*) sort_keys, (size_t) count, sizeof(uchar*),
-            (qsort2_cmp) info->key_cmp, info);
+  my_qsort2(sort_keys, count, sizeof(uchar *),
+            info->key_cmp, info);
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, my_tmpdir(info->tmpdir), "ST",
                        DISK_BUFFER_SIZE, info->sort_info->param->myf_rw))
@@ -814,8 +823,8 @@ static int write_index(MI_SORT_PARAM *info, register uchar **sort_keys,
 {
   DBUG_ENTER("write_index");
 
-  my_qsort2((uchar*) sort_keys,(size_t) count,sizeof(uchar*),
-           (qsort2_cmp) info->key_cmp,info);
+  my_qsort2(sort_keys, count, sizeof(uchar *),
+            info->key_cmp, info);
   while (count--)
   {
     if ((*info->key_write)(info,*sort_keys++))
@@ -1000,7 +1009,7 @@ merge_buffers(MI_SORT_PARAM *info, ha_keys keys, IO_CACHE *from_file,
   sort_length=info->key_length;
 
   if (init_queue(&queue,(uint) (Tb-Fb)+1,offsetof(BUFFPEK,key),0,
-                 (int (*)(void*, uchar *,uchar*)) info->key_cmp,
+                 info->key_cmp,
                  (void*) info, 0, 0))
     DBUG_RETURN(1); /* purecov: inspected */
 

@@ -25,10 +25,6 @@
     methods (sql_select.h/sql_select.cc)
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 /*
@@ -42,6 +38,8 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_cte.h"
 #include "sql_test.h"
+#include "opt_trace.h"
+#include "my_json_writer.h"
 
 double get_post_group_estimate(JOIN* join, double join_op_rows);
 
@@ -196,6 +194,7 @@ void Item_in_subselect::cleanup()
     in_strategy&= ~SUBS_STRATEGY_CHOSEN;
   */
   first_execution= TRUE;
+  materialization_tracker= NULL;
   pushed_cond_guards= NULL;
   Item_subselect::cleanup();
   DBUG_VOID_RETURN;
@@ -241,7 +240,7 @@ Item_subselect::select_transformer(JOIN *join)
 
 bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 {
-  char const *save_where= thd_param->where;
+  THD_WHERE save_where= thd_param->where;
   uint8 uncacheable;
   bool res;
 
@@ -320,7 +319,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
       if (have_to_be_excluded)
 	engine->exclude();
       substitution= 0;
-      thd->where= "checking transformed subquery";
+      thd->where= THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY;
       res= (*ref)->fix_fields_if_needed(thd, ref);
       goto end;
 
@@ -366,7 +365,7 @@ bool Item_subselect::enumerate_field_refs_processor(void *arg)
   while ((upper= it++))
   {
     if (upper->item &&
-        upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
+        upper->item->walk(&Item::enumerate_field_refs_processor, arg, 0))
       return TRUE;
   }
   return FALSE;
@@ -430,7 +429,7 @@ bool Item_subselect::update_table_bitmaps_processor(void *arg)
   while ((upper= it++))
   {
     if (upper->item &&
-        upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, arg))
+        upper->item->walk(&Item::update_table_bitmaps_processor, arg, 0))
       return TRUE;
   }
   return FALSE;
@@ -472,7 +471,7 @@ class Field_fixer: public Field_enumerator
 public:
   table_map used_tables; /* Collect used_tables here */
   st_select_lex *new_parent; /* Select we're in */
-  virtual void visit_field(Item_field *item)
+  void visit_field(Item_field *item) override
   {
     //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
     //{
@@ -535,9 +534,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
           Field_fixer fixer;
           fixer.used_tables= 0;
           fixer.new_parent= new_parent;
-          upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
+          upper->item->walk(&Item::enumerate_field_refs_processor, &fixer, 0);
           used_tables_cache |= fixer.used_tables;
-          upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+          upper->item->walk(&Item::update_table_bitmaps_processor, 0, 0);
 /*
           if (after_pullout)
             upper->item->fix_after_pullout(new_parent, &(upper->item));
@@ -567,6 +566,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
   estimate of the number of rows the subquery will access during execution.
   This measure is used instead of JOIN::read_time, because it is considered
   to be much more reliable than the cost estimate.
+
+  Note: the logic in this function must agree with
+  JOIN::init_join_cache_and_keyread().
 
   @return true if the subquery is expensive
   @return false otherwise
@@ -656,7 +658,8 @@ bool Item_subselect::is_expensive()
 
 static
 int walk_items_for_table_list(Item_processor processor,
-                              bool walk_subquery, void *argument,
+                              void *argument,
+                              item_walk_flags flags,
                               List<TABLE_LIST>& join_list)
 {
   List_iterator<TABLE_LIST> li(join_list);
@@ -665,12 +668,12 @@ int walk_items_for_table_list(Item_processor processor,
   {
     if (table->on_expr)
     {
-      if ((res= table->on_expr->walk(processor, walk_subquery, argument)))
+      if ((res= table->on_expr->walk(processor, argument, flags)))
         return res;
     }
     if (Table_function_json_table *tf= table->table_function)
     {
-      if ((res= tf->walk_items(processor, walk_subquery, argument)))
+      if ((res= tf->walk_items(processor, argument, flags)))
       {
         return res;
       }
@@ -678,7 +681,7 @@ int walk_items_for_table_list(Item_processor processor,
 
     if (table->nested_join)
     {
-      if ((res= walk_items_for_table_list(processor, walk_subquery, argument,
+      if ((res= walk_items_for_table_list(processor, argument, flags,
                                           table->nested_join->join_list)))
         return res;
     }
@@ -706,14 +709,14 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
     List_iterator<Item> li(lex->item_list);
     Item *item;
     if (lex->where && (lex->where)->walk(&Item::unknown_splocal_processor,
-                                         false, argument))
+                                         argument, 0))
       return true;
     if (lex->having && (lex->having)->walk(&Item::unknown_splocal_processor,
-                                           false, argument))
+                                           argument, 0))
       return true;
     while ((item=li++))
     {
-      if (item->walk(&Item::unknown_splocal_processor, false, argument))
+      if (item->walk(&Item::unknown_splocal_processor, argument, 0))
         return true;
     }
   }
@@ -721,8 +724,8 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
 }
 
 
-bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
-                          void *argument)
+bool Item_subselect::walk(Item_processor processor, void *argument,
+                          item_walk_flags flags)
 {
   if (!(unit->uncacheable & ~UNCACHEABLE_DEPENDENT) && engine->is_executed() &&
       !unit->describe)
@@ -739,36 +742,35 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
     return (this->*processor)(argument);
   }
 
-  if (walk_subquery)
+  if (flags & WALK_SUBQUERY)
   {
     for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
     {
       List_iterator<Item> li(lex->item_list);
       ORDER *order;
 
-      if (lex->where && (lex->where)->walk(processor, walk_subquery, argument))
+      if (lex->where && (lex->where)->walk(processor, argument, flags))
         return 1;
-      if (lex->having && (lex->having)->walk(processor, walk_subquery,
-                                             argument))
+      if (lex->having && (lex->having)->walk(processor,argument, flags))
         return 1;
 
-      if (walk_items_for_table_list(processor, walk_subquery, argument,
+      if (walk_items_for_table_list(processor, argument, flags,
                                     *lex->join_list))
         return 1;
 
       while (Item *item= li++)
       {
-        if (item->walk(processor, walk_subquery, argument))
+        if (item->walk(processor, argument, flags))
           return 1;
       }
       for (order= lex->order_list.first ; order; order= order->next)
       {
-        if ((*order->item)->walk(processor, walk_subquery, argument))
+        if ((*order->item)->walk(processor, argument, flags))
           return 1;
       }
       for (order= lex->group_list.first ; order; order= order->next)
       {
-        if ((*order->item)->walk(processor, walk_subquery, argument))
+        if ((*order->item)->walk(processor, argument, flags))
           return 1;
       }
     }
@@ -791,7 +793,7 @@ bool Item_subselect::exec()
         QT_WITHOUT_INTRODUCERS));
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*b",
+                        ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*sB",
                         print.length(),print.ptr());
   );
   /*
@@ -834,7 +836,7 @@ void Item_subselect::get_cache_parameters(List<Item> &parameters)
     unit->first_select()->nest_level,      // nest_level
     TRUE                                   // collect
   };
-  walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+  walk(&Item::collect_outer_ref_processor,&prm,  WALK_SUBQUERY);
 }
 
 int Item_in_subselect::optimize(double *out_rows, double *cost)
@@ -1030,7 +1032,7 @@ Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
     auto item_field=
         new (thd->mem_root) Item_field(thd_arg, result_field);
     if (item_field)
-      item_field->set_refers_to_temp_table(true);
+      item_field->set_refers_to_temp_table();
     return item_field;
   }
   return copy_or_same(thd_arg);
@@ -1241,6 +1243,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
                                   Item *item) {
     return
       !item->with_sum_func() &&
+      !item->with_window_func() &&
       /*
         We can't change name of Item_field or Item_ref, because it will
         prevent its correct resolving, but we should save name of
@@ -1273,8 +1276,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
 		   ER_SELECT_REDUCED, warn_buff);
     }
@@ -1311,26 +1314,17 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   else
   {
-    if (!(row= (Item_cache**) current_thd->alloc(sizeof(Item_cache*) *
-                                                 max_columns)) ||
+    if (!(row= current_thd->alloc<Item_cache*>(max_columns)) ||
         engine->fix_length_and_dec(row))
       return TRUE;
     value= *row;
   }
   unsigned_flag= value->unsigned_flag;
   /*
-    If the subquery has no tables (1) and is not a UNION (2), like:
-
-      (SELECT subq_value)
-
+    If the subquery always returns a row, like "(SELECT subq_value)"
     then its NULLability is the same as subq_value's NULLability.
-
-    (1): A subquery that uses a table will return NULL when the table is empty.
-    (2): A UNION subquery will return NULL if it produces a "Subquery returns
-         more than one row" error.
   */
-  if (engine->no_tables() &&
-      engine->engine_type() != subselect_engine::UNION_ENGINE)
+  if (engine->always_returns_one_row())
     set_maybe_null(engine->may_be_null());
   else
   {
@@ -1341,6 +1335,32 @@ bool Item_singlerow_subselect::fix_length_and_dec()
 }
 
 
+
+/*
+  @brief
+     Check if we can guarantee that this engine will always produce exactly one
+     row.
+
+  @detail
+    Check if the subquery is just
+
+      (SELECT value)
+
+    Then we can guarantee we always return one row.
+    Selecting from tables may produce more than one row.
+    HAVING, WHERE or ORDER BY/LIMIT clauses may cause no rows to be produced.
+*/
+
+bool subselect_single_select_engine::always_returns_one_row() const
+{
+  st_select_lex *params= select_lex->master_unit()->global_parameters();
+  return no_tables() &&
+         !params->limit_params.select_limit &&
+         !params->limit_params.offset_limit &&
+         !select_lex->where &&
+         !select_lex->having;
+}
+
 /**
   Add an expression cache for this subquery if it is needed
 
@@ -1348,7 +1368,7 @@ bool Item_singlerow_subselect::fix_length_and_dec()
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -1588,8 +1608,9 @@ Item_exists_subselect::Item_exists_subselect(THD *thd,
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
 
-
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  select_lex->master_unit()->distinct= 1;
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
   base_flags&= ~item_base_t::MAYBE_NULL; //can't be NULL
@@ -1624,6 +1645,7 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
 				     st_select_lex *select_lex):
   Item_exists_subselect(thd), left_expr_cache(0), first_execution(TRUE),
   in_strategy(SUBS_NOT_TRANSFORMED),
+  materialization_tracker(NULL),
   pushed_cond_guards(NULL), do_not_convert_to_sj(FALSE), is_jtbm_merged(FALSE),
   is_jtbm_const_tab(FALSE), is_flattenable_semijoin(FALSE),
   is_registered_semijoin(FALSE),
@@ -1640,6 +1662,39 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
       Item_row(thd, static_cast<Item_row*>(left_exp));
   func= &eq_creator;
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+
+  /*
+    If the IN subquery (xxx IN (SELECT ...) is a join without grouping,
+    we don't need duplicates from the tables it is joining. These
+    tables can be derived tables, like shown in the following
+    example. In this case, it's useful to indicate that we don't need
+    duplicates from them either.
+
+    Example:
+     col IN (SELECT ...   -- this is the select_lex
+              FROM
+                (SELECT ... FROM t1) AS t1, -- child1, first_inner_init().
+                (SELECT ... FROM t2) AS t2, -- child2
+              WHERE
+                ...
+            )
+
+     We don't need duplicates from either child1 or child2.
+     We only indicate this to child1 (select_lex->first_inner_unit()), as that
+     catches most of practically important use cases.
+
+     (The check for item==NULL is to make sure the subquery is a derived table
+     and not any other kind of subquery like another IN (SELECT ...) or a scalar-
+     context (SELECT 'foo'))
+  */
+
+  select_lex->master_unit()->distinct= 1;
+  if (!select_lex->with_sum_func &&
+      select_lex->first_inner_unit() &&
+      select_lex->first_inner_unit()->item == NULL)
+    select_lex->first_inner_unit()->distinct= 1;
+
   max_columns= UINT_MAX;
   set_maybe_null();
   reset();
@@ -1667,6 +1722,16 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
       Item_row(thd, static_cast<Item_row*>(left_exp));
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
+  select_lex->distinct= 1;
+  /*
+    If this is is 'xxx IN (SELECT ...) mark that the we are only interested in
+    unique values for the select
+  */
+  select_lex->master_unit()->distinct= 1;
+  if (!select_lex->with_sum_func &&
+      select_lex->first_inner_unit() &&
+      select_lex->first_inner_unit()->item == NULL)
+    select_lex->first_inner_unit()->distinct= 1;
   max_columns= 1;
   reset();
   //if test_limit will fail then error will be reported to client
@@ -1732,7 +1797,7 @@ bool Item_in_subselect::fix_length_and_dec()
 
   @details
   The function checks whether an expression cache is needed for this item
-  and if if so wraps the item into an item of the class
+  and if so wraps the item into an item of the class
   Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
@@ -2028,8 +2093,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       remove the dependence mark since the item is moved to upper
       select and is not outer anymore.
     */
-    where_item->walk(&Item::remove_dependence_processor, 0,
-                     select_lex->outer_select());
+    where_item->walk(&Item::remove_dependence_processor,
+                     select_lex->outer_select(), 0);
     /*
       fix_field of substitution item will be done in time of
       substituting.
@@ -2044,8 +2109,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     if (thd->lex->describe)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      sprintf(warn_buff, ER_THD(thd, ER_SELECT_REDUCED),
-              select_lex->select_number);
+      snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_SELECT_REDUCED),
+               select_lex->select_number);
       push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_SELECT_REDUCED, warn_buff);
     }
@@ -2089,7 +2154,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
 
 
 /**
-  Apply transformation max/min  transwormation to ALL/ANY subquery if it is
+  Apply transformation max/min transformation to ALL/ANY subquery if it is
   possible.
 
   @param join  Join object of the subquery (i.e. 'child' join).
@@ -2304,7 +2369,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   *having_item= NULL;
 
   if (join_having || select_lex->with_sum_func ||
-      select_lex->group_list.elements)
+      select_lex->group_list.elements || select_lex->with_rownum)
   {
     LEX_CSTRING field_name= this->full_name_cstring();
     Item *item= func->create(thd, expr,
@@ -2551,9 +2616,10 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
     during JOIN::optimize: this->tmp_having= this->having; this->having= 0;
   */
   Item* join_having= join->having ? join->having : join->tmp_having;
-  bool is_having_used= (join_having || select_lex->with_sum_func ||
-                        select_lex->group_list.first ||
-                        !select_lex->table_list.elements);
+  bool is_having_used=
+      (join_having || select_lex->with_sum_func ||
+       select_lex->group_list.first || !select_lex->table_list.elements ||
+       select_lex->with_rownum);
   LEX_CSTRING list_ref= { STRING_WITH_LEN("<list ref>")};
   DBUG_ENTER("Item_in_subselect::create_row_in_to_exists_cond");
   DBUG_ASSERT(thd == join->thd);
@@ -2573,10 +2639,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
-      if (select_lex->ref_pointer_array[i]->
-          check_cols(left_expr->element_index(i)->cols()))
-        DBUG_RETURN(true);
-
       Item *item_eq=
         new (thd->mem_root)
         Item_func_eq(thd, new (thd->mem_root)
@@ -2643,9 +2705,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
-      if (select_lex->ref_pointer_array[i]->
-          check_cols(left_expr->element_index(i)->cols()))
-        DBUG_RETURN(true);
       item= new (thd->mem_root)
         Item_func_eq(thd,
                      new (thd->mem_root)
@@ -2908,7 +2967,9 @@ bool Item_exists_subselect::select_prepare_to_be_in()
   if (!optimizer &&
       (thd->lex->sql_command == SQLCOM_SELECT ||
        thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-       thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+       thd->lex->sql_command == SQLCOM_DELETE_MULTI ||
+       thd->lex->sql_command == SQLCOM_UPDATE ||
+       thd->lex->sql_command == SQLCOM_DELETE) &&
       !unit->first_select()->is_part_of_union() &&
       optimizer_flag(thd, OPTIMIZER_SWITCH_EXISTS_TO_IN) &&
       (is_top_level_item() ||
@@ -3090,13 +3151,13 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     DBUG_RETURN(FALSE);
 
   /*
-    EXISTS-to-IN coversion and ORDER BY ... LIMIT clause:
+    EXISTS-to-IN conversion and ORDER BY ... LIMIT clause:
 
     - "[ORDER BY ...] LIMIT n" clause with a non-zero n does not affect
       the result of the EXISTS(...) predicate, and so we can discard
       it during the conversion.
     - "[ORDER BY ...] LIMIT m, n" can turn a non-empty resultset into empty
-      one, so it affects tthe EXISTS(...) result and cannot be discarded.
+      one, so it affects the EXISTS(...) result and cannot be discarded.
 
     Disallow exists-to-in conversion if
     (1). three is a LIMIT which is not a basic constant
@@ -3133,7 +3194,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
       unit->first_select()->nest_level,      // nest_level
       FALSE                                  // collect
     };
-    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+    walk(&Item::collect_outer_ref_processor, &prm, WALK_SUBQUERY);
     DBUG_ASSERT(prm.count > 0);
     DBUG_ASSERT(prm.count >= (uint)eqs.elements());
     will_be_correlated= prm.count > (uint)eqs.elements();
@@ -3210,10 +3271,11 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     }
   }
 
-  /* make EXISTS->IN permanet (see Item_subselect::init()) */
+  /* make EXISTS->IN permanent (see Item_subselect::init()) */
   set_exists_transformed();
 
   first_select->limit_params.select_limit= NULL;
+  first_select->limit_params.explicit_limit= FALSE;
   if (!(in_subs= new (thd->mem_root) Item_in_subselect(thd, left_exp,
                                                          first_select)))
   {
@@ -3268,10 +3330,14 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         uint i;
         for (i= 0; i < (uint)eqs.elements(); i++)
           if (eqs.at(i).outer_exp->
-              walk(&Item::find_item_processor, TRUE, upper->item))
+              walk(&Item::find_item_processor, upper->item, WALK_SUBQUERY))
             break;
+        DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+                    thd->stmt_arena->is_conventional());
+        DBUG_ASSERT(thd->stmt_arena->mem_root == thd->mem_root);
         if (i == (uint)eqs.elements() &&
-            (in_subs->upper_refs.push_back(upper, thd->stmt_arena->mem_root)))
+            (in_subs->upper_refs.push_back(
+               upper, thd->mem_root)))
           goto out;
       }
     }
@@ -3300,6 +3366,14 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     set possible optimization strategies
   */
   in_subs->emb_on_expr_nest= emb_on_expr_nest;
+
+  {
+    OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+  		        in_subs->get_select_lex()->select_number,
+  			"EXISTS (SELECT)", "IN (SELECT)");
+    trace_transform.add( "upper_not", ( upper_not?true:false ) );
+  }
+
   res= check_and_do_in_subquery_rewrites(join);
   first_select->join->prepare_stage2();
 
@@ -3393,13 +3467,13 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
 {
   Query_arena *arena= 0, backup;
   SELECT_LEX *current= thd->lex->current_select;
-  const char *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   bool trans_res= true;
   bool result;
 
   DBUG_ENTER("Item_in_subselect::select_in_like_transformer");
   DBUG_ASSERT(thd == join->thd);
-  thd->where= "IN/ALL/ANY subquery";
+  thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
 
   /*
     In some optimisation cases we will not need this Item_in_optimizer
@@ -3486,7 +3560,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
-  char const *save_where= thd_arg->where;
+  THD_WHERE save_where= thd_arg->where;
   DBUG_ENTER("Item_in_subselect::fix_fields");
 
   thd= thd_arg;
@@ -3495,7 +3569,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
   if (test_strategy(SUBS_SEMI_JOIN))
     DBUG_RETURN( !( (*ref)= new (thd->mem_root) Item_int(thd, 1)) );
 
-  thd->where= "IN/ALL/ANY subquery";
+  thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
   /*
     Check if the outer and inner IN operands match in those cases when we
     will not perform IN=>EXISTS transformation. Currently this is when we
@@ -3510,7 +3584,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     test for each Item happens later in
     Item_in_subselect::row_value_in_to_exists_transformer.
     The reason for this mess is that our JOIN::prepare phase works top-down
-    instead of bottom-up, so we first do name resoluton and semantic checks
+    instead of bottom-up, so we first do name resolution and semantic checks
     for the outer selects, then for the inner.
   */
   if (engine &&
@@ -3541,11 +3615,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     }
   }
 
-  if (left_expr && left_expr->fix_fields_if_needed(thd_arg, &left_expr))
+  if (!left_expr || left_expr->fix_fields_if_needed(thd_arg, &left_expr))
     goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
     goto err;
+  if (left_expr->with_ora_join())
+    copy_flags(left_expr, item_with_t::ORA_JOIN);
   base_flags|= item_base_t::FIXED;
   thd->where= save_where;
   DBUG_RETURN(FALSE);
@@ -3640,7 +3716,7 @@ bool Item_in_subselect::init_left_expr_cache()
   outer_join= unit->outer_select()->join;
   /*
     An IN predicate might be evaluated in a query for which all tables have
-    been optimzied away.
+    been optimized away.
   */ 
   if (!outer_join || !outer_join->table_count || !outer_join->tables_list)
     return TRUE;
@@ -3668,12 +3744,32 @@ bool Item_in_subselect::init_cond_guards()
   if (!is_top_level_item() && !pushed_cond_guards &&
       (left_expr->maybe_null() || cols_num > 1))
   {
-    if (!(pushed_cond_guards= (bool*)thd->alloc(sizeof(bool) * cols_num)))
+    if (!(pushed_cond_guards= thd->alloc<bool>(cols_num)))
         return TRUE;
     for (uint i= 0; i < cols_num; i++)
       pushed_cond_guards[i]= TRUE;
   }
   return FALSE;
+}
+
+/**
+  Initialize the tracker which will be used to provide information for
+  the output of EXPLAIN and ANALYZE
+*/
+void Item_in_subselect::init_subq_materialization_tracker(THD *thd)
+{
+  if (test_strategy(SUBS_MATERIALIZATION | SUBS_PARTIAL_MATCH_ROWID_MERGE |
+                    SUBS_PARTIAL_MATCH_TABLE_SCAN))
+  {
+    Explain_query *qw= thd->lex->explain;
+    DBUG_ASSERT(qw);
+    Explain_node *node= qw->get_node(unit->first_select()->select_number);
+    if (!node)
+      return;
+    node->subq_materialization= new(qw->mem_root)
+        Explain_subq_materialization(qw->mem_root);
+    materialization_tracker= node->subq_materialization->get_tracker();
+  }
 }
 
 
@@ -3758,7 +3854,7 @@ void subselect_single_select_engine::cleanup()
   DBUG_ENTER("subselect_single_select_engine::cleanup");
   prepared= executed= 0;
   join= 0;
-  result->cleanup();
+  result->reset_for_next_ps_execution();
   select_lex->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
   DBUG_VOID_RETURN;
 }
@@ -3768,7 +3864,7 @@ void subselect_union_engine::cleanup()
 {
   DBUG_ENTER("subselect_union_engine::cleanup");
   unit->reinit_exec_mechanism();
-  result->cleanup();
+  result->reset_for_next_ps_execution();
   unit->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
     sl->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
@@ -3936,7 +4032,7 @@ bool subselect_single_select_engine::no_rows()
 
 
 /**
- Makes storage for the output values for the subquery and calcuates
+ Makes storage for the output values for the subquery and calculates
  their data and column types and their nullability.
 */
 bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
@@ -3946,10 +4042,9 @@ bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
   set_handler(&type_handler_varchar);
   for (uint i= 0; (sel_item= li++); i++)
   {
-    item->max_length= sel_item->max_length;
     set_handler(sel_item->type_handler());
-    item->decimals= sel_item->decimals;
-    item->unsigned_flag= sel_item->unsigned_flag;
+    item->Type_std_attributes::operator=(
+      sel_item->type_handler()->Item_type_std_attributes_generic(sel_item));
     maybe_null= sel_item->maybe_null();
     if (!(row[i]= sel_item->get_cache(thd)))
       return TRUE;
@@ -3967,6 +4062,8 @@ bool subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
   if (set_row(select_lex->item_list, row))
     return TRUE;
   item->collation.set(row[0]->collation);
+  if (Type_extra_attributes *eattr= item->type_extra_attributes_addr())
+    eattr[0]= row[0]->type_extra_attributes();
   if (cols() != 1)
     maybe_null= 0;
   return FALSE;
@@ -3978,14 +4075,14 @@ bool subselect_union_engine::fix_length_and_dec(Item_cache **row)
 
   if (unit->first_select()->item_list.elements == 1)
   {
-    if (set_row(unit->types, row))
+    if (set_row(unit->item_list, row))
       return TRUE;
     item->collation.set(row[0]->collation);
   }
   else
   {
     bool maybe_null_saved= maybe_null;
-    if (set_row(unit->types, row))
+    if (set_row(unit->item_list, row))
       return TRUE;
     maybe_null= maybe_null_saved;
   }
@@ -4006,9 +4103,10 @@ int join_read_next_same_or_null(READ_RECORD *info);
 
 int subselect_single_select_engine::exec()
 {
-  char const *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
+  bool exec_error= 0;
   DBUG_ENTER("subselect_single_select_engine::exec");
 
   if (join->optimization_state == JOIN::NOT_OPTIMIZED)
@@ -4100,7 +4198,7 @@ int subselect_single_select_engine::exec()
       }
     }
     
-    join->exec();
+    exec_error= join->exec();
 
     /* Enable the optimizations back */
     for (JOIN_TAB **ptab= changed_tabs; ptab != last_changed_tab; ptab++)
@@ -4118,7 +4216,7 @@ int subselect_single_select_engine::exec()
       item->make_const();
     thd->where= save_where;
     thd->lex->current_select= save_select;
-    DBUG_RETURN(join->error || thd->is_fatal_error || thd->is_error());
+    DBUG_RETURN(exec_error || thd->is_error());
   }
   thd->where= save_where;
   thd->lex->current_select= save_select;
@@ -4127,7 +4225,7 @@ int subselect_single_select_engine::exec()
 
 int subselect_union_engine::exec()
 {
-  char const *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   int res= unit->exec();
   thd->where= save_where;
   return res;
@@ -4186,7 +4284,7 @@ int subselect_uniquesubquery_engine::scan_table()
       }
     }
 
-    if (!cond || cond->val_int())
+    if (!cond || cond->val_bool())
     {
       empty_result_set= FALSE;
       break;
@@ -4274,12 +4372,14 @@ int subselect_uniquesubquery_engine::exec()
   empty_result_set= TRUE;
   table->status= 0;
   Item_in_subselect *in_subs= item->get_IN_subquery();
+  Subq_materialization_tracker *tracker= in_subs->get_materialization_tracker();
   DBUG_ASSERT(in_subs);
   DBUG_ASSERT(thd);
 
   if (!tab->preread_init_done && tab->preread_init())
     DBUG_RETURN(1);
- 
+  if (tracker)
+    tracker->increment_loops_count();
   if (in_subs->left_expr_has_null())
   {
     /*
@@ -4494,7 +4594,7 @@ int subselect_indexsubquery_engine::exec()
       table->null_row= 0;
       if (!table->status)
       {
-        if ((!cond || cond->val_int()) && (!having || having->val_int()))
+        if ((!cond || cond->val_bool()) && (!having || having->val_bool()))
         {
           empty_result_set= FALSE;
           if (null_finding)
@@ -4798,7 +4898,7 @@ subselect_uniquesubquery_engine::change_result(Item_subselect *si,
   @retval
     FALSE there are some tables in subquery
 */
-bool subselect_single_select_engine::no_tables()
+bool subselect_single_select_engine::no_tables() const
 {
   return(select_lex->table_list.elements == 0);
 }
@@ -4828,7 +4928,7 @@ bool subselect_single_select_engine::may_be_null()
   @retval
     FALSE there are some tables in subquery
 */
-bool subselect_union_engine::no_tables()
+bool subselect_union_engine::no_tables() const
 {
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
@@ -4848,7 +4948,7 @@ bool subselect_union_engine::no_tables()
     FALSE there are some tables in subquery
 */
 
-bool subselect_uniquesubquery_engine::no_tables()
+bool subselect_uniquesubquery_engine::no_tables() const
 {
   /* returning value is correct, but this method should never be called */
   DBUG_ASSERT(FALSE);
@@ -4978,12 +5078,18 @@ subselect_hash_sj_engine::get_strategy_using_data()
 
 void
 subselect_hash_sj_engine::choose_partial_match_strategy(
-  bool has_non_null_key, bool has_covering_null_row,
+  uint field_count, bool has_non_null_key, bool has_covering_null_row,
   MY_BITMAP *partial_match_key_parts_arg)
 {
   ulonglong pm_buff_size;
 
   DBUG_ASSERT(strategy == PARTIAL_MATCH);
+  if (field_count == 1)
+  {
+    strategy= SINGLE_COLUMN_MATCH;
+    return;
+  }
+
   /*
     Choose according to global optimizer switch. If only one of the switches is
     'ON', then the remaining strategy is the only possible one. The only cases
@@ -5033,6 +5139,9 @@ subselect_hash_sj_engine::choose_partial_match_strategy(
                                         partial_match_key_parts_arg);
     if (pm_buff_size > thd->variables.rowid_merge_buff_size)
       strategy= PARTIAL_MATCH_SCAN;
+    else
+      item->get_IN_subquery()->get_materialization_tracker()->
+          report_partial_match_buffer_size(pm_buff_size);
   }
 }
 
@@ -5215,7 +5324,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     //fprintf(stderr, "Q: %s\n", current_thd->query());
     DBUG_ASSERT(0);
     DBUG_ASSERT(
-      tmp_table->s->uniques ||
+      (tmp_table->key_info->flags & HA_UNIQUE_HASH) ||
       tmp_table->key_info->key_length >= tmp_table->file->max_key_length() ||
       tmp_table->key_info->user_defined_key_parts >
       tmp_table->file->max_key_parts());
@@ -5231,7 +5340,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     the extra key part created when s->uniques > 0.
 
     NOTE: item have to be Item_in_subselect, because class constructor
-    accept Item_in_subselect as the parmeter.
+    accepts Item_in_subselect as the parameter.
   */
   DBUG_ASSERT(tmp_table->s->keys == 1 &&
               item->get_IN_subquery()->left_expr->cols() ==
@@ -5291,7 +5400,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   if (!(semi_join_conds= new (thd->mem_root) Item_cond_and(thd)))
     DBUG_RETURN(TRUE);
 
-  if (!(tmp_table_ref= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST))))
+  if (!(tmp_table_ref= thd->alloc<TABLE_LIST>(1)))
     DBUG_RETURN(TRUE);
 
   table_name.str=    tmp_table->alias.c_ptr();
@@ -5310,7 +5419,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
     Item_field *right_col_item= new (thd->mem_root)
         Item_field(thd, context, tmp_table->field[i]);
     if (right_col_item)
-      right_col_item->set_refers_to_temp_table(true);
+      right_col_item->set_refers_to_temp_table();
 
     if (!right_col_item ||
         !(eq_cond= new (thd->mem_root)
@@ -5331,7 +5440,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
 
 
 /**
-  Create a new uniquesubquery engine for the execution of an IN predicate.
+  Create a new unique subquery engine for the execution of an IN predicate.
 
   @details
   Create and initialize a new JOIN_TAB, and Table_ref objects to perform
@@ -5359,7 +5468,7 @@ subselect_hash_sj_engine::make_unique_engine()
     - here we initialize only those members that are used by
       subselect_uniquesubquery_engine, so these objects are incomplete.
   */
-  if (!(tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
+  if (!(tab= thd->alloc<JOIN_TAB>(1)))
     DBUG_RETURN(NULL);
 
   tab->table= tmp_table;
@@ -5416,7 +5525,8 @@ void subselect_hash_sj_engine::cleanup()
     related engines are created and chosen for each execution.
   */
   item->get_IN_subquery()->engine= materialize_engine;
-  if (lookup_engine_type == TABLE_SCAN_ENGINE ||
+  if (lookup_engine_type == SINGLE_COLUMN_ENGINE ||
+      lookup_engine_type == TABLE_SCAN_ENGINE ||
       lookup_engine_type == ROWID_MERGE_ENGINE)
   {
     subselect_engine *inner_lookup_engine;
@@ -5431,7 +5541,7 @@ void subselect_hash_sj_engine::cleanup()
   }
   DBUG_ASSERT(lookup_engine->engine_type() == UNIQUESUBQUERY_ENGINE);
   lookup_engine->cleanup();
-  result->cleanup(); /* Resets the temp table as well. */
+  result->reset_for_next_ps_execution(); /* Resets the temp table as well. */
   DBUG_ASSERT(tmp_table);
   free_tmp_table(thd, tmp_table);
   tmp_table= NULL;
@@ -5646,8 +5756,8 @@ double get_post_group_estimate(JOIN* join, double join_op_rows)
   Execute a subquery IN predicate via materialization.
 
   @details
-  If needed materialize the subquery into a temporary table, then
-  copmpute the predicate via a lookup into this table.
+  If needed to materialize the subquery into a temporary table, then
+  compute the predicate via a lookup into this table.
 
   @retval TRUE  if error
   @retval FALSE otherwise
@@ -5669,9 +5779,8 @@ int subselect_hash_sj_engine::exec()
   /* The subquery should be optimized, and materialized only once. */
   DBUG_ASSERT(materialize_join->optimization_state == JOIN::OPTIMIZATION_DONE &&
               !is_materialized);
-  materialize_join->exec();
-  if (unlikely((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
-                             thd->is_error()))))
+  res= materialize_join->exec();
+  if (unlikely((res= (res || thd->is_error()))))
     goto err;
 
   /*
@@ -5741,8 +5850,9 @@ int subselect_hash_sj_engine::exec()
       item_in->null_value= 1;
       item_in->make_const();
       item_in->set_first_execution();
-      thd->lex->current_select= save_select;
-      DBUG_RETURN(FALSE);
+      res= 0;
+      strategy= CONST_RETURN_NULL;
+      goto err;
     }
 
     if (has_covering_null_row)
@@ -5756,11 +5866,26 @@ int subselect_hash_sj_engine::exec()
       count_pm_keys= count_partial_match_columns - count_null_only_columns +
                      (nn_key_parts ? 1 : 0);
 
-    choose_partial_match_strategy(MY_TEST(nn_key_parts),
+    choose_partial_match_strategy(field_count, MY_TEST(nn_key_parts),
                                   has_covering_null_row,
                                   &partial_match_key_parts);
-    DBUG_ASSERT(strategy == PARTIAL_MATCH_MERGE ||
+    DBUG_ASSERT(strategy == SINGLE_COLUMN_MATCH ||
+                strategy == PARTIAL_MATCH_MERGE ||
                 strategy == PARTIAL_MATCH_SCAN);
+    if (strategy == SINGLE_COLUMN_MATCH)
+    {
+      if (!(pm_engine= new subselect_single_column_match_engine(thd,
+              (subselect_uniquesubquery_engine*) lookup_engine, tmp_table,
+              item, result, semi_join_conds->argument_list(),
+              has_covering_null_row, has_covering_null_columns,
+              count_columns_with_nulls)) ||
+          pm_engine->prepare(thd))
+      {
+        /* This is an irrecoverable error. */
+        res= 1;
+        goto err;
+      }
+    }
     if (strategy == PARTIAL_MATCH_MERGE)
     {
       pm_engine=
@@ -5790,7 +5915,6 @@ int subselect_hash_sj_engine::exec()
         strategy= PARTIAL_MATCH_SCAN;
       }
     }
-
     if (strategy == PARTIAL_MATCH_SCAN)
     {
       if (!(pm_engine=
@@ -5817,6 +5941,7 @@ int subselect_hash_sj_engine::exec()
   item_in->change_engine(lookup_engine);
 
 err:
+  item_in->get_materialization_tracker()->report_exec_strategy(strategy);
   thd->lex->current_select= save_select;
   DBUG_RETURN(res);
 }
@@ -5851,7 +5976,7 @@ void subselect_hash_sj_engine::exclude()
   DBUG_ASSERT(FALSE);
 }
 
-bool subselect_hash_sj_engine::no_tables()
+bool subselect_hash_sj_engine::no_tables() const
 {
   DBUG_ASSERT(FALSE);
   return FALSE;
@@ -5923,10 +6048,8 @@ bool Ordered_key::init(MY_BITMAP *columns_to_index)
   Item_func_lt *fn_less_than;
 
   key_column_count= bitmap_bits_set(columns_to_index);
-  key_columns= (Item_field**) thd->alloc(key_column_count *
-                                         sizeof(Item_field*));
-  compare_pred= (Item_func_lt**) thd->alloc(key_column_count *
-                                            sizeof(Item_func_lt*));
+  key_columns= thd->alloc<Item_field*>(key_column_count);
+  compare_pred= thd->alloc<Item_func_lt*>(key_column_count);
 
   if (!key_columns || !compare_pred)
     return TRUE; /* Revert to table scan partial match. */
@@ -5966,8 +6089,8 @@ bool Ordered_key::init(int col_idx)
 
   // TIMOUR: check for mem allocation err, revert to scan
 
-  key_columns= (Item_field**) thd->alloc(sizeof(Item_field*));
-  compare_pred= (Item_func_lt**) thd->alloc(sizeof(Item_func_lt*));
+  key_columns= thd->alloc<Item_field*>(1);
+  compare_pred= thd->alloc<Item_func_lt*>(1);
 
   key_columns[0]= new (thd->mem_root) Item_field(thd, tbl->field[col_idx]);
   /* Create the predicate (tmp_column[i] < outer_ref[i]). */
@@ -6022,7 +6145,7 @@ bool Ordered_key::alloc_keys_buffers()
 */
 
 int
-Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
+Ordered_key::cmp_keys_by_row_data(const ha_rows a, const ha_rows b) const
 {
   uchar *rowid_a, *rowid_b;
   int error;
@@ -6064,10 +6187,12 @@ Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 }
 
 
-int
-Ordered_key::cmp_keys_by_row_data_and_rownum(Ordered_key *key,
-                                             rownum_t* a, rownum_t* b)
+int Ordered_key::cmp_keys_by_row_data_and_rownum(void *key_, const void *a_,
+                                                 const void *b_)
 {
+  Ordered_key *key= static_cast<Ordered_key *>(key_);
+  const rownum_t *a= static_cast<const rownum_t *>(a_);
+  const rownum_t *b= static_cast<const rownum_t *>(b_);
   /* The result of comparing the two keys according to their row data. */
   int cmp_row_res= key->cmp_keys_by_row_data(*a, *b);
   if (cmp_row_res)
@@ -6081,7 +6206,7 @@ bool Ordered_key::sort_keys()
   if (tbl->file->ha_rnd_init_with_error(0))
     return TRUE;
   my_qsort2(key_buff, (size_t) key_buff_elements, sizeof(rownum_t),
-            (qsort2_cmp) &cmp_keys_by_row_data_and_rownum, (void*) this);
+            &cmp_keys_by_row_data_and_rownum, (void *) this);
   /* Invalidate the current row position. */
   cur_key_idx= HA_POS_ERROR;
   tbl->file->ha_rnd_end();
@@ -6097,7 +6222,7 @@ bool Ordered_key::sort_keys()
   @retval  0  if only NULLs
 */
 
-double Ordered_key::null_selectivity()
+inline double Ordered_key::null_selectivity() const
 {
   /* We should not be processing empty tables. */
   DBUG_ASSERT(tbl->file->stats.records);
@@ -6169,7 +6294,7 @@ bool Ordered_key::lookup()
     mid= lo + (hi - lo) / 2;
     cmp_res= cmp_key_with_search_key(key_buff[mid]);
     /*
-      In order to find the minimum match, check if the pevious element is
+      In order to find the minimum match, check if the previous element is
       equal or smaller than the found one. If equal, we need to search further
       to the left.
     */
@@ -6229,7 +6354,7 @@ bool Ordered_key::next_same()
 }
 
 
-void Ordered_key::print(String *str)
+void Ordered_key::print(String *str) const
 {
   uint i;
 
@@ -6294,6 +6419,9 @@ int subselect_partial_match_engine::exec()
   DBUG_ASSERT(!(item_in->left_expr_has_null() &&
                 item_in->is_top_level_item()));
 
+  Subq_materialization_tracker *tracker= item_in->get_materialization_tracker();
+  tracker->increment_loops_count();
+
   if (!item_in->left_expr_has_null())
   {
     /* Try to find a matching row by index lookup. */
@@ -6307,6 +6435,7 @@ int subselect_partial_match_engine::exec()
     else
     {
       /* Search for a complete match. */
+      tracker->increment_index_lookups();
       if ((lookup_res= lookup_engine->index_lookup()))
       {
         /* An error occurred during lookup(). */
@@ -6351,6 +6480,7 @@ int subselect_partial_match_engine::exec()
   if (tmp_table->file->inited)
     tmp_table->file->ha_index_end();
 
+  tracker->increment_partial_matches();
   if (partial_match())
   {
     /* The result of IN is UNKNOWN. */
@@ -6433,10 +6563,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     row numbers. All small buffers are allocated in the runtime memroot. Big
     buffers are allocated from the OS via malloc.
   */
-  if (!(merge_keys= (Ordered_key**) thd->alloc(merge_keys_count *
-                                               sizeof(Ordered_key*))) ||
-      !(null_bitmaps= (MY_BITMAP**) thd->alloc(merge_keys_count *
-                                               sizeof(MY_BITMAP*))) ||
+  if (!(merge_keys= thd->alloc<Ordered_key*>(merge_keys_count)) ||
+      !(null_bitmaps= thd->alloc<MY_BITMAP*>(merge_keys_count)) ||
       !(row_num_to_rowid= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
                               static_cast<size_t>(row_count * rowid_length),
                               MYF(MY_WME | MY_THREAD_SPECIFIC))))
@@ -6553,11 +6681,12 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     if (merge_keys[i]->sort_keys())
       return TRUE;
 
-  if (init_queue(&pq, merge_keys_count, 0, FALSE,
-                 subselect_rowid_merge_engine::cmp_keys_by_cur_rownum, NULL,
-                 0, 0))
+  if (pq.init(merge_keys_count, false,
+              subselect_rowid_merge_engine::cmp_keys_by_cur_rownum))
     return TRUE;
 
+  item->get_IN_subquery()->get_materialization_tracker()->
+      report_partial_merge_keys(merge_keys, merge_keys_count);
   return FALSE;
 }
 
@@ -6570,7 +6699,6 @@ subselect_rowid_merge_engine::~subselect_rowid_merge_engine()
     my_free(row_num_to_rowid);
     for (uint i= 0; i < merge_keys_count; i++)
       delete merge_keys[i];
-    delete_queue(&pq);
     if (tmp_table->file->inited == handler::RND)
       tmp_table->file->ha_rnd_end();
   }
@@ -6594,10 +6722,11 @@ void subselect_rowid_merge_engine::cleanup()
   @retval -1  if k1 is more selective than k2
 */
 
-int
-subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
-                                                           Ordered_key **k2)
+int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *k1_,
+                                                               const void *k2_)
 {
+  auto k1= static_cast<const Ordered_key *const *>(k1_);
+  auto k2= static_cast<const Ordered_key *const *>(k2_);
   double k1_sel= (*k1)->null_selectivity();
   double k2_sel= (*k2)->null_selectivity();
   if (k1_sel < k2_sel)
@@ -6611,12 +6740,14 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 /*
 */
 
-int
-subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *arg,
-                                                     uchar *k1, uchar *k2)
+int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *,
+                                                         const void *k1_,
+                                                         const void *k2_)
 {
-  rownum_t r1= ((Ordered_key*) k1)->current();
-  rownum_t r2= ((Ordered_key*) k2)->current();
+  auto k1= static_cast<const Ordered_key *>(k1_);
+  auto k2= static_cast<const Ordered_key *>(k2_);
+  rownum_t r1= k1->current();
+  rownum_t r2= k2->current();
 
   return (r1 < r2) ? -1 : (r1 > r2) ? 1 : 0;
 }
@@ -6701,9 +6832,10 @@ exists_complementing_null_row(MY_BITMAP *keys_to_complement)
     return FALSE;
   }
 
-  return bitmap_exists_intersection((const MY_BITMAP**) null_bitmaps,
+  return bitmap_exists_intersection(null_bitmaps,
                                     count_null_keys,
-                                    (uint)highest_min_row, (uint)lowest_max_row);
+                                    (uint)highest_min_row,
+                                    (uint)lowest_max_row);
 }
 
 
@@ -6725,8 +6857,8 @@ bool subselect_rowid_merge_engine::partial_match()
 
   /* If there is a non-NULL key, it must be the first key in the keys array. */
   DBUG_ASSERT(!non_null_key || (non_null_key && merge_keys[0] == non_null_key));
-  /* The prioryty queue for keys must be empty. */
-  DBUG_ASSERT(!pq.elements);
+  /* The priority queue for keys must be empty. */
+  DBUG_ASSERT(pq.is_empty());
 
   /* All data accesses during execution are via handler::ha_rnd_pos() */
   if (unlikely(tmp_table->file->ha_rnd_init_with_error(0)))
@@ -6753,7 +6885,7 @@ bool subselect_rowid_merge_engine::partial_match()
   }
 
   if (non_null_key)
-    queue_insert(&pq, (uchar *) non_null_key);
+    pq.push(non_null_key);
   /*
     Do not add the non_null_key, since it was already processed above.
   */
@@ -6767,7 +6899,7 @@ bool subselect_rowid_merge_engine::partial_match()
       bitmap_set_bit(&matching_outer_cols, merge_keys[i]->get_keyid());
     }
     else if (merge_keys[i]->lookup())
-      queue_insert(&pq, (uchar *) merge_keys[i]);
+      pq.push(merge_keys[i]);
   }
 
   /*
@@ -6787,7 +6919,7 @@ bool subselect_rowid_merge_engine::partial_match()
     there is a subquery row with NULLs in all unmatched columns,
     then there is a partial match, otherwise the result is FALSE.
   */
-  if (count_nulls_in_search_key && !pq.elements)
+  if (count_nulls_in_search_key && pq.is_empty())
   {
     DBUG_ASSERT(!non_null_key);
     /*
@@ -6806,11 +6938,11 @@ bool subselect_rowid_merge_engine::partial_match()
     non-null key doesn't have a match.
   */
   if (!count_nulls_in_search_key &&
-      (!pq.elements ||
-       (pq.elements == 1 && non_null_key &&
+      (pq.is_empty() ||
+       (pq.elements() == 1 && non_null_key &&
         max_null_in_any_row < merge_keys_count-1)))
   {
-    if (!pq.elements)
+    if (pq.is_empty())
     {
       DBUG_ASSERT(!non_null_key);
       /*
@@ -6823,16 +6955,16 @@ bool subselect_rowid_merge_engine::partial_match()
     goto end;
   }
 
-  DBUG_ASSERT(pq.elements);
+  DBUG_ASSERT(!pq.is_empty());
 
-  min_key= (Ordered_key*) queue_remove_top(&pq);
+  min_key= pq.pop();
   min_row_num= min_key->current();
   bitmap_set_bit(&matching_keys, min_key->get_keyid());
   bitmap_union(&matching_keys, &matching_outer_cols);
   if (min_key->next_same())
-    queue_insert(&pq, (uchar *) min_key);
+    pq.push(min_key);
 
-  if (pq.elements == 0)
+  if (pq.is_empty())
   {
     /*
       Check the only matching row of the only key min_key for NULL matches
@@ -6844,7 +6976,7 @@ bool subselect_rowid_merge_engine::partial_match()
 
   while (TRUE)
   {
-    cur_key= (Ordered_key*) queue_remove_top(&pq);
+    cur_key= pq.pop();
     cur_row_num= cur_key->current();
 
     if (cur_row_num == min_row_num)
@@ -6869,9 +7001,9 @@ bool subselect_rowid_merge_engine::partial_match()
     }
 
     if (cur_key->next_same())
-      queue_insert(&pq, (uchar *) cur_key);
+      pq.push(cur_key);
 
-    if (pq.elements == 0)
+    if (pq.is_empty())
     {
       /* Check the last row of the last column in PQ for NULL matches. */
       res= test_null_row(min_row_num);
@@ -6885,7 +7017,7 @@ bool subselect_rowid_merge_engine::partial_match()
 end:
   if (!has_covering_null_columns)
     bitmap_clear_all(&matching_keys);
-  queue_remove_all(&pq);
+  pq.clear();
   tmp_table->file->ha_rnd_end();
   return res;
 }
@@ -6990,9 +7122,48 @@ void subselect_table_scan_engine::cleanup()
 }
 
 
+subselect_single_column_match_engine::subselect_single_column_match_engine(
+  THD *thd,
+  subselect_uniquesubquery_engine *engine_arg,
+  TABLE *tmp_table_arg,
+  Item_subselect *item_arg,
+  select_result_interceptor *result_arg,
+  List<Item> *equi_join_conds_arg,
+  bool has_covering_null_row_arg,
+  bool has_covering_null_columns_arg,
+  uint count_columns_with_nulls_arg)
+  :subselect_partial_match_engine(thd, engine_arg, tmp_table_arg, item_arg,
+                                  result_arg, equi_join_conds_arg,
+                                  has_covering_null_row_arg,
+                                  has_covering_null_columns_arg,
+                                  count_columns_with_nulls_arg)
+{}
+
+
+bool subselect_single_column_match_engine::partial_match()
+{
+  /*
+    We get here if:
+    - there is only one column in the materialized table;
+    - its current value of left_expr is NULL (otherwise we would have hit
+         the earlier "index lookup" branch at subselect_partial_match::exec());
+    - the materialized table does not have NULL values (for a similar reason);
+    - the materialized table is not empty.
+    The case when materialization produced no rows (empty table) is handled at
+    subselect_hash_sj_engine::exec(), the result of IN predicate is always
+    FALSE in that case.
+    After all those preconditions met, the result of the partial match is TRUE.
+  */
+  DBUG_ASSERT(item->get_IN_subquery()->left_expr_has_null() &&
+              !has_covering_null_row &&
+              tmp_table->file->stats.records > 0);
+  return true;
+}
+
+
 void Item_subselect::register_as_with_rec_ref(With_element *with_elem)
 {
-  with_elem->sq_with_rec_ref.link_in_list(this, &this->next_with_rec_ref);
+  with_elem->sq_with_rec_ref.insert(this, &this->next_with_rec_ref);
   with_recursive_reference= true;
 }
 
@@ -7015,3 +7186,36 @@ void Item_subselect::init_expr_cache_tracker(THD *thd)
   DBUG_ASSERT(expr_cache->type() == Item::EXPR_CACHE_ITEM);
   node->cache_tracker= ((Item_cache_wrapper *)expr_cache)->init_tracker(qw->mem_root);
 }
+
+
+void Subq_materialization_tracker::report_partial_merge_keys(
+    Ordered_key **merge_keys, uint merge_keys_count)
+{
+  partial_match_array_sizes.resize(merge_keys_count, 0);
+  for (uint i= 0; i < merge_keys_count; i++)
+    partial_match_array_sizes[i]= merge_keys[i]->get_key_buff_elements();
+}
+
+
+/*
+  Check if somewhere inside this subselect we read the table. This means a
+  full read "(SELECT ... FROM tbl)", outside reference to tbl.column does not
+  count
+*/
+
+bool
+Item_subselect::subselect_table_finder_processor(void *arg)
+{
+  subselect_table_finder_param *param= (subselect_table_finder_param *)arg;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    TABLE_LIST *dup;
+    if ((dup= sl->find_table(param->thd, &param->find->db,
+                             &param->find->table_name)))
+    {
+      param->dup= dup;
+      return TRUE;
+    }
+  }
+  return FALSE;
+};

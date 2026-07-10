@@ -200,7 +200,7 @@ select count(*) from t1 group by col2 having col2 = 'hello';
 count(*)
 3
 select count(*) from t1 group by col2 having col1 = 10;
-ERROR 42S22: Unknown column 'col1' in 'having clause'
+ERROR 42S22: Unknown column 'col1' in 'HAVING'
 select col1 as count_col1 from t1 as tmp1 group by col1 having col1 = 10;
 count_col1
 10
@@ -241,7 +241,7 @@ select sum(col1) as co2, count(col2) as cc from t1 group by col1 having col1 =10
 co2	cc
 40	4
 select t2.col2 from t2 group by t2.col1, t2.col2 having t1.col1 <= 10;
-ERROR 42S22: Unknown column 't1.col1' in 'having clause'
+ERROR 42S22: Unknown column 't1.col1' in 'HAVING'
 select t1.col1 from t1
 where t1.col2 in 
 (select t2.col2 from t2 
@@ -279,7 +279,7 @@ select t1.col1 as tmp_col from t1
 where t1.col2 in 
 (select t2.col2 from t2 
 group by t2.col1, t2.col2 having tmp_col <= 10);
-ERROR 42S22: Unknown column 'tmp_col' in 'having clause'
+ERROR 42S22: Unknown column 'tmp_col' in 'HAVING'
 select t1.col1 from t1
 where t1.col2 in 
 (select t2.col2 from t2 
@@ -301,7 +301,7 @@ where t1.col2 in
 (select t2.col2 from t2 
 group by t2.col1, t2.col2 having col_t1 <= 10)
 having col_t1 <= 20;
-ERROR 42S22: Unknown column 'col_t1' in 'having clause'
+ERROR 42S22: Unknown column 'col_t1' in 'HAVING'
 select t1.col1 from t1
 where t1.col2 in 
 (select t2.col2 from t2 
@@ -322,7 +322,7 @@ select sum(col1) from t1
 group by col_t1
 having col_t1 in (select sum(t2.col1) from t2
 group by t2.col2, t2.col1 having t2.col1 = t1.col1);
-ERROR 42S22: Unknown column 't1.col1' in 'having clause'
+ERROR 42S22: Unknown column 't1.col1' in 'HAVING'
 select sum(col1) from t1
 group by col_t1
 having col_t1 in (select sum(t2.col1) from t2
@@ -333,10 +333,10 @@ sum(col1)
 30
 select t1.col1, t2.col1 from t1, t2 where t1.col1 = t2.col1
 group by t1.col1, t2.col1 having col1 = 2;
-ERROR 23000: Column 'col1' in having clause is ambiguous
+ERROR 23000: Column 'col1' in HAVING is ambiguous
 select t1.col1*10+t2.col1 from t1,t2 where t1.col1=t2.col1
 group by t1.col1, t2.col1 having col1 = 2;
-ERROR 23000: Column 'col1' in having clause is ambiguous
+ERROR 23000: Column 'col1' in HAVING is ambiguous
 drop table t1, t2, t3;
 create table t1 (s1 int);
 insert into t1 values (1),(2),(3);
@@ -348,8 +348,8 @@ s1
 0
 0
 Warnings:
-Warning	1052	Column 's1' in group statement is ambiguous
-Warning	1052	Column 's1' in having clause is ambiguous
+Warning	1052	Column 's1' in GROUP BY is ambiguous
+Warning	1052	Column 's1' in HAVING is ambiguous
 select s1*0 from t1 group by s1 having s1 = 0;
 s1*0
 select s1 from t1 group by 1 having 1 = 0;
@@ -362,7 +362,7 @@ count(s1)
 1
 1
 select * from t1 a, t1 b group by a.s1 having s1 is null;
-ERROR 23000: Column 's1' in having clause is ambiguous
+ERROR 23000: Column 's1' in HAVING is ambiguous
 drop table t1;
 create table t1 (s1 char character set latin1 collate latin1_german1_ci);
 insert ignore into t1 values ('ü'),('y');
@@ -524,7 +524,7 @@ ORDER BY t1.f2;
 MAX(t2.f2)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
 DROP TABLE t1,t2;
 End of 5.0 tests
 #
@@ -603,7 +603,7 @@ DROP TABLE t1,t2,t3;
 #
 # LP bug:806955 HAVING not observed with aggregate +subquery
 #
-CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10) );
+CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10)) CHARSET=latin1;
 INSERT INTO t1 VALUES (NULL,'a',0),(8,'b',0);
 CREATE TABLE t2 (f2 int);
 INSERT INTO t2 VALUES (7);
@@ -906,5 +906,141 @@ SELECT * FROM t HAVING f = 'foo';
 f
 DROP TABLE t;
 #
+# MDEV-29731 Crash when HAVING in a correlated subquery references
+#            columns in the outer query
+#
+CREATE TABLE t (a INT, b INT);
+SELECT 1 FROM t
+WHERE b = (SELECT 1 FROM t GROUP BY a HAVING b = a+1);
+1
+DROP TABLE t;
+CREATE TABLE t (a INT, b INT, c INT);
+SELECT 1 FROM t
+WHERE (b,c) = (SELECT 1,1 FROM t GROUP BY a HAVING b = a+1 and c = a-1);
+1
+DROP TABLE t;
+CREATE TABLE t (a TEXT, b INT UNIQUE);
+SELECT 1 FROM t
+WHERE b IN (SELECT 1 FROM t
+GROUP BY '', a
+HAVING (CASE b WHEN 1 +'' THEN 3 ELSE a END)
+ORDER BY b)
+GROUP BY b HAVING b = 1;
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
+DROP TABLE t;
+CREATE TABLE t (a INT, b CHAR KEY UNIQUE);
+CREATE VIEW v AS SELECT * FROM t WHERE a LIKE '' GROUP BY b HAVING a > a;
+SELECT * FROM v AS v1 NATURAL JOIN v AS v5 NATURAL JOIN v
+WHERE a LIKE '' AND b IN (SELECT a FROM t
+WHERE a LIKE ''
+                            GROUP BY a
+HAVING b LIKE (b < +1 OR a > 1) >= b);
+a	b
+DROP VIEW v;
+DROP TABLE t;
+EXECUTE IMMEDIATE 'SELECT LEAD(c) OVER (ORDER BY c)
+                   FROM (SELECT 0 AS c) AS a NATURAL JOIN (SELECT 0 AS c) AS b;';
+LEAD(c) OVER (ORDER BY c)
+NULL
+CREATE TABLE t (a INT);
+UPDATE t SET a = ''
+  WHERE 1 IN (SELECT * FROM
+(SELECT * FROM
+(SELECT * FROM t AS v5 NATURAL JOIN t AS v4 NATURAL JOIN t) AS v3
+NATURAL JOIN t
+GROUP BY a) AS v2
+WHERE (0, a) IN ((0,-1),(+1,0))
+ORDER BY 1+AVG(a) OVER (ORDER BY a)) ORDER BY a;
+DROP TABLE t;
+#
 # End of 10.4 tests
 #
+#
+# MDEV-23983: Crash caused by query containing constant having clause
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, b TEXT, c INT);
+INSERT INTO t1 VALUES (3, 7, 'b', 1), (4, 7, 'b', 1);
+SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 1;
+id	a	b	c
+3	7	b	1
+SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 2;
+id	a	b	c
+explain SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING noticed after reading const tables
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT, b TEXT, c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3, 'b', 1);
+SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 1;
+id	b	c
+3	b	1
+SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 2;
+id	b	c
+explain SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING noticed after reading const tables
+DROP TABLE t1,t2;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-35815: Crash in ASAN build due to accessing use-after-poison memory error
+#
+SET @save_optimizer_trace=@@optimizer_trace;
+SET optimizer_trace= 'enabled=on';
+CREATE TABLE t1 (col1 varchar(10));
+INSERT INTO t1 VALUES ('a'), ('b');
+CREATE VIEW v1 AS SELECT concat(col1,'boo') AS view_col FROM t1;
+PREPARE stmt FROM 'SELECT view_col AS fld FROM v1 GROUP BY fld HAVING 0 AND fld != 1';
+EXECUTE stmt;
+fld
+EXECUTE stmt;
+fld
+DROP TABLE t1;
+DROP VIEW v1;
+SET optimizer_trace= @save_optimizer_trace;
+#
+# End of 10.11 tests
+#
+#
+# MDEV-38070 wrong resultset with having and or condition
+#
+CREATE TABLE t1 ( a int, PRIMARY KEY (a)) ;
+INSERT INTO t1 values (3),(4),(5),(6),(7);
+CREATE TABLE t2 (b int , c TIMESTAMP );
+INSERT INTO t2 VALUES (1,'2025-11-06 09:24:27'),(1,'2025-11-06 09:24:27'),
+(2,'2025-11-06 09:24:27'),(2,'2025-11-06 09:24:27'),(3,'2025-11-06 09:24:27'),
+(3,'2025-11-06 09:24:27'),(4,'2025-11-06 09:24:27'),(4,'2025-11-06 09:24:27'),
+(5,'2025-11-06 09:24:27'),(5,'2025-11-06 09:24:27'),(6,'2025-11-06 09:24:27'),
+(6,'2025-11-06 09:24:27'),(7,'2025-11-06 11:24:27'),(7,'2025-11-06 11:24:27');
+SELECT t1.a, tbl.b
+FROM t1
+JOIN ( SELECT t2.b as id2,  max(t2.c) AS b FROM t2 GROUP BY t2.b ) tbl
+ON tbl.id2 = t1.a
+GROUP BY t1.a
+HAVING  (tbl.b < '2025-11-06 10:40:00');
+a	b
+3	2025-11-06 09:24:27
+4	2025-11-06 09:24:27
+5	2025-11-06 09:24:27
+6	2025-11-06 09:24:27
+DROP TABLE t1, t2;
+# End of 11.4 tests

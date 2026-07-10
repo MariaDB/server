@@ -1,5 +1,5 @@
 # Use default setting for mysqld processes
-!include include/default_mysqld.cnf
+!include include/default_my.cnf
 
 [mysqld]
 wsrep-on=OFF
@@ -9,4 +9,3 @@ wsrep-on=OFF
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
-

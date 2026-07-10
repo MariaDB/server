@@ -1,0 +1,91 @@
+#
+# MDEV-34391 Path resolution
+# Stored function tests with embedded PATH
+#
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func2() RETURNS TEXT
+BEGIN
+RETURN 'test2.func2';
+END;
+$$
+CREATE DATABASE test3;
+CREATE FUNCTION test3.func2() RETURNS TEXT
+BEGIN
+RETURN 'test3.func2';
+END;
+$$
+CREATE DATABASE test4;
+CREATE FUNCTION test4.func4() RETURNS TEXT
+BEGIN
+RETURN 'test4.func4';
+END;
+$$
+#
+# Embed a path in a stored function
+#
+SET PATH 'test2';
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+RETURN func2();
+END;
+$$
+SELECT test.func();
+test.func()
+test2.func2
+SET PATH 'test3';
+SELECT test.func();
+test.func()
+test2.func2
+DROP FUNCTION func;
+SET PATH 'CURRENT_SCHEMA';
+#
+# Ensure that multiple references are resolved properly
+#
+SET PATH 'test2';
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+RETURN CONCAT(func2(), '+', func2());
+END;
+$$
+SELECT test.func();
+test.func()
+test2.func2+test2.func2
+SET PATH 'test3';
+SELECT test.func();
+test.func()
+test2.func2+test2.func2
+DROP FUNCTION func;
+SET PATH 'CURRENT_SCHEMA';
+#
+# Use multiple schemas in embedded PATH
+#
+SET PATH 'test2,test3,test4';
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+RETURN CONCAT(func2(), '+', func2(), '+', func4());
+END;
+$$
+SELECT test.func();
+test.func()
+test2.func2+test2.func2+test4.func4
+SET PATH 'test3';
+SELECT test.func();
+test.func()
+test2.func2+test2.func2+test4.func4
+DROP FUNCTION func;
+SET PATH 'CURRENT_SCHEMA';
+#
+# Use empty PATH in stored routine (resolution should fail)
+#
+SET PATH '';
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+RETURN func2();
+END;
+$$
+SELECT func();
+Got one of the listed errors
+DROP FUNCTION func;
+DROP DATABASE test2;
+DROP DATABASE test3;
+DROP DATABASE test4;

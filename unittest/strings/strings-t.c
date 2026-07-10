@@ -52,7 +52,7 @@ test_like_range_for_charset(CHARSET_INFO *cs, const char *src, size_t src_len)
   char min_str[32], max_str[32];
   size_t min_len, max_len, min_well_formed_len, max_well_formed_len;
   int error= 0;
-  
+
   my_ci_like_range(cs, src, src_len, '\\', '_', '%',
                    sizeof(min_str),  min_str, max_str, &min_len, &max_len);
   diag("min_len=%d\tmax_len=%d\t%s", (int) min_len, (int) max_len,
@@ -144,7 +144,7 @@ typedef struct
                but not followed by a valid T2 byte.
 
   Charset H2               T2                      8BIT
-  ------- ---------------- ---------------         -------- 
+  ------- ---------------- ---------------         --------
   big5    [A1..F9]         [40..7E,A1..FE]
   euckr   [81..FE]         [41..5A,61..7A,81..FE]
   gb2312  [A1..F7]         [A1..FE]
@@ -450,6 +450,122 @@ static STRNNCOLL_PARAM strcoll_utf8mb4_general_ci[]=
 };
 
 
+
+/********** Tests for neutral UCA collations ***/
+
+/* Shared data for any strength */
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_aX_cX[]=
+{
+  {CSTR("aaaa"), CSTR("aaab"),           -1},
+  {CSTR("aaaa"), CSTR("AAAB"),           -1},
+  {CSTR("aaaa"), CSTR("AALA"),           -1},
+  {CSTR("aaaa"), CSTR("AAAL"),           -1},
+  {CSTR("aaaCh"),CSTR("AAAh"),           -1},
+  {CSTR("aaacH"),CSTR("AAAh"),           -1},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_ai_ci[]=
+{
+  {CSTR("aaaa"), CSTR("AAA" UTF8_ARING),  0},
+  {CSTR("aaaa"), CSTR("AAAA"),            0},
+  {CSTR("aala"), CSTR("AALA"),            0},
+  {CSTR("aaal"), CSTR("AAAL"),            0},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_as_ci[]=
+{
+  {CSTR("aaaa"), CSTR("AAA" UTF8_ARING), -1},
+  {CSTR("aaaa"), CSTR("AAAA"),            0},
+  {CSTR("aala"), CSTR("AALA"),            0},
+  {CSTR("aaal"), CSTR("AAAL"),            0},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_as_cs[]=
+{
+  {CSTR("aaaa"), CSTR("AAA" UTF8_ARING), -1},
+  {CSTR("aaaa"), CSTR("AAAA"),           -1},
+  {CSTR("aala"), CSTR("AALA"),           -1},
+  {CSTR("aaal"), CSTR("AAAL"),           -1},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+
+/********** Tests for Czech UCA collations ****/
+
+/* Shared data for any strength */
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_czech_aX_cX[]=
+{
+  {CSTR("aaaa"), CSTR("aaab"),           -1},
+  {CSTR("aaaa"), CSTR("AAAB"),           -1},
+  {CSTR("aaaa"), CSTR("AALA"),           -1},
+  {CSTR("aaaa"), CSTR("AAAL"),           -1},
+  {CSTR("aaaCh"),CSTR("AAAH"),            1},
+  {CSTR("aaacH"),CSTR("AAAH"),           -1},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+/********** Tests for Danish UCA collation ***/
+
+/* Shared data for any strength */
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_danish_aX_cX[]=
+{
+  {CSTR("aaaa"), CSTR("aaab"),            1},
+  {CSTR("aaaa"), CSTR(UTF8_ARING "ab"),   1},
+  {CSTR("aaaa"), CSTR("AAAB"),            1},
+  {CSTR("aaaa"), CSTR("AALA"),            1},
+  {CSTR("aaaa"), CSTR("AAAL"),            1},
+  {CSTR("aaaCh"),CSTR("AAAH"),           -1},
+  {CSTR("aaacH"),CSTR("AAAH"),           -1},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_danish_ai_ci[]=
+{
+  {CSTR("aaaa"), CSTR("AAAA"),            0},
+  {CSTR("aaAA"), CSTR("AA" UTF8_ARING),   0},
+  {CSTR("aaaa"), CSTR("AA" UTF8_ARING),   0},
+  {CSTR("aaaA"), CSTR("AA" UTF8_ARING),  -1},
+  {CSTR("aaal"), CSTR("AAAL"),            0},
+  {CSTR("aaal"), CSTR(UTF8_ARING "AL"),   0},
+  {CSTR("Aaal"), CSTR(UTF8_ARING "AL"),   0},
+  {CSTR("AAal"), CSTR(UTF8_ARING "AL"),   0},
+  {CSTR("aAal"), CSTR(UTF8_ARING "AL"),  -1},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_danish_as_ci[]=
+{
+  {CSTR("aaaa"), CSTR("AA" UTF8_ARING),   1},
+  {CSTR("aaaa"), CSTR("AAA" UTF8_ARING),  1},
+  {CSTR("aaaa"), CSTR("AAAA"),            0},
+  {CSTR("aala"), CSTR("AALA"),            0},
+  {CSTR("aala"), CSTR(UTF8_ARING "LA"),   1},
+  {CSTR("aaal"), CSTR("AAAL"),            0},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
+static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_danish_as_cs[]=
+{
+  {CSTR("aaaa"), CSTR("AAAA"),           -1},
+  {CSTR("aaaa"), CSTR("aaAa"),           -1},
+  {CSTR("aaAa"), CSTR("aaAA"),           -1},
+  {CSTR("aala"), CSTR("AALA"),           -1},
+  {CSTR("aaal"), CSTR("AAAL"),           -1},
+  {NULL, 0, NULL, 0, 0}
+};
+
+
 static STRNNCOLL_PARAM strcoll_ucs2_common[]=
 {
   {CSTR("\xC0"),     CSTR("\xC1"),        -1},    /* Incomlete MB2 vs incomplete MB2 */
@@ -623,7 +739,7 @@ str2hex(char *dst, size_t dstlen, const char *src, size_t srclen)
   const char *srcend= src + srclen;
   for (*dst= '\0' ; dst + 3 < dstend && src < srcend; )
   {
-    sprintf(dst, "%02X", (unsigned char) src[0]);
+    snprintf(dst, dstend - dst, "%02X", (unsigned char) src[0]);
     dst+=2;
     src++;
   }
@@ -677,6 +793,20 @@ strcollsp(CHARSET_INFO *cs, const STRNNCOLL_PARAM *param)
     }
   }
   return failed;
+}
+
+
+static int
+strcollsp_by_name(const char *collation, const STRNNCOLL_PARAM *param)
+{
+  CHARSET_INFO *cs= get_charset_by_name(collation, MYF(0));
+
+  if (!cs)
+  {
+    diag("get_charset_by_name() failed");
+    return 1;
+  }
+  return strcollsp(cs, param);
 }
 
 
@@ -779,6 +909,34 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_common);
   failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb4_general_ci);
   failed+= strcollsp(&my_charset_utf8mb4_bin,                 strcoll_utf8mb4_common);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_ai_ci",         strcoll_utf8mb4_uca1400_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_ai_ci",         strcoll_utf8mb4_uca1400_ai_ci);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_as_ci",         strcoll_utf8mb4_uca1400_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_as_ci",         strcoll_utf8mb4_uca1400_as_ci);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_as_cs",         strcoll_utf8mb4_uca1400_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_as_cs",         strcoll_utf8mb4_uca1400_as_cs);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_czech_ai_ci",   strcoll_utf8mb4_uca1400_czech_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_czech_ai_ci",   strcoll_utf8mb4_uca1400_ai_ci);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_czech_as_ci",   strcoll_utf8mb4_uca1400_czech_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_czech_as_ci",   strcoll_utf8mb4_uca1400_as_ci);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_czech_as_cs",   strcoll_utf8mb4_uca1400_czech_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_czech_as_cs",   strcoll_utf8mb4_uca1400_as_cs);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_danish_ai_ci",  strcoll_utf8mb4_uca1400_danish_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_danish_ai_ci",  strcoll_utf8mb4_uca1400_danish_ai_ci);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_danish_as_ci",  strcoll_utf8mb4_uca1400_danish_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_danish_as_ci",  strcoll_utf8mb4_uca1400_danish_as_ci);
+
+  failed+= strcollsp_by_name("utf8mb4_uca1400_danish_as_cs",  strcoll_utf8mb4_uca1400_danish_aX_cX);
+  failed+= strcollsp_by_name("utf8mb4_uca1400_danish_as_cs",  strcoll_utf8mb4_uca1400_danish_as_cs);
+
 #endif
   return failed;
 }
@@ -1166,6 +1324,19 @@ static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_unicode_ci[]=
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                   4,  TCHAR,  0},
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100,  TCHAR,  0},
 
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 2,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 3,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},               100,  TCHAR,  0},
+
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 2,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 3,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 4,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},               100,  TCHAR,  0},
+
   {{NULL, 0},                {NULL, 0},                         0,    0,  0}
 };
 
@@ -1192,6 +1363,19 @@ static STRNNCOLLSP_CHAR_PARAM strnncollsp_char_utf8mb3_unicode_nopad_ci[]=
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                   3,  TVCHAR,  0},
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                   4,  TVCHAR,  0},
   {{CSTR("ss")},             {CSTR(UTF8_sz)},                 100,  TVCHAR,  0},
+
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 2,  TCHAR,  -1},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},                 3,  TCHAR,  0},
+  {{CSTR("a" "\x01")},       {CSTR(UTF8_auml)},               100,  TCHAR,  0},
+
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 0,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 1,  TCHAR,  0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 2,  TCHAR,  -1},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 3,  TCHAR,  -1},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},                 4,  TCHAR,   0},
+  {{CSTR("a" "\x01\x01")},   {CSTR(UTF8_auml)},               100,  TCHAR,   0},
 
   {{NULL, 0},                {NULL, 0},                         0,    0,  0}
 };
@@ -1353,7 +1537,7 @@ strnncollsp_char_one(CHARSET_INFO *cs, const STRNNCOLLSP_CHAR_PARAM *p)
   str2hex(ahex, sizeof(ahex), p->a.str, p->a.length);
   str2hex(bhex, sizeof(bhex), p->b.str, p->b.length);
   diag("%-25s %-12s %-12s %3d %7d %7d%s",
-       cs->cs_name.str, ahex, bhex, (int) p->nchars, p->res, res,
+       cs->coll_name.str, ahex, bhex, (int) p->nchars, p->res, res,
        eqres(res, p->res) ? "" : " FAILED");
   if (!eqres(res, p->res))
   {
@@ -1528,7 +1712,7 @@ int main(int ac, char **av)
 
   plan(4);
   diag("Testing my_like_range_xxx() functions");
-  
+
   for (i= 0; i < array_elements(charset_list); i++)
   {
     CHARSET_INFO *cs= charset_list[i];

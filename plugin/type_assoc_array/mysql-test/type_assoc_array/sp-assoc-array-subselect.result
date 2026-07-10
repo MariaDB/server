@@ -1,0 +1,82 @@
+SET sql_mode=oracle;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+#
+# Scalar elements + subselect
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF INT INDEX BY INT;
+assoc assoc_t;
+counter INT := 0;
+BEGIN
+FOR i IN 0..999
+LOOP
+assoc(i):= (SELECT seq FROM seq_1_to_1000 WHERE seq=i);
+END LOOP;
+FOR i IN 0..998
+LOOP
+assoc(i):= (SELECT seq FROM seq_1_to_1000 WHERE seq=assoc(i+1));
+END LOOP;
+assoc(999):= 1000;
+FOR i IN 0..999
+LOOP
+IF (assoc(i) <> i + 1)
+THEN
+SELECT 'Something went wrong: key="' || i || '"'
+             ' value="' || assoc(i) || '"' AS err;
+ELSE
+counter:= counter + 1;
+END IF;
+END LOOP;
+SELECT counter || ' records matched' AS note;
+END;
+$$
+CALL p1;
+note
+1000 records matched
+DROP PROCEDURE p1;
+#
+# Record elements + subselect
+#
+CREATE PROCEDURE p1 AS
+TYPE rec_t IS RECORD
+(
+a INT,
+b INT
+);
+TYPE assoc_t IS TABLE OF rec_t INDEX BY INT;
+assoc assoc_t;
+counter INT := 0;
+BEGIN
+FOR i IN 0..999
+LOOP
+assoc(i):= rec_t((SELECT seq FROM seq_1_to_1000 WHERE seq=i),
+(SELECT seq FROM seq_1_to_1000 WHERE seq=i));
+END LOOP;
+FOR i IN 0..998
+LOOP
+assoc(i).a:= (SELECT assoc(i+1).a FROM seq_1_to_1000 WHERE seq=assoc(i+1).a);
+assoc(i).b:= (SELECT assoc(i+1).b FROM seq_1_to_1000 WHERE seq=assoc(i+1).b);
+END LOOP;
+assoc(999):= rec_t(1000,1000);
+FOR i IN 0..999
+LOOP
+IF (assoc(i).a <> (i + 1) OR assoc(i).b <> (i + 1))
+THEN
+SELECT 'Something went wrong: key="' || i || '"'
+             ' value="' ||
+assoc(i).a || ' ' ||
+assoc(i).b ||
+'"' AS err;
+ELSE
+counter:= counter + 1;
+END IF;
+END LOOP;
+SELECT counter || ' records matched' AS note;
+END;
+$$
+CALL p1;
+note
+1000 records matched
+DROP PROCEDURE p1;

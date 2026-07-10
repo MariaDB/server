@@ -1,5 +1,5 @@
-SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
@@ -78,9 +78,7 @@ c7 VARCHAR(257) CHARACTER SET latin1,
 c8 VARCHAR(257) CHARACTER SET binary
 ) ENGINE=InnoDB;
 INSERT INTO t9 () VALUES ();
-ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL KEY;
-Warnings:
-Note	1061	Multiple primary key defined
+ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml';
 OPTIMIZE TABLE t9;
 connection dml;
@@ -182,7 +180,7 @@ ROLLBACK;
 connection stop_purge;
 COMMIT;
 connection default;
-InnoDB		2 transactions not purged
+InnoDB		1 transactions not purged
 SET DEBUG_SYNC='now SIGNAL logged';
 connection ddl;
 connection default;
@@ -279,12 +277,6 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
 INSERT INTO t1 VALUES (1),(5),(4),(3),(2);
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
 ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
-SET @old_defragment = @@innodb_defragment;
-SET GLOBAL innodb_defragment = 1;
-OPTIMIZE TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	optimize	status	OK
-SET GLOBAL innodb_defragment = @old_defragment;
 ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -479,10 +471,59 @@ SET DEBUG_SYNC="now WAIT_FOR try_insert";
 INSERT INTO t1 VALUES(1, 2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC="now SIGNAL alter_progress";
-disconnect con1;
 connection default;
 DROP TABLE t1;
+#
+#  MDEV-26198 Assertion `0' failed in row_log_table_apply_op during
+#                ADD PRIMARY KEY or OPTIMIZE TABLE
+#
+CREATE TABLE t1(f1 year default null, f2 year default null,
+f3 text, f4 year default null, f5 year default null,
+f6 year default null, f7 year default null,
+f8 year default null)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, 1, 1, 1, 1, 1, 1);
+ALTER TABLE t1 ADD COLUMN f9 year default null, ALGORITHM=INPLACE;
+set DEBUG_SYNC="row_log_table_apply1_before SIGNAL con1_insert WAIT_FOR con1_finish";
+ALTER TABLE t1 ADD COLUMN f10 YEAR DEFAULT NULL, FORCE, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_insert";
+INSERT IGNORE INTO t1 (f3) VALUES ( 'b' );
+INSERT IGNORE INTO t1 (f3) VALUES ( 'l' );
+SET DEBUG_SYNC="now SIGNAL con1_finish";
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-19044 Alter table corrupts while applying the
+#             modification log
+#
+CREATE TABLE t1 (
+f1 INT,
+f2 INT,
+f3 char(19) CHARACTER SET utf8mb3,
+f4 VARCHAR(500),
+f5 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(3, 1, REPEAT('a', 2), REPEAT("b", 20),'a');
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(1, 2, REPEAT('InnoDB', 2),
+REPEAT("MariaDB", 20), REPEAT('a', 8000), 12);
+INSERT INTO t1 VALUES(1, 2, REPEAT('MYSQL', 2),
+REPEAT("MariaDB", 20), REPEAT('a', 8000), 12);
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL con1_begin WAIT_FOR con1_update';
+ALTER TABLE t1 MODIFY COLUMN f2 INT NOT NULL, FORCE, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR con1_begin';
+UPDATE t1 SET f2=204 order by f1 limit 2;
+SET DEBUG_SYNC='now SIGNAL con1_update';
+connection default;
+disconnect con1;
 SET DEBUG_SYNC=reset;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
 # End of 10.4 tests
 #
 # MDEV-22867 Assertion instant.n_core_fields == n_core_fields
@@ -523,9 +564,21 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 # End of 10.5 tests
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-35
+37
+CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'a');
+ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;
+SET STATEMENT DEBUG_DBUG="+d,instant_insert_fail" FOR
+ALTER TABLE t1 DROP COLUMN f1;
+ERROR HY000: Internal error: InnoDB: Insert into SYS_COLUMNS failed
+ALTER TABLE t1 DROP COLUMN f1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+# End of 10.6 tests

@@ -16,10 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_class.h"
 #include "partition_element.h"
 #include "sql_partition.h"
@@ -184,7 +180,7 @@ public:
     * lock_partitions  - partitions that must be locked (read or write).
     Usually read_partitions is the same set as lock_partitions, but
     in case of UPDATE the WHERE clause can limit the read_partitions set,
-    but not neccesarily the lock_partitions set.
+    but not necessarily the lock_partitions set.
     Usage pattern:
     * Initialized in ha_partition::open().
     * read+lock_partitions is set  according to explicit PARTITION,
@@ -283,7 +279,12 @@ public:
     {
       KEY_ALGORITHM_NONE= 0,
       KEY_ALGORITHM_51= 1,
-      KEY_ALGORITHM_55= 2
+      KEY_ALGORITHM_55= 2,
+      KEY_ALGORITHM_BASE31,
+      KEY_ALGORITHM_CRC32C,
+      KEY_ALGORITHM_XXH32,
+      KEY_ALGORITHM_XXH3,
+      KEY_ALGORITHM_END
     };
   enum_key_algorithm key_algorithm;
 
@@ -393,11 +394,13 @@ public:
   bool check_partition_field_length();
   bool init_column_part(THD *thd);
   bool add_column_list_value(THD *thd, Item *item);
-  partition_element *get_part_elem(const char *partition_name, char *file_name,
+  partition_element *get_part_elem(const Lex_ident_partition &partition_name,
+                                   char *file_name,
                                    size_t file_name_size, uint32 *part_id);
   void report_part_expr_error(bool use_subpart_expr);
   bool has_same_partitioning(partition_info *new_part_info);
   bool error_if_requires_values() const;
+  bool set_key_algorithm(const LEX_CSTRING *str);
 private:
   bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
                                  uint start_no);
@@ -490,7 +493,13 @@ bool partition_info::vers_fix_field_list(THD * thd)
     return true;
   }
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+  if (!table->versioned(VERS_TIMESTAMP))
+  {
+    my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0),
+             table->vers_start_field()->field_name.str,
+             "TIMESTAMP(6)", table->s->table_name.str);
+    return true;
+  }
 
   Field *row_end= table->vers_end_field();
   // needed in handle_list_of_fields()
@@ -526,11 +535,13 @@ void partition_info::vers_update_el_ids()
 }
 
 
-inline
-bool make_partition_name(char *move_ptr, uint i)
+static inline
+Lex_ident_partition make_partition_name(char *move_ptr, uint i)
 {
   int res= snprintf(move_ptr, MAX_PART_NAME_SIZE + 1, "p%u", i);
-  return res < 0 || res > MAX_PART_NAME_SIZE;
+  return res < 0 || res > MAX_PART_NAME_SIZE ?
+         Lex_ident_partition() :
+         Lex_ident_partition(move_ptr, (size_t) res);
 }
 
 
@@ -549,15 +560,16 @@ uint partition_info::next_part_no(uint new_parts) const
   for (uint cur_part= 0; cur_part < new_parts; ++cur_part, ++suffix)
   {
     uint32 cur_suffix= suffix;
-    if (make_partition_name(part_name, suffix))
+    Lex_ident_partition part_name_ls(make_partition_name(part_name, suffix));
+    if (!part_name_ls.str)
       return 0;
     partition_element *el;
     it.rewind();
     while ((el= it++))
     {
-      if (0 == my_strcasecmp(&my_charset_latin1, el->partition_name, part_name))
+      if (el->partition_name.streq(part_name_ls))
       {
-        if (make_partition_name(part_name, ++suffix))
+        if (!(part_name_ls= make_partition_name(part_name, ++suffix)).str)
           return 0;
         it.rewind();
       }
@@ -568,5 +580,28 @@ uint partition_info::next_part_no(uint new_parts) const
   return suffix - new_parts;
 }
 #endif
+
+
+class partition_element_iterator
+{
+  static List<partition_element> empty;
+  List_iterator_fast<partition_element> part_it, subpart_it;
+  public:
+  partition_element_iterator(List<partition_element> &partitions) :
+    part_it(partitions), subpart_it(empty) {}
+  partition_element *operator++(int)
+  {
+    partition_element *sub= subpart_it++;
+    if (sub)
+      return sub;
+    partition_element *part= part_it++;
+    if (!part)
+      return NULL;
+    subpart_it.init(part->subpartitions);
+    sub= subpart_it++;
+    return sub ? sub : part;
+  }
+};
+
 
 #endif /* PARTITION_INFO_INCLUDED */

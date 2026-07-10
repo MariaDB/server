@@ -31,17 +31,17 @@ public:
   { }
   ~Wsrep_condition_variable() = default;
 
-  void notify_one()
+  void notify_one() override
   {
     mysql_cond_signal(m_cond);
   }
 
-  void notify_all()
+  void notify_all() override
   {
     mysql_cond_broadcast(m_cond);
   }
 
-  void wait(wsrep::unique_lock<wsrep::mutex>& lock)
+  void wait(wsrep::unique_lock<wsrep::mutex>& lock) override
   {
     mysql_mutex_t* mutex= static_cast<mysql_mutex_t*>(lock.mutex()->native());
     mysql_cond_wait(m_cond, mutex);

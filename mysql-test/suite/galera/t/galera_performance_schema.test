@@ -5,6 +5,9 @@
 --source include/galera_cluster.inc
 --source include/have_perfschema.inc
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 use performance_schema;
 
 --vertical_results
@@ -22,6 +25,7 @@ insert into t1 values (1),(2);
 use performance_schema;
 select name from mutex_instances where name like 'wait/synch/mutex/sql/LOCK_wsrep%' order by name;
 select name from cond_instances where name like 'wait/synch/cond/sql/COND_wsrep%' order by name;
+
 # Whenever a node fails to apply an event on a slave node, the database server creates a
 # special binary log file of the event in the data directory. The naming convention the
 # node uses for the filename is GRA_*.log.
@@ -55,4 +59,3 @@ CALL mtr.add_suppression("Slave SQL: Error 'Table 't2' already exists' on query"
 use test;
 drop table t1;
 drop table t2;
-

@@ -1,0 +1,14 @@
+--echo #
+--echo # MDEV-24815 Show "--allow-suspicious-udfs" state in SYSTEM VARIABLES
+--echo #
+
+SELECT @@allow_suspicious_udfs AS EXPECT_0;
+
+# Restart the server the server with "--allow-suspicious-udfs" option
+--let $restart_parameters = --allow-suspicious-udfs
+--source include/restart_mysqld.inc
+SELECT @@allow_suspicious_udfs AS EXPECT_1;
+
+# Disable "--allow-suspicious-udfs" to restore the original state
+--let $restart_parameters = --skip-allow-suspicious-udfs
+--source include/restart_mysqld.inc

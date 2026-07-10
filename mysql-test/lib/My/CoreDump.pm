@@ -352,7 +352,7 @@ sub _cdb {
   my $image_path= join(";", (keys %dirhash),".");
 
   # For better callstacks, setup _NT_SYMBOL_PATH to include
-  # OS symbols. Note : Dowloading symbols for the first time 
+  # OS symbols. Note : Downloading symbols for the first time
   # can take some minutes
   if (!$ENV{'_NT_SYMBOL_PATH'})
   {
@@ -382,7 +382,7 @@ sub _cdb {
   return unless $cdb_output;
   
   # Remove comments (lines starting with *), stack pointer and frame 
-  # pointer adresses and offsets to function to make output better readable
+  # pointer addresses and offsets to function to make output better readable
   $cdb_output=~ s/^\*.*\n//gm;   
   $cdb_output=~ s/^([\:0-9a-fA-F\`]+ )+//gm; 
   $cdb_output=~ s/^ChildEBP RetAddr//gm;

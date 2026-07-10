@@ -9,7 +9,7 @@
 # after the file mariadb.service itself is parsed.
 #
 # For more info about custom unit files, see systemd.unit(5) or
-# https://mariadb.com/kb/en/mariadb/systemd/
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 #
 # Copyright notice:
 #
@@ -21,7 +21,7 @@
 [Unit]
 Description=MariaDB @VERSION@ database server
 Documentation=man:mariadbd(8)
-Documentation=https://mariadb.com/kb/en/library/systemd/
+Documentation=https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 After=network.target
 
 [Install]
@@ -48,14 +48,8 @@ User=mysql
 Group=mysql
 
 # CAP_IPC_LOCK To allow memlock to be used as non-root user
-# CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
-#   does nothing for non-root, not needed if /etc/shadow is u+r
-# CAP_AUDIT_WRITE auth_pam_tool needs it on Debian for whatever reason
-CapabilityBoundingSet=CAP_IPC_LOCK CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
-
-# PrivateDevices=true implies NoNewPrivileges=true and
-# SUID auth_pam_tool suddenly doesn't do setuid anymore
-PrivateDevices=false
+# These are enabled by default
+AmbientCapabilities=CAP_IPC_LOCK
 
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
@@ -65,36 +59,19 @@ ProtectSystem=full
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
 
+# Restrict modifications of cgroups from the MariaDB service context.
+ProtectControlGroups=true
+
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Execute pre and post scripts as root, otherwise it does it as User=
-PermissionsStartOnly=true
-
-@SYSTEMD_EXECSTARTPRE@
-
-# Perform automatic wsrep recovery. When server is started without wsrep,
-# galera_recovery simply returns an empty string. In any case, however,
-# the script is not expected to return with a non-zero status.
-# It is always safe to unset _WSREP_START_POSITION environment variable.
-# Do not panic if galera_recovery script is not available. (MDEV-10538)
-ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
-ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`cd @bindir@/..; @bindir@/galera_recovery`; [ $? -eq 0 ] \
- && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
-
 # Needed to create system tables etc.
-# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
+# ExecStartPre=@scriptdir@/mariadb-install-db
 
 # Start main service
-# MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
-# Use the [Service] section and Environment="MYSQLD_OPTS=...".
-# This isn't a replacement for my.cnf.
-# _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
-ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
-
-# Unset _WSREP_START_POSITION environment variable.
-ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
+# MYSQLD_OPTS as a user environment variable is deprecated.
+# Please put equivalent configuration in the MariaDB configuration files.
+ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS
 
 @SYSTEMD_EXECSTARTPOST@
 
@@ -105,7 +82,7 @@ SendSIGKILL=no
 
 # Restart crashed server only, on-failure would also restart, for example, when
 # my.cnf contains unknown option
-Restart=on-abort
+Restart=on-abnormal
 RestartSec=5s
 
 UMask=007
@@ -134,9 +111,15 @@ PrivateTmp=false
 # Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
 # this is the same value as used in SysV init scripts in the past
 # Galera might need a longer timeout, check the KB if you want to change this:
-# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 TimeoutStartSec=900
 TimeoutStopSec=900
+
+# Set the maximium number of tasks (threads) to 99% of what the system can
+# handle as set by the kernel, reserve the 1% for a remote ssh connection,
+# some monitoring, or that backup cron job. Without the directive this would
+# be 15% (see DefaultTasksMax in systemd man pages).
+TasksMax=99%
 
 ##
 ## Options previously available to be set via [mysqld_safe]
@@ -158,7 +141,7 @@ LimitNOFILE=32768
 
 # Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
 # (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
-# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD="
 
 # Flush caches. previously [mysqld_safe] flush-caches=1
 # ExecStartPre=sync

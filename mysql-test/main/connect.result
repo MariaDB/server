@@ -1,4 +1,3 @@
-SET global secure_auth=0;
 connect  con1,localhost,root,,mysql;
 show tables;
 Tables_in_mysql
@@ -100,74 +99,17 @@ connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail_con,localhost,test,zorro,;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 # switching from mysql.global_priv to mysql.user
-update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
-flush privileges;
-show grants for test@localhost;
-Grants for test@localhost
-GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
-update mysql.user set plugin='mysql_old_password' where user='test';
-flush privileges;
-show grants for test@localhost;
-Grants for test@localhost
-GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
-connect  con10,localhost,test,gambling2,;
-connect  con5,localhost,test,gambling2,mysql;
-set password="";
-set password='gambling3';
-ERROR HY000: Password hash should be a 41-digit hexadecimal number
-set password=old_password('gambling3');
-show tables;
-Tables_in_mysql
-column_stats
-columns_priv
-db
-event
-func
-general_log
-global_priv_bak
-gtid_slave_pos
-help_category
-help_keyword
-help_relation
-help_topic
-index_stats
-innodb_index_stats
-innodb_table_stats
-plugin
-proc
-procs_priv
-proxies_priv
-roles_mapping
-servers
-slow_log
-table_stats
-tables_priv
-time_zone
-time_zone_leap_second
-time_zone_name
-time_zone_transition
-time_zone_transition_type
-transaction_registry
-user
-user_bak
-connect  con6,localhost,test,gambling3,test;
-show tables;
-Tables_in_test
-connection default;
-disconnect con10;
-disconnect con5;
-disconnect con6;
 connect(localhost,test,,test2,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,,test2;
+connect  fail_con,localhost,test,,test2,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
 connect(localhost,test,,test,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,,;
+connect  fail_con,localhost,test,,,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
 connect(localhost,test,zorro,test2,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,zorro,test2;
+connect  fail_con,localhost,test,zorro,test2,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,zorro,;
+connect  fail_con,localhost,test,zorro,,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 # switching back from mysql.user to mysql.global_priv
 delete from mysql.user where user=_binary"test";
@@ -275,15 +217,13 @@ disconnect tmp_con7;
 # -- Restoring default connection...
 connect  default,localhost,root,,test;
 
-# -- Waiting for connections to close...
-
 DROP USER mysqltest_u1@localhost;
 
 # -- End of Bug#33507.
 
 # -- Bug#35074: max_used_connections is not correct.
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 SHOW STATUS LIKE 'max_used_connections';
 Variable_name	Value
@@ -341,7 +281,6 @@ disconnect extracon;
 disconnect extracon2;
 connection default;
 CREATE USER mysqltest_up1 IDENTIFIED VIA mysql_native_password using '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB';
-CREATE USER mysqltest_up2 IDENTIFIED VIA mysql_old_password using '09301740536db389';
 connect(localhost,mysqltest_up1,foo,test,MASTER_PORT,MASTER_SOCKET);
 connect pcon1,localhost,mysqltest_up1,foo,,$MASTER_MYPORT,;
 ERROR 28000: Access denied for user 'mysqltest_up1'@'localhost' (using password: YES)
@@ -350,14 +289,6 @@ select user(), current_user();
 user()	current_user()
 mysqltest_up1@localhost	mysqltest_up1@%
 disconnect pcon2;
-connect(localhost,mysqltest_up2,newpw,test,MASTER_PORT,MASTER_SOCKET);
-connect pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,;
-ERROR 28000: Access denied for user 'mysqltest_up2'@'localhost' (using password: YES)
-connect pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,;
-select user(), current_user();
-user()	current_user()
-mysqltest_up2@localhost	mysqltest_up2@%
-disconnect pcon4;
 connect(localhost,mysqltest_nouser,newpw,test,MASTER_PORT,MASTER_SOCKET);
 connect pcon5,localhost,mysqltest_nouser,newpw,,$MASTER_MYPORT,;
 ERROR 28000: Access denied for user 'mysqltest_nouser'@'localhost' (using password: YES)
@@ -367,27 +298,19 @@ ERROR 28000: Access denied for user 'mysqltest_nouser'@'localhost' (using passwo
 connection default;
 # switching from mysql.global_priv to mysql.user
 update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
-update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
 select user, password, plugin, authentication_string from mysql.user
 where user like 'mysqltest_up_';
 user	password	plugin	authentication_string
 mysqltest_up1	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB	mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
-mysqltest_up2	09301740536db389	mysql_old_password	09301740536db389
 flush privileges;
 connect pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,;
 select user(), current_user();
 user()	current_user()
 mysqltest_up1@localhost	mysqltest_up1@%
 disconnect pcon6;
-connect pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,;
-select user(), current_user();
-user()	current_user()
-mysqltest_up2@localhost	mysqltest_up2@%
-disconnect pcon7;
 connection default;
 # switching back from mysql.user to mysql.global_priv
 DROP USER mysqltest_up1@'%';
-DROP USER mysqltest_up2@'%';
 #
 # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
 #
@@ -411,14 +334,13 @@ test
 test
 test
 drop procedure p1;
-SET global secure_auth=default;
 #
 # MDEV-19282: Log more specific warning with log_warnings=2 if
 # connection is aborted prior to authentication
 # MDEV-19277: Add status variable that gets incremented if
 # connection is aborted prior to authentication
 #
-flush status;
+flush global status;
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
 Aborted_connects	0
@@ -444,3 +366,33 @@ FOUND 2 /This connection closed normally without authentication/ in mysqld.1.err
 SET GLOBAL log_warnings=default;
 SET GLOBAL connect_timeout= @save_connect_timeout;
 # End of 10.4 tests
+#
+# MDEV-33990: SHOW STATUS counts ER_CON_COUNT_ERROR as
+# Connection_errors_internal
+#
+flush status;
+show global status like 'Connection_errors%';
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	0
+Connection_errors_peer_address	0
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+show global status like 'Threads_connected';
+Variable_name	Value
+Threads_connected	1
+set @max_con.save= @@max_connections;
+set global max_connections= 10;
+# ERROR 1040
+# ERROR 1040
+show global status like 'Connection_errors%';
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	2
+Connection_errors_peer_address	0
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+set global max_connections= @max_con.save;
+# End of 10.5 tests

@@ -1,0 +1,58 @@
+set
+@tmp_switch_sarg_casefold=@@optimizer_switch,
+optimizer_switch='sargable_casefold=on';
+create table t1 (
+s1 varchar(15) collate utf8mb3_bin,
+s2 varchar(15) collate utf8mb3_general_ci
+) partition by key (s2) partitions 4;
+insert into t1 values ('aa','aa'),('bb','bb');
+explain format=json select * from t1 where upper(s2)='AA';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["p2"],
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+explain format=json delete from t1 where upper(s2)='AA';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "partitions": ["p2"],
+      "access_type": "ALL",
+      "rows": 1,
+      "attached_condition": "t1.s2 = 'AA'"
+    }
+  }
+}
+explain format=json update t1 set s1='aaa' where upper(s2)='AA';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "partitions": ["p2"],
+      "access_type": "ALL",
+      "rows": 1,
+      "attached_condition": "t1.s2 = 'AA'"
+    }
+  }
+}
+drop table t1;
+set optimizer_switch=@tmp_switch_sarg_casefold;

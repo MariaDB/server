@@ -12,7 +12,7 @@ Who  CHAR(10) NOT NULL,
 Week INT(2) NOT NULL,
 What CHAR(12) NOT NULL,
 Amount DOUBLE(8,2))
-ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
 SELECT * FROM expenses;
 
 --echo #
@@ -24,7 +24,7 @@ Week INT(2) NOT NULL,
 Beer DOUBLE(8,2) FLAG=1,
 Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=expenses;
 --replace_result $PORT PORT
 --eval ALTER TABLE pivex OPTION_LIST='port=$PORT'
 SELECT * FROM pivex;
@@ -45,7 +45,7 @@ Week INT(2) NOT NULL,
 Beer DOUBLE(8,2) FLAG=1,
 Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT
 SRCDEF='select who, week, what, sum(amount) as amount from expenses where week in (4,5) group by who, week, what';
 --replace_result $PORT PORT
 --eval ALTER TABLE pivex OPTION_LIST='PivotCol=what,FncCol=amount,port=$PORT'
@@ -61,13 +61,13 @@ What CHAR(12) NOT NULL,
 `3` DOUBLE(8,2) FLAG=1,
 `4` DOUBLE(8,2) FLAG=1,
 `5` DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=expenses;
 --replace_result $PORT PORT
 --eval ALTER TABLE pivex OPTION_LIST='PivotCol=Week,port=$PORT'
 SELECT * FROM pivex;
 
 --echo #
---echo # Using scalar functions and expresssions
+--echo # Using scalar functions and expressions
 --echo #
 DROP TABLE pivex;
 CREATE TABLE pivex (
@@ -76,7 +76,7 @@ What CHAR(12) NOT NULL,
 First  DOUBLE(8,2) FLAG=1,
 Middle DOUBLE(8,2) FLAG=1,
 Last   DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT
 SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Last'' else ''Middle'' end as wk, sum(amount) * 6.56 as amnt from expenses group by who, what, wk';
 --replace_result $PORT PORT
 --eval ALTER TABLE pivex OPTION_LIST='PivotCol=wk,FncCol=amnt,port=$PORT'
@@ -112,7 +112,7 @@ cat    INT NOT NULL DEFAULT 0 FLAG=1,
 rabbit INT NOT NULL DEFAULT 0 FLAG=1,
 bird   INT NOT NULL DEFAULT 0 FLAG=1,
 fish   INT NOT NULL DEFAULT 0 FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
 SELECT * FROM pivet;
 DROP TABLE pivet;
 
@@ -123,7 +123,7 @@ CREATE TABLE pivet (
 name VARCHAR(12) NOT NULL,
 dog  INT NOT NULL DEFAULT 0 FLAG=1,
 cat  INT NOT NULL DEFAULT 0 FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
 --error ER_GET_ERRMSG
 SELECT * FROM pivet;
 ALTER TABLE pivet OPTION_LIST='PivotCol=race,groupby=1,accept=1';
@@ -138,7 +138,7 @@ name VARCHAR(12) NOT NULL,
 dog   INT NOT NULL DEFAULT 0 FLAG=1,
 cat   INT NOT NULL DEFAULT 0 FLAG=1,
 other INT NOT NULL DEFAULT 0 FLAG=2)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
 SELECT * FROM pivet;
 
 DROP TABLE pivet;
@@ -155,7 +155,7 @@ CREATE TABLE fruit (
 ) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
 INSERT INTO fruit VALUES (1,'apple',1),(2,'banana',1),(3,'apple',2),(4,'cherry',4),(5,'durazno',2);
 SELECT * FROM fruit;
-CREATE TABLE fruit_pivot ENGINE=CONNECT TABLE_TYPE=pivot TABNAME=fruit;
+CREATE TABLE fruit_pivot ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=pivot TABNAME=fruit;
 SELECT * FROM fruit_pivot;
 
 DROP TABLE fruit_pivot;

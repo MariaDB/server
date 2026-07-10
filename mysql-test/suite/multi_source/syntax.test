@@ -45,10 +45,10 @@ sync_with_master 0, '';
 --echo #
 select @@default_master_connection;
 
---error 1238
 select @@global.default_master_connection;
---error 1228
 set @@global.default_master_connection='qqq';
+select @@global.default_master_connection;
+set @@global.default_master_connection='';
 --error 1231
 set @@default_master_connection='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
 select @@default_master_connection;

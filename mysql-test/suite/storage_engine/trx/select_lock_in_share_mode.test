@@ -8,12 +8,6 @@
 --source ../have_engine.inc
 --source support_transactions.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
---source include/count_sessions.inc
-
 --source ../create_table.inc
 INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'a');
 
@@ -75,6 +69,5 @@ SELECT a,b FROM t1;
 
 DROP TABLE t1;
 
---source include/wait_until_count_sessions.inc
 --source ../cleanup_engine.inc
 

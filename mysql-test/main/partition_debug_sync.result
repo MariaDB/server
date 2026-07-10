@@ -67,4 +67,4 @@ SET DEBUG_SYNC= 'RESET';
 disconnect con1;
 connection default;
 SET DEBUG_SYNC= 'RESET';
-End of 5.1 tests
+# End of 5.1 tests

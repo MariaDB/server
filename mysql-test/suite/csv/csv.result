@@ -5002,12 +5002,24 @@ connection default;
 disconnect con1;
 disconnect con2;
 CREATE TABLE test_repair_table ( val integer not null ) ENGINE = CSV;
+INSERT into test_repair_table values (1),(2);
 CHECK TABLE test_repair_table;
 Table	Op	Msg_type	Msg_text
 test.test_repair_table	check	status	OK
 REPAIR TABLE test_repair_table;
 Table	Op	Msg_type	Msg_text
 test.test_repair_table	repair	status	OK
+SELECT * from test_repair_table;
+val
+1
+2
+REPAIR TABLE test_repair_table USE_FRM;
+Table	Op	Msg_type	Msg_text
+test.test_repair_table	repair	status	OK
+SELECT * from test_repair_table;
+val
+1
+2
 DROP TABLE test_repair_table;
 CREATE TABLE test_repair_table2 ( val integer not null ) ENGINE = CSV;
 SELECT * from test_repair_table2;

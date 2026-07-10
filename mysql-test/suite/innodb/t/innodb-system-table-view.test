@@ -4,18 +4,21 @@
 
 --source include/innodb_page_size_small.inc
 
-SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
 
 # The IDs of mysql.innodb_table_stats and mysql.innodb_index_stats may
 # vary depending on whether the tables have been rebuilt
 # by previously run tests.
+--disable_cursor_protocol
 SELECT table_id INTO @table_stats_id FROM information_schema.innodb_sys_tables
 WHERE name = 'mysql/innodb_table_stats';
 SELECT table_id INTO @index_stats_id FROM information_schema.innodb_sys_tables
 WHERE name = 'mysql/innodb_index_stats';
+--enable_cursor_protocol
 
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
 WHERE table_id NOT IN (@table_stats_id, @index_stats_id) ORDER BY table_id;
@@ -140,10 +143,11 @@ WHERE name LIKE "%parent";
 DROP TABLE child;
 
 DROP TABLE parent;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
 
 --echo #
 --echo # MDEV-29479  I_S.INNODB_SYS_TABLESPACES doesn't have
 --echo #		temporary tablespace information
 --echo #
 SELECT SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE name like 'innodb_temporary';
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

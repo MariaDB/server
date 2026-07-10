@@ -2,8 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---source include/count_sessions.inc
-
 SET NAMES utf8;
 
 CREATE TABLE ① (
@@ -144,20 +142,19 @@ DROP TABLE t;
 --echo #
 
 create table t1(f1 int not null primary key,
-
-                f2 int not null, index idx(f2))engine=innodb;
+                f2 int not null, index idx(f2), index i(f2,f1))engine=innodb;
 
 insert into t1 values(1, 1);
 
 connect(con1,localhost,root,,,);
 SET DEBUG_SYNC='before_delete_table_stats SIGNAL blocked WAIT_FOR go';
-SET innodb_lock_wait_timeout=0;
-send ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+send SET STATEMENT innodb_lock_wait_timeout=0 FOR
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 BEGIN;
-SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
+SELECT database_name, table_name FROM mysql.innodb_table_stats FOR UPDATE;
 SET DEBUG_SYNC='now SIGNAL go';
 
 connection con1;
@@ -165,6 +162,21 @@ reap;
 
 connection default;
 COMMIT;
+SET DEBUG_SYNC=RESET;
+
+RENAME TABLE mysql.innodb_table_stats TO mysql.innodb_table_stats_hidden;
+connection con1;
+SET DEBUG_SYNC='innodb_commit_inplace_before_lock SIGNAL blocked WAIT_FOR go';
+send ALTER TABLE t1 DROP INDEX i;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+RENAME TABLE mysql.innodb_table_stats_hidden TO mysql.innodb_table_stats;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con1;
+reap;
+connection default;
 SET DEBUG_SYNC=RESET;
 
 connection con1;
@@ -187,6 +199,3 @@ SET debug_dbug=@save_dbug;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

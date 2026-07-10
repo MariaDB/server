@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES (2);
 --connection node_1a
 SET SESSION wsrep_sync_wait = 0;
 
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for table metadata lock'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
 --source include/wait_condition.inc
 
 SELECT COUNT(*) = 0 FROM t1;

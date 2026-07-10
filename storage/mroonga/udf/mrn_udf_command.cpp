@@ -19,6 +19,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
 #include <mrn_path_mapper.hpp>
@@ -51,6 +52,15 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *init, UDF_ARGS *args,
   CommandInfo *info = NULL;
 
   init->ptr = NULL;
+
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "mroonga_command(): Mroonga isn't initialized");
+    goto error;
+  }
+
   if (args->arg_count == 0) {
     grn_snprintf(message,
                  MYSQL_ERRMSG_SIZE,
@@ -112,6 +122,7 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *init, UDF_ARGS *args,
   }
   init->maybe_null = 1;
   init->const_item = 0;
+  init->max_length = 640;
 
   info = (CommandInfo *)mrn_my_malloc(sizeof(CommandInfo),
                                       MYF(MY_WME | MY_ZEROFILL));
@@ -210,7 +221,7 @@ static void mroonga_command_escape_value(grn_ctx *ctx,
 }
 
 MRN_API char *mroonga_command(UDF_INIT *init, UDF_ARGS *args, char *result,
-                              unsigned long *length, char *is_null, char *error)
+                              unsigned long *length, uchar *is_null, uchar *error)
 {
   CommandInfo *info = (CommandInfo *)init->ptr;
   grn_ctx *ctx = info->ctx;

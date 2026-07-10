@@ -55,6 +55,7 @@ set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 
 reset query cache;
 flush status;
@@ -86,9 +87,11 @@ show status like "Qcache_hits%";
 
 # Create the test users
 grant SELECT on mysqltest.* to mysqltest_1@localhost;
+grant SELECT on test.t1 to mysqltest_1@localhost;
 grant SELECT on mysqltest.t1 to mysqltest_2@localhost;
 grant SELECT on test.t1 to mysqltest_2@localhost;
 grant SELECT(a) on mysqltest.t1 to mysqltest_3@localhost;
+grant SELECT(a) on test.t1 to mysqltest_3@localhost;
 
 # The following queries should be fetched from cache
 connect (user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK);
@@ -117,7 +120,7 @@ show status like "Qcache_not_cached";
 
 
 # Don't use '' as user because it will pick Unix login
-connect (unkuser,localhost,unkuser,,,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (unkuser,localhost,unkuser,,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
 connection unkuser;
 show grants for current_user();
 
@@ -173,31 +176,18 @@ show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 show status like "Qcache_not_cached";
 
+--enable_cursor_protocol
 --enable_ps2_protocol
 
 # Cleanup
 
-connection root;
 disconnect root;
---source include/wait_until_disconnected.inc
-connection root2;
 disconnect root2;
---source include/wait_until_disconnected.inc
-connection user1;
 disconnect user1;
---source include/wait_until_disconnected.inc
-connection user2;
 disconnect user2;
---source include/wait_until_disconnected.inc
-connection user3;
 disconnect user3;
---source include/wait_until_disconnected.inc
-connection user4;
 disconnect user4;
---source include/wait_until_disconnected.inc
-connection unkuser;
 disconnect unkuser;
---source include/wait_until_disconnected.inc
 connection default;
 
 #

@@ -23,8 +23,10 @@ error 1,1030;
 create temporary table t2 (a int);
 error 1,1030;
 create temporary table t3 (a int) engine=Aria;
+--disable_view_protocol
 error 1,1030;
 select * from information_schema.columns where table_schema='test';
+--enable_view_protocol
 
 flush tables;
 select * from d1;

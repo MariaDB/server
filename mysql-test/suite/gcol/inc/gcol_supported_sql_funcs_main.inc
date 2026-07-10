@@ -13,8 +13,6 @@
 # Change:                                                                      #
 ################################################################################
 
---source include/have_des.inc
-
 set time_zone="+03:00";
 --echo #
 --echo # NUMERIC FUNCTIONS
@@ -613,7 +611,7 @@ let $rows = 1;
 --source suite/gcol/inc/gcol_supported_sql_funcs.inc
 
 --echo # WEIGHT_STRING()
-let $cols = a varchar(5), b varchar(10) generated always as (weight_string(a as char(4))) virtual;
+let $cols = a varchar(5), b varchar(20) generated always as (hex(weight_string(a as char(4)))) virtual;
 let $values1 = 'MySQL',default;
 let $rows = 1;
 --source suite/gcol/inc/gcol_supported_sql_funcs.inc

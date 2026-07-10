@@ -101,10 +101,6 @@
 	Author  Olivier Bertrand
 	*/
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
 #include <my_global.h>
@@ -155,10 +151,6 @@
 #include "taboccur.h"
 #include "tabpivot.h"
 #include "tabfix.h"
-
-#define my_strupr(p)    my_caseup_str(default_charset_info, (p));
-#define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
-#define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
 
 /***********************************************************************/
@@ -309,16 +301,12 @@ const char *xtrace_names[] =
 	"QUERY", "STMT", "HANDLER", "BLOCK", "MONGO", NullS
 };
 
-TYPELIB xtrace_typelib =
-{
-	array_elements(xtrace_names) - 1, "xtrace_typelib",
-	xtrace_names, NULL
-};
+TYPELIB xtrace_typelib = CREATE_TYPELIB_FOR(xtrace_names);
 
 static MYSQL_THDVAR_SET(
 	xtrace,                    // name
 	PLUGIN_VAR_RQCMDARG,       // opt
-	"Trace values.",           // comment
+	"Trace values",            // comment
 	NULL,                      // check
 	NULL,                      // update function
 	0,                         // def (NO)
@@ -338,7 +326,7 @@ static MYSQL_THDVAR_BOOL(cond_push, PLUGIN_VAR_RQCMDARG,
   Temporary file usage:
     no:    Not using temporary file
     auto:  Using temporary file when needed
-    yes:   Allways using temporary file
+    yes:   Always using temporary file
     force: Force using temporary file (no MAP)
     test:  Reserved
 */
@@ -347,16 +335,12 @@ const char *usetemp_names[]=
   "NO", "AUTO", "YES", "FORCE", "TEST", NullS
 };
 
-TYPELIB usetemp_typelib=
-{
-  array_elements(usetemp_names) - 1, "usetemp_typelib",
-  usetemp_names, NULL
-};
+TYPELIB usetemp_typelib= CREATE_TYPELIB_FOR(usetemp_names);
 
 static MYSQL_THDVAR_ENUM(
   use_tempfile,                    // name
   PLUGIN_VAR_RQCMDARG,             // opt
-  "Temporary file use.",           // comment
+  "Temporary file use",            // comment
   NULL,                            // check
   NULL,                            // update function
   1,                               // def (AUTO)
@@ -366,20 +350,20 @@ static MYSQL_THDVAR_ENUM(
 // Size used for g->Sarea_Size
 static MYSQL_THDVAR_ULONGLONG(work_size,
 	PLUGIN_VAR_RQCMDARG,
-	"Size of the CONNECT work area.",
+	"Size of the CONNECT work area",
 	NULL, NULL, SZWORK, SZWMIN, ULONGLONG_MAX, 1);
 #else
 // Size used for g->Sarea_Size
 static MYSQL_THDVAR_ULONG(work_size,
   PLUGIN_VAR_RQCMDARG, 
-  "Size of the CONNECT work area.",
+  "Size of the CONNECT work area",
   NULL, NULL, SZWORK, SZWMIN, ULONG_MAX, 1);
 #endif
 
 // Size used when converting TEXT columns to VARCHAR
 static MYSQL_THDVAR_INT(conv_size,
        PLUGIN_VAR_RQCMDARG,             // opt
-       "Size used when converting TEXT columns.",
+       "Size used when converting TEXT columns",
        NULL, NULL, SZCONV, 0, 65500, 1);
 
 /**
@@ -394,16 +378,12 @@ const char *xconv_names[]=
   "NO", "YES", "FORCE", "SKIP", NullS
 };
 
-TYPELIB xconv_typelib=
-{
-  array_elements(xconv_names) - 1, "xconv_typelib",
-  xconv_names, NULL
-};
+TYPELIB xconv_typelib= CREATE_TYPELIB_FOR(xconv_names);
 
 static MYSQL_THDVAR_ENUM(
   type_conv,                       // name
   PLUGIN_VAR_RQCMDARG,             // opt
-  "Unsupported types conversion.", // comment
+  "Unsupported types conversion",  // comment
   NULL,                            // check
   NULL,                            // update function
   1,                               // def (yes)
@@ -436,7 +416,7 @@ static MYSQL_THDVAR_INT(default_prec,
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
        PLUGIN_VAR_RQCMDARG,      // opt
-       "max number of rows for JSON aggregate functions.",
+       "max number of rows for JSON aggregate functions",
        NULL, NULL, JSONMAX, 1, INT_MAX, 1);
 
 #if defined(JAVA_SUPPORT)
@@ -473,11 +453,7 @@ const char *language_names[]=
   "default", "english", "french", NullS
 };
 
-TYPELIB language_typelib=
-{
-  array_elements(language_names) - 1, "language_typelib",
-  language_names, NULL
-};
+TYPELIB language_typelib= CREATE_TYPELIB_FOR(language_names);
 
 static MYSQL_THDVAR_ENUM(
   msg_lang,                        // name
@@ -625,7 +601,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("TABLE_TYPE", type),
   HA_TOPTION_STRING("FILE_NAME", filename),
   HA_TOPTION_STRING("XFILE_NAME", optname),
-//HA_TOPTION_STRING("CONNECT_STRING", connect),
+  HA_TOPTION_STRING("CONNECTION", connect),
   HA_TOPTION_STRING("TABNAME", tabname),
   HA_TOPTION_STRING("TABLE_LIST", tablist),
   HA_TOPTION_STRING("DBNAME", dbname),
@@ -832,7 +808,6 @@ static int connect_init_func(void *p)
     sql_print_information("connect_init: hton=%p", p);
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
-  BINCOL::SetEndian();        // Initialize host endian setting
 #if defined(JAVA_SUPPORT)
 	JAVAConn::SetJVM();
 #endif   // JAVA_SUPPORT
@@ -1174,7 +1149,7 @@ ulonglong ha_connect::table_flags() const
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
                      HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN |
-                     HA_REUSES_FILE_NAMES;
+                     HA_REUSES_FILE_NAMES | HA_NO_ONLINE_ALTER;
   ha_connect *hp= (ha_connect*)this;
   PTOS        pos= hp->GetTableOptionStruct();
 
@@ -1387,7 +1362,7 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 	return (tsp && (!tsp->db_plugin || 
 		              !stricmp(plugin_name(tsp->db_plugin)->str, "connect") ||
 									!stricmp(plugin_name(tsp->db_plugin)->str, "partition")))
-									? tsp->option_struct : NULL;
+									? tsp->option_struct_table : NULL;
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
@@ -1417,11 +1392,10 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
   PTOS options= GetTableOptionStruct();
 
   if (!stricmp(opname, "Connect")) {
-    LEX_CSTRING cnc= (tshp) ? tshp->connect_string
-                           : table->s->connect_string;
+    const char *cnc= options->connect;
 
-    if (cnc.length)
-      opval= strz(xp->g, cnc);
+    if (cnc && *cnc)
+      opval= cnc;
 		else
 			opval= GetListOption(xp->g, opname, options->oplist);
 
@@ -5014,7 +4988,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       } // endelse Xchk
 
     if (CloseTable(g)) {
-      // This is an error while builing index
+      // This is an error while building index
       // Make it a warning to avoid crash
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
       rc= 0;
@@ -5276,7 +5250,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     }
     if (!got_error) {
       // Now we can work
-      if ((pos= share->option_struct)) {
+      if ((pos= share->option_struct_table)) {
         if (check_privileges(thd, pos, db))
           rc= HA_ERR_INTERNAL_ERROR;         // ???
         else
@@ -5522,7 +5496,7 @@ static int init_table_share(THD* thd,
                             String *sql)
 {
   bool oom= false;
-  PTOS topt= table_s->option_struct;
+  PTOS topt= table_s->option_struct_table;
 
   sql->length(sql->length()-1); // remove the trailing comma
   sql->append(')');
@@ -5578,18 +5552,6 @@ static int init_table_share(THD* thd,
       return HA_ERR_OUT_OF_MEM;
 
     } // endfor opt
-
-  if (create_info->connect_string.length) {
-    oom|= sql->append(' ');
-    oom|= sql->append(STRING_WITH_LEN("CONNECTION='"));
-    oom|= sql->append_for_single_quote(create_info->connect_string.str,
-                                       create_info->connect_string.length);
-    oom|= sql->append('\'');
-
-    if (oom)
-      return HA_ERR_OUT_OF_MEM;
-
-    } // endif string
 
   if (create_info->default_table_charset) {
     oom|= sql->append(' ');
@@ -5656,7 +5618,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  PTOS     topt= table_s->option_struct;
+  DBUG_ASSERT(IF_PARTITIONING(!table_s->partition_info_str,1));
+  PTOS     topt= table_s->option_struct_table;
   char     buf[1024];
   String   sql(buf, sizeof(buf), system_charset_info);
 
@@ -5809,7 +5772,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		switch (ttp) {
 #if defined(ODBC_SUPPORT)
 			case TAB_ODBC:
-				dsn= strz(g, create_info->connect_string);
+				dsn= (char*)create_info->option_struct->connect;
 
 				if (fnc & (FNC_DSN | FNC_DRIVER)) {
 					ok= true;
@@ -5817,7 +5780,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} else if (!stricmp(thd->main_security_ctx.host, "localhost")
 					&& cop == 1) {
 					if ((dsn= ODBCCheckConnection(g, dsn, cop)) != NULL) {
-						thd->make_lex_string(&create_info->connect_string, dsn, strlen(dsn));
+            create_info->option_struct->connect= thd->strdup(dsn);
 						ok= true;
 					} // endif dsn
 #endif   // PROMPT_OK
@@ -5842,7 +5805,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_JDBC:
 				if (fnc & FNC_DRIVER) {
 					ok= true;
-				} else if (!(url= strz(g, create_info->connect_string))) {
+				} else if (!(url= (char*)create_info->option_struct->connect)) {
 					snprintf(g->Message, sizeof(g->Message), "Missing URL");
 				} else {
 					// Store JDBC additional parameters
@@ -5888,11 +5851,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_MYSQL:
 				ok= true;
 
-				if (create_info->connect_string.str &&
-					create_info->connect_string.length) {
+				if (create_info->option_struct->connect &&
+					  create_info->option_struct->connect[0]) {
 					PMYDEF  mydef= new(g) MYSQLDEF();
 
-					dsn= strz(g, create_info->connect_string);
+					dsn= thd->strdup(create_info->option_struct->connect);
 					mydef->SetName(create_info->alias.str);
 
 					if (!mydef->ParseURL(g, dsn, false)) {
@@ -5957,7 +5920,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(BSON_SUPPORT)
       case TAB_BSON:
 #endif   // BSON_SUPPORT
-        dsn= strz(g, create_info->connect_string);
+        dsn= (char*)create_info->option_struct->connect;
 
 				if (!fn && !zfn && !mul && !dsn)
 					snprintf(g->Message, sizeof(g->Message), "Missing %s file name", topt->type);
@@ -5977,7 +5940,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
       case TAB_REST:
         if (!topt->http)
-          sprintf(g->Message, "Missing %s HTTP address", topt->type);
+          snprintf(g->Message, sizeof(g->Message), "Missing %s HTTP address", topt->type);
         else
           ok= true;
 
@@ -6133,7 +6096,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // BSON_SUPPORT
 #if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
-					url= strz(g, create_info->connect_string);
+					url= (char*)create_info->option_struct->connect;
 					qrp= MGOColumns(g, db, url, topt, fnc == FNC_COL);
 					break;
 #endif   // JAVA_SUPPORT
@@ -6401,7 +6364,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
  err:
   if (rc)
-    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    if (g->Message[0])
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    else
+      my_error(ER_GET_ERRNO, MYF(0), rc, "CONNECT");
 
 	PopUser(xp);
 	return rc;
@@ -6454,6 +6420,9 @@ char *ha_connect::GetDBfromName(const char *name)
   ha_create_table() in handle.cc
 */
 
+/* Stack size 25608 in clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int ha_connect::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
@@ -6464,7 +6433,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
-  LEX_CSTRING cnc= table_arg->s->connect_string;
+  const char *cnc= option_struct->connect;
   myf utf8_flag= thd->get_utf8_flag();
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
@@ -6475,6 +6444,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
+
+  if (table_arg->versioned())
+  {
+    /* Due to microseconds not supported by CONNECT (MDEV-15967) system versioning
+       cannot work as expected (MDEV-15968, MDEV-28288) */
+    my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CONNECT storage engine");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   /*
     This assignment fixes test failures if some
     "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR
@@ -6519,7 +6497,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   inward= IsFileType(type) && !options->filename &&
-		     ((type != TAB_JSON && type != TAB_BSON) || !cnc.length);
+		     ((type != TAB_JSON && type != TAB_BSON) || !cnc || !*cnc);
 
   if (options->data_charset) {
     const CHARSET_INFO *data_charset;
@@ -6584,9 +6562,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         db= GetStringOption("database", NULL);
         port= atoi(GetListOption(g, "port", options->oplist, "0"));
 
-        if (create_info->connect_string.str &&
-            create_info->connect_string.length) {
-          char   *dsn= strz(g, create_info->connect_string);
+        if (create_info->option_struct->connect &&
+            create_info->option_struct->connect[0]) {
+          char   *dsn= (char*)create_info->option_struct->connect;
           PMYDEF  mydef= new(g) MYSQLDEF();
 
           mydef->SetName(create_info->alias.str);
@@ -6998,6 +6976,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   table= st;
   DBUG_RETURN(rc);
 } // end of create
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Used to check whether a file based outward table can be populated by
@@ -7005,6 +6984,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   - file does not exist or is void
   - user has file privilege
 */
+
 bool ha_connect::FileExists(const char *fn, bool bf)
 {
   if (!fn || !*fn)
@@ -7040,10 +7020,9 @@ bool ha_connect::FileExists(const char *fn, bool bf)
 
     if (n < 0) {
       if (errno != ENOENT) {
-        char buf[_MAX_PATH + 20];
-
-        snprintf(buf, sizeof(buf),  "Error %d for file %s", errno, filename);
-        push_warning(table->in_use, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, buf);
+        push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "Error %d for file %s", errno, filename);
         return true;
       } else
         return false;
@@ -7181,7 +7160,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   int             sqlcom= thd_sql_command(thd);
   TABTYPE         newtyp, type= TAB_UNDEF;
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
-  PTOS            newopt, oldopt;
+  PTOS            newopt= create_info->option_struct, oldopt= option_struct;
   xp= GetUser(thd, xp);
   PGLOBAL         g= xp->g;
 
@@ -7189,9 +7168,6 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     my_message(ER_UNKNOWN_ERROR, "Cannot check ALTER operations", MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
     } // endif Xchk
-
-  newopt= altered_table->s->option_struct;
-  oldopt= table->s->option_struct;
 
   // If this is the start of a new query, cleanup the previous one
   if (xp->CheckCleanup()) {
@@ -7397,7 +7373,8 @@ int ha_connect::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param,
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, Cost_estimate *cost)
+                                                uint *flags, ha_rows limit,
+                                                Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -7411,7 +7388,7 @@ ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     *flags|= HA_MRR_USE_DEFAULT_IMPL;
 
   ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
-                                        bufsz, flags, cost);
+                                        bufsz, flags, limit, cost);
   xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
   return rows;
 } // end of multi_range_read_info_const

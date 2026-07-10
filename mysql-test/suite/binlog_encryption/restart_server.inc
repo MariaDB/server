@@ -20,7 +20,7 @@
 
 --connection $_cur_con
 --enable_reconnect
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
 
 shutdown_server;
 
@@ -31,5 +31,5 @@ if ($rpl_server_parameters)
 {
   --let $_rpl_start_server_command= restart:$rpl_server_parameters
 }
---exec echo "$_rpl_start_server_command" > $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
+--write_line "$_rpl_start_server_command" $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
 --source include/wait_until_connected_again.inc

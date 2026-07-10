@@ -1,0 +1,47 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b UUID);
+TYPE rec1_t IS RECORD (a INT, b TIME);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+TYPE cur1_t IS REF CURSOR RETURN rec1_t;
+c0 cur0_t;
+c1 cur1_t;
+a INT;
+BEGIN
+OPEN c0 FOR SELECT 1,UUID();
+c1:= c0;
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'uuid' as 'time' in assignment of `c1`.`b` for operation SET
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a UUID, b INT);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,UUID();
+END;
+$$
+CALL p1;
+ERROR HY000: Cannot cast 'int' as 'uuid' in assignment of `c0`.`a` for operation OPEN..FOR
+DROP PROCEDURE p1;
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a UUID, b INT);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+r0 rec0_t;
+BEGIN
+OPEN c0 FOR SELECT CAST('01601234-5566-4777-0888-99aabbccddee' AS UUID) AS a,1 AS b;
+FETCH c0 INTO r0;
+CLOSE c0;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+01601234-5566-4777-0888-99aabbccddee	1
+DROP PROCEDURE p1;

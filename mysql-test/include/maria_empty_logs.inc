@@ -11,6 +11,7 @@
 connection default;
 let $default_db=`select database()`;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let $pid_file=`select @@pid_file`;
 
 #it will used at end of test for wait_for_status_var.inc primitive
 #let $status_var= Threads_connected;
@@ -23,6 +24,7 @@ wait-maria_empty_logs.inc
 EOF
 
 --source include/mysqladmin_shutdown.inc
+--source include/wait_until_no_pidfile.inc
 
 --disable_warnings
 if (!$mel_keep_control_file)

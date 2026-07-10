@@ -41,9 +41,9 @@ perl;
 
   my $counter = 1000;
   #my $found = false
-  
+
   while ($counter > 0) {
- 
+
     open(FILE, "$logfile") or die("Unable to open $logfile : $!\n");
     my $new_sync_count = () = grep(/Synchronized with group/g,<FILE>);
     close(FILE);

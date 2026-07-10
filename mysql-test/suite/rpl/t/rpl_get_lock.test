@@ -1,6 +1,17 @@
 source include/master-slave.inc;
 
+--disable_query_log
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+call mtr.add_suppression("Could not read packet:.* errno: 11 ");
+# The following one comes from calling dirty_close on client side
+call mtr.add_suppression("Could not read packet:.* errno: 2 ");
+call mtr.add_suppression("Could not read packet:.* errno: 35 ");
+--enable_query_log
+
+let $org_log_warnings=`select @@global.log_warnings`;
+
+# Test extended warnings
+SET GLOBAL LOG_WARNINGS=4;
 
 create table t1(n int);
 # Use of get_lock gives a warning for unsafeness if binlog_format=statement
@@ -25,7 +36,7 @@ enable_query_log;
 sync_slave_with_master;
 select get_lock("lock",3);
 select * from t1;
-# There is no point in testing REPLICATIION of the IS_*_LOCK
+# There is no point in testing REPLICATION of the IS_*_LOCK
 # functions; slave does not run with the same concurrency context as
 # master (generally in slave we can't know that on master this lock
 # was already held by another connection and so that the the
@@ -41,6 +52,10 @@ connection master1;
 drop table t1;
 sync_slave_with_master;
 
+connection default;
+--disable_query_log
+--eval SET GLOBAL LOG_WARNINGS=$org_log_warnings;
+--enable_query_log
 
 --source include/rpl_end.inc
 

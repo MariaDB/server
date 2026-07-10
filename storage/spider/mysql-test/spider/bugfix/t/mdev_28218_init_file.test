@@ -1,0 +1,7 @@
+--echo #
+--echo # MDEV-28218 Spider: thread hang/deadlock as result of INSTALL PLUGIN and DROP TABLE
+--echo #
+# This is a variant of the testcase in MDEV-28218, where we put the
+# queries are in an init file
+--error ER_NO_SUCH_TABLE
+show create table mysql.spider_tables;

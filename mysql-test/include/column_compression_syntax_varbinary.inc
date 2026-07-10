@@ -25,19 +25,13 @@ DROP TABLE t1;
 
 
 --echo #
---echo # The following statements return deprecated syntax warnings
+--echo # The following statements fail by the grammar since 11.5
 --echo #
 
---enable_prepare_warnings
-
+--error ER_PARSE_ERROR
 --eval CREATE TABLE t1 (a $type DEFAULT '' COMPRESSED)
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
+--error ER_PARSE_ERROR
 --eval CREATE TABLE t1 (a $type NULL COMPRESSED)
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
---disable_prepare_warnings
 
 --echo #
 --echo # The following statements fail by the grammar,

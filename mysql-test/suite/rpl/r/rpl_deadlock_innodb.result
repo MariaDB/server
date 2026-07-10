@@ -11,18 +11,18 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` int(11) NOT NULL,
   KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW VARIABLES LIKE 'slave_transaction_retries';
 Variable_name	Value
 slave_transaction_retries	2
@@ -47,7 +47,7 @@ COUNT(*)
 0
 COMMIT;
 
-# Test that the performance schema coulumn shows > 0 values.
+# Test that the performance schema column shows > 0 values.
 
 include/assert.inc [current number of retries should be more than the value saved before deadlock.]
 include/check_slave_is_running.inc
@@ -63,7 +63,7 @@ include/check_slave_is_running.inc
 connection slave;
 include/stop_slave.inc
 DELETE FROM t2;
-CHANGE MASTER TO MASTER_LOG_POS=<master_pos_begin>;
+CHANGE MASTER TO MASTER_LOG_POS=<master_pos_begin>, MASTER_USE_GTID=NO;
 BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 a
@@ -95,7 +95,7 @@ Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '0'
 include/stop_slave.inc
 DELETE FROM t2;
-CHANGE MASTER TO MASTER_LOG_POS=<master_pos_begin>;
+CHANGE MASTER TO MASTER_LOG_POS=<master_pos_begin>, MASTER_USE_GTID=NO;
 BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 a

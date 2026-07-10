@@ -43,7 +43,7 @@ Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
 commit;
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1593]
 SELECT "Fatal error: ... Slave SQL Thread stopped with incomplete event group having non-transactional changes. If the group consists solely of row-based events, you can try to restart the slave with --slave-exec-mode=IDEMPOTENT, which ignores duplicate key, key not found, and similar errors (see documentation for details)." AS Last_SQL_Error, @check as `true`;
 Last_SQL_Error	true
 Fatal error: ... Slave SQL Thread stopped with incomplete event group having non-transactional changes. If the group consists solely of row-based events, you can try to restart the slave with --slave-exec-mode=IDEMPOTENT, which ignores duplicate key, key not found, and similar errors (see documentation for details).	1
@@ -63,7 +63,7 @@ set @@global.debug_dbug="d,stop_slave_middle_group,incomplete_group_in_relay_log
 connection master;
 update tm as t1, ti as t2 set t1.a=t1.a * 2, t2.a=t2.a * 2;
 connection slave;
-include/wait_for_slave_sql_to_stop.inc
+include/wait_for_slave_sql_error.inc [errno=1593]
 SELECT "Fatal error: ... Slave SQL Thread stopped with incomplete event group having non-transactional changes. If the group consists solely of row-based events, you can try to restart the slave with --slave-exec-mode=IDEMPOTENT, which ignores duplicate key, key not found, and similar errors (see documentation for details)." AS Last_SQL_Error, @check as `true`;
 Last_SQL_Error	true
 Fatal error: ... Slave SQL Thread stopped with incomplete event group having non-transactional changes. If the group consists solely of row-based events, you can try to restart the slave with --slave-exec-mode=IDEMPOTENT, which ignores duplicate key, key not found, and similar errors (see documentation for details).	1

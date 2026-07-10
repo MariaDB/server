@@ -41,9 +41,10 @@ INSERT INTO t1 VALUES ('1'),('௨');
 INSERT INTO t2 VALUES ('\\p{Cyrillic}'),('\\p{Greek}'),('\\p{Latin}');
 INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
-INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
+INSERT INTO t2 VALUES ('\\p{L}'), /* buggy before v10.45 ('\\p{Ll}'),('\\p{Lu}'),*/ ('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
-SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+# Use "ORDER BY BINARY" to avoid dependency on the default utf8 collation
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 DROP TABLE t1, t2;
 
 # Checking that UCP is disabled by default for binary data
@@ -195,7 +196,7 @@ SELECT REGEXP_REPLACE('a5b ab a5b','(?<=a)5*(?=b)','x');
 SELECT REGEXP_REPLACE('a5b a5b a5b','(?<=a)5*(?=b)','x');
 
 
-# Check that case sensitiviry respects the collation
+# Check that case sensitivity respects the collation
 SELECT REGEXP_REPLACE('A','a','b');
 SELECT REGEXP_REPLACE('a','A','b');
 SELECT REGEXP_REPLACE('A' COLLATE utf8_bin,'a','b');
@@ -325,13 +326,10 @@ SELECT REGEXP_INSTR('вася','в');
 SELECT REGEXP_INSTR('вася','а');
 SELECT REGEXP_INSTR('вася','с');
 SELECT REGEXP_INSTR('вася','я');
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('в' USING koi8r));
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('а' USING koi8r));
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('с' USING koi8r));
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('я' USING koi8r));
---enable_view_protocol
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('в' USING koi8r)) as exp;
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('а' USING koi8r)) as exp;
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('с' USING koi8r)) as exp;
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('я' USING koi8r)) as exp;
 
 --echo #
 --echo # Checking REGEXP_SUBSTR
@@ -351,10 +349,7 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b')+0;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*');
---enable_view_protocol
+SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*') as exp;
 
 --echo #
 --echo # MDEV-6027 RLIKE: "." no longer matching new line
@@ -371,16 +366,13 @@ SELECT 'a\nb' RLIKE 'a.b';
 SELECT 'a\nb' RLIKE '(?-s)a.b';
 SET default_regex_flags=DEFAULT;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 # note that old pcre2 reports a different offset
 --replace_result 29 30
 --error ER_REGEXP_ERROR
-SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$') as exp;
 SET default_regex_flags='DUPNAMES';
-SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
-SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
---enable_view_protocol
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$') as exp;
+SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$') as exp;
 SET default_regex_flags=DEFAULT;
 
 SELECT 'AB' RLIKE 'A B';
@@ -390,6 +382,8 @@ SELECT 'AB' RLIKE 'A B';
 SELECT 'AB' RLIKE 'A# this is a comment\nB';
 SET default_regex_flags=DEFAULT;
 
+# pcre2 versions differ in the reported error offset for invalid escapes
+--replace_regex /offset 2/offset 3/
 --error ER_REGEXP_ERROR
 SELECT 'Aq' RLIKE 'A\\q';
 
@@ -416,10 +410,7 @@ SET default_regex_flags=DEFAULT;
 --echo #
 --echo # MDEV-6965 non-captured group \2 in regexp_replace
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');
---enable_view_protocol
+SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that') as exp;
 
 --echo #
 --echo # MDEV-8102 REGEXP function fails to match hex values when expression is stored as a variable
@@ -428,7 +419,19 @@ SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this a
 --echo # Testing a warning
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP @regCheck;
+SELECT 0xE001 REGEXP @regCheck COLLATE latin1_bin;
+SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
+
+--echo # Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
+--echo # so a user variable and a literal in the pattern gave equal results
+--echo # But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
+--echo # so the query with a literal is performed as binary:
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
+
+--echo # while the query with a user variable is performed as string
+--echo # with a warning, like in 11.4
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck AS c2;
 
 --echo # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;
@@ -440,7 +443,7 @@ SET NAMES latin1;
 SET @regCheck= _binary '\\xE0\\x01';
 SELECT 0xE001 REGEXP @regCheck;
 
---echo # Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+--echo # Testing workaround N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
 SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;
@@ -454,9 +457,6 @@ SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;
 SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,Golf,Hotel,India,Juliet,Kilo,Lima,Mike,StrataL3,November,Oscar,StrataL2,Sand,P3,P4SwitchTest,Arsys,Poppa,ExtensionMgr,Arp,Quebec,Romeo,StrataApiV2,PtReyes,Sierra,SandAcl,Arrow,Artools,BridgeTest,Tango,SandT,PAlaska,Namespace,Agent,Qos,PatchPanel,ProjectReport,Ark,Gimp,Agent,SliceAgent,Arnet,Bgp,Ale,Tommy,Central,AsicPktTestLib,Hsc,SandL3,Abuild,Pca9555,Standby,ControllerDut,CalSys,SandLib,Sb820,PointV2,BfnLib,Evpn,BfnSdk,Sflow,ManagementActive,AutoTest,GatedTest,Bgp,Sand,xinetd,BfnAgentLib,bf-utils,Hello,BfnState,Eos,Artest,Qos,Scd,ThermoMgr,Uniform,EosUtils,Eb,FanController,Central,BfnL3,BfnL2,tcp_wrappers,Victor,Environment,Route,Failover,Whiskey,Xray,Gimp,BfnFixed,Strata,SoCal,XApi,Msrp,XpProfile,tcpdump,PatchPanel,ArosTest,FhTest,Arbus,XpAcl,MacConc,XpApi,telnet,QosTest,Alpha2,BfnVlan,Stp,VxlanControllerTest,MplsAgent,Bravo2,Lanz,BfnMbb,Intf,XCtrl,Unicast,SandTunnel,L3Unicast,Ipsec,MplsTest,Rsvp,EthIntf,StageMgr,Sol,MplsUtils,Nat,Ira,P4NamespaceDut,Counters,Charlie2,Aqlc,Mlag,Power,OpenFlow,Lag,RestApi,BfdTest,strongs,Sfa,CEosUtils,Adt746,MaintenanceMode,MlagDut,EosImage,IpEth,MultiProtocol,Launcher,Max3179,Snmp,Acl,IpEthTest,PhyEee,bf-syslibs,tacc,XpL2,p4-ar-switch,p4-bf-switch,LdpTest,BfnPhy,Mirroring,Phy6,Ptp'  REGEXP '^((?!\b(Strata|StrataApi|StrataApiV2)\b).)*$');
 --enable_result_log
 --enable_warnings
-#enable after fix MDEV-27871
---disable_view_protocol
---enable_view_protocol
 
 #
 # MDEV-12942 REGEXP_INSTR returns 1 when using brackets
@@ -470,3 +470,11 @@ SELECT REGEXP_INSTR('a_kollision', 'o([lm])\\1');
 #
 SELECT a FROM (SELECT "aa" a) t WHERE a REGEXP '[0-9]';
 --enable_service_connection
+
+--echo #
+--echo # MDEV-11777 REGEXP_REPLACE converts utf8mb4 supplementary characters to '?'
+--echo #
+select hex(regexp_replace(cast(x'F09F9881' as char character set 'utf8mb4'), _utf8mb4'a', _utf8mb4'b')) as Text;
+--echo #
+--echo # End of 10.6 tests
+--echo #

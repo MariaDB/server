@@ -46,7 +46,7 @@ row_quiesce_table_start(
 
 /*********************************************************************//**
 Set a table's quiesce state.
-@return DB_SUCCESS or errro code. */
+@return DB_SUCCESS or error code. */
 dberr_t
 row_quiesce_set_state(
 /*==================*/

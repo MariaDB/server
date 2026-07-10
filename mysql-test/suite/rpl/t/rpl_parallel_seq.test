@@ -80,6 +80,7 @@ SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 RESET MASTER;
 SET @@global.gtid_slave_pos="";
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Load from master
@@ -129,7 +130,99 @@ SET DEBUG_SYNC = 'now SIGNAL continue_worker';
 SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 have been committed";
 
 #
-# MDEV-29621/MDEV-31077 clean up.
+# MDEV-35570 parallel slave ALTER-SEQUNCE attemted to binlog out-of-order.
+# Let two transactions I_1 -> AS_2 where AS_2 depends on a commit parent I_1.
+# Under the bug condition AS_2 may complete its work including binlogging
+# while I_1 is slowly executing Xid_log_event.
+# The test simulate the slowness, AS_2 must defer its completion.
+#
+--connection slave
+--source include/stop_slave.inc
+set @saved_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_mode = conservative;
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO ti SET a=2;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+# allow to proceed to sync with the 1st following WFPT2SC wait condtion
+lock table ti write;
+# allow to proceed into commit to sync with the 2nd following WFPC wait condition
+--let $saved_dbug= @@GLOBAL.debug_dbug
+SET GLOBAL debug_dbug= "+d,halt_past_mark_start_commit";
+
+--connection master
+INSERT INTO ti SET a=35570;
+ALTER SEQUENCE s2 restart with 1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit"
+--source include/wait_condition.inc
+# the 1st wait release
+unlock tables;
+
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+# the 2nd wait release
+SET debug_sync = "now SIGNAL past_mark_continue";
+
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @@global.slave_parallel_mode = @saved_mode;
+--eval SET @@global.debug_dbug = $saved_dbug
+--source include/start_slave.inc
+
+# MDEV-31792 Assertion in MDL_context::acquire_lock upon parallel replication of CREATE SEQUENCE
+
+--let $iter = 3
+while ($iter)
+{
+--connection slave
+if (`select $iter > 1`)
+{
+  flush tables with read lock;
+}
+if (`select $iter = 1`)
+{
+  BEGIN /* slave local Trx */;
+   select count(*) from s3;
+}
+
+--connection master
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+# select may return non-deterministically, don't print its result
+--disable_cursor_protocol
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+--enable_cursor_protocol
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to start commit%"
+--source include/wait_condition.inc
+
+if (`select $iter > 1`)
+{
+  unlock tables;
+}
+if (`select $iter = 1`)
+{
+--connection slave
+rollback /* Trx */;
+}
+
+
+--source include/sync_with_master_gtid.inc
+
+--dec $iter
+}
+
+
+#
+# MDEV-29621/MDEV-31077/MDEV-31792 clean up.
 #
 --connection slave
 --source include/stop_slave.inc
@@ -142,9 +235,32 @@ SET debug_sync = RESET;
 --source include/start_slave.inc
 
 --connection master
-DROP SEQUENCE s2;
+# MDEV-32593 Assertion failure upon CREATE SEQUENCE
+BEGIN;
+INSERT INTO ti SET a=32593;
+CREATE SEQUENCE s4;
+
+DROP SEQUENCE s2,s3,s4;
 DROP TABLE ti;
 
 --sync_slave_with_master
+
+# MDEV-31779 server crash in Rows_log_event::update_sequence at replaying binlog
+--connection master
+--let $binlog_file  = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+CREATE SEQUENCE s;
+--disable_ps2_protocol
+SELECT NEXTVAL(s);
+--enable_ps2_protocol
+flush binary logs;
+DROP SEQUENCE s;
+--exec $MYSQL_BINLOG $datadir/$binlog_file | $MYSQL test
+DROP SEQUENCE s;
+
+--sync_slave_with_master
+
+--connection master
+
 
 --source include/rpl_end.inc

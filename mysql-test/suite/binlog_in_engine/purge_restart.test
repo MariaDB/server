@@ -1,0 +1,45 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+SET GLOBAL slave_connections_needed_for_purge= 0;
+
+# Set a very low value to force purge as early as possible.
+SET GLOBAL max_binlog_total_size= 128*1024;
+
+CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL, c LONGBLOB, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+
+# Test that refcounting works correctly when an OOB spill spans two binlog files.
+# First let's get the binlog position to shortly before the end of binlog-000000.ibb
+
+INSERT INTO t1 VALUES (1, 0, REPEAT('x', 262144-8000));
+
+# Now there are no outstanding oob references to binlog-000000.ibb.
+# Then spill a new OOB, which will span from binlog-000000.ibb into
+# binlog-000001.ibb. Then the header page of binlog-000001.ibb must
+# have oob reference file_no=0, not 1, as the _start_ of the new oob
+# is in file 0.
+
+BEGIN;
+INSERT INTO t1 VALUES (2, 0, REPEAT('y', 40000));
+INSERT INTO t1 VALUES (2, 1, 'end');
+COMMIT;
+
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+--source include/show_binary_logs.inc
+
+--source include/restart_mysqld.inc
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 0;
+
+--source include/show_binary_logs.inc
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+--source include/show_binary_logs.inc
+
+SET GLOBAL slave_connections_needed_for_purge= @old_min_slaves;
+# We do not need to restore max_binlog_total_size, as we restarted the server.
+
+DROP TABLE t1;

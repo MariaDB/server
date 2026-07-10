@@ -7,7 +7,7 @@ CREATE PROCEDURE sp0() SELECT 1;
 SHOW CREATE PROCEDURE sp0;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 sp0	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp0`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp0;
 SELECT VARIABLE_VALUE into @global_mem_used FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
 SELECT VARIABLE_VALUE into @local_mem_used FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
@@ -15,7 +15,7 @@ CREATE PROCEDURE sp1() SELECT 1;
 SHOW CREATE PROCEDURE sp1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 sp1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp1`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT VARIABLE_VALUE-@local_mem_used FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='MEMORY_USED';
 VARIABLE_VALUE-@local_mem_used
 0

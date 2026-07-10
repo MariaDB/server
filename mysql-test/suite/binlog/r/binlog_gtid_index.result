@@ -1,0 +1,135 @@
+SET GLOBAL binlog_gtid_index= 0;
+SET GLOBAL binlog_gtid_index= 1;
+SET @gtid1= @@gtid_binlog_pos;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+SET @gtid2= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (1);
+SET @gtid3= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+SET @gtid4= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (5);
+SET @gtid5= @@gtid_binlog_pos;
+SET @gtid6= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (106);
+INSERT INTO t1 VALUES (107);
+Ok
+1
+Ok
+1
+Ok
+1
+Ok
+1
+Ok
+1
+Ok
+1
+FLUSH BINARY LOGS;
+Ok
+1
+Ok
+1
+Ok
+1
+Ok
+1
+Ok
+1
+Ok
+1
+*** Test that purge deletes the gtid index files. ***
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (200);
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (201);
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (202);
+PURGE BINARY LOGS TO 'FILE';
+*** Test missed index lookup due to missing or corrupt index file.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+INSERT INTO t1 VALUES (301);
+INSERT INTO t1 VALUES (302);
+INSERT INTO t1 VALUES (303);
+SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
+INSERT INTO t1 VALUES (304);
+INSERT INTO t1 VALUES (305);
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
++++ Initial status:
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	0
+Binlog_gtid_index_miss	0
++++ GTID Lookup in good index.
+Gtid_Lookup_Ok
+1
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	1
+Binlog_gtid_index_miss	0
++++ GTID Lookup, index file is missing.
+Gtid_Lookup_Ok
+1
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	1
+Binlog_gtid_index_miss	1
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+INSERT INTO t1 VALUES (306);
+SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
+INSERT INTO t1 VALUES (307);
+INSERT INTO t1 VALUES (308);
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
++++ GTID Lookup, first page of index is corrupt.
+Gtid_Lookup_Ok
+1
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	1
+Binlog_gtid_index_miss	2
+SET @old_page_size= @@GLOBAL.binlog_gtid_index_page_size;
+SET @old_span_min= @@GLOBAL.binlog_gtid_index_span_min;
+SET GLOBAL binlog_gtid_index_page_size= 64;
+SET GLOBAL binlog_gtid_index_span_min= 1;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+INSERT INTO t1 VALUES (310);
+INSERT INTO t1 VALUES (311);
+INSERT INTO t1 VALUES (312);
+SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
+INSERT INTO t1 VALUES (313);
+INSERT INTO t1 VALUES (314);
+INSERT INTO t1 VALUES (315);
+INSERT INTO t1 VALUES (316);
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+SET GLOBAL binlog_gtid_index_page_size= @old_page_size;
+SET GLOBAL binlog_gtid_index_span_min= @old_span_min;
++++ GTID Lookup, root page of index is corrupt.
+Gtid_Lookup_Ok
+1
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	1
+Binlog_gtid_index_miss	3
+*** Test BINLOG_GTID_POS() with too-large offset.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+INSERT INTO t1 VALUES (401);
+INSERT INTO t1 VALUES (402);
++++ Test the hot index.
+SELECT BINLOG_GTID_POS('FILE', 100000000);
+BINLOG_GTID_POS('FILE', 100000000)
+NULL
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	2
+Binlog_gtid_index_miss	3
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
++++ Test the cold index.
+SELECT BINLOG_GTID_POS('FILE', 100000000);
+BINLOG_GTID_POS('FILE', 100000000)
+NULL
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	3
+Binlog_gtid_index_miss	3
+DROP TABLE t1;

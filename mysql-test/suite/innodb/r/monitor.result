@@ -35,8 +35,6 @@ buffer_pool_pages_free	enabled
 buffer_pages_created	enabled
 buffer_pages_written	enabled
 buffer_pages_read	enabled
-buffer_index_sec_rec_cluster_reads	enabled
-buffer_index_sec_rec_cluster_reads_avoided	enabled
 buffer_data_reads	enabled
 buffer_data_written	enabled
 buffer_flush_batch_scanned	disabled
@@ -53,7 +51,6 @@ buffer_flush_n_to_flush_by_age	disabled
 buffer_flush_adaptive_avg_time	disabled
 buffer_flush_adaptive_avg_pass	disabled
 buffer_LRU_get_free_loops	disabled
-buffer_LRU_get_free_waits	disabled
 buffer_flush_avg_page_rate	disabled
 buffer_flush_lsn_avg_rate	disabled
 buffer_flush_pct_for_dirty	disabled
@@ -73,7 +70,6 @@ buffer_LRU_batch_num_scan	disabled
 buffer_LRU_batch_scanned_per_call	disabled
 buffer_LRU_batch_flush_total_pages	enabled
 buffer_LRU_batch_evict_total_pages	enabled
-buffer_LRU_single_flush_failure_count	disabled
 buffer_LRU_get_free_search	disabled
 buffer_LRU_search_scanned	disabled
 buffer_LRU_search_num_scan	disabled
@@ -83,12 +79,8 @@ buffer_LRU_unzip_search_num_scan	disabled
 buffer_LRU_unzip_search_scanned_per_call	disabled
 buffer_page_read_index_leaf	disabled
 buffer_page_read_index_non_leaf	disabled
-buffer_page_read_index_ibuf_leaf	disabled
-buffer_page_read_index_ibuf_non_leaf	disabled
 buffer_page_read_undo_log	disabled
 buffer_page_read_index_inode	disabled
-buffer_page_read_ibuf_free_list	disabled
-buffer_page_read_ibuf_bitmap	disabled
 buffer_page_read_system_page	disabled
 buffer_page_read_trx_system	disabled
 buffer_page_read_fsp_hdr	disabled
@@ -99,12 +91,8 @@ buffer_page_read_zblob2	disabled
 buffer_page_read_other	disabled
 buffer_page_written_index_leaf	disabled
 buffer_page_written_index_non_leaf	disabled
-buffer_page_written_index_ibuf_leaf	disabled
-buffer_page_written_index_ibuf_non_leaf	disabled
 buffer_page_written_undo_log	disabled
 buffer_page_written_index_inode	disabled
-buffer_page_written_ibuf_free_list	disabled
-buffer_page_written_ibuf_bitmap	disabled
 buffer_page_written_system_page	disabled
 buffer_page_written_trx_system	disabled
 buffer_page_written_fsp_hdr	disabled
@@ -172,14 +160,6 @@ adaptive_hash_rows_removed	disabled
 adaptive_hash_rows_deleted_no_hash_entry	disabled
 adaptive_hash_rows_updated	disabled
 file_num_open_files	enabled
-ibuf_merges_insert	enabled
-ibuf_merges_delete_mark	enabled
-ibuf_merges_delete	enabled
-ibuf_merges_discard_insert	enabled
-ibuf_merges_discard_delete_mark	enabled
-ibuf_merges_discard_delete	enabled
-ibuf_merges	enabled
-ibuf_size	enabled
 innodb_master_thread_sleeps	disabled
 innodb_activity_count	enabled
 innodb_master_active_loops	disabled
@@ -191,14 +171,6 @@ innodb_dict_lru_count_idle	disabled
 innodb_dblwr_writes	enabled
 innodb_dblwr_pages_written	enabled
 innodb_page_size	enabled
-dml_reads	disabled
-dml_inserts	enabled
-dml_deletes	enabled
-dml_updates	enabled
-dml_system_reads	enabled
-dml_system_inserts	enabled
-dml_system_deletes	enabled
-dml_system_updates	enabled
 ddl_background_drop_indexes	disabled
 ddl_online_create_index	disabled
 ddl_pending_alter_table	disabled
@@ -208,6 +180,7 @@ icp_attempts	disabled
 icp_no_match	disabled
 icp_out_of_range	disabled
 icp_match	disabled
+create temporary table orig_innodb_metrics as select name, enabled from information_schema.innodb_metrics;
 set global innodb_monitor_disable = All;
 select name from information_schema.innodb_metrics where enabled;
 name
@@ -393,134 +366,6 @@ where name='trx_rollbacks';
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
 trx_rollbacks	1	NULL	1	1	NULL	1	enabled
 set global innodb_monitor_disable = module_trx;
-set global innodb_monitor_enable = module_dml;
-insert into monitor_test values(9);
-update monitor_test set col = 10 where col = 9;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	2	NULL	2	2	NULL	2	enabled
-dml_inserts	1	NULL	1	1	NULL	1	enabled
-dml_deletes	0	NULL	0	0	NULL	0	enabled
-dml_updates	2	NULL	2	2	NULL	2	enabled
-dml_system_reads	0	NULL	0	0	NULL	0	enabled
-dml_system_inserts	0	NULL	0	0	NULL	0	enabled
-dml_system_deletes	0	NULL	0	0	NULL	0	enabled
-dml_system_updates	0	NULL	0	0	NULL	0	enabled
-delete from monitor_test;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	4	NULL	4	4	NULL	4	enabled
-dml_inserts	1	NULL	1	1	NULL	1	enabled
-dml_deletes	2	NULL	2	2	NULL	2	enabled
-dml_updates	2	NULL	2	2	NULL	2	enabled
-dml_system_reads	0	NULL	0	0	NULL	0	enabled
-dml_system_inserts	0	NULL	0	0	NULL	0	enabled
-dml_system_deletes	0	NULL	0	0	NULL	0	enabled
-dml_system_updates	0	NULL	0	0	NULL	0	enabled
-set global innodb_monitor_reset =  module_dml;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	4	NULL	4	0	NULL	0	enabled
-dml_inserts	1	NULL	1	0	NULL	0	enabled
-dml_deletes	2	NULL	2	0	NULL	0	enabled
-dml_updates	2	NULL	2	0	NULL	0	enabled
-dml_system_reads	0	NULL	0	0	NULL	0	enabled
-dml_system_inserts	0	NULL	0	0	NULL	0	enabled
-dml_system_deletes	0	NULL	0	0	NULL	0	enabled
-dml_system_updates	0	NULL	0	0	NULL	0	enabled
-insert into monitor_test values(9);
-insert into monitor_test values(1);
-delete from monitor_test;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	2	NULL	2	enabled
-dml_inserts	3	NULL	3	2	NULL	2	enabled
-dml_deletes	4	NULL	4	2	NULL	2	enabled
-dml_updates	2	NULL	2	0	NULL	0	enabled
-dml_system_reads	0	NULL	0	0	NULL	0	enabled
-dml_system_inserts	0	NULL	0	0	NULL	0	enabled
-dml_system_deletes	0	NULL	0	0	NULL	0	enabled
-dml_system_updates	0	NULL	0	0	NULL	0	enabled
-set global innodb_monitor_reset_all  =  module_dml;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	2	NULL	2	enabled
-dml_inserts	3	NULL	3	2	NULL	2	enabled
-dml_deletes	4	NULL	4	2	NULL	2	enabled
-dml_updates	2	NULL	2	0	NULL	0	enabled
-dml_system_reads	0	NULL	0	0	NULL	0	enabled
-dml_system_inserts	0	NULL	0	0	NULL	0	enabled
-dml_system_deletes	0	NULL	0	0	NULL	0	enabled
-dml_system_updates	0	NULL	0	0	NULL	0	enabled
-set global innodb_monitor_disable = module_dml;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	2	NULL	2	disabled
-dml_inserts	3	NULL	3	2	NULL	2	disabled
-dml_deletes	4	NULL	4	2	NULL	2	disabled
-dml_updates	2	NULL	2	0	NULL	0	disabled
-dml_system_reads	0	NULL	0	0	NULL	0	disabled
-dml_system_inserts	0	NULL	0	0	NULL	0	disabled
-dml_system_deletes	0	NULL	0	0	NULL	0	disabled
-dml_system_updates	0	NULL	0	0	NULL	0	disabled
-set global innodb_monitor_reset_all  = module_dml;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	NULL	NULL	0	NULL	NULL	0	disabled
-dml_inserts	NULL	NULL	0	NULL	NULL	0	disabled
-dml_deletes	NULL	NULL	0	NULL	NULL	0	disabled
-dml_updates	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_reads	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_inserts	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_deletes	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_updates	NULL	NULL	0	NULL	NULL	0	disabled
-set global innodb_monitor_enable = dml_inserts;
-insert into monitor_test values(9);
-insert into monitor_test values(1);
-delete from monitor_test;
-select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	NULL	NULL	0	NULL	NULL	0	disabled
-dml_inserts	2	NULL	2	2	NULL	2	enabled
-dml_deletes	NULL	NULL	0	NULL	NULL	0	disabled
-dml_updates	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_reads	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_inserts	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_deletes	NULL	NULL	0	NULL	NULL	0	disabled
-dml_system_updates	NULL	NULL	0	NULL	NULL	0	disabled
-set global innodb_monitor_disable = module_dml;
 drop table monitor_test;
 set global innodb_monitor_enable = file_num_open_files;
 select name, max_count, min_count, count,
@@ -569,7 +414,7 @@ set global innodb_monitor_reset_all = default;
 # MONITORS
 #
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*1*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
@@ -577,27 +422,29 @@ SET GLOBAL innodb_monitor_enable='module_buffer_page';
 INSERT INTO t1 VALUES (1), (2), (3), (4);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*2*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*3*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
 SET GLOBAL innodb_monitor_enable='%';
+SET GLOBAL innodb_monitor_reset_all= '%', innodb_compression_algorithm= foo;
+ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'foo'
 INSERT INTO t1 VALUES (5), (6), (7), (8);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*4*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
 SET GLOBAL innodb_monitor_disable='%';
 SET GLOBAL innodb_monitor_reset_all='%';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*5*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	0
@@ -605,7 +452,7 @@ SET GLOBAL innodb_monitor_enable='ALL';
 INSERT INTO t1 VALUES (9), (10), (11), (12);
 FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*6*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
@@ -735,6 +582,41 @@ DROP TABLE t1;
 DROP TABLE fl2;
 DROP TABLE fl1;
 DROP TABLE fl0;
-SET GLOBAL innodb_monitor_enable=default;
-SET GLOBAL innodb_monitor_disable=default;
-SET GLOBAL innodb_monitor_reset_all=default;
+set global innodb_monitor_disable = 'adaptive\\_hash\\_p%';
+set global innodb_monitor_disable = 'adaptive\\_hash\\_r%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_batch\\_n%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_batch\\_s%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_g%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_s%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_u%';
+set global innodb_monitor_disable = 'buffer\\_f%';
+set global innodb_monitor_disable = 'buffer\\_page\\_%';
+set global innodb_monitor_disable = 'c%';
+set global innodb_monitor_disable = 'ddl%';
+set global innodb_monitor_disable = 'icp%';
+set global innodb_monitor_disable = 'index\\_p%';
+set global innodb_monitor_disable = 'innodb\\_di%';
+set global innodb_monitor_disable = 'innodb\\_l%';
+set global innodb_monitor_disable = 'innodb\\_m%';
+set global innodb_monitor_disable = 'lock\\_re%';
+set global innodb_monitor_disable = 'lock\\_ta%';
+set global innodb_monitor_disable = 'log%';
+set global innodb_monitor_disable = 'm%';
+set global innodb_monitor_disable = 'p%';
+set global innodb_monitor_disable = 't%';
+set global innodb_monitor_enable = 'log\\_w%';
+set global innodb_monitor_enable = 'trx_rseg_history_len';
+set global innodb_monitor_enable = 'trx_undo_slots_cached';
+set global innodb_monitor_enable=default;
+Warnings:
+Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
+set global innodb_monitor_disable=default;
+Warnings:
+Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
+set global innodb_monitor_reset_all=default;
+Warnings:
+Warning	1230	Default value is not defined for this set option. Please specify correct counter or module name.
+select name, orig.enabled, new.enabled from
+orig_innodb_metrics orig join information_schema.innodb_metrics new using(name)
+where orig.enabled != new.enabled;
+name	enabled	enabled

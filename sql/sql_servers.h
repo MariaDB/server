@@ -17,6 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "slave.h" // for tables_ok(), rpl_filter
+#include "create_options.h"
 
 class THD;
 typedef struct st_lex_server_options LEX_SERVER_OPTIONS;
@@ -29,6 +30,7 @@ typedef struct st_federated_server
   long port;
   size_t server_name_length;
   const char *db, *scheme, *username, *password, *socket, *owner, *host, *sport;
+  engine_option_value *option_list;
 } FOREIGN_SERVER;
 
 /* cache handlers */

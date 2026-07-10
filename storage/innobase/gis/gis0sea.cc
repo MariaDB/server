@@ -34,7 +34,6 @@ Created 2014/01/16 Jimmy Yang
 #include "btr0pcur.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
-#include "ibuf0ibuf.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "que0que.h"
@@ -114,8 +113,8 @@ rtr_latch_leaves(
 		left_page_no = btr_page_get_prev(block->page.frame);
 
 		if (left_page_no != FIL_NULL) {
-			btr_block_get(*cursor->index(), left_page_no, RW_X_LATCH,
-				      true, mtr);
+			btr_block_get(*cursor->index(), left_page_no,
+				      RW_X_LATCH, mtr);
 		}
 
 		mtr->upgrade_buffer_fix(block_savepoint, RW_X_LATCH);
@@ -124,7 +123,7 @@ rtr_latch_leaves(
 
 		if (right_page_no != FIL_NULL) {
 			btr_block_get(*cursor->index(), right_page_no,
-				      RW_X_LATCH, true, mtr);
+				      RW_X_LATCH, mtr);
 		}
 		break;
 	case BTR_SEARCH_LEAF:
@@ -289,10 +288,6 @@ rtr_pcur_getnext_from_path(
 			mtr->rollback_to_savepoint(1);
 		}
 
-		ut_ad((my_latch_mode | 4) == BTR_CONT_MODIFY_TREE
-		      || !page_is_leaf(btr_cur_get_page(btr_cur))
-		      || !btr_cur->page_cur.block->page.lock.have_any());
-
 		const auto block_savepoint = mtr->get_savepoint();
 		block = buf_page_get_gen(
 			page_id_t(index->table->space_id,
@@ -303,6 +298,8 @@ rtr_pcur_getnext_from_path(
 			found = false;
 			break;
 		}
+
+		buf_page_make_young_if_needed(&block->page);
 
 		page = buf_block_get_frame(block);
 		page_ssn = page_get_ssn_id(page);
@@ -340,7 +337,7 @@ rtr_pcur_getnext_from_path(
 
 		if (mode == PAGE_CUR_RTREE_LOCATE) {
 			if (target_level == 0 && level == 0) {
-				ulint	low_match = 0, up_match = 0;
+				uint16_t low_match = 0, up_match = 0;
 
 				found = false;
 
@@ -506,10 +503,10 @@ rtr_pcur_move_to_next(
 		rtr_rec_t	rec;
 		rec = rtr_info->matches->matched_recs->back();
 		rtr_info->matches->matched_recs->pop_back();
+		cursor->btr_cur.page_cur.block = rtr_info->matches->block;
 		mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 		cursor->btr_cur.page_cur.rec = rec.r_rec;
-		cursor->btr_cur.page_cur.block = &rtr_info->matches->block;
 
 		DEBUG_SYNC_C("rtr_pcur_move_to_next_return");
 		return(true);
@@ -541,10 +538,10 @@ static void rtr_compare_cursor_rec(const rec_t *rec, dict_index_t *index,
 #endif
 
 TRANSACTIONAL_TARGET
-dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
-                                page_cur_mode_t mode,
-                                btr_latch_mode latch_mode,
-                                btr_cur_t *cur, mtr_t *mtr)
+dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
+                                const dtuple_t *tuple,
+                                btr_latch_mode latch_mode, mtr_t *mtr,
+                                page_cur_mode_t mode, ulint level)
 {
   page_cur_mode_t page_mode;
   page_cur_mode_t search_mode= PAGE_CUR_UNSUPP;
@@ -567,8 +564,8 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
   MEM_UNDEFINED(&cur->up_bytes, sizeof cur->up_bytes);
   MEM_UNDEFINED(&cur->low_match, sizeof cur->low_match);
   MEM_UNDEFINED(&cur->low_bytes, sizeof cur->low_bytes);
-  ut_d(cur->up_match= ULINT_UNDEFINED);
-  ut_d(cur->low_match= ULINT_UNDEFINED);
+  ut_d(cur->up_match= uint16_t(~0U));
+  ut_d(cur->low_match= uint16_t(~0U));
 
   const bool latch_by_caller= latch_mode & BTR_ALREADY_S_LATCHED;
 
@@ -580,13 +577,13 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
   ut_ad(!latch_by_caller || latch_mode == BTR_SEARCH_LEAF ||
         latch_mode == BTR_MODIFY_LEAF);
 
+#ifdef BTR_CUR_HASH_ADAPT
   cur->flag= BTR_CUR_BINARY;
-
+#endif
 #ifndef BTR_CUR_ADAPT
   buf_block_t *guess= nullptr;
 #else
-  btr_search_t *const info= btr_search_get_info(index);
-  buf_block_t *guess= info->root_guess;
+  buf_block_t *&guess= index->search_info.root_guess;
 #endif
 
   /* Store the position of the tree latch we push to mtr so that we
@@ -607,7 +604,6 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     upper_rw_latch= RW_X_LATCH;
     break;
   default:
-    ut_ad(latch_mode != BTR_MODIFY_PREV);
     ut_ad(latch_mode != BTR_SEARCH_PREV);
     if (!latch_by_caller)
       mtr_s_lock_index(index, mtr);
@@ -622,7 +618,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
   /* Start with the root page. */
   page_id_t page_id(index->table->space_id, index->page);
 
-  ulint up_match= 0, up_bytes= 0, low_match= 0, low_bytes= 0;
+  uint16_t up_match= 0, up_bytes= 0, low_match= 0, low_bytes= 0;
   ulint height= ULINT_UNDEFINED;
 
   /* We use these modified search modes on non-leaf levels of the
@@ -637,21 +633,15 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     page_mode= PAGE_CUR_LE;
     break;
   default:
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE
-          || RTREE_SEARCH_MODE(mode)
-          || mode == PAGE_CUR_LE_OR_EXTENDS);
-#else /* PAGE_CUR_LE_OR_EXTENDS */
-    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE
-          || RTREE_SEARCH_MODE(mode));
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
+    ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
+          RTREE_SEARCH_MODE(mode));
     page_mode= mode;
     break;
   }
 
  search_loop:
   auto buf_mode= BUF_GET;
-  ulint rw_latch= RW_NO_LATCH;
+  rw_lock_type_t rw_latch= RW_NO_LATCH;
 
   if (height)
   {
@@ -662,16 +652,20 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
       rw_latch= upper_rw_latch;
   }
   else if (latch_mode <= BTR_MODIFY_LEAF)
-    rw_latch= latch_mode;
+    rw_latch= rw_lock_type_t(latch_mode);
 
   dberr_t err;
   auto block_savepoint= mtr->get_savepoint();
   buf_block_t *block= buf_page_get_gen(page_id, zip_size, rw_latch, guess,
-                                       buf_mode, mtr, &err, false);
+                                       buf_mode, mtr, &err);
   if (!block)
   {
-    if (err == DB_DECRYPTION_FAILED)
-      btr_decryption_failed(*index);
+    if (err)
+    {
+    err_exit:
+      btr_read_failed(err, *index);
+      mtr->rollback_to_savepoint(savepoint);
+    }
   func_exit:
     if (UNIV_LIKELY_NULL(heap))
       mem_heap_free(heap);
@@ -682,6 +676,8 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
     return err;
   }
+
+  buf_page_make_young_if_needed(&block->page);
 
   const page_t *page= buf_block_get_frame(block);
 #ifdef UNIV_ZIP_DEBUG
@@ -725,15 +721,16 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
       index->set_ssn(page_get_ssn_id(page) + 1);
 
     /* Save the MBR */
-    cur->rtr_info->thr= cur->thr;
+    cur->rtr_info->thr= thr;
     rtr_get_mbr_from_tuple(tuple, &cur->rtr_info->mbr);
 
 #ifdef BTR_CUR_ADAPT
-    info->root_guess= block;
+    guess= block;
 #endif
   }
 
-  if (height == 0) {
+  if (height == 0)
+  {
     if (rw_latch == RW_NO_LATCH)
     {
       ut_ad(block == mtr->at_savepoint(block_savepoint));
@@ -817,7 +814,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     if (page_cur_search_with_match(tuple, page_mode, &up_match,
                                    &low_match, &cur->page_cur, nullptr)) {
       err= DB_CORRUPTION;
-      goto func_exit;
+      goto err_exit;
     }
   }
 
@@ -833,7 +830,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     lock_prdt_t prdt;
 
     {
-      trx_t* trx= thr_get_trx(cur->thr);
+      trx_t* trx= thr_get_trx(thr);
       TMLockTrxGuard g{TMLockTrxArgs(*trx)};
       lock_init_prdt_from_mbr(&prdt, &cur->rtr_info->mbr, mode,
                               trx->lock.lock_heap);
@@ -842,7 +839,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     if (rw_latch == RW_NO_LATCH && height != 0)
       block->page.lock.s_lock();
 
-    lock_prdt_lock(block, &prdt, index, LOCK_S, LOCK_PREDICATE, cur->thr);
+    lock_prdt_lock(block, &prdt, index, LOCK_S, LOCK_PREDICATE, thr);
 
     if (rw_latch == RW_NO_LATCH && height != 0)
       block->page.lock.s_unlock();
@@ -950,7 +947,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     if (upper_rw_latch == RW_NO_LATCH)
     {
       ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
-      btr_block_get(*index, page_id.page_no(), RW_X_LATCH, false, mtr, &err);
+      btr_block_get(*index, page_id.page_no(), RW_X_LATCH, mtr, &err);
     }
     else
     {
@@ -971,27 +968,29 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     cur->up_match= up_match;
     cur->up_bytes= up_bytes;
 
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_GE);
-    ut_ad(up_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
-    ut_ad(low_match != ULINT_UNDEFINED || mode != PAGE_CUR_LE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_GE);
+    ut_ad(up_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
+    ut_ad(low_match != uint16_t(~0U) || mode != PAGE_CUR_LE);
   }
 
   goto func_exit;
 }
 
-dberr_t rtr_search_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+dberr_t rtr_search_leaf(btr_cur_t *cur, que_thr_t *thr, const dtuple_t *tuple,
                         btr_latch_mode latch_mode,
                         mtr_t *mtr, page_cur_mode_t mode)
 {
-  return rtr_search_to_nth_level(0, tuple, mode, latch_mode, cur, mtr);
+  return rtr_search_to_nth_level(cur, thr, tuple, latch_mode, mtr, mode, 0);
 }
 
 /** Search for a spatial index leaf page record.
-@param pcur         cursor
+@param pcur        cursor
+@param thr         query thread
 @param tuple       search tuple
 @param mode        search mode
 @param mtr         mini-transaction */
-dberr_t rtr_search_leaf(btr_pcur_t *pcur, const dtuple_t *tuple,
+dberr_t rtr_search_leaf(btr_pcur_t *pcur, que_thr_t *thr,
+                        const dtuple_t *tuple,
                         page_cur_mode_t mode, mtr_t *mtr)
 {
 #ifdef UNIV_DEBUG
@@ -1010,7 +1009,8 @@ dberr_t rtr_search_leaf(btr_pcur_t *pcur, const dtuple_t *tuple,
   pcur->search_mode= mode;
   pcur->pos_state= BTR_PCUR_IS_POSITIONED;
   pcur->trx_if_known= nullptr;
-  return rtr_search_leaf(&pcur->btr_cur, tuple, BTR_SEARCH_LEAF, mtr, mode);
+  return rtr_search_leaf(&pcur->btr_cur, thr, tuple, BTR_SEARCH_LEAF, mtr,
+                         mode);
 }
 
 /**************************************************************//**
@@ -1020,6 +1020,7 @@ bool rtr_search(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	btr_latch_mode	latch_mode,/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
+	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
@@ -1048,15 +1049,16 @@ bool rtr_search(
 	btr_cur_t* btr_cursor = btr_pcur_get_btr_cur(cursor);
 
 	btr_cursor->rtr_info
-		= rtr_create_rtr_info(false, false,
-				      btr_cursor, cursor->index());
+		= rtr_create_rtr_info(false, false, thr, btr_cursor);
 
-	if (btr_cursor->thr) {
+	if (!thr) {
+		/*  Purge will U lock the tree instead of take Page Locks */
+	} else {
 		btr_cursor->rtr_info->need_page_lock = true;
-		btr_cursor->rtr_info->thr = btr_cursor->thr;
+		btr_cursor->rtr_info->thr = thr;
 	}
 
-	if (rtr_search_leaf(btr_cursor, tuple, latch_mode, mtr)
+	if (rtr_search_leaf(btr_cursor, thr, tuple, latch_mode, mtr)
 	    != DB_SUCCESS) {
 		return true;
 	}
@@ -1103,12 +1105,14 @@ bool rtr_search(
 				about parent nodes in search
 @param[out]	cursor		cursor on node pointer record,
 				its page x-latched
+@param[in,out]	thr		query thread
 @return whether the cursor was successfully positioned */
-bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor)
+bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor,
+                         que_thr_t *thr)
 {
   mem_heap_t *heap = mem_heap_create(100);
   rec_offs *offsets= rtr_page_get_father_block(nullptr, heap,
-                                               mtr, sea_cur, cursor);
+                                               sea_cur, cursor, thr, mtr);
   mem_heap_free(heap);
   return offsets != nullptr;
 }
@@ -1125,12 +1129,13 @@ static const rec_t* rtr_get_father_node(
 	btr_cur_t*	sea_cur,/*!< in: search cursor */
 	btr_cur_t*	btr_cur,/*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
+	que_thr_t*	thr,	/*!< in/out: query thread */
 	ulint		page_no,/*!< Current page no */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	const rec_t* rec = nullptr;
 	auto had_rtr = btr_cur->rtr_info;
-	dict_index_t* const index = btr_cur->index();
+	ut_d(dict_index_t* const index = btr_cur->index());
 
 	/* Try to optimally locate the parent node. Level should always
 	less than sea_cur->tree_height unless the root is splitting */
@@ -1161,10 +1166,10 @@ static const rec_t* rtr_get_father_node(
 		rtr_clean_rtr_info(btr_cur->rtr_info, true);
 	}
 
-	btr_cur->rtr_info = rtr_create_rtr_info(false, false, btr_cur, index);
+	btr_cur->rtr_info = rtr_create_rtr_info(false, false, thr, btr_cur);
 
-	if (rtr_search_to_nth_level(level, tuple, PAGE_CUR_RTREE_LOCATE,
-				    BTR_CONT_MODIFY_TREE, btr_cur, mtr)
+	if (rtr_search_to_nth_level(btr_cur, thr, tuple, BTR_CONT_MODIFY_TREE,
+				    mtr, PAGE_CUR_RTREE_LOCATE, level)
 	    != DB_SUCCESS) {
 	} else if (sea_cur && sea_cur->tree_height == level) {
 		rec = btr_cur_get_rec(btr_cur);
@@ -1212,6 +1217,7 @@ rtr_page_get_father_node_ptr(
 	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
 				out: cursor on node pointer record,
 				its page x-latched */
+	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dtuple_t*	tuple;
@@ -1247,7 +1253,7 @@ rtr_page_get_father_node_ptr(
 
 	const rec_t* node_ptr = rtr_get_father_node(level + 1, tuple,
 						    sea_cur, cursor,
-						    page_no, mtr);
+						    thr, page_no, mtr);
 	if (!node_ptr) {
 		return nullptr;
 	}
@@ -1273,18 +1279,22 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
 				about parent nodes in search */
-	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
+	btr_cur_t*	cursor,	/*!< out: cursor on node pointer record,
 				its page x-latched */
+	que_thr_t*	thr,	/*!< in/out: query thread */
+	mtr_t*		mtr)	/*!< in/out: mtr */
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  const page_t *const page= cursor->block()->page.frame;
+  const rec_t *rec= page_is_comp(page)
+    ? page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM)
+    : page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
   if (!rec)
     return nullptr;
-  cursor->page_cur.rec= rec;
-  return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor, mtr);
+  cursor->page_cur.rec= const_cast<rec_t*>(rec);
+  return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor,
+                                      thr, mtr);
 }
 
 /*******************************************************************//**
@@ -1297,12 +1307,12 @@ rtr_create_rtr_info(
 	bool		init_matches,	/*!< in: Whether to initiate the
 					"matches" structure for collecting
 					matched leaf records */
-	btr_cur_t*	cursor,		/*!< in: tree search cursor */
-	dict_index_t*	index)		/*!< in: index struct */
+	que_thr_t*	thr,		/*!< in/out: query thread */
+	btr_cur_t*	cursor)		/*!< in: tree search cursor */
 {
 	rtr_info_t*	rtr_info;
 
-	index = index ? index : cursor->index();
+	dict_index_t* index = cursor->index();
 	ut_ad(index);
 
 	rtr_info = static_cast<rtr_info_t*>(ut_zalloc_nokey(sizeof(*rtr_info)));
@@ -1310,23 +1320,18 @@ rtr_create_rtr_info(
 	rtr_info->allocated = true;
 	rtr_info->cursor = cursor;
 	rtr_info->index = index;
+	rtr_info->thr = thr;
 
 	if (init_matches) {
-		rtr_info->heap = mem_heap_create(sizeof(*(rtr_info->matches)));
 		rtr_info->matches = static_cast<matched_rec_t*>(
-					mem_heap_zalloc(
-						rtr_info->heap,
-						sizeof(*rtr_info->matches)));
+			ut_zalloc_nokey(sizeof *rtr_info->matches));
 
 		rtr_info->matches->matched_recs
 			= UT_NEW_NOKEY(rtr_rec_vector());
 
-		rtr_info->matches->bufp = page_align(rtr_info->matches->rec_buf
-						     + UNIV_PAGE_SIZE_MAX + 1);
 		mysql_mutex_init(rtr_match_mutex_key,
 				 &rtr_info->matches->rtr_match_mutex,
 				 nullptr);
-		rtr_info->matches->block.page.lock.init();
 	}
 
 	rtr_info->path = UT_NEW_NOKEY(rtr_node_path_t());
@@ -1445,18 +1450,16 @@ rtr_clean_rtr_info(
 
 	if (free_all) {
 		if (rtr_info->matches) {
-			if (rtr_info->matches->matched_recs != NULL) {
-				UT_DELETE(rtr_info->matches->matched_recs);
+			if (rtr_info->matches->block) {
+				buf_block_free(rtr_info->matches->block);
+				rtr_info->matches->block = nullptr;
 			}
 
-			rtr_info->matches->block.page.lock.free();
+			UT_DELETE(rtr_info->matches->matched_recs);
 
 			mysql_mutex_destroy(
 				&rtr_info->matches->rtr_match_mutex);
-		}
-
-		if (rtr_info->heap) {
-			mem_heap_free(rtr_info->heap);
+			ut_free(rtr_info->matches);
 		}
 
 		if (initialized) {
@@ -1566,7 +1569,10 @@ rtr_check_discard_page(
 		if (auto matches = rtr_info->matches) {
 			mysql_mutex_lock(&matches->rtr_match_mutex);
 
-			if (matches->block.page.id() == id) {
+			/* matches->block could be nullptr when cursor
+			encounters empty table */
+			if (rtr_info->matches->block
+			    && matches->block->page.id() == id) {
 				matches->matched_recs->clear();
 				matches->valid = false;
 			}
@@ -1579,23 +1585,6 @@ rtr_check_discard_page(
 
 	lock_sys.prdt_page_free_from_discard(id, true);
 }
-
-/** Structure acts as functor to get the optimistic access of the page.
-It returns true if it successfully gets the page. */
-struct optimistic_get
-{
-  btr_pcur_t *const r_cursor;
-  mtr_t *const mtr;
-
-  optimistic_get(btr_pcur_t *r_cursor,mtr_t *mtr)
-  :r_cursor(r_cursor), mtr(mtr) {}
-
-  bool operator()(buf_block_t *hint) const
-  {
-    return hint && buf_page_optimistic_get(
-       RW_X_LATCH, hint, r_cursor->modify_clock, mtr);
-  }
-};
 
 /** Restore the stored position of a persistent cursor bufferfixing the page */
 static
@@ -1628,8 +1617,11 @@ rtr_cur_restore_position(
 		r_cursor->modify_clock = 100;
 	);
 
-	if (r_cursor->block_when_stored.run_with_hint(
-		optimistic_get(r_cursor, mtr))) {
+	if (buf_page_optimistic_fix(r_cursor->btr_cur.page_cur.block,
+				    r_cursor->old_page_id)
+	    && buf_page_optimistic_get(r_cursor->btr_cur.page_cur.block,
+				       RW_X_LATCH, r_cursor->modify_clock,
+				       mtr)) {
 		ut_ad(r_cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
 		ut_ad(r_cursor->rel_pos == BTR_PCUR_ON);
@@ -1691,7 +1683,7 @@ rtr_cur_restore_position(
 	ut_ad(r_cursor == node->cursor);
 
 search_again:
-	ulint up_match = 0, low_match = 0;
+	uint16_t up_match = 0, low_match = 0;
 
 	page_cursor->block = buf_page_get_gen(
 		page_id_t(index->table->space_id, page_no),
@@ -1702,6 +1694,8 @@ corrupted:
 		ret = false;
 		goto func_exit;
 	}
+
+	buf_page_make_young_if_needed(&page_cursor->block->page);
 
 	/* Get the page SSN */
 	page = buf_block_get_frame(page_cursor->block);
@@ -1772,7 +1766,7 @@ rtr_leaf_push_match_rec(
 	ulint		data_len;
 	rtr_rec_t	rtr_rec;
 
-	buf = match_rec->block.page.frame + match_rec->used;
+	buf = match_rec->block->page.frame + match_rec->used;
 	ut_ad(page_rec_is_leaf(rec));
 
 	copy = rec_copy(buf, rec, offsets);
@@ -1869,43 +1863,6 @@ rtr_non_leaf_insert_stack_push(
 				new_seq, level, child_no, my_cursor, mbr_inc);
 }
 
-/** Copy a buf_block_t, except "block->page.lock".
-@param[in,out]	matches	copy to match->block
-@param[in]	block	block to copy */
-static
-void
-rtr_copy_buf(
-	matched_rec_t*		matches,
-	const buf_block_t*	block)
-{
-	/* Copy all members of "block" to "matches->block" except "lock".
-	We skip "lock" because it is not used
-	from the dummy buf_block_t we create here and because memcpy()ing
-	it generates (valid) compiler warnings that the vtable pointer
-	will be copied. */
-	matches->block.page.lock.free();
-	new (&matches->block.page) buf_page_t(block->page);
-	matches->block.page.frame = block->page.frame;
-	matches->block.unzip_LRU = block->unzip_LRU;
-
-	ut_d(matches->block.in_unzip_LRU_list = block->in_unzip_LRU_list);
-	ut_d(matches->block.in_withdraw_list = block->in_withdraw_list);
-
-	/* Skip buf_block_t::lock */
-	matches->block.modify_clock = block->modify_clock;
-#ifdef BTR_CUR_HASH_ADAPT
-	matches->block.n_hash_helps = block->n_hash_helps;
-	matches->block.n_fields = block->n_fields;
-	matches->block.left_side = block->left_side;
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	matches->block.n_pointers = 0;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-	matches->block.curr_n_fields = block->curr_n_fields;
-	matches->block.curr_left_side = block->curr_left_side;
-	matches->block.index = block->index;
-#endif /* BTR_CUR_HASH_ADAPT */
-}
-
 /****************************************************************//**
 Generate a shadow copy of the page block header to save the
 matched records */
@@ -1919,16 +1876,18 @@ rtr_init_match(
 {
 	ut_ad(matches->matched_recs->empty());
 	matches->locked = false;
-	rtr_copy_buf(matches, block);
-	matches->block.page.frame = matches->bufp;
 	matches->valid = false;
+	if (!matches->block) {
+		matches->block = buf_block_alloc();
+	}
+
+	matches->block->page.init(buf_page_t::MEMORY, block->page.id());
 	/* We have to copy PAGE_*_SUPREMUM_END bytes so that we can
 	use infimum/supremum of this page as normal btr page for search. */
-	memcpy(matches->block.page.frame, page, page_is_comp(page)
-	       ? PAGE_NEW_SUPREMUM_END : PAGE_OLD_SUPREMUM_END);
 	matches->used = page_is_comp(page)
 				? PAGE_NEW_SUPREMUM_END
 				: PAGE_OLD_SUPREMUM_END;
+	memcpy(matches->block->page.frame, page, matches->used);
 #ifdef RTR_SEARCH_DIAGNOSTIC
 	ulint pageno = page_get_page_no(page);
 	fprintf(stderr, "INNODB_RTR: Searching leaf page %d\n",
@@ -2249,6 +2208,15 @@ rtr_cur_search_with_match(
 					ut_ad(orig_mode
 					      != PAGE_CUR_RTREE_LOCATE);
 
+					/* Collect matched records on page */
+					offsets = rec_get_offsets(
+						rec, index, offsets,
+						index->n_fields,
+						ULINT_UNDEFINED, &heap);
+
+					mysql_mutex_lock(
+					  &rtr_info->matches->rtr_match_mutex);
+
 					if (!match_init) {
 						rtr_init_match(
 							rtr_info->matches,
@@ -2256,14 +2224,12 @@ rtr_cur_search_with_match(
 						match_init = true;
 					}
 
-					/* Collect matched records on page */
-					offsets = rec_get_offsets(
-						rec, index, offsets,
-						index->n_fields,
-						ULINT_UNDEFINED, &heap);
 					rtr_leaf_push_match_rec(
 						rec, rtr_info, offsets,
 						page_is_comp(page));
+
+					mysql_mutex_unlock(
+					  &rtr_info->matches->rtr_match_mutex);
 				}
 
 				last_match_rec = rec;
@@ -2355,7 +2321,7 @@ rtr_cur_search_with_match(
 #endif /* UNIV_DEBUG */
 			/* Pop the last match record and position on it */
 			match_rec->matched_recs->pop_back();
-			page_cur_position(test_rec.r_rec, &match_rec->block,
+			page_cur_position(test_rec.r_rec, match_rec->block,
 					  cursor);
 		}
 	} else {

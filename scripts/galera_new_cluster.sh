@@ -15,17 +15,17 @@ Usage: ${0}
     On the remaining nodes simply run 'service @DAEMON_NAME@ start'.
 
     For more information on Galera Cluster configuration and usage see:
-    https://mariadb.com/kb/en/mariadb/getting-started-with-mariadb-galera-cluster/
+    https://mariadb.com/docs/galera-cluster/galera-cluster-quickstart-guides/mariadb-galera-cluster-guide
 
 EOF
     exit 0
 fi
 
-systemctl set-environment _WSREP_NEW_CLUSTER='--wsrep-new-cluster' && \
-    systemctl restart ${1:-mariadb}
+echo _WSREP_NEW_CLUSTER='--wsrep-new-cluster' > "@INSTALL_RUNDATADIR@/wsrep-new-cluster" && \
+    systemctl restart "${1:-mariadb.service}"
 
 extcode=$?
 
-systemctl set-environment _WSREP_NEW_CLUSTER=''
+rm -f "@INSTALL_RUNDATADIR@/wsrep-new-cluster"
 
 exit $extcode

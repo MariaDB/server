@@ -1,50 +1,54 @@
-# update submodules automatically
-
 OPTION(UPDATE_SUBMODULES "Update submodules automatically" ON)
-IF(NOT UPDATE_SUBMODULES)
-  RETURN()
-ENDIF()
 
-IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+IF(NOT UPDATE_SUBMODULES)
+  SET(SUBMODULE_UPDATE_CONFIG_MESSAGE "Disabled by -DUPDATE_SUBMODULES=OFF")
+ELSEIF(NOT GIT_EXECUTABLE)
+  SET(SUBMODULE_UPDATE_CONFIG_MESSAGE "git executable was not found")
+ELSEIF(NOT EXISTS "${CMAKE_SOURCE_DIR}/.git")
+  SET(SUBMODULE_UPDATE_CONFIG_MESSAGE "Not inside a git repository")
+ELSE()
   EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" config --get cmake.update-submodules
                   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-                  OUTPUT_VARIABLE cmake_update_submodules
+                  OUTPUT_VARIABLE CMAKE_UPDATE_SUBMODULES
                   RESULT_VARIABLE git_config_get_result)
-  IF(cmake_update_submodules MATCHES no)
+  IF(CMAKE_UPDATE_SUBMODULES MATCHES no)
     SET(update_result 0)
-    SET(SUBMODULE_UPDATE_CONFIG_MESSAGE
-"\n\nTo update submodules automatically, set cmake.update-submodules to 'yes', or 'force' to update automatically:
-    ${GIT_EXECUTABLE} config cmake.update-submodules yes")
+    SET(SUBMODULE_UPDATE_CONFIG_MESSAGE "Disabled by git config. To enable set cmake.update-submodules to 'yes', or 'force': ${GIT_EXECUTABLE} config cmake.update-submodules yes")
   ELSEIF(git_config_get_result EQUAL 128)
-    SET(update_result 0)
-  ELSE()
-    SET(UPDATE_SUBMODULES_COMMAND
-        "${GIT_EXECUTABLE}" submodule update --init --recursive)
-    # Old Git may not work with "--depth 1".
-    # See also: https://github.com/git/git/commit/fb43e31f2b43076e7a30c9cd00d0241cb8cf97eb
-    IF(NOT GIT_VERSION_STRING VERSION_LESS "2.8.0")
-      SET(UPDATE_SUBMODULES_COMMAND ${UPDATE_SUBMODULES_COMMAND} --depth 1)
-    ENDIF()
-    IF(cmake_update_submodules MATCHES force)
-      MESSAGE(STATUS "Updating submodules (forced)")
-      EXECUTE_PROCESS(COMMAND ${UPDATE_SUBMODULES_COMMAND} --force
-                      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-                      RESULT_VARIABLE update_result)
-    ELSEIF(cmake_update_submodules MATCHES yes)
-      EXECUTE_PROCESS(COMMAND ${UPDATE_SUBMODULES_COMMAND}
-                      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-                      RESULT_VARIABLE update_result)
-    ELSE()
-      MESSAGE(STATUS "Updating submodules")
-      EXECUTE_PROCESS(COMMAND ${UPDATE_SUBMODULES_COMMAND}
-                      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-                      RESULT_VARIABLE update_result)
-    ENDIF()
+    SET(SUBMODULE_UPDATE_CONFIG_MESSAGE "Git executable ${GIT_EXECUTABLE} failed to run")
   ENDIF()
 ENDIF()
 
-IF(update_result OR NOT EXISTS ${CMAKE_SOURCE_DIR}/libmariadb/CMakeLists.txt)
-  MESSAGE(FATAL_ERROR "No MariaDB Connector/C! Run
-    ${GIT_EXECUTABLE} submodule update --init --recursive
-Then restart the build.${SUBMODULE_UPDATE_CONFIG_MESSAGE}")
-ENDIF()
+FUNCTION(ADD_SUBMODULE dir)
+  IF (ARGV1)
+    SET(file "${ARGV1}")
+  ELSE()
+    SET(file CMakeLists.txt)
+  ENDIF()
+  IF(SUBMODULE_UPDATE_CONFIG_MESSAGE)
+    IF(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/${file})
+      MESSAGE(FATAL_ERROR "Cannot download ${CMAKE_CURRENT_SOURCE_DIR}/${dir} submodule: ${SUBMODULE_UPDATE_CONFIG_MESSAGE}")
+    ENDIF()
+  ELSE()
+    MESSAGE(STATUS "Downloading ${CMAKE_CURRENT_SOURCE_DIR}/${dir} submodule...")
+    SET(UPDATE_SUBMODULES_COMMAND
+        "${GIT_EXECUTABLE}" submodule update --init --recursive --depth 1)
+    IF(CMAKE_UPDATE_SUBMODULES MATCHES force)
+      EXECUTE_PROCESS(COMMAND ${UPDATE_SUBMODULES_COMMAND} --force ${dir}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                      RESULT_VARIABLE update_result)
+    ELSE()
+      EXECUTE_PROCESS(COMMAND ${UPDATE_SUBMODULES_COMMAND} ${dir}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                      RESULT_VARIABLE update_result)
+    ENDIF()
+    IF(update_result OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/${file})
+      MESSAGE(FATAL_ERROR "Failed to download ${CMAKE_CURRENT_SOURCE_DIR}/${dir} submodule")
+    ENDIF()
+  ENDIF()
+ENDFUNCTION()
+
+MACRO(ADD_SUBMODULE_SUBDIRECTORY dir)
+  ADD_SUBMODULE(${dir})
+  ADD_SUBDIRECTORY(${dir})
+ENDMACRO()

@@ -20,11 +20,20 @@ INSERT INTO fts_test (title,body) VALUES
 	('MySQL Security','When configured properly, MySQL ...');
 
 # Table does rebuild when fts index builds for the first time
+# Create the FTS index
+
+if ($MTR_COMBINATION_ORIG) {
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
-
-# Create the FTS index
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=INPLACE;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+--enable_info
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
+--disable_info
+}
 
 # Select word "tutorial" in the table
 SELECT * FROM fts_test WHERE MATCH (title, body)
@@ -43,7 +52,14 @@ INSERT INTO fts_test (title,body) VALUES
 	('MySQL Security','When configured properly, MySQL ...');
 
 # FTS_DOC_ID hidden column and FTS_DOC_ID index exist
+if ($MTR_COMBINATION_ORIG) {
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--enable_info
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
+--disable_info
+}
 
 # Select word "tutorial" in the table
 SELECT * FROM fts_test WHERE MATCH (title, body)
@@ -111,11 +127,18 @@ INSERT INTO fts_test (title,body) VALUES
 # We could support online fulltext index creation when a FTS_DOC_ID
 # column already exists. This has not been implemented yet.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-CREATE FULLTEXT INDEX idx on fts_test (title, body) LOCK=NONE;
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY, LOCK=NONE;
+if ($MTR_COMBINATION_ORIG) {
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--enable_info
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
+--disable_info
+}
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, LOCK=NONE;
+ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
 
 SELECT * FROM fts_test WHERE MATCH (title, body)
@@ -300,18 +323,21 @@ DROP TABLE t1;
 SET NAMES utf8;
 
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+--error ER_WRONG_COLUMN_NAME
 ALTER TABLE t1 ADD FTS_DOC_ıD BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
-ALTER TABLE t1 DROP COLUMN FTS_DOC_ıD;
+--error ER_WRONG_COLUMN_NAME
 ALTER TABLE t1 ADD FTS_DOC_ıD BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
 DROP TABLE t1;
 
 CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
-
---error ER_WRONG_COLUMN_NAME
 ALTER TABLE t1 ADD FTS_DOC_İD BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
+DROP TABLE t1;
 
---error ER_WRONG_COLUMN_NAME
+CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
 ALTER TABLE t1 ADD FTS_DOC_İD BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
+DROP TABLE t1;
+
+CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
 
 --error ER_WRONG_COLUMN_NAME
 ALTER TABLE t1 ADD fts_doc_id INT, ALGORITHM=COPY;
@@ -342,6 +368,7 @@ call mtr.add_suppression("InnoDB: Operating system error number .* in a file ope
 call mtr.add_suppression("InnoDB: Error number .* means");
 call mtr.add_suppression("InnoDB: Cannot create file");
 call mtr.add_suppression("InnoDB: Failed to create");
+call mtr.add_suppression("InnoDB: The file '.*test/FTS_[0-9a-f]*_BEING_DELETED\\.ibd' already exists");
 
 let MYSQLD_DATADIR=`select @@datadir`;
 CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
@@ -349,8 +376,14 @@ let $fts_aux_file= `select concat('FTS_',right(concat(repeat('0',16), lower(hex(
 write_file $MYSQLD_DATADIR/test/$fts_aux_file;
 EOF
 --replace_regex /".*" from/"Resource temporarily unavailable" from/
+if ($MTR_COMBINATION_ORIG) {
 --error ER_GET_ERRNO
 ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+}
+if (!$MTR_COMBINATION_ORIG) {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+}
 DROP TABLE t1;
 remove_file $MYSQLD_DATADIR/test/$fts_aux_file;
 
@@ -397,3 +430,29 @@ DROP TABLE t1;
 disconnect con1;
 SET GLOBAL innodb_optimize_fulltext_only=OFF;
 SET GLOBAL innodb_ft_aux_table = default;
+
+--echo #
+--echo #  MDEV-32017  Auto-increment no longer works for
+--echo #		 explicit FTS_DOC_ID
+--echo #
+CREATE TABLE t (
+  FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  f1 char(255), f2 char(255), f3 char(255), fulltext key (f3)
+) ENGINE=InnoDB;
+INSERT INTO t (f1,f2,f3) VALUES ('foo','bar','baz');
+ALTER TABLE t ADD FULLTEXT INDEX ft1(f1);
+ALTER TABLE t ADD FULLTEXT INDEX ft2(f2);
+INSERT INTO t (f1,f2,f3) VALUES ('bar','baz','qux');
+DROP TABLE t;
+
+--echo #
+--echo #  MDEV-31892 Server crash upon moving InnoDB table
+--echo #	with fulltext index between databases
+--echo #
+CREATE DATABASE db;
+CREATE TABLE db.t (pk INT PRIMARY KEY, c CHAR(120), FULLTEXT KEY(c)) ENGINE=InnoDB;
+INSERT INTO db.t VALUES (1,'foo'),(2,'bar');
+ALTER TABLE db.t FORCE, RENAME to test.t;
+# Cleanup
+DROP DATABASE db;
+DROP TABLE IF EXISTS test.t;

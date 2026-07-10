@@ -220,7 +220,7 @@ struct { const char *f0, *f2; } data[NDATAS] = {
    {"11.12", "What are the different row formats? Or, when should VARCHAR/CHAR be used?"},
    {"11.13", "Why so many open tables?"},
    {"12", "MySQL benchmark suite"},
-   {"13", "MySQL Utilites"},
+   {"13", "MySQL Utilities"},
    {"13.1", "Overview of the different MySQL programs"},
    {"13.2", "The MySQL table check, optimize and repair program"},
    {"13.2.1", "isamchk memory use"},

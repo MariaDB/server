@@ -34,7 +34,9 @@ PARTITION BY HASH(id) (
   PARTITION pt1 COMMENT='srv "s_2_1"'
 );
 
+--disable_ps_protocol
 SELECT id, CASE WHEN name='Alice' THEN "A" WHEN name='Bob' THEN "B" END FROM tbl_a;
+--enable_ps_protocol
 SELECT id, CASE name WHEN 'Alice' THEN "A" WHEN 'Bob' THEN "B" END FROM tbl_a;
 
 DROP DATABASE auto_test_local;

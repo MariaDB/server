@@ -1,0 +1,43 @@
+--source include/have_binlog_format_statement.inc
+select @@create_tmp_table_binlog_formats;
+
+RESET MASTER;
+
+--echo #
+--echo # MDEV-36980 Assertion `thd->mdl_context.is_lock_owner()...fails in
+--echo # close_thread_table
+--echo #
+
+CREATE TABLE t1 (c INT);
+CREATE TEMPORARY TABLE t2 (d int);
+set @@binlog_format="row";
+CREATE TEMPORARY TABLE t3_hidden (e int);
+set @@binlog_format="statement";
+
+# Testing
+
+CREATE TEMPORARY TABLE t1 LIKE information_schema.processlist;
+CREATE TEMPORARY TABLE t2_tmp like t2;
+CREATE TEMPORARY TABLE t3 like t3_hidden;
+drop temporary table t1,t2_tmp,t3;
+
+set @@binlog_format="mixed";
+set @@create_tmp_table_binlog_formats="statement,mixed";
+CREATE TEMPORARY TABLE t1 LIKE information_schema.processlist;
+select benchmark(1,1);
+CREATE TEMPORARY TABLE t2_tmp like t2;
+CREATE TEMPORARY TABLE t3 like t3_hidden;
+drop temporary table t1,t2_tmp,t3;
+
+set @@binlog_format="mixed";
+set @@create_tmp_table_binlog_formats="statement";
+CREATE TEMPORARY TABLE t1 LIKE information_schema.processlist;
+CREATE TEMPORARY TABLE t2_tmp like t2;
+CREATE TEMPORARY TABLE t3 like t3_hidden;
+drop temporary table t1,t2_tmp,t3;
+
+# Cleanup
+drop temporary table t2,t3_hidden;
+drop table t1;
+
+--source include/show_binlog_events.inc

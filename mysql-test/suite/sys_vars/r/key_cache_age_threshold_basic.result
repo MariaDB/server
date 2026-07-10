@@ -116,11 +116,11 @@ SELECT @@key_cache_age_threshold;
 @@key_cache_age_threshold
 100
 SELECT local.key_cache_age_threshold;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.key_cache_age_threshold;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT key_cache_age_threshold = @@session.key_cache_age_threshold;
-ERROR 42S22: Unknown column 'key_cache_age_threshold' in 'field list'
+ERROR 42S22: Unknown column 'key_cache_age_threshold' in 'SELECT'
 SET @@global.key_cache_age_threshold = @start_value;
 SELECT @@global.key_cache_age_threshold;
 @@global.key_cache_age_threshold

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2021, MariaDB Corporation.
+Copyright (C) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,13 +47,7 @@ Updated 14/02/2015
 #include "trx0sys.h"
 #include "row0mysql.h"
 #include "buf0lru.h"
-#include "ibuf0ibuf.h"
 #include "zlib.h"
-#ifdef __linux__
-#include <linux/fs.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#endif
 #include "row0mysql.h"
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -177,6 +171,7 @@ static ulint fil_page_compress_for_full_crc32(
 	bool		encrypted)
 {
 	ulint comp_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
+	ulint comp_algo = fil_space_t::get_compression_algo(flags);
 
 	if (comp_level == 0) {
 		comp_level = page_zip_level;
@@ -186,12 +181,13 @@ static ulint fil_page_compress_for_full_crc32(
 
 	ulint write_size = fil_page_compress_low(
 		buf, out_buf, header_len,
-		fil_space_t::get_compression_algo(flags),
+		comp_algo,
 		static_cast<unsigned>(comp_level));
 
 	if (write_size == 0) {
 fail:
-		srv_stats.pages_page_compression_error.inc();
+		if (comp_algo != PAGE_UNCOMPRESSED)
+			srv_stats.pages_page_compression_error.inc();
 		return 0;
 	}
 
@@ -271,7 +267,8 @@ static ulint fil_page_compress_for_non_full_crc32(
 				header_len, comp_algo, comp_level);
 
 	if (write_size == 0) {
-		srv_stats.pages_page_compression_error.inc();
+		if (comp_algo != PAGE_UNCOMPRESSED)
+			srv_stats.pages_page_compression_error.inc();
 		return 0;
 	}
 
@@ -295,7 +292,7 @@ static ulint fil_page_compress_for_non_full_crc32(
 		mach_write_to_2(out_buf + FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED);
 	}
 
-	/* Set up the actual payload lenght */
+	/* Set up the actual payload length */
 	mach_write_to_2(out_buf + FIL_PAGE_DATA + FIL_PAGE_COMP_SIZE,
 			write_size);
 

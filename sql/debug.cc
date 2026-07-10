@@ -35,12 +35,13 @@ static const LEX_CSTRING debug_crash_counter=
 static const LEX_CSTRING debug_error_counter=
 { STRING_WITH_LEN("debug_error_counter") };
 
-static bool debug_decrement_counter(const LEX_CSTRING *name)
+bool debug_decrement_counter(const LEX_CSTRING *name)
 {
   THD *thd= current_thd;
   user_var_entry *entry= (user_var_entry*)
     my_hash_search(&thd->user_vars, (uchar*) name->str, name->length);
-  if (!entry || entry->type != INT_RESULT || ! entry->value)
+  if (!entry || !entry->value ||
+      entry->type_handler()->result_type() != INT_RESULT)
     return 0;
   (*(ulonglong*) entry->value)= (*(ulonglong*) entry->value)-1;
   return !*(ulonglong*) entry->value;

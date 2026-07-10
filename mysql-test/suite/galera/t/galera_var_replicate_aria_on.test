@@ -234,4 +234,3 @@ SET GLOBAL wsrep_mode = DEFAULT;
 --connection node_2
 SET GLOBAL wsrep_mode = DEFAULT;
 --enable_query_log
-

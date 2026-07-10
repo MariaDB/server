@@ -9,7 +9,7 @@ Warnings:
 Warning	1292	Truncated incorrect tmp_table_size value: '40960'
 SELECT @@session.tmp_table_size;
 @@session.tmp_table_size
-8192
+16384
 SET @@session.max_join_size=40960;
 Warnings:
 Warning	1292	Truncated incorrect max_join_size value: '40960'

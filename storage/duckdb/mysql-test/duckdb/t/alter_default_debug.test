@@ -1,0 +1,27 @@
+--source ../include/have_duckdb.inc
+
+CREATE TABLE t(id INT PRIMARY KEY, a INT, b INT, c INT) ENGINE = DuckDB;
+INSERT INTO t VALUES(1, 1, 1, 1);
+SELECT * FROM t;
+
+# Breakpoint: ha_duckdb::commit_inplace_alter_table
+# Check: handler_flags, sql_flags, query string
+ALTER TABLE t ALTER COLUMN b SET DEFAULT 100,
+                   ALTER COLUMN c SET DEFAULT 100, ALGORITHM = INSTANT;
+
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_name = 't'");
+
+INSERT INTO t(id) VALUES(2);
+SELECT * FROM t;
+
+ALTER TABLE t ALTER COLUMN b DROP DEFAULT, ALGORITHM = INSTANT;
+
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_name = 't'");
+
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t(id) VALUES(3);
+
+INSERT INTO t(id, b) VALUES(3, 3);
+SELECT * FROM t;
+
+DROP TABLE t;

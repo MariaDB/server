@@ -1,7 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 create table t1 (a int) engine=innodb STATS_PERSISTENT=0;
 create table t2 (a int) engine=innodb STATS_PERSISTENT=0;
@@ -83,5 +82,3 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 SET DEBUG_SYNC="reset";
-
---source include/wait_until_count_sessions.inc

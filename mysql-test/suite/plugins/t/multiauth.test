@@ -1,4 +1,5 @@
 --source include/not_ubsan.inc
+--source include/count_sessions.inc
 
 let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
 let $REGEX_PASSWORD_LAST_CHANGED=/password_last_changed": [0-9]*/password_last_changed": #/;
@@ -28,6 +29,7 @@ select user(), current_user(), database();
 EOF
 
 --let $creplace=create user '$USER'
+--let $greplace=grant select on test.* to '$USER'
 --let $dreplace=drop user '$USER'
 
 #
@@ -35,7 +37,10 @@ EOF
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via unix_socket OR mysql_native_password as password("GOOD");
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -44,6 +49,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -52,7 +58,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via mysql_native_password as password("GOOD") OR unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -61,6 +70,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -69,7 +79,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via unix_socket OR ed25519 as password("GOOD");
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via unix_socket OR ed25519 as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -78,6 +91,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -86,7 +100,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket;
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -95,6 +112,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -103,7 +121,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket OR mysql_native_password as password("works");
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -114,6 +135,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -121,6 +143,7 @@ eval $dreplace, mysqltest1;
 # password,password
 #
 create user mysqltest1 identified via mysql_native_password as password("good") OR mysql_native_password as password("works");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # password good = ok
 --exec $try_auth -u mysqltest1 -pgood
@@ -129,6 +152,7 @@ show create user mysqltest1;
 --echo # password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 drop user mysqltest1;
 
 #
@@ -145,6 +169,7 @@ set password for mysqltest1 = password('foobar');
 show create user mysqltest1;
 alter user mysqltest1 identified via unix_socket OR mysql_native_password as password("some");
 show create user mysqltest1;
+--error ER_SET_PASSWORD_AUTH_PLUGIN
 set password for mysqltest1 = password('foobar');
 show create user mysqltest1;
 alter user mysqltest1 identified via unix_socket;
@@ -165,7 +190,10 @@ create user mysqltest1 identified via ed25519 as password("good") OR unix_socket
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+grant select on test.* to mysqltest1;
 update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
 flush privileges;
 show create user mysqltest1;
@@ -177,6 +205,7 @@ show create user mysqltest1;
 --echo # SET PASSWORD helps
 set password for mysqltest1 = password('bla');
 --exec $try_auth -u mysqltest1 -pbla
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -184,6 +213,7 @@ eval $dreplace, mysqltest1;
 # missing client-side plugin
 #
 create user mysqltest1 identified via ed25519 as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # no plugin = failure
 # covers Linux (1st re), FreeBSD (2nd), AIX (3rd and 4th)
@@ -197,6 +227,7 @@ show create user mysqltest1;
 --exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
 --echo # no plugin, second password works = ok
 --exec $try_auth -u mysqltest1 -pworks --plugin-dir=$plugindir/no
+--source include/wait_until_count_sessions.inc
 drop user mysqltest1;
 
 uninstall soname 'auth_ed25519';

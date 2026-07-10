@@ -1,5 +1,6 @@
 source include/not_embedded.inc;
 source include/have_innodb.inc;
+source include/no_view_protocol.inc;
 
 #
 # This test the rpl_semi_sync_master_wait_point functionality

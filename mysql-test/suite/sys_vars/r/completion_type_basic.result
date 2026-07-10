@@ -119,11 +119,11 @@ SELECT @@completion_type;
 @@completion_type
 CHAIN
 SELECT local.completion_type;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.completion_type;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT completion_type = @@session.completion_type;
-ERROR 42S22: Unknown column 'completion_type' in 'field list'
+ERROR 42S22: Unknown column 'completion_type' in 'SELECT'
 SET @@global.completion_type = @start_global_value;
 SELECT @@global.completion_type;
 @@global.completion_type

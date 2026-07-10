@@ -1,5 +1,5 @@
 # include file to test index and table statstics for specific storage engine
-# requires includer set the default strorage engine for the session
+# requires includer set the default storage engine for the session
 
 # Bug 602047 (wrong rows_read value)
 
@@ -12,9 +12,12 @@ SET GLOBAL userstat=ON;
 --disable_ps2_protocol
 CREATE TABLE t1 (id int(10), PRIMARY KEY (id));
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
-SELECT COUNT(*) FROM t1; 
+FLUSH TABLE_STATISTICS;
+SELECT SUM(id) FROM t1;
 SELECT ROWS_READ FROM INFORMATION_SCHEMA.TABLE_STATISTICS WHERE TABLE_NAME='t1';
 SELECT ROWS_READ FROM INFORMATION_SCHEMA.INDEX_STATISTICS WHERE TABLE_NAME='t1';
+
+SELECT PAGES_ACCESSED, PAGES_READ_FROM_DISK FROM INFORMATION_SCHEMA.TABLE_STATISTICS WHERE TABLE_NAME='t1';
 
 # Test that FLUSH clears one table but not another
 

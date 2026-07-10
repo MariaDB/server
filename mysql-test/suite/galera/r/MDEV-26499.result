@@ -1,0 +1,6 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+SET GLOBAL debug_dbug="+d,simulate_slow_client_at_shutdown";

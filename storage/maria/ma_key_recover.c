@@ -1190,7 +1190,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
 
   /*
     Clean old stuff up. Gives us better compression of we archive things
-    and makes things easer to debug
+    and makes things easier to debug
   */
   if (page_length < org_page_length)
     bzero(buff + page_length, org_page_length-page_length);
@@ -1251,7 +1251,7 @@ my_bool _ma_apply_undo_key_insert(MARIA_HA *info, LSN undo_lsn,
     is reached.
     For index with transid flag, the ref_length of the key is not correct.
     This should however be safe as long as this key is only used for
-    comparsion against other keys (not for packing or for read-next etc as
+    comparison against other keys (not for packing or for read-next etc as
     in this case we use data_length + ref_length, which is correct.
   */
   key.keyinfo=     share->keyinfo + keynr;

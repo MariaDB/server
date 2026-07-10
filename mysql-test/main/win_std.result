@@ -27,90 +27,90 @@ std(c) over (order by a)
 0
 0
 # Empty frame.
-select std(b) over (order by a rows between 2 following and 1 following)
+select std(b) over (order by a rows between 2 following and 1 following) as exp
 from t2;
-std(b) over (order by a rows between 2 following and 1 following)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a range between 2 following and 1 following)
+select std(b) over (order by a range between 2 following and 1 following) as exp
 from t2;
-std(b) over (order by a range between 2 following and 1 following)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a rows between 1 preceding and 2 preceding)
+select std(b) over (order by a rows between 1 preceding and 2 preceding) as exp
 from t2;
-std(b) over (order by a rows between 1 preceding and 2 preceding)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a range between 1 preceding and 2 preceding)
+select std(b) over (order by a range between 1 preceding and 2 preceding) as exp
 from t2;
-std(b) over (order by a range between 1 preceding and 2 preceding)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a rows between 1 following and 0 following)
+select std(b) over (order by a rows between 1 following and 0 following) as exp
 from t2;
-std(b) over (order by a rows between 1 following and 0 following)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a range between 1 following and 0 following)
+select std(b) over (order by a range between 1 following and 0 following) as exp
 from t2;
-std(b) over (order by a range between 1 following and 0 following)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a rows between 1 following and 0 preceding)
+select std(b) over (order by a rows between 1 following and 0 preceding) as exp
 from t2;
-std(b) over (order by a rows between 1 following and 0 preceding)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a range between 1 following and 0 preceding)
+select std(b) over (order by a range between 1 following and 0 preceding) as exp
 from t2;
-std(b) over (order by a range between 1 following and 0 preceding)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a rows between 0 following and 1 preceding)
+select std(b) over (order by a rows between 0 following and 1 preceding) as exp
 from t2;
-std(b) over (order by a rows between 0 following and 1 preceding)
+exp
 NULL
 NULL
 NULL
 NULL
 NULL
 NULL
-select std(b) over (order by a range between 0 following and 1 preceding)
+select std(b) over (order by a range between 0 following and 1 preceding) as exp
 from t2;
-std(b) over (order by a range between 0 following and 1 preceding)
+exp
 NULL
 NULL
 NULL
@@ -118,57 +118,56 @@ NULL
 NULL
 NULL
 # 1 row frame.
-select std(b) over (order by a rows between current row and current row)
+select std(b) over (order by a rows between current row and current row) as exp
 from t2;
-std(b) over (order by a rows between current row and current row)
+exp
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
-select std(b) over (order by a rows between 0 preceding and current row)
+select std(b) over (order by a rows between 0 preceding and current row) as exp
 from t2;
-std(b) over (order by a rows between 0 preceding and current row)
+exp
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
-select std(b) over (order by a rows between 0 preceding and 0 preceding)
+select std(b) over (order by a rows between 0 preceding and 0 preceding) as exp
 from t2;
-std(b) over (order by a rows between 0 preceding and 0 preceding)
+exp
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
-select std(b) over (order by a rows between 0 preceding and 0 following)
+select std(b) over (order by a rows between 0 preceding and 0 following) as exp
 from t2;
-std(b) over (order by a rows between 0 preceding and 0 following)
+exp
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
-select std(b) over (order by a rows between 0 following and 0 preceding)
-from t2;
-std(b) over (order by a rows between 0 following and 0 preceding)
+select std(b) over (order by a rows between 0 following and 0 preceding) as exp from t2;
+exp
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
 0.0000
-select std(b) over (order by a rows between 0 following and current row)
+select std(b) over (order by a rows between 0 following and current row) as exp
 from t2;
 ERROR HY000: Unacceptable combination of window frame bound specifications
-select std(b) over (order by a rows between current row and 0 following)
+select std(b) over (order by a rows between current row and 0 following) as exp
 from t2;
-std(b) over (order by a rows between current row and 0 following)
+exp
 0.0000
 0.0000
 0.0000
@@ -176,39 +175,39 @@ std(b) over (order by a rows between current row and 0 following)
 0.0000
 0.0000
 # Only peers frame.
-select a, b, std(b) over (order by a range between 0 preceding and 0 preceding)
+select a, b, std(b) over (order by a range between 0 preceding and 0 preceding) as exp
 from t2;
-a	b	std(b) over (order by a range between 0 preceding and 0 preceding)
+a	b	exp
 0	1	0.8165
 0	2	0.8165
 0	3	0.8165
 1	1	0.4714
 1	1	0.4714
 1	2	0.4714
-select a, b, std(b) over (order by a range between 0 preceding and current row)
+select a, b, std(b) over (order by a range between 0 preceding and current row) as exp
 from t2;
-a	b	std(b) over (order by a range between 0 preceding and current row)
+a	b	exp
 0	1	0.8165
 0	2	0.8165
 0	3	0.8165
 1	1	0.4714
 1	1	0.4714
 1	2	0.4714
-select a, b, std(b) over (order by a range between current row and 0 preceding)
+select a, b, std(b) over (order by a range between current row and 0 preceding) as exp
 from t2;
 ERROR HY000: Unacceptable combination of window frame bound specifications
-select a, b, std(b) over (order by a range between current row and 0 following)
+select a, b, std(b) over (order by a range between current row and 0 following) as exp
 from t2;
-a	b	std(b) over (order by a range between current row and 0 following)
+a	b	exp
 0	1	0.8165
 0	2	0.8165
 0	3	0.8165
 1	1	0.4714
 1	1	0.4714
 1	2	0.4714
-select a, b, std(b) over (order by a range between 0 following and 0 following)
+select a, b, std(b) over (order by a range between 0 following and 0 following) as exp
 from t2;
-a	b	std(b) over (order by a range between 0 following and 0 following)
+a	b	exp
 0	1	0.8165
 0	2	0.8165
 0	3	0.8165
@@ -216,36 +215,36 @@ a	b	std(b) over (order by a range between 0 following and 0 following)
 1	1	0.4714
 1	2	0.4714
 # 2 rows frame.
-select pk, a, b, std(b) over (order by a, b, pk rows between 1 preceding and current row)
+select pk, a, b, std(b) over (order by a, b, pk rows between 1 preceding and current row) as exp
 from t2;
-pk	a	b	std(b) over (order by a, b, pk rows between 1 preceding and current row)
+pk	a	b	exp
 1	0	1	0.0000
 2	0	2	0.5000
 3	0	3	0.5000
 4	1	1	1.0000
 5	1	1	0.0000
 6	1	2	0.5000
-select pk, a, b, std(b) over (order by a, b, pk rows between 1 preceding and 0 preceding)
+select pk, a, b, std(b) over (order by a, b, pk rows between 1 preceding and 0 preceding) as exp
 from t2;
-pk	a	b	std(b) over (order by a, b, pk rows between 1 preceding and 0 preceding)
+pk	a	b	exp
 1	0	1	0.0000
 2	0	2	0.5000
 3	0	3	0.5000
 4	1	1	1.0000
 5	1	1	0.0000
 6	1	2	0.5000
-select pk, a, b, std(b) over (order by a, b, pk rows between current row and 1 following)
+select pk, a, b, std(b) over (order by a, b, pk rows between current row and 1 following) as exp
 from t2;
-pk	a	b	std(b) over (order by a, b, pk rows between current row and 1 following)
+pk	a	b	exp
 1	0	1	0.5000
 2	0	2	0.5000
 3	0	3	1.0000
 4	1	1	0.0000
 5	1	1	0.5000
 6	1	2	0.0000
-select pk, a, b, std(b) over (order by a, b, pk rows between 0 following and 1 following)
+select pk, a, b, std(b) over (order by a, b, pk rows between 0 following and 1 following) as exp
 from t2;
-pk	a	b	std(b) over (order by a, b, pk rows between 0 following and 1 following)
+pk	a	b	exp
 1	0	1	0.5000
 2	0	2	0.5000
 3	0	3	1.0000
@@ -253,36 +252,36 @@ pk	a	b	std(b) over (order by a, b, pk rows between 0 following and 1 following)
 5	1	1	0.5000
 6	1	2	0.0000
 # 2 peers frame.
-select pk, a, b, std(b) over (order by a range between 1 preceding and current row)
+select pk, a, b, std(b) over (order by a range between 1 preceding and current row) as exp
 from t2;
-pk	a	b	std(b) over (order by a range between 1 preceding and current row)
+pk	a	b	exp
 1	0	1	0.8165
 2	0	2	0.8165
 3	0	3	0.8165
 4	1	1	0.7454
 5	1	1	0.7454
 6	1	2	0.7454
-select pk, a, b, std(b) over (order by a range between 1 preceding and 0 preceding)
+select pk, a, b, std(b) over (order by a range between 1 preceding and 0 preceding) as exp
 from t2;
-pk	a	b	std(b) over (order by a range between 1 preceding and 0 preceding)
+pk	a	b	exp
 1	0	1	0.8165
 2	0	2	0.8165
 3	0	3	0.8165
 4	1	1	0.7454
 5	1	1	0.7454
 6	1	2	0.7454
-select pk, a, b, std(b) over (order by a range between current row and 1 following)
+select pk, a, b, std(b) over (order by a range between current row and 1 following) as exp
 from t2;
-pk	a	b	std(b) over (order by a range between current row and 1 following)
+pk	a	b	exp
 1	0	1	0.7454
 2	0	2	0.7454
 3	0	3	0.7454
 4	1	1	0.4714
 5	1	1	0.4714
 6	1	2	0.4714
-select pk, a, b, std(b) over (order by a range between 0 following and 1 following)
+select pk, a, b, std(b) over (order by a range between 0 following and 1 following) as exp
 from t2;
-pk	a	b	std(b) over (order by a range between 0 following and 1 following)
+pk	a	b	exp
 1	0	1	0.7454
 2	0	2	0.7454
 3	0	3	0.7454

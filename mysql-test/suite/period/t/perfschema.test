@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--echo #
+--echo # MDEV-36720 Possible memory leak on updating table with index without overlaps
+--echo #
+create table t1 (id int not null primary key auto_increment, rel_id int not null, start_date datetime not null, end_date datetime not null, period for p (start_date, end_date), unique key (rel_id, p without overlaps));
+insert into t1 (rel_id, start_date, end_date) values (1, '2024-01-01', '2025-01-01');
+select object_type,object_schema,object_name,owner_thread_id,owner_event_id,internal_lock,external_lock from performance_schema.table_handles where object_name='t1';
+update t1 set end_date = '2025-01-16' where id = 1;
+select object_type,object_schema,object_name,owner_thread_id,owner_event_id,internal_lock,external_lock from performance_schema.table_handles where object_name='t1';
+update t1 set end_date = '2025-01-16' where id = 1;
+select object_type,object_schema,object_name,owner_thread_id,owner_event_id,internal_lock,external_lock from performance_schema.table_handles where object_name='t1';
+update t1 set end_date = '2025-01-16' where id = 1;
+select object_type,object_schema,object_name,owner_thread_id,owner_event_id,internal_lock,external_lock from performance_schema.table_handles where object_name='t1';
+update t1 set end_date = '2025-01-16' where id = 1;
+select object_type,object_schema,object_name,owner_thread_id,owner_event_id,internal_lock,external_lock from performance_schema.table_handles where object_name='t1';
+drop table t1;
+
+--echo # End of 10.11 tests

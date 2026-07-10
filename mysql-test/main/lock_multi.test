@@ -1,12 +1,6 @@
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
---disable_warnings
-drop table if exists t1,t2;
-drop DATABASE if exists mysqltest_1;
---enable_warnings
-
 # Test to see if select will get the lock ahead of low priority update
+
+--source include/no_view_protocol.inc
 
 --disable_ps2_protocol
 connect (locker,localhost,root,,);
@@ -326,11 +320,7 @@ DROP DATABASE mysqltest_1;
 #
 connection locker;
 # Disable warnings to allow test to run also without InnoDB
-set sql_mode="";
---disable_warnings
-create table t1 (f1 int(12) unsigned not null auto_increment, primary key(f1)) engine=innodb;
---enable_warnings
-set sql_mode=default;
+create table t1 (f1 int(12) unsigned not null auto_increment, primary key(f1));
 lock tables t1 write;
 connection writer;
 send
@@ -546,9 +536,6 @@ disconnect writer;
 # Test ALTER TABLE under LOCK TABLES and FLUSH TABLES WITH READ LOCK
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
@@ -602,9 +589,6 @@ disconnect insert;
 # from a impending FLUSH TABLES WITH READ LOCK
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
@@ -632,9 +616,6 @@ drop table t1;
 # Bug#30331 Table_locks_waited shows inaccurate values
 #
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
 create table t1 (a int);
 flush status;
 lock tables t1 read;
@@ -668,9 +649,6 @@ select @tlwa < @tlwb;
 # WITH READ LOCK
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (i int);
 connect (flush,localhost,root,,test,,);
 connection default;
@@ -697,9 +675,6 @@ disconnect flush;
 --echo #
 --echo # Test for bug #46272 "MySQL 5.4.4, new MDL: unnecessary deadlock".
 --echo #
---disable_warnings
-drop table if exists t1;
---enable_warnings
 create table t1 (c1 int primary key, c2 int, c3 int);
 insert into t1 values (1,1,0),(2,2,0),(3,3,0),(4,4,0),(5,5,0);
 begin;
@@ -742,11 +717,6 @@ drop table t1;
 --echo # Bug#47249 assert in MDL_global_lock::is_lock_type_compatible
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP VIEW  IF EXISTS v1;
---enable_warnings
-
 --echo #
 --echo # Test 1: LOCK TABLES v1 WRITE, t1 READ;
 --echo #
@@ -759,7 +729,6 @@ connect (con2,localhost,root);
 LOCK TABLES v1 WRITE, t1 READ;
 FLUSH TABLE t1;
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 --echo # Connection 1
 connection default;
@@ -781,7 +750,6 @@ connect (con2,localhost,root);
 LOCK TABLES t1 WRITE, v1 READ;
 FLUSH TABLE t1;
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connection default;
 LOCK TABLES t1 WRITE;
@@ -796,10 +764,6 @@ DROP VIEW v1;
 --echo # Test for bug #50913 "Deadlock between open_and_lock_tables_derived
 --echo # and MDL". Also see additional coverage in mdl_sync.test.
 --echo # 
---disable_warnings
-drop table if exists t1;
-drop view if exists v1;
---enable_warnings
 connect (con50913,localhost,root);
 connection default;
 create table t1 (i int);
@@ -869,10 +833,6 @@ drop table t1;
 --echo # These tests also provide function coverage for the
 --echo # lock_wait_timeout server variable.
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1 (id int);
 
@@ -1012,9 +972,6 @@ disconnect con3;
 --echo # Test for bug #51134 "Crash in MDL_lock::destroy on a concurrent
 --echo #                      DDL workload".
 --echo #
---disable_warnings
-drop tables if exists t1, t2, t3;
---enable_warnings
 connect (con1, localhost, root, , );
 connect (con2, localhost, root, , );
 connection default;
@@ -1063,10 +1020,6 @@ drop table t3;
 --echo # Bug found while working on the related bug #51240.
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1 (id INT);
 LOCK TABLE t1 WRITE;
 
@@ -1079,7 +1032,3 @@ connection default;
 disconnect con1;
 UNLOCK TABLES;
 DROP TABLE t1;
-
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

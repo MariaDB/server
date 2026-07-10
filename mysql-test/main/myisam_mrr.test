@@ -1,6 +1,8 @@
 #
 # MRR/MyISAM tests.
 #
+--source include/have_sequence.inc
+
 
 --disable_warnings
 drop table if exists t0, t1, t2, t3;
@@ -192,7 +194,7 @@ CREATE TABLE t1 (
   col_varchar_nokey varchar(1) NOT NULL,
   PRIMARY KEY (pk),
   KEY col_varchar_key (col_varchar_key,col_int_key)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES 
   (10,8,'v','v'),(11,8,'f','f'), (12,5,'v','v'),
   (13,8,'s','s'),(14,8,'a','a'),(15,6,'p','p'),
@@ -279,8 +281,7 @@ show status like 'Handler_mrr%';
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(200), key(a));
-insert into t1 
-select A.a+10*B.a+100*C.a+1000*D.a, 123,'filler' from t0 A, t0 B, t0 C, t0 D;
+insert into t1 select seq, 123, 'filler' from seq_0_to_14999;
 
 explain select sum(b) from t1 where a < 10;
 --echo # This should show one MRR scan and no re-fills:
@@ -317,7 +318,7 @@ explain select sum(t1.b) from t0,t1 where t0.a=t1.a;
 flush status;
 select sum(t1.b) from t0,t1 where t0.a=t1.a;
 # the values below depend on sizeof(void*)
---replace_result 1 ok 2 ok 3 ok
+--replace_result 1 ok 2 ok 4 ok
 show status like 'handler_mrr%';
 
 set join_cache_level= @join_cache_level_save;

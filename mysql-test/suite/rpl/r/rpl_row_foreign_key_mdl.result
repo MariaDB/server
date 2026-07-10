@@ -1,0 +1,68 @@
+include/master-slave.inc
+[connection master]
+#
+# Initialize test data
+connection master;
+CREATE TABLE t1 (
+id INTEGER PRIMARY KEY AUTO_INCREMENT,
+f2 INTEGER
+) engine=innodb;
+CREATE TABLE t2 (
+id INT PRIMARY KEY AUTO_INCREMENT,
+t1_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t1_id(t1_id),
+CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+) engine=innodb;
+INSERT INTO t1 (f2) VALUES (0);
+INSERT INTO t1 (f2) VALUES (0);
+INSERT INTO t2 (t1_id, f2) VALUES (1,1234);
+connection slave;
+#
+# slave_exec_mode = IDEMPOTENT
+connection slave;
+set @saved_dbug = @@global.debug_dbug;
+set @saved_exec_mode= @@global.slave_exec_mode;
+set @@global.debug_dbug= "+d,rows_log_event_after_open_table";
+include/stop_slave.inc
+set global slave_exec_mode='IDEMPOTENT';
+include/start_slave.inc
+# INSERT on master so it is replicated to slave (where its execution will be blocked after taking locks)
+connection master;
+INSERT INTO t1 (f2) VALUES (0);
+connection slave;
+set debug_sync='now WAIT_FOR after_open_table';
+# test.t1 should always be locked with SHARED_WRITE
+# test.t2 lock type should be SHARED_WRITE only when slave_exec_mode is IDEMPOTENT. Current mode: IDEMPOTENT
+connection slave;
+SET DEBUG_SYNC= 'RESET';
+set debug_sync='now SIGNAL continue_rows_ev';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+SET @@GLOBAL.slave_exec_mode = @saved_exec_mode;
+#
+# slave_exec_mode = STRICT
+connection slave;
+set @saved_dbug = @@global.debug_dbug;
+set @saved_exec_mode= @@global.slave_exec_mode;
+set @@global.debug_dbug= "+d,rows_log_event_after_open_table";
+include/stop_slave.inc
+set global slave_exec_mode='STRICT';
+include/start_slave.inc
+# INSERT on master so it is replicated to slave (where its execution will be blocked after taking locks)
+connection master;
+INSERT INTO t1 (f2) VALUES (0);
+connection slave;
+set debug_sync='now WAIT_FOR after_open_table';
+# test.t1 should always be locked with SHARED_WRITE
+# test.t2 lock type should be SHARED_WRITE only when slave_exec_mode is IDEMPOTENT. Current mode: STRICT
+connection slave;
+SET DEBUG_SYNC= 'RESET';
+set debug_sync='now SIGNAL continue_rows_ev';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+SET @@GLOBAL.slave_exec_mode = @saved_exec_mode;
+connection master;
+DROP TABLE t2;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc
+# End of rpl_row_foreign_key_mdl.test

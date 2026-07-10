@@ -11,6 +11,7 @@ insert into t2 values (2,2),(3,3);
 EXPLAIN (select a,b from t1) except (select c,d from t2);
 EXPLAIN extended (select a,b from t1) except (select c,d from t2);
 EXPLAIN extended select * from ((select a,b from t1) except (select c,d from t2)) a;
+--source include/analyze-format.inc
 EXPLAIN format=json (select a,b from t1) except (select c,d from t2);
 
 --source include/analyze-format.inc
@@ -43,6 +44,7 @@ insert into t4 values (4,4),(7,7);
 EXPLAIN (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 EXPLAIN (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 EXPLAIN extended select * from ((select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4)) a;
+--source include/analyze-format.inc
 EXPLAIN format=json (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 
 --source include/analyze-format.inc

@@ -1,0 +1,35 @@
+--source ../include/have_duckdb.inc
+--source include/have_debug.inc
+
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS create_table_constraint CHARACTER SET utf8mb4;
+USE create_table_constraint;
+SET NAMES utf8mb4;
+ --enable_query_log
+
+--echo # 1) Prepare
+--echo
+
+--echo # 2) Create table
+--echo
+--let $DB_NAME=test
+
+CREATE TABLE test_table (
+  id INT PRIMARY KEY,
+  name VARCHAR(32),
+  index idx_id(name),
+  unique index uk_name(name),
+  unique index uk_id(id),
+  unique index uk_id_name(id,name)
+) engine=duckdb;
+
+--let $table_name=test_table
+--let $db_name=create_table_constraint
+--source ../include/show_duckdb_table_structure.inc
+
+--source ../include/cleanup_duckdb.inc
+
+--disable_query_log
+DROP DATABASE create_table_constraint;
+--enable_query_log

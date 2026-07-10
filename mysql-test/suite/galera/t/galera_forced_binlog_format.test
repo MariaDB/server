@@ -25,9 +25,8 @@ SET SESSION binlog_format = 'MIXED';
 
 INSERT INTO t1 VALUES (2);
 
---replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
---replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+--let $binlog_file= LAST
+--source include/show_binlog_events.inc
 
 DROP TABLE t1;
 
@@ -49,4 +48,3 @@ DROP DATABASE testdb_9401;
 
 #--source include/galera_end.inc
 --echo # End of tests
-

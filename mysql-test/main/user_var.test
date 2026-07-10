@@ -293,7 +293,9 @@ drop table t1;
 #
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (0, 0), (2, 1), (2, 3), (1, 1), (30, 20);
+--disable_cursor_protocol
 SELECT a, b INTO @a, @b FROM t1 WHERE a=2 AND b=3 GROUP BY a, b;
+--enable_cursor_protocol
 SELECT @a, @b;
 SELECT a, b FROM t1 WHERE a=2 AND b=3 GROUP BY a, b;
 DROP TABLE t1;
@@ -387,7 +389,9 @@ DROP TABLE t1;
 #   SAME USER VARIABLE = CRASH
 #
 SET @bug12408412=1;
+--disable_cursor_protocol
 SELECT GROUP_CONCAT(@bug12408412 ORDER BY 1) INTO @bug12408412;
+--enable_cursor_protocol
 
 --echo End of 5.1 tests
 
@@ -462,7 +466,9 @@ DROP TABLE t1;
 --echo #
 
 SET @bug12408412=1;
+--disable_cursor_protocol
 SELECT GROUP_CONCAT(@bug12408412 ORDER BY 1) INTO @bug12408412;
+--enable_cursor_protocol
 
 #
 # MDEV-616 LP BUG#1002126
@@ -492,17 +498,17 @@ SELECT DISTINCT POW(COUNT(distinct a), @a:=(SELECT 1 FROM t1 LEFT JOIN t1 AS t2 
 SELECT @a;
 DROP TABLE t1;
 
---echo End of 5.5 tests
+--echo # End of 5.5 tests
 
 --echo #
 --echo # Check that used memory extends if we set a variable
 --echo #
 
 --disable_service_connection
-# Execute twice so number stablizes a bit
-let $tmp= `select memory_used from information_schema.processlist`;
+# Execute twice so number stabilizes a bit
+let $tmp= `select memory_used from information_schema.processlist where id=connection_id()`;
 set @var= repeat('a',30000);
-let $tmp2= `select memory_used from information_schema.processlist`;
+let $tmp2= `select memory_used from information_schema.processlist where id=connection_id()`;
 --disable_query_log
 --disable_column_names
 eval select $tmp < $tmp2;

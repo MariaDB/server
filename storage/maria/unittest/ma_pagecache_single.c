@@ -600,7 +600,7 @@ int simple_big_test()
   desc[i].length= 0;
   desc[i].content= '\0';
   ok(1, "Simple big file write");
-  /* check written pages sequentally read */
+  /* check written pages sequentially read */
   for (i= 0; i < PCACHE_SIZE/(TEST_PAGE_SIZE/2); i++)
   {
     int j;
@@ -794,10 +794,6 @@ int main(int argc __attribute__((unused)),
 	    error,errno);
     exit(1);
   }
-
-#ifdef HAVE_THR_SETCONCURRENCY
-  thr_setconcurrency(2);
-#endif
 
   if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
                              TEST_PAGE_SIZE, 0, MYF(MY_WME))) == 0)

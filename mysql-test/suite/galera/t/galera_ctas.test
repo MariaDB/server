@@ -1,4 +1,6 @@
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_aria.inc
 
 --connection node_1
 create table t1_Aria(a int, count int, b int, key(b)) engine=Aria;
@@ -36,4 +38,3 @@ SHOW CREATE TABLE t4;
 
 DROP TABLE t2, t3,t4;
 DROP TABLE t1_MyISAM, t1_Aria,t1_InnoDB;
-

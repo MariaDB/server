@@ -7,8 +7,8 @@ SHOW CREATE TABLE tinnodb;
 Table	Create Table
 tinnodb	CREATE TABLE `tinnodb` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-set @old_debug= @@debug;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set @old_debug= @@debug_dbug;
 set @@debug_dbug= 'd,do_not_write_xid';
 ==== Test ====
 INSERT INTO tinnodb VALUES (1);

@@ -154,7 +154,7 @@ id	name	location_text
 select id, name, ST_AsText(location) as location_text from shops
 where MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location);
 id	name	location_text
+26	kazuya	POINT(139.760895 35.673508)
 14	tetsuji	POINT(139.76857 35.680912)
 19	daruma	POINT(139.770599 35.681461)
-26	kazuya	POINT(139.760895 35.673508)
 drop table shops;

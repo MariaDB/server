@@ -2,221 +2,55 @@
 --source include/have_innodb.inc
 --source include/no_valgrind_without_big.inc
 
-create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer) engine=InnoDB STATS_PERSISTENT=0;
-create view v1 as select * from t1 where c2=2;
-delimiter /;
-create trigger trg_t1 before update on t1 for each row
-begin
-  set new.old_c1=old.c1;
-  set new.old_c2=old.c2;
-end;
-/
-delimiter ;/
+set @save_default_engine=@@default_storage_engine;
 
-insert into t1(c1,c2,c3) values (1,1,1);
-insert into t1(c1,c2,c3) values (1,2,2);
-insert into t1(c1,c2,c3) values (1,3,3);
-insert into t1(c1,c2,c3) values (2,1,4);
-insert into t1(c1,c2,c3) values (2,2,5);
-insert into t1(c1,c2,c3) values (2,3,6);
-insert into t1(c1,c2,c3) values (2,4,7);
-insert into t1(c1,c2,c3) values (2,5,8);
+--echo #######################################
+--echo #                                     #
+--echo #            Engine InnoDB            #
+--echo #                                     #
+--echo #######################################
+set global innodb_stats_persistent=1;
+set default_storage_engine=InnoDB;
+--source include/update_use_source.inc
+--source include/update_use_source_ext.inc
 
-commit;
-select * from t1;
+--echo #######################################
+--echo #                                     #
+--echo #            Engine Aria              #
+--echo #                                     #
+--echo #######################################
+set default_storage_engine=Aria;
+--source include/update_use_source.inc
+--source include/update_use_source_ext.inc
 
---echo Test without any index
+--echo #######################################
+--echo #                                     #
+--echo #            Engine MyISAM            #
+--echo #                                     #
+--echo #######################################
+set default_storage_engine=MyISAM;
+--source include/update_use_source.inc
+--source include/update_use_source_ext.inc
+
+--echo #######################################
+--echo #                                     #
+--echo #            Engine MEMORY            #
+--echo #                                     #
+--echo #######################################
+set default_storage_engine=MEMORY;
 --source include/update_use_source.inc
 
---echo Test with an index on updated columns
-create index t1_c2 on t1 (c2,c1);
---source include/update_use_source.inc
-
---echo Test with an index on updated columns
-create index t1_c3 on t1 (c3);
---source include/update_use_source.inc
-
---echo Test with a primary key on updated columns
-drop index t1_c3 on t1;
-alter table t1 add primary key (c3);
---source include/update_use_source.inc
-
---echo # Update with error "Subquery returns more than 1 row"
---error ER_SUBQUERY_NO_1_ROW
-update t1 set c2=(select c2 from t1);
-
---echo # Update with error "Subquery returns more than 1 row" and order by
---error ER_SUBQUERY_NO_1_ROW
-update t1 set c2=(select c2 from t1) order by c3;
-
--- echo  Duplicate value on update a primary key
-start transaction;
---error ER_DUP_ENTRY
-update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
-rollback;
-
--- echo  Duplicate value on update a primary key with ignore
-start transaction;
---enable_info ONCE
-update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
-rollback;
-
--- echo  Duplicate value on update a primary key and limit
-start transaction;
---error ER_DUP_ENTRY
-update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
-rollback;
-
--- echo  Duplicate value on update a primary key with ignore and limit
-start transaction;
---enable_info ONCE
-update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
-rollback;
-
---echo # Update no rows found
---enable_info ONCE
-update t1
-   set c1=10
- where c1 <2
-   and exists (select 'X'
-                 from t1 a
-                where a.c1 = t1.c1 + 10);
-
---echo # Update no rows changed
-drop trigger trg_t1;
-start transaction;
---enable_info ONCE
-update t1
-   set c1=c1
- where c1 <2
-   and exists (select 'X'
-                 from t1 a
-                where a.c1 = t1.c1);
-rollback;
-
---echo #
---echo # Check call of after trigger
---echo #
-
-delimiter /;
-create or replace trigger trg_t2 after update on t1 for each row
-begin
-  declare msg varchar(100);
-  if (new.c3 = 5) then
-    set msg=concat('in after update trigger on ',new.c3);
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
-  end if;
-end;
-/
-delimiter ;/
---error 1644
-update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1);
-
---echo #
---echo # Check update with order by and after trigger
---echo #
-
---error 1644
-update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1) order by t1.c2;
-
-drop view v1;
---echo #
---echo # Check update on view with check option
---echo #
-
-create view v1 as select * from t1 where c2=2 with check option;
-
-start transaction;
--- error 1369
-update v1 set c2=3 where c1=1;
-rollback;
-
-start transaction;
--- error 1369
-update v1 set c2=(select max(c3) from v1) where c1=1;
-rollback;
-
-start transaction;
-update v1 set c2=(select min(va.c3) from v1 va), c1=0 where c1=1;
-rollback;
-
-drop view v1;
-drop table t1;
-
---echo #
---echo # Test with a temporary table
---echo #
-
-create temporary table t1 (c1 integer, c2 integer, c3 integer) engine=InnoDb;
-insert into t1(c1,c2,c3) values (1,1,1);
-insert into t1(c1,c2,c3) values (1,2,2);
-insert into t1(c1,c2,c3) values (1,3,3);
-insert into t1(c1,c2,c3) values (2,1,4);
-insert into t1(c1,c2,c3) values (2,2,5);
-insert into t1(c1,c2,c3) values (2,3,6);
-insert into t1(c1,c2,c3) values (2,4,7);
-insert into t1(c1,c2,c3) values (2,5,8);
-
-start transaction;
---enable_info ONCE
-update t1
-   set c1=(select a.c2
-             from t1 a
-            where a.c3 = t1.c3) limit 3;
-select * from t1 ;
-rollback;
-drop table t1;
-
---echo #
---echo # Test on dynamic columns (blob)
---echo #
-
-create table assets (
-  item_name varchar(32) primary key, -- A common attribute for all items
-  dynamic_cols  blob  -- Dynamic columns will be stored here
-);
-INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'size', 'XL'));
-INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
-SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
-UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '3 years') WHERE item_name='Thinkpad Laptop';
-SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
-UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '4 years')
- WHERE item_name in (select b.item_name
-                       from assets b
-                      where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
-SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
-
-UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', (select COLUMN_GET(b.dynamic_cols, 'color' as char)
-                                                                       from assets b
-                                                                      where assets.item_name = item_name));
-SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
-drop table assets ;
-
---echo #
---echo # Test on fulltext columns
---echo #
-CREATE TABLE ft2(copy TEXT,FULLTEXT(copy)) ENGINE=MyISAM;
-INSERT INTO ft2(copy) VALUES
- ('MySQL vs MariaDB database'),
- ('Oracle vs MariaDB database'),
- ('PostgreSQL vs MariaDB database'),
- ('MariaDB overview'),
- ('Foreign keys'),
- ('Primary keys'),
- ('Indexes'),
- ('Transactions'),
- ('Triggers');
-SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
-update ft2 set copy = (select max(concat('mykeyword ',substr(b.copy,1,5))) from ft2 b WHERE MATCH(b.copy) AGAINST('database'))
- where MATCH(copy) AGAINST('keys');
-SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('mykeyword');
-drop table ft2;
+set @@default_storage_engine=@save_default_engine;
 
 --echo #
 --echo # Test with MyISAM
 --echo #
 
-create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer) engine=MyISAM;
+create table t1 (old_c1 integer,
+                 old_c2 integer,
+                 c1 integer,
+                 c2 integer,
+                 c3 integer) engine=MyISAM;
 insert t1 (c1,c2,c3) select 0,seq,seq%10 from seq_1_to_500;
 insert t1 (c1,c2,c3) select 1,seq,seq%10 from seq_1_to_400;
 insert t1 (c1,c2,c3) select 2,seq,seq%10 from seq_1_to_300;
@@ -232,13 +66,15 @@ drop table t1;
 
 
 --echo #
---echo # Test error on multi_update conversion on view with order by or limit
+--echo # Test error on multi_update conversion on view
+--echo # with order by or limit
 --echo #
 
 create table t1 (c1 integer) engine=InnoDb;
 create table t2 (c1 integer) engine=InnoDb;
-create view v1 as select t1.c1 as "t1c1" ,t2.c1 as "t2c1" from t1,t2 where t1.c1=t2.c1;
---error ER_BAD_FIELD_ERROR
+create view v1 as select t1.c1 as "t1c1" ,t2.c1 as "t2c1"
+        from t1,t2 where t1.c1=t2.c1;
+# 'order by 1' should be considered as in 'select * from v1 order 1'
 update v1 set t1c1=2 order by 1;
 update v1 set t1c1=2 limit 1;
 drop table t1;

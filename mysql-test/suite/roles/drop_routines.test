@@ -63,7 +63,7 @@ set role r1;
 select mysql.test_func("r1");
 
 connection default;
-
+disconnect u1;
 drop function mysql.test_func;
 drop role r1, r2, r3;
 drop user u1;

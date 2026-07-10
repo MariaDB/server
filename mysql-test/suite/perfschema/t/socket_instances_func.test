@@ -38,6 +38,8 @@ if($my_socket_debug)
   --echo IPV6=$check_ipv6_supported, IPV4_MAPPED=$check_ipv4_mapped_supported, LOCALHOST=$my_localhost
 }
 
+--disable_service_connection
+
 # This test only runs when IPv6 is supported (see include/check_ipv6.inc), so
 # the server will listen on both IPv4 and IPv6 wildcard addresses. That's why
 # the expected number of TCP/IP listeners is always 2.
@@ -51,9 +53,11 @@ CREATE TEMPORARY TABLE my_socket_instances AS
 SELECT * FROM performance_schema.socket_instances;
 
 --echo # Get thread id of the default connection
+--disable_cursor_protocol
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
 WHERE PROCESSLIST_ID = CONNECTION_ID();
+--enable_cursor_protocol
 
 let $con0_thread_id= `SELECT @thread_id`;
 
@@ -71,14 +75,18 @@ if($my_socket_debug)
 }
 
 --echo # Store the thread id of connection 1 (tcp/ip)
+--disable_cursor_protocol
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
 WHERE PROCESSLIST_ID = CONNECTION_ID();
+--enable_cursor_protocol
 
 --echo # Store the port of connection 1 (tcp/ip)
+--disable_cursor_protocol
 eval SELECT PORT INTO @port
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
+--enable_cursor_protocol
 
 let $con1_thread_id= `SELECT @thread_id`;
 let $con1_port= `SELECT @port`;
@@ -99,14 +107,18 @@ if($my_socket_debug)
 }
 
 --echo # Store the thread_id of connection 2 (tcp/ip)
+--disable_cursor_protocol
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
 WHERE PROCESSLIST_ID = CONNECTION_ID();
+--enable_cursor_protocol
 
 --echo # Store the port of connection 2 (tcp/ip)
+--disable_cursor_protocol
 eval SELECT PORT INTO @port
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
+--enable_cursor_protocol
 
 let $con2_thread_id= `SELECT @thread_id`;
 let $con2_port= `SELECT @port`;
@@ -127,14 +139,18 @@ if($my_socket_debug)
 }
 
 --echo # Store the thread id of connection 3 (unix domain)
+--disable_cursor_protocol
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.threads
 WHERE PROCESSLIST_ID = CONNECTION_ID();
+--enable_cursor_protocol
 
 --echo # Store the port of connection 3 (unix domain)
+--disable_cursor_protocol
 eval SELECT PORT INTO @port
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
+--enable_cursor_protocol
 
 let $con3_port= `SELECT @port`;
 let $con3_thread_id= `SELECT @thread_id`;
@@ -237,9 +253,11 @@ WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
 # Store the thread id of server_tcpip_socket
 --echo # Get the 'server_tcpip_socket' thread id
 
+--disable_cursor_protocol
 SELECT DISTINCT THREAD_ID INTO @thread_id
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
+--enable_cursor_protocol
 
 let $server_tcpip_thread_id= `SELECT @thread_id`;
 
@@ -270,9 +288,11 @@ WHERE EVENT_NAME = 'wait/io/socket/sql/server_unix_socket';
 # Store the thread id of 'server_unix_socket'
 --echo # Get the 'server_unix_socket' thread id
 
+--disable_cursor_protocol
 SELECT THREAD_ID INTO @thread_id
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_unix_socket';
+--enable_cursor_protocol
 
 let $server_unix_thread_id= `SELECT @thread_id`;
 
@@ -306,7 +326,9 @@ WHERE THREAD_ID = @thread_id;
 
 --echo #Compare server listener socket thread ids
 --disable_query_log ONCE
+--disable_cursor_protocol
 eval SELECT ($server_tcpip_thread_id = $server_unix_thread_id) into @match_thread_id;
+--disable_cursor_protocol
 
 select @match_thread_id;
 
@@ -416,15 +438,9 @@ $part;
 # DROP CLIENT CONNECTIONS
 #
 
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
---connection con3
 --disconnect con3
---source include/wait_until_disconnected.inc
 --connection default
 
 #

@@ -53,7 +53,7 @@ koi8r_general_ci	binary
 
 SELECT COLLATION(c1) FROM v2|
 COLLATION(c1)
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
 
 SELECT * FROM v3|
 тест
@@ -104,7 +104,7 @@ koi8r_general_ci	binary
 
 SELECT COLLATION(c1) FROM v2|
 COLLATION(c1)
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
 
 SELECT * FROM v3|
 тест
@@ -160,7 +160,7 @@ koi8r_general_ci	binary
 
 SELECT COLLATION(c1) FROM v2|
 COLLATION(c1)
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
 
 SELECT * FROM v3|
 тест
@@ -441,37 +441,37 @@ CALL p1(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8mb3_unicode_ci	utf8mb3_unicode_ci
 
 CALL p2(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
-utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 
 CALL mysqltest2.p3(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8mb3_unicode_ci	utf8mb3_unicode_ci
 
 CALL mysqltest2.p4(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
-utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 
 
 ALTER DATABASE mysqltest1 COLLATE cp866_general_ci|
@@ -484,22 +484,22 @@ CALL p1(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 CALL p2(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 CALL mysqltest2.p3(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 CALL mysqltest2.p4(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 set names koi8r|
 
 
@@ -686,39 +686,40 @@ CALL p1(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8mb3_unicode_ci	utf8mb3_unicode_ci
 
 CALL p2(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
-utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 
 CALL mysqltest2.p3(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8mb3_unicode_ci	utf8mb3_unicode_ci
 
 CALL mysqltest2.p4(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
-utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 
 ---> Dump of mysqltest1
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -750,7 +751,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -784,7 +786,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -795,6 +798,7 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.sp.mysqltest1.sql
 
 ---> Dump of mysqltest2
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -826,7 +830,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -860,7 +865,8 @@ COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c6,
 @@character_set_client AS c8;
 SET парам1 = 'a';
 SET парам2 = 'b';
-END ;;
+END
+;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -885,22 +891,22 @@ CALL p1(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 CALL p2(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 CALL mysqltest2.p3(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 CALL mysqltest2.p4(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 set names koi8r|
 
 
@@ -1087,37 +1093,37 @@ CALL p1(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8mb3_unicode_ci	utf8mb3_unicode_ci
 
 CALL p2(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
-utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 
 CALL mysqltest2.p3(@a, @b)|
 c1	c2	c3
 utf8mb3_unicode_ci	utf8mb3_unicode_ci	utf8mb3_unicode_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
 utf8mb3_unicode_ci	utf8mb3_unicode_ci
 
 CALL mysqltest2.p4(@a, @b)|
 c1	c2	c3
-utf8mb3_general_ci	utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 c4	c5	c6	c7	c8
-koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r
+koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r
 SELECT COLLATION(@a) AS ca, COLLATION(@b) cb|
 ca	cb
-utf8mb3_general_ci	utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
 connection default;
 disconnect con2;
 disconnect con3;
@@ -1402,9 +1408,9 @@ koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
 utf8mb3_unicode_ci
 
 SELECT
@@ -1415,7 +1421,7 @@ COLLATION(@b1) AS cb1,
 COLLATION(@b2) AS cb2,
 COLLATION(@b3) AS cb3|
 ca1	ca2	ca3	cb1	cb2	cb3
-koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci
+koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci
 
 DELETE FROM log|
 
@@ -1433,9 +1439,9 @@ koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
 utf8mb3_unicode_ci
 
 SELECT
@@ -1446,7 +1452,7 @@ COLLATION(@b1) AS cb1,
 COLLATION(@b2) AS cb2,
 COLLATION(@b3) AS cb3|
 ca1	ca2	ca3	cb1	cb2	cb3
-koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci
+koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci
 
 DELETE FROM mysqltest2.log|
 
@@ -1674,9 +1680,9 @@ koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
 utf8mb3_unicode_ci
 
 SELECT
@@ -1687,7 +1693,7 @@ COLLATION(@b1) AS cb1,
 COLLATION(@b2) AS cb2,
 COLLATION(@b3) AS cb3|
 ca1	ca2	ca3	cb1	cb2	cb3
-koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci
+koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci
 
 DELETE FROM log|
 
@@ -1705,9 +1711,9 @@ koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
 utf8mb3_unicode_ci
 
 SELECT
@@ -1718,23 +1724,24 @@ COLLATION(@b1) AS cb1,
 COLLATION(@b2) AS cb2,
 COLLATION(@b3) AS cb3|
 ca1	ca2	ca3	cb1	cb2	cb3
-koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci
+koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci
 
 DELETE FROM mysqltest2.log|
 
 ---> Dump of mysqltest1
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `log` (
   `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
@@ -1765,7 +1772,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 = _koi8r    'текст';
 SET @a2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1794,7 +1802,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 = _koi8r    'текст';
 SET @b2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1805,18 +1814,19 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.triggers.mysqltest1.sql
 
 ---> Dump of mysqltest2
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `log` (
   `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
@@ -1847,7 +1857,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 = _koi8r    'текст';
 SET @a2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1876,7 +1887,8 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 = _koi8r    'текст';
 SET @b2 = _utf8 'я┌п╣п╨я│я┌';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -2114,9 +2126,9 @@ koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
 utf8mb3_unicode_ci
 
 SELECT
@@ -2127,7 +2139,7 @@ COLLATION(@b1) AS cb1,
 COLLATION(@b2) AS cb2,
 COLLATION(@b3) AS cb3|
 ca1	ca2	ca3	cb1	cb2	cb3
-koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci
+koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci
 
 DELETE FROM log|
 
@@ -2145,9 +2157,9 @@ koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
 koi8r_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
-utf8mb3_general_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
+utf8mb3_uca1400_ai_ci
 utf8mb3_unicode_ci
 
 SELECT
@@ -2158,7 +2170,7 @@ COLLATION(@b1) AS cb1,
 COLLATION(@b2) AS cb2,
 COLLATION(@b3) AS cb3|
 ca1	ca2	ca3	cb1	cb2	cb3
-koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_general_ci	koi8r_general_ci
+koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci	koi8r_general_ci	utf8mb3_uca1400_ai_ci	koi8r_general_ci
 
 DELETE FROM mysqltest2.log|
 connection default;
@@ -2491,6 +2503,7 @@ COLLATION( 'текст') AS c4,
 END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	koi8r	koi8r_general_ci	utf8mb3_unicode_ci
 
 ---> Dump of mysqltest1
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -2517,7 +2530,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2545,7 +2559,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2558,6 +2573,7 @@ DELIMITER ;
 ---> Dumping mysqltest1 to ddl_i18n_koi8r.events.mysqltest1.sql
 
 ---> Dump of mysqltest2
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -2584,7 +2600,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2612,7 +2629,8 @@ COLLATION(_koi8r    'текст') AS c3,
 COLLATION(_utf8 'я┌п╣п╨я│я┌') AS c4,
 @@collation_connection AS c5,
 @@character_set_client AS c6;
-END */ ;;
+END 
+*/ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
@@ -2838,9 +2856,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
-connection con2;
 disconnect con2;
-connection con3;
 disconnect con3;
 connection default;
 USE test;

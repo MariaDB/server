@@ -74,6 +74,41 @@ int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file)
   DBUG_RETURN(my_b_copy_to_file(cache, file, SIZE_T_MAX));
 }
 
+/**
+   Similar to above my_b_copy_to_file(), but destination is another IO_CACHE.
+*/
+int
+my_b_copy_to_cache(IO_CACHE *from_cache, IO_CACHE *to_cache,
+                  size_t count)
+{
+  size_t curr_write, bytes_in_cache;
+  DBUG_ENTER("my_b_copy_to_cache");
+
+  bytes_in_cache= my_b_bytes_in_cache(from_cache);
+  do
+  {
+    curr_write= MY_MIN(bytes_in_cache, count);
+    if (my_b_write(to_cache, from_cache->read_pos, curr_write))
+      DBUG_RETURN(1);
+
+    from_cache->read_pos += curr_write;
+    count -= curr_write;
+  } while (count && (bytes_in_cache= my_b_fill(from_cache)));
+  if(from_cache->error == -1)
+    DBUG_RETURN(1);
+  DBUG_RETURN(0);
+}
+
+int my_b_copy_all_to_cache(IO_CACHE *from_cache, IO_CACHE *to_cache)
+{
+  DBUG_ENTER("my_b_copy_all_to_cache");
+  /* Reinit the cache to read from the beginning of the cache */
+  if (reinit_io_cache(from_cache, READ_CACHE, 0L, FALSE, FALSE))
+    DBUG_RETURN(1);
+  DBUG_RETURN(my_b_copy_to_cache(from_cache, to_cache,
+                                 from_cache->end_of_file));
+}
+
 my_off_t my_b_append_tell(IO_CACHE* info)
 {
   /*
@@ -234,7 +269,7 @@ size_t my_b_gets(IO_CACHE *info, char *to, size_t max_length)
     }
     if (!(max_length-=length))
     {
-     /* Found enough charcters;  Return found string */
+     /* Found enough characters;  Return found string */
       info->read_pos=pos;
       *to='\0';
       return (size_t) (to-start);

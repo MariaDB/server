@@ -56,7 +56,7 @@ t1	CREATE TABLE `t1` (
   `f1` char(100) DEFAULT NULL,
   `f2` int(11) DEFAULT NULL,
   FULLTEXT KEY `f1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection default;
 disconnect con1;
 DROP TABLE t1;

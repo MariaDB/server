@@ -7,7 +7,7 @@ reset master;
 --let $pos=`select $binlog_start_pos + 73`
 
 --let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
---let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $binlog_start=query_get_value(SHOW BINARY LOG STATUS, Position, 1)
 
 CREATE OR REPLACE DATABASE d1;
 CREATE OR REPLACE DATABASE d1;

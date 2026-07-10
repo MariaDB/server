@@ -245,7 +245,7 @@ if ($innodb_engine)
   --error 1451
   update t2 set a=4 where a=3;
   select t1.a, t1.b, t2.name from t1,t2 where t1.b=t2.a;
-  alter table t1 drop foreign key t1_ibfk_1;
+  alter table t1 drop foreign key `1`;
 
   --echo #  - ON DELETE RESTRICT
   alter table t1 add foreign key (b) references t2(a) on delete restrict;
@@ -253,14 +253,14 @@ if ($innodb_engine)
   delete from t2 where a=3;
   select t1.a, t1.b, t2.name from t1,t2 where t1.b=t2.a;
   select t1.a, t1.b, t2.name from t1 left outer join t2 on (t1.b=t2.a);
-  alter table t1 drop foreign key t1_ibfk_1;
+  alter table t1 drop foreign key `1`;
 
   --echo #  - ON DELETE CASCADE
   alter table t1 add foreign key (b) references t2(a) on delete cascade;
   delete from t2 where a=3;
   select t1.a, t1.b, t2.name from t1,t2 where t1.b=t2.a;
   select t1.a, t1.b, t2.name from t1 left outer join t2 on (t1.b=t2.a);
-  alter table t1 drop foreign key t1_ibfk_1;
+  alter table t1 drop foreign key `1`;
 
   drop table t1;
   drop table t2;
@@ -626,9 +626,7 @@ CREATE TABLE t1 (
 );
 
 INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
---disable_ps2_protocol
 SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
---enable_ps2_protocol
 --error ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
 

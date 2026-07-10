@@ -59,6 +59,9 @@ validate_chunk_type(uchar code)
 {
 	switch ((xb_chunk_type_t) code) {
 	case XB_CHUNK_TYPE_PAYLOAD:
+	case XB_CHUNK_TYPE_RENAME:
+	case XB_CHUNK_TYPE_REMOVE:
+	case XB_CHUNK_TYPE_SEEK:
 	case XB_CHUNK_TYPE_EOF:
 		return (xb_chunk_type_t) code;
 	default:
@@ -159,57 +162,91 @@ xb_stream_read_chunk(xb_rstream_t *stream, xb_rstream_chunk_t *chunk)
 	}
 	chunk->path[pathlen] = '\0';
 
-	if (chunk->type == XB_CHUNK_TYPE_EOF) {
+	if (chunk->type == XB_CHUNK_TYPE_EOF ||
+			chunk->type == XB_CHUNK_TYPE_REMOVE) {
 		return XB_STREAM_READ_CHUNK;
 	}
 
-	/* Payload length */
-	F_READ(tmpbuf, 16);
-	ullval = uint8korr(tmpbuf);
-	if (ullval > (ulonglong) SIZE_T_MAX) {
-		msg("xb_stream_read_chunk(): chunk length is too large at "
-		    "offset 0x%llx: 0x%llx.", (ulonglong) stream->offset,
-		    ullval);
-		goto err;
-	}
-	chunk->length = (size_t) ullval;
-	stream->offset += 8;
-
-	/* Payload offset */
-	ullval = uint8korr(tmpbuf + 8);
-	if (ullval > (ulonglong) MY_OFF_T_MAX) {
-		msg("xb_stream_read_chunk(): chunk offset is too large at "
-		    "offset 0x%llx: 0x%llx.", (ulonglong) stream->offset,
-		    ullval);
-		goto err;
-	}
-	chunk->offset = (my_off_t) ullval;
-	stream->offset += 8;
-
-	/* Reallocate the buffer if needed */
-	if (chunk->length > chunk->buflen) {
-		chunk->data = my_realloc(PSI_NOT_INSTRUMENTED, chunk->data, chunk->length,
-					 MYF(MY_WME | MY_ALLOW_ZERO_PTR));
-		if (chunk->data == NULL) {
-			msg("xb_stream_read_chunk(): failed to increase buffer "
-			    "to %lu bytes.", (ulong) chunk->length);
+	if (chunk->type == XB_CHUNK_TYPE_RENAME) {
+		F_READ(tmpbuf, 4);
+		size_t new_pathlen = uint4korr(tmpbuf);
+		if (new_pathlen >= FN_REFLEN) {
+			msg("xb_stream_read_chunk(): path length (%lu) for new name of 'rename'"
+				"	chunk is too large", (ulong) new_pathlen);
 			goto err;
 		}
-		chunk->buflen = chunk->length;
+		chunk->length = new_pathlen;
+		stream->offset +=4;
+	}
+	else if (chunk->type == XB_CHUNK_TYPE_SEEK) {
+		F_READ(tmpbuf, 8);
+		chunk->offset = uint8korr(tmpbuf);
+		stream->offset += 8;
+		return XB_STREAM_READ_CHUNK;
+	}
+	else {
+		/* Payload length */
+		F_READ(tmpbuf, 16);
+		ullval = uint8korr(tmpbuf);
+		if (ullval > (ulonglong) SIZE_T_MAX) {
+			msg("xb_stream_read_chunk(): chunk length is too large at "
+					"offset 0x%llx: 0x%llx.", (ulonglong) stream->offset,
+					ullval);
+			goto err;
+		}
+		chunk->length = (size_t) ullval;
+		stream->offset += 8;
+
+		/* Payload offset */
+		ullval = uint8korr(tmpbuf + 8);
+		if (ullval > (ulonglong) MY_OFF_T_MAX) {
+			msg("xb_stream_read_chunk(): chunk offset is too large at "
+					"offset 0x%llx: 0x%llx.", (ulonglong) stream->offset,
+					ullval);
+			goto err;
+		}
+		chunk->offset = (my_off_t) ullval;
+		stream->offset += 8;
 	}
 
-	/* Checksum */
-	F_READ(tmpbuf, 4);
-	chunk->checksum = uint4korr(tmpbuf);
-	chunk->checksum_offset = stream->offset;
+	/* Reallocate the buffer if needed, take into account trailing '\0' for
+	new file name in the case of XB_CHUNK_TYPE_RENAME */
+	if (chunk->length + 1 > chunk->buflen) {
+		chunk->data = my_realloc(PSI_NOT_INSTRUMENTED, chunk->data,
+					chunk->length + 1, MYF(MY_WME | MY_ALLOW_ZERO_PTR));
+		if (chunk->data == NULL) {
+			msg("xb_stream_read_chunk(): failed to increase buffer "
+			    "to %lu bytes.", (ulong) chunk->length + 1);
+			goto err;
+		}
+		chunk->buflen = chunk->length + 1;
+	}
 
-	/* Payload */
-	if (chunk->length > 0) {
+	if (chunk->type == XB_CHUNK_TYPE_RENAME) {
+		if (chunk->length == 0) {
+			msg("xb_stream_read_chunk(): failed to read new name for file to rename "
+				": %s", chunk->path);
+			goto err;
+		}
 		F_READ(chunk->data, chunk->length);
 		stream->offset += chunk->length;
+		reinterpret_cast<char *>(chunk->data)[chunk->length] = '\0';
+		++chunk->length;
 	}
+	else {
+		/* Checksum */
+		F_READ(tmpbuf, 4);
+		chunk->checksum = uint4korr(tmpbuf);
+		chunk->checksum_offset = stream->offset;
 
-	stream->offset += 4;
+		/* Payload */
+		if (chunk->length > 0) {
+			F_READ(chunk->data, chunk->length);
+			stream->offset += chunk->length;
+		}
+
+		stream->offset += 4;
+	}
 
 	return XB_STREAM_READ_CHUNK;
 

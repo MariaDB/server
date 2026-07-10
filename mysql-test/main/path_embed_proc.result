@@ -1,0 +1,96 @@
+#
+# MDEV-34391 Path resolution
+# Stored procedure tests with embedded PATH
+#
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func2() RETURNS TEXT
+BEGIN
+RETURN 'test2.func2';
+END;
+$$
+CREATE DATABASE test3;
+CREATE FUNCTION test3.func2() RETURNS TEXT
+BEGIN
+RETURN 'test3.func2';
+END;
+$$
+CREATE DATABASE test4;
+CREATE FUNCTION test4.func4() RETURNS TEXT
+BEGIN
+RETURN 'test4.func4';
+END;
+$$
+#
+# Embed a path in a stored procedure
+#
+SET PATH 'test2';
+CREATE PROCEDURE proc()
+BEGIN
+SELECT func2();
+END;
+$$
+SET PATH 'CURRENT_SCHEMA';
+CALL proc;
+func2()
+test2.func2
+SET PATH 'test3';
+CALL test.proc;
+func2()
+test2.func2
+SET PATH 'CURRENT_SCHEMA,test3';
+CALL proc;
+func2()
+test2.func2
+DROP PROCEDURE proc;
+#
+# Ensure that multiple references are resolved properly
+#
+SET PATH 'test2';
+CREATE PROCEDURE proc()
+BEGIN
+SELECT CONCAT(func2(), '+', func2());
+END;
+$$
+SET PATH 'CURRENT_SCHEMA';
+CALL proc();
+CONCAT(func2(), '+', func2())
+test2.func2+test2.func2
+SET PATH 'test3';
+CALL test.proc;
+CONCAT(func2(), '+', func2())
+test2.func2+test2.func2
+DROP PROCEDURE proc;
+#
+# Use multiple schemas in embedded PATH
+#
+SET PATH 'test2,test3,test4';
+CREATE PROCEDURE proc()
+BEGIN
+SELECT CONCAT(func2(), '+', func2(), '+', func4());
+END;
+$$
+SET PATH 'CURRENT_SCHEMA';
+CALL proc();
+CONCAT(func2(), '+', func2(), '+', func4())
+test2.func2+test2.func2+test4.func4
+SET PATH 'test3';
+CALL test.proc;
+CONCAT(func2(), '+', func2(), '+', func4())
+test2.func2+test2.func2+test4.func4
+DROP PROCEDURE proc;
+#
+# Use empty PATH in stored routine (resolution should fail)
+#
+SET PATH '';
+CREATE PROCEDURE proc()
+BEGIN
+SELECT func2();
+END;
+$$
+SET PATH 'CURRENT_SCHEMA';
+CALL proc;
+ERROR 42000: FUNCTION test.func2 does not exist
+DROP PROCEDURE proc;
+DROP DATABASE test2;
+DROP DATABASE test3;
+DROP DATABASE test4;

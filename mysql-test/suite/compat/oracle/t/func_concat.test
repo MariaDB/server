@@ -182,3 +182,19 @@ EXPLAIN EXTENDED SELECT * FROM v1;
 
 DROP VIEW v1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-31910 ASAN memcpy-param-overlap upon CONCAT in ORACLE mode
+--echo #
+
+SET SQL_MODE= ORACLE;
+SELECT CONCAT(SUBSTR(123 FROM 2));
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

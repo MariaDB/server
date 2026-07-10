@@ -113,10 +113,3 @@ SELECT COUNT(*) = 2 FROM t1;
 SELECT COUNT(*) = 2 FROM t1;
 
 DROP TABLE t1;
-
-
-
-
-
-
-

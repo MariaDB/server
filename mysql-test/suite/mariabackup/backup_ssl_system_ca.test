@@ -1,0 +1,30 @@
+source include/not_embedded.inc;
+source include/not_windows.inc;
+if (`select @@version_ssl_library not like 'OpenSSL%'`) {
+  skip Needs OpenSSL;
+}
+
+
+--echo #
+--echo # MDEV-35368 Validation of SSL certificate fails for mariadb-backup
+--echo #
+GRANT ALL PRIVILEGES on *.* TO backup_user IDENTIFIED by 'x' REQUIRE SSL;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+let SSL_CERT_DIR=$MYSQL_TMP_DIR;
+copy_file $MYSQL_TEST_DIR/std_data/cacert.pem $MYSQL_TMP_DIR/ed1f42db.0;
+
+echo # localhost, not self-signed cert with a wrong hostname: ok;
+exec $XTRABACKUP --user=root --socket=$MASTER_MYSOCK --backup --target-dir=$targetdir;
+rmdir $targetdir;
+
+echo # tcp, not self-signed cert with a wrong hostname: fails;
+error 1;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+
+echo # tcp, not self-signed cert with a wrong hostname: fails even with a password (no auto-verification);
+error 1;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=backup_user --password=x --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+
+remove_file $MYSQL_TMP_DIR/ed1f42db.0;
+DROP USER backup_user;

@@ -47,7 +47,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(DAY_MINUTE FROM ll)` bigint(12) DEFAULT NULL,
   `EXTRACT(DAY_SECOND FROM ll)` bigint(14) DEFAULT NULL,
   `EXTRACT(DAY_MICROSECOND FROM ll)` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64), b DECIMAL(32,9));
@@ -74,16 +74,22 @@ INSERT INTO t1 VALUES
 # Expect empty sets
 SELECT a, b, EXTRACT(DAY_HOUR FROM a), EXTRACT(DAY_HOUR FROM b) FROM t1 WHERE NOT (EXTRACT(DAY_HOUR FROM a)<=>EXTRACT(DAY_HOUR FROM b));
 a	b	EXTRACT(DAY_HOUR FROM a)	EXTRACT(DAY_HOUR FROM b)
+0.999999	0.999999000	0	NULL
 SELECT a, b, EXTRACT(DAY FROM a), EXTRACT(DAY FROM b) FROM t1 WHERE NOT (EXTRACT(DAY FROM a)<=>EXTRACT(DAY FROM b));
 a	b	EXTRACT(DAY FROM a)	EXTRACT(DAY FROM b)
+0.999999	0.999999000	0	NULL
 SELECT a, b, EXTRACT(HOUR FROM a), EXTRACT(HOUR FROM b) FROM t1 WHERE NOT (EXTRACT(HOUR FROM a)<=>EXTRACT(HOUR FROM b));
 a	b	EXTRACT(HOUR FROM a)	EXTRACT(HOUR FROM b)
+0.999999	0.999999000	0	NULL
 SELECT a, b, EXTRACT(MINUTE FROM a), EXTRACT(MINUTE FROM b) FROM t1 WHERE NOT (EXTRACT(MINUTE FROM a)<=>EXTRACT(MINUTE FROM b));
 a	b	EXTRACT(MINUTE FROM a)	EXTRACT(MINUTE FROM b)
+0.999999	0.999999000	0	NULL
 SELECT a, b, EXTRACT(SECOND FROM a), EXTRACT(SECOND FROM b) FROM t1 WHERE NOT (EXTRACT(SECOND FROM a)<=>EXTRACT(SECOND FROM b));
 a	b	EXTRACT(SECOND FROM a)	EXTRACT(SECOND FROM b)
+0.999999	0.999999000	0	NULL
 SELECT a, b, EXTRACT(MICROSECOND FROM a), EXTRACT(MICROSECOND FROM b) FROM t1 WHERE NOT (EXTRACT(MICROSECOND FROM a)<=>EXTRACT(MICROSECOND FROM b));
 a	b	EXTRACT(MICROSECOND FROM a)	EXTRACT(MICROSECOND FROM b)
+0.999999	0.999999000	999999	NULL
 # Detailed results
 SELECT
 a,
@@ -118,32 +124,32 @@ Warnings:
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '9999-12-31 23:59:59.123456'
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2001-01-01 10:20:30.123456'
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967296:59:59.123456'
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect interval value: '4294967296:59:59.123456' for column `test`.`t1`.`a` at row 3
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
-Warning	1292	Incorrect interval value: '4294967295:59:59.123456'
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
+Warning	1292	Incorrect interval value: '4294967295:59:59.123456' for column `test`.`t1`.`a` at row 4
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
-Warning	1292	Incorrect interval value: '87649416:59:59.123456'
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
+Warning	1292	Incorrect interval value: '87649416:59:59.123456' for column `test`.`t1`.`a` at row 5
 SELECT
 b,
 CAST(b AS INTERVAL DAY_SECOND(6)) AS cidm,
@@ -166,7 +172,7 @@ b	cidm	dh	EXTRACT(DAY_HOUR FROM b)	EXTRACT(DAY FROM b)	EXTRACT(HOUR FROM b)	EXTR
 99995959.123456000	416 15:59:59.123456	9999	41615	416	15	59	59	123456
 99990101.123456000	416 15:01:01.123456	9999	41615	416	15	1	1	123456
 99990101.000000000	416 15:01:01.000000	9999	41615	416	15	1	1	0
-0.999999000	00:00:00.999999	0	0	0	0	0	0	999999
+0.999999000	00:00:00.999999	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 0.999990000	00:00:00.999990	0	0	0	0	0	0	999990
 0.999900000	00:00:00.999900	0	0	0	0	0	0	999900
 0.999000000	00:00:00.999000	0	0	0	0	0	0	999000
@@ -209,6 +215,14 @@ Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '99995959.123456000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '99990101.123456000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '99990101.000000000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.999999000'
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
+Warning	1292	Incorrect interval value: '0.999999000' for column `test`.`t1`.`b` at row 11
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.999990000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.999900000'
 Note	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '0.999000000'
@@ -252,15 +266,15 @@ a	cidm	EXTRACT(DAY_HOUR FROM a)	EXTRACT(DAY_MINUTE FROM a)	EXTRACT(DAY_SECOND FR
 	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
-Warning	1292	Incorrect interval value: ''
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect interval value: '' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
 # Backward compatibility
 # This still parses as DATETIME
@@ -368,6 +382,8 @@ EXTRACT(DAY FROM '01-02-03')
 SELECT EXTRACT(DAY FROM '24:02:03T');
 EXTRACT(DAY FROM '24:02:03T')
 3
+Warnings:
+Warning	1292	Truncated incorrect date value: '24:02:03T'
 SELECT EXTRACT(DAY FROM '24-02-03');
 EXTRACT(DAY FROM '24-02-03')
 3
@@ -380,33 +396,63 @@ EXTRACT(DAY FROM '11111')
 SELECT TIME('2001-01-01T'), TIME('2001-01-01T ');
 TIME('2001-01-01T')	TIME('2001-01-01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01T'
+Warning	1292	Truncated incorrect date value: '2001-01-01T '
 SELECT TIME('2001/01/01T'), TIME('2001/01/01T ');
 TIME('2001/01/01T')	TIME('2001/01/01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001/01/01T'
+Warning	1292	Truncated incorrect date value: '2001/01/01T '
 SELECT TIME('2001:01:01T'), TIME('2001:01:01T ');
 TIME('2001:01:01T')	TIME('2001:01:01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 SELECT EXTRACT(DAY FROM '2001-01-01T'), EXTRACT(DAY FROM '2001-01-01T ');
 EXTRACT(DAY FROM '2001-01-01T')	EXTRACT(DAY FROM '2001-01-01T ')
 1	1
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01T'
+Warning	1292	Truncated incorrect date value: '2001-01-01T '
 SELECT EXTRACT(DAY FROM '2001/01/01T'), EXTRACT(DAY FROM '2001/01/01T ');
 EXTRACT(DAY FROM '2001/01/01T')	EXTRACT(DAY FROM '2001/01/01T ')
 1	1
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001/01/01T'
+Warning	1292	Truncated incorrect date value: '2001/01/01T '
 SELECT EXTRACT(DAY FROM '2001:01:01T'), EXTRACT(DAY FROM '2001:01:01T ');
 EXTRACT(DAY FROM '2001:01:01T')	EXTRACT(DAY FROM '2001:01:01T ')
 1	1
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 SELECT TIME('2001:01:01T'), TIME('2001:01:01T ');
 TIME('2001:01:01T')	TIME('2001:01:01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 SELECT EXTRACT(HOUR FROM '2001-01-01T'), EXTRACT(HOUR FROM '2001-01-01T ');
 EXTRACT(HOUR FROM '2001-01-01T')	EXTRACT(HOUR FROM '2001-01-01T ')
 0	0
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01T'
+Warning	1292	Truncated incorrect date value: '2001-01-01T '
 SELECT EXTRACT(HOUR FROM '2001/01/01T'), EXTRACT(HOUR FROM '2001/01/01T ');
 EXTRACT(HOUR FROM '2001/01/01T')	EXTRACT(HOUR FROM '2001/01/01T ')
 0	0
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001/01/01T'
+Warning	1292	Truncated incorrect date value: '2001/01/01T '
 SELECT EXTRACT(HOUR FROM '2001:01:01T'), EXTRACT(HOUR FROM '2001:01:01T ');
 EXTRACT(HOUR FROM '2001:01:01T')	EXTRACT(HOUR FROM '2001:01:01T ')
 0	0
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 # This still parses as DATE and returns NULL (without trying TIME)
 SELECT EXTRACT(DAY FROM '100000:02:03T');
 EXTRACT(DAY FROM '100000:02:03T')
@@ -568,25 +614,998 @@ EXTRACT(DAY FROM a)	EXTRACT(DAY_SECOND FROM a)	a	cidm
 0	10203	01:02:03/	01:02:03.000000
 20	20102030	20 10:20:30	20 10:20:30.000000
 Warnings:
-Warning	1292	Truncated incorrect time value: '2024:01:03 garbage /////'
-Warning	1292	Truncated incorrect time value: '2024:01:03 garbage /////'
+Warning	1292	Incorrect time value: '2024:01:03 garbage /////' for column `test`.`t1`.`a` at row 1
+Warning	1292	Incorrect time value: '2024:01:03 garbage /////' for column `test`.`t1`.`a` at row 1
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '2024:01:03 garbage /////'
-Warning	1292	Truncated incorrect time value: '24:01:03 garbage /////'
-Warning	1292	Truncated incorrect time value: '24:01:03 garbage /////'
+Warning	1292	Incorrect time value: '24:01:03 garbage /////' for column `test`.`t1`.`a` at row 2
+Warning	1292	Incorrect time value: '24:01:03 garbage /////' for column `test`.`t1`.`a` at row 2
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '24:01:03 garbage /////'
-Warning	1292	Truncated incorrect time value: '01:01:03 garbage /////'
-Warning	1292	Truncated incorrect time value: '01:01:03 garbage /////'
+Warning	1292	Incorrect time value: '01:01:03 garbage /////' for column `test`.`t1`.`a` at row 3
+Warning	1292	Incorrect time value: '01:01:03 garbage /////' for column `test`.`t1`.`a` at row 3
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '01:01:03 garbage /////'
-Warning	1292	Truncated incorrect time value: '01:02:03:'
-Warning	1292	Truncated incorrect time value: '01:02:03:'
+Warning	1292	Incorrect time value: '01:02:03:' for column `test`.`t1`.`a` at row 8
+Warning	1292	Incorrect time value: '01:02:03:' for column `test`.`t1`.`a` at row 8
 Warning	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '01:02:03:'
-Warning	1292	Truncated incorrect time value: '01:02:03-'
-Warning	1292	Truncated incorrect time value: '01:02:03-'
+Warning	1292	Incorrect time value: '01:02:03-' for column `test`.`t1`.`a` at row 9
+Warning	1292	Incorrect time value: '01:02:03-' for column `test`.`t1`.`a` at row 9
 Warning	1292	Incorrect INTERVAL DAY TO SECOND value: '01:02:03-'
-Warning	1292	Truncated incorrect time value: '01:02:03;'
-Warning	1292	Truncated incorrect time value: '01:02:03;'
+Warning	1292	Incorrect time value: '01:02:03;' for column `test`.`t1`.`a` at row 10
+Warning	1292	Incorrect time value: '01:02:03;' for column `test`.`t1`.`a` at row 10
 Warning	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '01:02:03;'
-Warning	1292	Truncated incorrect time value: '01:02:03/'
-Warning	1292	Truncated incorrect time value: '01:02:03/'
+Warning	1292	Incorrect time value: '01:02:03/' for column `test`.`t1`.`a` at row 11
+Warning	1292	Incorrect time value: '01:02:03/' for column `test`.`t1`.`a` at row 11
 Warning	1292	Truncated incorrect INTERVAL DAY TO SECOND value: '01:02:03/'
 DROP TABLE t1;
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-33496 Out of range error in AVG(YEAR(datetime)) due to a wrong data type
+#
+CREATE FUNCTION select01() RETURNS TEXT RETURN 'SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?';
+CREATE FUNCTION select02() RETURNS TEXT RETURN 'SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)';
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES ('2001-12-31 10:20:30.999999');
+CREATE FUNCTION params(expr TEXT, count INT) RETURNS TEXT
+BEGIN
+RETURN CONCAT(expr, REPEAT(CONCAT(', ', expr), count-1));
+END;
+$$
+CREATE PROCEDURE show_drop()
+BEGIN
+SELECT TABLE_NAME, COLUMN_TYPE, COLUMN_NAME
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test'
+     AND TABLE_NAME IN ('t1e_nm','t2e_nm','t1f_nm','t2f_nm',
+'t1e_ps','t1f_ps','t2e_ps','t2f_ps')
+ORDER BY LEFT(TABLE_NAME, 2), ORDINAL_POSITION, TABLE_NAME;
+FOR rec IN (SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test'
+              AND TABLE_NAME IN ('t1e_nm','t2e_nm','t1f_nm','t2f_nm',
+'t1e_ps','t1f_ps','t2e_ps','t2f_ps'))
+DO
+EXECUTE IMMEDIATE CONCAT('DROP TABLE ', rec.TABLE_NAME);
+END FOR;
+END;
+$$
+CREATE PROCEDURE p1(unit VARCHAR(32))
+BEGIN
+DECLARE do_extract BOOL DEFAULT unit NOT IN('DAYOFYEAR');
+DECLARE query01 TEXT DEFAULT
+CONCAT('CREATE TABLE t2 AS ', select01(), ' FROM t1');
+DECLARE query02 TEXT DEFAULT
+CONCAT('CREATE TABLE t2 AS ', select02(), ' FROM t1');
+IF (do_extract)
+THEN
+EXECUTE IMMEDIATE REPLACE(REPLACE(query01,'t2','t1e_nm'),'?', CONCAT('EXTRACT(',unit,' FROM a)'));
+EXECUTE IMMEDIATE REPLACE(REPLACE(query02,'t2','t2e_nm'),'?', CONCAT('EXTRACT(',unit,' FROM a)'));
+END IF;
+EXECUTE IMMEDIATE REPLACE(REPLACE(query01,'t2','t1f_nm'),'?', CONCAT(unit,'(a)'));
+EXECUTE IMMEDIATE REPLACE(REPLACE(query02,'t2','t2f_nm'),'?', CONCAT(unit,'(a)'));
+END;
+$$
+
+
+# EXTRACT(YEAR FROM expr) and YEAR(expr) are equivalent
+CALL p1('YEAR');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(YEAR FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), YEAR(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(5)	EXTRACT(YEAR FROM a)
+t1e_ps	int(5)	?
+t1f_nm	int(5)	YEAR(a)
+t1f_ps	int(5)	?
+t1e_nm	int(4) unsigned	CAST(EXTRACT(YEAR FROM a) AS UNSIGNED)
+t1e_ps	int(4) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(4) unsigned	CAST(YEAR(a) AS UNSIGNED)
+t1f_ps	int(4) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(5)	CAST(EXTRACT(YEAR FROM a) AS SIGNED)
+t1e_ps	int(5)	CAST(? AS SIGNED)
+t1f_nm	int(5)	CAST(YEAR(a) AS SIGNED)
+t1f_ps	int(5)	CAST(? AS SIGNED)
+t1e_nm	int(5)	ABS(EXTRACT(YEAR FROM a))
+t1e_ps	int(5)	ABS(?)
+t1f_nm	int(5)	ABS(YEAR(a))
+t1f_ps	int(5)	ABS(?)
+t1e_nm	int(5)	ROUND(EXTRACT(YEAR FROM a))
+t1e_ps	int(5)	ROUND(?)
+t1f_nm	int(5)	ROUND(YEAR(a))
+t1f_ps	int(5)	ROUND(?)
+t1e_nm	int(5)	-EXTRACT(YEAR FROM a)
+t1e_ps	int(5)	-?
+t1f_nm	int(5)	-YEAR(a)
+t1f_ps	int(5)	-?
+t1e_nm	int(6)	ROUND(EXTRACT(YEAR FROM a),-1)
+t1e_ps	int(6)	ROUND(?,-1)
+t1f_nm	int(6)	ROUND(YEAR(a),-1)
+t1f_ps	int(6)	ROUND(?,-1)
+t1e_nm	int(6)	EXTRACT(YEAR FROM a)+0
+t1e_ps	int(6)	?+0
+t1f_nm	int(6)	YEAR(a)+0
+t1f_ps	int(6)	?+0
+t1e_nm	decimal(6,1)	EXTRACT(YEAR FROM a)+0.0
+t1e_ps	decimal(6,1)	?+0.0
+t1f_nm	decimal(6,1)	YEAR(a)+0.0
+t1f_ps	decimal(6,1)	?+0.0
+t1e_nm	varchar(4)	CONCAT(EXTRACT(YEAR FROM a))
+t1e_ps	varchar(4)	CONCAT(?)
+t1f_nm	varchar(4)	CONCAT(YEAR(a))
+t1f_ps	varchar(4)	CONCAT(?)
+t1e_nm	int(5)	LEAST(EXTRACT(YEAR FROM a),EXTRACT(YEAR FROM a))
+t1e_ps	int(5)	LEAST(?,?)
+t1f_nm	int(5)	LEAST(YEAR(a),YEAR(a))
+t1f_ps	int(5)	LEAST(?,?)
+t1e_nm	int(5)	COALESCE(EXTRACT(YEAR FROM a))
+t1e_ps	int(5)	COALESCE(?)
+t1f_nm	int(5)	COALESCE(YEAR(a))
+t1f_ps	int(5)	COALESCE(?)
+t1e_nm	int(5)	COALESCE(EXTRACT(YEAR FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(5)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(5)	COALESCE(YEAR(a),CAST(1 AS SIGNED))
+t1f_ps	int(5)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(4,0)	COALESCE(EXTRACT(YEAR FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(4,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(4,0)	COALESCE(YEAR(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(4,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(5)	@a:=EXTRACT(YEAR FROM a)
+t1e_ps	int(5)	@a:=?
+t1f_nm	int(5)	@a:=YEAR(a)
+t1f_ps	int(5)	@a:=?
+t2e_nm	decimal(8,4)	AVG(EXTRACT(YEAR FROM a))
+t2e_ps	decimal(8,4)	AVG(?)
+t2f_nm	decimal(8,4)	AVG(YEAR(a))
+t2f_ps	decimal(8,4)	AVG(?)
+t2e_nm	bigint(5)	MIN(EXTRACT(YEAR FROM a))
+t2e_ps	bigint(5)	MIN(?)
+t2f_nm	bigint(5)	MIN(YEAR(a))
+t2f_ps	bigint(5)	MIN(?)
+t2e_nm	bigint(5)	MAX(EXTRACT(YEAR FROM a))
+t2e_ps	bigint(5)	MAX(?)
+t2f_nm	bigint(5)	MAX(YEAR(a))
+t2f_ps	bigint(5)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(YEAR FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(YEAR(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(QUARTER FROM expr) and QUARTER(expr) are equavalent
+CALL p1('QUARTER');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(QUARTER FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999'), QUARTER(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(2)	EXTRACT(QUARTER FROM a)
+t1e_ps	int(2)	?
+t1f_nm	int(2)	QUARTER(a)
+t1f_ps	int(2)	?
+t1e_nm	int(1) unsigned	CAST(EXTRACT(QUARTER FROM a) AS UNSIGNED)
+t1e_ps	int(1) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(1) unsigned	CAST(QUARTER(a) AS UNSIGNED)
+t1f_ps	int(1) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(2)	CAST(EXTRACT(QUARTER FROM a) AS SIGNED)
+t1e_ps	int(2)	CAST(? AS SIGNED)
+t1f_nm	int(2)	CAST(QUARTER(a) AS SIGNED)
+t1f_ps	int(2)	CAST(? AS SIGNED)
+t1e_nm	int(2)	ABS(EXTRACT(QUARTER FROM a))
+t1e_ps	int(2)	ABS(?)
+t1f_nm	int(2)	ABS(QUARTER(a))
+t1f_ps	int(2)	ABS(?)
+t1e_nm	int(2)	ROUND(EXTRACT(QUARTER FROM a))
+t1e_ps	int(2)	ROUND(?)
+t1f_nm	int(2)	ROUND(QUARTER(a))
+t1f_ps	int(2)	ROUND(?)
+t1e_nm	int(2)	-EXTRACT(QUARTER FROM a)
+t1e_ps	int(2)	-?
+t1f_nm	int(2)	-QUARTER(a)
+t1f_ps	int(2)	-?
+t1e_nm	int(3)	ROUND(EXTRACT(QUARTER FROM a),-1)
+t1e_ps	int(3)	ROUND(?,-1)
+t1f_nm	int(3)	ROUND(QUARTER(a),-1)
+t1f_ps	int(3)	ROUND(?,-1)
+t1e_nm	int(3)	EXTRACT(QUARTER FROM a)+0
+t1e_ps	int(3)	?+0
+t1f_nm	int(3)	QUARTER(a)+0
+t1f_ps	int(3)	?+0
+t1e_nm	decimal(3,1)	EXTRACT(QUARTER FROM a)+0.0
+t1e_ps	decimal(3,1)	?+0.0
+t1f_nm	decimal(3,1)	QUARTER(a)+0.0
+t1f_ps	decimal(3,1)	?+0.0
+t1e_nm	varchar(1)	CONCAT(EXTRACT(QUARTER FROM a))
+t1e_ps	varchar(1)	CONCAT(?)
+t1f_nm	varchar(1)	CONCAT(QUARTER(a))
+t1f_ps	varchar(1)	CONCAT(?)
+t1e_nm	int(2)	LEAST(EXTRACT(QUARTER FROM a),EXTRACT(QUARTER FROM a))
+t1e_ps	int(2)	LEAST(?,?)
+t1f_nm	int(2)	LEAST(QUARTER(a),QUARTER(a))
+t1f_ps	int(2)	LEAST(?,?)
+t1e_nm	int(2)	COALESCE(EXTRACT(QUARTER FROM a))
+t1e_ps	int(2)	COALESCE(?)
+t1f_nm	int(2)	COALESCE(QUARTER(a))
+t1f_ps	int(2)	COALESCE(?)
+t1e_nm	int(2)	COALESCE(EXTRACT(QUARTER FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(2)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(2)	COALESCE(QUARTER(a),CAST(1 AS SIGNED))
+t1f_ps	int(2)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(1,0)	COALESCE(EXTRACT(QUARTER FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(1,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(1,0)	COALESCE(QUARTER(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(1,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(2)	@a:=EXTRACT(QUARTER FROM a)
+t1e_ps	int(2)	@a:=?
+t1f_nm	int(2)	@a:=QUARTER(a)
+t1f_ps	int(2)	@a:=?
+t2e_nm	decimal(5,4)	AVG(EXTRACT(QUARTER FROM a))
+t2e_ps	decimal(5,4)	AVG(?)
+t2f_nm	decimal(5,4)	AVG(QUARTER(a))
+t2f_ps	decimal(5,4)	AVG(?)
+t2e_nm	bigint(2)	MIN(EXTRACT(QUARTER FROM a))
+t2e_ps	bigint(2)	MIN(?)
+t2f_nm	bigint(2)	MIN(QUARTER(a))
+t2f_ps	bigint(2)	MIN(?)
+t2e_nm	bigint(2)	MAX(EXTRACT(QUARTER FROM a))
+t2e_ps	bigint(2)	MAX(?)
+t2f_nm	bigint(2)	MAX(QUARTER(a))
+t2f_ps	bigint(2)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(QUARTER FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(QUARTER(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(MONTH FROM expr) and MONTH(expr) are equavalent
+CALL p1('MONTH');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MONTH FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999'), MONTH(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(3)	EXTRACT(MONTH FROM a)
+t1e_ps	int(3)	?
+t1f_nm	int(3)	MONTH(a)
+t1f_ps	int(3)	?
+t1e_nm	int(2) unsigned	CAST(EXTRACT(MONTH FROM a) AS UNSIGNED)
+t1e_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(2) unsigned	CAST(MONTH(a) AS UNSIGNED)
+t1f_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(3)	CAST(EXTRACT(MONTH FROM a) AS SIGNED)
+t1e_ps	int(3)	CAST(? AS SIGNED)
+t1f_nm	int(3)	CAST(MONTH(a) AS SIGNED)
+t1f_ps	int(3)	CAST(? AS SIGNED)
+t1e_nm	int(3)	ABS(EXTRACT(MONTH FROM a))
+t1e_ps	int(3)	ABS(?)
+t1f_nm	int(3)	ABS(MONTH(a))
+t1f_ps	int(3)	ABS(?)
+t1e_nm	int(3)	ROUND(EXTRACT(MONTH FROM a))
+t1e_ps	int(3)	ROUND(?)
+t1f_nm	int(3)	ROUND(MONTH(a))
+t1f_ps	int(3)	ROUND(?)
+t1e_nm	int(3)	-EXTRACT(MONTH FROM a)
+t1e_ps	int(3)	-?
+t1f_nm	int(3)	-MONTH(a)
+t1f_ps	int(3)	-?
+t1e_nm	int(4)	ROUND(EXTRACT(MONTH FROM a),-1)
+t1e_ps	int(4)	ROUND(?,-1)
+t1f_nm	int(4)	ROUND(MONTH(a),-1)
+t1f_ps	int(4)	ROUND(?,-1)
+t1e_nm	int(4)	EXTRACT(MONTH FROM a)+0
+t1e_ps	int(4)	?+0
+t1f_nm	int(4)	MONTH(a)+0
+t1f_ps	int(4)	?+0
+t1e_nm	decimal(4,1)	EXTRACT(MONTH FROM a)+0.0
+t1e_ps	decimal(4,1)	?+0.0
+t1f_nm	decimal(4,1)	MONTH(a)+0.0
+t1f_ps	decimal(4,1)	?+0.0
+t1e_nm	varchar(2)	CONCAT(EXTRACT(MONTH FROM a))
+t1e_ps	varchar(2)	CONCAT(?)
+t1f_nm	varchar(2)	CONCAT(MONTH(a))
+t1f_ps	varchar(2)	CONCAT(?)
+t1e_nm	int(3)	LEAST(EXTRACT(MONTH FROM a),EXTRACT(MONTH FROM a))
+t1e_ps	int(3)	LEAST(?,?)
+t1f_nm	int(3)	LEAST(MONTH(a),MONTH(a))
+t1f_ps	int(3)	LEAST(?,?)
+t1e_nm	int(3)	COALESCE(EXTRACT(MONTH FROM a))
+t1e_ps	int(3)	COALESCE(?)
+t1f_nm	int(3)	COALESCE(MONTH(a))
+t1f_ps	int(3)	COALESCE(?)
+t1e_nm	int(3)	COALESCE(EXTRACT(MONTH FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(3)	COALESCE(MONTH(a),CAST(1 AS SIGNED))
+t1f_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(2,0)	COALESCE(EXTRACT(MONTH FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(2,0)	COALESCE(MONTH(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(3)	@a:=EXTRACT(MONTH FROM a)
+t1e_ps	int(3)	@a:=?
+t1f_nm	int(3)	@a:=MONTH(a)
+t1f_ps	int(3)	@a:=?
+t2e_nm	decimal(6,4)	AVG(EXTRACT(MONTH FROM a))
+t2e_ps	decimal(6,4)	AVG(?)
+t2f_nm	decimal(6,4)	AVG(MONTH(a))
+t2f_ps	decimal(6,4)	AVG(?)
+t2e_nm	bigint(3)	MIN(EXTRACT(MONTH FROM a))
+t2e_ps	bigint(3)	MIN(?)
+t2f_nm	bigint(3)	MIN(MONTH(a))
+t2f_ps	bigint(3)	MIN(?)
+t2e_nm	bigint(3)	MAX(EXTRACT(MONTH FROM a))
+t2e_ps	bigint(3)	MAX(?)
+t2f_nm	bigint(3)	MAX(MONTH(a))
+t2f_ps	bigint(3)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(MONTH FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(MONTH(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(WEEK FROM expr) and WEEK(expr) are equavalent
+CALL p1('WEEK');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(WEEK FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999'), WEEK(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(3)	EXTRACT(WEEK FROM a)
+t1e_ps	int(3)	?
+t1f_nm	int(3)	WEEK(a)
+t1f_ps	int(3)	?
+t1e_nm	int(2) unsigned	CAST(EXTRACT(WEEK FROM a) AS UNSIGNED)
+t1e_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(2) unsigned	CAST(WEEK(a) AS UNSIGNED)
+t1f_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(3)	CAST(EXTRACT(WEEK FROM a) AS SIGNED)
+t1e_ps	int(3)	CAST(? AS SIGNED)
+t1f_nm	int(3)	CAST(WEEK(a) AS SIGNED)
+t1f_ps	int(3)	CAST(? AS SIGNED)
+t1e_nm	int(3)	ABS(EXTRACT(WEEK FROM a))
+t1e_ps	int(3)	ABS(?)
+t1f_nm	int(3)	ABS(WEEK(a))
+t1f_ps	int(3)	ABS(?)
+t1e_nm	int(3)	ROUND(EXTRACT(WEEK FROM a))
+t1e_ps	int(3)	ROUND(?)
+t1f_nm	int(3)	ROUND(WEEK(a))
+t1f_ps	int(3)	ROUND(?)
+t1e_nm	int(3)	-EXTRACT(WEEK FROM a)
+t1e_ps	int(3)	-?
+t1f_nm	int(3)	-WEEK(a)
+t1f_ps	int(3)	-?
+t1e_nm	int(4)	ROUND(EXTRACT(WEEK FROM a),-1)
+t1e_ps	int(4)	ROUND(?,-1)
+t1f_nm	int(4)	ROUND(WEEK(a),-1)
+t1f_ps	int(4)	ROUND(?,-1)
+t1e_nm	int(4)	EXTRACT(WEEK FROM a)+0
+t1e_ps	int(4)	?+0
+t1f_nm	int(4)	WEEK(a)+0
+t1f_ps	int(4)	?+0
+t1e_nm	decimal(4,1)	EXTRACT(WEEK FROM a)+0.0
+t1e_ps	decimal(4,1)	?+0.0
+t1f_nm	decimal(4,1)	WEEK(a)+0.0
+t1f_ps	decimal(4,1)	?+0.0
+t1e_nm	varchar(2)	CONCAT(EXTRACT(WEEK FROM a))
+t1e_ps	varchar(2)	CONCAT(?)
+t1f_nm	varchar(2)	CONCAT(WEEK(a))
+t1f_ps	varchar(2)	CONCAT(?)
+t1e_nm	int(3)	LEAST(EXTRACT(WEEK FROM a),EXTRACT(WEEK FROM a))
+t1e_ps	int(3)	LEAST(?,?)
+t1f_nm	int(3)	LEAST(WEEK(a),WEEK(a))
+t1f_ps	int(3)	LEAST(?,?)
+t1e_nm	int(3)	COALESCE(EXTRACT(WEEK FROM a))
+t1e_ps	int(3)	COALESCE(?)
+t1f_nm	int(3)	COALESCE(WEEK(a))
+t1f_ps	int(3)	COALESCE(?)
+t1e_nm	int(3)	COALESCE(EXTRACT(WEEK FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(3)	COALESCE(WEEK(a),CAST(1 AS SIGNED))
+t1f_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(2,0)	COALESCE(EXTRACT(WEEK FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(2,0)	COALESCE(WEEK(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(3)	@a:=EXTRACT(WEEK FROM a)
+t1e_ps	int(3)	@a:=?
+t1f_nm	int(3)	@a:=WEEK(a)
+t1f_ps	int(3)	@a:=?
+t2e_nm	decimal(6,4)	AVG(EXTRACT(WEEK FROM a))
+t2e_ps	decimal(6,4)	AVG(?)
+t2f_nm	decimal(6,4)	AVG(WEEK(a))
+t2f_ps	decimal(6,4)	AVG(?)
+t2e_nm	bigint(3)	MIN(EXTRACT(WEEK FROM a))
+t2e_ps	bigint(3)	MIN(?)
+t2f_nm	bigint(3)	MIN(WEEK(a))
+t2f_ps	bigint(3)	MIN(?)
+t2e_nm	bigint(3)	MAX(EXTRACT(WEEK FROM a))
+t2e_ps	bigint(3)	MAX(?)
+t2f_nm	bigint(3)	MAX(WEEK(a))
+t2f_ps	bigint(3)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(WEEK FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(WEEK(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(DAY FROM expr) returns hours/24 and includes the sign for TIME
+# DAY(expr) returns the DD part of CAST(expr AS DATETIME)
+CALL p1('DAY');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(DAY FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999'), DAY(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(3)	EXTRACT(DAY FROM a)
+t1e_ps	int(3)	?
+t1f_nm	int(3)	DAY(a)
+t1f_ps	int(3)	?
+t1e_nm	bigint(20) unsigned	CAST(EXTRACT(DAY FROM a) AS UNSIGNED)
+t1e_ps	bigint(20) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(2) unsigned	CAST(DAY(a) AS UNSIGNED)
+t1f_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(3)	CAST(EXTRACT(DAY FROM a) AS SIGNED)
+t1e_ps	int(3)	CAST(? AS SIGNED)
+t1f_nm	int(3)	CAST(DAY(a) AS SIGNED)
+t1f_ps	int(3)	CAST(? AS SIGNED)
+t1e_nm	int(3)	ABS(EXTRACT(DAY FROM a))
+t1e_ps	int(3)	ABS(?)
+t1f_nm	int(3)	ABS(DAY(a))
+t1f_ps	int(3)	ABS(?)
+t1e_nm	int(3)	ROUND(EXTRACT(DAY FROM a))
+t1e_ps	int(3)	ROUND(?)
+t1f_nm	int(3)	ROUND(DAY(a))
+t1f_ps	int(3)	ROUND(?)
+t1e_nm	int(4)	-EXTRACT(DAY FROM a)
+t1e_ps	int(4)	-?
+t1f_nm	int(3)	-DAY(a)
+t1f_ps	int(3)	-?
+t1e_nm	int(4)	ROUND(EXTRACT(DAY FROM a),-1)
+t1e_ps	int(4)	ROUND(?,-1)
+t1f_nm	int(4)	ROUND(DAY(a),-1)
+t1f_ps	int(4)	ROUND(?,-1)
+t1e_nm	int(4)	EXTRACT(DAY FROM a)+0
+t1e_ps	int(4)	?+0
+t1f_nm	int(4)	DAY(a)+0
+t1f_ps	int(4)	?+0
+t1e_nm	decimal(4,1)	EXTRACT(DAY FROM a)+0.0
+t1e_ps	decimal(4,1)	?+0.0
+t1f_nm	decimal(4,1)	DAY(a)+0.0
+t1f_ps	decimal(4,1)	?+0.0
+t1e_nm	varchar(3)	CONCAT(EXTRACT(DAY FROM a))
+t1e_ps	varchar(3)	CONCAT(?)
+t1f_nm	varchar(2)	CONCAT(DAY(a))
+t1f_ps	varchar(2)	CONCAT(?)
+t1e_nm	int(3)	LEAST(EXTRACT(DAY FROM a),EXTRACT(DAY FROM a))
+t1e_ps	int(3)	LEAST(?,?)
+t1f_nm	int(3)	LEAST(DAY(a),DAY(a))
+t1f_ps	int(3)	LEAST(?,?)
+t1e_nm	int(3)	COALESCE(EXTRACT(DAY FROM a))
+t1e_ps	int(3)	COALESCE(?)
+t1f_nm	int(3)	COALESCE(DAY(a))
+t1f_ps	int(3)	COALESCE(?)
+t1e_nm	int(3)	COALESCE(EXTRACT(DAY FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(3)	COALESCE(DAY(a),CAST(1 AS SIGNED))
+t1f_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(2,0)	COALESCE(EXTRACT(DAY FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(2,0)	COALESCE(DAY(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(3)	@a:=EXTRACT(DAY FROM a)
+t1e_ps	int(3)	@a:=?
+t1f_nm	int(3)	@a:=DAY(a)
+t1f_ps	int(3)	@a:=?
+t2e_nm	decimal(6,4)	AVG(EXTRACT(DAY FROM a))
+t2e_ps	decimal(6,4)	AVG(?)
+t2f_nm	decimal(6,4)	AVG(DAY(a))
+t2f_ps	decimal(6,4)	AVG(?)
+t2e_nm	bigint(3)	MIN(EXTRACT(DAY FROM a))
+t2e_ps	bigint(3)	MIN(?)
+t2f_nm	bigint(3)	MIN(DAY(a))
+t2f_ps	bigint(3)	MIN(?)
+t2e_nm	bigint(3)	MAX(EXTRACT(DAY FROM a))
+t2e_ps	bigint(3)	MAX(?)
+t2f_nm	bigint(3)	MAX(DAY(a))
+t2f_ps	bigint(3)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(DAY FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(DAY(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(HOUR FROM expr) returns hours%24 and includes the sign for TIME
+# HOUR(expr) returns the hh part of CAST(expr AS DATETIME)
+CALL p1('HOUR');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(HOUR FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999'), HOUR(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(3)	EXTRACT(HOUR FROM a)
+t1e_ps	int(3)	?
+t1f_nm	int(3)	HOUR(a)
+t1f_ps	int(3)	?
+t1e_nm	bigint(20) unsigned	CAST(EXTRACT(HOUR FROM a) AS UNSIGNED)
+t1e_ps	bigint(20) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(2) unsigned	CAST(HOUR(a) AS UNSIGNED)
+t1f_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(3)	CAST(EXTRACT(HOUR FROM a) AS SIGNED)
+t1e_ps	int(3)	CAST(? AS SIGNED)
+t1f_nm	int(3)	CAST(HOUR(a) AS SIGNED)
+t1f_ps	int(3)	CAST(? AS SIGNED)
+t1e_nm	int(3)	ABS(EXTRACT(HOUR FROM a))
+t1e_ps	int(3)	ABS(?)
+t1f_nm	int(3)	ABS(HOUR(a))
+t1f_ps	int(3)	ABS(?)
+t1e_nm	int(3)	ROUND(EXTRACT(HOUR FROM a))
+t1e_ps	int(3)	ROUND(?)
+t1f_nm	int(3)	ROUND(HOUR(a))
+t1f_ps	int(3)	ROUND(?)
+t1e_nm	int(4)	-EXTRACT(HOUR FROM a)
+t1e_ps	int(4)	-?
+t1f_nm	int(3)	-HOUR(a)
+t1f_ps	int(3)	-?
+t1e_nm	int(4)	ROUND(EXTRACT(HOUR FROM a),-1)
+t1e_ps	int(4)	ROUND(?,-1)
+t1f_nm	int(4)	ROUND(HOUR(a),-1)
+t1f_ps	int(4)	ROUND(?,-1)
+t1e_nm	int(4)	EXTRACT(HOUR FROM a)+0
+t1e_ps	int(4)	?+0
+t1f_nm	int(4)	HOUR(a)+0
+t1f_ps	int(4)	?+0
+t1e_nm	decimal(4,1)	EXTRACT(HOUR FROM a)+0.0
+t1e_ps	decimal(4,1)	?+0.0
+t1f_nm	decimal(4,1)	HOUR(a)+0.0
+t1f_ps	decimal(4,1)	?+0.0
+t1e_nm	varchar(3)	CONCAT(EXTRACT(HOUR FROM a))
+t1e_ps	varchar(3)	CONCAT(?)
+t1f_nm	varchar(2)	CONCAT(HOUR(a))
+t1f_ps	varchar(2)	CONCAT(?)
+t1e_nm	int(3)	LEAST(EXTRACT(HOUR FROM a),EXTRACT(HOUR FROM a))
+t1e_ps	int(3)	LEAST(?,?)
+t1f_nm	int(3)	LEAST(HOUR(a),HOUR(a))
+t1f_ps	int(3)	LEAST(?,?)
+t1e_nm	int(3)	COALESCE(EXTRACT(HOUR FROM a))
+t1e_ps	int(3)	COALESCE(?)
+t1f_nm	int(3)	COALESCE(HOUR(a))
+t1f_ps	int(3)	COALESCE(?)
+t1e_nm	int(3)	COALESCE(EXTRACT(HOUR FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(3)	COALESCE(HOUR(a),CAST(1 AS SIGNED))
+t1f_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(2,0)	COALESCE(EXTRACT(HOUR FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(2,0)	COALESCE(HOUR(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(3)	@a:=EXTRACT(HOUR FROM a)
+t1e_ps	int(3)	@a:=?
+t1f_nm	int(3)	@a:=HOUR(a)
+t1f_ps	int(3)	@a:=?
+t2e_nm	decimal(6,4)	AVG(EXTRACT(HOUR FROM a))
+t2e_ps	decimal(6,4)	AVG(?)
+t2f_nm	decimal(6,4)	AVG(HOUR(a))
+t2f_ps	decimal(6,4)	AVG(?)
+t2e_nm	bigint(3)	MIN(EXTRACT(HOUR FROM a))
+t2e_ps	bigint(3)	MIN(?)
+t2f_nm	bigint(3)	MIN(HOUR(a))
+t2f_ps	bigint(3)	MIN(?)
+t2e_nm	bigint(3)	MAX(EXTRACT(HOUR FROM a))
+t2e_ps	bigint(3)	MAX(?)
+t2f_nm	bigint(3)	MAX(HOUR(a))
+t2f_ps	bigint(3)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(HOUR FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(HOUR(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(MINUTE FROM expr) includes the sign for TIME
+# MINUTE(expr) returns the absolute value
+CALL p1('MINUTE');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MINUTE FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999'), MINUTE(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(3)	EXTRACT(MINUTE FROM a)
+t1e_ps	int(3)	?
+t1f_nm	int(3)	MINUTE(a)
+t1f_ps	int(3)	?
+t1e_nm	bigint(20) unsigned	CAST(EXTRACT(MINUTE FROM a) AS UNSIGNED)
+t1e_ps	bigint(20) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(2) unsigned	CAST(MINUTE(a) AS UNSIGNED)
+t1f_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(3)	CAST(EXTRACT(MINUTE FROM a) AS SIGNED)
+t1e_ps	int(3)	CAST(? AS SIGNED)
+t1f_nm	int(3)	CAST(MINUTE(a) AS SIGNED)
+t1f_ps	int(3)	CAST(? AS SIGNED)
+t1e_nm	int(3)	ABS(EXTRACT(MINUTE FROM a))
+t1e_ps	int(3)	ABS(?)
+t1f_nm	int(3)	ABS(MINUTE(a))
+t1f_ps	int(3)	ABS(?)
+t1e_nm	int(3)	ROUND(EXTRACT(MINUTE FROM a))
+t1e_ps	int(3)	ROUND(?)
+t1f_nm	int(3)	ROUND(MINUTE(a))
+t1f_ps	int(3)	ROUND(?)
+t1e_nm	int(4)	-EXTRACT(MINUTE FROM a)
+t1e_ps	int(4)	-?
+t1f_nm	int(3)	-MINUTE(a)
+t1f_ps	int(3)	-?
+t1e_nm	int(4)	ROUND(EXTRACT(MINUTE FROM a),-1)
+t1e_ps	int(4)	ROUND(?,-1)
+t1f_nm	int(4)	ROUND(MINUTE(a),-1)
+t1f_ps	int(4)	ROUND(?,-1)
+t1e_nm	int(4)	EXTRACT(MINUTE FROM a)+0
+t1e_ps	int(4)	?+0
+t1f_nm	int(4)	MINUTE(a)+0
+t1f_ps	int(4)	?+0
+t1e_nm	decimal(4,1)	EXTRACT(MINUTE FROM a)+0.0
+t1e_ps	decimal(4,1)	?+0.0
+t1f_nm	decimal(4,1)	MINUTE(a)+0.0
+t1f_ps	decimal(4,1)	?+0.0
+t1e_nm	varchar(3)	CONCAT(EXTRACT(MINUTE FROM a))
+t1e_ps	varchar(3)	CONCAT(?)
+t1f_nm	varchar(2)	CONCAT(MINUTE(a))
+t1f_ps	varchar(2)	CONCAT(?)
+t1e_nm	int(3)	LEAST(EXTRACT(MINUTE FROM a),EXTRACT(MINUTE FROM a))
+t1e_ps	int(3)	LEAST(?,?)
+t1f_nm	int(3)	LEAST(MINUTE(a),MINUTE(a))
+t1f_ps	int(3)	LEAST(?,?)
+t1e_nm	int(3)	COALESCE(EXTRACT(MINUTE FROM a))
+t1e_ps	int(3)	COALESCE(?)
+t1f_nm	int(3)	COALESCE(MINUTE(a))
+t1f_ps	int(3)	COALESCE(?)
+t1e_nm	int(3)	COALESCE(EXTRACT(MINUTE FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(3)	COALESCE(MINUTE(a),CAST(1 AS SIGNED))
+t1f_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(2,0)	COALESCE(EXTRACT(MINUTE FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(2,0)	COALESCE(MINUTE(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(3)	@a:=EXTRACT(MINUTE FROM a)
+t1e_ps	int(3)	@a:=?
+t1f_nm	int(3)	@a:=MINUTE(a)
+t1f_ps	int(3)	@a:=?
+t2e_nm	decimal(6,4)	AVG(EXTRACT(MINUTE FROM a))
+t2e_ps	decimal(6,4)	AVG(?)
+t2f_nm	decimal(6,4)	AVG(MINUTE(a))
+t2f_ps	decimal(6,4)	AVG(?)
+t2e_nm	bigint(3)	MIN(EXTRACT(MINUTE FROM a))
+t2e_ps	bigint(3)	MIN(?)
+t2f_nm	bigint(3)	MIN(MINUTE(a))
+t2f_ps	bigint(3)	MIN(?)
+t2e_nm	bigint(3)	MAX(EXTRACT(MINUTE FROM a))
+t2e_ps	bigint(3)	MAX(?)
+t2f_nm	bigint(3)	MAX(MINUTE(a))
+t2f_ps	bigint(3)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(MINUTE FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(MINUTE(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(SECONDS FROM expr) includes the sign for TIME
+# SECONDS(expr) returns the absolute value
+CALL p1('SECOND');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(SECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), SECOND(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(3)	EXTRACT(SECOND FROM a)
+t1e_ps	int(3)	?
+t1f_nm	int(3)	SECOND(a)
+t1f_ps	int(3)	?
+t1e_nm	bigint(20) unsigned	CAST(EXTRACT(SECOND FROM a) AS UNSIGNED)
+t1e_ps	bigint(20) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(2) unsigned	CAST(SECOND(a) AS UNSIGNED)
+t1f_ps	int(2) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(3)	CAST(EXTRACT(SECOND FROM a) AS SIGNED)
+t1e_ps	int(3)	CAST(? AS SIGNED)
+t1f_nm	int(3)	CAST(SECOND(a) AS SIGNED)
+t1f_ps	int(3)	CAST(? AS SIGNED)
+t1e_nm	int(3)	ABS(EXTRACT(SECOND FROM a))
+t1e_ps	int(3)	ABS(?)
+t1f_nm	int(3)	ABS(SECOND(a))
+t1f_ps	int(3)	ABS(?)
+t1e_nm	int(3)	ROUND(EXTRACT(SECOND FROM a))
+t1e_ps	int(3)	ROUND(?)
+t1f_nm	int(3)	ROUND(SECOND(a))
+t1f_ps	int(3)	ROUND(?)
+t1e_nm	int(4)	-EXTRACT(SECOND FROM a)
+t1e_ps	int(4)	-?
+t1f_nm	int(3)	-SECOND(a)
+t1f_ps	int(3)	-?
+t1e_nm	int(4)	ROUND(EXTRACT(SECOND FROM a),-1)
+t1e_ps	int(4)	ROUND(?,-1)
+t1f_nm	int(4)	ROUND(SECOND(a),-1)
+t1f_ps	int(4)	ROUND(?,-1)
+t1e_nm	int(4)	EXTRACT(SECOND FROM a)+0
+t1e_ps	int(4)	?+0
+t1f_nm	int(4)	SECOND(a)+0
+t1f_ps	int(4)	?+0
+t1e_nm	decimal(4,1)	EXTRACT(SECOND FROM a)+0.0
+t1e_ps	decimal(4,1)	?+0.0
+t1f_nm	decimal(4,1)	SECOND(a)+0.0
+t1f_ps	decimal(4,1)	?+0.0
+t1e_nm	varchar(3)	CONCAT(EXTRACT(SECOND FROM a))
+t1e_ps	varchar(3)	CONCAT(?)
+t1f_nm	varchar(2)	CONCAT(SECOND(a))
+t1f_ps	varchar(2)	CONCAT(?)
+t1e_nm	int(3)	LEAST(EXTRACT(SECOND FROM a),EXTRACT(SECOND FROM a))
+t1e_ps	int(3)	LEAST(?,?)
+t1f_nm	int(3)	LEAST(SECOND(a),SECOND(a))
+t1f_ps	int(3)	LEAST(?,?)
+t1e_nm	int(3)	COALESCE(EXTRACT(SECOND FROM a))
+t1e_ps	int(3)	COALESCE(?)
+t1f_nm	int(3)	COALESCE(SECOND(a))
+t1f_ps	int(3)	COALESCE(?)
+t1e_nm	int(3)	COALESCE(EXTRACT(SECOND FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(3)	COALESCE(SECOND(a),CAST(1 AS SIGNED))
+t1f_ps	int(3)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(2,0)	COALESCE(EXTRACT(SECOND FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(2,0)	COALESCE(SECOND(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(2,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(3)	@a:=EXTRACT(SECOND FROM a)
+t1e_ps	int(3)	@a:=?
+t1f_nm	int(3)	@a:=SECOND(a)
+t1f_ps	int(3)	@a:=?
+t2e_nm	decimal(6,4)	AVG(EXTRACT(SECOND FROM a))
+t2e_ps	decimal(6,4)	AVG(?)
+t2f_nm	decimal(6,4)	AVG(SECOND(a))
+t2f_ps	decimal(6,4)	AVG(?)
+t2e_nm	bigint(3)	MIN(EXTRACT(SECOND FROM a))
+t2e_ps	bigint(3)	MIN(?)
+t2f_nm	bigint(3)	MIN(SECOND(a))
+t2f_ps	bigint(3)	MIN(?)
+t2e_nm	bigint(3)	MAX(EXTRACT(SECOND FROM a))
+t2e_ps	bigint(3)	MAX(?)
+t2f_nm	bigint(3)	MAX(SECOND(a))
+t2f_ps	bigint(3)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(SECOND FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(SECOND(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# EXTRACT(MICROSECONDS FROM expr) includes the sign for TIME
+# MICROSECONDS(expr) returns the absolute value
+CALL p1('MICROSECOND');
+EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999'), EXTRACT(MICROSECOND FROM TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999'), MICROSECOND(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1e_nm	int(7)	EXTRACT(MICROSECOND FROM a)
+t1e_ps	int(7)	?
+t1f_nm	int(7)	MICROSECOND(a)
+t1f_ps	int(7)	?
+t1e_nm	bigint(20) unsigned	CAST(EXTRACT(MICROSECOND FROM a) AS UNSIGNED)
+t1e_ps	bigint(20) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(6) unsigned	CAST(MICROSECOND(a) AS UNSIGNED)
+t1f_ps	int(6) unsigned	CAST(? AS UNSIGNED)
+t1e_nm	int(7)	CAST(EXTRACT(MICROSECOND FROM a) AS SIGNED)
+t1e_ps	int(7)	CAST(? AS SIGNED)
+t1f_nm	int(7)	CAST(MICROSECOND(a) AS SIGNED)
+t1f_ps	int(7)	CAST(? AS SIGNED)
+t1e_nm	int(7)	ABS(EXTRACT(MICROSECOND FROM a))
+t1e_ps	int(7)	ABS(?)
+t1f_nm	int(7)	ABS(MICROSECOND(a))
+t1f_ps	int(7)	ABS(?)
+t1e_nm	int(7)	ROUND(EXTRACT(MICROSECOND FROM a))
+t1e_ps	int(7)	ROUND(?)
+t1f_nm	int(7)	ROUND(MICROSECOND(a))
+t1f_ps	int(7)	ROUND(?)
+t1e_nm	int(8)	-EXTRACT(MICROSECOND FROM a)
+t1e_ps	int(8)	-?
+t1f_nm	int(7)	-MICROSECOND(a)
+t1f_ps	int(7)	-?
+t1e_nm	int(8)	ROUND(EXTRACT(MICROSECOND FROM a),-1)
+t1e_ps	int(8)	ROUND(?,-1)
+t1f_nm	int(8)	ROUND(MICROSECOND(a),-1)
+t1f_ps	int(8)	ROUND(?,-1)
+t1e_nm	int(8)	EXTRACT(MICROSECOND FROM a)+0
+t1e_ps	int(8)	?+0
+t1f_nm	int(8)	MICROSECOND(a)+0
+t1f_ps	int(8)	?+0
+t1e_nm	decimal(8,1)	EXTRACT(MICROSECOND FROM a)+0.0
+t1e_ps	decimal(8,1)	?+0.0
+t1f_nm	decimal(8,1)	MICROSECOND(a)+0.0
+t1f_ps	decimal(8,1)	?+0.0
+t1e_nm	varchar(7)	CONCAT(EXTRACT(MICROSECOND FROM a))
+t1e_ps	varchar(7)	CONCAT(?)
+t1f_nm	varchar(6)	CONCAT(MICROSECOND(a))
+t1f_ps	varchar(6)	CONCAT(?)
+t1e_nm	int(7)	LEAST(EXTRACT(MICROSECOND FROM a),EXTRACT(MICROSECOND FROM a))
+t1e_ps	int(7)	LEAST(?,?)
+t1f_nm	int(7)	LEAST(MICROSECOND(a),MICROSECOND(a))
+t1f_ps	int(7)	LEAST(?,?)
+t1e_nm	int(7)	COALESCE(EXTRACT(MICROSECOND FROM a))
+t1e_ps	int(7)	COALESCE(?)
+t1f_nm	int(7)	COALESCE(MICROSECOND(a))
+t1f_ps	int(7)	COALESCE(?)
+t1e_nm	int(7)	COALESCE(EXTRACT(MICROSECOND FROM a),CAST(1 AS SIGNED))
+t1e_ps	int(7)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	int(7)	COALESCE(MICROSECOND(a),CAST(1 AS SIGNED))
+t1f_ps	int(7)	COALESCE(?,CAST(1 AS SIGNED))
+t1e_nm	decimal(6,0)	COALESCE(EXTRACT(MICROSECOND FROM a),CAST(1 AS UNSIGNED))
+t1e_ps	decimal(6,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	decimal(6,0)	COALESCE(MICROSECOND(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(6,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1e_nm	int(7)	@a:=EXTRACT(MICROSECOND FROM a)
+t1e_ps	int(7)	@a:=?
+t1f_nm	int(7)	@a:=MICROSECOND(a)
+t1f_ps	int(7)	@a:=?
+t2e_nm	decimal(10,4)	AVG(EXTRACT(MICROSECOND FROM a))
+t2e_ps	decimal(10,4)	AVG(?)
+t2f_nm	decimal(10,4)	AVG(MICROSECOND(a))
+t2f_ps	decimal(10,4)	AVG(?)
+t2e_nm	bigint(7)	MIN(EXTRACT(MICROSECOND FROM a))
+t2e_ps	bigint(7)	MIN(?)
+t2f_nm	bigint(7)	MIN(MICROSECOND(a))
+t2f_ps	bigint(7)	MIN(?)
+t2e_nm	bigint(7)	MAX(EXTRACT(MICROSECOND FROM a))
+t2e_ps	bigint(7)	MAX(?)
+t2f_nm	bigint(7)	MAX(MICROSECOND(a))
+t2f_ps	bigint(7)	MAX(?)
+t2e_nm	mediumtext	GROUP_CONCAT(EXTRACT(MICROSECOND FROM a))
+t2e_ps	mediumtext	GROUP_CONCAT(?)
+t2f_nm	mediumtext	GROUP_CONCAT(MICROSECOND(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+
+
+# DAYOFYEAR
+CALL p1('DAYOFYEAR');
+EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?' USING DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999');
+EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?)' USING DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999'), DAYOFYEAR(TIMESTAMP'2001-12-13 10:20:30.999999');
+CALL show_drop;
+TABLE_NAME	COLUMN_TYPE	COLUMN_NAME
+t1f_nm	int(4)	DAYOFYEAR(a)
+t1f_ps	int(4)	?
+t1f_nm	int(3) unsigned	CAST(DAYOFYEAR(a) AS UNSIGNED)
+t1f_ps	int(3) unsigned	CAST(? AS UNSIGNED)
+t1f_nm	int(4)	CAST(DAYOFYEAR(a) AS SIGNED)
+t1f_ps	int(4)	CAST(? AS SIGNED)
+t1f_nm	int(4)	ABS(DAYOFYEAR(a))
+t1f_ps	int(4)	ABS(?)
+t1f_nm	int(4)	ROUND(DAYOFYEAR(a))
+t1f_ps	int(4)	ROUND(?)
+t1f_nm	int(4)	-DAYOFYEAR(a)
+t1f_ps	int(4)	-?
+t1f_nm	int(5)	ROUND(DAYOFYEAR(a),-1)
+t1f_ps	int(5)	ROUND(?,-1)
+t1f_nm	int(5)	DAYOFYEAR(a)+0
+t1f_ps	int(5)	?+0
+t1f_nm	decimal(5,1)	DAYOFYEAR(a)+0.0
+t1f_ps	decimal(5,1)	?+0.0
+t1f_nm	varchar(3)	CONCAT(DAYOFYEAR(a))
+t1f_ps	varchar(3)	CONCAT(?)
+t1f_nm	int(4)	LEAST(DAYOFYEAR(a),DAYOFYEAR(a))
+t1f_ps	int(4)	LEAST(?,?)
+t1f_nm	int(4)	COALESCE(DAYOFYEAR(a))
+t1f_ps	int(4)	COALESCE(?)
+t1f_nm	int(4)	COALESCE(DAYOFYEAR(a),CAST(1 AS SIGNED))
+t1f_ps	int(4)	COALESCE(?,CAST(1 AS SIGNED))
+t1f_nm	decimal(3,0)	COALESCE(DAYOFYEAR(a),CAST(1 AS UNSIGNED))
+t1f_ps	decimal(3,0)	COALESCE(?,CAST(1 AS UNSIGNED))
+t1f_nm	int(4)	@a:=DAYOFYEAR(a)
+t1f_ps	int(4)	@a:=?
+t2f_nm	decimal(7,4)	AVG(DAYOFYEAR(a))
+t2f_ps	decimal(7,4)	AVG(?)
+t2f_nm	bigint(4)	MIN(DAYOFYEAR(a))
+t2f_ps	bigint(4)	MIN(?)
+t2f_nm	bigint(4)	MAX(DAYOFYEAR(a))
+t2f_ps	bigint(4)	MAX(?)
+t2f_nm	mediumtext	GROUP_CONCAT(DAYOFYEAR(a))
+t2f_ps	mediumtext	GROUP_CONCAT(?)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE show_drop;
+DROP FUNCTION params;
+DROP FUNCTION select01;
+DROP FUNCTION select02;
+#
+# MDEV-32891 Assertion `value <= ((ulonglong) 0xFFFFFFFFL) * 10000ULL' failed in str_to_DDhhmmssff_internal
+#
+SELECT EXTRACT(HOUR_MICROSECOND FROM '42949672955000x1');
+EXTRACT(HOUR_MICROSECOND FROM '42949672955000x1')
+NULL
+Warnings:
+Warning	1292	Incorrect interval value: '42949672955000x1'
+#
+# MDEV-23687 Assertion `is_valid_value_slow()' failed in Datetime::Datetime upon EXTRACT under mode ZERO_DATE_TIME_CAST
+#
+SET SESSION old_mode='ZERO_DATE_TIME_CAST';
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
+SELECT CAST('100000:00:00' AS DATETIME);
+CAST('100000:00:00' AS DATETIME)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATETIME));
+EXTRACT(DAY FROM CAST('100000:00:00' AS DATETIME))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT CAST('100000:00:00' AS DATE);
+CAST('100000:00:00' AS DATE)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATE));
+EXTRACT(DAY FROM CAST('100000:00:00' AS DATE))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SET SESSION old_mode=DEFAULT;
+#
+# MDEV-35489 Assertion `!ldate->neg' or unexpected result upon extracting unit from invalid value
+#
+SELECT EXTRACT(DAY FROM TIMESTAMP(-177498480000));
+EXTRACT(DAY FROM TIMESTAMP(-177498480000))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-177498480000'
+SELECT EXTRACT(DAY FROM TIMESTAMP(-177498480001));
+EXTRACT(DAY FROM TIMESTAMP(-177498480001))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-177498480001'
+SELECT EXTRACT(DAY FROM TIMESTAMP(-200000000000));
+EXTRACT(DAY FROM TIMESTAMP(-200000000000))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-200000000000'
+SELECT EXTRACT(DAY FROM TIMESTAMP(-221938034527));
+EXTRACT(DAY FROM TIMESTAMP(-221938034527))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-221938034527'
+#
+# End of 10.5 tests
+#
+#
+# MDEV-38971: ASAN/UBSAN errors, assertion `is_valid_value_slow()` failure upon combination temporal functions and `ZERO_DATE_TIME_CAST`
+#
+SET SESSION old_mode=ZERO_DATE_TIME_CAST;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(202112010000));
+EXTRACT(HOUR_SECOND FROM LAST_DAY(202112010000))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '202112010000'
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(202612012300));
+EXTRACT(HOUR_SECOND FROM LAST_DAY(202612012300))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '202612012300'
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(200012010000));
+EXTRACT(HOUR_SECOND FROM LAST_DAY(200012010000))
+NULL
+SELECT EXTRACT(HOUR_SECOND FROM LAST_DAY(20211201000000));
+EXTRACT(HOUR_SECOND FROM LAST_DAY(20211201000000))
+0
+SELECT EXTRACT(HOUR_SECOND FROM 200012010000);
+EXTRACT(HOUR_SECOND FROM 200012010000)
+90000
+SELECT EXTRACT(HOUR_SECOND FROM CAST(200012010000 AS DATETIME));
+EXTRACT(HOUR_SECOND FROM CAST(200012010000 AS DATETIME))
+10000
+SELECT EXTRACT(HOUR_SECOND FROM CAST(200012010000 AS DATE));
+EXTRACT(HOUR_SECOND FROM CAST(200012010000 AS DATE))
+0
+SET SESSION old_mode=DEFAULT;
+# End of 10.11 tests

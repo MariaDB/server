@@ -5,6 +5,10 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
+--disable_query_log
+call mtr.add_suppression("Could not read packet:.* errno: 11");
+--enable_query_log
+
 --echo *** Test crashing master with InnoDB disabled, the binlog gtid state should still be correctly recovered. ***
 
 --connection server_1

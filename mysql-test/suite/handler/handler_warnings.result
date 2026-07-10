@@ -1,0 +1,14 @@
+#
+# MDEV-30263: --echo # Assertion failure in Protocol::end_statement
+# upon HANDLER READ with invalid timestamp
+#
+CREATE TABLE t (a TIMESTAMP, KEY(a));
+HANDLER t OPEN;
+HANDLER t READ a > ('2022-12');
+a
+#  above should issue the same warnings/errors as following
+SELECT * from t WHERE t.a > ('2022-12');
+a
+HANDLER t CLOSE;
+DROP TABLE t;
+End of 10.5 tests

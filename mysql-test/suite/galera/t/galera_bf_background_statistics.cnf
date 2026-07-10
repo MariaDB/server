@@ -5,5 +5,3 @@ innodb_stats_persistent=ON
 
 [mysqld.2]
 innodb_stats_persistent=ON
-
-

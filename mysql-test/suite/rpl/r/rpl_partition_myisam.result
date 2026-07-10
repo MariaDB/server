@@ -24,7 +24,7 @@ DECLARE local_uuid VARCHAR(255);
 SET cur_user= "current_user@localhost";
 SET local_uuid= "36774b1c-6374-11df-a2ca-0ef7ac7a5f6c";
 WHILE ins_count > 0 DO
-# Must use local variables for statment based replication
+# Must use local variables for statement based replication
 INSERT INTO test.regular_tbl VALUES (NULL, NOW(), cur_user, local_uuid,
 ins_count,'Non partitioned table! Going to test replication for MySQL');
 SET ins_count = ins_count - 1;
@@ -61,7 +61,7 @@ byrange_tbl	CREATE TABLE `byrange_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`id`)
 (PARTITION `pa100` VALUES LESS THAN (100) ENGINE = MyISAM,
  PARTITION `paMax` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
@@ -75,7 +75,7 @@ regular_tbl	CREATE TABLE `regular_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE test.byrange_tbl EXCHANGE PARTITION pa100 WITH TABLE test.regular_tbl;
 SELECT * FROM test.byrange_tbl ORDER BY fkid LIMIT 2;
 id	dt	user	uuidf	fkid	filler
@@ -105,7 +105,7 @@ byrange_tbl	CREATE TABLE `byrange_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=201 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`id`)
 (PARTITION `pa100` VALUES LESS THAN (100) ENGINE = MyISAM,
  PARTITION `paMax` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
@@ -119,7 +119,7 @@ regular_tbl	CREATE TABLE `regular_tbl` (
   `fkid` int(11) DEFAULT NULL,
   `filler` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=100 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT count(*) "Slave norm" FROM test.regular_tbl;
 Slave norm
 99
@@ -142,9 +142,26 @@ SELECT * FROM test.regular_tbl ORDER BY fkid DESC LIMIT 2;
 id	dt	user	uuidf	fkid	filler
 1	date-time	USER	UUID	300	Partitioned table! Going to test replication for MySQL
 2	date-time	USER	UUID	299	Partitioned table! Going to test replication for MySQL
+*** MDEV-5798: Wrong errorcode for missing partition after TRUNCATE PARTITION
+connection master;
+CREATE TABLE t1 (a INT)
+ENGINE='MyISAM'
+PARTITION BY LIST(a) (
+PARTITION p0 VALUES IN (9, NULL),
+PARTITION p1 VALUES IN (8, 2, 7),
+PARTITION p2 VALUES IN (6, 4, 5),
+PARTITION p3 VALUES IN (3, 1, 0)
+);
+ALTER TABLE t1 DROP PARTITION p0;
+ALTER TABLE non_existent TRUNCATE PARTITION p1,p2;
+ERROR 42S02: Table 'test.non_existent' doesn't exist
+INSERT INTO t1 PARTITION (p1,p2,p3) VALUES (0),(9);
+ERROR HY000: Table has no partition for value 9
+connection slave;
 connection master;
 DROP PROCEDURE test.proc_norm;
 DROP PROCEDURE test.proc_byrange;
 DROP TABLE test.regular_tbl;
 DROP TABLE test.byrange_tbl;
+DROP TABLE test.t1;
 include/rpl_end.inc

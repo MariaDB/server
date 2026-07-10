@@ -5,7 +5,7 @@
 #
 # Problem with creating keys with maximum key-parts and maximum name length
 # This test is made for a mysql server supporting names up to 64 bytes
-# and a maximum of 16 key segements per Key
+# and a maximum of 16 key segments per Key
 #
 
 create table t1 (

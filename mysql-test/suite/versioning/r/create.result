@@ -1,4 +1,5 @@
-drop table if exists t1;
+select * from information_schema.periods;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
 create table t1 (
 x1 int unsigned,
 Sys_start SYS_DATATYPE as row start invisible comment 'start',
@@ -12,7 +13,16 @@ t1	CREATE TABLE `t1` (
   `Sys_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE COMMENT 'start',
   `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+select * from information_schema.periods where table_name = 't1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	SYSTEM_TIME	Sys_start	Sys_end
+select column_name, is_system_time_period_start, is_system_time_period_end
+from information_schema.columns where table_name = 't1';
+column_name	is_system_time_period_start	is_system_time_period_end
+x1	NO	NO
+Sys_start	YES	NO
+Sys_end	NO	YES
 select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1';
 table_catalog	def
 table_schema	test
@@ -23,7 +33,7 @@ table_rows	0
 data_free	0
 auto_increment	NULL
 check_time	NULL
-table_collation	latin1_swedish_ci
+table_collation	utf8mb4_uca1400_ai_ci
 checksum	NULL
 create_options	
 table_comment	
@@ -81,7 +91,13 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x2` int(10) unsigned DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+select * from information_schema.periods where table_name = 't1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+select column_name, is_system_time_period_start, is_system_time_period_end
+from information_schema.columns where table_name = 't1';
+column_name	is_system_time_period_start	is_system_time_period_end
+x2	NO	NO
 create or replace table t1 (
 x3 int unsigned,
 Sys_start timestamp(6) as row start invisible,
@@ -173,7 +189,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x15` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x16 int with system versioning,
 B int
@@ -183,7 +199,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x16` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x17 int,
 B int without system versioning
@@ -197,7 +213,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x18` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x19 int with system versioning,
 B int without system versioning
@@ -207,7 +223,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x19` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x20 int with system versioning,
 B int without system versioning
@@ -217,7 +233,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x20` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x21 int without system versioning
 );
@@ -231,7 +247,7 @@ show create table tt1;
 Table	Create Table
 tt1	CREATE TABLE `tt1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table tt1;
 create temporary table tt1 like t1;
 Warnings:
@@ -241,7 +257,7 @@ show create table tt1;
 Table	Create Table
 tt1	CREATE TEMPORARY TABLE `tt1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # CREATE TABLE ... SELECT
 create or replace table t1 (x23 int) with system versioning;
 create or replace table t0(
@@ -257,7 +273,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x23` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ### 2. all visible fields are included
 create or replace table t3 as select * from t0;
 select * from t0;
@@ -266,24 +282,20 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `st` timestamp(6) NOT NULL,
+  `en` timestamp(6) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ## For versioned table
 insert into t1 values (1);
 select row_start from t1 into @row_start;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into t0 (y) values (2);
 select st from t0 into @st;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create or replace table t2 with system versioning as select * from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x23` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 #### invisible fields are not copied
 select * from t2;
 x23
@@ -296,9 +308,9 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+  `st` timestamp(6) NOT NULL,
+  `en` timestamp(6) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t3 where y > 2;
 y	st	en
 select y from t3 where st = @st and row_start > @st;
@@ -317,7 +329,7 @@ t3	CREATE TABLE `t3` (
   `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select y from t3;
 y
 2
@@ -329,7 +341,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `x23` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t3;
 x23
 1
@@ -340,12 +352,8 @@ ERROR 42S21: Duplicate column name 'row_end'
 # Prepare checking for historical row
 delete from t1;
 select row_end from t1 for system_time all into @row_end;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 delete from t0;
 select en from t0 for system_time all into @en;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ## Combinations of versioned + non-versioned
 create or replace table t2 (y int);
 insert into t2 values (3);
@@ -355,7 +363,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x23` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t3 for system_time all;
 x23	y
 1	3
@@ -366,14 +374,10 @@ insert into t2 (y) values (1), (2);
 delete from t2 where y = 2;
 create or replace table t3 select * from t2 for system_time all;
 select st, en from t3 where y = 1 into @st, @en;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select y from t2 for system_time all where st = @st and en = @en;
 y
 1
 select st, en from t3 where y = 2 into @st, @en;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select y from t2 for system_time all where st = @st and en = @en;
 y
 2
@@ -385,18 +389,18 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x25` int(11) DEFAULT NULL,
-  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `row_start` timestamp(6) NOT NULL,
+  `row_end` timestamp(6) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t2 with system versioning
 as select x25, row_start rs, row_end re from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x25` int(11) DEFAULT NULL,
-  `rs` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `re` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+  `rs` timestamp(6) NOT NULL,
+  `re` timestamp(6) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x26 int,
 st bigint unsigned as row start,
@@ -409,9 +413,9 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x26` int(11) DEFAULT NULL,
-  `st` bigint(20) unsigned NOT NULL DEFAULT 0,
-  `en` bigint(20) unsigned NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+  `st` bigint(20) unsigned NOT NULL,
+  `en` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (x27 int, id int) with system versioning engine NON_DEFAULT_ENGINE;
 create or replace table t2 (b int, id int);
 create or replace table t3 with system versioning
@@ -421,9 +425,9 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
   `x27` int(11) DEFAULT NULL,
-  `rs` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `re` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+  `rs` timestamp(6) NOT NULL,
+  `re` timestamp(6) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 ## Errors
 create or replace temporary table t (x28 int) with system versioning;
 ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
@@ -458,11 +462,11 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `row_start` timestamp(6) NOT NULL,
+  `row_end` timestamp(6) NOT NULL,
+  `st` timestamp(6) NOT NULL,
+  `en` timestamp(6) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t3 (
 y int,
 st timestamp(6) as row start invisible,
@@ -475,12 +479,12 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_start` timestamp(6) NOT NULL,
+  `row_end` timestamp(6) NOT NULL,
   `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 # MDEV-14828 Server crashes in JOIN::prepare / setup_fields on 2nd execution of PS [#437]
 create or replace table t1 (x int) with system versioning;
 prepare bad from 'create or replace table t2 with system versioning as select * from t1';
@@ -499,13 +503,13 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(1) NOT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (i int) with system versioning as select 1 as i;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 a int,
 row_start bigint as row start,
@@ -554,12 +558,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 show create table t2;
 Table	Create Table
 t2	CREATE TEMPORARY TABLE `t2` (
   `id` int(11) NOT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop temporary table t2;
 create or replace table t1 (
 a int,
@@ -584,12 +588,12 @@ t1	CREATE TABLE `t1` (
   KEY `row_end` (`row_end`),
   KEY `row_end_2` (`row_end`,`row_start`,`a`),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 show create table t2;
 Table	Create Table
 t2	CREATE TEMPORARY TABLE `t2` (
   `a` int(11) NOT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop temporary table t2;
 drop table t1;
 #
@@ -609,7 +613,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `x` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1;
 #
 # MDEV-26928 Column-inclusive WITH SYSTEM VERSIONING doesn't work with explicit system fields
@@ -620,7 +624,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
   `y` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (
 x int, y int with system versioning,
 row_start timestamp(6) as row start,
@@ -634,7 +638,7 @@ t1	CREATE TABLE `t1` (
   `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1;
 #
 # MDEV-27452 TIMESTAMP(0) system field is allowed for certain creation of system-versioned table

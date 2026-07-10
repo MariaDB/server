@@ -36,7 +36,7 @@ CALL proc_insert_many();
 UNLOCK TABLES;
 SET debug_dbug="d,crash_shutdown";
 shutdown;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SELECT * FROM t1 ORDER BY 1 DESC LIMIT 10;
 field1	field2	field3
 1069999	2069999	3069999

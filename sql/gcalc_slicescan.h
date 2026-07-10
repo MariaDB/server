@@ -216,7 +216,8 @@ public:
     bool is_single_node() const
       { return is_bottom() && is_top(); }
 
-    void calc_xy(double *x, double *y) const;
+    void calc_intersection_xy(double *x, double *y) const;
+    void get_xy(double *x, double *y) const;
     int equal_pi(const Info *pi) const;
 #ifdef GCALC_CHECK_WITH_FLOAT
     void calc_xy_ld(long double *x, long double *y) const;
@@ -252,6 +253,7 @@ public:
 #endif /*GCALC_CHECK_WITH_FLOAT*/
   double coord_extent;
   Gcalc_dyn_list::Item **get_cur_hook() { return m_hook; }
+  int get_n_points() const { return m_n_points; }
 
 private:
   Gcalc_dyn_list::Item *m_first;
@@ -414,7 +416,7 @@ public:
   };
 
   /* That class introduced mostly for the 'typecontrol' reason.      */
-  /* only difference from the point classis the get_next() function. */
+  /* only difference from the point class is the get_next() function. */
   class event_point : public point
   {
   public:

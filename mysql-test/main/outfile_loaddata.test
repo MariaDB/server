@@ -1,12 +1,5 @@
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
+--source include/test_db_charset_latin1.inc
 
-#enable view protocol after fix MDEV-27871 
--- source include/no_view_protocol.inc
-
---enable_prepare_warnings
---disable_ps2_protocol
 --echo #
 --echo # Bug#31663 FIELDS TERMINATED BY special character
 --echo #
@@ -21,7 +14,7 @@ INSERT INTO t1 VALUES (101, 202, '-r-', '=raker=');
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -36,7 +29,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -51,7 +44,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -66,7 +59,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -81,7 +74,7 @@ DROP TABLE t2;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt')
+--eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' INTO TABLE t2 $clauses
@@ -106,7 +99,7 @@ SELECT HEX(c1) FROM t1;
 TRUNCATE t1;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT HEX(LOAD_FILE('$file'))
+--eval SELECT HEX(LOAD_FILE('$file')) as exp
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$file' INTO TABLE t1 FIELDS ENCLOSED BY 0xC3
@@ -137,12 +130,12 @@ INSERT INTO t1 VALUES (1, 'ABC-АБВ', 'DEF-ÂÃÄ'), (2, NULL, NULL);
 --echo # Error on multi-character ENCLOSED/ESCAPED BY
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---error 1083
+--error ER_WRONG_FIELD_TERMINATORS
 --eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ENCLOSED BY '12345'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---error 1083
+--error ER_WRONG_FIELD_TERMINATORS
 --eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ESCAPED BY '12345'
 --remove_file $file
 
@@ -151,21 +144,21 @@ INSERT INTO t1 VALUES (1, 'ABC-АБВ', 'DEF-ÂÃÄ'), (2, NULL, NULL);
 --echo # LOAD DATA rises error or has unpredictable result -- to be fixed later
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ENCLOSED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' FIELDS ENCLOSED BY 'ъ' FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---error 1083 # backward compatibility
+--error ER_WRONG_FIELD_TERMINATORS # backward compatibility
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET binary FIELDS ENCLOSED BY 'ъ'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ESCAPED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' FIELDS ESCAPED BY 'ъ' FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---error 1083 # backward compatibility
+--error ER_WRONG_FIELD_TERMINATORS # backward compatibility
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET binary FIELDS ESCAPED BY 'ъ'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS TERMINATED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' FIELDS TERMINATED BY 'ъ' FROM t1
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -178,7 +171,7 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' LINES STARTING BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' LINES STARTING BY 'ъ' FROM t1
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -189,7 +182,7 @@ TRUNCATE t2;
 SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a, b, c;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' LINES TERMINATED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' LINES TERMINATED BY 'ъ' FROM t1
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -282,7 +275,7 @@ let $length= 800;
 
 --echo # should be greater than $length
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT LENGTH(LOAD_FILE($file))
+--eval SELECT LENGTH(LOAD_FILE($file)) as exp
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE $file INTO TABLE t2
@@ -295,7 +288,8 @@ SELECT LENGTH(a) FROM t2;
 DROP TABLE t1, t2;
 
 --disable_prepare_warnings
---enable_ps2_protocol
 
 ###########################################################################
 --echo # End of 5.1 tests.
+
+--source include/test_db_charset_restore.inc

@@ -1,0 +1,47 @@
+--source include/not_windows.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--echo *** Test handling of disk full, waiting for space to be freed.
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c LONGBLOB, PRIMARY KEY(a, b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 0, 'Start');
+
+# A normal operation that spans couple binlog files without failing the
+# pre-alloocation of the tablespace.
+INSERT INTO t1 VALUES (1, 0, REPEAT('a', 1000000));
+
+# Now simulate a disk-full error.
+--connection default
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,ib_alloc_file_disk_full';
+
+--connect con1,localhost,root,,
+SET SESSION debug_dbug= '+d,dummy_keyword_just_to_not_enable_dbug_output';
+SET SESSION debug_dbug= '-d,ib_alloc_file_disk_full';
+send INSERT INTO t1 VALUES (2, 0, REPEAT('b', 1000000));
+
+--connection default
+# Test that the insert gets delayed.
+--sleep 1
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+
+# Wait a bit more, and then simulate providing space.
+# The DBUG injection reduces the wait time to 2 seconds.
+--sleep 7
+SET GLOBAL debug_dbug= @old_dbug;
+
+--connection con1
+reap;
+--connection default
+--disconnect con1
+SELECT a, b, LENGTH(c) FROM t1 ORDER BY a, b;
+
+--let $assert_text= Check that binlog pre-allocation is retried on ENOSPC
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_select= InnoDB: Unable to allocate file
+--let $assert_match= $assert_select
+--source include/assert_grep.inc
+
+DROP TABLE t1;
+CALL mtr.add_suppression('InnoDB: Unable to allocate file.* "No space left on device"');

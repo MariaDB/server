@@ -4,6 +4,7 @@
 --source include/have_debug_sync.inc
 
 CREATE TABLE t1 (a INT, b VARCHAR(10)) ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=0
 PARTITION BY RANGE(a)
 (PARTITION pa VALUES LESS THAN (3),
 PARTITION pb VALUES LESS THAN (5));
@@ -26,9 +27,46 @@ reap;
 
 connection default;
 DELETE FROM t1;
-disconnect ddl;
 
 SET DEBUG_SYNC = 'RESET';
 
 CHECK TABLE t1;
-DROP TABLE t1;
+
+CREATE TABLE t(a INT, b VARCHAR(10)) ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+RENAME TABLE t TO u;
+DELETE FROM mysql.innodb_table_stats WHERE table_name='u';
+DELETE FROM mysql.innodb_index_stats WHERE table_name='u';
+
+send SET STATEMENT debug_dbug='+d,dict_stats_save_exit_notify_and_wait' FOR
+SELECT * FROM u;
+
+connection ddl;
+SET DEBUG_SYNC='open_tables_after_open_and_process_table
+WAIT_FOR dict_stats_save_finished';
+send ALTER TABLE t1 EXCHANGE PARTITION pb WITH TABLE u;
+
+connect sync,localhost,root;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'debug sync point: now'
+  and info like 'SET STATEMENT debug_dbug%SELECT * FROM u';
+--source include/wait_condition.inc
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'Waiting for table metadata lock'
+  and info like 'ALTER TABLE t1 EXCHANGE PARTITION pb WITH TABLE u';
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL dict_stats_save_unblock';
+disconnect sync;
+
+connection default;
+reap;
+connection ddl;
+reap;
+disconnect ddl;
+connection default;
+SELECT * FROM u;
+SET DEBUG_SYNC = 'RESET';
+
+DROP TABLE t1,u;

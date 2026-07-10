@@ -95,16 +95,16 @@ public:
   static PFS_engine_table* create();
 
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
+    
 
-
-  virtual int update_row_values(TABLE *table,
-                                const unsigned char *old_buf,
-                                const unsigned char *new_buf,
-                                Field **fields);
+  int update_row_values(TABLE *table,
+                        const unsigned char *old_buf,
+                        const unsigned char *new_buf,
+                        Field **fields) override;
 
 protected:
   table_threads();
@@ -113,7 +113,7 @@ public:
   ~table_threads() = default;
 
 private:
-  virtual void make_row(PFS_thread *pfs);
+  void make_row(PFS_thread *pfs) override;
 
   /** Table share lock. */
   static THR_LOCK m_table_lock;

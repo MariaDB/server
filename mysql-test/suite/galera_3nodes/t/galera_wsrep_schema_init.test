@@ -10,6 +10,7 @@
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_1
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -55,4 +56,3 @@ SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members
 SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_members;
 
 --source ../galera/include/auto_increment_offset_restore.inc
-

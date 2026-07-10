@@ -7,6 +7,11 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+# This test asserts exact GTID positions (e.g. 9999-1-3) and an empty initial
+# state. The galera wsrep GTID domain seqno is cluster-global state, so the
+# cluster must start clean on every run (e.g. with --repeat). Force a server
+# restart before the test.
+--source include/force_restart.inc
 
 --echo # On node_1
 --connection node_1
@@ -60,7 +65,7 @@ reset master;
 set global wsrep_on=ON;
 
 --connection node_2
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
 
 --source include/galera_end.inc
 --echo # End of test

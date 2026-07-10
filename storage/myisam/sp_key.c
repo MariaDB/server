@@ -15,8 +15,6 @@
 
 #include "myisamdef.h"
 
-#ifdef HAVE_SPATIAL
-
 #include "sp_defs.h"
 
 static int sp_add_point_to_mbr(uchar *(*wkb), uchar *end, uint n_dims, 
@@ -41,7 +39,6 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
   uint dlen;
   uchar *dptr;
   double mbr[SPDIMS * 2];
-  uint i;
   
   keyseg = &keyinfo->seg[-1];
   pos = (uchar*)record + keyseg->start;
@@ -55,7 +52,7 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
   }
   sp_mbr_from_wkb(dptr + 4, dlen - 4, SPDIMS, mbr);	/* SRID */
   
-  for (i = 0, keyseg = keyinfo->seg; keyseg->type; keyseg++, i++)
+  for (keyseg = keyinfo->seg; keyseg->type; keyseg++)
   {
     uint length = keyseg->length, start= keyseg->start;
     double val;
@@ -280,5 +277,3 @@ static int sp_get_geometry_mbr(uchar *(*wkb), uchar *end, uint n_dims,
   }
   return res;
 }
-
-#endif /*HAVE_SPATIAL*/

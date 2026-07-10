@@ -73,6 +73,7 @@ SET @@timestamp = 1.1;
 SELECT @@timestamp;
 
 SET @@timestamp = 9999999999999999999999;
+--replace_result 4294967295 2147483647
 SELECT @@timestamp;
 
 --echo '#--------------------FN_DYNVARS_001_04-------------------------#'

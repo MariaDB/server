@@ -1,12 +1,13 @@
 --source include/have_innodb.inc
+--source include/no_checkpoint_prepare.inc
 --source include/have_debug.inc
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to read page 19 from file '.*test.t1\\.ibd': Page read from tablespace is corrupted\\.");
-call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page .*, page number=19\\]");
+call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page 19 in file .*t1\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Plugin initialization aborted at srv0start\\.cc.* with error Data structure corruption");
 call mtr.add_suppression("\\[ERROR\\] Plugin 'InnoDB' (init function|registration)");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");
 call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd).*: Index for table 't1' is corrupt; try to repair it");
 call mtr.add_suppression("InnoDB: btr_pcur_open_low level: 0 table: `test`\\.`t1` index: `PRIMARY`");
@@ -23,6 +24,7 @@ INSERT INTO t1 VALUES(1, 'sql'), (2, 'server'), (3, 'mariadb'),
 	(12, 'test8');
 
 let $restart_noprint=2;
+let $restart_parameters=--innodb-log-recovery-start=0;
 --source include/restart_mysqld.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -50,7 +52,7 @@ EOF
 SELECT * FROM t1 WHERE PK = 1;
 
 # Force recovery to ignore the corrupted page.
-let $restart_parameters=--innodb-force-recovery=1;
+let $restart_parameters=--innodb-log-recovery-start=0 --innodb-force-recovery=1;
 --source include/restart_mysqld.inc
 SELECT * FROM t1 WHERE PK = 1;
 --error ER_NOT_KEYFILE

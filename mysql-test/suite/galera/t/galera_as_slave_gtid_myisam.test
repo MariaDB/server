@@ -26,7 +26,7 @@ SELECT @@wsrep_on;
 ALTER TABLE mysql.gtid_slave_pos engine = InnoDB;
 
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -44,12 +44,10 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
 
---disable_query_log
---eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
---enable_query_log
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
 
---connection node_2
-SELECT COUNT(*) AS EXPECT_0 FROM t1;
+# Note that MyISAM tables are not replicated by Galera so we do not here
+# check node_2
 
 --disable_query_log
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
@@ -59,8 +57,6 @@ SELECT COUNT(*) AS EXPECT_0 FROM t1;
 --connection node_3
 DROP TABLE t1;
 
---sleep 1
-
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
@@ -72,19 +68,22 @@ DROP TABLE t1;
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
-RESET MASTER;
 
 --connection node_1
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL WSREP_ON=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 
 --connection node_2
 SET GLOBAL WSREP_ON=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 
 --connection node_3
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;

@@ -1,0 +1,17 @@
+#
+# MDEV-27575 Spider: UBSAN member access within null pointer of type 'struct st_plugin_int and SIGSEGV in intern_plugin_lock on SHUTDOWN when setting Spider as default storage engine (temporary or global)
+#
+for master_1
+for child2
+for child3
+SET GLOBAL default_tmp_storage_engine=spider;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'
+# restart
+SET GLOBAL default_storage_engine=Spider;
+# restart
+for master_1
+for child2
+for child3
+#
+# end of test mdev_27575
+#

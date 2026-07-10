@@ -77,7 +77,7 @@ SET @@global.wsrep_desync = 0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 --source include/wait_condition.inc
 
-CALL mtr.add_suppression("WSREP: Protocol violation. JOIN message sender (.*) is not in state transfer \\(SYNCED\\). Message ignored.");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 
 --connection node_1
 --echo # Wait until both nodes are back to cluster

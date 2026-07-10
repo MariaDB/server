@@ -111,7 +111,7 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
                      MYSQL_STMT *stmt)
 {
   my_bool result= 1;
-  THD *thd=(THD *) mysql->thd;
+  THD *thd=(THD *) mysql->thd, *old_current_thd= current_thd;
   NET *net= &mysql->net;
   my_bool stmt_skip= stmt ? stmt->state != MYSQL_STMT_INIT_DONE : FALSE;
 
@@ -122,6 +122,8 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
     else
     {
       free_embedded_thd(mysql);
+      if (old_current_thd == thd)
+        old_current_thd= 0;
       thd= 0;
     }
   }
@@ -179,6 +181,8 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
 
 end:
   thd->reset_globals();
+  if (old_current_thd)
+    old_current_thd->store_globals();
   return result;
 }
 
@@ -265,6 +269,7 @@ static my_bool emb_read_prepare_result(MYSQL *mysql, MYSQL_STMT *stmt)
       mysql->server_status|= SERVER_STATUS_IN_TRANS;
 
     stmt->fields= mysql->fields;
+    free_root(&stmt->mem_root, MYF(0));
     stmt->mem_root= res->alloc;
     mysql->fields= NULL;
     my_free(res);
@@ -374,6 +379,7 @@ int emb_read_binary_rows(MYSQL_STMT *stmt)
     set_stmt_errmsg(stmt, &stmt->mysql->net);
     return 1;
   }
+  free_root(&stmt->result.alloc, MYF(0));
   stmt->result= *data;
   my_free(data);
   set_stmt_errmsg(stmt, &stmt->mysql->net);
@@ -432,12 +438,15 @@ int emb_unbuffered_fetch(MYSQL *mysql, char **row)
 
 static void free_embedded_thd(MYSQL *mysql)
 {
-  THD *thd= (THD*)mysql->thd;
+  THD *thd= (THD*)mysql->thd, *org_current_thd= current_thd;
   server_threads.erase(thd);
   thd->clear_data_list();
   thd->store_globals();
   delete thd;
-  set_current_thd(nullptr);
+  if (thd == org_current_thd)
+    set_current_thd(nullptr);
+  else
+    set_current_thd(org_current_thd);
   mysql->thd=0;
 }
 
@@ -459,6 +468,7 @@ static int emb_read_change_user_result(MYSQL *mysql)
   return mysql_errno(mysql) ? (int)packet_error : 1 /* length of the OK packet */;
 }
 
+
 static void emb_on_close_free(MYSQL *mysql)
 {
   my_free(mysql->info_buffer);
@@ -469,6 +479,7 @@ static void emb_on_close_free(MYSQL *mysql)
     mysql->thd= 0;
   }
 }
+
 
 MYSQL_METHODS embedded_methods= 
 {
@@ -632,8 +643,6 @@ int init_embedded_server(int argc, char **argv, char **groups)
     udf_init();
 #endif
 
-  (void) thr_setconcurrency(concurrency);	// 10 by default
-
   if (flush_time && flush_time != ~(ulong) 0L)
     start_handle_manager();
 
@@ -705,8 +714,7 @@ void *create_embedded_thd(ulong client_flag)
 
   if (thd->variables.max_join_size == HA_POS_ERROR)
     thd->variables.option_bits |= OPTION_BIG_SELECTS;
-  thd->proc_info=0;				// Remove 'login'
-  thd->set_command(COM_SLEEP);
+  thd->mark_connection_idle();
   thd->set_time();
   thd->init_for_queries();
   thd->client_capabilities= client_flag | MARIADB_CLIENT_EXTENDED_METADATA;
@@ -725,6 +733,17 @@ void *create_embedded_thd(ulong client_flag)
   thd->mysys_var= 0;
   thd->reset_globals();
   return thd;
+}
+
+
+THD *embedded_get_current_thd()
+{
+  return current_thd;
+}
+
+void embedded_set_current_thd(THD *thd)
+{
+  set_current_thd(thd);
 }
 
 
@@ -770,9 +789,21 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   sctx->proxy_user[0]= 0;
   sctx->master_access= GLOBAL_ACLS;       // Full rights
   emb_transfer_connect_attrs(mysql);
+
   /* Change database if necessary */
-  if (!(result= (db && db[0] && mysql_change_db(thd, &db_str, FALSE))))
+  result = 0;
+  if (db && db[0])
+  {
+    result = mysql_change_db(thd, db_str, FALSE);
+    if (!result)
+    {
+      my_free(mysql->db);
+      mysql->db = my_strdup(PSI_NOT_INSTRUMENTED, db, MYF(0));
+    }
+  }
+  if (!result)
     my_ok(thd);
+ 
   thd->protocol->end_statement();
   emb_read_query_result(mysql);
   return result;
@@ -1057,7 +1088,7 @@ class Client_field_extension: public Sql_alloc,
 public:
   Client_field_extension()
   {
-    memset(this, 0, sizeof(*this));
+    memset((void*) this, 0, sizeof(*this));
   }
   void copy_extended_metadata(MEM_ROOT *memroot,
                               const Send_field_extended_metadata &src)
@@ -1096,13 +1127,15 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   if (charset_for_protocol == &my_charset_bin || thd_cs == NULL)
   {
     /* No conversion */
-    client_field->charsetnr= charset_for_protocol->number;
+    client_field->charsetnr= charset_for_protocol->
+                               get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
     client_field->length= server_field.length;
   }
   else
   {
     /* With conversion */
-    client_field->charsetnr= thd_cs->number;
+    client_field->charsetnr= thd_cs->
+                               get_id(MY_COLLATION_ID_TYPE_COMPAT_100800);
     client_field->length= server_field.max_octet_length(charset_for_protocol,
                                                         thd_cs);
   }
@@ -1444,4 +1477,3 @@ int vprint_msg_to_log(enum loglevel level __attribute__((unused)),
   }
   return 0;
 }
-

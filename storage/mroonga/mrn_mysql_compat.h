@@ -184,11 +184,7 @@
 #  define MRN_HAVE_BINLOG_H
 #endif
 
-#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
-#  define MRN_HAVE_SPATIAL
-#elif defined(HAVE_SPATIAL)
-#  define MRN_HAVE_SPATIAL
-#endif
+#define MRN_HAVE_SPATIAL
 
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_FORMAT_STRING_LENGTH "zu"

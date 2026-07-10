@@ -8,8 +8,12 @@
 CREATE TABLE t(i INT) ENGINE INNODB encrypted=yes encryption_key_id=1;
 INSERT INTO t VALUES(1);
 
-echo # mariabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--error 0,1
+rmdir $targetdir;
+
+echo # mariabackup backup;
 
 --disable_result_log
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;

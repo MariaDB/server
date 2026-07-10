@@ -19,10 +19,6 @@
 
 /* Function items used by mysql */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #ifdef HAVE_IEEEFP_H
 extern "C"				/* Bug in BSDI include file */
 {
@@ -35,6 +31,8 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
+extern bool st_append_json(String *s,
+              CHARSET_INFO *json_cs, const uchar *js, uint js_len);
 class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
@@ -48,6 +46,7 @@ protected:
   bool check_argument_types_traditional_scalar(uint start, uint end) const;
   bool check_argument_types_or_binary(const Type_handler *handler,
                                       uint start, uint end) const;
+  bool check_argument_types_can_return_bool(uint start, uint end) const;
   bool check_argument_types_can_return_int(uint start, uint end) const;
   bool check_argument_types_can_return_real(uint start, uint end) const;
   bool check_argument_types_can_return_str(uint start, uint end) const;
@@ -55,9 +54,41 @@ protected:
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
   void print_cast_temporal(String *str, enum_query_type query_type);
+
+  void print_schema_qualified_name(String *to,
+                                   const LEX_CSTRING &schema_name,
+                                   const LEX_CSTRING &function_name) const
+  {
+    // e.g. oracle_schema.func()
+    to->append(schema_name);
+    to->append('.');
+    to->append(function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to,
+                                     enum_query_type query_type,
+                                     const LEX_CSTRING &function_name) const
+  {
+    const Schema *func_schema= schema();
+    if (!func_schema || func_schema == Schema::find_implied(current_thd))
+      to->append(function_name);
+    else
+      print_schema_qualified_name(to, func_schema->name(), function_name);
+  }
+
+  void print_sql_mode_qualified_name(String *to, enum_query_type query_type)
+                                                                       const
+  {
+    return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
+  }
+
+  void update_nullability_post_fix_fields();
+
+  bool aggregate_args2_for_comparison_with_conversion(THD *thd,
+                                           Type_handler_hybrid_field_type *th);
 public:
 
-  table_map not_null_tables_cache;
+  table_map not_null_tables_cache= 0;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -67,7 +98,7 @@ public:
 		  INTERVAL_FUNC, ISNOTNULLTEST_FUNC,
 		  SP_EQUALS_FUNC, SP_DISJOINT_FUNC,SP_INTERSECTS_FUNC,
 		  SP_TOUCHES_FUNC,SP_CROSSES_FUNC,SP_WITHIN_FUNC,
-		  SP_CONTAINS_FUNC,SP_OVERLAPS_FUNC,
+		  SP_CONTAINS_FUNC, SP_COVEREDBY_FUNC, SP_OVERLAPS_FUNC,
 		  SP_STARTPOINT,SP_ENDPOINT,SP_EXTERIORRING,
 		  SP_POINTN,SP_GEOMETRYN,SP_INTERIORRINGN, SP_RELATE_FUNC,
                   NOT_FUNC, NOT_ALL_FUNC, TEMPTABLE_ROWID,
@@ -78,7 +109,42 @@ public:
                   JSON_EXTRACT_FUNC, JSON_VALID_FUNC, ROWNUM_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
+                  DATE_FUNC, YEAR_FUNC, SUBSTR_FUNC, LEFT_FUNC
                 };
+
+  /*
+    A function bitmap. Useful when some operation needs to be applied only
+    to certain functions. For now we only need to distinguish some
+    comparison predicates.
+  */
+  enum Bitmap : ulonglong
+  {
+    BITMAP_NONE= 0,
+    BITMAP_EQ=         1ULL << EQ_FUNC,
+    BITMAP_EQUAL=      1ULL << EQUAL_FUNC,
+    BITMAP_NE=         1ULL << NE_FUNC,
+    BITMAP_LT=         1ULL << LT_FUNC,
+    BITMAP_LE=         1ULL << LE_FUNC,
+    BITMAP_GE=         1ULL << GE_FUNC,
+    BITMAP_GT=         1ULL << GT_FUNC,
+    BITMAP_LIKE=       1ULL << LIKE_FUNC,
+    BITMAP_BETWEEN=    1ULL << BETWEEN,
+    BITMAP_IN=         1ULL << IN_FUNC,
+    BITMAP_MULT_EQUAL= 1ULL << MULT_EQUAL_FUNC,
+    BITMAP_ISNULL=     1ULL << ISNULL_FUNC,
+    BITMAP_ISNOTNULL=  1ULL << ISNOTNULL_FUNC,
+    BITMAP_OTHER=      1ULL << 63,
+    BITMAP_ALL=        0xFFFFFFFFFFFFFFFFULL,
+    BITMAP_ANY_EQUALITY= BITMAP_EQ | BITMAP_EQUAL | BITMAP_MULT_EQUAL,
+    BITMAP_EXCEPT_ANY_EQUALITY= BITMAP_ALL & ~BITMAP_ANY_EQUALITY,
+  };
+
+  ulonglong bitmap_bit() const
+  {
+    Functype type= functype();
+    return 1ULL << (type > 63 ? 63 : type);
+  }
+
   static scalar_comparison_op functype_to_scalar_comparison_op(Functype type)
   {
     switch (type) {
@@ -158,7 +224,7 @@ public:
     DBUG_ENTER("Item_func::get_mm_tree");
     DBUG_RETURN(const_item() ? get_mm_tree_for_const(param) : NULL);
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   virtual Item *key_item() const { return args[0]; }
   void set_arguments(THD *thd, List<Item> &list)
   {
@@ -170,15 +236,23 @@ public:
                       List<Item> &fields, uint flags) override;
   void print(String *str, enum_query_type query_type) override;
   void print_op(String *str, enum_query_type query_type);
-  void print_args(String *str, uint from, enum_query_type query_type);
+  void print_args(String *str, uint from, enum_query_type query_type) const;
+  void print_args_parenthesized(String *str, enum_query_type query_type) const
+  {
+    str->append('(');
+    print_args(str, 0, query_type);
+    str->append(')');
+  }
   bool is_null() override
-  { 
+  {
     update_null_value();
-    return null_value; 
+    return null_value;
   }
   String *val_str_from_val_str_ascii(String *str, String *str2);
-
+protected:
   void signal_divide_by_null();
+  double signal_log_domain_error(double value);
+public:
   friend class udf_handler;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   { return tmp_table_field_from_field_type(root, table); }
@@ -388,18 +462,9 @@ public:
     }
   }
   void convert_const_compared_to_int_field(THD *thd);
-  /**
-    Prepare arguments and setup a comparator.
-    Used in Item_func_xxx with two arguments and a comparator,
-    e.g. Item_bool_func2 and Item_func_nullif.
-    args[0] or args[1] can be modified:
-    - converted to character set and collation of the operation
-    - or replaced to an Item_int_with_ref
-  */
-  bool setup_args_and_comparator(THD *thd, Arg_comparator *cmp);
   Item_func *get_item_func() override { return this; }
-  bool is_simplified_cond_processor(void *arg) override
-  { return const_item() && !val_int(); }
+  bool is_simplified_cond_processor(void *) override
+  { return const_item() && !val_bool(); }
 };
 
 
@@ -437,7 +502,8 @@ public:
   Functions whose returned field type is determined at fix_fields() time.
 */
 class Item_hybrid_func: public Item_func,
-                        public Type_handler_hybrid_field_type
+                        public Type_handler_hybrid_field_type,
+                        public Type_extra_attributes
 {
 protected:
   bool fix_attributes(Item **item, uint nitems);
@@ -452,6 +518,14 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const override
   { return Type_handler_hybrid_field_type::type_handler(); }
+  Type_extra_attributes *type_extra_attributes_addr() override
+  {
+    return this;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    return *this;
+  }
   void fix_length_and_dec_long_or_longlong(uint char_length, bool unsigned_arg)
   {
     collation= DTCollation_numeric();
@@ -506,30 +580,30 @@ public:
   class Handler_str: public Handler
   {
   public:
-    String *val_str_ascii(Item_handled_func *item, String *str) const
+    String *val_str_ascii(Item_handled_func *item, String *str) const override
     {
       return item->Item::val_str_ascii(str);
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       DBUG_ASSERT(item->fixed());
       StringBuffer<64> tmp;
       String *res= item->val_str(&tmp);
       return res ? item->double_from_string_with_check(res) : 0.0;
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       DBUG_ASSERT(item->fixed());
       StringBuffer<22> tmp;
       String *res= item->val_str(&tmp);
       return res ? item->longlong_from_string_with_check(res) : 0;
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return item->val_decimal_from_string(to);
     }
     bool get_date(THD *thd, Item_handled_func *item, MYSQL_TIME *to,
-                  date_mode_t fuzzydate) const
+                  date_mode_t fuzzydate) const override
     {
       return item->get_date_from_string(thd, to, fuzzydate);
     }
@@ -542,7 +616,7 @@ public:
   class Handler_temporal: public Handler
   {
   public:
-    String *val_str(Item_handled_func *item, String *to) const
+    String *val_str(Item_handled_func *item, String *to) const override
     {
       StringBuffer<MAX_FIELD_WIDTH> ascii_buf;
       return item->val_str_from_val_str_ascii(to, &ascii_buf);
@@ -557,28 +631,28 @@ public:
   class Handler_temporal_string: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_string;
     }
     const Type_handler *
-      type_handler_for_create_select(const Item_handled_func *item) const
+      type_handler_for_create_select(const Item_handled_func *item) const override
     {
       return return_type_handler(item)->type_handler_for_tmp_table(item);
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Temporal_hybrid(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Temporal_hybrid(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Temporal_hybrid(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Temporal_hybrid(item).to_string(to, item->decimals);
     }
@@ -588,28 +662,28 @@ public:
   class Handler_date: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_newdate;
     }
-    bool fix_length_and_dec(Item_handled_func *item) const
+    bool fix_length_and_dec(Item_handled_func *item) const override
     {
       item->fix_attributes_date();
       return false;
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Date(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Date(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Date(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Date(item).to_string(to);
     }
@@ -619,27 +693,27 @@ public:
   class Handler_time: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_time2;
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Time(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Time(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Time(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Time(item).to_string(to, item->decimals);
     }
-    bool val_native(THD *thd, Item_handled_func *item, Native *to) const
+    bool val_native(THD *thd, Item_handled_func *item, Native *to) const override
     {
       return Time(thd, item).to_native(to, item->decimals);
     }
@@ -649,25 +723,63 @@ public:
   class Handler_datetime: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *) const
+    const Type_handler *return_type_handler(const Item_handled_func *) const override
     {
       return &type_handler_datetime2;
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return Datetime(item).to_double();
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       return Datetime(item).to_longlong();
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return Datetime(item).to_decimal(to);
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return Datetime(item).to_string(to, item->decimals);
+    }
+  };
+
+
+  class Handler_double: public Handler
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *)
+                                                        const override
+    {
+      return &type_handler_double;
+    }
+
+    String *val_str(Item_handled_func *item, String *to) const override
+    {
+      double nr= val_real(item);
+      if (item->null_value)
+        return 0;
+      to->set_real(nr, NOT_FIXED_DEC, item->collation.collation);
+      return to;
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
+    {
+      return item->Item::val_str_ascii(to);
+    }
+    double val_real(Item_handled_func *item) const override= 0;
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
+    {
+      return item->val_decimal_from_real(to);
+    }
+    bool get_date(THD *thd, Item_handled_func *item,
+                  MYSQL_TIME *to, date_mode_t fuzzydate) const override
+    {
+      return item->get_date_from_real(thd, to, fuzzydate);
+    }
+    longlong val_int(Item_handled_func *item) const override
+    {
+      return item->val_int_from_real();
     }
   };
 
@@ -675,7 +787,7 @@ public:
   class Handler_int: public Handler
   {
   public:
-    String *val_str(Item_handled_func *item, String *to) const
+    String *val_str(Item_handled_func *item, String *to) const override
     {
       longlong nr= val_int(item);
       if (item->null_value)
@@ -683,25 +795,25 @@ public:
       to->set_int(nr, item->unsigned_flag, item->collation.collation);
       return to;
     }
-    String *val_str_ascii(Item_handled_func *item, String *to) const
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
       return item->Item::val_str_ascii(to);
     }
-    double val_real(Item_handled_func *item) const
+    double val_real(Item_handled_func *item) const override
     {
       return item->unsigned_flag ? (double) ((ulonglong) val_int(item)) :
                                    (double) val_int(item);
     }
-    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
     {
       return item->val_decimal_from_int(to);
     }
     bool get_date(THD *thd, Item_handled_func *item,
-                  MYSQL_TIME *to, date_mode_t fuzzydate) const
+                  MYSQL_TIME *to, date_mode_t fuzzydate) const override
     {
       return item->get_date_from_int(thd, to, fuzzydate);
     }
-    longlong val_int(Item_handled_func *item) const
+    longlong val_int(Item_handled_func *item) const override
     {
       Longlong_null tmp= to_longlong_null(item);
       item->null_value= tmp.is_null();
@@ -713,11 +825,11 @@ public:
   class Handler_slong: public Handler_int
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    const Type_handler *return_type_handler(const Item_handled_func *item) const override
     {
       return &type_handler_slong;
     }
-    bool fix_length_and_dec(Item_handled_func *item) const
+    bool fix_length_and_dec(Item_handled_func *item) const override
     {
       item->unsigned_flag= false;
       item->collation= DTCollation_numeric();
@@ -729,7 +841,7 @@ public:
   class Handler_slong2: public Handler_slong
   {
   public:
-    bool fix_length_and_dec(Item_handled_func *func) const
+    bool fix_length_and_dec(Item_handled_func *func) const override
     {
       bool rc= Handler_slong::fix_length_and_dec(func);
       func->max_length= 2;
@@ -740,11 +852,11 @@ public:
   class Handler_ulonglong: public Handler_int
   {
   public:
-    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    const Type_handler *return_type_handler(const Item_handled_func *item) const override
     {
       return &type_handler_ulonglong;
     }
-    bool fix_length_and_dec(Item_handled_func *item) const
+    bool fix_length_and_dec(Item_handled_func *item) const override
     {
       item->unsigned_flag= true;
       item->collation= DTCollation_numeric();
@@ -756,10 +868,16 @@ public:
 protected:
   const Handler *m_func_handler;
 public:
+  Item_handled_func(THD *thd)
+   :Item_func(thd), m_func_handler(NULL) { }
+  Item_handled_func(THD *thd, List<Item> & args)
+   :Item_func(thd, args), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a)
    :Item_func(thd, a), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a, Item *b)
    :Item_func(thd, a, b), m_func_handler(NULL) { }
+  Item_handled_func(THD *thd, Item *a, Item *b, Item *c)
+  :Item_func(thd, a, b, c), m_func_handler(NULL) { }
   void set_func_handler(const Handler *handler)
   {
     m_func_handler= handler;
@@ -803,6 +921,12 @@ public:
   bool val_native(THD *thd, Native *to) override
   {
     return m_func_handler->val_native(thd, this, to);
+  }
+  virtual bool get_date_common(THD *thd, MYSQL_TIME *ltime,
+                               date_mode_t fuzzydate, timestamp_type)
+  {
+    DBUG_ASSERT(0);
+    return 0;
   }
 };
 
@@ -911,9 +1035,16 @@ public:
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     DBUG_ASSERT(fixed());
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_int(this);
+  }
+  Type_ref_null val_ref(THD *thd) override
+  {
+    DBUG_ASSERT(fixed());
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_ref(thd, this);
   }
   my_decimal *val_decimal(my_decimal *dec) override
   {
@@ -1013,6 +1144,8 @@ public:
   virtual bool time_op(THD *thd, MYSQL_TIME *res)= 0;
 
   virtual bool native_op(THD *thd, Native *native)= 0;
+
+  virtual Type_ref_null ref_op(THD *thd)= 0;
 };
 
 
@@ -1025,6 +1158,15 @@ public:
 */
 class Item_func_case_expression: public Item_func_hybrid_field_type
 {
+  bool check_arguments() const override
+  {
+    /*
+      Arguments to CASE-style expressions are subject to aggregate_for_result()
+      and/or aggregate_for_comparision(). These methods validate the arguments.
+      No needs to check arguments here.
+    */
+    return false;
+  }
 public:
   Item_func_case_expression(THD *thd)
    :Item_func_hybrid_field_type(thd)
@@ -1041,7 +1183,7 @@ public:
   Item_func_case_expression(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
-  bool find_not_null_fields(table_map allowed) { return false; }
+  bool find_not_null_fields(table_map allowed) override { return false; }
 };
 
 
@@ -1052,8 +1194,8 @@ protected:
   inline void fix_decimals()
   {
     DBUG_ASSERT(result_type() == DECIMAL_RESULT);
-    if (decimals == NOT_FIXED_DEC)
-      set_if_smaller(decimals, max_length - 1);
+    if (decimals == NOT_FIXED_DEC && decimals >= max_length)
+      decimals= decimal_digits_t(max_length - 1);
   }
 
 public:
@@ -1070,21 +1212,26 @@ public:
   Item_func_numhybrid(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
-  String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
-  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     DBUG_ASSERT(0);
     return true;
   }
-  bool time_op(THD *thd, MYSQL_TIME *ltime)
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override
   {
     DBUG_ASSERT(0);
     return true;
   }
-  bool native_op(THD *thd, Native *to)
+  bool native_op(THD *thd, Native *to) override
   {
     DBUG_ASSERT(0);
     return true;
+  }
+  Type_ref_null ref_op(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    return Type_ref_null();
   }
 };
 
@@ -1095,8 +1242,8 @@ class Item_func_num1: public Item_func_numhybrid
 public:
   Item_func_num1(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
   Item_func_num1(THD *thd, Item *a, Item *b): Item_func_numhybrid(thd, a, b) {}
-  bool check_partition_func_processor(void *int_arg) { return FALSE; }
-  bool check_vcol_func_processor(void *arg) { return FALSE; }
+  bool check_partition_func_processor(void *int_arg) override { return FALSE; }
+  bool check_vcol_func_processor(void *arg) override { return FALSE; }
 };
 
 
@@ -1202,6 +1349,24 @@ public:
 };
 
 
+class Item_long_ge0_func: public Item_int_func
+{
+public:
+  Item_long_ge0_func(THD *thd): Item_int_func(thd) { }
+  Item_long_ge0_func(THD *thd, Item *a): Item_int_func(thd, a) {}
+  Item_long_ge0_func(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
+  Item_long_ge0_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
+  Item_long_ge0_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
+  Item_long_ge0_func(THD *thd, Item_long_ge0_func *item) :Item_int_func(thd, item) {}
+  const Type_handler *type_handler() const override
+  {
+    DBUG_ASSERT(!unsigned_flag);
+    return &type_handler_slong_ge0;
+  }
+  bool fix_length_and_dec(THD *) override { max_length= 10; return FALSE; }
+};
+
+
 class Item_func_hash: public Item_int_func
 {
 public:
@@ -1211,13 +1376,15 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   const Type_handler *type_handler() const override
   { return &type_handler_slong; }
-  Item *get_copy(THD *thd) override
-  { return get_item_copy<Item_func_hash>(thd, this); }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("<hash>") };
     return name;
   }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_hash>(thd, this); }
 };
 
 class Item_func_hash_mariadb_100403: public Item_func_hash
@@ -1226,10 +1393,16 @@ public:
   Item_func_hash_mariadb_100403(THD *thd, List<Item> &item)
    :Item_func_hash(thd, item)
   {}
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<hash_mariadb_100403>") };
+    return name;
+  }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_hash_mariadb_100403>(thd, this); }
-  const char *func_name() const { return "<hash_mariadb_100403>"; }
 };
 
 class Item_longlong_func: public Item_int_func
@@ -1252,14 +1425,16 @@ public:
 };
 
 
-class Cursor_ref
+class Cursor_ref: public sp_rcontext_ref
 {
 protected:
   LEX_CSTRING m_cursor_name;
-  uint m_cursor_offset;
-  class sp_cursor *get_open_cursor_or_error();
-  Cursor_ref(const LEX_CSTRING *name, uint offset)
-   :m_cursor_name(*name), m_cursor_offset(offset)
+public:
+  Cursor_ref(const LEX_CSTRING *name,
+             const Sp_rcontext_handler *h, uint offset,
+             const Sp_rcontext_handler *deref_rcontext_handler)
+   :sp_rcontext_ref(sp_rcontext_addr(h, offset), deref_rcontext_handler),
+    m_cursor_name(*name)
   { }
   void print_func(String *str, const LEX_CSTRING &func_name);
 };
@@ -1269,11 +1444,20 @@ protected:
 class Item_func_cursor_rowcount: public Item_longlong_func,
                                  public Cursor_ref
 {
+protected:
+  THD *m_thd;
 public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_longlong_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_rowcount(THD *thd, const Cursor_ref &ref)
+   :Item_longlong_func(thd), Cursor_ref(ref), m_thd(nullptr)
   {
     set_maybe_null();
+  }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    if (Item_longlong_func::fix_fields(thd, ref))
+      return true;
+    m_thd= thd;
+    return false;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1289,7 +1473,9 @@ public:
   {
     return Cursor_ref::print_func(str, func_name_cstring());
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_rowcount>(thd, this); }
 };
 
@@ -1314,7 +1500,9 @@ public:
     return mark_unsupported_function(func_name(), "()", arg,
                                      VCOL_SESSION_FUNC);
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_connection_id>(thd, this); }
 };
 
@@ -1345,6 +1533,13 @@ public:
   void fix_length_and_dec_double()
   {
     fix_char_length(MAX_BIGINT_WIDTH);
+  }
+  void fix_length_and_dec_sint_ge0()
+  {
+    uint32 digits= args[0]->decimal_precision();
+    DBUG_ASSERT(digits > 0);
+    DBUG_ASSERT(digits <= MY_INT64_NUM_DECIMAL_DIGITS);
+    fix_char_length(digits + (unsigned_flag ? 0 : 1/*sign*/));
   }
   void fix_length_and_dec_generic()
   {
@@ -1379,7 +1574,9 @@ public:
   decimal_digits_t decimal_precision() const override
   { return args[0]->decimal_precision(); }
   bool need_parentheses_in_default() override { return true; }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_signed>(thd, this); }
 };
 
@@ -1412,9 +1609,12 @@ public:
   {
     return args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
-  decimal_digits_t decimal_precision() const override { return max_length; }
+  decimal_digits_t decimal_precision() const override
+  { return decimal_digits_t(max_length); }
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_unsigned>(thd, this); }
 };
 
@@ -1423,7 +1623,8 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, uint len, decimal_digits_t dec)
+  Item_decimal_typecast(THD *thd, Item *a,
+                        decimal_digits_t len, decimal_digits_t dec)
    :Item_func(thd, a)
   {
     decimals= dec;
@@ -1455,7 +1656,9 @@ public:
   }
   void print(String *str, enum_query_type query_type) override;
   bool need_parentheses_in_default() override { return true; }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_decimal_typecast>(thd, this); }
 };
 
@@ -1471,8 +1674,8 @@ public:
     decimals=   (uint8)  dec;
     max_length= (uint32) len;
   }
-  bool need_parentheses_in_default() { return true; }
-  void print(String *str, enum_query_type query_type);
+  bool need_parentheses_in_default() override { return true; }
+  void print(String *str, enum_query_type query_type) override;
   void fix_length_and_dec_generic()
   {
     set_maybe_null();
@@ -1510,7 +1713,9 @@ public:
     nr.to_string(str, decimals);
     return str;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_float_typecast>(thd, this); }
 };
 
@@ -1532,7 +1737,9 @@ public:
     return name;
   }
   double val_real() override { return val_real_with_truncate(DBL_MAX); }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_double_typecast>(thd, this); }
 };
 
@@ -1541,9 +1748,9 @@ class Item_func_additive_op :public Item_num_op
 {
 public:
   Item_func_additive_op(THD *thd, Item *a, Item *b): Item_num_op(thd, a, b) {}
-  void result_precision();
-  bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
+  void result_precision() override;
+  bool check_partition_func_processor(void *int_arg) override {return FALSE;}
+  bool check_vcol_func_processor(void *arg) override { return FALSE;}
 };
 
 
@@ -1562,7 +1769,9 @@ public:
   longlong int_op() override;
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_plus>(thd, this); }
 };
 
@@ -1601,7 +1810,9 @@ public:
     Item_func_additive_op::fix_length_and_dec_int();
     fix_unsigned_flag();
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_minus>(thd, this); }
 };
 
@@ -1624,7 +1835,9 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
   bool check_vcol_func_processor(void *arg) override { return FALSE;}
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_mul>(thd, this); }
 };
 
@@ -1647,7 +1860,9 @@ public:
   void fix_length_and_dec_double();
   void fix_length_and_dec_int();
   void result_precision() override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_div>(thd, this); }
 };
 
@@ -1675,7 +1890,9 @@ public:
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
   bool check_vcol_func_processor(void *arg) override { return FALSE;}
   bool need_parentheses_in_default() override { return true; }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_int_div>(thd, this); }
 };
 
@@ -1713,7 +1930,9 @@ public:
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
   bool check_vcol_func_processor(void *arg) override { return FALSE;}
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_mod>(thd, this); }
 };
 
@@ -1744,7 +1963,9 @@ public:
   decimal_digits_t decimal_precision() const  override
   { return args[0]->decimal_precision(); }
   bool need_parentheses_in_default() override { return true; }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_neg>(thd, this); }
 };
 
@@ -1762,10 +1983,13 @@ public:
     return name;
   }
   void fix_length_and_dec_int();
+  void fix_length_and_dec_sint_ge0();
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   bool fix_length_and_dec(THD *thd) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_abs>(thd, this); }
 };
 
@@ -1797,7 +2021,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("exp") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_exp>(thd, this); }
 };
 
@@ -1812,7 +2038,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("ln") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ln>(thd, this); }
 };
 
@@ -1828,7 +2056,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("log") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_log>(thd, this); }
 };
 
@@ -1843,7 +2073,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("log2") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_log2>(thd, this); }
 };
 
@@ -1858,7 +2090,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("log10") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_log10>(thd, this); }
 };
 
@@ -1873,7 +2107,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("sqrt") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqrt>(thd, this); }
 };
 
@@ -1888,7 +2124,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("pow") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_pow>(thd, this); }
 };
 
@@ -1903,7 +2141,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("acos") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_acos>(thd, this); }
 };
 
@@ -1917,7 +2157,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("asin") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_asin>(thd, this); }
 };
 
@@ -1932,7 +2174,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("atan") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_atan>(thd, this); }
 };
 
@@ -1946,7 +2190,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("cos") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cos>(thd, this); }
 };
 
@@ -1960,7 +2206,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("sin") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sin>(thd, this); }
 };
 
@@ -1974,7 +2222,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("tan") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_tan>(thd, this); }
 };
 
@@ -1988,7 +2238,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("cot") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_cot>(thd, this); }
 };
 
@@ -2016,6 +2268,11 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
+  Type_ref_null ref_op(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    return Type_ref_null();
+  }
   bool native_op(THD *thd, Native *to) override;
 };
 
@@ -2035,7 +2292,9 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ceiling>(thd, this); }
 };
 
@@ -2055,7 +2314,9 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_floor>(thd, this); }
 };
 
@@ -2087,10 +2348,16 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  Type_ref_null ref_op(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    return Type_ref_null();
+  }
   void fix_arg_decimal();
   void fix_arg_int(const Type_handler *preferred,
                    const Type_std_attributes *preferred_attributes,
                    bool use_decimal_on_length_increase);
+  void fix_arg_slong_ge0();
   void fix_arg_hex_hybrid();
   void fix_arg_double();
   void fix_arg_time();
@@ -2104,7 +2371,9 @@ public:
     */
     return args[0]->real_type_handler()->Item_func_round_fix_length_and_dec(this);
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_round>(thd, this); }
 };
 
@@ -2134,7 +2403,9 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_rand>(thd, this); }
 };
 
@@ -2143,7 +2414,7 @@ class Item_func_rownum final :public Item_longlong_func
 {
   /*
     This points to a variable that contains the number of rows
-    accpted so far in the result set
+    accepted so far in the result set
   */
   ha_rows *accepted_rows;
   SELECT_LEX *select;
@@ -2183,12 +2454,14 @@ public:
     return mark_unsupported_function(func_name(), "()", arg,
                                      VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override { return 0; }
   /* This function is used in insert, update and delete */
   void store_pointer_to_row_counter(ha_rows *row_counter)
   {
     accepted_rows= row_counter;
   }
+
+protected:
+  Item *shallow_copy(THD *thd) const override { return 0; }
 };
 
 void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr);
@@ -2208,7 +2481,9 @@ public:
   decimal_digits_t decimal_precision() const override { return 1; }
   bool fix_length_and_dec(THD *thd) override { fix_char_length(2); return FALSE; }
   longlong val_int() override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sign>(thd, this); }
 };
 
@@ -2235,7 +2510,9 @@ public:
     max_length= float_length(decimals);
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_units>(thd, this); }
 };
 
@@ -2268,6 +2545,7 @@ public:
   String *val_str_native(String *str);
   double val_real_native();
   longlong val_int_native();
+  longlong val_uint_native();
   my_decimal *val_decimal_native(my_decimal *);
   bool get_date_native(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool get_time_native(THD *thd, MYSQL_TIME *res);
@@ -2341,7 +2619,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("least") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_min>(thd, this); }
 };
 
@@ -2354,7 +2634,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("greatest") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_max>(thd, this); }
 };
 
@@ -2394,7 +2676,9 @@ public:
     Type_std_attributes::set(*args[0]);
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_rollup_const>(thd, this); }
 };
 
@@ -2420,7 +2704,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("octet_length") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_octet_length>(thd, this); }
 };
 
@@ -2440,7 +2726,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("bit_length") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_length>(thd, this); }
 };
 
@@ -2455,12 +2743,16 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("char_length") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_char_length>(thd, this); }
 };
 
 class Item_func_coercibility :public Item_long_func
 {
+  longlong m_cached_collation_derivation;
+
   bool check_arguments() const override
   { return args[0]->check_type_can_return_str(func_name_cstring()); }
 public:
@@ -2471,12 +2763,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("coercibility") };
     return name;
   }
-  bool fix_length_and_dec(THD *thd) override
-  {
-    max_length=10;
-    base_flags&= ~item_base_t::MAYBE_NULL;
-    return FALSE;
-  }
+  bool fix_length_and_dec(THD *thd) override;
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool eval_not_null_tables(void *) override
   {
     not_null_tables_cache= 0;
@@ -2490,7 +2780,10 @@ public:
     override
   { return this; }
   bool const_item() const override { return true; }
-  Item *get_copy(THD *thd) override
+  table_map used_tables() const override { return 0; }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_coercibility>(thd, this); }
 };
 
@@ -2527,7 +2820,9 @@ public:
     return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
   }
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_locate>(thd, this); }
 };
 
@@ -2546,8 +2841,13 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_field>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -2565,7 +2865,9 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override { max_length=3; return FALSE; }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ascii>(thd, this); }
 };
 
@@ -2583,7 +2885,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("ord") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_ord>(thd, this); }
 };
 
@@ -2605,7 +2909,9 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
 };
 
@@ -2651,7 +2957,7 @@ public:
     return name;
   }
   enum precedence precedence() const override { return BITOR_PRECEDENCE; }
-  Item *get_copy(THD *thd) override
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_or>(thd, this); }
 };
 
@@ -2667,7 +2973,8 @@ public:
     return name;
   }
   enum precedence precedence() const override { return BITAND_PRECEDENCE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_and>(thd, this); }
 };
 
@@ -2683,7 +2990,8 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_count>(thd, this); }
 };
 
@@ -2699,7 +3007,8 @@ public:
     return name;
   }
   enum precedence precedence() const override { return SHIFT_PRECEDENCE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_shift_left>(thd, this); }
 };
 
@@ -2715,7 +3024,8 @@ public:
     return name;
   }
   enum precedence precedence() const override { return SHIFT_PRECEDENCE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_shift_right>(thd, this); }
 };
 
@@ -2735,7 +3045,8 @@ public:
     str->append(func_name_cstring());
     args[0]->print_parenthesised(str, query_type, precedence());
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_neg>(thd, this); }
 };
 
@@ -2765,7 +3076,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_last_insert_id>(thd, this); }
 };
 
@@ -2793,12 +3105,16 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   void print(String *str, enum_query_type query_type) override;
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_benchmark>(thd, this); }
 };
 
@@ -2829,7 +3145,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sleep>(thd, this); }
 };
 
@@ -2986,7 +3303,8 @@ class Item_func_udf_float :public Item_udf_func
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
   bool fix_length_and_dec(THD *thd) override { fix_num_length_and_dec(); return FALSE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_float>(thd, this); }
 };
 
@@ -3013,7 +3331,8 @@ public:
     return &type_handler_slonglong;
   }
   bool fix_length_and_dec(THD *thd) override { decimals= 0; max_length= 21; return FALSE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_int>(thd, this); }
 };
 
@@ -3041,7 +3360,8 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_newdecimal; }
   bool fix_length_and_dec(THD *thd) override { fix_num_length_and_dec(); return FALSE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_decimal>(thd, this); }
 };
 
@@ -3081,7 +3401,8 @@ public:
   const Type_handler *type_handler() const override
   { return string_type_handler(); }
   bool fix_length_and_dec(THD *thd) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_str>(thd, this); }
 };
 
@@ -3174,7 +3495,7 @@ class Item_func_get_lock final :public Item_func_lock
   String value;
  public:
   Item_func_get_lock(THD *thd, Item *a, Item *b) :Item_func_lock(thd, a, b) {}
-  longlong val_int() final;
+  longlong val_int() override final;
   LEX_CSTRING func_name_cstring() const override final
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("get_lock") };
@@ -3186,7 +3507,8 @@ class Item_func_get_lock final :public Item_func_lock
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd) final
+protected:
+  Item *shallow_copy(THD *thd) const override final
   { return get_item_copy<Item_func_get_lock>(thd, this); }
 };
 
@@ -3196,13 +3518,14 @@ class Item_func_release_all_locks final :public Item_func_lock
 public:
   Item_func_release_all_locks(THD *thd): Item_func_lock(thd)
   { unsigned_flag= 1; }
-  longlong val_int() final;
+  longlong val_int() override final;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("release_all_locks") };
     return name;
   }
-  Item *get_copy(THD *thd) final
+protected:
+  Item *shallow_copy(THD *thd) const override final
   { return get_item_copy<Item_func_release_all_locks>(thd, this); }
 };
 
@@ -3214,7 +3537,7 @@ class Item_func_release_lock final :public Item_func_lock
   String value;
 public:
   Item_func_release_lock(THD *thd, Item *a): Item_func_lock(thd, a) {}
-  longlong val_int() final;
+  longlong val_int() override final;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("release_lock") };
@@ -3226,7 +3549,8 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd) final
+protected:
+  Item *shallow_copy(THD *thd) const override final
   { return get_item_copy<Item_func_release_lock>(thd, this); }
 };
 
@@ -3267,7 +3591,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_master_pos_wait>(thd, this); }
 };
 
@@ -3296,7 +3621,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_master_gtid_wait>(thd, this); }
 };
 
@@ -3323,16 +3649,16 @@ public:
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param)
+                             const Tmp_field_param *param) override
   {
     DBUG_ASSERT(fixed());
     return create_tmp_field_ex_from_handler(root, table, src, param,
                                             type_handler());
   }
-  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   { return create_table_field_from_handler(root, table); }
-  bool check_vcol_func_processor(void *arg);
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool check_vcol_func_processor(void *arg) override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
@@ -3386,8 +3712,8 @@ public:
   String *str_result(String *str) override;
   my_decimal *val_decimal_result(my_decimal *) override;
   bool is_null_result() override;
-  bool update_hash(void *ptr, size_t length, enum Item_result type,
-                   CHARSET_INFO *cs, bool unsigned_arg);
+  bool update_hash(void *ptr, size_t length, const Type_handler *th,
+                   CHARSET_INFO *cs);
   bool send(Protocol *protocol, st_value *buffer) override;
   void make_send_field(THD *thd, Send_field *tmp_field) override;
   bool check(bool use_result_field);
@@ -3417,8 +3743,10 @@ public:
   bool register_field_in_bitmap(void *arg) override;
   bool set_entry(THD *thd, bool create_if_not_exists);
   void cleanup() override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_set_user_var>(thd, this); }
+public:
   bool excl_dep_on_table(table_map tab_map) override { return false; }
 };
 
@@ -3449,8 +3777,9 @@ public:
   bool const_item() const override;
   table_map used_tables() const override
   { return const_item() ? 0 : RAND_TABLE_BIT; }
-  bool eq(const Item *item, bool binary_cmp) const override;
-  Item *get_copy(THD *thd) override
+  bool eq(const Item *item, const Eq_config &config) const override;
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_get_user_var>(thd, this); }
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
@@ -3465,7 +3794,7 @@ public:
 
 /*
   This item represents user variable used as out parameter (e.g in LOAD DATA),
-  and it is supposed to be used only for this purprose. So it is simplified
+  and it is supposed to be used only for this purpose. So it is simplified
   a lot. Actually you should never obtain its value.
 
   The only two reasons for this thing being an Item is possibility to store it
@@ -3533,8 +3862,11 @@ public:
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_user_var_as_out_param>(thd, this); }
+  Item *deep_copy(THD *thd) const override
+  { return shallow_copy_with_checks(thd); }
 };
 
 
@@ -3592,11 +3924,12 @@ public:
     @return true if the variable is written to the binlog, false otherwise.
   */
   bool is_written_to_binlog();
-  bool eq(const Item *item, bool binary_cmp) const override;
+  bool eq(const Item *item, const Eq_config &config) const override;
 
   void cleanup() override;
   bool check_vcol_func_processor(void *arg) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_get_system_var>(thd, this); }
 };
 
@@ -3647,7 +3980,7 @@ public:
     return false;
   }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool eq(const Item *, bool binary_cmp) const override;
+  bool eq(const Item *, const Eq_config &config) const override;
   /* The following should be safe, even if we compare doubles */
   longlong val_int() override { DBUG_ASSERT(fixed()); return val_real() != 0.0; }
   double val_real() override;
@@ -3659,9 +3992,10 @@ public:
   {
     return mark_unsupported_function("match ... against()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_match>(thd, this); }
-  Item *build_clone(THD *thd) override { return 0; }
+  Item *deep_copy(THD *thd) const override { return nullptr; }
 private:
   /**
      Check whether storage engine for given table, 
@@ -3711,7 +4045,8 @@ public:
     return name;
   }
   enum precedence precedence() const override { return BITXOR_PRECEDENCE; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_xor>(thd, this); }
 };
 
@@ -3739,7 +4074,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_free_lock>(thd, this); }
 };
 
@@ -3766,7 +4102,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_used_lock>(thd, this); }
 };
 
@@ -3787,10 +4124,12 @@ public:
   }
   bool set(const Type_handler *handler,
            const Lex_length_and_dec_st & length_and_dec,
+           Sql_used *used,
+           const Charset_collation_map_st &map,
            const Lex_column_charset_collation_attrs_st &cscl,
            CHARSET_INFO *defcs)
   {
-    CHARSET_INFO *tmp= cscl.resolved_to_character_set(defcs);
+    CHARSET_INFO *tmp= cscl.resolved_to_character_set(used, map, defcs);
     if (!tmp)
       return true;
     set(handler, length_and_dec, tmp);
@@ -3829,11 +4168,15 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_row_count>(thd, this); }
 };
 
@@ -3879,13 +4222,134 @@ public:
 
   const Type_handler *type_handler() const override;
 
+  uint cols() const override
+  {
+    return sp_result_field->cols();
+  }
+
+  Item* element_index(uint i) override
+  {
+    DBUG_ASSERT(sp_result_field_items.argument_count() || !i);
+    return sp_result_field_items.argument_count() ?
+           sp_result_field_items.arguments()[i] :
+           this;
+  }
+  Item** addr(uint i) override
+  {
+    DBUG_ASSERT(sp_result_field_items.argument_count() || !i);
+    return sp_result_field_items.argument_count() ?
+           &sp_result_field_items.arguments()[i] :
+           nullptr;
+  }
+
+  bool check_cols(uint c) override
+  {
+    if (cmp_type() != ROW_RESULT)
+      return Item_func::check_cols(c);
+    /*
+      We don't support ROWs with a single member yet, e.g. ROW(a INT).
+      Neither in stored function RETURNS, nor in SP variables.
+      There must be at least two members.
+      So raise an error in case of c==1, like Item_splocal does.
+      See comments in Item_splocal::check_cols() for more details.
+    */
+    if (cols() != c || c == 1)
+    {
+      my_error(ER_OPERAND_COLUMNS, MYF(0), c);
+      return true;
+    }
+    return false;
+  }
+
+  void bring_value() override
+  {
+    DBUG_ASSERT(fixed());
+    /*
+      This comment describes the difference between a single row
+      subselect and a stored function returning ROW.
+
+      In case of a single column subselect:
+        SELECT 1=(SELECT a FROM t1) FROM seq_1_to_5;
+      Item_singlerow_subselect pretends to be a scalar,
+      so its type_handler() returns the type handler of the column "a".
+      (*) This is according to the SQL scandard, which says:
+          The declared type of a <scalar subquery> is the declared
+          type of the column of QE (i.e. its query expression).
+      In the above SELECT statement Arg_comparator calls a scalar comparison
+      function e.g. compare_int_signed(), which does not call bring_value().
+      Item_singlerow_subselect::exec() is called when
+      Arg_comparator::compare_int_signed(), or another scalar comparison
+      function, calls a value method like Item_singlerow_subselect::val_int().
+
+      In case of a multiple-column subselect:
+        SELECT (1,1)=(SELECT a,a FROM t1) FROM seq_1_to_5;
+      Item_singlerow_subselect::type_handler() returns &type_handler_row.
+      Arg_comparator uses compare_row() to compare its arguments.
+      compare_row() calls bring_value(), which calls
+      Item_singlerow_subselect::exec().
+
+      Unlike a single row subselect, a stored function returning a ROW does
+      not pretend to be a scalar when there is only one column in the ROW:
+        SELECT sp_row_func_with_one_col()=sp_row_var_with_one_col FROM ...;
+      Item_function_sp::type_handler() still returns &type_handler_row when
+      the return type is a ROW with one column.
+      Arg_comparator choses compare_row() as the comparison function.
+      So the execution comes to here.
+
+      This chart summarizes how a comparison of ROW values works.
+      In particular, how Item_singlerow_subselect::exec() vs
+      Item_func_sp::execute() are called.
+
+                         Single row subselect    ROW value stored function
+                         --------------------    -------------------------
+      1. bring_value()     Yes                     Yes
+         is called when
+         cols>1
+      2. exec()/execute()  Yes                     Yes
+         is called from
+         bring_value()
+         when cols>1
+      3. Pretends          Yes                     No
+         to be a scalar
+         when cols==1
+      4. bring_value()     No                      Yes
+         is called
+         when cols==1
+      5. exec()/execute()  N/A                     No
+         is called from
+         bring_value()
+         when cols==1
+      6. exec()/execute()  Yes                     Yes
+         is called from
+         a value method,
+         like val_int()
+         when cols==1
+    */
+    if (result_type() == ROW_RESULT)
+    {
+      /*
+        The condition in the "if" above catches the *intentional* difference
+        in the chart lines 3,4,5 (between a single row subselect and a stored
+        function returning ROW). Thus the condition makes #6 work in the same
+        way. See (*) in the beginning of the comment why the difference is
+        intentional.
+      */
+      execute();
+    }
+  }
+
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   {
-    return result_type() != STRING_RESULT ?
-           sp_result_field :
-           create_table_field_from_handler(root, table);
+    /*
+      The below call makes execution go through
+      type_handler()->make_table_field() which in case of SYS_REFCURSOR:
+        CREATE TABLE t1 AS SELECT stored_function_returning_sys_refcursor();
+      produces an error:
+       Illegal parameter data type sys_refcursor for operation 'CREATE TABLE'
+    */
+    return create_table_field_from_handler(root, table);
   }
   void make_send_field(THD *thd, Send_field *tmp_field) override;
 
@@ -3943,6 +4407,20 @@ public:
     return (null_value= sp_result_field->val_native(to));
   }
 
+  Type_ref_null val_ref(THD *thd) override
+  {
+    const Type_ref_null ref= execute() ? Type_ref_null() :
+                                         sp_result_field->val_ref(thd);
+    if (with_complex_data_types())
+      expr_event_handler_args(thd, expr_event_t::DESTRUCT_ROUTINE_ARG);
+    return ref;
+  }
+  void expr_event_handler(THD *thd, expr_event_t event) override
+  {
+    if (with_complex_data_types())
+      sp_result_field->expr_event_handler(thd, event);
+  }
+
   void update_null_value() override
   { 
     execute();
@@ -3971,7 +4449,9 @@ public:
   {
     return TRUE;
   }
-  Item *get_copy(THD *) override { return 0; }
+protected:
+  Item *shallow_copy(THD *thd) const override { return 0; }
+public:
   bool eval_not_null_tables(void *opt_arg) override
   {
     not_null_tables_cache= 0;
@@ -4002,11 +4482,15 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_found_rows>(thd, this); }
 };
 
@@ -4029,7 +4513,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_oracle_sql_rowcount>(thd, this); }
 };
 
@@ -4059,7 +4544,11 @@ public:
     max_length= 11;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqlcode>(thd, this); }
 };
 
@@ -4086,7 +4575,8 @@ public:
     return mark_unsupported_function(func_name(), "()", arg,
                                      VCOL_NON_DETERMINISTIC);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid_short>(thd, this); }
 };
 
@@ -4103,6 +4593,7 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *) override;
+  Type_ref_null val_ref(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4121,13 +4612,14 @@ public:
     return false;
   }
   bool const_item() const override { return 0; }
-  void evaluate_sideeffects();
+  void evaluate_sideeffects(THD *thd);
   void update_used_tables() override
   {
     Item_func::update_used_tables();
     copy_flags(last_value, item_base_t::MAYBE_NULL);
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_last_value>(thd, this); }
 };
 
@@ -4139,18 +4631,29 @@ class Item_func_nextval :public Item_longlong_func
 protected:
   TABLE_LIST *table_list;
   TABLE *table;
+  bool print_table_list_identifier(THD *thd, String *to) const;
+  bool check_access(THD *, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
-  Item_longlong_func(thd), table_list(table_list_arg) {}
+  Item_longlong_func(thd), table_list(table_list_arg), table(0) {}
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("nextval") };
     return name;
   }
+  bool fix_fields(THD *thd, Item **ref) override
+  {
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    return (table_list->table && check_sequence_privileges(thd)) ||
+           Item_longlong_func::fix_fields(thd, ref);
+  }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL | SELECT_ACL); }
   bool fix_length_and_dec(THD *thd) override
   {
-    unsigned_flag= 0;
+    if (table_list->table)
+      unsigned_flag= table_list->table->s->sequence->is_unsigned;
     max_length= MAX_BIGINT_WIDTH;
     set_maybe_null();             /* In case of errors */
     return FALSE;
@@ -4162,18 +4665,14 @@ public:
   */
   void update_table()
   {
-    if (!(table= table_list->table))
-    {
-      /*
-        If nextval was used in DEFAULT then next_local points to
-        the table_list used by to open the sequence table
-      */
-      table= table_list->next_local->table;
-    }
+    table= table_list->table;
+    DBUG_ASSERT(table);
   }
   bool const_item() const override { return 0; }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_nextval>(thd, this); }
+public:
   void print(String *str, enum_query_type query_type) override;
   bool check_vcol_func_processor(void *arg) override
   {
@@ -4189,13 +4688,16 @@ class Item_func_lastval :public Item_func_nextval
 public:
   Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
   Item_func_nextval(thd, table_list_arg) {}
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, SELECT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("lastval") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_lastval>(thd, this); }
 };
 
@@ -4204,15 +4706,17 @@ public:
 
 class Item_func_setval :public Item_func_nextval
 {
-  longlong nextval;
+  Longlong_hybrid nextval;
   ulonglong round;
   bool is_used;
 public:
-  Item_func_setval(THD *thd, TABLE_LIST *table_list_arg, longlong nextval_arg,
+  Item_func_setval(THD *thd, TABLE_LIST *table_list_arg, Longlong_hybrid nextval_arg,
                    ulonglong round_arg, bool is_used_arg)
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4220,10 +4724,12 @@ public:
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_setval>(thd, this); }
 };
 
+class Interruptible_wait;
 
 Item *get_system_var(THD *thd, enum_var_type var_type,
                      const LEX_CSTRING *name, const LEX_CSTRING *component);
@@ -4234,7 +4740,6 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
 extern bool volatile  mqh_used;
 
 bool update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
-                 Item_result type, CHARSET_INFO *cs,
-                 bool unsigned_arg);
+                 const Type_handler *th, CHARSET_INFO *cs);
 
 #endif /* ITEM_FUNC_INCLUDED */

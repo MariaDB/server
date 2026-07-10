@@ -25,3 +25,14 @@ from information_schema.session_status join t1 using (variable_name);
 set @@use_stat_tables= @save_use_stat_tables;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
+
+--echo #
+--echo # MDEV-36138 Server null-pointer crash at startup when tmptables left in --tmpdir
+--echo #
+
+create table t1 (c int);
+let $MYSQLD_TMPDIR=`SELECT @@tmpdir`;
+let $MYSQLD_DATADIR=`SELECT @@datadir`;
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_TMPDIR/#sqlt1.frm
+drop table t1;
+--source include/restart_mysqld.inc

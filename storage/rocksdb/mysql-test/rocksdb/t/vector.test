@@ -1,0 +1,5 @@
+--source include/have_rocksdb.inc
+
+--echo # RocksDB doesn't support VECTOR yet
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1(v vector(1) not null, vector index(v)) engine=rocksdb;

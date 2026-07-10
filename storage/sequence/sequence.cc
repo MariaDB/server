@@ -34,20 +34,21 @@ static handlerton *sequence_hton;
 
 class Sequence_share : public Handler_share {
 public:
-  const char *name;
+  Lex_ident_table name;
   THR_LOCK lock;
 
   ulonglong from, to, step;
   bool reverse;
 
-  Sequence_share(const char *name_arg, ulonglong from_arg, ulonglong to_arg,
+  Sequence_share(const Lex_ident_table &name_arg,
+                 ulonglong from_arg, ulonglong to_arg,
                  ulonglong step_arg, bool reverse_arg):
     name(name_arg), from(from_arg), to(to_arg), step(step_arg),
     reverse(reverse_arg)
   {
     thr_lock_init(&lock);
   }
-  ~Sequence_share()
+  ~Sequence_share() override
   {
     thr_lock_delete(&lock);
   }
@@ -64,45 +65,53 @@ public:
   Sequence_share *seqs;
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
-  ulonglong table_flags() const
+  ulonglong table_flags() const override
   { return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE; }
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info)
+             HA_CREATE_INFO *create_info) override
   { return HA_ERR_WRONG_COMMAND; }
 
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
-  int delete_table(const char *name)
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int delete_table(const char *name) override
   {
     return 0;
   }
-  THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type);
+  THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type)
+    override;
 
   /* table scan */
-  int rnd_init(bool scan);
-  int rnd_next(unsigned char *buf);
-  void position(const uchar *record);
-  int rnd_pos(uchar *buf, uchar *pos);
-  int info(uint flag);
-
+  int rnd_init(bool scan) override;
+  int rnd_next(unsigned char *buf) override;
+  void position(const uchar *record) override;
+  int rnd_pos(uchar *buf, uchar *pos) override;
+  int info(uint flag) override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override
+  {
+    /* Avoids assert in total_cost() and makes DBUG_PRINT more consistent */
+    return {0,0};
+  }
+  IO_AND_CPU_COST scan_time() override
+  {
+    /* Avoids assert in total_cost() and makes DBUG_PRINT more consistent */
+    return {0, 0};
+  }
   /* indexes */
-  ulong index_flags(uint inx, uint part, bool all_parts) const
+  ulong index_flags(uint inx, uint part, bool all_parts) const override
   { return HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER |
            HA_READ_RANGE | HA_KEYREAD_ONLY; }
-  uint max_supported_keys() const { return 1; }
+  uint max_supported_keys() const override { return 1; }
   int index_read_map(uchar *buf, const uchar *key, key_part_map keypart_map,
-                     enum ha_rkey_function find_flag);
-  int index_next(uchar *buf);
-  int index_prev(uchar *buf);
-  int index_first(uchar *buf);
-  int index_last(uchar *buf);
+                     enum ha_rkey_function find_flag) override;
+  int index_next(uchar *buf) override;
+  int index_prev(uchar *buf) override;
+  int index_first(uchar *buf) override;
+  int index_last(uchar *buf) override;
   ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
-  double scan_time() { return (double)nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
+                           const key_range *end_key, page_range *pages) override;
 
 private:
   void set(uchar *buf);
@@ -255,7 +264,7 @@ int ha_seq::open(const char *name, int mode, uint test_if_locked)
 {
   if (!(seqs= get_share()))
     return HA_ERR_OUT_OF_MEM;
-  DBUG_ASSERT(my_strcasecmp(table_alias_charset, name, seqs->name) == 0);
+  DBUG_ASSERT(seqs->name.streq(Lex_cstring_strlen(name)));
 
   ref_length= sizeof(cur);
   thr_lock_data_init(&seqs->lock,&lock,NULL);
@@ -320,7 +329,8 @@ Sequence_share *ha_seq::get_share()
 
     to= (to - from) / step * step + step + from;
 
-    tmp_share= new Sequence_share(table_share->normalized_path.str, from, to, step, reverse);
+    tmp_share= new Sequence_share(Lex_ident_table(table_share->normalized_path),
+                                  from, to, step, reverse);
 
     if (!tmp_share)
       goto err;
@@ -354,10 +364,6 @@ static int discover_table_existence(handlerton *hton, const char *db,
   return !parse_table_name(table_name, strlen(table_name), &from, &to, &step);
 }
 
-static int dummy_commit_rollback(handlerton *, THD *, bool) { return 0; }
-
-static int dummy_savepoint(handlerton *, THD *, void *) { return 0; }
-
 /*****************************************************************************
   Example of a simple group by handler for queries like:
   SELECT SUM(seq) from sequence_table;
@@ -382,10 +388,10 @@ public:
       // Reset limit because we are handling it now
       orig_lim->set_unlimited();
     }
-  ~ha_seq_group_by_handler() = default;
-  int init_scan() { first_row= 1 ; return 0; }
-  int next_row();
-  int end_scan()  { return 0; }
+  ~ha_seq_group_by_handler() override = default;
+  int init_scan() override { first_row= 1 ; return 0; }
+  int next_row() override;
+  int end_scan() override  { return 0; }
 };
 
 static group_by_handler *
@@ -492,6 +498,17 @@ int ha_seq_group_by_handler::next_row()
   DBUG_RETURN(0);
 }
 
+static void sequence_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  costs->disk_read_cost= 0;
+  costs->disk_read_ratio= 0.0;                // No disk
+  costs->key_next_find_cost=
+    costs->key_lookup_cost=
+    costs->key_copy_cost=
+    costs->row_next_find_cost=
+    costs->row_lookup_cost=
+    costs->row_copy_cost= 0.0000062391530550;
+}
 
 /*****************************************************************************
   Initialize the interface between the sequence engine and MariaDB
@@ -514,10 +531,12 @@ static int init(void *p)
   hton->drop_table= drop_table;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
-  hton->commit= hton->rollback= dummy_commit_rollback;
+  hton->commit= hton->rollback= [](THD *, bool) { return 0; };
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
-    dummy_savepoint;
+    [](THD *, void *) { return 0; };
+
   hton->create_group_by= create_group_by_handler;
+  hton->update_optimizer_costs= sequence_update_optimizer_costs;
   return 0;
 }
 

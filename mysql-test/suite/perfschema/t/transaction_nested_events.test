@@ -374,9 +374,7 @@ eval SET @all_threads= 0;
 --echo #=======================================================================
 --echo # Cleanup
 --echo #=======================================================================
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
 --connection default
 DROP DATABASE db;
 UPDATE performance_schema.setup_instruments SET enabled='YES', timed='YES';

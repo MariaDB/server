@@ -14,7 +14,7 @@
 namespace dena {
 
 struct hstcpsvr_worker_i;
-typedef std::auto_ptr<hstcpsvr_worker_i> hstcpsvr_worker_ptr;
+typedef std::unique_ptr<hstcpsvr_worker_i> hstcpsvr_worker_ptr;
 
 struct hstcpsvr_worker_arg {
   const hstcpsvr_shared_c *cshared;

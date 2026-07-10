@@ -4,11 +4,6 @@
 --source include/have_debug.inc
 
 
---connection server_2
---source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid= current_pos;
---source include/start_slave.inc
-
 --connection server_1
 CREATE TABLE t1 (a INT);
 FLUSH LOGS;
@@ -60,6 +55,7 @@ SET GLOBAL gtid_slave_pos= "";
 --connection server_1
 SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # A1 B1 A2 B2 A3 B3, slave reached A1 and B3 and stopped. Slave starts,
@@ -106,6 +102,7 @@ SET GLOBAL gtid_slave_pos= "";
 --connection server_1
 SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # A1 B1 A2 B2 A3 B3. START SLAVE UNTIL A1,B3, gets reconnect at B2.
@@ -159,6 +156,7 @@ SET GLOBAL gtid_slave_pos= "";
 --connection server_1
 SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --source include/kill_binlog_dump_threads.inc

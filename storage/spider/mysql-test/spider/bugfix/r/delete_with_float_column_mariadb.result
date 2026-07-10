@@ -5,6 +5,7 @@ child2_2
 child2_3
 for child3
 for slave1_1
+include/start_slave.inc
 connection slave1_1;
 connection master_1;
 set @old_binlog_format= @@binlog_format;
@@ -43,6 +44,8 @@ pkey int NOT NULL,
 f float DEFAULT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT INTO tbl_a (pkey, f) VALUES (0,NULL);
 INSERT INTO tbl_a (pkey, f) VALUES (1,0.671437);

@@ -3,8 +3,8 @@
 --source include/have_debug_sync.inc
 --source include/have_sequence.inc
 
-SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
@@ -91,7 +91,7 @@ CREATE TABLE t9 (
  c8 VARCHAR(257) CHARACTER SET binary
 ) ENGINE=InnoDB;
 INSERT INTO t9 () VALUES ();
-ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL KEY;
+ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml';
 --send
 OPTIMIZE TABLE t9;
@@ -200,7 +200,7 @@ COMMIT;
 connection default;
 
 # Wait for purge to empty the table.
-let $wait_all_purged=2;
+let $wait_all_purged=1;
 --source include/wait_all_purged.inc
 let $wait_all_purged=0;
 
@@ -324,11 +324,6 @@ INSERT INTO t1 VALUES (1),(5),(4),(3),(2);
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
 
 ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
-
-SET @old_defragment = @@innodb_defragment;
-SET GLOBAL innodb_defragment = 1;
-OPTIMIZE TABLE t1;
-SET GLOBAL innodb_defragment = @old_defragment;
 
 # Exploit MDEV-17468 to force the table definition to be reloaded
 ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
@@ -551,11 +546,62 @@ SET DEBUG_SYNC="now WAIT_FOR try_insert";
 --error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1 VALUES(1, 2);
 SET DEBUG_SYNC="now SIGNAL alter_progress";
-disconnect con1;
 connection default;
 reap;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-26198 Assertion `0' failed in row_log_table_apply_op during
+--echo #                ADD PRIMARY KEY or OPTIMIZE TABLE
+--echo #
+CREATE TABLE t1(f1 year default null, f2 year default null,
+                f3 text, f4 year default null, f5 year default null,
+                f6 year default null, f7 year default null,
+                f8 year default null)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, 1, 1, 1, 1, 1, 1);
+ALTER TABLE t1 ADD COLUMN f9 year default null, ALGORITHM=INPLACE;
+set DEBUG_SYNC="row_log_table_apply1_before SIGNAL con1_insert WAIT_FOR con1_finish";
+send ALTER TABLE t1 ADD COLUMN f10 YEAR DEFAULT NULL, FORCE, ALGORITHM=INPLACE;
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_insert";
+INSERT IGNORE INTO t1 (f3) VALUES ( 'b' );
+INSERT IGNORE INTO t1 (f3) VALUES ( 'l' );
+SET DEBUG_SYNC="now SIGNAL con1_finish";
+
+connection default;
+reap;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19044 Alter table corrupts while applying the
+--echo #             modification log
+--echo #
+CREATE TABLE t1 (
+        f1 INT,
+        f2 INT,
+        f3 char(19) CHARACTER SET utf8mb3,
+        f4 VARCHAR(500),
+        f5 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(3, 1, REPEAT('a', 2), REPEAT("b", 20),'a');
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(1, 2, REPEAT('InnoDB', 2),
+                      REPEAT("MariaDB", 20), REPEAT('a', 8000), 12);
+INSERT INTO t1 VALUES(1, 2, REPEAT('MYSQL', 2),
+                      REPEAT("MariaDB", 20), REPEAT('a', 8000), 12);
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL con1_begin WAIT_FOR con1_update';
+send ALTER TABLE t1 MODIFY COLUMN f2 INT NOT NULL, FORCE, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR con1_begin';
+UPDATE t1 SET f2=204 order by f1 limit 2;
+SET DEBUG_SYNC='now SIGNAL con1_update';
+connection default;
+reap;
+disconnect con1;
 SET DEBUG_SYNC=reset;
+CHECK TABLE t1;
+DROP TABLE t1;
 
 --echo # End of 10.4 tests
 
@@ -606,9 +652,19 @@ DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 
 --echo # End of 10.5 tests
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
-
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
+
+CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'a');
+ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;
+--error ER_INTERNAL_ERROR
+SET STATEMENT DEBUG_DBUG="+d,instant_insert_fail" FOR
+ALTER TABLE t1 DROP COLUMN f1;
+ALTER TABLE t1 DROP COLUMN f1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+--echo # End of 10.6 tests

@@ -1,0 +1,17 @@
+#
+# MDEV-32753 Spider engine does not load in ORACLE mode
+#
+set @old_sql_mode=@@sql_mode;
+SET @@sql_mode = CONCAT(@@sql_mode, ',ORACLE');
+install soname 'ha_spider';
+select * from mysql.plugin;
+name	dl
+SPIDER	ha_spider.so
+SPIDER_ALLOC_MEM	ha_spider.so
+SPIDER_WRAPPER_PROTOCOLS	ha_spider.so
+create table t (c int) Engine=SPIDER;
+drop table t;
+set sql_mode=@old_sql_mode;
+#
+# end of test mdev_32753_after_start
+#

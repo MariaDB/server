@@ -1,3 +1,4 @@
+call mtr.add_suppression('Event Scheduler: .* Duplicate entry');
 SET GLOBAL event_scheduler=1;
 CREATE TABLE t1 (a int primary key, b int) engine=innodb;
 insert into t1 values (1,1),(2,2),(3,3);

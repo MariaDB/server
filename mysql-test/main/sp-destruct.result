@@ -1,4 +1,4 @@
-call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted");
+call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 22, found 21. The table is probably corrupted");
 call mtr.add_suppression("Stored routine .test...bug14233_[123].: invalid value in column mysql.proc");
 flush table mysql.proc;
 use test;
@@ -14,13 +14,13 @@ create table t1 (id int);
 create trigger t1_ai after insert on t1 for each row call bug14233();
 alter table mysql.proc drop security_type;
 call bug14233();
-ERROR HY000: Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
+ERROR HY000: Column count of mysql.proc is wrong. Expected 22, found 21. The table is probably corrupted
 create view v1 as select bug14233_f();
-ERROR HY000: Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
+ERROR HY000: Column count of mysql.proc is wrong. Expected 22, found 21. The table is probably corrupted
 insert into t1 values (0);
-ERROR HY000: Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
+ERROR HY000: Column count of mysql.proc is wrong. Expected 22, found 21. The table is probably corrupted
 show procedure status;
-ERROR HY000: Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
+ERROR HY000: Column count of mysql.proc is wrong. Expected 22, found 21. The table is probably corrupted
 flush table mysql.proc;
 call bug14233();
 ERROR HY000: Incorrect information in file: './mysql/proc.frm'
@@ -135,7 +135,7 @@ SET @foo = 10;
 CALL p1();
 SHOW PROCEDURE STATUS;
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	p1	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	p1	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 # Modify a field of the table.
 ALTER TABLE mysql.proc MODIFY comment CHAR (32);
 CREATE PROCEDURE p2()
@@ -176,7 +176,7 @@ alter table mysql.proc drop column security_type;
 # The below statement should not cause assertion failure.
 drop database mysqltest;
 Warnings:
-Error	1805	Column count of mysql.proc is wrong. Expected 21, found 20. The table is probably corrupted
+Error	1805	Column count of mysql.proc is wrong. Expected 22, found 21. The table is probably corrupted
 # Restore mysql.proc.
 drop table mysql.proc;
 #
@@ -242,6 +242,7 @@ CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
 DTD_IDENTIFIER	int(11)
 ROUTINE_TYPE	FUNCTION
+PARAMETER_DEFAULT	NULL
 SPECIFIC_CATALOG	def
 SPECIFIC_SCHEMA	test
 SPECIFIC_NAME	f2
@@ -258,6 +259,7 @@ CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
 DTD_IDENTIFIER	int(11)
 ROUTINE_TYPE	FUNCTION
+PARAMETER_DEFAULT	NULL
 UPDATE mysql.proc SET type='FUNCTION' WHERE name='f1' AND db='test';
 EXECUTE IMMEDIATE CONCAT('ALTER TABLE mysql.proc MODIFY type ', @type0);
 SHOW COLUMNS IN mysql.proc LIKE 'type';

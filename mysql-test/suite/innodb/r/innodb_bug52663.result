@@ -1,10 +1,11 @@
+SET @save_innodb_timeout=@@innodb_lock_wait_timeout;
+SET GLOBAL innodb_lock_wait_timeout=1;
 set session transaction isolation level read committed;
 create table innodb_bug52663 (what varchar(5), id integer, count integer, primary key
 (what, id)) engine=innodb;
 insert into innodb_bug52663 values ('total', 0, 0);
 begin;
 connect  addconroot, localhost, root,,;
-connection addconroot;
 set session transaction isolation level read committed;
 begin;
 connection default;
@@ -31,3 +32,4 @@ select * from innodb_bug52663;
 what	id	count
 total	0	2
 drop table innodb_bug52663;
+SET GLOBAL innodb_lock_wait_timeout=@save_innodb_timeout;

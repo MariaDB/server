@@ -34,7 +34,6 @@
 #include "pfs_timer.h"
 #include "sp_head.h" /* TYPE_ENUM_FUNCTION, ... */
 #include "table_helper.h"
-#include "my_md5.h"
 #include "pfs_buffer_container.h"
 
 THR_LOCK table_events_statements_current::m_table_lock;
@@ -236,7 +235,9 @@ table_events_statements_common::table_events_statements_common
 (const PFS_engine_table_share *share, void *pos)
   : PFS_engine_table(share, pos),
   m_row_exists(false)
-{}
+{
+  m_normalizer = time_normalizer::get_statement();
+}
 
 /**
   Build a row.
@@ -264,7 +265,7 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
 
   if (m_row.m_end_event_id == 0)
   {
-    timer_end= get_timer_raw_value(statement_timer);
+    timer_end = get_statement_timer();
   }
   else
   {
@@ -366,10 +367,11 @@ void table_events_statements_common::make_row_part_2(const sql_digest_storage *d
   if (safe_byte_count > 0 &&
       safe_byte_count <= pfs_max_digest_length)
   {
-    /* Generate the DIGEST string from the MD5 digest  */
-    MD5_HASH_TO_STRING(digest->m_md5,
-                       m_row.m_digest.m_digest);
-    m_row.m_digest.m_digest_length= MD5_HASH_TO_STRING_LENGTH;
+    /* Generate the DIGEST string from the digest */
+    DIGEST_HASH_TO_STRING(digest->m_hash,
+                       m_row.m_digest.m_digest,
+                       sizeof(m_row.m_digest.m_digest));
+    m_row.m_digest.m_digest_length= DIGEST_HASH_TO_STRING_LENGTH;
 
     /* Generate the DIGEST_TEXT string from the token array */
     compute_digest_text(digest, &m_row.m_digest.m_digest_text);
@@ -612,7 +614,6 @@ void table_events_statements_current::reset_position(void)
 
 int table_events_statements_current::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(statement_timer);
   return 0;
 }
 
@@ -749,7 +750,6 @@ void table_events_statements_history::reset_position(void)
 
 int table_events_statements_history::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(statement_timer);
   return 0;
 }
 
@@ -877,7 +877,6 @@ void table_events_statements_history_long::reset_position(void)
 
 int table_events_statements_history_long::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(statement_timer);
   return 0;
 }
 

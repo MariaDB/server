@@ -210,6 +210,11 @@ static int run_test(const char *filename)
     if (!silent)
       printf("- Updating rows\n");
 
+    create_key(key, j);
+    if ((mi_rkey(file, read_record, 0, key,
+                 HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
+      printf("Can't find last written row with mi_rkey\n");
+
     /* Update first last row to force extend of file */
     if (mi_rsame(file,read_record,-1))
     {
@@ -340,14 +345,14 @@ static void create_key_part(uchar *key,uint rownr)
     rownr&=7;					/* Some identical keys */
   if (keyinfo[0].seg[0].type == HA_KEYTYPE_NUM)
   {
-    sprintf((char*) key,"%*d",keyinfo[0].seg[0].length,rownr);
+    snprintf((char*) key, UINT_MAX, "%*d",keyinfo[0].seg[0].length,rownr);
   }
   else if (keyinfo[0].seg[0].type == HA_KEYTYPE_VARTEXT1 ||
            keyinfo[0].seg[0].type == HA_KEYTYPE_VARTEXT2)
   {						/* Alpha record */
     /* Create a key that may be easily packed */
     bfill(key,keyinfo[0].seg[0].length,rownr < 10 ? 'A' : 'B');
-    sprintf((char*) key+keyinfo[0].seg[0].length-2,"%-2d",rownr);
+    snprintf((char*) key+keyinfo[0].seg[0].length-2, 3, "%-2d",rownr);
     if ((rownr & 7) == 0)
     {
       /* Change the key to force a unpack of the next key */
@@ -357,12 +362,12 @@ static void create_key_part(uchar *key,uint rownr)
   else
   {						/* Alpha record */
     if (keyinfo[0].seg[0].flag & HA_SPACE_PACK)
-      sprintf((char*) key,"%-*d",keyinfo[0].seg[0].length,rownr);
+      snprintf((char*) key, keyinfo[0].seg[0].length + 1, "%-*d",keyinfo[0].seg[0].length,rownr);
     else
     {
       /* Create a key that may be easily packed */
       bfill(key,keyinfo[0].seg[0].length,rownr < 10 ? 'A' : 'B');
-      sprintf((char*) key+keyinfo[0].seg[0].length-2,"%-2d",rownr);
+      snprintf((char*) key+keyinfo[0].seg[0].length-2, 3, "%-2d",rownr);
       if ((rownr & 7) == 0)
       {
 	/* Change the key to force a unpack of the next key */
@@ -380,7 +385,7 @@ static void create_key(uchar *key,uint rownr)
     if (rownr == 0)
     {
       key[0]=1;					/* null key */
-      key[1]=0;					/* Fore easy print of key */
+      key[1]=0;					/* For easy print of key */
       return;
     }
     *key++=0;
@@ -441,7 +446,7 @@ static void create_record(uchar *record,uint rownr)
   {
     size_t tmp;
     uchar *ptr;;
-    sprintf((char*) blob_record,"... row: %d", rownr);
+    snprintf((char*) blob_record, sizeof(blob_record), "... row: %d", rownr);
     strappend((char*) blob_record,MY_MAX(MAX_REC_LENGTH-rownr,10),' ');
     tmp=strlen((char*) blob_record);
     int4store(pos,tmp);
@@ -451,7 +456,7 @@ static void create_record(uchar *record,uint rownr)
   else if (recinfo[2].type == FIELD_VARCHAR)
   {
     size_t tmp, pack_length= HA_VARCHAR_PACKLENGTH(recinfo[1].length-1);
-    sprintf((char*) pos+pack_length, "... row: %d", rownr);
+    snprintf((char*) pos+pack_length, MAX_REC_LENGTH, "... row: %d", rownr);
     tmp= strlen((char*) pos+pack_length);
     if (pack_length == 1)
       *pos= (uchar) tmp;
@@ -460,7 +465,7 @@ static void create_record(uchar *record,uint rownr)
   }
   else
   {
-    sprintf((char*) pos,"... row: %d", rownr);
+    snprintf((char*) pos, MAX_REC_LENGTH, "... row: %d", rownr);
     strappend((char*) pos,recinfo[2].length,' ');
   }
 }

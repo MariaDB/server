@@ -34,7 +34,6 @@
 #include "pfs_host.h"
 #include "pfs_account.h"
 #include "pfs_events_waits.h"
-#include "pfs_atomic.h"
 #include "pfs_buffer_container.h"
 #include "pfs_builtin_memory.h"
 #include "m_string.h"
@@ -66,7 +65,7 @@ int init_events_waits_history_long(uint events_waits_history_long_sizing)
 {
   events_waits_history_long_size= events_waits_history_long_sizing;
   events_waits_history_long_full= false;
-  PFS_atomic::store_u32(&events_waits_history_long_index.m_u32, 0);
+  events_waits_history_long_index.m_u32.store(0);
 
   if (events_waits_history_long_size == 0)
     return 0;
@@ -135,7 +134,7 @@ void insert_events_waits_history_long(PFS_events_waits *wait)
   if (unlikely(events_waits_history_long_size == 0))
     return;
 
-  uint index= PFS_atomic::add_u32(&events_waits_history_long_index.m_u32, 1);
+  uint index= events_waits_history_long_index.m_u32.fetch_add(1);
 
   index= index % events_waits_history_long_size;
   if (index == 0)
@@ -181,7 +180,7 @@ void reset_events_waits_history(void)
 /** Reset table EVENTS_WAITS_HISTORY_LONG data. */
 void reset_events_waits_history_long(void)
 {
-  PFS_atomic::store_u32(&events_waits_history_long_index.m_u32, 0);
+  events_waits_history_long_index.m_u32.store(0);
   events_waits_history_long_full= false;
 
   PFS_events_waits *wait= events_waits_history_long_array;

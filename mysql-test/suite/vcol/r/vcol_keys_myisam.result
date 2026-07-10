@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -30,7 +30,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -59,7 +59,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -72,7 +72,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `a` (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -209,6 +209,25 @@ INDEX(vc(32))
 );
 DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
 DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 FROM seq_1_to_2 ;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+a
+1
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 UNION SELECT 1;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
 #
 # Original test
 #
@@ -224,9 +243,9 @@ a	b	c
 
 MyISAM file:         datadir/test/t1
 Record format:       Fixed length
-Character set:       latin1_swedish_ci (8)
-Data records:                 1001  Deleted blocks:                 0
-Recordlength:                    9
+Character set:       ? (0)
+Data records:                   1001  Deleted blocks:                      0
+Recordlength:                      9
 
 table description:
 Key Start Len Index   Type
@@ -418,3 +437,40 @@ create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk
 insert into t2 (pk) select a from t1;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 drop tables t1, t2;
+#
+# MDEV-23294 Segfault or assertion upon MyISAM repair
+#
+set @old_mode= @@sql_mode;
+set @old_myisam_repair_threads= @@myisam_repair_threads;
+set sql_mode='', myisam_repair_threads=2;
+create table t (a binary,b blob,c blob as (concat (a,b)),h char,index (c)) engine=innodb;
+Warnings:
+Warning	1286	Unknown storage engine 'innodb'
+Warning	1266	Using storage engine MyISAM for table 't'
+Note	1071	Specified key was too long; max key length is 1000 bytes
+insert into t values (0,0,default,0);
+create table ti like t;
+alter table ti engine=myisam;
+insert into ti select * from t;
+Warnings:
+Warning	1906	The value specified for generated column 'c' in table 'ti' has been ignored
+drop tables ti, t;
+create table t (id int,a varchar(1),b varchar(1),c varchar(1) generated always as (concat (a,b)),key(c)) engine=myisam;
+insert into t values (0,0,9687,0);
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1265	Data truncated for column 'c' at row 1
+repair table t quick;
+Table	Op	Msg_type	Msg_text
+test.t	repair	status	OK
+drop table t;
+create table t1 (b varchar(1024), c char(3), unique(b,c)) engine=myisam;
+insert into t1 values ('foo','baz');
+alter table t1 disable keys;
+set session myisam_repair_threads= 2;
+insert into t1 select 'qux';
+ERROR 21S01: Column count doesn't match value count at row 1
+drop table t1;
+set sql_mode= @old_mode;
+set myisam_repair_threads= @old_myisam_repair_threads;

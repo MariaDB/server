@@ -13,4 +13,3 @@ wsrep_gtid_mode=ON
 server-id=12
 log_slave_updates
 log_bin
-

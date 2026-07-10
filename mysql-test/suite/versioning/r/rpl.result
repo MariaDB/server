@@ -1,6 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+set @@session.time_zone='+00:00';
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
 insert into t1 values (1);
@@ -128,7 +129,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 ## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
 connection master;
 set system_versioning_alter_history= ERROR;
@@ -140,7 +141,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 ## Case 3: table is not versioned on the master, ALTER will work on the slave
 connection master;
 create or replace table t1 (a int);
@@ -154,7 +155,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 connection master;
 drop table t1, t2;
 create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
@@ -251,7 +252,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -259,7 +260,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -281,7 +282,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 01:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -289,7 +290,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 01:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -307,7 +308,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 02:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -316,7 +317,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 02:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -335,7 +336,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 03:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -344,7 +345,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 03:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -361,7 +362,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 04:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -369,7 +370,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 04:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -386,7 +387,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 05:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -394,7 +395,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 05:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -413,7 +414,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 06:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -421,7 +422,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 06:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -440,7 +441,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 07:00:00' AUTO
 PARTITIONS 3
 connection slave;
@@ -448,7 +449,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2001-01-01 07:00:00' AUTO
 PARTITIONS 3
 connection master;
@@ -457,4 +458,87 @@ connection slave;
 connection master;
 drop tables t, t2;
 set timestamp= default;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+create table t1(x int) with system versioning;
+insert into t1(x) values (1);
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+ERROR 42S22: Unknown column 'row_start' in 'INSERT INTO'
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+update t1 set x= x + 1;
+connection slave;
+set @@session.time_zone='+00:00';
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t1 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+## INSERT..SELECT
+connection master;
+create or replace table t2 like t1;
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+connection slave;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+# LOAD DATA
+connection master;
+select x, row_start, row_end into outfile 'DATAFILE' from t1 for system_time all;
+create or replace table t3 like t1;
+set @@system_versioning_insert_history= 1;
+load data infile 'DATAFILE' into table t3 (x, row_start, row_end);
+connection slave;
+select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+3	HISTORICAL ROW
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+row_start = '1980-01-01 00:00:00'	row_end = '1980-01-01 00:00:01'
+1	1
+# why a slave cannot have system_versioning_insert_history always on
+connection master;
+set @@system_versioning_insert_history= 0;
+set sql_mode='';
+create or replace table t1 (a int,
+rs timestamp(6) as row start, re timestamp(6) as row end,
+period for system_time (rs,re)) with system versioning;
+insert t1 values (1, '2000-01-01 02:03:04', '2001-01-01 02:03.04');
+Warnings:
+Warning	1906	The value specified for generated column 'rs' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 're' in table 't1' has been ignored
+select a,check_row_ts(rs,re) from t1 for system_time all;
+a	check_row_ts(rs,re)
+1	CURRENT ROW
+connection slave;
+select a,check_row_ts(rs,re) from t1 for system_time all;
+a	check_row_ts(rs,re)
+1	CURRENT ROW
+set sql_mode=default;
+connection master;
+drop tables t1, t2, t3;
+#
+# MDEV-33330 Server crash or assertion failure in
+# binlog_get_pending_rows_event
+#
+create or replace table t (x int) with system versioning
+partition by system_time interval 1 minute auto partitions 3;
+insert into t values (1);
+connect  con1,localhost,root,,;
+set timestamp= @@timestamp+120;
+update t set x= x + 1;
+connection default;
+disconnect con1;
+drop table t;
 include/rpl_end.inc

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,54 +24,45 @@ The database buffer read
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0rea_h
-#define buf0rea_h
+#pragma once
 
 #include "buf0buf.h"
 
-/** High-level function which reads a page asynchronously from a file to the
-buffer buf_pool if it is not already there. Sets the io_fix flag and sets
-an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param page_id   page id
-@param zip_size  ROW_FORMAT=COMPRESSED page size, or 0
-@retval DB_SUCCESS if the page was read and is not corrupted
-@retval DB_SUCCESS_LOCKED_REC if the page was not read
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, ulint zip_size);
+/** Read a page synchronously from a file. buf_page_t::read_complete()
+will be invoked on read completion.
+@param page_id   page identifier
+@param chain     buf_pool.page_hash cell for page_id
+@param err       error code: DB_SUCCESS if the page was successfully read,
+DB_SUCCESS_LOCKED_REC if the page was not read,
+DB_PAGE_CORRUPTED on page checksum mismatch,
+DB_DECRYPTION_FAILED if page post encryption checksum matches but
+after decryption normal page checksum does not match,
+DB_TABLESPACE_DELETED if tablespace .ibd file is missing
+@param unzip     whether to decompress ROW_FORMAT=COMPRESSED pages
+@return buffer-fixed block (*err may be set to DB_SUCCESS_LOCKED_REC)
+@retval nullptr if the page is not available (*err will be set) */
+buf_block_t *buf_read_page(const page_id_t page_id, dberr_t *err,
+                           buf_pool_t::hash_chain &chain, bool unzip= true)
+  noexcept;
 
-/** High-level function which reads a page asynchronously from a file to the
-buffer buf_pool if it is not already there. Sets the io_fix flag and sets
-an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param[in,out]	space		tablespace
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
-void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
-  MY_ATTRIBUTE((nonnull));
+/** Read a page asynchronously into buf_pool if it is not already there.
+@param page_id page identifier
+@param space   tablespace
+@param trx     transaction */
+void buf_read_page_background(const page_id_t page_id, fil_space_t *space,
+                              trx_t *trx) noexcept
+  MY_ATTRIBUTE((nonnull(2)));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
 value of accessed pages from the random read-ahead area. Does not read any
 page, not even the one at the position (space, offset), if the read-ahead
-mechanism is not activated. NOTE 1: the calling thread may own latches on
+mechanism is not activated. NOTE: the calling thread may own latches on
 pages: to avoid deadlocks this function must be written such that it cannot
-end up waiting for these latches! NOTE 2: the calling thread must want
-access to the page given: this rule is set to prevent unintended read-aheads
-performed by ibuf routines, a situation which could result in a deadlock if
-the OS does not support asynchronous i/o.
+end up waiting for these latches!
 @param[in]	page_id		page id of a page which the current thread
 wants to access
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	ibuf		whether we are inside ibuf routine
-@return number of page read requests issued; NOTE that if we read ibuf
-pages, it may happen that the page at the given page number does not
-get read even if we return a positive value! */
-ulint
-buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf);
+@return number of page read requests issued */
+ulint buf_read_ahead_random(const page_id_t page_id) noexcept;
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
@@ -92,29 +83,14 @@ only very improbably.
 NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
 function must be written such that it cannot end up waiting for these
 latches!
-NOTE 3: the calling thread must want access to the page given: this rule is
-set to prevent unintended read-aheads performed by ibuf routines, a situation
-which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	page_id		page id; see NOTE 3 above
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
-ulint
-buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf);
+ulint buf_read_ahead_linear(const page_id_t page_id) noexcept;
 
 /** Schedule a page for recovery.
 @param space    tablespace
 @param page_id  page identifier
 @param recs     log records
-@param init     page initialization, or nullptr if the page needs to be read */
+@param init_lsn page initialization, or 0 if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, recv_init *init);
-
-/** @name Modes used in read-ahead @{ */
-/** read only pages belonging to the insert buffer tree */
-#define BUF_READ_IBUF_PAGES_ONLY	131
-/** read any page */
-#define BUF_READ_ANY_PAGE		132
-/* @} */
-
-#endif
+                      page_recv_t &recs, lsn_t init_lsn) noexcept;

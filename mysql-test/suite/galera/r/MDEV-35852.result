@@ -1,0 +1,8 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT DELAYED INTO t VALUES ();
+ERROR HY000: DELAYED option not supported for table 't'
+DROP TABLE t;
+INSERT DELAYED t1 () VALUES ();
+ERROR 42S02: Table 'test.t1' doesn't exist

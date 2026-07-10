@@ -17,7 +17,9 @@
 #
 # Galera library does not compile with windows
 #
-IF (NOT WITHOUT_SERVER)
+IF(WITHOUT_SERVER)
+  OPTION(WITH_WSREP "Galera server compatibility in build client utilities" ON)
+ELSE()
 IF(UNIX)
   SET(with_wsrep_default ON)
 ELSE()
@@ -33,12 +35,8 @@ IF(WITH_WSREP)
   # Set the patch version
   SET(WSREP_PATCH_VERSION "22")
 
-  IF(NOT EXISTS "${CMAKE_SOURCE_DIR}/wsrep-lib/wsrep-API/v26/wsrep_api.h")
-    MESSAGE(FATAL_ERROR "No MariaDB wsrep-API code! Run
-    ${GIT_EXECUTABLE} submodule update --init --recursive
-Then restart the build.
-")
-  ENDIF()
+  ADD_SUBMODULE(wsrep-lib)
+
   # Obtain wsrep API version
   FILE(STRINGS "${CMAKE_SOURCE_DIR}/wsrep-lib/wsrep-API/v26/wsrep_api.h" WSREP_API_VERSION
        LIMIT_COUNT 1 REGEX "WSREP_INTERFACE_VERSION")
@@ -46,8 +44,6 @@ Then restart the build.
 
   SET(WSREP_VERSION "${WSREP_API_VERSION}.${WSREP_PATCH_VERSION}"
       CACHE INTERNAL "WSREP version")
-
-  SET(WSREP_PROC_INFO ${WITH_WSREP})
 
   SET(WSREP_PATCH_VERSION "wsrep_${WSREP_VERSION}")
   if (NOT WITH_WSREP_ALL)
@@ -67,4 +63,4 @@ ENDIF()
 IF (NOT WIN32)
   ADD_FEATURE_INFO(WSREP WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)")
 ENDIF()
-ENDIF(NOT WITHOUT_SERVER)
+ENDIF(WITHOUT_SERVER)

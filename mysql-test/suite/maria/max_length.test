@@ -6,7 +6,7 @@
 --source include/big_test.inc
 # This test is too slow for valgrind
 --source include/not_valgrind.inc
---source include/not_msan.inc
+--source include/not_msan_with_debug.inc
 
 drop table if exists t1,t2;
 

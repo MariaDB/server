@@ -1,29 +1,51 @@
 connection node_2;
 connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 INTEGER);
+INSERT INTO t1(f2) SELECT seq FROM seq_1_to_1000;
+connection node_2a;
+SET SESSION wsrep_sync_wait=0;
+connection node_1a;
+# Block the applier on node_1 and issue a ddl from node_2
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
-ALTER TABLE t1 ADD COLUMN f3 INTEGER; INSERT INTO t1 (f1, f2) VALUES (DEFAULT, 123);;
+# DDL 1
+ALTER TABLE t1 ADD COLUMN f3 INTEGER; INSERT INTO t1 VALUES (NULL, 10000, 10000);;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# This will block on acquiring total order isolation
 connection node_1;
+# DDL 2
 CREATE UNIQUE INDEX i1 ON t1(f2);;
+connection node_1a;
+# Signal DDL 1
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 connection node_2;
-INSERT INTO t1 (f1, f2) VALUES (DEFAULT, 234);
-SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
-COUNT(*) = 3
-1
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
-COUNT(*) = 2
-1
-SELECT COUNT(*) = 2 FROM t1;
-COUNT(*) = 2
-1
 connection node_1;
-SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
-COUNT(*) = 3
-1
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
-COUNT(*) = 2
-1
-SELECT COUNT(*) = 2 FROM t1;
-COUNT(*) = 2
-1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+EXPECT_3
+3
+SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1001 FROM t1;
+EXPECT_1001
+1001
+connection node_1;
+SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+EXPECT_3
+3
+SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1001 FROM t1;
+EXPECT_1001
+1001
 DROP TABLE t1;

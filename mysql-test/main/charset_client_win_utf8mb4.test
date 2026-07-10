@@ -1,5 +1,11 @@
 --source include/windows.inc
 --source include/check_utf8_cli.inc
+
+if(!`select $MTR_PARALLEL = 1`)
+{
+  skip race condition with parallel tests;
+}
+
 --exec $MYSQL --default-character-set=auto -e "select @@character_set_client"
 
 # Test that a user with old, non-UTF8 password can still connect

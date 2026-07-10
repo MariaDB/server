@@ -1,4 +1,7 @@
 create table t1(a int) engine=innodb;
+#
+# MDEV-39541 mem_pressure::~mem_pressure() causes a crash on bootstrap
+#
 # restart
 select * from t1;
 a
@@ -6,3 +9,4 @@ a
 2
 5
 drop table t1;
+# End of 10.11 tests

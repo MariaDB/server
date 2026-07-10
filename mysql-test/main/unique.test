@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 #
 # MDEV-19224 Assertion `marked_for_read()' failed in various places with long
@@ -20,3 +21,5 @@ CREATE TABLE t2 (n BLOB, UNIQUE(n));
 INSERT INTO t2 VALUES (1);
 DELETE FROM t2 WHERE n = 1;
 DROP TABLE t2;
+
+--source include/test_db_charset_restore.inc

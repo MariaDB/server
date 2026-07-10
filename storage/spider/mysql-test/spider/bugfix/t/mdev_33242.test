@@ -1,0 +1,6 @@
+set @old_old_mode=@@global.old_mode;
+set global old_mode=4;
+INSTALL SONAME 'ha_spider.so';
+set global old_mode=@old_old_mode;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

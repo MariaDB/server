@@ -47,7 +47,7 @@ COMMIT;
 --reap
 
 --connection node_2
-SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
 SET GLOBAL debug_dbug = '';
 SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';
 SET DEBUG_SYNC='now SIGNAL signal.wsrep_apply_cb';

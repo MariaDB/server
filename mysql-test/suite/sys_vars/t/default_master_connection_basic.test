@@ -1,7 +1,7 @@
 ############## mysql-test\t\default_master_connection_basic.test ###############
 # 
 # Implemented in the scope of MDEV-253
-# The variable is SESSION-only
+# Updated to SESSION-VAR (Global) scope in MDEV-9247
 #
 
 --source include/not_embedded.inc
@@ -29,12 +29,12 @@ SET @@session.default_master_connection = @start_session_value;
 SELECT @@session.default_master_connection = '';
 
 #################################################
-# Check that the GLOBAL scope is not applicable #
+# Check that the GLOBAL scope is applicable    #
 #################################################
 
---error ER_LOCAL_VARIABLE
 SET @@global.default_master_connection = 'master1';
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@global.default_master_connection;
+SET @@global.default_master_connection = '';
 SELECT @@global.default_master_connection;
 
 ####################################################################################
@@ -77,7 +77,6 @@ SELECT @@session.default_master_connection;
 #   Check if the value in GLOBAL & SESSION Tables matches value in variable   #
 ###############################################################################
 
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@global.default_master_connection = VARIABLE_VALUE 
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
 WHERE VARIABLE_NAME='default_master_connection';
@@ -117,6 +116,37 @@ SELECT default_master_connection = @@session.default_master_connection;
 SET @@session.default_master_connection = @start_session_value;
 SELECT @@session.default_master_connection;
 
+#####################################################################
+#  Check if global value is inherited by new connections (MDEV-9247)#
+#####################################################################
+
+SET @@global.default_master_connection = 'global';
+--connect (con1,localhost,root,,)
+--connection con1
+SELECT @@session.default_master_connection;
+--connection default
+--disconnect con1
+SET @@global.default_master_connection = '';
+
+#####################################################################
+#  Check if global value can be set via command line (MDEV-9247)    #
+#####################################################################
+
+--let $restart_parameters=--default-master-connection=master1
+--source include/restart_mysqld.inc
+
+SELECT @@global.default_master_connection;
+SELECT @@session.default_master_connection;
+
+--connect (con2,localhost,root,,)
+--connection con2
+SELECT @@session.default_master_connection;
+--connection default
+--disconnect con2
+
+# Clean up for subsequent tests if any (though this is the end)
+--let $restart_parameters=
+--source include/restart_mysqld.inc
 
 #############################################################
 #                 END OF default_master_connection TESTS    #

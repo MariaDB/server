@@ -19,7 +19,7 @@ BEGIN
 SET c= 100;
 SET d= d + 1;
 RETURN a + b;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION add_func;
 #
 # CREATE PROCEDURE with IN, OUT, INOUT qualifiers
@@ -35,7 +35,7 @@ Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Da
 add_proc	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `add_proc`(IN a INT, IN b INT, INOUT c INT, OUT d INT)
 BEGIN
 SET d= a + b + c + d;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE add_proc;
 #
 # Call function from SELECT query

@@ -151,7 +151,7 @@ bool hostname_cache_init()
 
   if (!(hostname_cache= new Hash_filo<Host_entry>(key_memory_host_cache_hostname,
                              host_cache_size, key_offset, HOST_ENTRY_KEY_SIZE,
-                             NULL, (my_hash_free_key) free, &my_charset_bin)))
+                             NULL, my_free, &my_charset_bin)))
     return 1;
 
   hostname_cache->clear();
@@ -204,7 +204,8 @@ static void add_hostname_impl(const char *ip_key, const char *hostname,
 
   if (likely(entry == NULL))
   {
-    entry= (Host_entry *) malloc(sizeof (Host_entry));
+    entry= (Host_entry *) my_malloc(key_memory_host_cache_hostname,
+                                    sizeof (Host_entry), 0);
     if (entry == NULL)
       return;
 
@@ -513,42 +514,48 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
 
   DBUG_EXECUTE_IF("getnameinfo_error_noname",
                   {
-                    strcpy(hostname_buffer, "<garbage>");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "<garbage>");
                     err_code= EAI_NONAME;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_error_again",
                   {
-                    strcpy(hostname_buffer, "<garbage>");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "<garbage>");
                     err_code= EAI_AGAIN;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_fake_ipv4",
                   {
-                    strcpy(hostname_buffer, "santa.claus.ipv4.example.com");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "santa.claus.ipv4.example.com");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_fake_ipv6",
                   {
-                    strcpy(hostname_buffer, "santa.claus.ipv6.example.com");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "santa.claus.ipv6.example.com");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_format_ipv4",
                   {
-                    strcpy(hostname_buffer, "12.12.12.12");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "12.12.12.12");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_format_ipv6",
                   {
-                    strcpy(hostname_buffer, "12:DEAD:BEEF:0");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "12:DEAD:BEEF:0");
                     err_code= 0;
                   }
                   );

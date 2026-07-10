@@ -20,6 +20,7 @@ let $message= Testcase: 3.5:;
 	create User test_general@localhost;
 	set password for test_general@localhost = password('PWD');
 	revoke ALL PRIVILEGES, GRANT OPTION FROM test_general@localhost;
+        grant SELECT,UPDATE,DELETE,INSERT on test.* to test_general@localhost;
 
 	create User test_super@localhost;
 	set password for test_super@localhost = password('PWD');
@@ -123,8 +124,10 @@ let $message= 3.5.8.4 - multiple SQL;
 	select * from db_test.t1_u;
 	--sorted_result
 	select * from db_test.t1_d;
+#Check after fix MDEV-31495
+--disable_cursor_protocol
 	select @test_var;
-
+--enable_cursor_protocol
 
 let $message= 3.5.8.4 - single SQL - insert;
 --source include/show_msg.inc
@@ -201,7 +204,10 @@ let $message= 3.5.8.3/4 - single SQL - select;
 		f122='Test 3.5.8.4-Single Select'
 		 where f122='Test 3.5.8.4-Single Delete';
 	Select f120, f122, f136, f144, f163 from tb3 where f122 like 'Test 3.5.8.4%';
+#Check after fix MDEV-31495
+--disable_cursor_protocol
 	select @test_var;
+--enable_cursor_protocol
 
 #Cleanup
 	connection default;
@@ -553,6 +559,8 @@ let $message= Testcase 3.5.8.7;
 
 # Cleanup section 3.5
 	connection default;
+        disconnect con2_general;
+        disconnect con2_super;
 	drop user test_general@localhost;
 	drop user test_general;
 	drop user test_super@localhost;

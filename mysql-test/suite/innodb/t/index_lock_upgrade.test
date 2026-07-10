@@ -1,0 +1,242 @@
+--source include/have_innodb.inc
+--source include/have_innodb_4k.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+# Debug build is necessary for the Innodb_* metrics used in this test
+
+--echo #
+--echo # MDEV-38814: High rate of index_lock_upgrades due to
+--echo # btr_cur_need_opposite_intention() mostly returning true
+--echo #
+
+--disable_query_log
+SET @save_stats_persistent= @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= 0;
+# Enable index_page_* metrics
+SET GLOBAL innodb_monitor_enable= 'module_index';
+
+# show_index_stats(suffix) encapsulates the pessimistic-operation
+# monitoring. It snapshots the relevant InnoDB global status counters
+# and INNODB_METRICS entries into session variables @*_curr, shifts
+# the previous snapshot into @*_prev, and -- when suffix is non-empty
+# -- emits a label row, a delta row and a blank separator row for each
+# counter. Counters are always emitted, even when the delta is zero, so
+# the row set is identical across combinations and the recorded rdiff
+# stays a set of plain value changes (a counter that drops to zero shows
+# as "N" then "0" rather than vanishing and collapsing the diff). The
+# blank separators anchor the diff so a value shared between adjacent
+# counters cannot slide a label into the rdiff. Pass an empty suffix to
+# only establish the baseline snapshot.
+DELIMITER |;
+CREATE PROCEDURE show_index_stats(IN suffix VARCHAR(64))
+BEGIN
+  SET @ps_prev= IFNULL(@ps_curr, 0);
+  SET @ma_prev= IFNULL(@ma_curr, 0);
+  SET @ms_prev= IFNULL(@ms_curr, 0);
+  SET @rs_prev= IFNULL(@rs_curr, 0);
+  SET @pd_prev= IFNULL(@pd_curr, 0);
+  SET @lu_prev= IFNULL(@lu_curr, 0);
+  SET @pi_prev= IFNULL(@pi_curr, 0);
+  SET @pe_prev= IFNULL(@pe_curr, 0);
+  SET @pu_prev= IFNULL(@pu_curr, 0);
+  SET @ou_prev= IFNULL(@ou_curr, 0);
+  SET @oo_prev= IFNULL(@oo_curr, 0);
+  SET @ix_prev= IFNULL(@ix_curr, 0);
+
+  SELECT COUNT_RESET INTO @ps_curr FROM INFORMATION_SCHEMA.INNODB_METRICS
+    WHERE NAME= 'index_page_splits';
+  SELECT COUNT_RESET INTO @ma_curr FROM INFORMATION_SCHEMA.INNODB_METRICS
+    WHERE NAME= 'index_page_merge_attempts';
+  SELECT COUNT_RESET INTO @ms_curr FROM INFORMATION_SCHEMA.INNODB_METRICS
+    WHERE NAME= 'index_page_merge_successful';
+  SELECT COUNT_RESET INTO @rs_curr FROM INFORMATION_SCHEMA.INNODB_METRICS
+    WHERE NAME= 'index_page_reorg_successful';
+  SELECT COUNT_RESET INTO @pd_curr FROM INFORMATION_SCHEMA.INNODB_METRICS
+    WHERE NAME= 'index_page_discards';
+  SELECT VARIABLE_VALUE INTO @lu_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_btr_cur_n_index_lock_upgrades';
+  SELECT VARIABLE_VALUE INTO @pi_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_btr_cur_pessimistic_insert_calls';
+  SELECT VARIABLE_VALUE INTO @pe_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_btr_cur_pessimistic_delete_calls';
+  SELECT VARIABLE_VALUE INTO @pu_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_btr_cur_pessimistic_update_calls';
+  SELECT VARIABLE_VALUE INTO @ou_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_btr_cur_pessimistic_update_optim_err_underflows';
+  SELECT VARIABLE_VALUE INTO @oo_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_btr_cur_pessimistic_update_optim_err_overflows';
+  SELECT VARIABLE_VALUE INTO @ix_curr FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+    WHERE VARIABLE_NAME= 'Innodb_mtr_n_index_x_lock_calls';
+
+  IF suffix <> '' THEN
+    SELECT CONCAT('n_index_lock_upgrades_', suffix) AS ''
+    UNION ALL
+    SELECT CAST(@lu_curr - @lu_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('pessimistic_insert_calls_', suffix)
+    UNION ALL
+    SELECT CAST(@pi_curr - @pi_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('pessimistic_delete_calls_', suffix)
+    UNION ALL
+    SELECT CAST(@pe_curr - @pe_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('pessimistic_update_calls_', suffix)
+    UNION ALL
+    SELECT CAST(@pu_curr - @pu_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('pessimistic_update_optim_err_underflows_', suffix)
+    UNION ALL
+    SELECT CAST(@ou_curr - @ou_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('pessimistic_update_optim_err_overflows_', suffix)
+    UNION ALL
+    SELECT CAST(@oo_curr - @oo_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('index_x_lock_calls_', suffix)
+    UNION ALL
+    SELECT CAST(@ix_curr - @ix_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('index_page_splits_', suffix)
+    UNION ALL
+    SELECT CAST(@ps_curr - @ps_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('index_page_merge_attempts_', suffix)
+    UNION ALL
+    SELECT CAST(@ma_curr - @ma_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('index_page_merge_successful_', suffix)
+    UNION ALL
+    SELECT CAST(@ms_curr - @ms_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('index_page_reorg_successful_', suffix)
+    UNION ALL
+    SELECT CAST(@rs_curr - @rs_prev AS SIGNED)
+    UNION ALL
+    SELECT ''
+    UNION ALL
+    SELECT CONCAT('index_page_discards_', suffix)
+    UNION ALL
+    SELECT CAST(@pd_curr - @pd_prev AS SIGNED)
+    UNION ALL
+    SELECT '';
+  END IF;
+END|
+DELIMITER ;|
+--enable_query_log
+
+# Run the same workload against three table shapes:
+#   t1 -- primary key only
+#   t2 -- primary key + secondary index on dt
+#   t3 -- primary key + secondary index on dt, ROW_FORMAT=COMPRESSED
+#         (sanity check: pessimistic-side optimization explicitly skips
+#         compressed pages, so on/off counter deltas should match)
+--let $iter= 1
+while ($iter <= 3)
+{
+  --let $tab= t$iter
+  --let $desc= primary key only
+  --let $sec_key=
+  --let $row_format=
+  if ($iter == 2)
+  {
+    --let $desc= primary key + secondary index on dt
+    --let $sec_key= , KEY (dt)
+  }
+  if ($iter == 3)
+  {
+    --let $desc= primary key + secondary index on dt, ROW_FORMAT=COMPRESSED
+    --let $sec_key= , KEY (dt)
+    --let $row_format= ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
+  }
+  --echo # Test with table $tab ($desc)
+  eval CREATE TABLE $tab (
+    id INT NOT NULL,
+    dt DATETIME NULL,
+    PRIMARY KEY (id)$sec_key
+  ) ENGINE=InnoDB $row_format;
+
+  --echo # Insert rows with NULL DATETIME
+  --source include/wait_all_purged.inc
+  CALL show_index_stats('');
+
+  eval INSERT INTO $tab (id, dt) SELECT seq, NULL FROM seq_1_to_1000;
+
+  --echo # Rows inserted with NULL DATETIME
+  eval SELECT COUNT(*) AS rows_inserted FROM $tab;
+  eval SELECT COUNT(DISTINCT dt) AS distinct_timestamps FROM $tab;
+
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_insert'));
+
+  --echo # Update all rows: NULL to DATETIME
+  eval UPDATE $tab SET dt= '2025-01-01' + INTERVAL id SECOND;
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_update_null_to_notnull'));
+
+  --echo # Update all rows: 2025 to 2026 (inplace update)
+  eval UPDATE $tab SET dt= '2026-01-01' + INTERVAL id SECOND;
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_update_inplace'));
+
+  --echo # Update all rows: DATETIME to NULL
+  eval UPDATE $tab SET dt= NULL;
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_update_notnull_to_null'));
+
+  --echo # Delete upper half of rows
+  eval DELETE FROM $tab WHERE id > (SELECT MAX(id) FROM $tab) DIV 2;
+  --echo # Rows remaining
+  eval SELECT COUNT(*) AS rows_remaining FROM $tab;
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_delete_upper_half'));
+
+  --echo # Delete even-numbered rows
+  eval DELETE FROM $tab WHERE id % 2 = 0;
+  --echo # Rows remaining
+  eval SELECT COUNT(*) AS rows_remaining FROM $tab;
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_delete_even'));
+
+  --echo # Delete remaining rows
+  eval DELETE FROM $tab;
+  --echo # Rows remaining
+  eval SELECT COUNT(*) AS rows_remaining FROM $tab;
+  --source include/wait_all_purged.inc
+  eval CALL show_index_stats(CONCAT('$tab', '_delete_remaining'));
+
+  eval DROP TABLE $tab;
+
+  --inc $iter
+}
+
+--disable_query_log
+DROP PROCEDURE show_index_stats;
+SET GLOBAL innodb_stats_persistent= @save_stats_persistent;
+SET GLOBAL innodb_monitor_disable= 'module_index';
+--disable_warnings
+# Idiomatic way of resetting innodb_monitor_* variables
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
+--enable_warnings
+--enable_query_log

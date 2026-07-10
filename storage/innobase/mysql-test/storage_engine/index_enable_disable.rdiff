@@ -1,5 +1,5 @@
---- suite/storage_engine/index_enable_disable.result	2012-07-15 00:30:05.296641931 +0400
-+++ suite/storage_engine/index_enable_disable.reject	2012-07-15 17:49:12.988081281 +0400
+--- suite/storage_engine/index_enable_disable.result
++++ suite/storage_engine/index_enable_disable.reject
 @@ -11,15 +11,19 @@
  Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
  t1	1	a	1	a	#	#	NULL	NULL	YES	BTREE		

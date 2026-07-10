@@ -1,0 +1,31 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-28366 GLOBAL debug_dbug setting affected by collation_connection=utf16...
+#
+SET NAMES utf8;
+SET collation_connection=utf16le_general_ci;
+SET debug_dbug='d,any_random_string';
+SELECT @@debug_dbug;
+@@debug_dbug
+d,any_random_string
+SET debug_dbug=CONCAT('d,', _latin1 0xDF);
+SELECT @@debug_dbug;
+@@debug_dbug
+d,ß
+SELECT HEX(@@debug_dbug);
+HEX(@@debug_dbug)
+642CC39F
+SET @@debug_dbug=NULL;
+SELECT @@debug_dbug;
+@@debug_dbug
+
+SET @@debug_dbug=DEFAULT;
+SELECT @@debug_dbug;
+@@debug_dbug
+
+SET NAMES latin1;
+#
+# End of 10.5 tests
+#

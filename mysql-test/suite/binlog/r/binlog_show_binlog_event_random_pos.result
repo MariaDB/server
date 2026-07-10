@@ -11,5 +11,4 @@ UPDATE t1 SET c1=repeat('b',255);
 INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
 SHOW BINLOG EVENTS FROM POS;
 ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Invalid pos specified. Requested from pos:POS is greater than actual file size:MAX_POS
-
 DROP TABLE t1;

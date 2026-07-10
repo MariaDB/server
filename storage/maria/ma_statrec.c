@@ -45,8 +45,15 @@ my_bool _ma_write_static_record(MARIA_HA *info, const uchar *record)
       my_errno=HA_ERR_RECORD_FILE_FULL;
       return(2);
     }
+    if (info->s->tracked &&
+        _ma_update_tmp_file_size(&info->s->track_data,
+                                 MY_ALIGN(info->s->state.state.data_file_length+
+                                          info->s->base.pack_reclength,
+                                          MARIA_TRACK_INCREMENT_SIZE)))
+      return(2);
+
     if (info->opt_flag & WRITE_CACHE_USED)
-    {				/* Cash in use */
+    {				/* Caсhe in use */
       if (my_b_write(&info->rec_cache, record,
 		     info->s->base.reclength))
 	goto err;

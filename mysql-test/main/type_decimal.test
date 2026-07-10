@@ -826,3 +826,121 @@ SET sql_mode=DEFAULT;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c DECIMAL(10, 1));
+INSERT INTO t0 VALUES (0.0),(0.4),(0.6);
+--source include/search_condition.inc
+DROP TABLE t0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33442 REPAIR TABLE corrupts UUIDs
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE show_table()
+BEGIN
+  SHOW CREATE TABLE t1;
+  SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+  SELECT * FROM t1 ORDER BY a;
+END;
+$$
+DELIMITER ;$$
+
+--echo # Upgrade using REPAIR
+
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1.MYI
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+
+REPAIR TABLE t1;
+--echo # Expect old decimal, as it does not implicitly upgrade to new decimal
+CALL show_table;
+
+CHECK TABLE t1 FOR UPGRADE;
+CALL show_table;
+DROP TABLE t1;
+
+
+--echo # Upgrade using ALTER, adding a table COMMENT
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1.MYI
+CALL show_table;
+
+--echo # ALTER..INPLACE should fail - the FRM file is too old and needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+-- echo # Expect old decimal, as it does not implicitly upgrade to new decimal
+CALL show_table;
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table;
+
+DROP TABLE t1;
+
+
+--echo # Upgrade using ALTER, adding a column DEFAULT
+
+--echo # Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1.MYI
+CALL show_table;
+
+--echo # ALTER..INPLACE should fail - the FRM file is too old and needs upgrade
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a DECIMAL(10,2) DEFAULT 10;
+ALTER IGNORE TABLE t1 MODIFY a DECIMAL(10,2) DEFAULT 11;
+--echo # Expect new decimal, as we explicitly redefined the data type
+CALL show_table;
+
+--echo # Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a DECIMAL(10,2) DEFAULT 12;
+CALL show_table;
+
+DROP TABLE t1;
+
+DROP PROCEDURE show_table;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-38199 Optimizer Error with = SOME on UNIQUE Column Using Decimal/Integer Types
+--echo #
+create table t1 (i int, key (i));
+insert into t1 values(1),(1),(1);
+select i from t1 where i=0.6;
+select i from t1 ignore index(i) where i=0.6;
+select i from t1 where i=0.6e0;
+select i from t1 ignore index(i) where i=0.6e0;
+drop table t1;
+
+--echo # End of 12.3 tests

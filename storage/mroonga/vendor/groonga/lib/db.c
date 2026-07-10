@@ -38,6 +38,7 @@
 #include "grn_util.h"
 #include "grn_cache.h"
 #include "grn_window_functions.h"
+#include <my_attribute.h>
 #include <string.h>
 #include <math.h>
 
@@ -445,9 +446,6 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
 
   ctx_used_db = ctx->impl && ctx->impl->db == db;
   if (ctx_used_db) {
-#ifdef GRN_WITH_MECAB
-    grn_db_fin_mecab_tokenizer(ctx);
-#endif
     grn_ctx_loader_clear(ctx);
     if (ctx->impl->parser) {
       grn_expr_parser_close(ctx);
@@ -467,6 +465,10 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
       grn_array_truncate(ctx, ctx->impl->values);
     }
   }
+
+#ifdef GRN_WITH_MECAB
+  grn_db_fin_mecab_tokenizer(ctx);
+#endif
 
 /* grn_tiny_array_fin should be refined.. */
 #ifdef WIN32
@@ -968,8 +970,8 @@ calc_rec_size(grn_table_flags flags, uint32_t max_n_subrecs, uint32_t range_size
       *subrec_size = range_size + sizeof(uint32_t) + sizeof(uint32_t);
       break;
     }
-    *value_size = (uintptr_t)GRN_RSET_SUBRECS_NTH((((grn_rset_recinfo *)0)->subrecs),
-                                                  *subrec_size, max_n_subrecs);
+    *value_size = (uintptr_t) GRN_RSET_SUBRECS_NTH(offsetof(grn_rset_recinfo, subrecs),
+                                                   *subrec_size, max_n_subrecs);
   } else {
     *value_size = range_size;
   }
@@ -1059,6 +1061,8 @@ grn_table_create_validate(grn_ctx *ctx, const char *name, unsigned int name_size
 
   return ctx->rc;
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static grn_obj *
 grn_table_create_with_max_n_subrecs(grn_ctx *ctx, const char *name,
@@ -1238,6 +1242,7 @@ grn_table_create_with_max_n_subrecs(grn_ctx *ctx, const char *name,
   }
   return res;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 grn_obj *
 grn_table_create(grn_ctx *ctx, const char *name, unsigned int name_size,
@@ -1984,7 +1989,7 @@ exit:
   if (ii_cursor) {
     grn_ii_cursor_close(ctx, ii_cursor);
   }
-  grn_obj_unlink(ctx, &source_ids);
+  GRN_OBJ_FIN(ctx, &source_ids);
   {
     int i, n_sources;
     n_sources = GRN_BULK_VSIZE(&sources) / sizeof(grn_obj *);
@@ -1992,7 +1997,7 @@ exit:
       grn_obj *source = GRN_PTR_VALUE_AT(&sources, i);
       grn_obj_unlink(ctx, source);
     }
-    grn_obj_unlink(ctx, &sources);
+    GRN_OBJ_FIN(ctx, &sources);
   }
 }
 
@@ -4776,6 +4781,9 @@ _grn_table_key(grn_ctx *ctx, grn_obj *table, grn_id id, uint32_t *key_size)
 
 /* column */
 
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 grn_obj *
 grn_column_create(grn_ctx *ctx, grn_obj *table,
                   const char *name, unsigned int name_size,
@@ -4978,6 +4986,7 @@ exit :
   if (!res && id) { grn_obj_delete_by_id(ctx, db, id, GRN_TRUE); }
   GRN_API_RETURN(res);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 grn_obj *
 grn_column_open(grn_ctx *ctx, grn_obj *table,
@@ -8540,6 +8549,8 @@ grn_obj_spec_save(grn_ctx *ctx, grn_db_obj *obj)
   grn_obj_close(ctx, &v);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 inline static void
 grn_obj_set_info_source_invalid_lexicon_error(grn_ctx *ctx,
                                               const char *message,
@@ -8590,6 +8601,7 @@ grn_obj_set_info_source_invalid_lexicon_error(grn_ctx *ctx,
       source_name_size, source_name);
 }
 
+
 inline static grn_rc
 grn_obj_set_info_source_validate(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
 {
@@ -8597,7 +8609,7 @@ grn_obj_set_info_source_validate(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
   grn_obj *lexicon = NULL;
   grn_id lexicon_domain_id;
   grn_obj *lexicon_domain = NULL;
-  grn_bool lexicon_domain_is_table;
+  grn_bool lexicon_domain_is_table __attribute__((unused));
   grn_bool lexicon_have_tokenizer;
   grn_id *source_ids;
   int i, n_source_ids;
@@ -8691,6 +8703,8 @@ exit:
   }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 inline static void
 grn_obj_set_info_source_log(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
@@ -9330,7 +9344,7 @@ remove_reference_tables(grn_ctx *ctx, grn_obj *table, grn_obj *db)
   grn_bool is_close_opened_object_mode = GRN_FALSE;
   grn_id table_id;
   char table_name[GRN_TABLE_MAX_KEY_SIZE];
-  int table_name_size;
+  int table_name_size __attribute__((unused));
   grn_table_cursor *cursor;
 
   if (grn_thread_get_limit() == 1) {
@@ -10317,12 +10331,10 @@ grn_db_spec_unpack(grn_ctx *ctx,
                    const char *error_message_tag)
 {
   grn_obj *db;
-  grn_db *db_raw;
   grn_rc rc;
   uint32_t spec_size;
 
   db = ctx->impl->db;
-  db_raw = (grn_db *)db;
 
   rc = grn_vector_decode(ctx,
                          decoded_spec,

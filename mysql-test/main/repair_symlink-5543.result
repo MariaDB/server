@@ -10,7 +10,7 @@ create table t2 (a int) engine=aria data directory='MYSQL_TMP_DIR';
 insert t2 values (1);
 repair table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	repair	error	20 for record at pos 256
+test.t2	repair	error	Got error 20 for record at pos 256 when creating index
 test.t2	repair	Error	File 'MYSQL_TMP_DIR/t2.MAD' not found (Errcode: 20 "<errmsg>")
 test.t2	repair	status	Operation failed
 drop table t2;

@@ -14,7 +14,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 FOR i IN 0..255
 DO
 INSERT INTO t1 VALUES (CONCAT('::', HEX(i)));
@@ -85,8 +85,20 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	a	a	17	const	1	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::ff'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::ff'
 DROP TABLE t1;
+#
+# MDEV-34922: Assertion `value.length() == FbtImpl::binary_length()' failed in
+# Type_handler_fbt<FbtImpl, TypeCollectionImpl>::Field_fbt::store_native,
+# Assertion `item->null_value' failed in Type_handler::Item_send_str
+#
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM (SELECT cast('::' AS INET6),min(1) FROM t1 WHERE if(uuid_short(), a,1)) dt;
+cast('::' AS INET6)	min(1)
+::	NULL
+DROP TABLE t1;
+# End of 10.5 tests
 #
 # MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item
 #

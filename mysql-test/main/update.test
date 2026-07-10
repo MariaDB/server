@@ -4,6 +4,8 @@
 
 -- source include/have_innodb.inc
 
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -236,9 +238,11 @@ insert into t1 (a) values (0),(0),(0),(0),(0),(0),(0),(0);
 # the view protocol creates an additional statistics data
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 flush status;
 select a from t1 order by a limit 1;
 show status like 'handler_read%';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 
@@ -346,6 +350,7 @@ INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 INSERT INTO t1(user_id) SELECT user_id FROM t1;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 flush status;
 SELECT user_id FROM t1 WHERE request_id=9999999999999; 
@@ -357,6 +362,7 @@ show status like '%Handler_read%';
 UPDATE t1 SET user_id=null WHERE request_id=999999999999999999999999999999;
 show status like '%Handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 DROP TABLE t1;
 
@@ -393,7 +399,7 @@ DROP TABLE t1;
 connect (con1,localhost,root,,test);
 connection con1;
 
-set tmp_table_size=1024;
+set tmp_table_size=2048;
 
 # Create the test tables
 create table t1 (id int, a int, key idx(a));
@@ -703,3 +709,300 @@ select * from t1;
 drop table t1;
 
 --echo # End of MariaDB 10.4 tests
+
+--echo #
+--echo # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+--echo #
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+--echo # End of MariaDB 10.11 tests
+
+--echo #
+--echo # MDEV-29189: Second execution of SF using UPDATE?DELETE
+--echo #             after reported error by the first execution
+--echo #
+--disable_ps2_protocol # because SELECT with side effects
+
+CREATE TABLE t1 (c int);
+
+DELIMITER //;
+CREATE FUNCTION f1() RETURNS int
+BEGIN
+  UPDATE t1 SET c=c+1;
+  RETURN 1;
+END;//
+CREATE FUNCTION f2() RETURNS int
+BEGIN
+  DELETE FROM t1 WHERE c < 7;
+  RETURN 1;
+END;//
+DELIMITER ;//
+
+INSERT INTO t1 VALUES (3), (7), (1);
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE f1() = 1;
+SELECT f1();
+SELECT * FROM t1;
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE f2() = 1;
+SELECT f2();
+SELECT * FROM t1;
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+--enable_ps2_protocol
+
+--echo # End of MariaDB 11.1 tests
+
+--echo #
+--echo # MDEV-25008: Delete query gets stuck on mariadb, same query works
+--echo #             on MySQL 8.0.21
+--echo #
+
+--source include/have_sequence.inc
+
+# original case
+CREATE TABLE t1 (
+  id int NOT NULL PRIMARY KEY,
+  item_id varchar(100),
+  seller_name varchar(400),
+  variant varchar(400),
+  FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+
+# Masking the `rows` column as the value might vary a bit
+--replace_column 9 #
+explain
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+drop table t1;
+
+# example of not full table
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain update t1 set c = 5  where    b <= 2 and a not in (select b from t2);
+explain update t1 set c = 5  where    b <= 3 and a not in (select b from t2);
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-35662 Assertion failure in diagnostics area upon EXPLAIN UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INET6);
+INSERT INTO t2 VALUES ('::'),('::'); # Optional, fails either way
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT b FROM t2) ORDER BY a LIMIT 1;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # End of 11.7 tests
+
+--source include/test_db_charset_restore.inc
+--echo # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+--echo #
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+--echo # End of MariaDB 11.8 tests
+
+--echo # Beginning of 13.0 test
+
+--echo #
+--echo # MDEV-5092: Implement UPDATE with result set (UPDATE ... RETURNING)
+--echo #
+
+CREATE TABLE t1(
+  id INT PRIMARY KEY,
+  a  INT,
+  b  VARCHAR(5)
+);
+
+CREATE TABLE t2(
+  id INT PRIMARY KEY,
+  a  INT
+);
+
+INSERT INTO t1 VALUES (1, 10, 'x'), (2, 20, 'y'), (3, 30, 'z');
+INSERT INTO t2 VALUES (1, 100), (2, 200);
+
+CREATE VIEW v1 AS SELECT id, a, b FROM t1;
+
+DELIMITER |;
+CREATE FUNCTION f(x INT) RETURNS INT
+BEGIN
+  RETURN x*2;
+END|
+DELIMITER ;|
+
+UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) as old_a,
+            b AS new_b, OLD_VALUE(b) as old_b;
+
+UPDATE v1 SET a = a + 5 WHERE id = 3
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+  a AS new_a, OLD_VALUE(a) AS old_a,
+  b AS new_b, OLD_VALUE(b) AS old_b;
+
+CREATE TRIGGER trg BEFORE UPDATE ON t1 FOR EACH ROW SET NEW.a = NEW.a + 100;
+
+UPDATE t1 SET a = 1 WHERE id = 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+  a AS new_a, OLD_VALUE(a) AS old_a,
+  b AS new_b, OLD_VALUE(b) AS old_b;
+
+DROP TRIGGER trg;
+
+PREPARE s FROM
+"UPDATE t1 SET a = a + 10 WHERE id = 2
+ RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+           a AS new_a, OLD_VALUE(a) AS old_a,
+           b AS new_b, OLD_VALUE(b) AS old_b";
+
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--error ER_NOT_SUPPORTED_YET
+UPDATE t1 JOIN t2 ON t1.id=t2.id SET t1.a=t2.a
+    RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+              a AS new_a, OLD_VALUE(a) AS old_a,
+              b AS new_b, OLD_VALUE(b) AS old_b;
+
+--error ER_WRONG_USAGE
+SELECT OLD_VALUE(a) FROM t1;
+
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET a=1 WHERE id=1
+  RETURNING OLD_VALUE(nonexistent);
+
+EXPLAIN UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) AS old_a,
+            b AS new_b, OLD_VALUE(b) AS old_b;
+
+EXPLAIN EXTENDED UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) AS old_a,
+            b AS new_b, OLD_VALUE(b) AS old_b;
+
+SHOW WARNINGS;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON UPDATE t1 SET a = a + 1
+  RETURNING id AS new_id, OLD_VALUE(id) AS old_id,
+            a AS new_a, OLD_VALUE(a) AS old_a,
+            b AS new_b, OLD_VALUE(b) AS old_b;
+
+DROP VIEW v1;
+DROP FUNCTION f;
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-39127: UBSAN : downcast of address X which does not point to an object of type
+--echo # 'multi_update' in sql/sql_update.cc | Sql_cmd_update::update_single_table
+--echo #
+--echo #
+
+CREATE OR REPLACE TABLE t3(a INT);
+INSERT INTO t3 VALUES (1);
+UPDATE t3 SET a = 10 RETURNING a;
+
+DROP TABLE t3;
+
+--echo #
+--echo # MDEV-39119: Improve error handling when using OLD_VALUE as alias name
+--echo #
+
+CREATE OR REPLACE TABLE t3(a INT);
+INSERT INTO t3 VALUES (1);
+UPDATE t3 SET a = 10 RETURNING OLD_VALUE(a) AS old_value;
+
+DROP TABLE t3;
+
+--echo #
+--echo # MDEV-39179: Incorrect NULL handling in UPDATE ... RETURNING result
+--echo #
+
+CREATE OR REPLACE TABLE t1(a VARCHAR(10));
+
+INSERT INTO t1 VALUES('') RETURNING *;
+UPDATE t1 SET a=NULL RETURNING OLD_VALUE(a) AS old, a AS new;
+DROP TABLE t1;
+
+--echo # End of 13.0 test

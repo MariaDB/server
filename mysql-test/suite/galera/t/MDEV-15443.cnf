@@ -1,5 +1,7 @@
 !include ../galera_2nodes.cnf
+
 [mysqld.1]
 wsrep_auto_increment_control=OFF
+
 [mysqld.2]
 wsrep_auto_increment_control=OFF

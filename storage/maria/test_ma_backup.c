@@ -45,9 +45,10 @@ int main(int argc __attribute__((unused)), char *argv[])
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
-      (init_pagecache(maria_pagecache, maria_block_size * 2000, 0, 0,
-                      maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      multi_init_pagecache(&maria_pagecaches, 1,
+                           maria_block_size * 2000, 0, 0,
+                           maria_block_size, 0, MY_WME) ||
+      ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -103,7 +104,7 @@ static int copy_table(const char *table_name, int stage)
                          O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                          MYF(MY_WME))) < 0)
     goto err;
-  if ((error= aria_get_capabilities(org_file, &cap)))
+  if ((error= aria_get_capabilities(org_file, table_name, &cap)))
   {
     fprintf(stderr, "aria_get_capabilities failed:  %d\n", error);
     goto err;
@@ -340,14 +341,14 @@ static void create_key_part(uchar *key,uint rownr)
 {
   if (keyinfo[0].seg[0].type == HA_KEYTYPE_NUM)
   {
-    sprintf((char*) key,"%*d",keyinfo[0].seg[0].length,rownr);
+    snprintf((char*) key, UINT_MAX, "%*d",keyinfo[0].seg[0].length,rownr);
   }
   else if (keyinfo[0].seg[0].type == HA_KEYTYPE_VARTEXT1 ||
            keyinfo[0].seg[0].type == HA_KEYTYPE_VARTEXT2)
   {						/* Alpha record */
     /* Create a key that may be easily packed */
     bfill(key,keyinfo[0].seg[0].length,rownr < 10 ? 'A' : 'B');
-    sprintf((char*) key+keyinfo[0].seg[0].length-2,"%-2d",rownr % 100);
+    snprintf((char*) key+keyinfo[0].seg[0].length-2, 3, "%-2d",rownr % 100);
     if ((rownr & 7) == 0)
     {
       /* Change the key to force a unpack of the next key */
@@ -357,12 +358,12 @@ static void create_key_part(uchar *key,uint rownr)
   else
   {						/* Alpha record */
     if (keyinfo[0].seg[0].flag & HA_SPACE_PACK)
-      sprintf((char*) key,"%-*d",keyinfo[0].seg[0].length,rownr);
+      snprintf((char*) key, keyinfo[0].seg[0].length + 1, "%-*d",keyinfo[0].seg[0].length,rownr);
     else
     {
       /* Create a key that may be easily packed */
       bfill(key,keyinfo[0].seg[0].length,rownr < 10 ? 'A' : 'B');
-      sprintf((char*) key+keyinfo[0].seg[0].length-2,"%-2d",rownr % 100);
+      snprintf((char*) key+keyinfo[0].seg[0].length-2, 3, "%-2d",rownr % 100);
       if ((rownr & 7) == 0)
       {
 	/* Change the key to force a unpack of the next key */
@@ -417,7 +418,7 @@ static void create_record(uchar *record,uint rownr)
   {
     size_t tmp;
     uchar *ptr;;
-    sprintf((char*) blob_record,"... row: %d", rownr);
+    snprintf((char*) blob_record, sizeof(blob_record), "... row: %d", rownr);
     strappend((char*) blob_record, rownr % MAX_REC_LENGTH,'x');
     tmp=strlen((char*) blob_record);
     int4store(pos,tmp);
@@ -427,7 +428,7 @@ static void create_record(uchar *record,uint rownr)
   else if (recinfo[1].type == FIELD_VARCHAR)
   {
     size_t tmp, pack_length= HA_VARCHAR_PACKLENGTH(recinfo[1].length-1);
-    sprintf((char*) pos+pack_length, "... row: %d", rownr);
+    snprintf((char*) pos+pack_length, MAX_REC_LENGTH, "... row: %d", rownr);
     tmp= strlen((char*) pos+pack_length);
     if (pack_length == 1)
       *pos= (uchar) tmp;
@@ -436,7 +437,7 @@ static void create_record(uchar *record,uint rownr)
   }
   else
   {
-    sprintf((char*) pos,"... row: %d", rownr);
+    snprintf((char*) pos, MAX_REC_LENGTH, "... row: %d", rownr);
     strappend((char*) pos,recinfo[1].length,' ');
   }
 }

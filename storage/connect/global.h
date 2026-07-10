@@ -47,6 +47,8 @@
 
 #if defined(_WIN32)
 #define CRLF  2
+#define FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_FROM_SYSTEM | \
+          FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK
 #else    // !_WIN32
 #define CRLF  1
 #endif  // !_WIN32

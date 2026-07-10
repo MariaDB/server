@@ -100,6 +100,9 @@ extern void hp_clear(HP_SHARE *info);
 extern void hp_clear_keys(HP_SHARE *info);
 extern uint hp_rb_pack_key(HP_KEYDEF *keydef, uchar *key, const uchar *old,
                            key_part_map keypart_map);
+extern ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
+                          size_t memory_limit);
+extern size_t hp_memory_needed_per_row(size_t reclength);
 
 extern mysql_mutex_t THR_LOCK_heap;
 

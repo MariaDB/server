@@ -170,13 +170,7 @@ commit;
 --echo #
 --echo # Cleanup for savepoint.inc
 --echo #
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
-connection con3;
 disconnect con3;
---source include/wait_until_disconnected.inc
 connection default;

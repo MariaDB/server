@@ -137,11 +137,11 @@ SELECT @@tmp_disk_table_size;
 @@tmp_disk_table_size
 1027
 SELECT local.tmp_disk_table_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.tmp_disk_table_size;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT tmp_disk_table_size = @@session.tmp_disk_table_size;
-ERROR 42S22: Unknown column 'tmp_disk_table_size' in 'field list'
+ERROR 42S22: Unknown column 'tmp_disk_table_size' in 'SELECT'
 #
 # Beginning of 10.4 test
 #

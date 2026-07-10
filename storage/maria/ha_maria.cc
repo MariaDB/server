@@ -16,10 +16,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include <m_ctype.h>
@@ -38,6 +34,7 @@ C_MODE_START
 #include "ma_recovery.h"
 C_MODE_END
 #include "ma_trnman.h"
+#include "ma_loghandler.h"
 
 //#include "sql_priv.h"
 #include "protocol.h"
@@ -45,6 +42,8 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
+#include "mysql/plugin.h"
+#include "mysql/service_print_check_msg.h"
 #include "debug.h"
 
 /*
@@ -59,7 +58,8 @@ C_MODE_END
 
 #define THD_TRN (TRN*) thd_get_ha_data(thd, maria_hton)
 
-ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
+uint pagecache_segments, pagecache_division_limit, pagecache_file_hash_size;
+ulong pagecache_age_threshold;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
   "Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system";
@@ -85,58 +85,38 @@ const char *maria_recover_names[]=
   */
   "NORMAL", "BACKUP", "FORCE", "QUICK", "OFF", NullS
 };
-TYPELIB maria_recover_typelib=
-{
-  array_elements(maria_recover_names) - 1, "",
-  maria_recover_names, NULL
-};
+TYPELIB maria_recover_typelib= CREATE_TYPELIB_FOR(maria_recover_names);
 
 const char *maria_stats_method_names[]=
 {
   "nulls_unequal", "nulls_equal",
   "nulls_ignored", NullS
 };
-TYPELIB maria_stats_method_typelib=
-{
-  array_elements(maria_stats_method_names) - 1, "",
-  maria_stats_method_names, NULL
-};
+TYPELIB maria_stats_method_typelib= CREATE_TYPELIB_FOR(maria_stats_method_names);
 
 /* transactions log purge mode */
 const char *maria_translog_purge_type_names[]=
 {
   "immediate", "external", "at_flush", NullS
 };
-TYPELIB maria_translog_purge_type_typelib=
-{
-  array_elements(maria_translog_purge_type_names) - 1, "",
-  maria_translog_purge_type_names, NULL
-};
+TYPELIB maria_translog_purge_type_typelib= CREATE_TYPELIB_FOR(maria_translog_purge_type_names);
 
 /* transactional log directory sync */
 const char *maria_sync_log_dir_names[]=
 {
   "NEVER", "NEWFILE", "ALWAYS", NullS
 };
-TYPELIB maria_sync_log_dir_typelib=
-{
-  array_elements(maria_sync_log_dir_names) - 1, "",
-  maria_sync_log_dir_names, NULL
-};
+TYPELIB maria_sync_log_dir_typelib= CREATE_TYPELIB_FOR(maria_sync_log_dir_names);
 
 /* transactional log group commit */
 const char *maria_group_commit_names[]=
 {
   "none", "hard", "soft", NullS
 };
-TYPELIB maria_group_commit_typelib=
-{
-  array_elements(maria_group_commit_names) - 1, "",
-  maria_group_commit_names, NULL
-};
+TYPELIB maria_group_commit_typelib= CREATE_TYPELIB_FOR(maria_group_commit_names);
 
 /** Interval between background checkpoints in seconds */
-static ulong checkpoint_interval;
+static uint checkpoint_interval;
 static void update_checkpoint_interval(MYSQL_THD thd,
                                        struct st_mysql_sys_var *var,
                                        void *var_ptr, const void *save);
@@ -147,32 +127,36 @@ static void update_maria_group_commit_interval(MYSQL_THD thd,
                                            struct st_mysql_sys_var *var,
                                            void *var_ptr, const void *save);
 /** After that many consecutive recovery failures, remove logs */
-static ulong force_start_after_recovery_failures;
+static uint force_start_after_recovery_failures;
 static void update_log_file_size(MYSQL_THD thd,
                                  struct st_mysql_sys_var *var,
                                  void *var_ptr, const void *save);
 
 /* The 4096 is there because of MariaDB privilege tables */
-static MYSQL_SYSVAR_ULONG(block_size, maria_block_size,
+static MYSQL_SYSVAR_UINT(block_size, maria_block_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-       "Block size to be used for Aria index pages.", 0, 0,
+       "Block size to be used for Aria index pages", 0, 0,
        MARIA_KEY_BLOCK_LENGTH, 4096,
        MARIA_MAX_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH);
 
-static MYSQL_SYSVAR_ULONG(checkpoint_interval, checkpoint_interval,
-       PLUGIN_VAR_RQCMDARG,
-       "Interval between tries to do an automatic checkpoints. In seconds; 0 means"
-       " 'no automatic checkpoints' which makes sense only for testing.",
-       NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
+static MYSQL_SYSVAR_UINT(checkpoint_interval, checkpoint_interval,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Interval between tries to do an automatic "
+                         "checkpoints. In seconds; 0 means "
+                         "'no automatic checkpoints' which makes sense only "
+                         "for testing",
+                         NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
 
-static MYSQL_SYSVAR_ULONG(checkpoint_log_activity, maria_checkpoint_min_log_activity,
-       PLUGIN_VAR_RQCMDARG,
-       "Number of bytes that the transaction log has to grow between checkpoints before a new "
-       "checkpoint is written to the log.",
-       NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
+static MYSQL_SYSVAR_UINT(checkpoint_log_activity,
+                         maria_checkpoint_min_log_activity,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Number of bytes that the transaction log has to grow "
+                         "between checkpoints before a new checkpoint is "
+                         "written to the log",
+                         NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
 
-static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
-       force_start_after_recovery_failures,
+static MYSQL_SYSVAR_UINT(force_start_after_recovery_failures,
+                         force_start_after_recovery_failures,
        /*
          Read-only because setting it on the fly has no useful effect,
          should be set on command-line.
@@ -180,7 +164,7 @@ static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of consecutive log recovery failures after which logs will be"
        " automatically deleted to cure the problem; 0 (the default) disables"
-       " the feature.", NULL, NULL, 0, 0, UINT_MAX8, 1);
+       " the feature", NULL, NULL, 0, 0, UINT_MAX8, 1);
 
 static MYSQL_SYSVAR_BOOL(page_checksum, maria_page_checksums, 0,
        "Maintain page checksums (can be overridden per table "
@@ -225,7 +209,7 @@ static MYSQL_SYSVAR_ENUM(log_purge_type, log_purge_type,
 static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size,
        maria_max_temp_length, PLUGIN_VAR_RQCMDARG,
        "Don't use the fast sort index method to created index if the "
-       "temporary file would get bigger than this.",
+       "temporary file would get bigger than this",
        0, 0, MAX_FILE_SIZE & ~((ulonglong) (1*MB-1)),
        0, MAX_FILE_SIZE, 1*MB);
 
@@ -234,40 +218,40 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        "This characterizes the number of hits a hot block has to be untouched "
        "until it is considered aged enough to be downgraded to a warm block. "
        "This specifies the percentage ratio of that number of hits to the "
-       "total number of blocks in the page cache.", 0, 0,
+       "total number of blocks in the page cache", 0, 0,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, pagecache_buffer_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "The size of the buffer used for index blocks for Aria tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
+       "multiple writes) to as much as you can afford", 0, 0,
        KEY_CACHE_SIZE, 8192*16L, ~(ulonglong) 0, 1);
 
-static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
+static MYSQL_SYSVAR_UINT(pagecache_division_limit, pagecache_division_limit,
        PLUGIN_VAR_RQCMDARG,
        "The minimum percentage of warm blocks in key cache", 0, 0,
        100,  1, 100, 1);
 
-static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
+static MYSQL_SYSVAR_UINT(pagecache_file_hash_size, pagecache_file_hash_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of hash buckets for open and changed files.  If you have a lot of Aria "
        "files open you should increase this for faster flush of changes. A good "
-       "value is probably 1/10 of number of possible open Aria files.", 0,0,
+       "value is probably 1/10 of number of possible open Aria files", 0,0,
        512, 128, 16384, 1);
 
 static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMDARG,
        "Specifies how corrupted tables should be automatically repaired",
        NULL, NULL, HA_RECOVER_BACKUP|HA_RECOVER_QUICK, &maria_recover_typelib);
 
-static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
+static MYSQL_THDVAR_UINT(repair_threads, PLUGIN_VAR_RQCMDARG,
        "Number of threads to use when repairing Aria tables. The value of 1 "
-       "disables parallel repair.",
+       "disables parallel repair",
        0, 0, 1, 1, 128, 1);
 
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
        "The buffer that is allocated when sorting the index when doing a "
-       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.",
+       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE",
        NULL, NULL,
        SORT_BUFFER_INIT, MARIA_MIN_SORT_MEMORY, SIZE_T_MAX/16, 1);
 
@@ -279,6 +263,14 @@ static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
        "Controls syncing directory after log file growth and new file "
        "creation", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
        &maria_sync_log_dir_typelib);
+
+static MYSQL_SYSVAR_UINT(pagecache_segments, pagecache_segments,
+                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                         "The number of segments in the page_cache. "
+                         "Each file is put in their own segments of size "
+                         "pagecache_buffer_size / segments. "
+                         "Having many segments improves parallel performance",
+                         0, 0, 1, 1, 128, 1);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
 #define USE_ARIA_FOR_TMP_TABLES_VAL 1
@@ -344,9 +336,9 @@ static PSI_rwlock_info all_aria_rwlocks[]=
 
 static PSI_thread_info all_aria_threads[]=
 {
-  { &key_thread_checkpoint, "checkpoint_background", PSI_FLAG_GLOBAL},
-  { &key_thread_soft_sync, "soft_sync_background", PSI_FLAG_GLOBAL},
-  { &key_thread_find_all_keys, "thr_find_all_keys", 0}
+  { &key_thread_checkpoint, "checkpoint_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_soft_sync, "soft_sync_bg", PSI_FLAG_GLOBAL},
+  { &key_thread_find_all_keys, "find_all_keys", 0}
 };
 
 static PSI_file_info all_aria_files[]=
@@ -423,15 +415,13 @@ static void _ma_check_print(HA_CHECK *param, const LEX_CSTRING *msg_type,
 
 
 // collect errors printed by maria_check routines
-
+ATTRIBUTE_FORMAT(printf, 3, 0)
 static void _ma_check_print_msg(HA_CHECK *param, const LEX_CSTRING *msg_type,
                                 const char *fmt, va_list args)
 {
   THD *thd= (THD *) param->thd;
-  Protocol *protocol= thd->protocol;
-  size_t length, msg_length;
+  size_t msg_length __attribute__((unused));
   char msgbuf[MYSQL_ERRMSG_SIZE];
-  char name[NAME_LEN * 2 + 2];
 
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     return;
@@ -460,27 +450,10 @@ static void _ma_check_print_msg(HA_CHECK *param, const LEX_CSTRING *msg_type,
       _ma_check_print(param, msg_type, msgbuf);
     return;
   }
-  length= (uint) (strxmov(name, param->db_name, ".", param->table_name,
-                          NullS) - name);
-  /*
-    TODO: switch from protocol to push_warning here. The main reason we didn't
-    it yet is parallel repair, which threads have no THD object accessible via
-    current_thd.
-
-    Also we likely need to lock mutex here (in both cases with protocol and
-    push_warning).
-  */
-  protocol->prepare_for_resend();
-  protocol->store(name, (uint)length, system_charset_info);
-  protocol->store(param->op_name, strlen(param->op_name), system_charset_info);
-  protocol->store(msg_type, system_charset_info);
-  protocol->store(msgbuf, msg_length, system_charset_info);
-  if (protocol->write())
-    sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
-                    param->db_name, param->table_name, msgbuf);
-  else if (thd->variables.log_warnings > 2)
+  print_check_msg(thd, param->db_name, param->table_name,
+                  param->op_name, msg_type->str, msgbuf, 0);
+  if (thd->variables.log_warnings > 2)
     _ma_check_print(param, msg_type, msgbuf);
-
   return;
 }
 
@@ -531,8 +504,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
   if (!(my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
           recinfo_out, (share->fields * 2 + 2) * sizeof(MARIA_COLUMNDEF),
           keydef_out, share->keys * sizeof(MARIA_KEYDEF),
-          &keyseg,
-          (share->key_parts + share->keys) * sizeof(HA_KEYSEG),
+          &keyseg, (share->key_parts + share->keys) * sizeof(HA_KEYSEG),
           NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
   keydef= *keydef_out;
@@ -540,11 +512,10 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
   pos= table_arg->key_info;
   for (i= 0; i < share->keys; i++, pos++)
   {
-    keydef[i].flag= (uint16) (pos->flags & (HA_NOSAME | HA_FULLTEXT |
-                                            HA_SPATIAL));
-    keydef[i].key_alg= pos->algorithm == HA_KEY_ALG_UNDEF ?
-      (pos->flags & HA_SPATIAL ? HA_KEY_ALG_RTREE : HA_KEY_ALG_BTREE) :
-      pos->algorithm;
+    keydef[i].flag= (uint16) (pos->flags & (HA_NOSAME | HA_FULLTEXT_legacy |
+                                            HA_SPATIAL_legacy));
+    keydef[i].key_alg= pos->algorithm == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE
+                                                          : pos->algorithm;
     keydef[i].block_length= pos->block_size;
     keydef[i].seg= keyseg;
     keydef[i].keysegs= pos->user_defined_key_parts;
@@ -634,13 +605,13 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
   while (recpos < (uint) share->stored_rec_length)
   {
     Field **field, *found= 0;
-    minpos= share->reclength;
+    minpos= share->stored_rec_length;
     length= 0;
 
     for (field= table_arg->field; *field; field++)
     {
       if ((fieldpos= (*field)->offset(record)) >= recpos &&
-          fieldpos <= minpos)
+          fieldpos < minpos)
       {
         /* skip null fields */
         if (!(temp_length= (*field)->pack_length_in_rec()))
@@ -769,28 +740,11 @@ int maria_check_definition(MARIA_KEYDEF *t1_keyinfo,
   {
     HA_KEYSEG *t1_keysegs= t1_keyinfo[i].seg;
     HA_KEYSEG *t2_keysegs= t2_keyinfo[i].seg;
-    if (t1_keyinfo[i].flag & HA_FULLTEXT && t2_keyinfo[i].flag & HA_FULLTEXT)
+    if ((t1_keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT &&
+         t2_keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT) ||
+        (t1_keyinfo[i].key_alg == HA_KEY_ALG_RTREE &&
+         t2_keyinfo[i].key_alg == HA_KEY_ALG_RTREE))
       continue;
-    else if (t1_keyinfo[i].flag & HA_FULLTEXT ||
-             t2_keyinfo[i].flag & HA_FULLTEXT)
-    {
-       DBUG_PRINT("error", ("Key %d has different definition", i));
-       DBUG_PRINT("error", ("t1_fulltext= %d, t2_fulltext=%d",
-                            MY_TEST(t1_keyinfo[i].flag & HA_FULLTEXT),
-                            MY_TEST(t2_keyinfo[i].flag & HA_FULLTEXT)));
-       DBUG_RETURN(1);
-    }
-    if (t1_keyinfo[i].flag & HA_SPATIAL && t2_keyinfo[i].flag & HA_SPATIAL)
-      continue;
-    else if (t1_keyinfo[i].flag & HA_SPATIAL ||
-             t2_keyinfo[i].flag & HA_SPATIAL)
-    {
-       DBUG_PRINT("error", ("Key %d has different definition", i));
-       DBUG_PRINT("error", ("t1_spatial= %d, t2_spatial=%d",
-                            MY_TEST(t1_keyinfo[i].flag & HA_SPATIAL),
-                            MY_TEST(t2_keyinfo[i].flag & HA_SPATIAL)));
-       DBUG_RETURN(1);
-    }
     if (t1_keyinfo[i].keysegs != t2_keyinfo[i].keysegs ||
         t1_keyinfo[i].key_alg != t2_keyinfo[i].key_alg)
     {
@@ -1069,25 +1023,14 @@ static const char *ha_maria_exts[]=
 };
 
 
-const char *ha_maria::index_type(uint key_number)
-{
-  return ((table->key_info[key_number].flags & HA_FULLTEXT) ?
-          "FULLTEXT" :
-          (table->key_info[key_number].flags & HA_SPATIAL) ?
-          "SPATIAL" :
-          (table->key_info[key_number].algorithm == HA_KEY_ALG_RTREE) ?
-          "RTREE" : "BTREE");
-}
-
-
 ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 {
   ulong flags;
-  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT)
+  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT ||
+      table_share->key_info[inx].algorithm == HA_KEY_ALG_UNIQUE_HASH)
     flags= 0;
   else
-  if ((table_share->key_info[inx].flags & HA_SPATIAL ||
-      table_share->key_info[inx].algorithm == HA_KEY_ALG_RTREE))
+  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_RTREE)
   {
     /* All GIS scans are non-ROR scans. We also disable IndexConditionPushdown */
     flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
@@ -1095,20 +1038,51 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
   }
   else
   {
-    flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
-          HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN;
+    flags= (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
+            HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN |
+            HA_DO_RANGE_FILTER_PUSHDOWN);
   }
   return flags;
 }
 
 
-double ha_maria::scan_time()
+/*
+  Update costs that are unique for this TABLE instance
+*/
+
+void ha_maria::update_optimizer_costs(OPTIMIZER_COSTS *costs)
 {
-  if (file->s->data_file_type == BLOCK_RECORD)
-    return (ulonglong2double(stats.data_file_length - file->s->block_size) /
-            file->s->block_size) + 2;
-  return handler::scan_time();
+  /*
+    Default costs for Aria with BLOCK_FORMAT is the same as MariaDB default
+    costs.
+  */
+  if (file->s->data_file_type != BLOCK_RECORD)
+  {
+    /*
+      MyISAM format row lookup costs are slow as the row data is on a not
+      cached file. Costs taken from ha_myisam.cc
+    */
+    costs->row_next_find_cost= 0.000063539;
+    costs->row_lookup_cost=    0.001014818;
+  }
 }
+
+
+IO_AND_CPU_COST ha_maria::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /* file may be 0 if this is an internal temporary file that is not yet opened */
+  if (file && file->s->data_file_type != BLOCK_RECORD)
+  {
+    /*
+      Row data is not cached. costs.row_lookup_cost includes the cost of
+      the reading the row from system (probably cached by the OS).
+    */
+    cost.io= 0;
+  }
+  return cost;
+}
+
 
 /*
   We need to be able to store at least 2 keys on an index page as the
@@ -1232,6 +1206,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
       file->s->keyinfo[i].parser=
         (struct st_mysql_ftparser *)plugin_decl(parser)->info;
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
+    table->s->key_info[i].block_size= table->key_info[i].block_size;
   }
   my_errno= 0;
 
@@ -1251,6 +1226,7 @@ int ha_maria::close(void)
   MARIA_HA *tmp= file;
   if (!tmp)
     return 0;
+  /* Ensure we have no open transactions */
   DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
   DBUG_ASSERT(file->trn_next == 0 && file->trn_prev == 0);
   file= 0;
@@ -1277,7 +1253,7 @@ int ha_maria::write_row(const uchar * buf)
 int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 {
   int error, fatal_error;
-  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
   MARIA_SHARE *share= file->s;
   const char *old_proc_info;
   TRN *old_trn= file->trn;
@@ -1380,6 +1356,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR);
+      share->crash_error= 0;
       if (!(table->db_stat & HA_READ_ONLY))
       {
         int tmp;
@@ -1430,7 +1407,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 int ha_maria::analyze(THD *thd, HA_CHECK_OPT * check_opt)
 {
   int error= 0;
-  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
   MARIA_SHARE *share= file->s;
   const char *old_proc_info;
 
@@ -1469,7 +1446,7 @@ int ha_maria::analyze(THD *thd, HA_CHECK_OPT * check_opt)
 int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
   ha_rows start_records;
   const char *old_proc_info;
 
@@ -1556,7 +1533,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
 int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
   TRN *old_trn;
   MARIA_SHARE *share= file->s;
 
@@ -1595,7 +1572,7 @@ int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
 int ha_maria::optimize(THD * thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
 
   if (!file || !param)
     return HA_ADMIN_INTERNAL_ERROR;
@@ -1617,6 +1594,19 @@ int ha_maria::optimize(THD * thd, HA_CHECK_OPT *check_opt)
   thd_progress_end(thd);
   return error;
 }
+
+/*
+  Set current_thd() for parallel worker thread
+*/
+
+C_MODE_START
+void maria_setup_thd_for_repair_thread(void *arg)
+{
+  THD *thd= (THD*) arg;
+  DBUG_ASSERT(thd->shared_thd);
+  set_current_thd(thd);
+}
+C_MODE_END
 
 
 int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
@@ -1709,8 +1699,17 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         my_snprintf(buf, 40, "Repair with %d threads", my_count_bits(key_map));
         thd_proc_info(thd, buf);
         param->testflag|= T_REP_PARALLEL;
+        /*
+          Ensure that all threads are using the same THD. This is needed
+          to get limit of tmp files to work
+        */
+        param->init_repair_thread= maria_setup_thd_for_repair_thread;
+        param->init_repair_thread_arg= table->in_use;
+        /* Mark that multiple threads are using the thd */
+        table->in_use->shared_thd= 1;
         error= maria_repair_parallel(param, file, fixed_name,
                                      MY_TEST(param->testflag & T_QUICK));
+        table->in_use->shared_thd= 0;
         /* to reset proc_info, as it was pointing to local buffer */
         thd_proc_info(thd, "Repair done");
       }
@@ -1725,6 +1724,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
           share->state.dupp_key != MAX_KEY)
       {
         my_errno= HA_ERR_FOUND_DUPP_KEY;
+        maria_rrnd(file, table->record[0], file->cur_row.lastpos);
         print_keydup_error(table, &table->key_info[share->state.dupp_key],
                            MYF(0));
       }
@@ -1772,6 +1772,13 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     /* Set trid (needed if the table was moved from another system) */
     share->state.create_trid= trnman_get_min_safe_trid();
   }
+
+  /*
+    Leaving not-zero value here leads to crash in the following
+    maria_delete() particularly when we execute REPAIR TABLE partitioned_t;.
+  */
+  file->cur_row.trid= 0;
+
   mysql_mutex_lock(&share->intern_lock);
   if (!error)
   {
@@ -1780,6 +1787,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR | STATE_MOVED);
+      share->crash_error= 0;
       file->update |= HA_STATE_CHANGED | HA_STATE_ROW_CHANGED;
     }
     /*
@@ -1806,6 +1814,11 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       _ma_check_print_warning(param, "Number of rows changed from %s to %s",
                               llstr(rows, llbuff),
                               llstr(file->state->records, llbuff2));
+      /*
+        ma_check_print_warning() may generate an error in case of creating keys
+        for ALTER TABLE. In this case we should signal an error.
+      */
+      error= thd->is_error();
     }
   }
   else
@@ -1930,7 +1943,7 @@ int ha_maria::preload_keys(THD * thd, HA_CHECK_OPT *check_opt)
       errmsg= buf;
     }
 
-    HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+    HA_CHECK *param= thd->alloc<HA_CHECK>(1);
     if (!param)
       return HA_ADMIN_INTERNAL_ERROR;
 
@@ -1952,40 +1965,45 @@ int ha_maria::preload_keys(THD * thd, HA_CHECK_OPT *check_opt)
 
   SYNOPSIS
     disable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      disable all non-unique keys
-                HA_KEY_SWITCH_ALL          disable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE dis. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     dis. all keys and make persistent
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented.
+  DESCRIPTION
+    See handler::ha_disable_indexes()
 
   RETURN
     0  ok
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_maria::disable_indexes(uint mode)
+int ha_maria::disable_indexes(key_map map, bool persist)
 {
   int error;
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  if (!persist)
   {
     /* call a storage engine function to switch the key map */
+    DBUG_ASSERT(map.is_clear_all());
     error= maria_disable_indexes(file);
-  }
-  else if (mode == HA_KEY_SWITCH_NONUNIQ_SAVE)
-  {
-    maria_extra(file, HA_EXTRA_NO_KEYS, 0);
-    info(HA_STATUS_CONST);                      // Read new key info
-    error= 0;
   }
   else
   {
-    /* mode not implemented */
-    error= HA_ERR_WRONG_COMMAND;
+    /* auto-inc key cannot be disabled */
+    if (table->s->next_number_index < MAX_KEY)
+      DBUG_ASSERT(map.is_set(table->s->next_number_index));
+
+    /* unique keys cannot be disabled either */
+    for (uint i=0; i < table->s->keys; i++)
+      DBUG_ASSERT(!(table->key_info[i].flags & HA_NOSAME) || map.is_set(i));
+
+    ulonglong ullmap= map.to_ulonglong();
+
+    /* make sure auto-inc key is enabled even if it's > 64 */
+    if (map.length() > MARIA_KEYMAP_BITS &&
+        table->s->next_number_index < MAX_KEY)
+      maria_set_key_active(ullmap, table->s->next_number_index);
+
+    maria_extra(file, HA_EXTRA_NO_KEYS, &ullmap);
+    info(HA_STATUS_CONST);                      // Read new key info
+    error= 0;
   }
   return error;
 }
@@ -1996,21 +2014,14 @@ int ha_maria::disable_indexes(uint mode)
 
   SYNOPSIS
     enable_indexes()
-    mode        mode of operation:
-                HA_KEY_SWITCH_NONUNIQ      enable all non-unique keys
-                HA_KEY_SWITCH_ALL          enable all keys
-                HA_KEY_SWITCH_NONUNIQ_SAVE en. non-uni. and make persistent
-                HA_KEY_SWITCH_ALL_SAVE     en. all keys and make persistent
 
   DESCRIPTION
     Enable indexes, which might have been disabled by disable_index() before.
-    The modes without _SAVE work only if both data and indexes are empty,
-    since the MARIA repair would enable them persistently.
+    If persist=false, it works only if both data and indexes are empty,
+    since the Aria repair would enable them persistently.
     To be sure in these cases, call handler::delete_all_rows() before.
 
-  IMPLEMENTATION
-    HA_KEY_SWITCH_NONUNIQ       is not implemented.
-    HA_KEY_SWITCH_ALL_SAVE      is not implemented.
+    See also handler::ha_enable_indexes()
 
   RETURN
     0  ok
@@ -2019,18 +2030,19 @@ int ha_maria::disable_indexes(uint mode)
     HA_ERR_WRONG_COMMAND  mode not implemented.
 */
 
-int ha_maria::enable_indexes(uint mode)
+int ha_maria::enable_indexes(key_map map, bool persist)
 {
   int error;
   ha_rows start_rows= file->state->records;
-  DBUG_PRINT("info", ("ha_maria::enable_indexes mode: %d", mode));
+  DBUG_PRINT("info", ("ha_maria::enable_indexes mode: %d", persist));
   if (maria_is_all_keys_active(file->s->state.key_map, file->s->base.keys))
   {
     /* All indexes are enabled already. */
     return 0;
   }
 
-  if (mode == HA_KEY_SWITCH_ALL)
+  DBUG_ASSERT(map.is_prefix(table->s->keys));
+  if (!persist)
   {
     error= maria_enable_indexes(file);
     /*
@@ -2039,10 +2051,10 @@ int ha_maria::enable_indexes(uint mode)
        but mode==HA_KEY_SWITCH_ALL forbids it.
     */
   }
-  else if (mode == HA_KEY_SWITCH_NONUNIQ_SAVE)
+  else
   {
     THD *thd= table->in_use;
-    HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
+    HA_CHECK *param= thd->alloc<HA_CHECK>(1);
     if (!param)
       return HA_ADMIN_INTERNAL_ERROR;
 
@@ -2083,12 +2095,13 @@ int ha_maria::enable_indexes(uint mode)
       This can be set when doing an ALTER TABLE and enabling unique keys
     */
     if ((error= (repair(thd, param, 0) != HA_ADMIN_OK)) && param->retry_repair &&
+        !file->s->internal_table &&
         (my_errno != HA_ERR_FOUND_DUPP_KEY ||
          !file->create_unique_index_by_sort))
     {
-      sql_print_warning("Warning: Enabling keys got errno %d on %s.%s, "
+      sql_print_warning("Warning: Enabling keys got errno %d on %s, "
                         "retrying",
-                        my_errno, param->db_name, param->table_name);
+                        my_errno, file->s->open_file_name.str);
       /* Repairing by sort failed. Now try standard repair method. */
       param->testflag &= ~T_REP_BY_SORT;
       file->state->records= start_rows;
@@ -2103,11 +2116,6 @@ int ha_maria::enable_indexes(uint mode)
     }
     info(HA_STATUS_CONST);
     thd_proc_info(thd, save_proc_info);
-  }
-  else
-  {
-    /* mode not implemented */
-    error= HA_ERR_WRONG_COMMAND;
   }
   DBUG_EXECUTE_IF("maria_flush_whole_log",
                   {
@@ -2250,9 +2258,10 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
                     (!rows || rows >= MARIA_MIN_ROWS_TO_DISABLE_INDEXES));
         for (i=0 ; i < share->base.keys ; i++,key++)
         {
-          if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY | HA_RTREE_INDEX)) &&
-              ! maria_too_big_key_for_sort(key,rows) && share->base.auto_key != i+1 &&
+          if (!(key->flag & HA_AUTO_KEY) && share->base.auto_key != i+1 &&
+              ! maria_too_big_key_for_sort(key,rows) &&
               (all_keys || !(key->flag & HA_NOSAME)) &&
+              table->key_info[i].algorithm != HA_KEY_ALG_RTREE &&
               table->key_info[i].algorithm != HA_KEY_ALG_LONG_HASH)
           {
             maria_clear_key_active(share->state.key_map, i);
@@ -2311,7 +2320,7 @@ int ha_maria::end_bulk_insert()
 {
   int first_error, first_errno= 0, error;
   my_bool abort= file->s->deleting, empty_table= 0;
-  uint enable_index_mode= HA_KEY_SWITCH_NONUNIQ_SAVE;
+  bool enable_persistently= true;
   DBUG_ENTER("ha_maria::end_bulk_insert");
 
   if ((first_error= maria_end_bulk_insert(file, abort)))
@@ -2340,7 +2349,7 @@ int ha_maria::end_bulk_insert()
         first_error= 1;
         first_errno= my_errno;
       }
-      enable_index_mode= HA_KEY_SWITCH_ALL;
+      enable_persistently= false;
       empty_table= 1;
       /*
         Ignore all changed pages, required by _ma_renable_logging_for_table()
@@ -2352,7 +2361,7 @@ int ha_maria::end_bulk_insert()
 
   if (!abort && can_enable_indexes)
   {
-    if ((error= enable_indexes(enable_index_mode)))
+    if ((error= enable_indexes(key_map(table->s->keys), enable_persistently)))
     {
       if (!first_error)
       {
@@ -2386,7 +2395,7 @@ int ha_maria::end_bulk_insert()
   can_enable_indexes= 0;
   if (first_error)
     my_errno= first_errno;
-  DBUG_RETURN(first_error);
+  DBUG_RETURN(first_errno);
 }
 
 
@@ -2506,10 +2515,12 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
 
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
 
-  ma_set_index_cond_func(file, NULL, 0);
+  ma_reset_index_filter_functions(file);
   return error;
 }
 
@@ -2583,18 +2594,22 @@ int ha_maria::index_next_same(uchar * buf,
 
 int ha_maria::index_init(uint idx, bool sorted)
 {
-  active_index=idx;
+  active_index= idx;
   if (pushed_idx_cond_keyno == idx)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
   return 0;
 }
 
-
 int ha_maria::index_end()
 {
+  /*
+    in_range_check_pushed_down and index_id_cond_keyno are reset in
+    handler::cancel_pushed_idx_cond()
+  */
   active_index=MAX_KEY;
-  ma_set_index_cond_func(file, NULL, 0);
-  in_range_check_pushed_down= FALSE;
+  ma_reset_index_filter_functions(file);
   ds_mrr.dsmrr_close();
   return 0;
 }
@@ -2708,8 +2723,8 @@ int ha_maria::info(uint flag)
       }
     }
     /*
-       Set data_file_name and index_file_name to point at the symlink value
-       if table is symlinked (Ie;  Real name is not same as generated name)
+      Set data_file_name and index_file_name to point at the symlink value
+      if table is symlinked (Ie;  Real name is not same as generated name)
     */
     data_file_name= index_file_name= 0;
     fn_format(name_buff, file->s->open_file_name.str, "", MARIA_NAME_DEXT,
@@ -2792,7 +2807,7 @@ int ha_maria::extra(enum ha_extra_function operation)
 
 int ha_maria::reset(void)
 {
-  ma_set_index_cond_func(file, NULL, 0);
+  ma_reset_index_filter_functions(file);
   ds_mrr.dsmrr_close();
   if (file->trn)
   {
@@ -2826,8 +2841,9 @@ bool ha_maria::auto_repair(int error) const
 int ha_maria::delete_all_rows()
 {
   THD *thd= table->in_use;
-  TRN *trn= file->trn;
+  TRN *trn= file->s->now_transactional ? file->trn : (TRN*) 0;
   CHECK_UNTIL_WE_FULLY_IMPLEMENTED_VERSIONING("TRUNCATE in WRITE CONCURRENT");
+
 #ifdef EXTRA_DEBUG
   if (trn && ! (trnman_get_flags(trn) & TRN_STATE_INFO_LOGGED))
   {
@@ -2841,8 +2857,7 @@ int ha_maria::delete_all_rows()
     If we are under LOCK TABLES, we have to do a commit as
     delete_all_rows() can't be rolled back
   */
-  if (table->in_use->locked_tables_mode && trn &&
-      trnman_has_locked_tables(trn))
+  if (trn && table->in_use->locked_tables_mode && trnman_has_locked_tables(trn))
   {
     int error;
     if ((error= implicit_commit(thd, 1)))
@@ -2867,9 +2882,33 @@ int ha_maria::delete_table(const char *name)
 
 void ha_maria::drop_table(const char *name)
 {
+  my_bool tracked= file && file->s->tracked;
+  struct tmp_file_tracking track_data;
+  struct tmp_file_tracking track_index;
+
   DBUG_ASSERT(!file || file->s->temporary);
+
+  if (tracked)
+  {
+    /* Inform tracking after files are deleted */
+    track_data= file->s->track_data;
+    track_index= file->s->track_index;
+#ifndef DBUG_OFF
+    /* Avoid DBUG_ASSERT in maria_close() */
+    bzero(&file->s->track_data, sizeof(file->s->track_data));
+    bzero(&file->s->track_index, sizeof(file->s->track_index));
+#endif
+  }
+
+  file->s->deleting= 1;                         // Do not flush data
   (void) ha_close();
   (void) maria_delete_table_files(name, 1, MY_WME);
+
+  if (tracked)
+  {
+    _ma_update_tmp_file_size(&track_data, 0);
+    _ma_update_tmp_file_size(&track_index, 0);
+  }
 }
 
 
@@ -2922,8 +2961,11 @@ int ha_maria::external_lock(THD *thd, int lock_type)
           tons of archived logs to roll-forward, we could then not disable
           REDOs/UNDOs in this case.
         */
-        DBUG_PRINT("info", ("Disabling logging for table"));
-        _ma_tmp_disable_logging_for_table(file, TRUE);
+        if (likely(file->s->now_transactional))
+        {
+          DBUG_PRINT("info", ("Disabling logging for table"));
+          _ma_tmp_disable_logging_for_table(file, TRUE);
+        }
         file->autocommit= 0;
       }
       else
@@ -2972,11 +3014,9 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             !trnman_decrement_locked_tables(trn))
         {
           /*
-            OK should not have been sent to client yet (ACID).
-            This is a bit excessive, ACID requires this only if there are some
-            changes to commit (rollback shouldn't be tested).
+            OK should not have been sent to client in case of write (ACID).
           */
-          DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
+          DBUG_ASSERT(!trn->undo_lsn || !thd->get_stmt_da()->is_sent() ||
                       thd->killed);
           /*
             If autocommit, commit transaction. This can happen when open and
@@ -3046,17 +3086,23 @@ int ha_maria::start_stmt(THD *thd, thr_lock_type lock_type)
   Reset THD_TRN and all file->trn related to the transaction
   This is needed as some calls, like extra() or external_lock() may access
   it before next transaction is started
+  Note that trn for the table is already freed and may be reused by another
+  thread.
 */
 
 static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
 {
+  MARIA_HA *next;
+  TRN *trn __attribute__((unused)) = first_table ? first_table->trn : 0;
   DBUG_ENTER("reset_thd_trn");
   thd_set_ha_data(thd, maria_hton, 0);
-  MARIA_HA *next;
   for (MARIA_HA *table= first_table; table ; table= next)
   {
+    DBUG_ASSERT(table->trn == trn);
     next= table->trn_next;
-    _ma_reset_trn_for_table(table);
+    table->trn_prev= 0;
+    table->trn_next= 0;
+    table->trn= 0;
 
     /*
       If table has changed by this statement, invalidate it from the query
@@ -3139,13 +3185,15 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     statement assuming they have a trn (see ha_maria::start_stmt()).
   */
   trn= trnman_new_trn(& thd->transaction->wt);
-  thd_set_ha_data(thd, maria_hton, trn);
   if (unlikely(trn == NULL))
   {
-    reset_thd_trn(thd, used_tables);
+    reset_thd_trn(thd, used_tables);            // Calls thd_set_ha_data()
     error= HA_ERR_OUT_OF_MEM;
     goto end;
   }
+  else
+    thd_set_ha_data(thd, maria_hton, trn);
+
   /*
     Move all locked tables to the new transaction
     We must do it here as otherwise file->thd and file->state may be
@@ -3159,6 +3207,14 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   {
     trn_next= handler->trn_next;
     DBUG_ASSERT(handler->s->base.born_transactional);
+
+    /*
+      We reset the link to the old trn to avoid the asserts
+      in _ma_set_trn_for_table()
+    */
+    handler->trn_next= 0;
+    handler->trn_prev= 0;
+    handler->trn= 0;
 
     /* If handler uses versioning */
     if (handler->s->lock_key_trees)
@@ -3192,11 +3248,12 @@ THR_LOCK_DATA **ha_maria::store_lock(THD *thd,
       We have to disable concurrent inserts for INSERT ... SELECT or
       INSERT/UPDATE/DELETE with sub queries if we are using statement based
       logging.  We take the safe route here and disable this for all commands
-      that only does reading that are not SELECT.
+      that only does reading that are not SELECT or ALTER TABLE nolock.
     */
     if (lock_type <= TL_READ_HIGH_PRIORITY &&
         !thd->is_current_stmt_binlog_format_row() &&
         (sql_command != SQLCOM_SELECT &&
+         sql_command != SQLCOM_ALTER_TABLE &&
          sql_command != SQLCOM_LOCK_TABLES) &&
         (thd->variables.option_bits & OPTION_BIN_LOG) &&
         mysql_bin_log.is_open())
@@ -3293,7 +3350,6 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   MARIA_CREATE_INFO create_info;
   TABLE_SHARE *share= table_arg->s;
   uint options= share->db_options_in_use;
-  ha_table_option_struct *table_options= table_arg->s->option_struct;
   enum data_file_type row_type;
   THD *thd= current_thd;
   DBUG_ENTER("ha_maria::create");
@@ -3341,8 +3397,8 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   if (ht != maria_hton)
   {
     /* S3 engine */
-    create_info.s3_block_size= (ulong) table_options->s3_block_size;
-    create_info.compression_algorithm= table_options->compression_algorithm;
+    create_info.s3_block_size= (ulong) option_struct->s3_block_size;
+    create_info.compression_algorithm= option_struct->compression_algorithm;
   }
 
   /*
@@ -3361,6 +3417,8 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   if (ha_create_info->tmp_table())
   {
     create_flags|= HA_CREATE_TMP_TABLE | HA_CREATE_DELAY_KEY_WRITE;
+    if (ha_create_info->options & HA_LEX_CREATE_GLOBAL_TMP_TABLE)
+      create_flags|= HA_CREATE_GLOBAL_TMP_TABLE;
     create_info.transactional= 0;
   }
   if (ha_create_info->options & HA_CREATE_KEEP_FILES)
@@ -3390,6 +3448,7 @@ int ha_maria::create(const char *name, TABLE *table_arg,
                  &create_info, create_flags);
 
   my_free(recinfo);
+  ref_length= create_info.rec_reflength;
   DBUG_RETURN(error);
 }
 
@@ -3565,8 +3624,7 @@ static int maria_hton_panic(handlerton *hton, ha_panic_function flag)
 }
 
 
-static int maria_commit(handlerton *hton __attribute__ ((unused)),
-                        THD *thd, bool all)
+static int maria_commit(THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
   int res= 0;
@@ -3591,12 +3649,11 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
   if (ma_commit(trn))
     res= HA_ERR_COMMIT_ERROR;
   reset_thd_trn(thd, used_instances);
-  thd_set_ha_data(thd, maria_hton, 0);
   DBUG_RETURN(res);
 }
 
 #ifdef MARIA_CANNOT_ROLLBACK
-static int maria_rollback(handlerton *hton, THD *thd, bool all)
+static int maria_rollback(THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_rollback");
@@ -3608,15 +3665,14 @@ static int maria_rollback(handlerton *hton, THD *thd, bool all)
                         ER_THD(thd, ER_DATA_WAS_COMMITED_UNDER_ROLLBACK),
                         "Aria");
   if (all)
-    DBUG_RETURN(maria_commit(hton, thd, all));
+    DBUG_RETURN(maria_commit(thd, all));
   /* Statement rollbacks are ignored. Commit will happen in external_lock */
   DBUG_RETURN(0);
 }
 
 #else
 
-static int maria_rollback(handlerton *hton __attribute__ ((unused)),
-                          THD *thd, bool all)
+static int maria_rollback(THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_rollback");
@@ -3652,10 +3708,9 @@ bool maria_flush_logs(handlerton *hton)
 }
 
 
-int maria_checkpoint_state(handlerton *hton, bool disabled)
+void maria_checkpoint_state(bool disabled)
 {
   maria_checkpoint_disabled= (my_bool) disabled;
-  return 0;
 }
 
 
@@ -3850,6 +3905,10 @@ bool ha_maria::is_changed() const
   return file->state->changed;
 }
 
+static void aria_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+}
+
 
 static int ha_maria_init(void *p)
 {
@@ -3877,11 +3936,12 @@ static int ha_maria_init(void *p)
   maria_hton->tablefile_extensions= ha_maria_exts;
   maria_hton->commit= maria_commit;
   maria_hton->rollback= maria_rollback;
-  maria_hton->checkpoint_state= maria_checkpoint_state;
+  maria_hton->disable_internal_writes= maria_checkpoint_state;
   maria_hton->flush_logs= maria_flush_logs;
   maria_hton->show_status= maria_show_status;
   maria_hton->prepare_for_backup= maria_prepare_for_backup;
   maria_hton->end_backup= maria_end_backup;
+  maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
@@ -3894,15 +3954,17 @@ static int ha_maria_init(void *p)
   if (!aria_readonly)
     res= maria_upgrade();
   res= res || maria_init();
-  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly);
+  tmp= ma_control_file_open(!aria_readonly, !aria_readonly, !aria_readonly,
+                            control_file_open_flags);
   res= res || aria_readonly ? tmp == CONTROL_FILE_LOCKED : tmp != 0;
   res= res ||
     ((force_start_after_recovery_failures != 0 && !aria_readonly) &&
      mark_recovery_start(log_dir)) ||
-    !init_pagecache(maria_pagecache,
-                    (size_t) pagecache_buffer_size, pagecache_division_limit,
-                    pagecache_age_threshold, maria_block_size, pagecache_file_hash_size,
-                    0) ||
+    multi_init_pagecache(&maria_pagecaches, pagecache_segments,
+                         (size_t) pagecache_buffer_size,
+                         pagecache_division_limit,
+                         pagecache_age_threshold, maria_block_size,
+                         pagecache_file_hash_size, 0) ||
     !init_pagecache(maria_log_pagecache,
                     TRANSLOG_PAGECACHE_SIZE, 0, 0,
                     TRANSLOG_PAGE_SIZE, 0, 0) ||
@@ -3919,7 +3981,6 @@ static int ha_maria_init(void *p)
     ma_checkpoint_init(checkpoint_interval);
   maria_multi_threaded= maria_in_ha_maria= TRUE;
   maria_create_trn_hook= maria_create_trn_for_mysql;
-  maria_pagecache->extra_debug= 1;
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
 
   if (res)
@@ -3936,7 +3997,6 @@ static int ha_maria_init(void *p)
 }
 
 
-#ifdef HAVE_QUERY_CACHE
 /**
   @brief Register a named table with a call back function to the query cache.
 
@@ -4009,7 +4069,6 @@ my_bool ha_maria::register_query_cache_table(THD *thd, const char *table_name,
   DBUG_RETURN(!(file->s->non_transactional_concurrent_insert &&
                 current_data_file_length != actual_data_file_length));
 }
-#endif
 
 static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(block_size),
@@ -4027,6 +4086,7 @@ static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
   MYSQL_SYSVAR(pagecache_file_hash_size),
+  MYSQL_SYSVAR(pagecache_segments),
   MYSQL_SYSVAR(recover_options),
   MYSQL_SYSVAR(repair_threads),
   MYSQL_SYSVAR(sort_buffer_size),
@@ -4047,7 +4107,7 @@ static void update_checkpoint_interval(MYSQL_THD thd,
                                         void *var_ptr, const void *save)
 {
   ma_checkpoint_end();
-  ma_checkpoint_init(*(ulong *)var_ptr= (ulong)(*(long *)save));
+  ma_checkpoint_init(*(uint *)var_ptr= *(uint*)save);
 }
 
 
@@ -4152,14 +4212,31 @@ static void update_log_file_size(MYSQL_THD thd,
 
 
 static SHOW_VAR status_variables[]= {
-  {"pagecache_blocks_not_flushed", (char*) &maria_pagecache_var.global_blocks_changed, SHOW_LONG},
-  {"pagecache_blocks_unused",      (char*) &maria_pagecache_var.blocks_unused, SHOW_LONG},
-  {"pagecache_blocks_used",        (char*) &maria_pagecache_var.blocks_used, SHOW_LONG},
-  {"pagecache_read_requests",      (char*) &maria_pagecache_var.global_cache_r_requests, SHOW_LONGLONG},
-  {"pagecache_reads",              (char*) &maria_pagecache_var.global_cache_read, SHOW_LONGLONG},
-  {"pagecache_write_requests",     (char*) &maria_pagecache_var.global_cache_w_requests, SHOW_LONGLONG},
-  {"pagecache_writes",             (char*) &maria_pagecache_var.global_cache_write, SHOW_LONGLONG},
-  {"transaction_log_syncs",        (char*) &translog_syncs, SHOW_LONGLONG},
+  {"blocks_not_flushed", (char*) &pagecache_stats.global_blocks_changed, SHOW_LONG},
+  {"blocks_unused",      (char*) &pagecache_stats.blocks_unused, SHOW_LONG},
+  {"blocks_used",        (char*) &pagecache_stats.blocks_used, SHOW_LONG},
+  {"read_requests",      (char*) &pagecache_stats.global_cache_r_requests, SHOW_LONGLONG},
+  {"reads",              (char*) &pagecache_stats.global_cache_read, SHOW_LONGLONG},
+  {"write_requests",     (char*) &pagecache_stats.global_cache_w_requests, SHOW_LONGLONG},
+  {"writes",             (char*) &pagecache_stats.global_cache_write, SHOW_LONGLONG},
+  {NullS, NullS, SHOW_LONG}
+};
+
+
+static int pagecache_stats_func(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type scope)
+{
+  multi_update_pagecache_stats();
+  var->type= SHOW_ARRAY;
+  var->value= status_variables;
+  return 0;
+}
+
+static SHOW_VAR dynamic_status_variables[]=
+{
+  /* Accessing pagecache causes multi_update_pagecache_stats() to be called */
+  {"pagecache",             (char*) &pagecache_stats_func, SHOW_FUNC},
+  {"transaction_log_syncs", (char*) &translog_syncs, SHOW_LONGLONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -4182,7 +4259,8 @@ int ha_maria::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param,
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, Cost_estimate *cost)
+                                              uint *flags, ha_rows limit,
+                                              Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -4191,7 +4269,7 @@ ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ds_mrr.init(this, table);
   return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
-                                 flags, cost);
+                                 flags, limit, cost);
 }
 
 ha_rows ha_maria::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
@@ -4242,6 +4320,26 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
   return NULL;
 }
 
+bool ha_maria::rowid_filter_push(Rowid_filter* rowid_filter)
+{
+  /* This will be used in index_init() */
+  pushed_rowid_filter= rowid_filter;
+  return false;
+}
+
+
+/* Enable / disable rowid filter depending if it's active or not */
+
+void ha_maria::rowid_filter_changed()
+{
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
+  else
+    ma_set_rowid_filter_func(file, NULL, this);
+}
+
+
+
 /**
   Find record by unique constrain (used in temporary tables)
 
@@ -4279,7 +4377,7 @@ int ha_maria::find_unique_row(uchar *record, uint constrain_no)
   else
   {
     /*
-     It is case when just unique index used instead unicue constrain
+     It is the case when just unique index is used instead of unique constraint
      (conversion from heap table).
      */
     DBUG_ASSERT(file->s->state.header.keys > constrain_no);
@@ -4314,7 +4412,12 @@ int ha_maria::check_for_upgrade(HA_CHECK_OPT *check)
 }
 
 
-struct st_mysql_storage_engine maria_storage_engine=
+void aria_reset_pagecache_counters()
+{
+  multi_reset_pagecache_counters(&maria_pagecaches);
+}
+
+  struct st_mysql_storage_engine maria_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 maria_declare_plugin(aria)
@@ -4327,10 +4430,10 @@ maria_declare_plugin(aria)
   PLUGIN_LICENSE_GPL,
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */
-  0x0105,                       /* 1.5              */
-  status_variables,             /* status variables */
+  0x0106,                       /* 1.6              */
+  dynamic_status_variables,     /* status variables */
   system_variables,             /* system variables */
-  "1.5",                        /* string version   */
+  "1.6",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity         */
 }
 maria_declare_plugin_end;

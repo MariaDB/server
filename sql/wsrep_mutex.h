@@ -30,17 +30,17 @@ public:
     : m_mutex(mutex)
   { }
 
-  void lock()
+  void lock() override
   {
     mysql_mutex_lock(m_mutex);
   }
 
-  void unlock()
+  void unlock() override
   {
     mysql_mutex_unlock(m_mutex);
   }
 
-  void* native()
+  void* native() override
   {
     return m_mutex;
   }

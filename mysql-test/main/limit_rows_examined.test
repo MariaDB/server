@@ -7,14 +7,14 @@ call mtr.add_suppression("Sort aborted.*");
 
 set @save_join_cache_level = @@join_cache_level;
 
-create table t1 (c1 char(2));
-create table t2 (c2 char(2));
+create table t1 (c1 char(2)) charset=latin1;
+create table t2 (c2 char(2)) charset=latin1;
 
 insert into t1 values ('bb'), ('cc'), ('aa'), ('dd');
 insert into t2 values ('bb'), ('cc'), ('dd'), ('ff');
 
-create table t1i (c1 char(2) key);
-create table t2i (c2 char(2) key);
+create table t1i (c1 char(2) key) charset=latin1;
+create table t2i (c2 char(2) key) charset=latin1;
 
 insert into t1i values ('bb'), ('cc'), ('aa'), ('dd');
 insert into t2i values ('bb'), ('cc'), ('dd'), ('ff');
@@ -23,6 +23,8 @@ insert into t2i values ('bb'), ('cc'), ('dd'), ('ff');
 --echo Simple joins
 --echo =========================================================================
 
+#Check after fix MDEV-31522
+--disable_cursor_protocol
 --echo Simple nested loops join without blocking
 set @@join_cache_level=0;
 explain
@@ -71,7 +73,7 @@ select * from t0 LIMIT ROWS EXAMINED 1;
 select * from t0 LIMIT ROWS EXAMINED 1;
 drop table t0;
 
-create table t0 (c0 char(2) primary key);
+create table t0 (c0 char(2) primary key) charset=latin1;
 insert into t0 values  ('bb'), ('cc'), ('aa');
 
 explain
@@ -277,9 +279,9 @@ create view v1 as
 select * from t1 where c1 IN (select * from t2 where c2 > ' ');
 
 select * from v1;
-select * from v1 LIMIT ROWS EXAMINED 17;
-select * from v1 LIMIT ROWS EXAMINED 16;
-select * from v1 LIMIT ROWS EXAMINED 11;
+select * from v1 LIMIT ROWS EXAMINED 10;
+select * from v1 LIMIT ROWS EXAMINED 8;
+select * from v1 LIMIT ROWS EXAMINED 3;
 
 drop view v1;
 
@@ -296,7 +298,7 @@ LIMIT ROWS EXAMINED 11;
 --echo =========================================================================
 --echo Aggregation
 --echo =========================================================================
-create table t3 (c1 char(2), c2 int);
+create table t3 (c1 char(2), c2 int) charset=latin1;
 
 insert into t3 values
 ('aa', 1), ('aa', 2),
@@ -313,7 +315,7 @@ select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 1;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 20;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 21;
 
-create table t3i (c1 char(2), c2 int);
+create table t3i (c1 char(2), c2 int) charset=latin1;
 create index it3i on t3i(c1);
 create index it3j on t3i(c2,c1);
 
@@ -457,6 +459,7 @@ SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 15;
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 16;
+--enable_cursor_protocol
 
 drop table t1,t2,t3;
 
@@ -489,6 +492,7 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
@@ -508,6 +512,7 @@ LIMIT ROWS EXAMINED 124;
 SHOW STATUS LIKE 'Handler_read%';
 SHOW STATUS LIKE 'Handler_tmp%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 drop table t1, t2;
 
@@ -612,3 +617,71 @@ select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
 drop table t1,t2;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-35571: Connection hangs after query on a partitioned table with UNION and LIMIT ROWS EXAMINED
+--echo #
+
+--source include/have_partition.inc
+--source include/have_sequence.inc
+
+# Simplified test
+create table t1 (a int);
+insert into t1 values (1), (2);
+select * from t1 UNION ALL select * from t1 LIMIT ROWS EXAMINED 1;
+# UNION DISTINCT produces the same result here. Note that this is not
+# affected by the MDEV-35571 patch
+select * from t1 UNION DISTINCT select * from t1 LIMIT ROWS EXAMINED 1;
+DROP TABLE t1;
+
+# Simplified test with order by
+create table t1 (a int);
+insert into t1 values (1), (2);
+(select a from t1 UNION ALL select a from t1) order by a desc LIMIT ROWS EXAMINED 2;
+# UNION DISTINCT produces the same result with order by desc. Note
+# that this is not affected by the MDEV-35571 patch
+(select a from t1 UNION DISTINCT select a from t1) order by a desc LIMIT ROWS EXAMINED 2;
+DROP TABLE t1;
+
+# Original test
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq%25 FROM seq_1_to_100;
+
+CREATE TABLE t2 (b INT, c INT, KEY(b)) PARTITION BY HASH(c) PARTITIONS 12;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_10;
+
+SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION ALL SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) LIMIT ROWS EXAMINED 100;
+# UNION DISTINCT produces the same result here. Note that this is not
+# affected by the MDEV-35571 patch
+SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) UNION DISTINCT SELECT COUNT(*) FROM t1 JOIN t2 ON (b = a) LIMIT ROWS EXAMINED 100;
+
+DROP TABLE t1, t2;
+
+--echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-22241: Assertion `0' failed in Protocol::end_statement after query with LIMIT ROWS EXAMINED
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1);
+
+SELECT 1 FROM t1
+WHERE (1 IN (SELECT 8 UNION SELECT 5)) OR t1.a = 2
+LIMIT ROWS EXAMINED 1;
+
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-38683 SIGSEGV (dbg), SIGABRT or ER_EMPTY_QUERY when using
+--echo #            ROWS EXAMINED with log_output=TABLE
+--echo #
+
+SET GLOBAL general_log=ON, GLOBAL log_output='TABLE';
+CREATE TABLE t1 (c INT);
+EXPLAIN SELECT * FROM t1 LIMIT ROWS EXAMINED 1;
+select 1;
+drop table t1;
+SET GLOBAL log_output= default;

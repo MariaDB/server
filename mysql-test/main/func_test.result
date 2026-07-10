@@ -296,7 +296,7 @@ explain extended select * from t1 where not a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 0
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
 select not (a+0) from t1;
 not (a+0)
 0
@@ -403,7 +403,7 @@ t2	CREATE TABLE `t2` (
   `LEAST(b,a)` decimal(10,0) DEFAULT NULL,
   `GREATEST(a,b)` decimal(10,0) DEFAULT NULL,
   `GREATEST(b,a)` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	-2147483648
 b	4294967295

@@ -134,7 +134,7 @@ typedef struct st_maria_create_info
   ulong s3_block_size;
   /* Size of null bitmap at start of row */
   uint null_bytes;
-  uint old_options;
+  uint old_options, rec_reflength;
   uint compression_algorithm;
   enum data_file_type org_data_file_type;
   uint16 language;
@@ -146,6 +146,8 @@ extern int maria_create(const char *name, enum data_file_type record_type,
                         uint columns, MARIA_COLUMNDEF *columndef,
                         uint uniques, MARIA_UNIQUEDEF *uniquedef,
                         MARIA_CREATE_INFO *create_info, uint flags);
+
+extern void aria_reset_pagecache_counters();
 
 #ifdef	__cplusplus
 }

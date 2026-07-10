@@ -1,0 +1,2 @@
+--disable_query_log
+--enable_query_log

@@ -1,10 +1,12 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--disable_ps2_protocol
 #
 # Test the effect of gmcast.isolate on master during an SR transaction
 #
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -133,3 +135,4 @@ CALL mtr.add_suppression("failed to send SR rollback for");
 DROP TABLE t1;
 
 --source ../galera/include/auto_increment_offset_restore.inc
+--enable_ps2_protocol

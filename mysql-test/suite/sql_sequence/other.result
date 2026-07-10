@@ -4,21 +4,21 @@
 create sequence s1 engine=innodb;
 check table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	check	note	The storage engine for the table doesn't support check
+test.s1	check	status	OK
 select next value for s1;
 next value for s1
 1
 flush tables;
 check table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	check	note	The storage engine for the table doesn't support check
+test.s1	check	status	OK
 select next value for s1;
 next value for s1
 1001
 flush tables;
 repair table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	repair	note	The storage engine for the table doesn't support repair
+test.s1	repair	status	OK
 select next value for s1;
 next value for s1
 2001
@@ -29,10 +29,10 @@ next value for s1
 1
 repair table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	repair	note	The storage engine for the table doesn't support repair
+test.s1	repair	status	OK
 check table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	check	note	The storage engine for the table doesn't support check
+test.s1	check	status	OK
 select next value for s1;
 next value for s1
 1001
@@ -48,7 +48,6 @@ create sequence s2;
 insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
 ERROR HY000: Field 'maximum_value' doesn't have a default value
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
-ERROR HY000: Table 's1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
 ERROR HY000: Sequence 'test.s1' has out of range value for options
 insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
@@ -186,11 +185,11 @@ DROP SEQUENCE s1;
 #
 CREATE SEQUENCE s1 nocache engine=myisam;
 CREATE table t1 (a int check (next value for s1 > 0));
-ERROR HY000: Function or expression 'nextval()' cannot be used in the CHECK clause of `a`
+ERROR 42000: CHECK does not support subqueries or stored functions
 CREATE table t1 (a int check (previous value for s1 > 0));
-ERROR HY000: Function or expression 'lastval()' cannot be used in the CHECK clause of `a`
+ERROR 42000: CHECK does not support subqueries or stored functions
 CREATE table t1 (a int check (setval(s1,10)));
-ERROR HY000: Function or expression 'setval()' cannot be used in the CHECK clause of `a`
+ERROR 42000: CHECK does not support subqueries or stored functions
 CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
 ERROR HY000: Function or expression 'nextval()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 drop sequence s1;
@@ -202,11 +201,8 @@ CREATE SEQUENCE s;
 CREATE table t1 (a int);
 insert into t1 values (1),(2);
 DELETE s FROM s;
-ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 delete t1,s from s,t1;
-ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 delete s,t1 from t1,s;
-ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 DROP SEQUENCE s;
 DROP TABLE t1;
 #
@@ -358,4 +354,63 @@ Note	4092	Unknown VIEW: 'test.s'
 DROP VIEW v1;
 DROP SEQUENCE s;
 DROP TABLE t;
+#
 # End of 10.3 tests
+#
+#
+# MDEV-32541 Assertion `!(thd->server_status & (1U | 8192U))' failed in MDL_context::release_transactional_locks
+#
+create sequence s1;
+create sequence s2;
+connect  con1,localhost,root,,;
+set session transaction read only;
+start transaction;
+connection default;
+start transaction;
+insert into s2 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+connection con1;
+select lastval(s1);
+lastval(s1)
+NULL
+select lastval(s2);;
+connection default;
+set lock_wait_timeout= 1;
+insert into s1 values (1, 1, 10000, 100, 1, 1000, 0, 0);
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con1;
+connection default;
+drop sequence s1;
+drop sequence s2;
+# End of 10.4 tests
+#
+# MDEV-37906 Server crash or UBSAN errors in Item_func_nextval::update_table upon INSERT DELAYED
+#
+create sequence s engine=myisam;
+create table t (id bigint default(nextval(s))) engine=myisam;
+insert delayed into t () values();
+drop table t;
+drop sequence s;
+#
+# MDEV-37345 Item_func_nextval::val_int() crash on INSERT...SELECT with subqueries
+#
+create sequence s;
+create table t1 (a int, b int default(nextval(s)));
+insert into t1 () values ();
+create table t2 (c int);
+create procedure p() update t1 set a = 0;
+create trigger tr after insert on t2 for each row
+begin
+insert into t1 () values ();
+call p();
+end $
+insert into t2 values ();
+drop table t1, t2, s;
+drop procedure p;
+create sequence s;
+create temporary table t (f int);
+alter table t modify f int default(nextval(s));
+create or replace sequence s;
+insert into t values (default);
+drop sequence s;
+# End of 10.11 tests

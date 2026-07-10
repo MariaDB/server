@@ -1,4 +1,4 @@
-create table t1(c1 int not null, c2 double not null, c3 char(255) not null) engine=archive;
+create table t1(c1 int not null, c2 double not null, c3 char(255) not null) engine=archive charset=latin1;
 insert t1 select seq, seq+0.7, concat('row with c1 = ', seq) from seq_1_to_10;
 explain partitions select c1,c3 from t1 order by c2;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra

@@ -1,4 +1,4 @@
-# Skiping this test from Valgrind execution as per Bug-14627884
+# Skipping this test from Valgrind execution as per Bug-14627884
 --source include/not_valgrind.inc
 # Adding big test option for this test.
 --source include/big_test.inc

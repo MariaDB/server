@@ -38,6 +38,7 @@ Keep this list alphabetically sorted. */
 #ifdef BTR_CUR_HASH_ADAPT
 PSI_memory_key	mem_key_ahi;
 #endif /* BTR_CUR_HASH_ADAPT */
+PSI_memory_key	mem_key_binlog;
 PSI_memory_key	mem_key_buf_buf_pool;
 PSI_memory_key	mem_key_dict_stats_bg_recalc_pool_t;
 PSI_memory_key	mem_key_dict_stats_index_map_t;
@@ -46,6 +47,7 @@ PSI_memory_key	mem_key_other;
 PSI_memory_key	mem_key_row_log_buf;
 PSI_memory_key	mem_key_row_merge_sort;
 PSI_memory_key	mem_key_std;
+PSI_memory_key	mem_key_trx_sys_t_rw_trx_ids;
 
 #ifdef UNIV_PFS_MEMORY
 
@@ -65,6 +67,7 @@ static PSI_memory_info	pfs_info[] = {
 #ifdef BTR_CUR_HASH_ADAPT
   {&mem_key_ahi, "adaptive hash index", 0},
 #endif /* BTR_CUR_HASH_ADAPT */
+  {&mem_key_binlog, "innodb binlog implementation", 0},
   {&mem_key_buf_buf_pool, "buf_buf_pool", 0},
   {&mem_key_dict_stats_bg_recalc_pool_t, "dict_stats_bg_recalc_pool_t", 0},
   {&mem_key_dict_stats_index_map_t, "dict_stats_index_map_t", 0},
@@ -73,6 +76,7 @@ static PSI_memory_info	pfs_info[] = {
   {&mem_key_row_log_buf, "row_log_buf", 0},
   {&mem_key_row_merge_sort, "row_merge_sort", 0},
   {&mem_key_std, "std", 0},
+  {&mem_key_trx_sys_t_rw_trx_ids, "trx_sys_t::rw_trx_ids", 0},
 };
 
 static const int NKEYS = static_cast<int>UT_ARR_SIZE(auto_event_names)-1;

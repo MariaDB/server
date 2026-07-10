@@ -1,0 +1,569 @@
+CREATE TABLE fake_innodb_table (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO fake_innodb_table VALUES (0);
+CREATE TABLE fake_duckdb_table (id INT PRIMARY KEY) ENGINE=DuckDB;
+INSERT INTO fake_duckdb_table VALUES (0);
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+SELECT BIT_AND(id), BIT_OR(id), BIT_XOR(id) FROM t1;
+BIT_AND(id)	BIT_OR(id)	BIT_XOR(id)
+18446744073709551615	0	0
+ALTER TABLE t1 ENGINE = DuckDB;
+SELECT BIT_AND(id), BIT_OR(id), BIT_XOR(id) FROM t1;
+BIT_AND(id)	BIT_OR(id)	BIT_XOR(id)
+18446744073709551615	0	0
+DROP TABLE t1;
+SELECT microsecond(TIME '12:12:12.123456') FROM fake_innodb_table;
+microsecond(TIME '12:12:12.123456')
+123456
+SELECT microsecond(TIME '12:12:12.123456') FROM fake_duckdb_table;
+microsecond(TIME '12:12:12.123456')
+123456
+SELECT LEAST('a', NULL) FROM fake_innodb_table;
+LEAST('a', NULL)
+NULL
+SELECT LEAST('a', NULL) FROM fake_duckdb_table;
+LEAST('a', NULL)
+NULL
+SELECT oct(123.123) FROM fake_innodb_table;
+oct(123.123)
+173
+SELECT oct(123.123) FROM fake_duckdb_table;
+oct(123.123)
+173
+SELECT oct('123.123a') FROM fake_innodb_table;
+oct('123.123a')
+173
+SELECT oct('123.123a') FROM fake_duckdb_table;
+oct('123.123a')
+173
+SELECT bin(123.123) FROM fake_innodb_table;
+bin(123.123)
+1111011
+SELECT bin(123.123) FROM fake_duckdb_table;
+bin(123.123)
+1111011
+SELECT bin('123.123a') FROM fake_innodb_table;
+bin('123.123a')
+1111011
+SELECT bin('123.123a') FROM fake_duckdb_table;
+bin('123.123a')
+1111011
+SELECT hex(123.123) FROM fake_innodb_table;
+hex(123.123)
+7B
+SELECT hex(123.123) FROM fake_duckdb_table;
+hex(123.123)
+7B
+SELECT hex('123.123a') FROM fake_innodb_table;
+hex('123.123a')
+3132332E31323361
+SELECT hex('123.123a') FROM fake_duckdb_table;
+hex('123.123a')
+3132332E31323361
+SELECT left('abc', -1) FROM fake_innodb_table;
+left('abc', -1)
+
+SELECT left('abc', -1) FROM fake_duckdb_table;
+left('abc', -1)
+
+SELECT right('abc', -1) FROM fake_innodb_table;
+right('abc', -1)
+
+SELECT right('abc', -1) FROM fake_duckdb_table;
+right('abc', -1)
+
+SELECT trim('ab' from 'aaab') FROM fake_innodb_table;
+trim('ab' from 'aaab')
+aa
+SELECT trim('ab' from 'aaab') FROM fake_duckdb_table;
+trim('ab' from 'aaab')
+aa
+CREATE TABLE t1 (id TIMESTAMP PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('2020-01-01 12:12:12.123');
+SELECT CONVERT(id, TIME) FROM t1;
+CONVERT(id, TIME)
+12:12:12
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT CONVERT(id, TIME) FROM t1;
+CONVERT(id, TIME)
+12:12:12
+DROP TABLE t1;
+SELECT time_to_sec('2020-01-01 12:12:12') FROM fake_innodb_table;
+time_to_sec('2020-01-01 12:12:12')
+43932
+SELECT time_to_sec('2020-01-01 12:12:12') FROM fake_duckdb_table;
+time_to_sec('2020-01-01 12:12:12')
+43932
+SELECT strcmp('a', NULL) FROM fake_innodb_table;
+strcmp('a', NULL)
+NULL
+SELECT strcmp('a', NULL) FROM fake_duckdb_table;
+strcmp('a', NULL)
+NULL
+SELECT substring_index(NULL, 'ab', 2) FROM fake_innodb_table;
+substring_index(NULL, 'ab', 2)
+NULL
+SELECT substring_index(NULL, 'ab', 2) FROM fake_duckdb_table;
+substring_index(NULL, 'ab', 2)
+NULL
+SELECT substring_index('ddabddabcc', NULL, 2) FROM fake_innodb_table;
+substring_index('ddabddabcc', NULL, 2)
+NULL
+SELECT substring_index('ddabddabcc', NULL, 2) FROM fake_duckdb_table;
+substring_index('ddabddabcc', NULL, 2)
+NULL
+SELECT substring_index('ddabddabcc', 'ab', NULL) FROM fake_innodb_table;
+substring_index('ddabddabcc', 'ab', NULL)
+NULL
+SELECT substring_index('ddabddabcc', 'ab', NULL) FROM fake_duckdb_table;
+substring_index('ddabddabcc', 'ab', NULL)
+NULL
+SELECT substring_index('ddabddabcc', 'ab', 2) FROM fake_innodb_table;
+substring_index('ddabddabcc', 'ab', 2)
+ddabdd
+SELECT substring_index('ddabddabcc', 'ab', 2) FROM fake_duckdb_table;
+substring_index('ddabddabcc', 'ab', 2)
+ddabdd
+CREATE TABLE t1 (id TIMESTAMP PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('2020-01-01 12:12:12');
+SELECT weekday(id) FROM t1;
+weekday(id)
+2
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT weekday(id) FROM t1;
+weekday(id)
+2
+DROP TABLE t1;
+SELECT CONVERT('2020-01-01', TIME) FROM fake_innodb_table;
+CONVERT('2020-01-01', TIME)
+00:20:20
+Warnings:
+Warning	1292	Truncated incorrect time value: '2020-01-01'
+SELECT CONVERT('2020-01-01', TIME) FROM fake_duckdb_table;
+CONVERT('2020-01-01', TIME)
+00:20:20
+SELECT CONVERT('20-01-01', DATE) FROM fake_innodb_table;
+CONVERT('20-01-01', DATE)
+2020-01-01
+SELECT CONVERT('20-01-01', DATE) FROM fake_duckdb_table;
+CONVERT('20-01-01', DATE)
+2020-01-01
+SELECT CONVERT('90-01-01', DATE) FROM fake_innodb_table;
+CONVERT('90-01-01', DATE)
+1990-01-01
+SELECT CONVERT('90-01-01', DATE) FROM fake_duckdb_table;
+CONVERT('90-01-01', DATE)
+1990-01-01
+CREATE TABLE t1 (id INT PRIMARY KEY, col1 INT, col2 INT) ENGINE=InnoDB;
+SELECT id, col1, col2 FROM t1 GROUP BY id, col1, col2 WITH ROLLUP;
+id	col1	col2
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT id, col1, col2 FROM t1 GROUP BY id, col1, col2 WITH ROLLUP;
+id	col1	col2
+DROP TABLE t1;
+SELECT 5.6 DIV 2.2 FROM fake_innodb_table;
+5.6 DIV 2.2
+2
+SELECT 5.6 DIV 2.2 FROM fake_duckdb_table;
+5.6 DIV 2.2
+2
+SELECT concat('a', NULL) FROM fake_innodb_table;
+concat('a', NULL)
+NULL
+SELECT concat('a', NULL) FROM fake_duckdb_table;
+concat('a', NULL)
+NULL
+CREATE TABLE t1 (id VARCHAR(20) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('abc\\b');
+SELECT id LIKE 'abc\\b', id LIKE 'abc\\\\b' FROM t1;
+id LIKE 'abc\\b'	id LIKE 'abc\\\\b'
+0	1
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT id LIKE 'abc\\b', id LIKE 'abc\\\\b' FROM t1;
+id LIKE 'abc\\b'	id LIKE 'abc\\\\b'
+0	1
+DROP TABLE t1;
+SELECT substring('abcde', 0, 2) FROM fake_innodb_table;
+substring('abcde', 0, 2)
+
+SELECT substring('abcde', 0, 2) FROM fake_duckdb_table;
+substring('abcde', 0, 2)
+
+CREATE TABLE t1 (id VARCHAR(20) collate utf8mb3_general_ci PRIMARY KEY);
+Warnings:
+Warning	3778	'utf8mb3_general_ci' is a collation of the deprecated character set UTF8MB3. Please consider using UTF8MB4 with an appropriate collation instead.
+INSERT INTO t1 VALUES ('abc');
+SELECT position('C' IN id) FROM t1;
+position('C' IN id)
+3
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT position('C' IN id) FROM t1;
+position('C' IN id)
+3
+DROP TABLE t1;
+CREATE TABLE t1 (id VARCHAR(20) collate utf8mb3_bin PRIMARY KEY);
+Warnings:
+Warning	3778	'utf8mb3_bin' is a collation of the deprecated character set UTF8MB3. Please consider using UTF8MB4 with an appropriate collation instead.
+INSERT INTO t1 VALUES ('abc');
+SELECT position('C' IN id) FROM t1;
+position('C' IN id)
+0
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT position('C' IN id) FROM t1;
+position('C' IN id)
+0
+DROP TABLE t1;
+SELECT CONVERT('', DOUBLE), CONVERT('123.123a', DOUBLE), CONVERT('a123', DOUBLE), CONVERT('1_23', DOUBLE) FROM fake_innodb_table;
+CONVERT('', DOUBLE)	CONVERT('123.123a', DOUBLE)	CONVERT('a123', DOUBLE)	CONVERT('1_23', DOUBLE)
+0	123.123	0	1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '123.123a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a123'
+Warning	1292	Truncated incorrect DOUBLE value: '1_23'
+SELECT CONVERT('', DOUBLE), CONVERT('123.123a', DOUBLE), CONVERT('a123', DOUBLE), CONVERT('1_23', DOUBLE) FROM fake_duckdb_table;
+CONVERT('', DOUBLE)	CONVERT('123.123a', DOUBLE)	CONVERT('a123', DOUBLE)	CONVERT('1_23', DOUBLE)
+0	123.123	0	1
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col2 INT) ENGINE=InnoDB;
+CREATE TABLE t2 (col3 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t2 VALUES (1);
+SELECT col1, col2, col3 FROM t1 JOIN t2 ON t1.col1 = t2.col3 GROUP BY col1, col2, col3 WITH ROLLUP ORDER BY 1, 2, 3;
+col1	col2	col3
+NULL	NULL	NULL
+1	NULL	NULL
+1	1	NULL
+1	1	1
+ALTER TABLE t1 ENGINE=DuckDB;
+ALTER TABLE t2 ENGINE=DuckDB;
+SELECT col1, col2, col3 FROM t1 JOIN t2 ON t1.col1 = t2.col3 GROUP BY col1, col2, col3 WITH ROLLUP ORDER BY 1, 2, 3;
+col1	col2	col3
+NULL	NULL	NULL
+1	NULL	NULL
+1	1	NULL
+1	1	1
+DROP TABLE t1;
+DROP TABLE t2;
+SELECT CONVERT('abcde', CHAR(3)) FROM fake_innodb_table;
+CONVERT('abcde', CHAR(3))
+abc
+Warnings:
+Warning	1292	Truncated incorrect CHAR(3) value: 'abcde'
+SELECT CONVERT('abcde', CHAR(3)) FROM fake_duckdb_table;
+CONVERT('abcde', CHAR(3))
+abc
+SELECT CONVERT(12345.12345, DECIMAL) FROM fake_innodb_table;
+CONVERT(12345.12345, DECIMAL)
+12345
+SELECT CONVERT(12345.12345, DECIMAL) FROM fake_duckdb_table;
+CONVERT(12345.12345, DECIMAL)
+12345
+CREATE TABLE t1(id VARCHAR(20) COLLATE utf8mb3_general_ci PRIMARY KEY);
+Warnings:
+Warning	3778	'utf8mb3_general_ci' is a collation of the deprecated character set UTF8MB3. Please consider using UTF8MB4 with an appropriate collation instead.
+CREATE TABLE t2(id VARCHAR(20) COLLATE utf8mb3_general_ci PRIMARY KEY);
+Warnings:
+Warning	3778	'utf8mb3_general_ci' is a collation of the deprecated character set UTF8MB3. Please consider using UTF8MB4 with an appropriate collation instead.
+INSERT INTO t1 VALUES ('A');
+INSERT INTO t2 VALUES ('a');
+SELECT COUNT(*) FROM (SELECT * FROM t1 UNION SELECT * FROM t2) d;
+COUNT(*)
+1
+ALTER TABLE t1 ENGINE=DuckDB;
+ALTER TABLE t2 ENGINE=DuckDB;
+SELECT COUNT(*) FROM (SELECT * FROM t1 UNION SELECT * FROM t2) d;
+COUNT(*)
+1
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t1(id VARCHAR(20) COLLATE utf8mb3_bin PRIMARY KEY);
+Warnings:
+Warning	3778	'utf8mb3_bin' is a collation of the deprecated character set UTF8MB3. Please consider using UTF8MB4 with an appropriate collation instead.
+CREATE TABLE t2(id VARCHAR(20) COLLATE utf8mb3_general_ci PRIMARY KEY);
+Warnings:
+Warning	3778	'utf8mb3_general_ci' is a collation of the deprecated character set UTF8MB3. Please consider using UTF8MB4 with an appropriate collation instead.
+INSERT INTO t1 VALUES ('A');
+INSERT INTO t2 VALUES ('a');
+SELECT COUNT(*) FROM (SELECT * FROM t1 UNION SELECT * FROM t2) d;
+COUNT(*)
+2
+ALTER TABLE t1 ENGINE=DuckDB;
+ALTER TABLE t2 ENGINE=DuckDB;
+SELECT COUNT(*) FROM (SELECT * FROM t1 UNION SELECT * FROM t2) d;
+COUNT(*)
+2
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t1(id INT PRIMARY KEY, col1 VARCHAR(20) COLLATE utf8mb4_0900_ai_ci) ENGINE=InnoDB;
+CREATE TABLE t2(id INT PRIMARY KEY, col1 VARCHAR(20) COLLATE utf8mb4_0900_as_ci) ENGINE=InnoDB;
+CREATE TABLE t3(id INT PRIMARY KEY, col1 VARCHAR(20) COLLATE utf8mb4_0900_as_cs) ENGINE=InnoDB;
+CREATE TABLE t4(id INT PRIMARY KEY, col1 VARCHAR(20) COLLATE utf8mb4_bin) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'A'), (3, 'ä');
+INSERT INTO t2 VALUES (1, 'a'), (2, 'A'), (3, 'ä');
+INSERT INTO t3 VALUES (1, 'a'), (2, 'A'), (3, 'ä');
+INSERT INTO t4 VALUES (1, 'a'), (2, 'A'), (3, 'ä');
+SELECT * FROM t1 d1, t1 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+1	a	3	ä
+2	A	1	a
+2	A	2	A
+2	A	3	ä
+3	ä	1	a
+3	ä	2	A
+3	ä	3	ä
+SELECT * FROM t2 d1, t2 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+2	A	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t3 d1, t3 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t4 d1, t4 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t1 d1, (SELECT * FROM t1 UNION SELECT * FROM t1) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+1	a	3	ä
+2	A	1	a
+2	A	2	A
+2	A	3	ä
+3	ä	1	a
+3	ä	2	A
+3	ä	3	ä
+SELECT * FROM t2 d1, (SELECT * FROM t2 UNION SELECT * FROM t2) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+2	A	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t3 d1, (SELECT * FROM t3 UNION SELECT * FROM t3) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t4 d1, (SELECT * FROM t4 UNION SELECT * FROM t4) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t1, t2 WHERE t1.col1 = t2.col1;
+ERROR HY000: Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and (utf8mb4_0900_as_ci,IMPLICIT) for operation '='
+SELECT * FROM t1 UNION SELECT * FROM t2;
+ERROR HY000: Illegal mix of collations for operation 'UNION'
+SELECT * FROM t1 d1, (SELECT * FROM t2 UNION SELECT * FROM t2) d2 WHERE d1.col1 = d2.col1;
+ERROR HY000: Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and (utf8mb4_0900_as_ci,IMPLICIT) for operation '='
+SELECT * FROM t1, t4 WHERE t1.col1 = t4.col1 ORDER BY t1.id, t4.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t1 UNION SELECT * FROM t4 ORDER BY id, col1;
+id	col1
+1	a
+2	A
+3	ä
+SELECT * FROM t1 d1, (SELECT * FROM t2 UNION SELECT * FROM t4) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+ALTER TABLE t1 ENGINE=DuckDB;
+ALTER TABLE t2 ENGINE=DuckDB;
+ALTER TABLE t3 ENGINE=DuckDB;
+ALTER TABLE t4 ENGINE=DuckDB;
+SELECT * FROM t1 d1, t1 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+1	a	3	ä
+2	A	1	a
+2	A	2	A
+2	A	3	ä
+3	ä	1	a
+3	ä	2	A
+3	ä	3	ä
+SELECT * FROM t2 d1, t2 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+2	A	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t3 d1, t3 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t4 d1, t4 d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t1 d1, (SELECT * FROM t1 UNION SELECT * FROM t1) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+1	a	3	ä
+2	A	1	a
+2	A	2	A
+2	A	3	ä
+3	ä	1	a
+3	ä	2	A
+3	ä	3	ä
+SELECT * FROM t2 d1, (SELECT * FROM t2 UNION SELECT * FROM t2) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+1	a	2	A
+2	A	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t3 d1, (SELECT * FROM t3 UNION SELECT * FROM t3) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t4 d1, (SELECT * FROM t4 UNION SELECT * FROM t4) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t1, t2 WHERE t1.col1 = t2.col1;
+ERROR HY000: Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and (utf8mb4_0900_as_ci,IMPLICIT) for operation '='
+SELECT * FROM t1 UNION SELECT * FROM t2;
+ERROR HY000: Illegal mix of collations for operation 'UNION'
+SELECT * FROM t1 d1, (SELECT * FROM t2 UNION SELECT * FROM t2) d2 WHERE d1.col1 = d2.col1;
+ERROR HY000: Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and (utf8mb4_0900_as_ci,IMPLICIT) for operation '='
+SELECT * FROM t1, t4 WHERE t1.col1 = t4.col1 ORDER BY t1.id, t4.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+SELECT * FROM t1 UNION SELECT * FROM t4 ORDER BY id, col1;
+id	col1
+1	a
+2	A
+3	ä
+SELECT * FROM t1 d1, (SELECT * FROM t2 UNION SELECT * FROM t4) d2 WHERE d1.col1 = d2.col1 ORDER BY d1.id, d2.id;
+id	col1	id	col1
+1	a	1	a
+2	A	2	A
+3	ä	3	ä
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;
+CREATE TABLE t1 (id INT PRIMARY KEY, col1 INT);
+INSERT INTO t1 VALUES (1, 2), (2, 1);
+SELECT GROUP_CONCAT(col1 ORDER BY 1) FROM t1;
+GROUP_CONCAT(col1 ORDER BY 1)
+1,2
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT GROUP_CONCAT(col1 ORDER BY 1) FROM t1;
+GROUP_CONCAT(col1 ORDER BY 1)
+1,2
+DROP TABLE t1;
+SELECT CASE WHEN 1 = 2 THEN 1 WHEN 1 = 1 THEN '1a' ELSE NULL END FROM fake_innodb_table;
+CASE WHEN 1 = 2 THEN 1 WHEN 1 = 1 THEN '1a' ELSE NULL END
+1a
+SELECT CASE WHEN 1 = 2 THEN 1 WHEN 1 = 1 THEN '1a' ELSE NULL END FROM fake_duckdb_table;
+CASE WHEN 1 = 2 THEN 1 WHEN 1 = 1 THEN '1a' ELSE NULL END
+1a
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+SELECT CASE WHEN 1 = 2 THEN id WHEN 1 = 1 THEN '1a' ELSE NULL END FROM t1;
+CASE WHEN 1 = 2 THEN id WHEN 1 = 1 THEN '1a' ELSE NULL END
+1a
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT CASE WHEN 1 = 2 THEN id WHEN 1 = 1 THEN '1a' ELSE NULL END FROM t1;
+CASE WHEN 1 = 2 THEN id WHEN 1 = 1 THEN '1a' ELSE NULL END
+1a
+DROP TABLE t1;
+CREATE TABLE t1 (id INT PRIMARY KEY, col1 INT);
+INSERT INTO t1 VALUES (1, 1), (2, NULL);
+SELECT IFNULL(col1, '1a') FROM t1;
+IFNULL(col1, '1a')
+1
+1a
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT IFNULL(col1, '1a') FROM t1;
+IFNULL(col1, '1a')
+1
+1a
+DROP TABLE t1;
+CREATE TABLE t1 (id1 INT PRIMARY KEY, col1 INT);
+CREATE TABLE t2 (id2 INT PRIMARY KEY, col1 INT);
+SELECT * FROM t1 JOIN t2 USING(col1);
+col1	id1	id2
+SELECT * FROM t1 LEFT JOIN t2 USING(col1);
+col1	id1	id2
+SELECT * FROM t1 RIGHT JOIN t2 USING(col1);
+col1	id2	id1
+ALTER TABLE t1 ENGINE=DuckDB;
+ALTER TABLE t2 ENGINE=DuckDB;
+SELECT * FROM t1 JOIN t2 USING(col1);
+col1	id1	id2
+SELECT * FROM t1 LEFT JOIN t2 USING(col1);
+col1	id1	id2
+SELECT * FROM t1 RIGHT JOIN t2 USING(col1);
+col1	id2	id1
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t1 (id INT PRIMARY KEY, col1 DOUBLE);
+INSERT INTO t1 VALUES (1, 1e30);
+INSERT INTO t1 VALUES (2, 0);
+SELECT CONVERT(id, CHAR) FROM t1;
+CONVERT(id, CHAR)
+1
+2
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT CONVERT(id, CHAR) FROM t1;
+CONVERT(id, CHAR)
+1
+2
+DROP TABLE t1;
+DROP TABLE fake_innodb_table;
+DROP TABLE fake_duckdb_table;
+CREATE TABLE t1 (id INT PRIMARY KEY, col1 BLOB);
+INSERT INTO t1 VALUES (1, 0xFF), (2, 0x61), (3, 0xE695B0E68DAEE5BA93);
+SELECT CAST(col1 AS CHAR) FROM t1;
+CAST(col1 AS CHAR)
+NULL
+a
+数据库
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: 'FF'
+SELECT CAST(col1 AS CHAR) like '%据%' FROM t1;
+CAST(col1 AS CHAR) like '%据%'
+NULL
+0
+1
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: 'FF'
+SELECT FROM_BASE64(TO_BASE64('数据库')), CAST(FROM_BASE64(TO_BASE64('数据库')) AS CHAR) LIKE '%据%' FROM t1 LIMIT 1;
+FROM_BASE64(TO_BASE64('数据库'))	CAST(FROM_BASE64(TO_BASE64('数据库')) AS CHAR) LIKE '%据%'
+数据库	1
+ALTER TABLE t1 ENGINE=DuckDB;
+SELECT CAST(col1 AS CHAR) FROM t1;
+CAST(col1 AS CHAR)
+NULL
+a
+数据库
+SELECT CAST(col1 AS CHAR) like '%据%' FROM t1;
+CAST(col1 AS CHAR) like '%据%'
+NULL
+0
+1
+SELECT FROM_BASE64(TO_BASE64('数据库')), CAST(FROM_BASE64(TO_BASE64('数据库')) AS CHAR) LIKE '%据%' FROM t1 LIMIT 1;
+FROM_BASE64(TO_BASE64('数据库'))	CAST(FROM_BASE64(TO_BASE64('数据库')) AS CHAR) LIKE '%据%'
+数据库	1
+DROP TABLE t1;

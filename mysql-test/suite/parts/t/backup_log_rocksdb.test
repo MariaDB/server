@@ -3,8 +3,8 @@
 --source include/not_embedded.inc
 
 #
-# Test that dynmaic loaded storage engines also works with partition and logging
-# This is will access code in dd_frm_type() that is not acccessed by other tests
+# Test that dynamic loaded storage engines also works with partition and logging
+# This is will access code in dd_frm_type() that is not accessed by other tests
 #
 
 connect (con1,localhost,root,,);

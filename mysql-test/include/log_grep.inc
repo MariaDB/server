@@ -9,7 +9,6 @@ perl;
 
   open my $command_file, ">", "$ENV{'LOG_GREP_PERL_RESULT'}" or die "Cannot create file";
 
-  $log_file=           $ENV{'log_file'};
   $log_file_full_path= $ENV{'log_file_full_path'};
   $log_slow_rate_test= $ENV{'log_slow_rate_test'};
   open(FILE, "$log_file_full_path")
@@ -55,7 +54,8 @@ perl;
         while (<FILE>) {
           print ;
         }
-        print $command_file "--let \$log_grep_failed= 1;\n";
+        print $command_file "--let \$log_grep_failed= 1\n";
+        print $command_file "--let \$log_grep_lines= $lines\n";
       } else {
         print "[log_grep.inc] found expected match count: $log_expected_matches\n";
       }
@@ -70,6 +70,14 @@ EOF
 --remove_file $LOG_GREP_PERL_RESULT
 if ($log_grep_failed)
 {
+  --echo #
+  --echo # ERROR: report
+  --echo #
+  --echo log_file: $log_file
+  --echo grep_pattern: $grep_pattern
+  --echo Expected_matches: $log_expected_matches
+  --echo Found_matches: $log_grep_lines
+
   SHOW SESSION STATUS LIKE 'Slow_queries';
   SHOW GLOBAL VARIABLES LIKE 'log%';
   SHOW GLOBAL VARIABLES LIKE 'long_query_time';
@@ -81,5 +89,5 @@ if ($log_grep_failed)
   SHOW SESSION VARIABLES LIKE 'min_examined_row_limit';
   SHOW SESSION VARIABLES LIKE 'query_cache%';
   SHOW SESSION VARIABLES LIKE 'slow_query%';
-  --die Testcase failed!
+  --die Testcase failed! Error rapport above.
 }

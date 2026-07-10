@@ -3,6 +3,7 @@
 #
 
 --enable_prepare_warnings
+set old_mode=2_DIGIT_YEAR;
 
 create table t1 (y year,y2 year(2));
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
@@ -160,7 +161,10 @@ DROP TABLE t1;
 CREATE TABLE t1(c1 YEAR(4));
 INSERT INTO t1 VALUES (1901),(2155),(0000);
 SELECT * FROM t1;
+#Check after fix MDEV-31730
+--disable_cursor_protocol
 SELECT COUNT(*) AS total_rows, MIN(c1) AS min_value, MAX(c1) FROM t1;
+--enable_cursor_protocol
 SELECT COUNT(*) AS total_rows, MIN(c1+0) AS min_value, MAX(c1+0) FROM t1;
 DROP TABLE t1;
 --enable_view_protocol
@@ -171,7 +175,12 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
 ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
+SET OLD_MODE='';
+ALTER TABLE t1 MODIFY COLUMN c2 INT;
 DROP TABLE t1;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
+SET OLD_MODE=2_DIGIT_YEAR;
 
 --echo #
 --echo # End of 5.1 tests
@@ -356,6 +365,20 @@ CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM 
 DESC t2;
 DROP TABLE t2,t1;
 
+--echo #
+--echo # MDEV-32244 Wrong bit encoding using COALESCE
+--echo #
+
+CREATE TABLE t1 (c1 YEAR);
+INSERT INTO t1 (c1) VALUES (0x01);
+CREATE TABLE t2 AS SELECT
+  c1,
+  COALESCE(c1, c1) AS c2,
+  COALESCE(c1, null) AS c3,
+  COALESCE(null, c1) AS c4 FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests
@@ -386,3 +409,22 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col YEAR, KEY(indexed_col));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (2023 + i);
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

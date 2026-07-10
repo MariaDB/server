@@ -44,3 +44,94 @@ DROP USER IF EXISTS u1, u2;
 
 --error ER_CANNOT_USER
 DROP USER u2;
+
+--echo #
+--echo # MDEV-35617: DROP USER should leave no active session for that user
+--echo #
+
+CREATE USER u1;
+CREATE USER u2;
+CREATE USER u3;
+
+GRANT ALL on test.* to u1;
+GRANT ALL on test.* to u2;
+GRANT ALL on test.* to u3;
+
+--echo # Establish two connections on behalf the users u1, u3
+--echo # A connection on behalf the user u2 isn't established intentionally
+--connect (con1, localhost, u1, , test)
+--connect (con3, localhost, u3, , test)
+
+--echo # Drop the users u1, u2, u3. Since the users u1 and u3 have active
+--echo # connections to the server, the warning about it will be output
+--connection default
+DROP USER u1, u2, u3;
+
+--echo # None of the users u1, u2, u3 should be present in the system
+SELECT User, Host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+
+--disconnect con1
+--disconnect con3
+
+--echo # Check behaviour of the DROP USER statement in
+--echo # oracle compatibility mode
+SET @save_sql_mode = @@sql_mode;
+SET sql_mode="oracle";
+CREATE USER u1;
+CREATE USER u2;
+CREATE USER u3;
+
+GRANT ALL on test.* to u1;
+GRANT ALL on test.* to u2;
+GRANT ALL on test.* to u3;
+
+--echo # Established two connections on behalf the users u1, u3;
+--echo # A connection on behalf the user u2 isn't established intentionally
+--connect (con1, localhost, u1, , test)
+--connect (con3, localhost, u3, , test)
+
+--connection default
+--echo # In oracle compatibility mode, DROP USER fails in case
+--echo # there are connections on behalf the users being dropped.
+--error ER_CANNOT_USER
+DROP USER u1, u2, u3;
+
+--echo # It is expected to see two users in output of the query: u1 and u3,
+--echo # u2 should be dropped since it doesn't have active connection at the moment
+SELECT User, Host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+SET sql_mode= @save_sql_mode;
+
+--disconnect con1
+--disconnect con3
+--echo # Clean up
+--disable_warnings
+--echo # Clean up
+DROP USER u1, u3;
+--enable_warnings
+
+CREATE USER u@localhost;
+CREATE USER u@'%';
+--connect u,localhost,u
+--connection default
+DROP USER u@'%';
+
+--disconnect u
+--disable_warnings
+DROP USER u@localhost;
+--enable_warnings
+
+CREATE USER u@localhost;
+SET sql_mode=oracle;
+--connect u,localhost,u
+--connection default
+--error ER_CANNOT_USER
+DROP USER u@'%';
+--disconnect u
+
+--connect u,localhost,u
+SELECT user(), current_user();
+
+--disconnect u
+--connection default
+--echo # Clean up
+DROP USER u@localhost;

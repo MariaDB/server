@@ -24,6 +24,8 @@ select * from information_schema.session_variables where variable_name='innodb_f
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FT_ENABLE_DIAG_PRINT	OFF
 set global innodb_ft_enable_diag_print='OFF';
+Warnings:
+Warning	1287	'@@innodb_ft_enable_diag_print' is deprecated and will be removed in a future release
 select @@global.innodb_ft_enable_diag_print;
 @@global.innodb_ft_enable_diag_print
 0
@@ -34,6 +36,8 @@ select * from information_schema.session_variables where variable_name='innodb_f
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FT_ENABLE_DIAG_PRINT	OFF
 set @@global.innodb_ft_enable_diag_print=1;
+Warnings:
+Warning	1287	'@@innodb_ft_enable_diag_print' is deprecated and will be removed in a future release
 select @@global.innodb_ft_enable_diag_print;
 @@global.innodb_ft_enable_diag_print
 1
@@ -44,6 +48,8 @@ select * from information_schema.session_variables where variable_name='innodb_f
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FT_ENABLE_DIAG_PRINT	ON
 set global innodb_ft_enable_diag_print=0;
+Warnings:
+Warning	1287	'@@innodb_ft_enable_diag_print' is deprecated and will be removed in a future release
 select @@global.innodb_ft_enable_diag_print;
 @@global.innodb_ft_enable_diag_print
 0
@@ -54,6 +60,8 @@ select * from information_schema.session_variables where variable_name='innodb_f
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FT_ENABLE_DIAG_PRINT	OFF
 set @@global.innodb_ft_enable_diag_print='ON';
+Warnings:
+Warning	1287	'@@innodb_ft_enable_diag_print' is deprecated and will be removed in a future release
 select @@global.innodb_ft_enable_diag_print;
 @@global.innodb_ft_enable_diag_print
 1
@@ -87,6 +95,8 @@ INNODB_FT_ENABLE_DIAG_PRINT	ON
 set global innodb_ft_enable_diag_print='AUTO';
 ERROR 42000: Variable 'innodb_ft_enable_diag_print' can't be set to the value of 'AUTO'
 SET @@global.innodb_ft_enable_diag_print = @start_global_value;
+Warnings:
+Warning	1287	'@@innodb_ft_enable_diag_print' is deprecated and will be removed in a future release
 SELECT @@global.innodb_ft_enable_diag_print;
 @@global.innodb_ft_enable_diag_print
 0

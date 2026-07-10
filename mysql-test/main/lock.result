@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 CREATE TABLE t1 (  `id` int(11) NOT NULL default '0', `id2` int(11) NOT NULL default '0', `id3` int(11) NOT NULL default '0', `dummy1` char(30) default NULL, PRIMARY KEY  (`id`,`id2`), KEY `index_id3` (`id3`)) ENGINE=MyISAM;
 insert into t1 (id,id2) values (1,1),(1,2),(1,3);
 LOCK TABLE t1 WRITE;
@@ -192,7 +191,7 @@ table2_rowid SMALLINT NOT NULL
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 LOCK TABLES t1 WRITE, t2 READ;
-# Sub-select should not try to aquire a write lock.
+# Sub-select should not try to acquire a write lock.
 DELETE FROM t1 
 WHERE EXISTS 
 ( 
@@ -469,9 +468,7 @@ connection default;
 UNLOCK TABLES;
 DROP TABLE t1, t2;
 disconnect con2;
-#
 # End of 6.0 tests.
-#
 create table t1 (a int) engine=myisam;
 lock tables t1 write concurrent, t1 as t2 read;
 connect  con1,localhost,root,,;

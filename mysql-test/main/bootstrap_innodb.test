@@ -22,6 +22,18 @@ EOF
 exec $MYSQLD_BOOTSTRAP_CMD --datadir=$datadir --tmpdir=$MYSQL_TMP_DIR --innodb < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
 
+--echo #
+--echo # MDEV-39541 mem_pressure::~mem_pressure() causes a crash on bootstrap
+--echo #
+
+write_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
+SHUTDOWN;
+EOF
+exec $MYSQLD_BOOTSTRAP_CMD --datadir=$datadir --tmpdir=$MYSQL_TMP_DIR --innodb < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1;
+remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
+
 source include/start_mysqld.inc;
 select * from t1;
 drop table t1;
+
+--echo # End of 10.11 tests

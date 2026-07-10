@@ -1,0 +1,88 @@
+DROP DATABASE IF EXISTS pushdown_rewrite;
+CREATE DATABASE pushdown_rewrite CHARACTER SET utf8mb4;
+USE pushdown_rewrite;
+CREATE TABLE t1 (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
+CREATE TABLE t2 (id INT PRIMARY KEY, t1_id INT, val VARCHAR(50)) ENGINE=DuckDB;
+INSERT INTO t2 VALUES (1, 1, 'x'), (2, 2, 'y'), (3, 3, 'z');
+#
+# Bug fix: STRAIGHT_JOIN as join keyword (with ON clause)
+# Was: STRAIGHT_JOIN → CROSS JOIN → DuckDB rejects "CROSS JOIN ... ON"
+# Fix: STRAIGHT_JOIN → JOIN (preserves ON clause)
+#
+SELECT * FROM t1 STRAIGHT_JOIN t2 ON t1.id = t2.t1_id ORDER BY t1.id;
+id	val	id	t1_id	val
+1	a	1	1	x
+2	b	2	2	y
+3	c	3	3	z
+#
+# Bug fix: STRAIGHT_JOIN as SELECT hint
+# Was: SELECT STRAIGHT_JOIN → SELECT CROSS JOIN → syntax error
+# Fix: hint is removed, query passes through
+#
+SELECT STRAIGHT_JOIN t1.id, t2.val FROM t1 JOIN t2 ON t1.id = t2.t1_id ORDER BY t1.id;
+id	val
+1	x
+2	y
+3	z
+#
+# Bug fix: NATURAL JOIN must not be converted to CROSS JOIN
+# Was: scanner found no ON/USING after NATURAL JOIN → replaced with CROSS JOIN
+# Fix: NATURAL (and LEFT/RIGHT/INNER/FULL/OUTER) recognized before JOIN
+#
+CREATE TABLE nat1 (shared_col INT PRIMARY KEY, val1 VARCHAR(10)) ENGINE=DuckDB;
+CREATE TABLE nat2 (shared_col INT PRIMARY KEY, val2 VARCHAR(10)) ENGINE=DuckDB;
+INSERT INTO nat1 VALUES (1, 'a'), (2, 'b');
+INSERT INTO nat2 VALUES (1, 'x'), (3, 'y');
+SELECT * FROM nat1 NATURAL JOIN nat2 ORDER BY shared_col;
+shared_col	val1	val2
+1	a	x
+#
+# Bug fix: CONVERT word boundary
+# Was: find("CONVERT(") matched MYCONVERT( inside identifiers
+# Fix: check preceding character is not alphanumeric/_
+#
+SELECT CONVERT(123, CHAR) AS c FROM t1 LIMIT 1;
+c
+123
+#
+# Bug fix: GROUP BY ... WITH ROLLUP — handle multiple occurrences
+# Was: only first WITH ROLLUP was rewritten (no loop)
+# Fix: loop rewrites all WITH ROLLUP in query (including subqueries)
+#
+SELECT val, SUM(id) s FROM t1 GROUP BY val WITH ROLLUP;
+val	s
+NULL	6
+a	1
+b	2
+c	3
+#
+# Bug fix: LIMIT offset,count — handle all occurrences
+# Was: rfind processed only the last LIMIT, missing subqueries
+# Fix: forward loop rewrites every LIMIT offset,count
+#
+SELECT * FROM (SELECT * FROM t1 ORDER BY id LIMIT 1, 2) sub;
+id	val
+2	b
+3	c
+#
+# Regression: plain LIMIT (no comma) must not be altered
+#
+SELECT * FROM t1 ORDER BY id LIMIT 2;
+id	val
+1	a
+2	b
+#
+# Regression: LEFT/RIGHT/INNER JOIN with ON must not be touched
+#
+SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id ORDER BY t1.id;
+id	val	id	t1_id	val
+1	a	1	1	x
+2	b	2	2	y
+3	c	3	3	z
+SELECT * FROM t1 INNER JOIN t2 ON t1.id = t2.t1_id ORDER BY t1.id;
+id	val	id	t1_id	val
+1	a	1	1	x
+2	b	2	2	y
+3	c	3	3	z
+DROP DATABASE pushdown_rewrite;

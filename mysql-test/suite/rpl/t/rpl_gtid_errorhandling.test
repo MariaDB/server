@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES (1);
 CALL mtr.add_suppression("Slave: Failed to open mysql.gtid_slave_pos");
 --let $slave_sql_errno=1944
 --source include/wait_for_slave_sql_error.inc
-
+--let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no BIGINT UNSIGNED NOT NULL;
 ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
@@ -69,12 +69,54 @@ SELECT * FROM t1 ORDER BY a;
 ROLLBACK;
 SELECT * FROM t1 ORDER BY a;
 
+# MDEV-34049: Parallel access to temptable in different domain_id in parallel replication
+#
+# Temporary tables must be prevented from being accessed from multiple threads
+# at the same time in parallel replication. Within one domain_id, this is done
+# by running wait_for_prior_commit() before accessing a temporary table. To
+# prevent the same temporary table from being accessed in parallel from two
+# domains in out-of-order parallel replication, an error must be raised on
+# attempt to change the gtid_domain_id while temporary tables are in use in
+# a session and binlogged. In row-based binlogging, temporary tables are not
+# binlogged, so gtid_domain_id can be freely changed.
+SET @old_mode= @@SESSION.binlog_format;
+SET SESSION binlog_format= row;
+SET SESSION gtid_domain_id= 200;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION gtid_domain_id= 0;
+BEGIN;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t1 SELECT * FROM t2;
+COMMIT;
+SET SESSION gtid_domain_id= 201;
+SET SESSION gtid_domain_id= 0;
+DELETE FROM t1 WHERE a=200;
+SET SESSION gtid_domain_id= 202;
+DROP TEMPORARY TABLE t2;
+
+SET SESSION binlog_format= mixed;
+SET SESSION create_tmp_table_binlog_formats="mixed";
+SET SESSION gtid_domain_id= 0;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+SET SESSION gtid_domain_id= 0;
+--error ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
+SET SESSION gtid_domain_id= 204;
+SET SESSION binlog_format=statement;
+INSERT INTO t2 VALUES (2);
+--error ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
+SET SESSION gtid_domain_id= 205;
+DROP TEMPORARY TABLE t2;
+SET SESSION gtid_domain_id= @old_domain;
+SET SESSION binlog_format= @old_mode;
+
 
 --echo *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
 --connection slave
 --source include/stop_slave.inc
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 # This insert will be GTID 0-1-1
 INSERT INTO t1 VALUES (2);

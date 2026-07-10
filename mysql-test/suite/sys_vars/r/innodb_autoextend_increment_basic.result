@@ -14,7 +14,7 @@ SELECT @@innodb_autoextend_increment ;
 @@innodb_autoextend_increment
 64
 SELECT local.innodb_autoextend_increment ;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET global innodb_autoextend_increment  = 0;
 Warnings:
 Warning	1292	Truncated incorrect innodb_autoextend_increment value: '0'

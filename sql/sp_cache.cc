@@ -16,9 +16,6 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
 #include "sp_cache.h"
 #include "sp_head.h"
 
@@ -78,6 +75,8 @@ private:
 
   /* All routines in this cache */
   HASH m_hashtable;
+public:
+  void clear();
 }; // class sp_cache
 
 #ifdef HAVE_PSI_INTERFACE
@@ -178,7 +177,7 @@ void sp_cache_insert(sp_cache **cp, sp_head *sp)
   SYNOPSIS
     sp_cache_lookup()
       cp    Cache to look into
-      name  Name of rutine to find
+      name  Name of routine to find
 
   NOTE
     An obsolete (but not more obsolete then since last
@@ -193,9 +192,10 @@ sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
 {
   char buf[NAME_LEN * 2 + 2];
   sp_cache *c= *cp;
-  if (! c)
+  if (! c || !name->m_db.str)
     return NULL;
-  return c->lookup(buf, name->make_qname(buf, sizeof(buf)));
+  return c->lookup(buf, name->to_identifier_chain2().
+                          make_qname_casedn_part1(buf, sizeof(buf)));
 }
 
 
@@ -229,13 +229,10 @@ void sp_cache_invalidate()
   inside SP'.
 */
 
-void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
+void sp_cache_remove(sp_cache **cp, sp_head **sp)
 {
-  if ((*sp)->sp_cache_version() < Cversion && !(*sp)->is_invoked())
-  {
-    (*cp)->remove(*sp);
-    *sp= NULL;
-  }
+  (*cp)->remove(*sp);
+  *sp= NULL;
 }
 
 /**
@@ -267,16 +264,15 @@ sp_cache_enforce_limit(sp_cache *c, ulong upper_limit_for_elements)
   Internal functions
  *************************************************************************/
 
-extern "C" uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
-                                           my_bool first);
+extern "C" const uchar *hash_get_key_for_sp_head(const void *ptr, size_t *plen,
+                                                 my_bool);
 extern "C" void hash_free_sp_head(void *p);
 
-uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
-                                my_bool first)
+const uchar *hash_get_key_for_sp_head(const void *ptr, size_t *plen, my_bool)
 {
-  sp_head *sp= (sp_head *)ptr;
+  auto sp= static_cast<const sp_head *>(ptr);
   *plen= sp->m_qname.length;
-  return (uchar*) sp->m_qname.str;
+  return reinterpret_cast<const uchar *>(sp->m_qname.str);
 }
 
 
@@ -302,7 +298,7 @@ sp_cache::~sp_cache()
 void
 sp_cache::init()
 {
-  my_hash_init(key_memory_sp_cache, &m_hashtable, system_charset_info, 0, 0, 0,
+  my_hash_init(key_memory_sp_cache, &m_hashtable, &my_charset_bin, 0, 0, 0,
                hash_get_key_for_sp_head, hash_free_sp_head, 0);
 }
 
@@ -313,6 +309,10 @@ sp_cache::cleanup()
   my_hash_free(&m_hashtable);
 }
 
+void sp_cache::clear()
+{
+  my_hash_reset(&m_hashtable);
+}
 
 void Sp_caches::sp_caches_clear()
 {
@@ -320,4 +320,16 @@ void Sp_caches::sp_caches_clear()
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
+}
+
+void Sp_caches::sp_caches_empty()
+{
+  if (sp_proc_cache)
+    sp_proc_cache->clear();
+  if (sp_func_cache)
+    sp_func_cache->clear();
+  if (sp_package_spec_cache)
+    sp_package_spec_cache->clear();
+  if (sp_package_body_cache)
+    sp_package_body_cache->clear();
 }

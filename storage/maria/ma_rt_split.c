@@ -17,9 +17,6 @@
 #include "maria_def.h"
 #include "trnman.h"
 #include "ma_key_recover.h"
-
-#ifdef HAVE_RTREE_KEYS
-
 #include "ma_rt_index.h"
 #include "ma_rt_key.h"
 #include "ma_rt_mbr.h"
@@ -282,7 +279,7 @@ static int split_maria_rtree_node(SplitStruct *node, int n_entries,
   @param  key_with_nod_flag pointer to key-nod_flag
   @param  full_length      length of (key + (nod_flag (if node) or rowid (if
                            leaf)))
-  @param  log_internal_copy encoded list of mempcy() operations done on
+  @param  log_internal_copy encoded list of memcpy() operations done on
                            split page, having their source in the page
   @param  log_internal_copy_length length of above list, in bytes
   @param  log_key_copy     operation describing the key's copy, or NULL if the
@@ -546,5 +543,3 @@ split_err:
   stack_alloc_free(coord_buf, coord_buf_alloced);
   DBUG_RETURN(err_code);
 }
-
-#endif /*HAVE_RTREE_KEYS*/

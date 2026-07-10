@@ -21,4 +21,3 @@ SELECT COUNT(*) > 0 FROM t1;
 --connection node_1
 SELECT COUNT(*) > 0 FROM t1;
 DROP TABLE t1;
-

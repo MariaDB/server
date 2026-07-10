@@ -26,6 +26,7 @@ Created 6/9/1994 Heikki Tuuri
 
 #include "mem0mem.h"
 #include "buf0buf.h"
+#include "buf0lru.h"
 #include "srv0srv.h"
 #include <stdarg.h>
 
@@ -124,7 +125,8 @@ mem_heap_printf_low(
 
 				val = va_arg(ap, unsigned long);
 
-				plen = size_t(sprintf(tmp, "%lu", val));
+				plen = size_t(snprintf(tmp, sizeof(tmp),
+							       "%lu", val));
 				len += plen;
 
 				if (buf) {
@@ -214,7 +216,6 @@ mem_heap_validate(
 		case MEM_HEAP_DYNAMIC:
 			break;
 		case MEM_HEAP_BUFFER:
-		case MEM_HEAP_BUFFER | MEM_HEAP_BTR_SEARCH:
 			ut_ad(block->len <= srv_page_size);
 			break;
 		default:
@@ -241,8 +242,7 @@ static void ut_strlcpy_rev(char* dst, const char* src, ulint size)
 
 /***************************************************************//**
 Creates a memory heap block where data can be allocated.
-@return own: memory heap block, NULL if did not succeed (only possible
-for MEM_HEAP_BTR_SEARCH type heaps) */
+@return own: memory heap block */
 mem_block_t*
 mem_heap_create_block_func(
 /*=======================*/
@@ -256,12 +256,11 @@ mem_heap_create_block_func(
 	ulint		type)	/*!< in: type of heap: MEM_HEAP_DYNAMIC or
 				MEM_HEAP_BUFFER */
 {
-	buf_block_t*	buf_block = NULL;
+	buf_block_t*	buf_block;
 	mem_block_t*	block;
 	ulint		len;
 
-	ut_ad((type == MEM_HEAP_DYNAMIC) || (type == MEM_HEAP_BUFFER)
-	      || (type == MEM_HEAP_BUFFER + MEM_HEAP_BTR_SEARCH));
+	ut_ad(type == MEM_HEAP_DYNAMIC || type == MEM_HEAP_BUFFER);
 
 	if (heap != NULL) {
 		ut_d(mem_heap_validate(heap));
@@ -275,24 +274,11 @@ mem_heap_create_block_func(
 		ut_ad(type == MEM_HEAP_DYNAMIC || n <= MEM_MAX_ALLOC_IN_BUF);
 
 		block = static_cast<mem_block_t*>(ut_malloc_nokey(len));
+		buf_block = nullptr;
 	} else {
 		len = srv_page_size;
 
-		if ((type & MEM_HEAP_BTR_SEARCH) && heap) {
-			/* We cannot allocate the block from the
-			buffer pool, but must get the free block from
-			the heap header free block field */
-
-			buf_block = static_cast<buf_block_t*>(heap->free_block);
-			heap->free_block = NULL;
-
-			if (UNIV_UNLIKELY(!buf_block)) {
-
-				return(NULL);
-			}
-		} else {
-			buf_block = buf_block_alloc();
-		}
+		buf_block = buf_block_alloc();
 
 		block = (mem_block_t*) buf_block->page.frame;
 	}
@@ -303,7 +289,6 @@ mem_heap_create_block_func(
 	}
 
 	block->buf_block = buf_block;
-	block->free_block = NULL;
 
 	ut_d(ut_strlcpy_rev(block->file_name, file_name,
 			    sizeof(block->file_name)));
@@ -339,8 +324,7 @@ mem_heap_create_block_func(
 
 /***************************************************************//**
 Adds a new block to a memory heap.
-@return created block, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
+@return created block */
 mem_block_t*
 mem_heap_add_block(
 /*===============*/
@@ -399,9 +383,6 @@ mem_heap_block_free(
 {
 	ulint		type;
 	ulint		len;
-	buf_block_t*	buf_block;
-
-	buf_block = static_cast<buf_block_t*>(block->buf_block);
 
 	UT_LIST_REMOVE(heap->base, block);
 
@@ -412,25 +393,10 @@ mem_heap_block_free(
 	len = block->len;
 
 	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
-		ut_ad(!buf_block);
+		ut_ad(!block->buf_block);
 		ut_free(block);
 	} else {
 		ut_ad(type & MEM_HEAP_BUFFER);
-		buf_block_free(buf_block);
-	}
-}
-
-/******************************************************************//**
-Frees the free_block field from a memory heap. */
-void
-mem_heap_free_block_free(
-/*=====================*/
-	mem_heap_t*	heap)	/*!< in: heap */
-{
-	if (UNIV_LIKELY_NULL(heap->free_block)) {
-
-		buf_block_free(static_cast<buf_block_t*>(heap->free_block));
-
-		heap->free_block = NULL;
+		buf_block_free(block->buf_block);
 	}
 }

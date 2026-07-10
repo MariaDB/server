@@ -20,7 +20,7 @@
   Tool used for executing a .test file
 
   See the "MySQL Test framework manual" for more information
-  https://mariadb.com/kb/en/library/mysqltest/
+  https://mariadb.com/docs/server/clients-and-utilities/testing-tools/mariadb-test
 
   Please keep the test framework tools identical in all versions!
 
@@ -33,7 +33,7 @@
   And many others
 */
 
-#define MTEST_VERSION "3.5"
+#define VER "3.5"
 
 #include "client_priv.h"
 #include <mysql_version.h>
@@ -55,6 +55,7 @@
 #endif
 #include <signal.h>
 #include <my_stacktrace.h>
+#include <my_attribute.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
@@ -78,7 +79,10 @@ static my_bool non_blocking_api_enabled= 0;
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 
-#define DIE_BUFF_SIZE           256*1024
+#define DIE_BUFF_SIZE           64*1024
+
+#define RESULT_STRING_INIT_MEM 2048
+#define RESULT_STRING_INCREMENT_MEM 2048
 
 /* Flags controlling send and reap */
 #define QUERY_SEND_FLAG  1
@@ -87,6 +91,8 @@ static my_bool non_blocking_api_enabled= 0;
 #define QUERY_PRINT_ORIGINAL_FLAG 4
 
 #define CLOSED_CONNECTION "-closed_connection-"
+
+#define dynstr_append DO_NO_USE
 
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
@@ -159,6 +165,7 @@ static struct property prop_list[] = {
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
   { &ps2_protocol_enabled, 0, 0, 0, "$ENABLED_PS2_PROTOCOL" },
   { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
+  { &cursor_protocol_enabled, 0, 0, 0, "$ENABLED_CURSOR_PROTOCOL"},
   { &service_connection_enabled, 0, 1, 0, "$ENABLED_SERVICE_CONNECTION"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
@@ -176,6 +183,7 @@ enum enum_prop {
   P_PS,
   P_PS2,
   P_VIEW,
+  P_CURSOR,
   P_CONN,
   P_QUERY,
   P_RESULT,
@@ -268,6 +276,7 @@ static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t ps2_re;    /* the query can be run using PS protocol with second execution*/
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
+static regex_t cursor_re;    /* the query can be run with cursor protocol*/
 
 static void init_re(void);
 static int match_re(regex_t *, char *);
@@ -285,6 +294,13 @@ DYNAMIC_ARRAY q_lines;
 
 #include "sslopt-vars.h"
 
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+static void set_ssl_opts(MYSQL *mysql, my_bool opt_use_ssl, char *opt_ssl_cipher)
+{
+  SET_SSL_OPTS(mysql);
+}
+#endif
+
 struct Parser
 {
   int read_lines,current_line;
@@ -293,6 +309,7 @@ struct Parser
 struct MasterPos
 {
   char file[FN_REFLEN];
+  char gtid[256];
   ulong pos;
 } master_pos;
 
@@ -357,7 +374,7 @@ enum enum_commands {
   Q_INC,		    Q_DEC,
   Q_SOURCE,	    Q_DISCONNECT,
   Q_LET,		    Q_ECHO,
-  Q_WHILE,	    Q_END_BLOCK,
+  Q_WHILE,	    Q_END_BLOCK, Q_BREAK,
   Q_SYSTEM,	    Q_RESULT,
   Q_REQUIRE,	    Q_SAVE_MASTER_POS,
   Q_SYNC_WITH_MASTER,
@@ -386,13 +403,14 @@ enum enum_commands {
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
   Q_DISABLE_PS2_PROTOCOL, Q_ENABLE_PS2_PROTOCOL,
   Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
+  Q_DISABLE_CURSOR_PROTOCOL, Q_ENABLE_CURSOR_PROTOCOL,
   Q_DISABLE_SERVICE_CONNECTION, Q_ENABLE_SERVICE_CONNECTION,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
   Q_IF,
   Q_DISABLE_PARSING, Q_ENABLE_PARSING,
   Q_REPLACE_REGEX, Q_REMOVE_FILE, Q_FILE_EXIST,
-  Q_WRITE_FILE, Q_COPY_FILE, Q_PERL, Q_DIE, Q_EXIT, Q_SKIP,
+  Q_WRITE_FILE, Q_WRITE_LINE, Q_COPY_FILE, Q_PERL, Q_DIE, Q_EXIT, Q_SKIP,
   Q_CHMOD_FILE, Q_APPEND_FILE, Q_CAT_FILE, Q_DIFF_FILES,
   Q_SEND_QUIT, Q_CHANGE_USER, Q_MKDIR, Q_RMDIR,
   Q_LIST_FILES, Q_LIST_FILES_WRITE_FILE, Q_LIST_FILES_APPEND_FILE,
@@ -428,6 +446,7 @@ const char *command_names[]=
   "echo",
   "while",
   "end",
+  "break",
   "system",
   "result",
   "require",
@@ -482,6 +501,8 @@ const char *command_names[]=
   "enable_ps2_protocol",
   "disable_view_protocol",
   "enable_view_protocol",
+  "disable_cursor_protocol",
+  "enable_cursor_protocol",
   "disable_service_connection",
   "enable_service_connection",
   "enable_non_blocking_api",
@@ -495,6 +516,7 @@ const char *command_names[]=
   "remove_file",
   "file_exists",
   "write_file",
+  "write_line",
   "copy_file",
   "perl",
   "die",
@@ -574,8 +596,7 @@ struct st_command
   enum enum_commands type;
 };
 
-TYPELIB command_typelib= {array_elements(command_names),"",
-			  command_names, 0};
+TYPELIB command_typelib= CREATE_TYPELIB_FOR(command_names);
 
 DYNAMIC_STRING ds_res;
 /* Points to ds_warning in run_query, so it can be freed */
@@ -610,13 +631,14 @@ void replace_strings_append(struct st_replace *rep, DYNAMIC_STRING* ds,
 const char *from);
 
 ATTRIBUTE_NORETURN
-static void cleanup_and_exit(int exit_code);
+static void cleanup_and_exit(int exit_code, bool called_from_die);
 
 ATTRIBUTE_NORETURN
 static void really_die(const char *msg);
 void report_or_die(const char *fmt, ...);
-ATTRIBUTE_NORETURN
+ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
 static void die(const char *fmt, ...);
+ATTRIBUTE_FORMAT(printf, 3, 0)
 static void make_error_message(char *buf, size_t len, const char *fmt, va_list args);
 ATTRIBUTE_NORETURN ATTRIBUTE_FORMAT(printf, 1, 2)
 void abort_not_supported_test(const char *fmt, ...);
@@ -674,6 +696,321 @@ void var_set_int(const char* name, int value);
 void enable_optimizer_trace(struct st_connection *con);
 void display_optimizer_trace(struct st_connection *con,
                              DYNAMIC_STRING *ds);
+
+static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql);
+
+
+/*
+  ========================================================================
+  EXPRESSION PARSER AND EVALUATOR FOR MYSQLTEST
+  ========================================================================
+
+  DESCRIPTION
+  This module implements a complete recursive descent parser for mathematical
+  and logical expressions used in mysqltest scripts. The parser supports:
+
+  OPERATOR PRECEDENCE (from highest to lowest):
+  - Primary expressions (parentheses, literals, functions)
+  - Unary operators (!, -, ~)
+  - Bitwise XOR (^)
+  - Multiplication/Division (*, /, %)
+  - Arithmetic (+, -)
+  - Bitwise Shift (<<, >>)
+  - Bitwise AND (&)
+  - Bitwise OR (|)
+  - Comparison (<, <=, >, >=)
+  - Equality (==, !=)
+  - Logical AND (&&)
+  - Logical OR (||)
+
+  SUPPORTED DATA TYPES:
+  - Integers (decimal, hexadecimal (0x), binary (0b))
+  - Booleans
+  - Strings
+  - NULL values
+
+  BUILT-IN FUNCTIONS:
+  String functions: substr/substring, locate, length, hex, oct, bin,
+                   ltrim, rtrim, trim, upper/ucase, lower/lcase,
+                   reverse, replace, concat, concat_ws, repeat,
+                   insert, instr, lpad, rpad, substring_index
+  Regex functions: regexp_instr, regexp_replace, regexp_substr
+  Numeric functions: abs, conv
+  Comparison functions: greatest, least
+  Conditional: ifnull, nullif, coalesce
+
+  SYNTAX:
+  Expressions are enclosed in $() and can contain:
+  - Variables: $var_name
+  - Literals: numbers, strings, booleans, null
+  - Operators: all standard mathematical and logical operators
+  - Functions: built-in function calls with arguments
+  - Parentheses for grouping
+
+  EXAMPLES:
+  $(1 + 2 * 3)                    # Arithmetic
+  $($var1 > $var2)                # Comparison
+  $(substr("hello", 1, 3))        # Function call
+  $($flag && ($count > 0))        # Logical operations
+  $(1 << 2 | 3)                   # Bitwise operations
+
+  let $x = $(10 + 2);
+  echo $(1 + 2);
+  if ($($x > 10))
+  {
+    echo "x is greater than 10";
+  }
+  while ($($x < 20))
+  {
+    echo $($x);
+    let $x = $($x + 1);
+  }
+
+  ENTRY POINT:
+  Main parsing starts with expr() function which is called from do_eval().
+
+  ERROR HANDLING:
+  Parser dies with descriptive error messages on syntax errors or
+  type mismatches. All errors are fatal to ensure test reliability.
+*/
+
+typedef String My_string;
+
+enum Expression_value_type
+{
+  EXPR_INT,
+  EXPR_STRING,
+  EXPR_NULL
+};
+
+
+/*
+  Expression value container for mysqltest expression parser
+  This structure holds the result of parsed expressions and provides
+  type conversion methods. It supports multiple data types with
+  the ability to convert between them.
+*/
+
+struct Expression_value
+{
+  Expression_value_type type;
+  unsigned long long int_val;
+  bool is_numeric;
+  bool is_unsigned;
+  My_string str_val;
+
+
+  Expression_value()
+  {
+    type= EXPR_NULL;
+    is_numeric= false;
+    is_unsigned= false;
+  }
+
+
+  void set_int(long long value)
+  {
+    type= EXPR_INT;
+    is_numeric= true;
+    is_unsigned= false;
+    int_val= value;
+  }
+
+
+  void set_uint(unsigned long long value)
+  {
+    type= EXPR_INT;
+    is_numeric= true;
+    is_unsigned= true;
+    int_val= value;
+  }
+
+
+  void set_string(const char *value, size_t len)
+  {
+    type= EXPR_STRING;
+    is_numeric= false;
+    str_val.copy(value, len, charset_info);
+  }
+
+
+  void set_bool(bool value)
+  {
+    type= EXPR_INT;
+    is_numeric= true;
+    is_unsigned= false;
+    int_val= value ? 1 : 0;
+  }
+
+
+  long long to_int() const
+  {
+    if (is_numeric)
+      return (long long)int_val;
+    errno= 0;
+    long long val= strtoll(str_val.ptr(), NULL, 10);
+    if (errno == ERANGE)
+      die("Range error: %.*s value out of range for Integer type",
+          (int)str_val.length(), str_val.ptr());
+    return val;
+  }
+
+
+  unsigned long long to_uint() const
+  {
+    if (is_numeric)
+      return int_val;
+    errno= 0;
+    unsigned long long val= strtoull(str_val.ptr(), NULL, 10);
+    if (errno == ERANGE)
+      die("Range error: %.*s value out of range for Integer type",
+          (int)str_val.length(), str_val.ptr());
+    return val;
+  }
+
+
+  bool to_bool() const
+  {
+    return (bool)to_int();
+  }
+
+
+  My_string to_string() const
+  {
+    My_string buffer;
+
+    if (type == EXPR_NULL)
+    {
+      buffer.set("", 0, charset_info);
+      return buffer;
+    }
+
+    if (is_numeric)
+    {
+      buffer.set_int(int_val, is_unsigned, charset_info);
+      return buffer;
+    }
+
+    if (type == EXPR_STRING)
+    {
+      buffer.copy(str_val);
+      return buffer;
+    }
+
+    buffer.set("", 0, charset_info);
+    return buffer;
+  }
+
+
+  Expression_value& operator=(const Expression_value& other)
+  {
+    if (this != &other)
+    {
+      type= other.type;
+      int_val= other.int_val;
+      is_numeric= other.is_numeric;
+      is_unsigned= other.is_unsigned;
+      if (other.type == EXPR_STRING)
+      {
+        str_val.copy(other.str_val);
+      }
+    }
+    return *this;
+  }
+
+
+  void reset()
+  {
+    // My_string memory is kept allocated for reuse
+    type= EXPR_NULL;
+    is_numeric= false;
+    is_unsigned= false;
+  }
+
+
+/**
+  Parses a token string and initializes the Expression_value with the
+  appropriate type and value.
+
+  Type selection logic:
+  - Hex/binary numbers, or values > LLONG_MAX → unsigned integer
+  - Decimal numbers ≤ LLONG_MAX → signed integer
+  - Boolean literals → boolean type
+  - "null" → null type
+  - Everything else → string type
+*/
+
+  void init(const char* token_start, size_t token_len)
+  {
+    char *endptr;
+    unsigned long long parsed_int;
+    int base= 10;
+
+    // Check for boolean literals (case insensitive)
+    if (token_len == 4 && strncasecmp(token_start, "true", 4) == 0)
+    {
+      set_bool(true);
+      return;
+    }
+
+    if (token_len == 5 && strncasecmp(token_start, "false", 5) == 0)
+    {
+      set_bool(false);
+      return;
+    }
+
+    if(token_len == 4 && strncasecmp(token_start, "null", 4) == 0)
+    {
+      reset();
+      return;
+    }
+
+    // Check for special prefixes (0x, 0b)
+    if (token_len >= 3 && token_start[0] == '0')
+    {
+      if (token_start[1] == 'x')
+      {
+        base= 16;
+      }
+      else if (token_start[1] == 'b')
+      {
+        base= 2;
+        token_start+= 2; // Skip "0b" prefix for strtol
+        token_len-= 2;
+      }
+    }
+
+    errno= 0;
+    parsed_int= strtoull(token_start, &endptr, base);
+    if (errno == ERANGE)
+      die("Range error: %.*s value out of range for Integer type",
+          (int)token_len, token_start);
+
+    // If the entire token was parsed as an integer, set the type to integer
+    if (endptr == token_start + token_len)
+    {
+      if (base == 16 || base == 2 || parsed_int > LLONG_MAX)
+        set_uint(parsed_int);
+      else
+        set_int((long long)parsed_int);
+      return;
+    }
+
+    set_string(token_start, token_len);
+  }
+};
+
+
+/* Core expression parsing functions */
+static void expr(Expression_value *result, const char **s);
+static void logical_or(Expression_value *result, const char **s);
+static void logical_and(Expression_value *result, const char **s);
+static void equality(Expression_value *result, const char **s);
+static void comparison(Expression_value *result, const char **s);
+static void term(Expression_value *result, const char **s);
+static void factor(Expression_value *result, const char **s);
+static void unary(Expression_value *result, const char **s);
+static void primary(Expression_value *result, const char **s);
 
 
 class LogFile {
@@ -859,8 +1196,7 @@ LogFile progress_file;
 void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len);
 void replace_dynstr_append(DYNAMIC_STRING *ds, const char *val);
 void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val);
-void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING* ds_input,
-                          bool keep_header);
+void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING* ds_input);
 
 static int match_expected_error(struct st_command *command,
                                 unsigned int err_errno,
@@ -927,6 +1263,7 @@ pthread_attr_t cn_thd_attrib;
 pthread_handler_t connection_thread(void *arg)
 {
   struct st_connection *cn= (struct st_connection*)arg;
+  DBUG_ENTER("connection_thread");
 
   mysql_thread_init();
   while (cn->command != EMB_END_CONNECTION)
@@ -938,6 +1275,7 @@ pthread_handler_t connection_thread(void *arg)
         pthread_cond_wait(&cn->query_cond, &cn->query_mutex);
       pthread_mutex_unlock(&cn->query_mutex);
     }
+    DBUG_PRINT("info", ("executing command: %d", cn->command));
     switch (cn->command)
     {
       case EMB_END_CONNECTION:
@@ -958,24 +1296,25 @@ pthread_handler_t connection_thread(void *arg)
         break;
       case EMB_CLOSE_STMT:
         cn->result= mysql_stmt_close(cn->stmt);
+        cn->stmt= 0;
         break;
       default:
         DBUG_ASSERT(0);
     }
-    cn->command= 0;
     pthread_mutex_lock(&cn->result_mutex);
     cn->query_done= 1;
+    cn->command= 0;
     pthread_cond_signal(&cn->result_cond);
     pthread_mutex_unlock(&cn->result_mutex);
   }
 
 end_thread:
-  cn->query_done= 1;
+  DBUG_ASSERT(cn->stmt == 0);
   mysql_close(cn->mysql);
   cn->mysql= 0;
+  cn->query_done= 1;
   mysql_thread_end();
-  pthread_exit(0);
-  return 0;
+  DBUG_RETURN(0);
 }
 
 static void wait_query_thread_done(struct st_connection *con)
@@ -993,12 +1332,16 @@ static void wait_query_thread_done(struct st_connection *con)
 
 static void signal_connection_thd(struct st_connection *cn, int command)
 {
+  DBUG_ENTER("signal_connection_thd");
+  DBUG_PRINT("enter", ("command: %d", command));
+
   DBUG_ASSERT(cn->has_thread);
   cn->query_done= 0;
-  cn->command= command;
   pthread_mutex_lock(&cn->query_mutex);
+  cn->command= command;
   pthread_cond_signal(&cn->query_cond);
   pthread_mutex_unlock(&cn->query_mutex);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1037,50 +1380,63 @@ exit_func:
 static int do_stmt_prepare(struct st_connection *cn, const char *q, int q_len)
 {
   /* The cn->stmt is already set. */
+  DBUG_ENTER("do_stmt_prepare");
   if (!cn->has_thread)
-    return mysql_stmt_prepare(cn->stmt, q, q_len);
+    DBUG_RETURN(mysql_stmt_prepare(cn->stmt, q, q_len));
   cn->cur_query= q;
   cn->cur_query_len= q_len;
   signal_connection_thd(cn, EMB_PREPARE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_RETURN(cn->result);
 }
 
 
 static int do_stmt_execute(struct st_connection *cn)
 {
+  DBUG_ENTER("do_stmt_execute");
   /* The cn->stmt is already set. */
   if (!cn->has_thread)
-    return mysql_stmt_execute(cn->stmt);
+    DBUG_RETURN(mysql_stmt_execute(cn->stmt));
   signal_connection_thd(cn, EMB_EXECUTE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_RETURN(cn->result);
 }
 
 
 static int do_stmt_close(struct st_connection *cn)
 {
-  /* The cn->stmt is already set. */
+  DBUG_ENTER("do_stmt_close");
   if (!cn->has_thread)
-    return mysql_stmt_close(cn->stmt);
+  {
+    /* The cn->stmt is already set. */
+    int res= mysql_stmt_close(cn->stmt);
+    cn->stmt= 0;
+    DBUG_RETURN(res);
+  }
+  wait_query_thread_done(cn);
   signal_connection_thd(cn, EMB_CLOSE_STMT);
   wait_query_thread_done(cn);
-  return cn->result;
+  DBUG_ASSERT(cn->stmt == 0);
+  DBUG_RETURN(cn->result);
 }
 
 
 static void emb_close_connection(struct st_connection *cn)
 {
+  DBUG_ENTER("emb_close_connection");
   if (!cn->has_thread)
-    return;
+    DBUG_VOID_RETURN;
   wait_query_thread_done(cn);
   signal_connection_thd(cn, EMB_END_CONNECTION);
   pthread_join(cn->tid, NULL);
   cn->has_thread= FALSE;
+  DBUG_ASSERT(cn->mysql == 0);
+  DBUG_ASSERT(cn->stmt == 0);
   pthread_mutex_destroy(&cn->query_mutex);
   pthread_cond_destroy(&cn->query_cond);
   pthread_mutex_destroy(&cn->result_mutex);
   pthread_cond_destroy(&cn->result_cond);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1104,7 +1460,13 @@ static void init_connection_thd(struct st_connection *cn)
 #define do_read_query_result(cn) mysql_read_query_result(cn->mysql)
 #define do_stmt_prepare(cn, q, q_len) mysql_stmt_prepare(cn->stmt, q, (ulong)q_len)
 #define do_stmt_execute(cn) mysql_stmt_execute(cn->stmt)
-#define do_stmt_close(cn) mysql_stmt_close(cn->stmt)
+
+static int do_stmt_close(struct st_connection *cn)
+{
+  int res= mysql_stmt_close(cn->stmt);
+  cn->stmt= 0;
+  return res;
+}
 
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -1126,14 +1488,68 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 	escaped= 0;
 	dynstr_append_mem(query_eval, p, 1);
       }
+      else if (p < query_end && *(p + 1) == '(')
+      {
+        const char* expr_start= p + 2;
+        int paren_level= 1;
+        const char* expr_end= expr_start;
+        char in_quote= 0;
+        bool escaped= false;
+
+        // Find the matching closing parenthesis
+        while (*expr_end && paren_level > 0)
+        {
+          if (!in_quote)
+          {
+            // Not inside quotes - handle parentheses normally
+            if (*expr_end == '(') paren_level++;
+            else if (*expr_end == ')') paren_level--;
+            else if (*expr_end == '\'' || *expr_end == '"')
+              in_quote= *expr_end;  // Start of quoted string
+          }
+          else
+          {
+            // Inside quotes - only look for closing quote
+            if (!escaped && *expr_end == in_quote)
+              in_quote= 0;  // End of quoted string
+          }
+          escaped= (!escaped && *expr_end == '\\');
+          expr_end++;
+        }
+
+        if (paren_level != 0)
+          die("Unmatched parenthesis in expression starting at '%.*s'", 10, p);
+        expr_end--; // Go back to the ')'
+
+        // Recursively evaluate the content of the expression
+        DYNAMIC_STRING sub_expr_eval;
+        init_dynamic_string(&sub_expr_eval, "", 256, 1024);
+        do_eval(&sub_expr_eval, expr_start, expr_end, FALSE);
+
+        const char* eval_ptr= sub_expr_eval.str;
+        Expression_value result_val;
+        expr(&result_val, &eval_ptr);
+
+        while(*eval_ptr && my_isspace(charset_info, *eval_ptr))
+          eval_ptr++;
+
+        if (*eval_ptr != '\0')
+          die("Syntax error in sub-expression '%.*s'", (int)sub_expr_eval.length, sub_expr_eval.str);
+
+        My_string result_buf= result_val.to_string();
+        dynstr_append_mem(query_eval, result_buf.c_ptr(), result_buf.length());
+
+        dynstr_free(&sub_expr_eval);
+        p= expr_end;
+      }
       else
       {
-	if (!(v= var_get(p, &p, 0, 0)))
+        if (!(v= var_get(p, &p, 0, 0)) || !v->str_val)
         {
           report_or_die( "Bad variable in eval");
           DBUG_VOID_RETURN;
         }
-	dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
+        dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
       }
       break;
     case '\\':
@@ -1326,7 +1742,7 @@ void check_command_args(struct st_command *command,
 
     /* Check required arg */
     if (arg->ds->length == 0 && arg->required)
-      die("Missing required argument '%s' to command '%.*b'", arg->argname,
+      die("Missing required argument '%s' to command '%.*sB'", arg->argname,
           command->first_word_len, command->query);
 
   }
@@ -1335,7 +1751,7 @@ void check_command_args(struct st_command *command,
   while(ptr <= command->end && *ptr != '#')
   {
     if (*ptr && *ptr != ' ')
-      die("Extra argument '%s' passed to '%.*b'",
+      die("Extra argument '%s' passed to '%.*sB'",
           ptr, command->first_word_len, command->query);
     ptr++;
   }
@@ -1355,7 +1771,7 @@ void handle_command_error(struct st_command *command, uint error,
 
     if (command->abort_on_error)
     {
-      report_or_die("command \"%.*b\" failed with error: %u  my_errno: %d  "
+      report_or_die("command \"%.*sB\" failed with error: %u  my_errno: %d  "
                     "errno: %d",
           command->first_word_len, command->query, error, my_errno,
           sys_errno);
@@ -1373,7 +1789,7 @@ void handle_command_error(struct st_command *command, uint error,
       DBUG_VOID_RETURN;
     }
     if (command->expected_errors.count > 0)
-      report_or_die("command \"%.*b\" failed with wrong error: %u  "
+      report_or_die("command \"%.*sB\" failed with wrong error: %u  "
                     "my_errno: %d  errno: %d",
                     command->first_word_len, command->query, error, my_errno,
                     sys_errno);
@@ -1382,7 +1798,7 @@ void handle_command_error(struct st_command *command, uint error,
            command->expected_errors.err[0].code.errnum != 0)
   {
     /* Error code we wanted was != 0, i.e. not an expected success */
-    report_or_die("command \"%.*b\" succeeded - should have failed with "
+    report_or_die("command \"%.*sB\" succeeded - should have failed with "
                   "errno %d...",
         command->first_word_len, command->query,
         command->expected_errors.err[0].code.errnum);
@@ -1432,7 +1848,6 @@ void close_statements()
   {
     if (con->stmt)
       do_stmt_close(con);
-    con->stmt= 0;
   }
   DBUG_VOID_RETURN;
 }
@@ -1461,7 +1876,10 @@ void free_used_memory()
   DBUG_ENTER("free_used_memory");
 
   if (connections)
+  {
     close_connections();
+    cur_con= NULL;
+  }
   close_files();
   my_hash_free(&var_hash);
 
@@ -1503,8 +1921,8 @@ void free_used_memory()
 void ha_pre_shutdown();
 #endif
 
-
-ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
+ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code,
+                                                bool called_from_die)
 {
 #ifdef EMBEDDED_LIBRARY
   if (server_initialized)
@@ -1516,16 +1934,6 @@ ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
   /* Only call mysql_server_end if mysql_server_init has been called */
   if (server_initialized)
     mysql_server_end();
-
-  /*
-    mysqltest is fundamentally written in a way that makes impossible
-    to free all memory before exit (consider memory allocated
-    for frame local DYNAMIC_STRING's and die() invoked down the stack.
-
-    We close stderr here to stop unavoidable safemalloc reports
-    from polluting the output.
-  */
-  fclose(stderr);
 
   my_end(my_end_arg);
 
@@ -1546,6 +1954,11 @@ ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
     }
   }
 
+  /*
+    Report memory leaks, if not called from 'die()', as die() will not release
+    all memory.
+  */
+  sf_leaking_memory= called_from_die;
   exit(exit_code);
 }
 
@@ -1588,6 +2001,8 @@ static void make_error_message(char *buf, size_t len, const char *fmt, va_list a
   s+= my_snprintf(s, end -s, "\n");
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
@@ -1598,6 +2013,8 @@ static void die(const char *fmt, ...)
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void really_die(const char *msg)
 {
@@ -1612,7 +2029,7 @@ static void really_die(const char *msg)
     second time, just exit
   */
   if (dying)
-    cleanup_and_exit(1);
+    cleanup_and_exit(1, 1);
   dying= 1;
 
   log_file.show_tail(opt_tail_lines);
@@ -1624,8 +2041,10 @@ static void really_die(const char *msg)
   if (cur_con && !cur_con->pending)
     show_warnings_before_error(cur_con->mysql);
 
-  cleanup_and_exit(1);
+  cleanup_and_exit(1, 1);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 void report_or_die(const char *fmt, ...)
 {
@@ -1678,9 +2097,10 @@ void abort_not_supported_test(const char *fmt, ...)
   }
   va_end(args);
 
-  cleanup_and_exit(62);
+  cleanup_and_exit(62, 0);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void abort_not_in_this_version()
 {
@@ -1726,7 +2146,7 @@ void log_msg(const char *fmt, ...)
   va_end(args);
 
   dynstr_append_mem(&ds_res, buff, len);
-  dynstr_append(&ds_res, "\n");
+  dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
 
   DBUG_VOID_RETURN;
 }
@@ -1738,15 +2158,16 @@ void log_msg(const char *fmt, ...)
   SYNOPSIS
   cat_file
   ds - pointer to dynamic string where to add the files content
-  filename - name of the file to read
-
+  filename  - name of the file to read
+  max_lines - number of lines to print. 0 == all
 */
 
-int cat_file(DYNAMIC_STRING* ds, const char* filename)
+int cat_file(DYNAMIC_STRING* ds, const char* filename, uint max_lines)
 {
   int fd;
   size_t len;
   char *buff;
+  uint line= 0;                             // Enough for mtr
 
   if ((fd= my_open(filename, O_RDONLY, MYF(0))) < 0)
     return 1;
@@ -1763,28 +2184,35 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
   len= my_read(fd, (uchar*)buff, len, MYF(0));
   my_close(fd, MYF(0));
 
+  if (!max_lines)
+    max_lines= 10000;                           // Enough for mtr
+
+  char *p= buff, *start= buff, *end=buff+len;
+  while (p < end && line < max_lines)
   {
-    char *p= buff, *start= buff,*end=buff+len;
-    while (p < end)
+    /* Convert cr/lf to lf */
+    if (*p == '\r' && p+1 < end && *(p+1)== '\n')
     {
-      /* Convert cr/lf to lf */
-      if (*p == '\r' && p+1 < end && *(p+1)== '\n')
-      {
-        /* Add fake newline instead of cr and output the line */
-        *p= '\n';
-        p++; /* Step past the "fake" newline */
-        *p= 0;
-        replace_dynstr_append_mem(ds, start, p-start);
-        p++; /* Step past the "fake" newline */
-        start= p;
-      }
-      else
-        p++;
+      /* Add fake newline instead of cr and output the line */
+      *p= '\n';
+      p++; /* Step past the "fake" newline */
+      *p= 0;
+      replace_dynstr_append_mem(ds, start, p-start);
+      p++; /* Step past the "fake" newline */
+      start= p;
+      line++;
     }
-    /* Output any chars that migh be left */
-    *p= 0;
-    replace_dynstr_append_mem(ds, start, p-start);
+    else
+    {
+      if (*p == '\n')
+        line++;
+      p++;
+    }
   }
+  /* Output any chars that migh be left */
+  *p= 0;
+  replace_dynstr_append_mem(ds, start, p-start);
+
   my_free(buff);
   return 0;
 }
@@ -1862,7 +2290,7 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
     die("Out of memory");
 
   dynstr_append_os_quoted(&ds_cmdline, tool_path, NullS);
-  dynstr_append(&ds_cmdline, " ");
+  dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN(" "));
 
   va_start(args, ds_res);
 
@@ -1872,14 +2300,14 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
     if (strncmp(arg, "--", 2) == 0)
       dynstr_append_os_quoted(&ds_cmdline, arg, NullS);
     else
-      dynstr_append(&ds_cmdline, arg);
-    dynstr_append(&ds_cmdline, " ");
+      dynstr_append_mem(&ds_cmdline, arg, strlen(arg));
+    dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN(" "));
   }
 
   va_end(args);
 
 #ifdef _WIN32
-  dynstr_append(&ds_cmdline, "\"");
+  dynstr_append_mem(&ds_cmdline, STRING_WITH_LEN("\""));
 #endif
 
   DBUG_PRINT("info", ("Running: %s", ds_cmdline.str));
@@ -2014,8 +2442,8 @@ void show_diff(DYNAMIC_STRING* ds,
       Fallback to dump both files to result file and inform
       about installing "diff"
     */
-	dynstr_append(&ds_tmp, "\n");
-    dynstr_append(&ds_tmp,
+    char message[]=
+"\n"
 "\n"
 "The two files differ but it was not possible to execute 'diff' in\n"
 "order to show only the difference. Instead the whole content of the\n"
@@ -2025,17 +2453,18 @@ void show_diff(DYNAMIC_STRING* ds,
 #ifdef _WIN32
 "or http://gnuwin32.sourceforge.net/packages/diffutils.htm\n"
 #endif
-"\n");
+"\n";
+    dynstr_append_mem(&ds_tmp, message, sizeof(message));
 
-    dynstr_append(&ds_tmp, " --- ");
-    dynstr_append(&ds_tmp, filename1);
-    dynstr_append(&ds_tmp, " >>>\n");
-    cat_file(&ds_tmp, filename1);
-    dynstr_append(&ds_tmp, "<<<\n --- ");
-    dynstr_append(&ds_tmp, filename1);
-    dynstr_append(&ds_tmp, " >>>\n");
-    cat_file(&ds_tmp, filename2);
-    dynstr_append(&ds_tmp, "<<<<\n");
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" --- "));
+    dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
+    cat_file(&ds_tmp, filename1, 0);
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<\n --- "));
+    dynstr_append_mem(&ds_tmp, filename1, strlen(filename1));
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN(" >>>\n"));
+    cat_file(&ds_tmp, filename2, 0);
+    dynstr_append_mem(&ds_tmp, STRING_WITH_LEN("<<<<\n"));
   }
 
   if (ds)
@@ -2224,14 +2653,14 @@ int dyn_string_cmp(DYNAMIC_STRING* ds, const char *fname)
   check_result
 
   RETURN VALUES
-  error - the function will not return
-
+  0  ok
+  1  error
 */
 
-void check_result()
+int check_result()
 {
   const char *mess= 0;
-
+  int error= 1;
   DBUG_ENTER("check_result");
   DBUG_ASSERT(result_file_name);
   DBUG_PRINT("enter", ("result_file_name: %s", result_file_name));
@@ -2239,7 +2668,10 @@ void check_result()
   switch (compare_files(log_file.file_name(), result_file_name)) {
   case RESULT_OK:
     if (!error_count)
+    {
+      error= 0;
       break; /* ok */
+    }
     mess= "Got errors while running test";
     /* Fallthrough */
   case RESULT_LENGTH_MISMATCH:
@@ -2278,14 +2710,13 @@ void check_result()
           log_file.file_name(), reject_file, errno);
 
     show_diff(NULL, result_file_name, reject_file);
-    die("%s", mess);
+    fprintf(stderr, "%s", mess);
     break;
   }
   default: /* impossible */
     die("Unknown error code from dyn_string_cmp()");
   }
-
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
@@ -2357,20 +2788,19 @@ static int strip_surrounding(char* str, char c1, char c2)
 static void strip_parentheses(struct st_command *command)
 {
   if (strip_surrounding(command->first_argument, '(', ')'))
-    die("%.*b - argument list started with '%c' must be ended with '%c'",
+    die("%.*sB - argument list started with '%c' must be ended with '%c'",
         command->first_word_len, command->query, '(', ')');
 }
 
 
 C_MODE_START
 
-static uchar *get_var_key(const uchar* var, size_t *len,
-                          my_bool __attribute__((unused)) t)
+static const uchar *get_var_key(const void *var, size_t *len, my_bool)
 {
   char* key;
-  key = ((VAR*)var)->name;
-  *len = ((VAR*)var)->name_len;
-  return (uchar*)key;
+  key= (static_cast<const VAR *>(var))->name;
+  *len= (static_cast<const VAR *>(var))->name_len;
+  return reinterpret_cast<const uchar *>(key);
 }
 
 
@@ -2499,7 +2929,7 @@ VAR* var_get(const char *var_name, const char **var_name_end, my_bool raw,
 
   if (!raw && v->int_dirty)
   {
-    sprintf(v->str_val, "%d", v->int_val);
+    snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
     v->int_dirty= false;
     v->str_val_len = strlen(v->str_val);
   }
@@ -2561,7 +2991,7 @@ void var_set(const char *var_name, const char *var_name_end,
   {
     if (v->int_dirty)
     {
-      sprintf(v->str_val, "%d", v->int_val);
+      snprintf(v->str_val, v->alloced_len, "%d", v->int_val);
       v->int_dirty=false;
       v->str_val_len= strlen(v->str_val);
     }
@@ -2815,10 +3245,11 @@ do_result_format_version(struct st_command *command)
 
   set_result_format_version(version);
 
-  dynstr_append(&ds_res, "result_format: ");
+  dynstr_append_mem(&ds_res, STRING_WITH_LEN("result_format: "));
   dynstr_append_mem(&ds_res, ds_version.str, ds_version.length);
-  dynstr_append(&ds_res, "\n");
+  dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
   dynstr_free(&ds_version);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -3016,7 +3447,7 @@ void eval_expr(VAR *v, const char *p, const char **p_end,
     /* Make sure there was just a $variable and nothing else */
     const char* end= *p_end + 1;
     if (end < expected_end && !open_end)
-      die("Found junk '%.*b' after $variable in expression",
+      die("Found junk '%.*sB' after $variable in expression",
           (int)(expected_end - end - 1), end);
 
     DBUG_VOID_RETURN;
@@ -3288,13 +3719,15 @@ static int replace(DYNAMIC_STRING *ds_str,
 {
   DYNAMIC_STRING ds_tmp;
   const char *start= strstr(ds_str->str, search_str);
+  size_t prefixlen= start - ds_str->str;
   if (!start)
     return 1;
   init_dynamic_string(&ds_tmp, "",
                       ds_str->length + replace_len, 256);
-  dynstr_append_mem(&ds_tmp, ds_str->str, start - ds_str->str);
+  dynstr_append_mem(&ds_tmp, ds_str->str, prefixlen);
   dynstr_append_mem(&ds_tmp, replace_str, replace_len);
-  dynstr_append(&ds_tmp, start + search_len);
+  dynstr_append_mem(&ds_tmp, start + search_len,
+                    ds_str->length - prefixlen - search_len);
   dynstr_set(ds_str, ds_tmp.str);
   dynstr_free(&ds_tmp);
   return 0;
@@ -3409,7 +3842,7 @@ void do_exec(struct st_command *command)
   if (disable_result_log)
   {
     /* Collect stderr output as well, for the case app. crashes or returns error.*/
-    dynstr_append(&ds_cmd, " 2>&1");
+    dynstr_append_mem(&ds_cmd, STRING_WITH_LEN(" 2>&1"));
   }
 
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
@@ -3446,7 +3879,7 @@ void do_exec(struct st_command *command)
 
   if (display_result_sorted)
   {
-    dynstr_append_sorted(&ds_res, &ds_sorted, 0);
+    dynstr_append_sorted(&ds_res, &ds_sorted);
     dynstr_free(&ds_sorted);
   }
 #ifdef _WIN32
@@ -3534,10 +3967,10 @@ int do_modify_var(struct st_command *command,
   const char *p= command->first_argument;
   VAR* v;
   if (!*p)
-    die("Missing argument to %.*b", command->first_word_len,
+    die("Missing argument to %.*sB", command->first_word_len,
         command->query);
   if (*p != '$')
-    die("The argument to %.*b must be a variable (start with $)",
+    die("The argument to %.*sB must be a variable (start with $)",
         command->first_word_len, command->query);
   v= var_get(p, &p, 1, 0);
   if (! v->is_int)
@@ -3621,9 +4054,9 @@ void do_system(struct st_command *command)
     else
     {
       /* If ! abort_on_error, log message and continue */
-      dynstr_append(&ds_res, "system command '");
+      dynstr_append_mem(&ds_res, STRING_WITH_LEN("system command '"));
       replace_dynstr_append(&ds_res, command->first_argument);
-      dynstr_append(&ds_res, "' failed\n");
+      dynstr_append_mem(&ds_res, STRING_WITH_LEN("' failed\n"));
     }
   }
 
@@ -3799,7 +4232,7 @@ void do_remove_files_wildcard(struct st_command *command)
         wild_compare(file->name, ds_wild.str, 0))
       continue;
     ds_file_to_remove.length= directory_length;
-    dynstr_append(&ds_file_to_remove, file->name);
+    dynstr_append_mem(&ds_file_to_remove, file->name, strlen(file->name));
     DBUG_PRINT("info", ("removing file: %s", ds_file_to_remove.str));
     if ((error= (my_delete(ds_file_to_remove.str, MYF(MY_WME)) != 0)))
       sys_errno= my_errno;
@@ -3895,9 +4328,9 @@ void do_move_file(struct st_command *command)
         is_sub_path(ds_to_file.str, to_plen, vardir)) || 
         (is_sub_path(ds_from_file.str, from_plen, tmpdir) && 
         is_sub_path(ds_to_file.str, to_plen, tmpdir)))) {
-        report_or_die("Paths '%s' and '%s' are not both under MYSQLTEST_VARDIR '%s'"
-                "or both under MYSQL_TMP_DIR '%s'",
-                ds_from_file, ds_to_file, vardir, tmpdir);
+        report_or_die("Paths '%s' and '%s' are not both under "
+                      "MYSQLTEST_VARDIR '%s' or both under MYSQL_TMP_DIR '%s'",
+                      ds_from_file.str, ds_to_file.str, vardir, tmpdir);
         DBUG_VOID_RETURN;
   }
   
@@ -4068,6 +4501,10 @@ void do_rmdir(struct st_command *command)
 
   DESCRIPTION
   list all entries in directory (matching ds_wild if given)
+
+  RETURN
+  -1 on error
+   # number of found files
 */
 
 static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
@@ -4076,11 +4513,12 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   size_t i;
   MY_DIR *dir_info;
   FILEINFO *file;
+  int found= 0;
   DBUG_ENTER("get_list_files");
 
   DBUG_PRINT("info", ("listing directory: %s", ds_dirname->str));
   if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   set_wild_chars(1);
   for (i= 0; i < dir_info->number_of_files; i++)
   {
@@ -4089,11 +4527,12 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
         wild_compare(file->name, ds_wild->str, 0))
       continue;
     replace_dynstr_append(ds, file->name);
-    dynstr_append(ds, "\n");
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
+    found++;
   }
   set_wild_chars(0);
   my_dirend(dir_info);
-  DBUG_RETURN(0);
+  DBUG_RETURN(found);
 }
 
 
@@ -4125,7 +4564,8 @@ static void do_list_files(struct st_command *command)
                      sizeof(list_files_args)/sizeof(struct command_arg), ' ');
 
   error= get_list_files(&ds_res, &ds_dirname, &ds_wild);
-  handle_command_error(command, error, my_errno);
+  var_set_int("$sys_files",error);
+  handle_command_error(command, error < 0, my_errno);
   dynstr_free(&ds_dirname);
   dynstr_free(&ds_wild);
   DBUG_VOID_RETURN;
@@ -4170,7 +4610,7 @@ static void do_list_files_write_file_command(struct st_command *command,
     DBUG_VOID_RETURN;
 
   init_dynamic_string(&ds_content, "", 1024, 1024);
-  error= get_list_files(&ds_content, &ds_dirname, &ds_wild);
+  error= get_list_files(&ds_content, &ds_dirname, &ds_wild) < 0;
   handle_command_error(command, error, my_errno);
   str_to_file2(ds_filename.str, ds_content.str, ds_content.length, append);
   dynstr_free(&ds_content);
@@ -4337,6 +4777,49 @@ void do_write_file(struct st_command *command)
   do_write_file_command(command, FALSE);
 }
 
+/**
+  Write a line to the start of the file.
+  Truncates existing file, creates new one if it doesn't exist.
+
+  Usage
+  write_line <line> <filename>;
+
+  Example
+  --write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+  @note Both the file and the line parameters are evaluated
+  (can be variables).
+
+  @note This is a better alternative to
+  exec echo > file, as it doesn't depend on shell,
+  and can better handle sporadic file access errors caused
+  by antivirus or backup software on Windows.
+*/
+void do_write_line(struct st_command *command)
+{
+  DYNAMIC_STRING ds_line;
+  DYNAMIC_STRING ds_filename;
+
+  struct command_arg write_line_args[] = {
+    { "line", ARG_STRING, FALSE, &ds_line, "line to add" },
+    { "filename", ARG_STRING, TRUE, &ds_filename, "File to write to" },
+  };
+  DBUG_ENTER("do_write_line");
+
+  check_command_args(command,
+                     command->first_argument,
+                     write_line_args,
+                     sizeof(write_line_args)/sizeof(struct command_arg),
+                     ' ');
+
+  if (bad_path(ds_filename.str))
+    DBUG_VOID_RETURN;
+  dynstr_append_mem(&ds_line, "\n", 1);
+  str_to_file2(ds_filename.str, ds_line.str, ds_line.length, FALSE);
+  dynstr_free(&ds_filename);
+  dynstr_free(&ds_line);
+  DBUG_VOID_RETURN;
+}
 
 /*
   SYNOPSIS
@@ -4384,9 +4867,11 @@ void do_append_file(struct st_command *command)
 void do_cat_file(struct st_command *command)
 {
   int error;
-  static DYNAMIC_STRING ds_filename;
+  static DYNAMIC_STRING ds_filename, ds_lines;
+  uint lines= 0;
   const struct command_arg cat_file_args[] = {
-    { "filename", ARG_STRING, TRUE, &ds_filename, "File to read from" }
+    { "filename", ARG_STRING, TRUE, &ds_filename, "File to read from" },
+    { "lines", ARG_STRING, FALSE, &ds_lines, "Number of lines to print"}
   };
   DBUG_ENTER("do_cat_file");
 
@@ -4398,9 +4883,13 @@ void do_cat_file(struct st_command *command)
 
   DBUG_PRINT("info", ("Reading from, file: %s", ds_filename.str));
 
-  error= cat_file(&ds_res, ds_filename.str);
+  if (ds_lines.length)
+    lines= atoi(ds_lines.str);
+
+  error= cat_file(&ds_res, ds_filename.str, lines);
   handle_command_error(command, error, my_errno);
   dynstr_free(&ds_filename);
+  dynstr_free(&ds_lines);
   DBUG_VOID_RETURN;
 }
 
@@ -4565,6 +5054,24 @@ void do_change_user(struct st_command *command)
       dynstr_set(&ds_db, mysql->db);
   }
 
+  /* Connection logging if enabled */
+  if (!disable_query_log)
+  {
+    DYNAMIC_STRING *ds= &ds_res;
+
+    dynstr_append_mem(ds, STRING_WITH_LEN("change_user "));
+    replace_dynstr_append(ds, ds_user.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_passwd.length)
+      replace_dynstr_append(ds, ds_passwd.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_db.length)
+      replace_dynstr_append(ds, ds_db.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(";\n"));
+  }
+
   DBUG_PRINT("info",("connection: '%s' user: '%s' password: '%s' database: '%s'",
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 
@@ -4572,7 +5079,11 @@ void do_change_user(struct st_command *command)
     handle_error(command, mysql_errno(mysql), mysql_error(mysql),
 		 mysql_sqlstate(mysql), &ds_res);
   else
+  {
+    if (display_session_track_info)
+      append_session_track_info(&ds_res, mysql);
     handle_no_error(command);
+  }
 
   dynstr_free(&ds_user);
   dynstr_free(&ds_passwd);
@@ -4687,15 +5198,11 @@ void do_perl(struct st_command *command)
 
     /* Check for error code that indicates perl could not be started */
     int exstat= WEXITSTATUS(error);
-#ifdef _WIN32
-    if (exstat == 1)
-      /* Text must begin 'perl not found' as mtr looks for it */
-      abort_not_supported_test("perl not found in path or did not start");
-#else
+#ifndef _WIN32
     if (exstat == 127)
       abort_not_supported_test("perl not found in path");
-#endif
     else
+#endif
       handle_command_error(command, exstat, my_errno);
   }
   dynstr_free(&ds_delimiter);
@@ -4770,6 +5277,19 @@ void do_wait_for_slave_to_stop(struct st_command *c __attribute__((unused)))
   return;
 }
 
+static const char *get_col_value(MYSQL_RES *res, MYSQL_ROW row, const char *name)
+{
+  uint num_fields= mysql_num_fields(res);
+  MYSQL_FIELD *fields= mysql_fetch_fields(res);
+
+  for (uint i= 0; i < num_fields; i++)
+  {
+    if (strcmp(fields[i].name, name) == 0)
+      return row[i];
+  }
+  return "NULL";
+}
+
 
 void do_sync_with_master2(struct st_command *command, long offset,
                           const char *connection_name)
@@ -4777,13 +5297,14 @@ void do_sync_with_master2(struct st_command *command, long offset,
   MYSQL_RES *res;
   MYSQL_ROW row;
   MYSQL *mysql= cur_con->mysql;
-  char query_buf[FN_REFLEN+128];
+  char query_buf[FN_REFLEN+128], query_buf2[256];
   int timeout= opt_wait_for_pos_timeout;
 
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+  snprintf(query_buf, sizeof(query_buf),
+          "select master_pos_wait('%s', %ld, %d, '%s')",
           master_pos.file, master_pos.pos + offset, timeout,
           connection_name);
 
@@ -4811,6 +5332,34 @@ void do_sync_with_master2(struct st_command *command, long offset,
     /* master_pos_wait returned NULL or < 0 */
     fprintf(stderr, "analyze: sync_with_master\n");
 
+    snprintf(query_buf2, sizeof(query_buf2)-1,
+             "select Relay_Master_Log_File, Read_Master_Log_Pos, Gtid_IO_Pos, "
+             "Gtid_Slave_Pos from information_schema.slave_status where "
+             "Connection_name='%.64s'", connection_name);
+
+    /* purify begin tested */
+    if (!mysql_query(mysql, query_buf2))
+    {
+      if ((res= mysql_store_result(mysql)))
+      {
+        if ((row= mysql_fetch_row(res)))
+        {
+          fprintf(stderr, "Slave position:  file: %s  position: %s  "
+                  "Gtid_Slave_Pos:  %s  Gtid_IO_Pos: %s\n",
+                  get_col_value(res, row, "Relay_Master_Log_File"),
+                  get_col_value(res, row, "Read_Master_Log_Pos"),
+                  get_col_value(res, row, "Gtid_Slave_Pos"),
+                  get_col_value(res, row, "Gtid_IO_Pos"));
+          fprintf(stderr, "Master position: file: %s  position: %lld  "
+                  "Gtid_Master_Pos: %s\n",
+                  master_pos.file, (longlong) (master_pos.pos + offset),
+                  master_pos.gtid);
+        }
+        mysql_free_result(res);
+      }
+    }
+    /* purify end tested */
+
     if (!result_str)
     {
       /*
@@ -4819,18 +5368,17 @@ void do_sync_with_master2(struct st_command *command, long offset,
         information is not initialized, the arguments are
         incorrect, or an error has occurred
       */
-      die("%.*b failed: '%s' returned NULL "          \
+      die("%.*sB failed: '%s' returned NULL "            \
           "indicating slave SQL thread failure",
           command->first_word_len, command->query, query_buf);
-
     }
 
     if (result == -1)
-      die("%.*b failed: '%s' returned -1 "            \
+      die("%.*sB failed: '%s' returned -1 "            \
           "indicating timeout after %d seconds",
           command->first_word_len, command->query, query_buf, timeout);
     else
-      die("%.*b failed: '%s' returned unknown result :%d",
+      die("%.*sB failed: '%s' returned unknown result :%d",
           command->first_word_len, command->query, query_buf, result);
   }
 
@@ -4889,10 +5437,2390 @@ int do_save_master_pos()
     die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
     die("empty result in show master status");
-  strnmov(master_pos.file, row[0], sizeof(master_pos.file)-1);
-  master_pos.pos = strtoul(row[1], (char**) 0, 10);
+  strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
+  master_pos.pos= strtoul(row[1], (char**) 0, 10);
+  strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
   mysql_free_result(res);
   DBUG_RETURN(0);
+}
+
+
+/* Built-in functions available in expressions */
+enum func_type
+{
+  // Numeric functions
+  FUNC_ABS,
+  FUNC_BIN,
+  FUNC_CONV,
+  FUNC_HEX,
+  FUNC_OCT,
+  // String functions
+  FUNC_CONCAT,
+  FUNC_CONCAT_WS,
+  FUNC_GREATEST,
+  FUNC_INSERT,
+  FUNC_INSTR,
+  FUNC_LPAD,
+  FUNC_LEAST,
+  FUNC_LENGTH,
+  FUNC_LOCATE,
+  FUNC_LOWER,
+  FUNC_LTRIM,
+  FUNC_REPEAT,
+  FUNC_REPLACE,
+  FUNC_REVERSE,
+  FUNC_RPAD,
+  FUNC_RTRIM,
+  FUNC_SUBSTR,
+  FUNC_SUBSTR_IDX,
+  FUNC_TRIM,
+  FUNC_UPPER,
+  // Regexp functions
+  FUNC_REGEXP_INSTR,
+  FUNC_REGEXP_REPLACE,
+  FUNC_REGEXP_SUBSTR,
+  // Null functions
+  FUNC_COALESCE,
+  FUNC_IFNULL,
+  FUNC_NULLIF,
+
+  FUNC_UNKNOWN
+};
+
+
+enum func_type get_expr_function_type(const char *name, size_t len);
+void handle_expr_function_call(enum func_type func_type,
+                               Expression_value *result, const char **s);
+
+
+static int match(const char **s, const char *op)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+  size_t len= strlen(op);
+  if (strncmp(*s, op, len) == 0)
+  {
+    // check for ambiguous operators (e.g., distinguish | from ||)
+    if (len == 1 && strchr("&|", **s))
+    {
+      char next_char= *(*s + 1);
+      if (next_char == op[0])
+        return 0;  // don't match single & or | when && or || follows
+    }
+    *s += len;
+    return 1;
+  }
+  return 0;
+}
+
+
+/**
+  @brief Check if character is an operator
+  @param[in] c Character to check
+
+  @details
+    Used to separate tokens during parsing of unquoted string literals.
+    Operator characters: ! * % / + - < > = & | ^ ~ ( ) ,
+
+  @return
+    TRUE if character is an operator
+    FALSE otherwise
+*/
+
+static bool is_operator_char(char c)
+{
+  return strchr("!*%/+-<>=&|^~(),", c) != NULL;
+}
+
+
+/**
+  @brief Compare two Expression_value operands numerically
+  @param[in] left Left operand
+  @param[in] right Right operand
+
+  @details
+    Compares two numeric Expression_value objects handling signed vs unsigned
+    comparison correctly. Handles the edge cases where comparing signed negative
+    values with unsigned values.
+
+  @return
+    -1  left < right
+     0  left == right
+     1  left > right
+    -2  left or right is null
+*/
+
+static int cmp_numeric(const Expression_value &left, const Expression_value &right)
+{
+  // Handle null values first
+  if (left.type == EXPR_NULL || right.type == EXPR_NULL)
+    return -2;
+
+  if (!left.is_numeric || !right.is_numeric)
+    die("Evaluation error: cmp_numeric called with non-numeric operands");
+
+  // Both unsigned
+  if (left.is_unsigned && right.is_unsigned)
+    return (left.to_uint() > right.to_uint()) - (left.to_uint() < right.to_uint());
+
+  // Both signed
+  if (!left.is_unsigned && !right.is_unsigned)
+    return (left.to_int() > right.to_int()) - (left.to_int() < right.to_int());
+
+  // Mixed signed/unsigned
+  if (left.is_unsigned)
+  {
+    // left is unsigned, right is signed
+    long long right_val= right.to_int();
+    if (right_val < 0)
+      return 1; // unsigned > negative
+    else
+    {
+      unsigned long long left_val= left.to_uint();
+      unsigned long long right_unsigned= (unsigned long long)right_val;
+      return (left_val > right_unsigned) - (left_val < right_unsigned);
+    }
+  }
+  else
+  {
+    // left is signed, right is unsigned
+    long long left_val= left.to_int();
+    if (left_val < 0)
+      return -1; // negative < unsigned
+    else
+    {
+      unsigned long long left_unsigned= (unsigned long long)left_val;
+      unsigned long long right_val= right.to_uint();
+      return (left_unsigned > right_val) - (left_unsigned < right_val);
+    }
+  }
+}
+
+
+/**
+  @brief Parse primary expressions (literals, functions)
+  @param[out] result Expression_value to store result
+  @param[in] s Pointer to string pointer containing the expression to parse
+
+  @details
+    Handles the lowest level of expression parsing:
+    - String literals: 'text' or "text"
+    - Function calls: func_name(args...)
+    - Numeric literals: integers in decimal/hex/binary format
+    - Boolean literals: true/false (case-insensitive)
+    - Null literal: null (case-insensitive)
+    - Unquoted string tokens (treated as strings) as long as they are not operators,
+      literals, or function calls.
+
+    For function calls, validates function name against function_table[]
+    and delegates to handle_expr_function_call().
+
+  @note Dies on syntax errors or unknown functions
+*/
+
+static void primary(Expression_value *result, const char **s)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+
+  if (match(s, "("))
+  {
+    expr(result, s);
+    if (!match(s, ")"))
+      die("Syntax error: Expected ')' in expression");
+    return;
+  }
+
+  const char *start= *s;
+  const char *end= start;
+  char quote_char= 0;
+
+  // check if this is a quoted string literal
+  if (*start == '\'' || *start == '"')
+  {
+    quote_char= *start;
+    start++;
+    end= start;
+    while (*end)
+    {
+      if (*end == '\\' && *(end + 1))
+        end++;
+      else if (*end == quote_char)
+        break;
+      end++;
+    }
+
+    if (*end != quote_char)
+      die("Syntax error: Unmatched quote in expression");
+
+    result->set_string(start, end - start);
+    *s= end + 1;
+    return;
+  }
+
+  /*
+    function name is a sequence of alphanumeric characters or underscores
+    followed by a '('
+  */
+  while (*end && (my_isalnum(charset_info, *end) || *end == '_'))
+    end++;
+
+  if (*end == '(')
+  {
+    enum func_type func_type= get_expr_function_type(start,
+                                                     end - start);
+    if (func_type == FUNC_UNKNOWN)
+      die("Syntax error: Unknown function");
+
+    *s= end + 1; // skip '('
+    handle_expr_function_call(func_type, result, s);
+  }
+  else
+  {
+    // treat unquoted string literals as strings
+    end= start;
+    while (*end && !is_operator_char(*end))
+      end++;
+
+    while (start < end && my_isspace(charset_info, *(end - 1)))
+      end--;
+
+    if (end == start)
+      die("Syntax error: invalid expression");
+
+    result->init(start, end - start);
+    *s= end;
+  }
+}
+
+
+static void unary(Expression_value *result, const char **s)
+{
+  if (match(s, "!"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: logical NOT requires an integer operand");
+    result->set_bool(!result->to_int());
+    return;
+  }
+  if (match(s, "-"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: unary minus requires an integer operand");
+    result->set_int(-result->to_int());
+    return;
+  }
+  if (match(s, "~"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: bitwise NOT requires an integer operand");
+    result->set_uint(~result->to_uint());
+    return;
+  }
+  primary(result, s);
+}
+
+
+static void bitwise_xor(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  unary(result, s);
+  while (true)
+  {
+    if (match(s, "^"))
+    {
+      rhs.reset();
+      unary(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '^' requires integer operands");
+      result->set_uint(result->to_uint() ^ rhs.to_uint());
+    }
+    else
+      break;
+  }
+}
+
+
+static void factor(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  bitwise_xor(result, s);
+  while (true)
+  {
+    if (match(s, "*"))
+    {
+      rhs.reset();
+      bitwise_xor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '*' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() * rhs.to_uint());
+      else
+        result->set_int(result->to_int() * rhs.to_int());
+    }
+    else if (match(s, "/"))
+    {
+      rhs.reset();
+      bitwise_xor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '/' requires integer operands");
+      if (rhs.to_int() == 0)
+        die("Evaluation error: Division by zero");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() / rhs.to_uint());
+      else
+      {
+        long long nominator= result->to_int();
+        long long denominator= rhs.to_int();
+        // Prevent fatal integer overflow from LLONG_MIN / -1, which causes a crash
+        if (nominator == LLONG_MIN && denominator == -1)
+          result->set_int(nominator);
+        else
+          result->set_int(nominator / denominator);
+      }
+    }
+    else if (match(s, "%"))
+    {
+      rhs.reset();
+      bitwise_xor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '%%' requires integer operands");
+      if (rhs.to_int() == 0)
+        die("Evaluation error: Modulo by zero");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() % rhs.to_uint());
+      else
+      {
+        long long nominator= result->to_int();
+        long long denominator= rhs.to_int();
+        // Prevent fatal integer overflow from LLONG_MIN % -1, which causes a crash
+        if (nominator == LLONG_MIN && denominator == -1)
+          result->set_int(0);
+        else
+          result->set_int(nominator % denominator);
+      }
+    }
+    else
+      break;
+  }
+}
+
+
+static void term(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  factor(result, s);
+  while (true)
+  {
+    if (match(s, "+"))
+    {
+      rhs.reset();
+      factor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '+' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() + rhs.to_uint());
+      else
+        result->set_int(result->to_int() + rhs.to_int());
+    }
+    else if (match(s, "-"))
+    {
+      rhs.reset();
+      factor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '-' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() - rhs.to_uint());
+      else
+        result->set_int(result->to_int() - rhs.to_int());
+    }
+    else
+      break;
+  }
+}
+
+
+static void bitwise_shift(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  term(result, s);
+  while (true)
+  {
+    if (match(s, "<<"))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<<' requires integer operands");
+      if (rhs.to_int() < 0 || rhs.to_int() >= 64)
+        die("Evaluation error: Invalid shift amount");
+      result->set_uint(result->to_uint() << rhs.to_int());
+    }
+    else if (match(s, ">>"))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>>' requires integer operands");
+      if (rhs.to_int() < 0 || rhs.to_int() >= 64)
+        die("Evaluation error: Invalid shift amount");
+      result->set_uint(result->to_uint() >> rhs.to_int());
+    }
+    else
+      break;
+  }
+}
+
+
+static void bitwise_and(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  bitwise_shift(result, s);
+  while (true)
+  {
+    if (match(s, "&") && !match(s, "&&"))
+    {
+      rhs.reset();
+      bitwise_shift(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '&' requires integer operands");
+      result->set_uint(result->to_uint() & rhs.to_uint());
+    }
+    else
+      break;
+  }
+}
+
+
+static void bitwise_or(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  bitwise_and(result, s);
+  while (true)
+  {
+    if (match(s, "|") && !match(s, "||"))
+    {
+      rhs.reset();
+      bitwise_and(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '|' requires integer operands");
+      result->set_uint(result->to_uint() | rhs.to_uint());
+    }
+    else
+      break;
+  }
+}
+
+
+static void comparison(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  bitwise_or(result, s);
+  while (true)
+  {
+    if (match(s, "<="))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (result->type == EXPR_NULL || rhs.type == EXPR_NULL)
+        result->reset();
+      else if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<=' requires integer operands");
+      else
+        result->set_bool(cmp_numeric(*result, rhs) <= 0);
+    }
+    else if (match(s, ">="))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (result->type == EXPR_NULL || rhs.type == EXPR_NULL)
+        result->reset();
+      else if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>=' requires integer operands");
+      else
+        result->set_bool(cmp_numeric(*result, rhs) >= 0);
+    }
+    else if (match(s, "<"))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (result->type == EXPR_NULL || rhs.type == EXPR_NULL)
+        result->reset();
+      else if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<' requires integer operands");
+      else
+        result->set_bool(cmp_numeric(*result, rhs) < 0);
+    }
+    else if (match(s, ">"))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (result->type == EXPR_NULL || rhs.type == EXPR_NULL)
+        result->reset();
+      else if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>' requires integer operands");
+      else
+        result->set_bool(cmp_numeric(*result, rhs) > 0);
+    }
+    else
+      break;
+  }
+}
+
+
+static void equality(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  comparison(result, s);
+  while (true)
+  {
+    if (match(s, "=="))
+    {
+      rhs.reset();
+      comparison(&rhs, s);
+
+      if (result->type == EXPR_NULL || rhs.type == EXPR_NULL)
+      {
+        result->reset();
+      }
+      else if (result->is_numeric && rhs.is_numeric)
+      {
+        result->set_bool(cmp_numeric(*result, rhs) == 0);
+      }
+      else if (result->type == EXPR_STRING && rhs.type == EXPR_STRING)
+      {
+        result->set_bool(!strcmp(result->str_val.c_ptr(), rhs.str_val.c_ptr()));
+      }
+      else
+      {
+        result->set_bool(false); // different types are not equal
+      }
+    }
+    else if (match(s, "!="))
+    {
+      rhs.reset();
+      comparison(&rhs, s);
+
+      if (result->type == EXPR_NULL || rhs.type == EXPR_NULL)
+      {
+        result->reset();
+      }
+      else if (result->is_numeric && rhs.is_numeric)
+      {
+        result->set_bool(cmp_numeric(*result, rhs) != 0);
+      }
+      else if (result->type == EXPR_STRING && rhs.type == EXPR_STRING)
+      {
+        result->set_bool(strcmp(result->str_val.c_ptr(), rhs.str_val.c_ptr()) != 0);
+      }
+      else
+      {
+        result->set_bool(true); // different types are not equal
+      }
+    }
+    else
+      break;
+  }
+}
+
+
+static void logical_and(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  equality(result, s);
+  while (match(s, "&&"))
+  {
+    rhs.reset();
+    equality(&rhs, s);
+    if (!result->is_numeric || !rhs.is_numeric)
+      die("Type error: operator '&&' requires integer operands");
+    result->set_bool(result->to_int() && rhs.to_int());
+  }
+}
+
+
+static void logical_or(Expression_value *result, const char **s)
+{
+  Expression_value rhs;
+
+  logical_and(result, s);
+  while (match(s, "||"))
+  {
+    rhs.reset();
+    logical_and(&rhs, s);
+    if (!result->is_numeric || !rhs.is_numeric)
+      die("Type error: operator '||' requires integer operands");
+    result->set_bool(result->to_int() || rhs.to_int());
+  }
+}
+
+
+/**
+  @brief Parse and evaluate a mathematical/logical expression
+  @param[out] result Pointer to Expression_value structure to store the result
+  @param[in]  s Pointer to string pointer containing the expression to parse
+
+  @details
+    This is the main entry point for the recursive descent expression parser.
+    It parses expressions with the following grammar hierarchy (by precedence):
+
+    expr           -> logical_or
+    logical_or     -> logical_and      (||)
+    logical_and    -> equality         (&&)
+    equality       -> comparison       (==, !=)
+    comparison     -> bitwise_or       (<, >, <=, >=)
+    bitwise_or     -> bitwise_and      (|)
+    bitwise_and    -> bitwise_shift    (&)
+    bitwise_shift  -> term             (<<, >>)
+    term           -> factor           (+, -)
+    factor         -> bitwise_xor      (*, /, %)
+    bitwise_xor    -> unary            (^)
+    unary          -> primary          (!, -, ~)
+    primary        -> literals, functions, parentheses
+
+    Supported data types:
+    - INTEGERS: signed/unsigned integers (decimal, hex 0x, binary 0b)
+    - BOOLEAN: boolean values (true, false)
+    - STRINGS: quoted or unquoted string literals
+    - NULL: null values
+
+    The parser advances the string pointer *s as it consumes tokens.
+
+  @note
+    The parser does not handle overflow/underflow of large numbers after
+    the initial parsing. It is the responsibility of the caller to ensure that
+    the result of the operations is within the range of the data type (2^64-1).
+
+  @note Dies with error message if syntax error or type mismatch detected
+*/
+
+static void expr(Expression_value *result, const char **s)
+{
+  logical_or(result, s);
+}
+
+
+/* Expression function handling */
+#define MAX_FUNC_ARGS 100
+
+static struct {
+  const char *name;
+  enum func_type type;
+} function_table[]= {
+    // Numeric functions
+    {"abs", FUNC_ABS},
+    {"bin", FUNC_BIN},
+    {"conv", FUNC_CONV},
+    {"hex", FUNC_HEX},
+    {"oct", FUNC_OCT},
+    // String functions
+    {"concat", FUNC_CONCAT},
+    {"concat_ws", FUNC_CONCAT_WS},
+    {"greatest", FUNC_GREATEST},
+    {"insert", FUNC_INSERT},
+    {"instr", FUNC_INSTR},
+    {"lcase", FUNC_LOWER},
+    {"least", FUNC_LEAST},
+    {"length", FUNC_LENGTH},
+    {"locate", FUNC_LOCATE},
+    {"lower", FUNC_LOWER},
+    {"lpad", FUNC_LPAD},
+    {"ltrim", FUNC_LTRIM},
+    {"repeat", FUNC_REPEAT},
+    {"replace", FUNC_REPLACE},
+    {"reverse", FUNC_REVERSE},
+    {"rpad", FUNC_RPAD},
+    {"rtrim", FUNC_RTRIM},
+    {"substr", FUNC_SUBSTR},
+    {"substring", FUNC_SUBSTR},
+    {"substring_index", FUNC_SUBSTR_IDX},
+    {"trim", FUNC_TRIM},
+    {"ucase", FUNC_UPPER},
+    {"upper", FUNC_UPPER},
+    // Regexp functions
+    {"regexp_instr", FUNC_REGEXP_INSTR},
+    {"regexp_replace", FUNC_REGEXP_REPLACE},
+    {"regexp_substr", FUNC_REGEXP_SUBSTR},
+    // Null functions
+    {"coalesce", FUNC_COALESCE},
+    {"ifnull", FUNC_IFNULL},
+    {"nullif", FUNC_NULLIF},
+    {NULL, FUNC_UNKNOWN}
+};
+
+
+static void convert_base_helper(const My_string &str, int from_base, int to_base,
+                                Expression_value *value)
+{
+  char temp_buffer[66]; // should be enough for any base
+  long long result;
+  char *endptr;
+  int err;
+  size_t str_len= str.length();
+
+  if (from_base < 0) // Negative base = treat input as SIGNED
+    result= my_strntoll_8bit(charset_info, str.ptr(), str_len, -from_base,
+                             &endptr, &err);
+  else // Positive base = treat input as UNSIGNED
+    result= (long long) my_strntoull_8bit(charset_info, str.ptr(), str_len,
+                                          from_base, &endptr, &err);
+
+  if (err == ERANGE)
+    die("Range error: value out of range for Integer type");
+
+  if (err != 0 || endptr != str.ptr() + str_len)
+    die("invalid number '%.*s' for base %d", (int)str_len, str.ptr(), from_base);
+
+  endptr= longlong2str(result, temp_buffer, to_base);
+  if (!endptr)
+    die("could not convert number '%.*s' for base %d",
+        (int)str_len, str.ptr(), to_base);
+
+  value->set_string(temp_buffer, endptr - temp_buffer);
+}
+
+
+/**
+  @brief Compare two decimal strings numerically
+  @param[in] a First decimal string
+  @param[in] b Second decimal string
+
+  @details
+    Compares two decimal number strings treating them as numeric values.
+    Handles leading/trailing whitespace, signs, and leading zeros properly.
+
+  @return
+  -1  a < b
+   0  a == b
+   1  a > b
+*/
+
+static int cmp_decimal(const My_string &a, const My_string &b)
+{
+  const char *a_ptr= a.ptr();
+  const char *b_ptr= b.ptr();
+  size_t a_len= a.length();
+  size_t b_len= b.length();
+
+  // Skip leading whitespace
+  while (a_len > 0 && my_isspace(charset_info, *a_ptr))
+    a_ptr++, a_len--;
+  while (b_len > 0 && my_isspace(charset_info, *b_ptr))
+    b_ptr++, b_len--;
+
+  // Handle empty strings (treat as 0)
+  if (a_len == 0 && b_len == 0) return 0;
+  if (a_len == 0) return b_ptr[0] == '-' ? 1 : -1;
+  if (b_len == 0) return a_ptr[0] == '-' ? -1 : 1;
+
+  // Extract signs
+  bool a_negative= false, b_negative= false;
+  if (*a_ptr == '-') a_negative= true, a_ptr++, a_len--;
+  else if (*a_ptr == '+') a_ptr++, a_len--;
+
+  if (*b_ptr == '-') b_negative= true, b_ptr++, b_len--;
+  else if (*b_ptr == '+') b_ptr++, b_len--;
+
+  // Skip leading zeros
+  while (a_len > 0 && *a_ptr == '0') a_ptr++, a_len--;
+  while (b_len > 0 && *b_ptr == '0') b_ptr++, b_len--;
+
+  // Find actual numeric length (digits only)
+  size_t a_digits= 0, b_digits= 0;
+  for (size_t i= 0; i < a_len && my_isdigit(charset_info, a_ptr[i]); i++) a_digits++;
+  for (size_t i= 0; i < b_len && my_isdigit(charset_info, b_ptr[i]); i++) b_digits++;
+
+  // Handle zero cases after removing leading zeros
+  bool a_is_zero= (a_digits == 0);
+  bool b_is_zero= (b_digits == 0);
+
+  if (a_is_zero && b_is_zero) return 0;
+  if (a_is_zero) return b_negative ? 1 : -1;
+  if (b_is_zero) return a_negative ? -1 : 1;
+
+  // Different signs: negative < positive
+  if (a_negative && !b_negative) return -1;
+  if (!a_negative && b_negative) return 1;
+
+  // Same sign: compare absolute values
+  int abs_cmp= 0;
+
+  // First compare by number of digits
+  if (a_digits != b_digits)
+  {
+    abs_cmp= (a_digits > b_digits) ? 1 : -1;
+  }
+  else
+  {
+    // Same number of digits: compare digit by digit
+    for (size_t i= 0; i < a_digits; i++)
+    {
+      if (a_ptr[i] != b_ptr[i])
+      {
+        abs_cmp= (a_ptr[i] > b_ptr[i]) ? 1 : -1;
+        break;
+      }
+    }
+  }
+
+  // If both negative, reverse the comparison result
+  return a_negative ? -abs_cmp : abs_cmp;
+}
+
+
+/* Expression Built-in Function Implementations */
+
+
+/**
+  @brief Absolute value function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    ABS(X) returns the absolute (positive) value of X.
+
+  @note Dies if argument count != 1 or argument is not numeric
+*/
+
+void func_abs(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("abs() expects 1 argument, got %d", count);
+
+  if (!args[0].is_numeric)
+    die("abs() requires numeric argument");
+
+  result->set_int(llabs(args[0].to_int()));
+}
+
+
+/**
+  @brief Base conversion function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    Converts numbers between different bases.
+    CONV(N, from_base, to_base) converts number N from base from_base to base to_base.
+    Bases can be from 2 to 62. Negative bases treat input as signed.
+
+  @note Dies if argument count != 3, bases not numeric, or bases out of range
+*/
+
+void func_conv(Expression_value args[], int count, Expression_value *result)
+{
+  int from_base;
+  int to_base;
+
+  if (count != 3)
+    die("conv() expects 3 arguments (N, from_base, to_base), got %d", count);
+
+  from_base= (int)args[1].to_int();
+  to_base= (int)args[2].to_int();
+
+  if (!args[1].is_numeric || !args[2].is_numeric)
+    die("conv() bases must be numeric");
+
+  if (abs(from_base) < 2 || abs(from_base) > 62)
+    die("conv() from_base must be between 2 and 62, got %d", from_base);
+  if (abs(to_base) < 2 || abs(to_base) > 62)
+    die("conv() to_base must be between 2 and 62, got %d", to_base);
+
+  convert_base_helper(args[0].to_string(), from_base, to_base, result);
+}
+
+
+/**
+  @brief Binary conversion function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    Converts a number to binary representation.
+    BIN(N) returns a string representation of the binary value of N.
+    This is equivalent to CONV(N, 10, 2).
+
+  @note Dies if argument count != 1
+*/
+
+void func_bin(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("bin() expects 1 argument, got %d", count);
+
+  convert_base_helper(args[0].to_string(), 10, 2, result);
+}
+
+
+/**
+  @brief Octal conversion function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    Converts a number to octal representation.
+    OCT(N) returns a string representation of the octal value of N.
+    This is equivalent to CONV(N, 10, 8).
+
+  @note Dies if argument count != 1
+*/
+
+void func_oct(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("oct() expects 1 argument, got %d", count);
+
+  convert_base_helper(args[0].to_string(), 10, 8, result);
+}
+
+
+/**
+  @brief Hexadecimal conversion function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    Converts a number to hexadecimal representation.
+    HEX(N) returns a string representation of the hexadecimal value of N.
+    This is equivalent to CONV(N, 10, 16).
+
+  @note Dies if argument count != 1
+*/
+
+void func_hex(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("hex() expects 1 argument, got %d", count);
+
+  convert_base_helper(args[0].to_string(), 10, 16, result);
+}
+
+
+/**
+  @brief String search function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    INSTR(str, substr) returns position of first occurrence of substr in str.
+    Returns 0 if not found. Positions start at 1. Performs a case-insensitive
+    search.
+
+  @note Dies if less than 2 arguments
+*/
+
+void func_instr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2)
+    die("instr() expects 2 arguments (str, substr), got %d", count);
+
+  my_match_t match;
+  My_string str= args[0].to_string();
+  My_string substr= args[1].to_string();
+
+  if (charset_info->coll->instr(charset_info, str.ptr(), str.length(),
+                                substr.ptr(), substr.length(), &match, 1))
+    result->set_int(match.mb_len + 1);
+  else
+    result->set_int(0);
+}
+
+
+/**
+  @brief Locate substring function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    LOCATE(substr, str [, start]) returns position of substr in str starting from
+    start (default 1). Returns 0 if substr is not in str. Positions start at 1.
+    Performs a case-insensitive search.
+
+  @note Dies if wrong argument count or non-numeric start position
+*/
+
+void func_locate(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2 || count > 3)
+    die("locate() expects 2 or 3 arguments (substr, str [, start]), got %d", count);
+
+  if (count == 3 && !args[2].is_numeric)
+    die("locate() start position must be numeric");
+
+  My_string substr= args[0].to_string();
+  My_string str= args[1].to_string();
+
+  long long start= 0;
+  long long start0= 0;
+  my_match_t match;
+
+  if (count == 3)
+  {
+    start0= start= args[2].to_int() - 1;
+
+    if (start < 0 || start > (longlong)str.length())
+    {
+      result->set_int(0);
+      return;
+    }
+
+    start= str.charpos((int) start);
+
+    // Substring is longer than str at start position.
+    if (start + substr.length() > str.length())
+    {
+      result->set_int(0);
+      return;
+    }
+  }
+
+  if (!substr.length())
+  {
+    result->set_int(start + 1);
+    return;
+  }
+
+  if (charset_info->coll->instr(charset_info, str.ptr() + start,
+                                 (uint)(str.length() - start),
+                                 substr.ptr(), substr.length(), &match, 1))
+    result->set_int((longlong)match.mb_len + start0 + 1);
+  else
+    result->set_int(0);
+}
+
+
+/**
+  @brief String replacement function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    REPLACE(str, from_str, to_str) replaces all occurrences of from_str with
+    to_str. Performs a case-sensitive match when searching for from_str.
+
+  @note Dies if argument count != 3 or arguments are numeric
+*/
+
+void func_replace(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 3)
+    die("replace() expects 3 arguments (str, from, to), got %d", count);
+
+  if (args[0].is_numeric || args[1].is_numeric || args[2].is_numeric)
+    die("replace() arguments must be strings");
+
+  My_string str= args[0].to_string();
+  My_string from_str= args[1].to_string();
+  My_string to_str= args[2].to_string();
+
+  if (from_str.length() == 0)
+  {
+    result->set_string(str.ptr(), str.length());
+    return;
+  }
+
+  My_string result_str;
+  result_str.copy(str);
+
+  int pos= 0;
+  while ((pos= result_str.strstr(from_str, pos)) >= 0)
+  {
+    result_str.replace(pos, from_str.length(), to_str.ptr(), to_str.length());
+    pos += to_str.length();
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief Substring extraction function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    SUBSTR(str, pos [, len]) returns substring starting at position pos.
+    Positions start at 1. Negative positions count from end.
+
+  @note Dies if wrong argument count or non-numeric position/length
+*/
+
+void func_substr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2 || count > 3)
+    die("substr() expects 2 or 3 arguments (str, start [, length]), got %d", count);
+
+  if (args[0].is_numeric)
+    die("substr() first argument must be a string");
+
+  if (!args[1].is_numeric)
+    die("substr() start position must be numeric");
+
+  if (count == 3 && !args[2].is_numeric)
+    die("substr() length must be numeric");
+
+  My_string str= args[0].to_string();
+  int start= (int)args[1].to_int();
+  int length= count == 3 ? (int)args[2].to_int() : str.length();
+
+  if (start == 0 || start > (int)str.length() || length <= 0)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (start < 0)
+    start= str.length() + start;
+  else
+    start--;
+
+  int end= str.length();
+  if (count == 3)
+  {
+    end= start + length;
+    if (end > (int)str.length())
+      end= str.length();
+  }
+
+  if (start >= end || start >= (int)str.length() || start < 0)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  result->set_string(str.ptr() + start, end - start);
+}
+
+
+/**
+  @brief String concatenation function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    CONCAT(str1, str2, ...) returns the string that results from concatenating
+    arguments.
+
+  @note Dies if no arguments provided
+*/
+
+void func_concat(Expression_value args[], int count, Expression_value *result)
+{
+  if (count == 0)
+    die("concat() expects at least 1 argument");
+
+  My_string result_str= args[0].to_string();
+
+  for (int i= 1; i < count; ++i)
+  {
+    result_str.append(args[i].to_string());
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief String concatenation with separator function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    CONCAT_WS(separator, str1, str2, ...) concatenates strings using separator.
+    If separator is NULL, returns NULL; all other NULL values are skipped.
+
+  @note Dies if less than 2 arguments provided
+*/
+
+void func_concat_ws(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2)
+    die("concat_ws() expects at least 2 arguments");
+
+  if (args[0].type == EXPR_NULL)
+  {
+    result->reset();
+    return;
+  }
+
+  My_string separator= args[0].to_string();
+  My_string result_str= args[1].to_string();
+
+  for (int i= 2; i < count; ++i)
+  {
+    if (args[i].type == EXPR_NULL)
+      continue;
+    result_str.append(separator);
+    result_str.append(args[i].to_string());
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief String case conversion to lowercase
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    LOWER(str) returns string str with all characters converted to lowercase.
+    LCASE(str) is an alias for LOWER(str).
+
+  @note Dies if argument count != 1
+*/
+
+void func_lower(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("lower() expects 1 argument, got %d", count);
+
+  My_string result_str;
+  result_str.copy_casedn(charset_info, args[0].to_string().to_lex_cstring());
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief String case conversion to uppercase
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    UPPER(str) returns string str with all characters converted to uppercase.
+    UCASE(str) is an alias for UPPER(str).
+
+  @note Dies if argument count != 1
+*/
+
+void func_upper(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("upper() expects 1 argument, got %d", count);
+
+  My_string result_str;
+  result_str.copy_caseup(charset_info, args[0].to_string().to_lex_cstring());
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief String reversal function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    REVERSE(str) returns the string str with the order of the characters reversed.
+
+  @note Dies if argument count != 1
+*/
+
+void func_reverse(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("reverse() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+
+  size_t len= str.length();
+  for (size_t i= 0; i < len / 2; ++i)
+  {
+    char temp= str.c_ptr()[i];
+    str.c_ptr()[i]= str.c_ptr()[len - 1 - i];
+    str.c_ptr()[len - 1 - i]= temp;
+  }
+
+  result->set_string(str.ptr(), str.length());
+}
+
+
+/**
+  @brief String trimming function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    TRIM(str) returns string str with leading and trailing space removed.
+
+  @note Dies if argument count != 1
+*/
+
+void func_trim(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("trim() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+
+  int start= 0;
+  while (start < (int)str.length() && my_isspace(charset_info, str.ptr()[start]))
+    start++;
+
+  int end= (int)str.length();
+  while (end > start && my_isspace(charset_info, str.ptr()[end - 1]))
+    end--;
+
+  result->set_string(str.ptr() + start, end - start);
+}
+
+
+/**
+  @brief Left string trimming function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    LTRIM(str) returns string str with leading space removed.
+
+  @note Dies if argument count != 1
+*/
+
+void func_ltrim(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("ltrim() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+
+  int start= 0;
+  while (start < (int)str.length() && my_isspace(charset_info, str.ptr()[start]))
+    start++;
+
+  result->set_string(str.ptr() + start, (int)str.length() - start);
+}
+
+
+/**
+  @brief Right string trimming function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    RTRIM(str) returns string str with trailing space removed.
+
+  @note Dies if argument count != 1
+*/
+
+void func_rtrim(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("rtrim() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+
+  int end= (int)str.length();
+  while (end > 0 && my_isspace(charset_info, str.ptr()[end - 1]))
+    end--;
+
+  result->set_string(str.ptr(), end);
+}
+
+
+/**
+  @brief Left padding function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    LPAD(str, len [, padstr]) returns the string str, left-padded with the
+    string padstr to a length of len characters. If str is longer than len,
+    the return value is shortened to len characters. If padstr is omitted,
+    the LPAD function pads spaces.
+
+  @note Dies if wrong argument count, non-numeric length, or negative length
+*/
+
+void func_lpad(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2 && count != 3)
+    die("lpad() expects 2 or 3 arguments (str, length [, padstr]), got %d", count);
+
+  if (!args[1].is_numeric)
+    die("lpad() length must be numeric");
+
+  My_string str= args[0].to_string();
+  int length= (int)args[1].to_int();
+  My_string padstr= count == 3 ? args[2].to_string() : My_string();
+  My_string result_str;
+
+  if (length < 0)
+    die("lpad() length cannot be negative");
+
+  if (count == 3 && padstr.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (length <= (int) str.length())
+  {
+    result->set_string(str.ptr(), length);
+    return;
+  }
+
+  int padding_needed= length - (int)str.length();
+  if (count == 2)
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      result_str.append(" ", 1);
+  }
+  else
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      result_str.append(&padstr.ptr()[i % padstr.length()], 1);
+  }
+
+  result_str.append(str.ptr(), str.length());
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief Right padding function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    RPAD(str, len [, padstr]) returns the string str, right-padded with the
+    string padstr to a length of len characters. If str is longer than len,
+    the return value is shortened to len characters. If padstr is omitted,
+    the RPAD function pads spaces.
+
+  @note Dies if wrong argument count, non-numeric length, or negative length
+*/
+
+void func_rpad(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2 && count != 3)
+    die("rpad() expects 2 or 3 arguments (str, length [, padstr]), got %d", count);
+
+  if (!args[1].is_numeric)
+    die("rpad() length must be numeric");
+
+  My_string str= args[0].to_string();
+  int length= (int)args[1].to_int();
+  My_string padstr= count == 3 ? args[2].to_string() : My_string();
+
+  if (length < 0)
+    die("rpad() length cannot be negative");
+
+  if (count == 3 && padstr.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (length <= (int)str.length())
+  {
+    result->set_string(str.ptr(), length);
+    return;
+  }
+
+  int padding_needed= length - (int)str.length();
+
+  if (count == 2)
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      str.append(" ", 1);
+  }
+  else
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      str.append(&padstr.ptr()[i % padstr.length()], 1);
+  }
+
+  result->set_string(str.ptr(), str.length());
+}
+
+
+/**
+  @brief String length function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    LENGTH(str) returns the length of the string str.
+
+  @note Dies if argument count != 1
+*/
+
+void func_length(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("length() expects 1 argument, got %d", count);
+
+  result->set_int((long long) args[0].to_string().length());
+}
+
+
+/**
+  @brief Substring index function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    SUBSTRING_INDEX(str, delim, count) returns substring before count occurrences
+    of delim (counting from the left). If count is negative, returns substring
+    after count occurrences from end (counting from the right). Performs a
+    case-sensitive match when searching for delim.
+
+  @note Dies if argument count != 3 or count is not numeric
+*/
+
+void func_substring_index(Expression_value args[], int count,
+                          Expression_value *result)
+{
+  if (count != 3)
+    die("substring_index() expects 3 arguments (str, delimiter, count), got %d", count);
+
+  if (!args[2].is_numeric)
+    die("substring_index() count must be numeric");
+
+  My_string str= args[0].to_string();
+  My_string delimiter= args[1].to_string();
+  int count_val= (int)args[2].to_int();
+
+  if (str.is_empty() || delimiter.is_empty() || !count_val)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  const char *str_ptr= str.ptr();
+  const char *str_end= str.end();
+  const char *delim_ptr= delimiter.ptr();
+  int delim_len= (int)delimiter.length();
+
+  if (count_val > 0)
+  {
+    const char *current_pos= str_ptr;
+    int found_count= 0;
+
+    while (current_pos < str_end && found_count < count_val)
+    {
+      const char *found= strstr(current_pos, delim_ptr);
+      if (!found)
+        break;
+
+      found_count++;
+      if (found_count < count_val)
+        current_pos= found + delim_len;
+      else
+        current_pos= found;
+    }
+
+    if (found_count < count_val)
+      result->set_string(str.ptr(), str.length());
+    else
+      result->set_string(str.ptr(), current_pos - str_ptr);
+  }
+  else
+  {
+    count_val= -count_val;
+    const char *current_pos= str_end;
+    int found_count= 0;
+
+    while (current_pos > str_ptr && found_count < count_val)
+    {
+      const char *found= NULL;
+      const char *search_pos= str_ptr;
+
+      while (search_pos < current_pos)
+      {
+        const char *temp_found= strstr(search_pos, delim_ptr);
+        if (!temp_found || temp_found >= current_pos)
+          break;
+        found= temp_found;
+        search_pos= temp_found + delim_len;
+      }
+
+      if (!found)
+        break;
+
+      found_count++;
+      if (found_count < count_val)
+        current_pos= found;
+      else
+        current_pos= found + delim_len;
+    }
+
+    if (found_count < count_val)
+      result->set_string(str.ptr(), str.length());
+    else
+      result->set_string(current_pos, str_end - current_pos);
+  }
+}
+
+
+/**
+  @brief String repetition function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    REPEAT(str, count) returns string consisting of str repeated count times.
+    If count is less than 1, returns an empty string.
+
+  @note Dies if argument count != 2 or count is not numeric
+*/
+
+void func_repeat(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("repeat() expects 2 arguments (str, count), got %d", count);
+
+  if (!args[1].is_numeric)
+    die("repeat() count must be numeric");
+
+  My_string result_str;
+  My_string str= args[0].to_string();
+  int repeat_count= (int)args[1].to_int();
+
+  if (repeat_count <= 0 || str.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if ((ulonglong) repeat_count > INT_MAX32)
+    repeat_count= INT_MAX32;
+
+  for (int i= 0; i < repeat_count; ++i)
+  {
+    result_str.append(str.ptr(), str.length());
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief String insertion function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    INSERT(str, pos, len, newstr) replaces len characters starting at pos with
+    newstr. Returns the original string if pos is not within the length of the string.
+    Replaces the rest of the string from position pos if len is not
+    within the length of the rest of the string.
+
+  @note Dies if argument count != 4 or position/length not numeric
+*/
+
+void func_insert(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 4)
+    die("insert() expects 4 arguments (str, pos, len, newstr), got %d", count);
+
+  if (!args[1].is_numeric)
+    die("insert() position must be numeric");
+
+  if (!args[2].is_numeric)
+    die("insert() length must be numeric");
+
+  My_string str= args[0].to_string();
+  int pos= (int)args[1].to_int();
+  int len= (int)args[2].to_int();
+  My_string newstr= args[3].to_string();
+  My_string result_str;
+
+
+  if (pos <= 0 || pos > (int)str.length())
+  {
+    result->set_string(str.ptr(), str.length());
+    return;
+  }
+
+  pos--;
+
+  int end_pos;
+  if (len < 0)
+  {
+    end_pos= str.length();
+  }
+  else
+  {
+    end_pos= pos + len;
+    if (end_pos > (int)str.length())
+      end_pos= str.length();
+  }
+
+  if (pos > 0)
+    result_str.append(str.ptr(), pos);
+
+  result_str.append(newstr.ptr(), newstr.length());
+
+  if (end_pos < (int)str.length())
+    result_str.append(str.ptr() + end_pos, str.length() - end_pos);
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief Regular expression position function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    REGEXP_INSTR(subject, pattern) returns position of first match of pattern in
+    subject. Uses POSIX extended regular expressions with case-insensitive
+    matching.
+
+  @note
+    The collation case sensitivity can be overwritten using the (?i) and (?-i) PCRE flags.
+
+  @note
+    The $ literal is used as a special character for variable replacement.
+
+    To use it as a regex End of Line/String Anchor, escape it with a backslash.
+    @code
+      $(regexp_instr('ABCC','C\$')) -> 4
+    @endcode
+
+    To use it as a literal, escape it with three backslashes.
+    @code
+      $(regexp_instr('ABC\$DE','\\\$')) -> 4
+    @endcode
+
+  @note Dies if argument count != 2 or regex compilation fails
+*/
+
+void func_regexp_instr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("regexp_instr() expects 2 arguments (subject, pattern), got %d", count);
+
+  regex_t regex;
+  regmatch_t match;
+  int err_code;
+  int cflags= REG_EXTENDED | REG_DOTALL | REG_ICASE;
+  My_string subject= args[0].to_string();
+  My_string pattern= args[1].to_string();
+
+  if (pattern.is_empty())
+  {
+    result->set_int(1);
+    return;
+  }
+
+  if (subject.is_empty())
+  {
+    result->set_int(0);
+    return;
+  }
+
+  if ((err_code= regcomp(&regex, pattern.ptr(), cflags)))
+  {
+    char err_buf[1024];
+    regerror(err_code, &regex, err_buf, sizeof(err_buf));
+    die("Regex error: %s\n", err_buf);
+  }
+
+  err_code= regexec(&regex, subject.ptr(), 1, &match, 0);
+  regfree(&regex);
+
+  result->set_int(err_code ? 0 : (int)(match.rm_so + 1));
+}
+
+
+/**
+  @brief Regular expression substring extraction function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    REGEXP_SUBSTR(subject, pattern) returns substring that matches pattern.
+    Uses POSIX extended regular expressions with case-insensitive matching.
+
+  @note
+    The collation case sensitivity can be overwritten using the (?i) and (?-i) PCRE flags.
+
+  @note
+    The $ literal is used as a special character for variable replacement.
+
+    To use it as a regex End of Line/String Anchor, escape it with a backslash.
+    @code
+      $(regexp_substr('ABCC','C\$')) -> C
+    @endcode
+
+    To use it as a literal, escape it with three backslashes.
+    @code
+      $(regexp_substr('ABC\$','\\\$')) -> $
+    @endcode
+
+  @note Dies if argument count != 2 or regex compilation fails
+*/
+
+void func_regexp_substr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("regexp_substr() expects 2 arguments (subject, pattern), got %d", count);
+
+  regex_t regex;
+  regmatch_t matches[1];
+  int err_code;
+  int cflags= REG_EXTENDED | REG_DOTALL | REG_ICASE;
+  My_string subject= args[0].to_string();
+  My_string pattern= args[1].to_string();
+
+  if (subject.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if ((err_code= regcomp(&regex, pattern.ptr(), cflags)))
+  {
+    char err_buf[1024];
+    regerror(err_code, &regex, err_buf, sizeof(err_buf));
+    die("Regex error: %s\n", err_buf);
+  }
+
+  err_code= regexec(&regex, subject.ptr(), 1, matches, 0);
+  regfree(&regex);
+
+  if (err_code)
+  {
+    result->set_string("", 0);
+  }
+  else
+  {
+    regoff_t start= matches[0].rm_so;
+    regoff_t end= matches[0].rm_eo;
+    result->set_string(subject.ptr() + start, end - start);
+  }
+}
+
+
+/**
+  @brief Regular expression replacement function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    REGEXP_REPLACE(subject, pattern, replace) replaces all matches of pattern
+    with replace. Supports backreferences \0-\9 in replace string. Uses
+    POSIX extended regex.
+
+  @note
+    The collation case sensitivity can be overwritten using the (?i) and (?-i) PCRE flags.
+
+  @note
+    The $ literal is used as a special character for variable replacement.
+
+    To use it as a regex End of Line/String Anchor, escape it with a backslash.
+    @code
+      $(regexp_replace('ABCC','C\$','D')) -> ABCD
+    @endcode
+
+    To use it as a literal, escape it with three backslashes.
+    @code
+      $(regexp_replace('ABC\$','\\\$','D')) -> ABCD
+    @endcode
+
+  @note Dies if argument count != 3 or regex compilation fails
+*/
+
+void func_regexp_replace(Expression_value args[], int count,
+                         Expression_value *result)
+{
+  if (count != 3)
+    die("regexp_replace() expects 3 arguments (subject, pattern, replace), got %d", count);
+
+  regex_t regex;
+  regmatch_t matches[10];  // Array to store up to 10 matches (0=full match, 1-9=capture groups)
+  int err_code;
+  int cflags= REG_EXTENDED | REG_DOTALL | REG_ICASE;
+  My_string result_str;
+  My_string subject= args[0].to_string();
+  My_string pattern= args[1].to_string();
+  My_string replace= args[2].to_string();
+  const char *current_pos= subject.ptr();
+  const char *end_pos= subject.end();
+  const char *replace_ptr;
+  const char *replace_end;
+
+  if (pattern.is_empty())
+  {
+    result->set_string(subject.ptr(), subject.length());
+    return;
+  }
+
+  if ((err_code= regcomp(&regex, pattern.ptr(), cflags)))
+  {
+    char err_buf[1024];
+    regerror(err_code, &regex, err_buf, sizeof(err_buf));
+    die("Regex error: %s\n", err_buf);
+  }
+
+  while (current_pos < end_pos)
+  {
+    err_code= regexec(&regex, current_pos, 10, matches, 0);
+    if (err_code)
+    {
+      result_str.append(current_pos, end_pos - current_pos);
+      break;
+    }
+
+    // Append the text before the match
+    if (matches[0].rm_so > 0)
+      result_str.append(current_pos, matches[0].rm_so);
+
+    // Process replacement string with backreferences
+    replace_ptr= replace.ptr();
+    replace_end= replace.end();
+
+    while (replace_ptr < replace_end)
+    {
+      if (*replace_ptr == '\\' && replace_ptr + 1 < replace_end)
+      {
+        int back_ref_num= (int) (*(replace_ptr + 1) - '0');
+        regoff_t start_off, end_off;
+        if (back_ref_num >= 0 && back_ref_num <= 9 &&
+            (start_off=matches[back_ref_num].rm_so) > -1 &&
+            (end_off=matches[back_ref_num].rm_eo) > -1)
+        {
+          result_str.append(current_pos + start_off, end_off - start_off);
+        }
+        else
+        {
+          result_str.append(replace_ptr, 2);
+        }
+        replace_ptr+= 2;
+        continue;
+      }
+      result_str.append(replace_ptr, 1);
+      replace_ptr++;
+    }
+
+    current_pos+= matches[0].rm_eo;
+
+    if (matches[0].rm_so == matches[0].rm_eo)
+      current_pos++;
+  }
+
+  regfree(&regex);
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+/**
+  @brief NULL-aware conditional function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    IFNULL(expr1, expr2) returns expr1 if it is not NULL, otherwise returns expr2.
+    Returns first non-NULL value.
+
+  @note Dies if argument count != 2
+*/
+
+void func_ifnull(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("ifnull() expects 2 arguments, got %d", count);
+
+  if (args[0].type == EXPR_NULL)
+  {
+    *result= args[1];
+    return;
+  }
+  *result= args[0];
+}
+
+
+/**
+  @brief NULL-if-equal function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    NULLIF(expr1, expr2) returns NULL if expr1 = expr2, otherwise returns expr1.
+    This is the same as `CASE WHEN expr1 = expr2 THEN NULL ELSE expr1 END`.
+
+  @note Dies if argument count != 2
+*/
+
+void func_nullif(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("nullif() expects 2 arguments, got %d", count);
+
+  /* If first is NULL, result is NULL (returns expr1) */
+  if (args[0].type == EXPR_NULL)
+  {
+    result->reset();
+    return;
+  }
+
+  bool equal= false;
+  if (args[0].is_numeric && args[1].is_numeric)
+  {
+    if (args[0].is_unsigned || args[1].is_unsigned)
+      equal= (args[0].to_uint() == args[1].to_uint());
+    else
+      equal= (args[0].to_int() == args[1].to_int());
+  }
+  else
+  {
+    equal= !(strcmp(args[0].to_string().c_ptr(), args[1].to_string().c_ptr()));
+  }
+
+  if (equal)
+    result->reset();
+  else
+    *result= args[0];
+}
+
+
+/**
+  @brief First non-NULL value function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    COALESCE(value1, value2, ...) returns first non-NULL value in list.
+    Returns NULL if all values are NULL.
+
+  @note Dies if no arguments provided
+*/
+
+void func_coalesce(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 1)
+    die("coalesce() expects at least 1 argument");
+
+  for (int i= 0; i < count; ++i)
+  {
+    if (args[i].type != EXPR_NULL)
+    {
+      *result= args[i];
+      return;
+    }
+  }
+  result->reset();
+}
+
+
+/**
+  @brief Least value function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    LEAST(value1, value2, ...) returns the minimum value among arguments.
+    For numeric values, performs numeric comparison. For strings, performs
+    string comparison.
+
+  @note
+    If mixed numeric and string values are provided, the string values are
+    converted to numbers and the numeric comparison is performed. Be careful
+    with this, as a string could contain a number that is larger than 2^64-1.
+
+  @note Dies if less than 2 arguments provided.
+*/
+
+void func_least(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2)
+    die("least() expects at least 2 arguments");
+
+  // Numeric mode if any arg is numeric
+  bool any_numeric= false;
+  for (int i= 0; i < count; ++i)
+    if (args[i].is_numeric) { any_numeric= true; break; }
+
+  if (any_numeric)
+  {
+    int best_idx= 0;
+    for (int i= 1; i < count; ++i)
+    {
+      if (cmp_decimal(args[i].to_string(), args[best_idx].to_string()) < 0)
+        best_idx= i;
+    }
+    if(args[best_idx].is_unsigned)
+      result->set_uint(args[best_idx].to_uint());
+    else
+      result->set_int(args[best_idx].to_int());
+    return;
+  }
+
+  // String mode: collation-aware
+  int best_idx= 0;
+  for (int i= 1; i < count; ++i)
+  {
+    My_string cur= args[i].to_string();
+    My_string best= args[best_idx].to_string();
+    if (sortcmp(&best, &cur, charset_info) > 0)
+      best_idx= i;
+  }
+  *result= args[best_idx];
+}
+
+
+/**
+  @brief Greatest value function
+  @param[in] args Array of function arguments
+  @param[in] count Number of arguments
+  @param[out] result Expression_value to store result
+
+  @details
+    GREATEST(value1, value2, ...) returns the maximum value among arguments.
+    For numeric values, performs numeric comparison. For strings, performs
+    string comparison.
+
+  @note
+    If mixed numeric and string values are provided, the string values are
+    converted to numbers and the numeric comparison is performed. Be careful
+    with this, as a string could contain a number that is larger than 2^64-1.
+
+  @note Dies if less than 2 arguments provided.
+*/
+
+void func_greatest(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2)
+    die("greatest() expects at least 2 arguments");
+
+  bool any_numeric= false;
+  for (int i= 0; i < count; ++i)
+    if (args[i].is_numeric) { any_numeric= true; break; }
+
+  if (any_numeric)
+  {
+    int best_idx= 0;
+    for (int i= 1; i < count; ++i)
+    {
+      if (cmp_decimal(args[i].to_string(), args[best_idx].to_string()) > 0)
+        best_idx= i;
+    }
+    if(args[best_idx].is_unsigned)
+      result->set_uint(args[best_idx].to_uint());
+    else
+      result->set_int(args[best_idx].to_int());
+    return;
+  }
+
+  // String mode: collation-aware
+  int best_idx= 0;
+  for (int i= 1; i < count; ++i)
+  {
+    My_string best= args[best_idx].to_string();
+    My_string cur= args[i].to_string();
+    if (sortcmp(&best, &cur, charset_info) < 0)
+      best_idx= i;
+  }
+  *result= args[best_idx];
+}
+
+
+enum func_type get_expr_function_type(const char *name, size_t len)
+{
+  for (int i= 0; function_table[i].name; ++i)
+  {
+    if (!strncasecmp(function_table[i].name, name, len))
+      return function_table[i].type;
+  }
+  return FUNC_UNKNOWN;
+}
+
+
+/**
+  @brief Execute built-in function call during expression parsing
+  @param[in] func_type Type of function to execute (from func_type enum)
+  @param[out] result Expression_value to store function result
+  @param[in] s Pointer to string pointer containing expression
+
+  @details
+    Parses function arguments and executes the specified built-in function.
+    Each argument is recursively evaluated as a full expression.
+    Then delegates to the appropriate func_* implementation based on func_type.
+
+  @note Dies on syntax errors or argument count mismatches
+*/
+
+void handle_expr_function_call(enum func_type func_type,
+                               Expression_value *result, const char **s)
+{
+  Expression_value args[MAX_FUNC_ARGS];
+  int arg_count= 0;
+
+  while (!match(s, ")"))
+  {
+    if (arg_count >= MAX_FUNC_ARGS)
+      die("Too many function arguments (max %d)", MAX_FUNC_ARGS);
+
+    expr(&args[arg_count], s);
+    arg_count++;
+
+    /* if the next character is a comma, skip it */
+    if (match(s, ","))
+      continue;
+
+    if (match(s, ")"))
+      break;
+
+    die("Syntax error: Expected ',' or ')' in function call");
+  }
+
+  /* generic NULL propagation, except for IFNULL/NULLIF/COALESCE/CONCAT_WS */
+  if (func_type != FUNC_IFNULL && func_type != FUNC_NULLIF &&
+      func_type != FUNC_COALESCE && func_type != FUNC_CONCAT_WS)
+  {
+    for (int i= 0; i < arg_count; i++)
+    {
+      if (args[i].type == EXPR_NULL)
+      {
+        result->reset();
+        return;
+      }
+    }
+  }
+
+  switch (func_type) {
+  case FUNC_ABS:
+    func_abs(args, arg_count, result);
+    break;
+  case FUNC_CONV:
+    func_conv(args, arg_count, result);
+    break;
+  case FUNC_BIN:
+    func_bin(args, arg_count, result);
+    break;
+  case FUNC_OCT:
+    func_oct(args, arg_count, result);
+    break;
+  case FUNC_HEX:
+    func_hex(args, arg_count, result);
+    break;
+  case FUNC_INSTR:
+    func_instr(args, arg_count, result);
+    break;
+  case FUNC_LOCATE:
+    func_locate(args, arg_count, result);
+    break;
+  case FUNC_REPLACE:
+    func_replace(args, arg_count, result);
+    break;
+  case FUNC_SUBSTR:
+    func_substr(args, arg_count, result);
+    break;
+  case FUNC_CONCAT:
+    func_concat(args, arg_count, result);
+    break;
+  case FUNC_CONCAT_WS:
+    func_concat_ws(args, arg_count, result);
+    break;
+  case FUNC_LOWER:
+    func_lower(args, arg_count, result);
+    break;
+  case FUNC_UPPER:
+    func_upper(args, arg_count, result);
+    break;
+  case FUNC_REVERSE:
+    func_reverse(args, arg_count, result);
+    break;
+  case FUNC_TRIM:
+    func_trim(args, arg_count, result);
+    break;
+  case FUNC_LTRIM:
+    func_ltrim(args, arg_count, result);
+    break;
+  case FUNC_RTRIM:
+    func_rtrim(args, arg_count, result);
+    break;
+  case FUNC_LPAD:
+    func_lpad(args, arg_count, result);
+    break;
+  case FUNC_RPAD:
+    func_rpad(args, arg_count, result);
+    break;
+  case FUNC_LENGTH:
+    func_length(args, arg_count, result);
+    break;
+  case FUNC_SUBSTR_IDX:
+    func_substring_index(args, arg_count, result);
+    break;
+  case FUNC_REPEAT:
+    func_repeat(args, arg_count, result);
+    break;
+  case FUNC_INSERT:
+    func_insert(args, arg_count, result);
+    break;
+  case FUNC_LEAST:
+    func_least(args, arg_count, result);
+    break;
+  case FUNC_GREATEST:
+    func_greatest(args, arg_count, result);
+    break;
+  case FUNC_REGEXP_INSTR:
+    func_regexp_instr(args, arg_count, result);
+    break;
+  case FUNC_REGEXP_SUBSTR:
+    func_regexp_substr(args, arg_count, result);
+    break;
+  case FUNC_REGEXP_REPLACE:
+    func_regexp_replace(args, arg_count, result);
+    break;
+  case FUNC_IFNULL:
+    func_ifnull(args, arg_count, result);
+    break;
+  case FUNC_NULLIF:
+    func_nullif(args, arg_count, result);
+    break;
+  case FUNC_COALESCE:
+    func_coalesce(args, arg_count, result);
+    break;
+  case FUNC_UNKNOWN:
+  default:
+    die("Unknown function");
+    break;
+  }
 }
 
 
@@ -4996,17 +7924,17 @@ int do_sleep(struct st_command *command, my_bool real_sleep)
   while (my_isspace(charset_info, *p))
     p++;
   if (!*p)
-    die("Missing argument to %.*b", command->first_word_len,
+    die("Missing argument to %.*sB", command->first_word_len,
         command->query);
   sleep_start= p;
   /* Check that arg starts with a digit, not handled by my_strtod */
   if (!my_isdigit(charset_info, *sleep_start))
-    die("Invalid argument to %.*b \"%s\"", command->first_word_len,
+    die("Invalid argument to %.*sB \"%s\"", command->first_word_len,
         command->query, sleep_start);
   sleep_val= my_strtod(sleep_start, &sleep_end, &error);
   check_eol_junk_line(sleep_end);
   if (error)
-    die("Invalid argument to %.*b \"%s\"", command->first_word_len,
+    die("Invalid argument to %.*sB \"%s\"", command->first_word_len,
         command->query, command->first_argument);
   dynstr_free(&ds_sleep);
 
@@ -5258,7 +8186,11 @@ void do_shutdown_server(struct st_command *command)
   */
 
   if (timeout && mysql_shutdown(mysql, SHUTDOWN_DEFAULT))
-    die("mysql_shutdown failed");
+  {
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+                 mysql_sqlstate(mysql), &ds_res);
+    DBUG_VOID_RETURN;
+  }
 
   if (!timeout || wait_until_dead(pid, timeout))
   {
@@ -5680,13 +8612,16 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
     do_stmt_close(con);
-  con->stmt= 0;
 #ifdef EMBEDDED_LIBRARY
   /*
     As query could be still executed in a separate thread
@@ -5822,6 +8757,7 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   con               - connection structure to be used
   host, user, pass, - connection parameters
   db, port, sock
+  default_db        - 0 if db was explicitly passed
 
   DESCRIPTION
   This function will try to establish a connection to server and handle
@@ -5839,7 +8775,8 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
 int connect_n_handle_errors(struct st_command *command,
                             MYSQL* con, const char* host,
                             const char* user, const char* pass,
-                            const char* db, int port, const char* sock)
+                            const char* db, int port, const char* sock,
+                            my_bool default_db)
 {
   DYNAMIC_STRING *ds;
   int failed_attempts= 0;
@@ -5880,8 +8817,10 @@ int connect_n_handle_errors(struct st_command *command,
 
   mysql_options(con, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(con, MYSQL_OPT_CONNECT_ATTR_ADD, "program_name", "mysqltest");
-  while (!mysql_real_connect(con, host, user, pass, db, port, sock ? sock: 0,
-                          CLIENT_MULTI_STATEMENTS))
+  while (!mysql_real_connect(con, host, user, pass,
+                             (default_db ? "" : db),
+                             port, (sock ? sock : 0),
+                             CLIENT_MULTI_STATEMENTS))
   {
     /*
       If we have used up all our connections check whether this
@@ -5898,14 +8837,20 @@ int connect_n_handle_errors(struct st_command *command,
       stay clear of trying to work out which exact user-limit was
       exceeded.
     */
+    auto my_err= mysql_errno(con);
+    if(my_err == 0)
+    {
+      /* Workaround client library bug, not indicating connection error. */
+      my_err= CR_SERVER_LOST;
+    }
 
-    if (((mysql_errno(con) == ER_TOO_MANY_USER_CONNECTIONS) ||
-         (mysql_errno(con) == ER_USER_LIMIT_REACHED)) &&
+    if (((my_err == ER_TOO_MANY_USER_CONNECTIONS) ||
+         (my_err == ER_USER_LIMIT_REACHED)) &&
         (failed_attempts++ < opt_max_connect_retries))
     {
       int i;
 
-      i= match_expected_error(command, mysql_errno(con), mysql_sqlstate(con));
+      i= match_expected_error(command, my_err, mysql_sqlstate(con));
 
       if (i >= 0)
         goto do_handle_error;                 /* expected error, handle */
@@ -5915,11 +8860,20 @@ int connect_n_handle_errors(struct st_command *command,
     }
 
 do_handle_error:
-    var_set_errno(mysql_errno(con));
-    handle_error(command, mysql_errno(con), mysql_error(con),
-		 mysql_sqlstate(con), ds);
+    var_set_errno(my_err);
+    handle_error(command, my_err, mysql_error(con),
+                 mysql_sqlstate(con), ds);
     return 0; /* Not connected */
   }
+
+  if (default_db && db && db[0] != '\0')
+  {
+    mysql_select_db(con, db);
+    // Ignore errors intentionally
+  }
+
+  if (display_session_track_info)
+    append_session_track_info(ds, con);
 
   var_set_errno(0);
   handle_no_error(command);
@@ -5972,8 +8926,9 @@ void do_connect(struct st_command *command)
   int read_timeout= 0;
   int write_timeout= 0;
   int connect_timeout= 0;
-  char *csname=0;
+  char *csname=0, *rauth __attribute__((unused))= 0;
   struct st_connection* con_slot;
+  my_bool default_db;
 
   static DYNAMIC_STRING ds_connection_name;
   static DYNAMIC_STRING ds_host;
@@ -6049,61 +9004,61 @@ void do_connect(struct st_command *command)
     while (*end && !my_isspace(charset_info, *end))
       end++;
     length= (size_t) (end - con_options);
-    if (length == 3 && !strncmp(con_options, "SSL", 3))
+    if (length == 3 && !strncmp(con_options, STRING_WITH_LEN("SSL")))
       con_ssl= USE_SSL_REQUIRED;
-    else if (length == 5 && !strncmp(con_options, "NOSSL", 5))
+    else if (length == 5 && !strncmp(con_options, STRING_WITH_LEN("NOSSL")))
       con_ssl= USE_SSL_FORBIDDEN;
     else if (!strncmp(con_options, "SSL-CIPHER=", 11))
     {
       con_ssl= USE_SSL_REQUIRED;
       ssl_cipher=con_options + 11;
     }
-    else if (length == 8 && !strncmp(con_options, "COMPRESS", 8))
+    else if (length == 8 && !strncmp(con_options, STRING_WITH_LEN("COMPRESS")))
       con_compress= 1;
-    else if (length == 3 && !strncmp(con_options, "TCP", 3))
+    else if (length == 3 && !strncmp(con_options, STRING_WITH_LEN("TCP")))
       protocol= MYSQL_PROTOCOL_TCP;
-    else if (length == 7 && !strncmp(con_options, "DEFAULT", 7))
+    else if (length == 7 && !strncmp(con_options, STRING_WITH_LEN("DEFAULT")))
       protocol= MYSQL_PROTOCOL_DEFAULT;
-    else if (length == 4 && !strncmp(con_options, "PIPE", 4))
+    else if (length == 4 && !strncmp(con_options, STRING_WITH_LEN("PIPE")))
     {
 #ifdef _WIN32
       protocol= MYSQL_PROTOCOL_PIPE;
 #endif
     }
-    else if (length == 6 && !strncmp(con_options, "SOCKET", 6))
+    else if (length == 6 && !strncmp(con_options, STRING_WITH_LEN("SOCKET")))
     {
 #ifndef _WIN32
       protocol= MYSQL_PROTOCOL_SOCKET;
 #endif
     }
-    else if (length == 6 && !strncmp(con_options, "MEMORY", 6))
+    else if (length == 6 && !strncmp(con_options, STRING_WITH_LEN("MEMORY")))
     {
 #ifdef _WIN32
       protocol= MYSQL_PROTOCOL_MEMORY;
 #endif
     }
-    else if (strncasecmp(con_options, "read_timeout=",
-                         sizeof("read_timeout=")-1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("read_timeout=")) == 0)
     {
       read_timeout= atoi(con_options + sizeof("read_timeout=")-1);
     }
-    else if (strncasecmp(con_options, "write_timeout=",
-                         sizeof("write_timeout=")-1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("write_timeout=")) == 0)
     {
       write_timeout= atoi(con_options + sizeof("write_timeout=")-1);
     }
-    else if (strncasecmp(con_options, "connect_timeout=",
-                         sizeof("connect_timeout=")-1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("connect_timeout=")) == 0)
     {
       connect_timeout= atoi(con_options + sizeof("connect_timeout=")-1);
     }
-    else if (strncasecmp(con_options, "CHARSET=",
-      sizeof("CHARSET=") - 1) == 0)
+    else if (strncasecmp(con_options, STRING_WITH_LEN("CHARSET=")) == 0)
     {
       csname= strdup(con_options + sizeof("CHARSET=") - 1);
     }
+    else if (strncasecmp(con_options, STRING_WITH_LEN("auth=")) == 0)
+    {
+      rauth= strdup(con_options + sizeof("auth=") - 1);
+    }
     else
-      die("Illegal option to connect: %.*b",
+      die("Illegal option to connect: %.*sB",
           (int) (end - con_options), con_options);
     /* Process next option */
     con_options= end;
@@ -6140,25 +9095,13 @@ void do_connect(struct st_command *command)
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
+#ifndef EMBEDDED_LIBRARY
+  if (rauth)
+    mysql_options(con_slot->mysql, MARIADB_OPT_RESTRICTED_AUTH, rauth);
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (con_ssl == USE_SSL_IF_POSSIBLE && opt_use_ssl)
-    con_ssl= USE_SSL_REQUIRED;
-
-  if (con_ssl == USE_SSL_REQUIRED)
-  {
-    mysql_ssl_set(con_slot->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con_slot->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-#if MYSQL_VERSION_ID >= 50000
-    /* Turn on ssl_verify_server_cert only if host is "localhost" */
-    opt_ssl_verify_server_cert= !strcmp(ds_host.str, "localhost");
-    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-#endif
-  }
+  set_ssl_opts(con_slot->mysql, con_ssl == USE_SSL_FORBIDDEN ? 0 :
+                                con_ssl == USE_SSL_REQUIRED ? 1 : opt_use_ssl,
+                                ssl_cipher ? ssl_cipher : opt_ssl_cipher);
 #endif
 
   if (protocol)
@@ -6184,7 +9127,12 @@ void do_connect(struct st_command *command)
 
   /* Use default db name */
   if (ds_database.length == 0)
+  {
     dynstr_set(&ds_database, opt_db);
+    default_db= 1;
+  }
+  else
+    default_db= 0;
 
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(con_slot->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
@@ -6199,7 +9147,7 @@ void do_connect(struct st_command *command)
   if (connect_n_handle_errors(command, con_slot->mysql,
                               ds_host.str,ds_user.str,
                               ds_password.str, ds_database.str,
-                              con_port, ds_sock.str))
+                              con_port, ds_sock.str, default_db))
   {
     DBUG_PRINT("info", ("Inserting connection %s in connection pool",
                         ds_connection_name.str));
@@ -6227,6 +9175,7 @@ void do_connect(struct st_command *command)
   dynstr_free(&ds_options);
   dynstr_free(&ds_default_auth);
   free(csname);
+  free(rauth);
   DBUG_VOID_RETURN;
 }
 
@@ -6253,7 +9202,7 @@ int do_done(struct st_command *command)
     if (*cur_block->delim) 
     {
       /* Restore "old" delimiter after false if block */
-      if (safe_strcpy(delimiter, sizeof(delimiter), cur_block->delim))
+      if (safe_strcpy_truncated(delimiter, sizeof delimiter, cur_block->delim))
         die("Delimiter too long, truncated");
 
       delimiter_length= strlen(delimiter);
@@ -6299,6 +9248,33 @@ enum block_op find_operand(const char *start)
  return ILLEG_OP;
 }
 
+/*
+  do_break
+
+  DESCRIPTION
+  Instruction to stop execution of the current loop
+*/
+void do_break(struct st_command* command)
+{
+  int depth= 0;
+  cur_block->ok= false;
+
+  /* Disable every outer block until while found or block stack ends */
+  while (cur_block->cmd != cmd_while && cur_block > block_stack)
+  {
+    cur_block--;
+    cur_block->ok= false;
+    depth++;
+  }
+
+  /*  Check if the top block is not 'while' */
+  if (cur_block->cmd != cmd_while)
+  {
+    die("Stray break was found");
+  }
+  /* Set current block back */
+  cur_block+= depth;
+}
 
 /*
   Process start of a "if" or "while" statement
@@ -6363,8 +9339,9 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
   /* Parse and evaluate test expression */
   expr_start= strchr(p, '(');
-  if (!expr_start++)
+  if (!expr_start)
     die("missing '(' in %s", cmd_name);
+  expr_start++;
 
   while (my_isspace(charset_info, *expr_start))
     expr_start++;
@@ -6388,6 +9365,84 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   if (*p && *p != '{')
     die("Missing '{' after %s. Found \"%s\"", cmd_name, p);
 
+  if (*expr_start == '$' && *(expr_start + 1) == '(')
+  {
+    const char *scanner= expr_start + 2;
+    int paren_level= 1;
+    char in_quote= 0;  // Track quote state
+    bool escaped= false;  // Track if the current character is escaped
+
+    while (*scanner && paren_level > 0)
+    {
+      if (!in_quote)
+      {
+        // Not inside quotes - handle parentheses normally
+        if (*scanner == '(') paren_level++;
+        else if (*scanner == ')') paren_level--;
+        else if (*scanner == '\'' || *scanner == '"')
+          in_quote= *scanner;  // Start of quoted string
+      }
+      else
+      {
+        // Inside quotes - only look for closing quote
+        if (!escaped && *scanner == in_quote)
+          in_quote= 0;  // End of quoted string
+      }
+      escaped= (!escaped && *scanner == '\\');
+      scanner++;
+    }
+
+    const char *end_ptr= expr_end;
+    while(end_ptr > expr_start && my_isspace(charset_info, *(end_ptr - 1)))
+      end_ptr--;
+
+    // if the $(...) is the entire condition, evaluate it
+    if (scanner == end_ptr)
+    {
+      DYNAMIC_STRING evaluated_expr;
+      init_dynamic_string(&evaluated_expr, "", 64, 256);
+
+      do_eval(&evaluated_expr, expr_start, expr_end, FALSE);
+
+      char* result_str= evaluated_expr.str;
+      while (*result_str && my_isspace(charset_info, *result_str))
+        result_str++;
+
+      /*
+        Setup the next block on the stack
+        This logic is borrowed from the end of this function
+        Any non-empty string which does not begin with 0 is TRUE
+      */
+      cur_block++;
+      cur_block->cmd= cmd;
+      cur_block->ok= (*result_str && *result_str != '0');
+
+      if (not_expr)
+        cur_block->ok= !cur_block->ok;
+
+      if (cur_block->ok)
+      {
+        cur_block->delim[0]= '\0';
+      }
+      else
+      {
+        /* Remember "old" delimiter if entering a false if block */
+        if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                                  delimiter))
+          die("Delimiter too long, truncated");
+      }
+
+      DBUG_PRINT("info", ("OK: %d", cur_block->ok));
+
+      dynstr_free(&evaluated_expr);
+      DBUG_VOID_RETURN;
+    }
+    else
+    {
+      die("Expression evaluator $(...) must be the entire condition");
+    }
+  }
+
   var_init(&v,0,0,0,0);
 
   /* If expression starts with a variable, it may be a compare condition */
@@ -6404,7 +9459,7 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
     enum block_op operand= find_operand(curr_ptr);
     if (operand == ILLEG_OP)
-      die("Found junk '%.*b' after $variable in condition",
+      die("Found junk '%.*sB' after $variable in condition",
           (int)(expr_end - curr_ptr), curr_ptr);
 
     /* We could silently allow this, but may be confusing */
@@ -6514,7 +9569,8 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   else
   {
     /* Remember "old" delimiter if entering a false if block */
-    if (safe_strcpy(cur_block->delim, sizeof(cur_block->delim), delimiter))
+    if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                              delimiter))
       die("Delimiter too long, truncated");
   }
   
@@ -6647,7 +9703,7 @@ int read_line()
   my_bool have_slash= FALSE;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
-        R_COMMENT, R_LINE_START} state= R_LINE_START;
+        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT, R_HINT} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
   *p= 0;
@@ -6704,8 +9760,10 @@ int read_line()
         p--;
     }
 
+    bool drop_last_char= false;
     switch(state) {
     case R_NORMAL:
+    case R_HINT:
       if (end_of_query(c))
       {
 	*p= 0;
@@ -6734,7 +9792,34 @@ int read_line()
 	  state= R_Q;
 	}
       }
+      else if (c == '*' && last_char == '/')
+      {
+        state= R_CSTYLE_COMMENT;
+        break;
+      }
+      else if (c == '/' && last_char == '*') // Closing sequence `*/`
+      {
+        state= R_NORMAL;
+        // The hint is finished, and we don't want to interpret the current slash
+        // as an opener for a next hint or a C-style comment like it can happen
+        // for a statement like `SELECT /*+ BNL(t1) */* FROM t1` where there is
+        //no space between `*/` and `*`. So discard the current slash
+        drop_last_char= true;
+      }
       have_slash= is_escape_char(c, last_quote);
+      break;
+
+    case R_CSTYLE_COMMENT:
+      if (c == '!' || c == '+')
+      {
+        // Got hint introducer '/*!' or '/*+'
+        state= R_HINT;
+      }
+      else if (c == '/' && last_char == '*')
+      {
+        state= R_NORMAL;
+        drop_last_char= true; // See comment for `drop_last_char` above
+      }
       break;
 
     case R_COMMENT:
@@ -6814,7 +9899,15 @@ int read_line()
 
     }
 
-    last_char= c;
+    if (!drop_last_char)
+    {
+      last_char= c;
+    }
+    else
+    {
+      last_char= 0;
+      drop_last_char= false;
+    }
 
     if (!skip_char)
     {
@@ -7204,12 +10297,6 @@ static struct my_option my_long_options[] =
 };
 
 
-void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname,MTEST_VERSION,
-	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
-
 void usage()
 {
   print_version();
@@ -7361,17 +10448,17 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
     break;
   case 'V':
     print_version();
-    exit(0);
+    cleanup_and_exit(0,0);
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
-      exit(1);
+      cleanup_and_exit(1,0);
 #endif
     break;
   case '?':
     usage();
-    exit(0);
+    cleanup_and_exit(0,0);
   }
   return 0;
 }
@@ -7383,12 +10470,12 @@ int parse_args(int argc, char **argv)
   default_argv= argv;
 
   if ((handle_options(&argc, &argv, my_long_options, get_one_option)))
-    exit(1);
+    cleanup_and_exit(1, 0);
 
   if (argc > 1)
   {
     usage();
-    exit(1);
+    cleanup_and_exit(1, 0);
   }
   if (argc == 1)
     opt_db= *argv;
@@ -7455,7 +10542,7 @@ void str_to_file2(const char *fname, char *str, size_t size, my_bool append)
     die("Could not open '%s' for writing, errno: %d", buff, errno);
   if (append && my_seek(fd, 0, SEEK_END, MYF(0)) == MY_FILEPOS_ERROR)
     die("Could not find end of file '%s', errno: %d", buff, errno);
-  if (my_write(fd, (uchar*)str, size, MYF(MY_WME|MY_FNABP)))
+  if (size > 0 && my_write(fd, (uchar*)str, size, MYF(MY_WME|MY_FNABP)))
     die("write failed, errno: %d", errno);
   my_close(fd, MYF(0));
 }
@@ -7665,7 +10752,7 @@ void append_field(DYNAMIC_STRING *ds, uint col_idx, MYSQL_FIELD* field,
   }
   else
   {
-    dynstr_append(ds, field->name);
+    dynstr_append_mem(ds, field->name, strlen(field->name));
     dynstr_append_mem(ds, "\t", 1);
     replace_dynstr_append_mem(ds, val, len);
     dynstr_append_mem(ds, "\n", 1);
@@ -7684,16 +10771,29 @@ void append_result(DYNAMIC_STRING *ds, MYSQL_RES *res)
   uint num_fields= mysql_num_fields(res);
   MYSQL_FIELD *fields= mysql_fetch_fields(res);
   ulong *lengths;
+  DYNAMIC_STRING rs_unsorted, *rs= ds;
+
+  if (display_result_sorted)
+  {
+    init_dynamic_string(&rs_unsorted, "", 1024, 1024);
+    rs= &rs_unsorted;
+  }
 
   while ((row = mysql_fetch_row(res)))
   {
     uint i;
     lengths = mysql_fetch_lengths(res);
     for (i = 0; i < num_fields; i++)
-      append_field(ds, i, &fields[i],
+      append_field(rs, i, &fields[i],
                    row[i], lengths[i], !row[i]);
     if (!display_result_vertically)
-      dynstr_append_mem(ds, "\n", 1);
+      dynstr_append_mem(rs, "\n", 1);
+  }
+
+  if (display_result_sorted)
+  {
+    dynstr_append_sorted(ds, &rs_unsorted);
+    dynstr_free(&rs_unsorted);
   }
 }
 
@@ -7711,6 +10811,13 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   ulong *length;
   uint i;
   int error;
+  DYNAMIC_STRING rs_unsorted, *rs= ds;
+
+  if (display_result_sorted)
+  {
+    init_dynamic_string(&rs_unsorted, "", 1024, 1024);
+    rs= &rs_unsorted;
+  }
 
   /* Allocate array with bind structs, lengths and NULL flags */
   my_bind= (MYSQL_BIND*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(MYSQL_BIND),
@@ -7742,10 +10849,10 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   while ((error=mysql_stmt_fetch(stmt)) == 0)
   {
     for (i= 0; i < num_fields; i++)
-      append_field(ds, i, &fields[i], (char*)my_bind[i].buffer,
+      append_field(rs, i, &fields[i], (char*)my_bind[i].buffer,
                    *my_bind[i].length, *my_bind[i].is_null);
     if (!display_result_vertically)
-      dynstr_append_mem(ds, "\n", 1);
+      dynstr_append_mem(rs, "\n", 1);
   }
 
   if (error != MYSQL_NO_DATA)
@@ -7764,6 +10871,12 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   my_free(my_bind);
   my_free(length);
   my_free(is_null);
+
+  if (display_result_sorted)
+  {
+    dynstr_append_sorted(ds, &rs_unsorted);
+    dynstr_free(&rs_unsorted);
+  }
 }
 
 
@@ -7776,9 +10889,10 @@ void append_metadata(DYNAMIC_STRING *ds,
                      uint num_fields)
 {
   MYSQL_FIELD *field_end;
-  dynstr_append(ds,"Catalog\tDatabase\tTable\tTable_alias\tColumn\t"
-                "Column_alias\tType\tLength\tMax length\tIs_null\t"
-                "Flags\tDecimals\tCharsetnr\n");
+  dynstr_append_mem(ds, STRING_WITH_LEN(
+                    "Catalog\tDatabase\tTable\tTable_alias\tColumn\t"
+                    "Column_alias\tType\tLength\tMax length\tIs_null\t"
+                    "Flags\tDecimals\tCharsetnr\n"));
 
   for (field_end= field+num_fields ;
        field < field_end ;
@@ -7837,13 +10951,13 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
   char buf[40], buff2[21];
-  sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
-  dynstr_append(ds, buf);
+  size_t len= snprintf(buf, sizeof(buf), "affected rows: %s\n", llstr(affected_rows, buff2));
+  dynstr_append_mem(ds, buf, len);
   if (info)
   {
-    dynstr_append(ds, "info: ");
-    dynstr_append(ds, info);
-    dynstr_append_mem(ds, "\n", 1);
+    dynstr_append_mem(ds, STRING_WITH_LEN("info: "));
+    dynstr_append_mem(ds, info, strlen(info));
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
 }
 
@@ -7873,52 +10987,104 @@ static const char *trking_info_desc[SESSION_TRACK_END + 1]=
 /**
   @brief Append state change information (received through Ok packet) to the output.
 
+  @details The appended string is lines prefixed with "-- ". Only
+  tracking types with info sent from the server are displayed. For
+  each tracking type, the first line is the type name e.g.
+  "-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES".
+
+  The subsequent lines are the actual tracking info. When type is
+  SESSION_TRACK_SYSTEM_VARIABLES, the actual tracking info is a list
+  of name-value pairs of lines, sorted by name, e.g. if the info
+  received from the server is "autocommit=ON;time_zone=SYSTEM", the
+  corresponding string is
+
+  -- autocommit: ON
+  -- time_zone: SYSTEM
+
   @param [in,out] ds         Dynamic string to hold the content to be printed.
   @param [in] mysql          Connection handle.
 */
 
 static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
 {
+  if (!(mysql->server_status & SERVER_SESSION_STATE_CHANGED))
+    return;
 #ifndef EMBEDDED_LIBRARY
+  DYNAMIC_STRING ds_sort, *ds_type= NULL;
   for (unsigned int type= SESSION_TRACK_BEGIN; type <= SESSION_TRACK_END; type++)
   {
     const char *data;
     size_t data_length;
 
+    /*
+      Append the tracking type line, if any corresponding tracking
+      info is received.
+    */
     if (!mysql_session_track_get_first(mysql,
                                        (enum_session_state_type) type,
                                        &data, &data_length))
     {
-      dynstr_append(ds, "-- ");
+      dynstr_append_mem(ds, STRING_WITH_LEN("-- "));
       if (type <= SESSION_TRACK_END)
       {
-        dynstr_append(ds, trking_info_desc[type]);
+        dynstr_append_mem(ds, trking_info_desc[type],
+                          strlen(trking_info_desc[type]));
       }
       else
       {
         DBUG_ASSERT(0);
-        dynstr_append(ds, "Tracker???\n");
+        dynstr_append_mem(ds, STRING_WITH_LEN("Tracker???\n"));
       }
-
-      dynstr_append(ds, "-- ");
-      dynstr_append_mem(ds, data, data_length);
     }
     else
       continue;
+
+    /*
+      The remaining of this function: format and append the actual
+      tracking info.
+    */
+    if (type == SESSION_TRACK_SYSTEM_VARIABLES)
+    {
+      /* Prepare a string to be sorted before being appended. */
+      if (init_dynamic_string(&ds_sort, "", 1024, 1024))
+        die("Out of memory");
+      ds_type= &ds_sort;
+    }
+    else
+      ds_type= ds;
+    /* Append the first piece of info */
+    dynstr_append_mem(ds_type, STRING_WITH_LEN("-- "));
+    dynstr_append_mem(ds_type, data, data_length);
+    /* Whether we are appending the value of a variable */
+    bool appending_value= type == SESSION_TRACK_SYSTEM_VARIABLES;
+    /* Append remaining pieces */
     while (!mysql_session_track_get_next(mysql,
                                         (enum_session_state_type) type,
                                         &data, &data_length))
     {
-      dynstr_append(ds, "\n-- ");
+      if (appending_value)
+        dynstr_append_mem(ds_type, STRING_WITH_LEN(": "));
+      else
+        dynstr_append_mem(ds_type, STRING_WITH_LEN("\n-- "));
+      appending_value= !appending_value && type == SESSION_TRACK_SYSTEM_VARIABLES;
       if (data == NULL)
       {
         DBUG_ASSERT(data_length == 0);
-        dynstr_append_mem(ds, "<NULL>", sizeof("<NULL>") - 1);
+        dynstr_append_mem(ds_type, STRING_WITH_LEN("<NULL>"));
       }
       else
-        dynstr_append_mem(ds, data, data_length);
+        dynstr_append_mem(ds_type, data, data_length);
     }
-    dynstr_append(ds, "\n\n");
+    DBUG_ASSERT(!appending_value);
+    if (type == SESSION_TRACK_SYSTEM_VARIABLES)
+    {
+      dynstr_append_mem(ds_type, STRING_WITH_LEN("\n"));
+      dynstr_append_sorted(ds, ds_type);
+      dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
+      dynstr_free(&ds_sort);
+    }
+    else
+      dynstr_append_mem(ds, STRING_WITH_LEN("\n\n"));
   }
 #endif /* EMBEDDED_LIBRARY */
 }
@@ -7955,11 +11121,11 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
 {
   uint count;
   MYSQL_RES *warn_res;
-  DYNAMIC_STRING res;
   DBUG_ENTER("append_warnings");
 
   if (!(count= mysql_warning_count(mysql)))
     DBUG_RETURN(0);
+  DBUG_PRINT("info", ("Warnings: %ud", count));
 
   /*
     If one day we will support execution of multi-statements
@@ -7975,18 +11141,8 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
     die("Warning count is %u but didn't get any warnings",
 	count);
 
-  init_dynamic_string(&res, "", 1024, 1024);
-
-  append_result(&res, warn_res);
+  append_result(ds, warn_res);
   mysql_free_result(warn_res);
-
-  DBUG_PRINT("warnings", ("%s", res.str));
-
-  if (display_result_sorted)
-    dynstr_append_sorted(ds, &res, 0);
-  else
-    dynstr_append_mem(ds, res.str, res.length);
-  dynstr_free(&res);
   DBUG_RETURN(count);
 }
 
@@ -8247,7 +11403,7 @@ static int match_expected_error(struct st_command *command,
 
   SYNOPSIS
   handle_error()
-  q     - query context
+  command   - command
   err_errno - error number
   err_error - error message
   err_sqlstate - sql state
@@ -8317,7 +11473,8 @@ void handle_error(struct st_command *command,
       else if (command->expected_errors.err[0].type == ERR_SQLSTATE ||
                (command->expected_errors.err[0].type == ERR_ERRNO &&
                 command->expected_errors.err[0].code.errnum != 0))
-        dynstr_append(ds,"Got one of the listed errors\n");
+        dynstr_append_mem(ds, STRING_WITH_LEN("Got one of the listed "
+                                              "errors\n"));
     }
     /* OK */
     revert_properties();
@@ -8397,6 +11554,85 @@ void handle_no_error(struct st_command *command)
 
 
 /*
+  Read result set after prepare statement execution
+
+  SYNOPSIS
+  read_stmt_results
+  stmt - prepare statement
+  mysql - mysql handle
+  command - current command pointer
+  ds - output buffer where to store result form query
+
+  RETURN VALUE
+  1 - if there is an error in result set
+*/
+
+int read_stmt_results(MYSQL_STMT* stmt,
+                      DYNAMIC_STRING* ds,
+                      struct st_command *command)
+{
+  MYSQL_RES *res= NULL;
+
+  /*
+    We instruct that we want to update the "max_length" field in
+    mysql_stmt_store_result(), this is our only way to know how much
+    buffer to allocate for result data
+  */
+  {
+    my_bool one= 1;
+    if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
+      die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
+          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+  }
+
+  /*
+    If we got here the statement succeeded and was expected to do so,
+    get data. Note that this can still give errors found during execution!
+    Store the result of the query if if will return any fields
+  */
+  if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
+  {
+    handle_error(command, mysql_stmt_errno(stmt),
+                 mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
+    return 1;
+  }
+
+  if (!disable_result_log)
+  {
+    /*
+      Not all statements creates a result set. If there is one we can
+      now create another normal result set that contains the meta
+      data. This set can be handled almost like any other non prepared
+      statement result set.
+    */
+    if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
+    {
+      /* Take the column count from meta info */
+      MYSQL_FIELD *fields= mysql_fetch_fields(res);
+      uint num_fields= mysql_num_fields(res);
+
+      if (display_metadata)
+        append_metadata(ds, fields, num_fields);
+
+      if (!display_result_vertically)
+        append_table_headings(ds, fields, num_fields);
+
+      append_stmt_result(ds, stmt, fields, num_fields);
+
+      mysql_free_result(res);     /* Free normal result set with meta data */
+
+    }
+    else
+    {
+      /*
+        This is a query without resultset
+      */
+    }
+  }
+    return 0;
+}
+
+/*
   Run query using prepared statement C API
 
   SYNOPSIS
@@ -8415,13 +11651,21 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
                     char *query, size_t query_len, DYNAMIC_STRING *ds,
                     DYNAMIC_STRING *ds_warnings)
 {
-  MYSQL_RES *res= NULL;     /* Note that here 'res' is meta data result set */
+  my_bool ignore_second_execution= 0;
   MYSQL *mysql= cn->mysql;
   MYSQL_STMT *stmt;
   DYNAMIC_STRING ds_prepare_warnings;
   DYNAMIC_STRING ds_execute_warnings;
+  DYNAMIC_STRING ds_res_1st_execution;
+  my_bool ds_res_1st_execution_init = FALSE;
+  my_bool compare_2nd_execution = TRUE;
+  int query_match_ps2_re, query_match_cursor_re;
+  MYSQL_RES *res;
   DBUG_ENTER("run_query_stmt");
   DBUG_PRINT("query", ("'%-.60s'", query));
+  DBUG_PRINT("info",
+             ("disable_warnings: %d  prepare_warnings_enabled: %d",
+              (int) disable_warnings, (int) prepare_warnings_enabled));
 
   if (!mysql)
   {
@@ -8432,7 +11676,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   /*
     Init a new stmt if it's not already one created for this connection
   */
-  if(!(stmt= cn->stmt))
+  if (!(stmt= cn->stmt))
   {
     if (!(stmt= mysql_stmt_init(mysql)))
       die("unable to init stmt structure");
@@ -8444,6 +11688,12 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
   {
     init_dynamic_string(&ds_prepare_warnings, NULL, 0, 256);
     init_dynamic_string(&ds_execute_warnings, NULL, 0, 256);
+  }
+
+  /* Check and remove potential trash */
+  if (strlen(ds->str) != 0)
+  {
+    dynstr_trunc(ds, 0);
   }
 
   /*
@@ -8468,23 +11718,36 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     parameter markers.
   */
 
-#if MYSQL_VERSION_ID >= 50000
+  query_match_cursor_re= cursor_protocol_enabled && cn->stmt->field_count &&
+                         match_re(&cursor_re, query);
+
   if (cursor_protocol_enabled)
   {
+    ps2_protocol_enabled = 0;
+
     /*
-      Use cursor when retrieving result
+      Use cursor for queries matching the filter,
+      else reset cursor type
     */
-    ulong type= CURSOR_TYPE_READ_ONLY;
-    if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
-      die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
-          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    if (query_match_cursor_re)
+    {
+      /*
+      Use cursor when retrieving result
+      */
+      ulong type= CURSOR_TYPE_READ_ONLY;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
+        die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
+             mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
   }
-#endif
+
+  query_match_ps2_re = ps2_protocol_enabled && cn->stmt->field_count &&
+                       match_re(&ps2_re, query);
 
   /*
     Execute the query first time if second execution enable
   */
-  if(ps2_protocol_enabled && match_re(&ps2_re, query))
+  if (query_match_ps2_re)
   {
     if (do_stmt_execute(cn))
     {
@@ -8492,93 +11755,91 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
                   mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
       goto end;
     }
+
+    /*
+      We cannot run query twice if we get prepare warnings as these will otherwise be
+      disabled
+    */
+    ignore_second_execution= (prepare_warnings_enabled &&
+                              mysql_warning_count(mysql) != 0);
+
+    if (ignore_second_execution)
+      compare_2nd_execution = 0;
+    else
+    {
+      init_dynamic_string(&ds_res_1st_execution, "",
+                          RESULT_STRING_INIT_MEM, RESULT_STRING_INCREMENT_MEM);
+      ds_res_1st_execution_init = TRUE;
+      if (read_stmt_results(stmt, &ds_res_1st_execution, command))
+      {
+        /*
+          There was an error during execution
+          and there is no result set to compare
+        */
+        compare_2nd_execution = 0;
+      }
+      else
+        handle_no_error(command);
+    }
   }
 
   /*
     Execute the query
   */
-  if (do_stmt_execute(cn))
+  if (!ignore_second_execution && do_stmt_execute(cn))
   {
     handle_error(command, mysql_stmt_errno(stmt),
                  mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
     goto end;
   }
 
+  DBUG_ASSERT(ds->length == 0);
+
   int err;
   do
   {
     /*
       When running in cursor_protocol get the warnings from execute here
-      and keep them in a separate string for later.
+      and keep them in a separate string for later. Cursor_protocol is used
+      only for queries matching the filter "cursor_re".
     */
-    if (cursor_protocol_enabled && !disable_warnings)
+    if (query_match_cursor_re && !disable_warnings)
       append_warnings(&ds_execute_warnings, mysql);
 
-    /*
-      We instruct that we want to update the "max_length" field in
-      mysql_stmt_store_result(), this is our only way to know how much
-      buffer to allocate for result data
-    */
-    {
-      my_bool one= 1;
-      if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
-        die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
-            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
-    }
-
-    /*
-      If we got here the statement succeeded and was expected to do so,
-      get data. Note that this can still give errors found during execution!
-      Store the result of the query if if will return any fields
-    */
-    if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
-    {
-      handle_error(command, mysql_stmt_errno(stmt),
-                   mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
-      goto end;
-    }
+    if (read_stmt_results(stmt, ds, command))
+       goto end;
 
     if (!disable_result_log)
     {
       /*
-        Not all statements creates a result set. If there is one we can
-        now create another normal result set that contains the meta
-        data. This set can be handled almost like any other non prepared
-        statement result set.
+        The results of the first and second execution are compared
+        only if result logging is enabled
       */
-      if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
+      if (compare_2nd_execution && query_match_ps2_re)
       {
-        /* Take the column count from meta info */
-        MYSQL_FIELD *fields= mysql_fetch_fields(res);
-        uint num_fields= mysql_num_fields(res);
-
-        if (display_metadata)
-          append_metadata(ds, fields, num_fields);
-
-        if (!display_result_vertically)
-          append_table_headings(ds, fields, num_fields);
-
-        append_stmt_result(ds, stmt, fields, num_fields);
-
-        mysql_free_result(res);     /* Free normal result set with meta data */
-
-        /*
-          Normally, if there is a result set, we do not show warnings from the
-          prepare phase. This is because some warnings are generated both during
-          prepare and execute; this would generate different warning output
-          between normal and ps-protocol test runs.
-
-          The --enable_prepare_warnings command can be used to change this so
-          that warnings from both the prepare and execute phase are shown.
-        */
-        if (!disable_warnings && !prepare_warnings_enabled)
-          dynstr_set(&ds_prepare_warnings, NULL);
+        if (ds->length != ds_res_1st_execution.length ||
+           !(memcmp(ds_res_1st_execution.str, ds->str, ds->length) == 0))
+        {
+          die("The result of the 1st execution does not match with \n"
+              "the result of the 2nd execution of ps-protocol:\n 1st:\n"
+              "%s\n 2nd:\n %s", ds_res_1st_execution.str, ds->str);
+        }
       }
-      else
+
+      /*
+        Normally, if there is a result set, we do not show warnings from the
+        prepare phase. This is because some warnings are generated both during
+        prepare and execute; this would generate different warning output
+        between normal and ps-protocol test runs.
+        The --enable_prepare_warnings command can be used to change this so
+        that warnings from both the prepare and execute phase are shown.
+      */
+      if ((res= mysql_stmt_result_metadata(stmt)))
       {
-        /*
-          This is a query without resultset
-        */
+        if (!disable_warnings &&
+            !prepare_warnings_enabled)
+          dynstr_set(&ds_prepare_warnings, NULL);
+        mysql_free_result(res);
       }
 
       /*
@@ -8590,7 +11851,6 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
 
       if (display_session_track_info)
         append_session_track_info(ds, mysql);
-
 
       if (!disable_warnings && !mysql_more_results(stmt->mysql))
       {
@@ -8623,7 +11883,15 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
                  mysql_sqlstate(mysql), ds);
   else
     handle_no_error(command);
+
 end:
+
+  if (ds_res_1st_execution_init)
+  {
+    dynstr_free(&ds_res_1st_execution);
+    ds_res_1st_execution_init= FALSE;
+  }
+
   if (!disable_warnings)
   {
     dynstr_free(&ds_prepare_warnings);
@@ -8637,6 +11905,15 @@ end:
   */
 
   var_set_errno(mysql_stmt_errno(stmt));
+
+  display_optimizer_trace(cn, ds);
+    if (cursor_protocol_enabled)
+    {
+      ulong type= CURSOR_TYPE_NO_CURSOR;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
+        die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+    }
 
   revert_properties();
 
@@ -8674,7 +11951,9 @@ end:
   error - function will not return
 */
 
-void run_prepare_stmt(struct st_connection *cn, struct st_command *command, const char *query, size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
+void run_prepare_stmt(struct st_connection *cn, struct st_command *command,
+                      const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                      DYNAMIC_STRING *ds_warnings)
 {
 
   MYSQL *mysql= cn->mysql;
@@ -8835,9 +12114,8 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
 */
 
 void run_execute_stmt(struct st_connection *cn, struct st_command *command,
-                    const char *query, size_t query_len, DYNAMIC_STRING *ds,
-                      DYNAMIC_STRING *ds_warnings
-                      )
+                      const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                      DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= NULL;     /* Note that here 'res' is meta data result set */
   MYSQL *mysql= cn->mysql;
@@ -8852,7 +12130,6 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command,
     init_dynamic_string(&ds_execute_warnings, NULL, 0, 256);
   }
 
-#if MYSQL_VERSION_ID >= 50000
   if (cursor_protocol_enabled)
   {
     /*
@@ -8863,7 +12140,6 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command,
       die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
           mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
   }
-#endif
 
   /*
     Execute the query
@@ -9098,6 +12374,8 @@ int util_query(MYSQL* org_mysql, const char* query){
       /* enable local infile, in non-binary builds often disabled by default */
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&(org_mysql->options.protocol));
+      SET_SSL_OPTS(mysql);
       safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
           org_mysql->passwd, org_mysql->db, org_mysql->port,
           org_mysql->unix_socket);
@@ -9133,11 +12411,10 @@ int util_query(MYSQL* org_mysql, const char* query){
 void run_query(struct st_connection *cn, struct st_command *command, int flags)
 {
   MYSQL *mysql= cn->mysql;
-  DYNAMIC_STRING *ds;
-  DYNAMIC_STRING *save_ds= NULL;
-  DYNAMIC_STRING ds_result;
-  DYNAMIC_STRING ds_sorted;
-  DYNAMIC_STRING ds_warnings;
+  DYNAMIC_STRING *rs_output; /* where to put results */
+  DYNAMIC_STRING rs_cmp_result; /* here we put results to compare with
+                                   pre-recrded file */
+  DYNAMIC_STRING rs_warnings;
   char *query;
   size_t query_len;
   my_bool view_created= 0, sp_created= 0;
@@ -9150,10 +12427,10 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
 
   if (!(flags & QUERY_SEND_FLAG) && !cn->pending)
     die("Cannot reap on a connection without pending send");
-  
-  init_dynamic_string(&ds_warnings, NULL, 0, 256);
-  ds_warn= &ds_warnings;
-  
+
+  init_dynamic_string(&rs_warnings, NULL, 0, 256);
+  ds_warn= &rs_warnings;
+
   /*
     Evaluate query if this is an eval command
   */
@@ -9183,11 +12460,11 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (command->require_file)
   {
-    init_dynamic_string(&ds_result, "", 1024, 1024);
-    ds= &ds_result;
+    init_dynamic_string(&rs_cmp_result, "", 1024, 1024);
+    rs_output= &rs_cmp_result;
   }
   else
-    ds= &ds_res;
+    rs_output= &ds_res; // will be shown to console
 
   /*
     Log the query into the output buffer
@@ -9201,9 +12478,9 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
       print_query= command->query;
       print_len= (int)(command->end - command->query);
     }
-    replace_dynstr_append_mem(ds, print_query, print_len);
-    dynstr_append_mem(ds, delimiter, delimiter_length);
-    dynstr_append_mem(ds, "\n", 1);
+    replace_dynstr_append_mem(rs_output, print_query, print_len);
+    dynstr_append_mem(rs_output, delimiter, delimiter_length);
+    dynstr_append_mem(rs_output, "\n", 1);
   }
   
   /* We're done with this flag */
@@ -9219,7 +12496,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   dynstr_set(&ds_res, 0);
 
   if (view_protocol_enabled && mysql &&
-      complete_query &&
+      complete_query && !(mysql->server_status & SERVER_STATUS_IN_TRANS) &&
       match_re(&view_re, query))
   {
     /*
@@ -9258,7 +12535,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
         Collect warnings from create of the view that should otherwise
         have been produced when the SELECT was executed
       */
-      append_warnings(&ds_warnings,
+      append_warnings(&rs_warnings,
                       service_connection_enabled ?
                         cur_con->util_mysql :
                         mysql);
@@ -9307,18 +12584,6 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
-  if (display_result_sorted)
-  {
-    /*
-       Collect the query output in a separate string
-       that can be sorted before it's added to the
-       global result string
-    */
-    init_dynamic_string(&ds_sorted, "", 1024, 1024);
-    save_ds= ds; /* Remember original ds */
-    ds= &ds_sorted;
-  }
-
   /*
     Find out how to run this query
 
@@ -9337,21 +12602,13 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
         All other statements can be run using prepared statement C API.
       */
       !match_re(&ps_re, query))
-    run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
+    run_query_stmt(cn, command, query, query_len, rs_output, &rs_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
-		     ds, &ds_warnings);
+		     rs_output, &rs_warnings);
 
-  dynstr_free(&ds_warnings);
+  dynstr_free(&rs_warnings);
   ds_warn= 0;
-
-  if (display_result_sorted)
-  {
-    /* Sort the result set and append it to result */
-    dynstr_append_sorted(save_ds, &ds_sorted, 1);
-    ds= save_ds;
-    dynstr_free(&ds_sorted);
-  }
 
   if (sp_created)
   {
@@ -9373,11 +12630,11 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
        and the output should be checked against an already
        existing file which has been specified using --require or --result
     */
-    check_require(ds, command->require_file);
+    check_require(rs_output, command->require_file);
   }
 
-  if (ds == &ds_result)
-    dynstr_free(&ds_result);
+  if (rs_output == &rs_cmp_result)
+    dynstr_free(&rs_cmp_result);
   DBUG_VOID_RETURN;
 }
 
@@ -9443,7 +12700,7 @@ void init_re(void)
     //"[[:space:]]*CALL[[:space:]]|" // XXX run_query_stmt doesn't read multiple result sets
     "[[:space:]]*CHANGE[[:space:]]|"
     "[[:space:]]*CHECKSUM[[:space:]]|"
-    "[[:space:]]*COMMIT[[:space:]]|"
+    "[[:space:]]*COMMIT[[:space:]]*|"
     "[[:space:]]*COMPOUND[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+DATABASE[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+INDEX[[:space:]]|"
@@ -9500,10 +12757,19 @@ void init_re(void)
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
+  /*
+    Filter for queries that can be run with
+    cursor protocol
+  */
+  const char *cursor_re_str =
+    "^("
+    "[[:space:]]*SELECT[[:space:]])";
+
   init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&ps2_re, ps2_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
+  init_re_comp(&cursor_re, cursor_re_str);
 }
 
 
@@ -9541,6 +12807,7 @@ void free_re(void)
   regfree(&ps2_re);
   regfree(&sp_re);
   regfree(&view_re);
+  regfree(&cursor_re);
 }
 
 /****************************************************************************/
@@ -9636,7 +12903,7 @@ void mark_progress(struct st_command* command __attribute__((unused)),
   dynstr_append_mem(&ds_progress, "\t", 1);
 
   /* Filename */
-  dynstr_append(&ds_progress, cur_file->file_name);
+  dynstr_append_mem(&ds_progress, cur_file->file_name, strlen(cur_file->file_name));
   dynstr_append_mem(&ds_progress, ":", 1);
 
   /* Line in file */
@@ -9695,6 +12962,7 @@ static sig_handler signal_handler(int sig)
   fflush(stderr);
   my_write_core(sig);
 #ifndef _WIN32
+  sf_leaking_memory= 1;
   exit(1);			// Shouldn't get here but just in case
 #endif
 }
@@ -9768,11 +13036,9 @@ int main(int argc, char **argv)
   uint command_executed= 0, last_command_executed= 0;
   char save_file[FN_REFLEN];
   bool empty_result= FALSE;
+  int error= 0;
   MY_INIT(argv[0]);
   DBUG_ENTER("main");
-
-  /* mysqltest has no way to free all its memory correctly */
-  sf_leaking_memory= 1;
 
   save_file[0]= 0;
   TMPDIR[0]= 0;
@@ -9834,7 +13100,7 @@ int main(int argc, char **argv)
 
   read_command_buf= (char*)my_malloc(PSI_NOT_INSTRUMENTED, read_command_buflen= 65536, MYF(MY_FAE));
 
-  init_dynamic_string(&ds_res, "", 2048, 2048);
+  init_dynamic_string(&ds_res, "", RESULT_STRING_INIT_MEM, RESULT_STRING_INCREMENT_MEM);
   init_alloc_root(PSI_NOT_INSTRUMENTED, &require_file_root, 1024, 1024, MYF(0));
 
   parse_args(argc, argv);
@@ -9919,23 +13185,7 @@ int main(int argc, char **argv)
   if (opt_plugin_dir && *opt_plugin_dir)
     mysql_options(con->mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir);
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(con->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(con->mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-#if MYSQL_VERSION_ID >= 50000
-    /* Turn on ssl_verify_server_cert only if host is "localhost" */
-    opt_ssl_verify_server_cert= opt_host && !strcmp(opt_host, "localhost");
-    mysql_options(con->mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &opt_ssl_verify_server_cert);
-#endif
-  }
-#endif
+  SET_SSL_OPTS(con->mysql);
 
   if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "default", MYF(MY_WME))))
     die("Out of memory");
@@ -10089,6 +13339,7 @@ int main(int argc, char **argv)
       case Q_INC: do_modify_var(command, DO_INC); break;
       case Q_DEC: do_modify_var(command, DO_DEC); break;
       case Q_ECHO: do_echo(command); command_executed++; break;
+      case Q_BREAK: do_break(command); break;
       case Q_SYSTEM: do_system(command); break;
       case Q_REMOVE_FILE: do_remove_file(command); break;
       case Q_REMOVE_FILES_WILDCARD: do_remove_files_wildcard(command); break;
@@ -10103,11 +13354,12 @@ int main(int argc, char **argv)
         break;
       case Q_FILE_EXIST: do_file_exist(command); break;
       case Q_WRITE_FILE: do_write_file(command); break;
+      case Q_WRITE_LINE: do_write_line(command); break;
       case Q_APPEND_FILE: do_append_file(command); break;
       case Q_DIFF_FILES: do_diff_files(command); break;
       case Q_SEND_QUIT: do_send_quit(command); break;
       case Q_CHANGE_USER: do_change_user(command); break;
-      case Q_CAT_FILE: do_cat_file(command); break;
+      case Q_CAT_FILE: do_cat_file(command); command_executed++; break;
       case Q_COPY_FILE: do_copy_file(command); break;
       case Q_MOVE_FILE: do_move_file(command); break;
       case Q_CHMOD_FILE: do_chmod_file(command); break;
@@ -10265,7 +13517,7 @@ int main(int argc, char **argv)
         if (p && *p == '#' && *(p+1) == '#')
         {
           dynstr_append_mem(&ds_res, command->query, command->query_len);
-          dynstr_append(&ds_res, "\n");
+          dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
         }
 	break;
       }
@@ -10278,7 +13530,7 @@ int main(int argc, char **argv)
         if (disable_query_log)
           break;
 
-        dynstr_append(&ds_res, "\n");
+        dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
         break;
       case Q_PING:
         handle_command_error(command, mysql_ping(cur_con->mysql), -1);
@@ -10333,6 +13585,17 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_VIEW_PROTOCOL:
         set_property(command, P_VIEW, view_protocol);
+        break;
+      case Q_DISABLE_CURSOR_PROTOCOL:
+        set_property(command, P_CURSOR, 0);
+        if (cursor_protocol)
+          set_property(command, P_PS, 0);
+        /* Close any open statements */
+        close_statements();
+        break;
+      case Q_ENABLE_CURSOR_PROTOCOL:
+        set_property(command, P_CURSOR, cursor_protocol);
+        set_property(command, P_PS, ps_protocol);
         break;
       case Q_DISABLE_SERVICE_CONNECTION:
         set_property(command, P_CONN, 0);
@@ -10470,7 +13733,7 @@ int main(int argc, char **argv)
     die("Test ended with parsing disabled");
 
   /*
-    The whole test has been executed _successfully_.
+    The whole test has been executed successfully.
     Time to compare result or save it to record file.
     The entire output from test is in the log file
   */
@@ -10493,7 +13756,7 @@ int main(int argc, char **argv)
       else
       {
 	/* Check that the output from test is equal to result file */
-	check_result();
+	error= check_result();
       }
     }
   }
@@ -10503,7 +13766,8 @@ int main(int argc, char **argv)
     if (! result_file_name || record ||
         compare_files (log_file.file_name(), result_file_name))
     {
-      die("The test didn't produce any output");
+      fprintf(stderr, "mysqltest: The test didn't produce any output\n");
+      error= 1;
     }
     else 
     {
@@ -10512,12 +13776,15 @@ int main(int argc, char **argv)
   }
 
   if (!command_executed && result_file_name && !empty_result)
-    die("No queries executed but non-empty result file found!");
+  {
+    fprintf(stderr, "mysqltest: No queries executed but non-empty result file found!\n");
+    error= 1;
+  }
 
-  verbose_msg("Test has succeeded!");
+  if (!error)
+    verbose_msg("Test has succeeded!");
   timer_output();
-  /* Yes, if we got this far the test has succeeded! Sakila smiles */
-  cleanup_and_exit(0);
+  cleanup_and_exit(error, 0);
   return 0; /* Keep compiler happy too */
 }
 
@@ -11879,22 +15146,23 @@ void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val)
 /*
   Build a list of pointer to each line in ds_input, sort
   the list and use the sorted list to append the strings
-  sorted to the output ds
+  sorted to the output ds. The string ds_input needs to
+  end with a newline.
 
   SYNOPSIS
   dynstr_append_sorted()
   ds           string where the sorted output will be appended
   ds_input     string to be sorted
-  keep_header  If header should not be sorted
 */
 
-static int comp_lines(const char **a, const char **b)
+static int comp_lines(const void *a_, const void *b_)
 {
+  auto a= static_cast<const char *const *>(a_);
+  auto b= static_cast<const char *const *>(b_);
   return (strcmp(*a,*b));
 }
 
-void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
-                          bool keep_header)
+void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input)
 {
   unsigned i;
   char *start= ds_input->str;
@@ -11905,15 +15173,6 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
     DBUG_VOID_RETURN;  /* No input */
 
   my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &lines, sizeof(const char*), 32, 32, MYF(0));
-
-  if (keep_header)
-  {
-    /* First line is result header, skip past it */
-    while (*start && *start != '\n')
-      start++;
-    start++; /* Skip past \n */
-    dynstr_append_mem(ds, ds_input->str, start - ds_input->str);
-  }
 
   /* Insert line(s) in array */
   while (*start)
@@ -11940,8 +15199,8 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
   for (i= 0; i < lines.elements ; i++)
   {
     const char **line= dynamic_element(&lines, i, const char**);
-    dynstr_append(ds, *line);
-    dynstr_append(ds, "\n");
+    dynstr_append_mem(ds, *line, strlen(*line));
+    dynstr_append_mem(ds, STRING_WITH_LEN("\n"));
   }
 
   delete_dynamic(&lines);

@@ -1,0 +1,25 @@
+#
+# MDEV-36444: Expose engine-specific field/index options in I_S
+#
+CREATE TABLE t1 (
+c1 TEXT GROONGA_TYPE="ShortText",
+c2 TEXT,
+FULLTEXT INDEX (c2) TOKENIZER="TokenBigram"
+) ENGINE=Mroonga;
+# Checking information_schema.COLUMNS
+SELECT TABLE_NAME, COLUMN_NAME, CREATE_OPTIONS 
+FROM information_schema.COLUMNS 
+WHERE table_name = 't1' AND table_schema = 'test'
+ORDER BY COLUMN_NAME;
+TABLE_NAME	COLUMN_NAME	CREATE_OPTIONS
+t1	c1	`GROONGA_TYPE`='ShortText'
+t1	c2	
+# Checking information_schema.STATISTICS
+SELECT TABLE_NAME, INDEX_NAME, CREATE_OPTIONS 
+FROM information_schema.STATISTICS 
+WHERE table_name = 't1' AND table_schema = 'test'
+ORDER BY INDEX_NAME;
+TABLE_NAME	INDEX_NAME	CREATE_OPTIONS
+t1	c2	`TOKENIZER`='TokenBigram'
+DROP TABLE t1;
+# End of test

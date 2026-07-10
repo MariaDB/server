@@ -19,8 +19,10 @@
 #include <my_rnd.h>
 #include "tap.h"
 
-int cmp(void *arg __attribute__((unused)), uchar *a, uchar *b)
+int cmp(void *arg __attribute__((unused)), const void *a_, const void *b_)
 {
+  const uchar *a= a_;
+  const uchar *b= b_;
   return *a < *b ? -1 : *a > *b;
 }
 
@@ -136,4 +138,3 @@ int main(int argc __attribute__((unused)), char *argv[])
   my_end(0);
   return exit_status();
 }
-

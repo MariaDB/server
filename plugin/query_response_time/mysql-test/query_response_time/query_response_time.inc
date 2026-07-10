@@ -3,11 +3,12 @@ SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 EVAL SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=$base;
 FLUSH QUERY_RESPONSE_TIME;
-# Following two queries check works of FLUSH and 
+# Following two queries check works of FLUSH and
 # respecting of "QUERY_RESPONSE_TIME_STATS" variable (see launchpad bug #855312)
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
 
+--disable_query_log
 SET SESSION query_response_time_exec_time_debug=310000; SELECT 1;
 SET SESSION query_response_time_exec_time_debug=320000; SELECT 1;
 SET SESSION query_response_time_exec_time_debug=330000; SELECT 1;
@@ -31,11 +32,25 @@ SET SESSION query_response_time_exec_time_debug=3100000; SELECT 1;
 SET SESSION query_response_time_exec_time_debug=4100000; SELECT 1;
 SET SESSION query_response_time_exec_time_debug=5100000; SELECT 1;
 
+SET SESSION query_response_time_exec_time_debug=310000; INSERT into t1 values();
+SET SESSION query_response_time_exec_time_debug=370000; INSERT into t1 values();
+SET SESSION query_response_time_exec_time_debug=130000; INSERT into t1 values();
+SET SESSION query_response_time_exec_time_debug=5100000; INSERT into t1 values();
+
 SET SESSION query_response_time_exec_time_debug=100000;
 
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
+--enable_query_log
 
 SHOW GLOBAL VARIABLES where Variable_name like 'QUERY_RESPONSE_TIME_RANGE_BASE';
 SHOW QUERY_RESPONSE_TIME;
+
+if ($base == 1000)
+{
+  # We do no do this for every query to have smaller result file
+  SHOW QUERY_RESPONSE_TIME_READ;
+  SHOW QUERY_RESPONSE_TIME_WRITE;
+  SHOW QUERY_RESPONSE_TIME_READ_WRITE;
+}
 
 SET SESSION query_response_time_exec_time_debug=default;

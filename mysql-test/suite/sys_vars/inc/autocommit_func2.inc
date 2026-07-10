@@ -1,3 +1,4 @@
+--source include/no_view_protocol.inc
 --source include/have_innodb.inc
 
 CREATE TABLE t1

@@ -1,0 +1,143 @@
+################################################################################
+# MDEV-32014 Rename binlog cache to binlog file
+#
+# It verifies that the rename logic is handled correct if error happens.
+################################################################################
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+RESET MASTER;
+
+--echo #
+--echo # binlog cache file is created in #binlog_cache_files directory
+--echo # and it is deleted at disconnect
+--echo #
+--connect(con1,localhost,root,,)
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+
+--echo # list binlog_cache_files/
+--let $datadir= `SELECT @@datadir`
+--list_files $datadir/#binlog_cache_files
+
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+
+--echo # list #binlog_cache_files/
+--replace_regex /ML_[0-9]+/ML_BINLOG_CACHE_FILE/
+--list_files $datadir/#binlog_cache_files
+
+SET debug_sync = "thread_end SIGNAL signal.thread_end";
+--disconnect con1
+--connection default
+# Wait until the connection is closed completely.
+SET debug_sync = "now WAIT_FOR signal.thread_end";
+
+--echo # binlog cache file is deleted at disconnection
+--echo # list #binlog_cache_files/
+--list_files $datadir/#binlog_cache_files
+
+--echo #
+--echo # Reserved space is not big enough, rename will not happen. But rotate
+--echo # will succeed.
+--echo #
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+SET debug = 'd,simulate_required_size_too_big';
+UPDATE t1 SET c1 = repeat('2', 5242880);
+
+--let $gtid_end_pos= query_get_value(SHOW BINLOG EVENTS IN 'master-bin.000002' LIMIT 4, End_log_pos, 4)
+--let $assert_cond= $gtid_end_pos < 4096
+--let $assert_text= Binlog is rotated, but rename is not executed.
+--source include/assert.inc
+
+--echo #
+--echo # Error happens when renaming binlog cache to binlog file, rename will
+--echo # not happen. Since the original binlog is delete, the rotate will failed
+--echo # too. binlog will be closed.
+--echo #
+SET debug = 'd,simulate_rename_binlog_cache_to_binlog_error';
+--error ER_CANT_OPEN_FILE
+UPDATE t1 SET c1 = repeat('3', 5242880);
+SELECT count(*) FROM t1 WHERE c1 like "3%";
+
+--echo # Binlog is closed
+--source include/show_master_status.inc
+
+--source include/restart_mysqld.inc
+--source include/show_master_status.inc
+
+--echo #
+--echo # Crash happens before rename the file
+--echo #
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+
+SET debug = 'd,binlog_commit_by_rotate_crash_before_rename';
+--source include/expect_crash.inc
+--error 2013
+UPDATE t1 SET c1 = repeat('4', 5242880);
+
+--write_file $datadir/#binlog_cache_files/non_binlog_cache
+It is not a binlog cache file
+EOF
+
+--echo # One cache file left after crash
+--echo # list #binlog_cache_files/
+--replace_regex /ML_[0-9]+/ML_BINLOG_CACHE_FILE/
+--list_files $datadir/#binlog_cache_files
+
+--source include/start_mysqld.inc
+--echo # The cache file is deleted at startup.
+--echo # list #binlog_cache_files/
+--list_files $datadir/#binlog_cache_files
+
+--let $assert_text= warning: non_binlog_cache file is in #binlog_cache_files/
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_select= non_binlog_cache.*#binlog_cache_files/
+--let $assert_count= 1
+--let $assert_only_after= CURRENT_TEST: binlog.binlog_commit_by_rotate_atomic
+--source include/assert_grep.inc
+
+--remove_file $datadir/#binlog_cache_files/non_binlog_cache
+
+--let $binlog_file= LAST
+--let $binlog_start= 4
+--let $skip_checkpoint_events= 1
+--source include/show_binlog_events.inc
+
+--echo #
+--echo # Crash happens just after rotation is finished, binlog commit is not
+--echo # started yet, so there is no Xid_log_event in the log, no garbage at
+--echo # the end of the file.
+--echo #
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+
+BEGIN;
+UPDATE t1 SET c1 = repeat('5', 5242880);
+SAVEPOINT s1;
+UPDATE t1 SET c1 = repeat('6', 5242880);
+UPDATE t1 SET c1 = repeat('7', 5242880);
+ROLLBACK TO SAVEPOINT s1;
+INSERT INTO t1 VALUES('a');
+
+SET debug = 'd,binlog_commit_by_rotate_crash_after_rotate';
+--source include/expect_crash.inc
+--error 2013
+COMMIT;
+
+--echo # No cache file left after crash
+--echo # list #binlog_cache_files/
+--replace_regex /ML_[0-9]+/ML_BINLOG_CACHE_FILE/
+--list_files $datadir/#binlog_cache_files
+
+--source include/start_mysqld.inc
+
+--let $binlog_file= master-bin.000006
+--let $binlog_start= 4
+--let $skip_checkpoint_events= 1
+--source include/show_binlog_events.inc
+
+call mtr.add_suppression(".*Turning logging off for the whole duration.*");
+call mtr.add_suppression(".*non_binlog_cache is in #binlog_cache_files/.*");
+DROP TABLE t1;
+

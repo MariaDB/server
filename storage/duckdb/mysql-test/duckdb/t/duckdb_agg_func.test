@@ -1,0 +1,348 @@
+--source ../include/have_duckdb.inc
+
+CREATE TABLE t_innodb (
+	id INT PRIMARY KEY,
+	col1 TINYINT,
+	col2 INT,
+	col3 BIGINT,
+	col4 DOUBLE,
+	col5 DECIMAL(38, 10),
+	col6 TIME,
+	col7 DATE,
+	col8 DATETIME,
+	col9 TIMESTAMP,
+	col10 VARCHAR(100),
+	col11 BLOB
+);
+
+CREATE TABLE t_duckdb (
+	id INT PRIMARY KEY,
+	col1 TINYINT,
+	col2 INT,
+	col3 BIGINT,
+	col4 DOUBLE,
+	col5 DECIMAL(38, 10),
+	col6 TIME,
+	col7 DATE,
+	col8 DATETIME,
+	col9 TIMESTAMP,
+	col10 VARCHAR(100),
+	col11 BLOB
+) ENGINE=DuckDB;
+
+INSERT INTO t_innodb VALUES (1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+                            (2, 10, 123456789, 123456789011121314, 123456789011121314.12345678910, 1234567890111213141516171819.123456789, '23:59:59', '2025-12-31', '9999-12-31 23:59:59', '2025-12-31 23:59:59', '1234567890111213141516171819.123456789', '1234567890111213141516171819.123456789'),
+                            (3, -10, -123456789, -123456789011121314, -123456789011121314.12345678910, -1234567890111213141516171819.123456789, '00:00:00', '1970-01-01', '0001-01-01 00:00:00', '1970-01-02 00:00:00', '-1234567890111213141516171819.123456789', '-1234567890111213141516171819.123456789'),
+                            (4, -10, -123456789, -123456789011121314, -123456789011121314.12345678910, -1234567890111213141516171819.123456789, '00:00:00', '1970-01-01', '0001-01-01 00:00:00', '1970-01-02 00:00:00', REPEAT('a', 100), REPEAT('a', 65535));
+
+
+INSERT INTO t_duckdb VALUES (1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+                            (2, 10, 123456789, 123456789011121314, 123456789011121314.12345678910, 1234567890111213141516171819.123456789, '23:59:59', '2025-12-31', '9999-12-31 23:59:59', '2025-12-31 23:59:59', '1234567890111213141516171819.123456789', '1234567890111213141516171819.123456789'),
+                            (3, -10, -123456789, -123456789011121314, -123456789011121314.12345678910, -1234567890111213141516171819.123456789, '00:00:00', '1970-01-01', '0001-01-01 00:00:00', '1970-01-02 00:00:00', '-1234567890111213141516171819.123456789', '-1234567890111213141516171819.123456789'),
+                            (4, -10, -123456789, -123456789011121314, -123456789011121314.12345678910, -1234567890111213141516171819.123456789, '00:00:00', '1970-01-01', '0001-01-01 00:00:00', '1970-01-02 00:00:00', REPEAT('a', 100), REPEAT('a', 65535));
+
+--echo --------------------------
+--echo 1. AVG()
+--echo --------------------------
+
+SELECT AVG(col1), AVG(col2), AVG(col3), AVG(col4),
+       AVG(col5), AVG(col6), AVG(col7), AVG(col8),
+       AVG(col9), AVG(col10)
+FROM t_innodb;
+
+SELECT AVG(col1), AVG(col2), AVG(col3), AVG(col4),
+       AVG(col5), AVG(col6), AVG(col7), AVG(col8),
+       AVG(col9), AVG(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT AVG(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 2. BIT_AND()
+--echo --------------------------
+
+SELECT BIT_AND(col1), BIT_AND(col2), BIT_AND(col3)
+FROM t_innodb;
+
+SELECT BIT_AND(col1), BIT_AND(col2), BIT_AND(col3)
+FROM t_duckdb;
+
+# DECIMAL, DOUBLE, TIME, DATE, TIMESTAMP, VARCHAR, BLOB is not supoorted yet.
+--error ER_GET_ERRMSG
+SELECT BIT_AND(col4), BIT_AND(col5), BIT_AND(col6),
+       BIT_AND(col7), BIT_AND(col8), BIT_AND(col9),
+       BIT_AND(col10)
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 3. BIT_OR()
+--echo --------------------------
+
+SELECT BIT_OR(col1), BIT_OR(col2), BIT_OR(col3)
+FROM t_innodb;
+
+SELECT BIT_OR(col1), BIT_OR(col2), BIT_OR(col3)
+FROM t_duckdb;
+
+# DECIMAL, DOUBLE, TIME, DATE, TIMESTAMP, VARCHAR, BLOB is not supoorted yet.
+--error ER_GET_ERRMSG
+SELECT BIT_OR(col4), BIT_OR(col5), BIT_OR(col6),
+       BIT_OR(col7), BIT_OR(col8), BIT_OR(col9),
+       BIT_OR(col10)
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 4. BIT_XOR()
+--echo --------------------------
+
+SELECT BIT_XOR(col1), BIT_XOR(col2), BIT_XOR(col3)
+FROM t_innodb;
+
+SELECT BIT_XOR(col1), BIT_XOR(col2), BIT_XOR(col3)
+FROM t_duckdb;
+
+# DECIMAL, DOUBLE, TIME, DATE, TIMESTAMP, VARCHAR, BLOB is not supoorted yet.
+--error ER_GET_ERRMSG
+SELECT BIT_XOR(col4), BIT_XOR(col5), BIT_XOR(col6),
+       BIT_XOR(col7), BIT_XOR(col8), BIT_XOR(col9),
+       BIT_XOR(col10)
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 5. COUNT()
+--echo --------------------------
+
+SELECT COUNT(col1), COUNT(col2), COUNT(col3), COUNT(col4),
+       COUNT(col5), COUNT(col6), COUNT(col7), COUNT(col8),
+       COUNT(col9), COUNT(col10), COUNT(col11)
+FROM t_innodb;
+
+SELECT COUNT(col1), COUNT(col2), COUNT(col3), COUNT(col4),
+       COUNT(col5), COUNT(col6), COUNT(col7), COUNT(col8),
+       COUNT(col9), COUNT(col10), COUNT(col11)
+FROM t_duckdb;
+
+SELECT COUNT(DISTINCT col1), COUNT(DISTINCT col2), COUNT(DISTINCT col3), COUNT(DISTINCT col4),
+       COUNT(DISTINCT col5), COUNT(DISTINCT col6), COUNT(DISTINCT col7), COUNT(DISTINCT col8),
+       COUNT(DISTINCT col9), COUNT(DISTINCT col10), COUNT(DISTINCT col11)
+FROM t_innodb;
+
+SELECT COUNT(DISTINCT col1), COUNT(DISTINCT col2), COUNT(DISTINCT col3), COUNT(DISTINCT col4),
+       COUNT(DISTINCT col5), COUNT(DISTINCT col6), COUNT(DISTINCT col7), COUNT(DISTINCT col8),
+       COUNT(DISTINCT col9), COUNT(DISTINCT col10), COUNT(DISTINCT col11)
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 6. GROUP_CONCAT()
+--echo --------------------------
+
+SET group_concat_max_len = 100000;
+
+SELECT GROUP_CONCAT(col1), GROUP_CONCAT(col2), GROUP_CONCAT(col3), GROUP_CONCAT(col4),
+       GROUP_CONCAT(col5), GROUP_CONCAT(col6), GROUP_CONCAT(col7), GROUP_CONCAT(col8),
+       GROUP_CONCAT(col9), LENGTH(GROUP_CONCAT(col10)), LENGTH(GROUP_CONCAT(col11))
+FROM t_innodb;
+
+# DuckDB is not affected by group_concat_max_len parameter
+SELECT GROUP_CONCAT(col1), GROUP_CONCAT(col2), GROUP_CONCAT(col3), GROUP_CONCAT(col4),
+       GROUP_CONCAT(col5), GROUP_CONCAT(col6), GROUP_CONCAT(col7), GROUP_CONCAT(col8),
+       GROUP_CONCAT(col9), LENGTH(GROUP_CONCAT(col10)), LENGTH(GROUP_CONCAT(col11))
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 7. JSON_ARRAYAGG()
+--echo --------------------------
+
+# Not support yet
+
+--echo --------------------------
+--echo 8. JSON_OBJECTAGG()
+--echo --------------------------
+
+# Not support yet
+
+--echo --------------------------
+--echo 9. MIN()
+--echo --------------------------
+
+SELECT MIN(col1), MIN(col2), MIN(col3), MIN(col4),
+       MIN(col5), MIN(col6), MIN(col7), MIN(col8),
+       MIN(col9), MIN(col10), MIN(col11)
+FROM t_innodb;
+
+SELECT MIN(col1), MIN(col2), MIN(col3), MIN(col4),
+       MIN(col5), MIN(col6), MIN(col7), MIN(col8),
+       MIN(col9), MIN(col10), MIN(col11)
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 10. MAX()
+--echo --------------------------
+
+SELECT MAX(col1), MAX(col2), MAX(col3), MAX(col4),
+       MAX(col5), MAX(col6), MAX(col7), MAX(col8),
+       MAX(col9), LENGTH(MAX(col10)), LENGTH(MAX(col11))
+FROM t_innodb;
+
+SELECT MAX(col1), MAX(col2), MAX(col3), MAX(col4),
+       MAX(col5), MAX(col6), MAX(col7), MAX(col8),
+       MAX(col9), LENGTH(MAX(col10)), LENGTH(MAX(col11))
+FROM t_duckdb;
+
+--echo --------------------------
+--echo 11. STD()
+--echo --------------------------
+
+SELECT STD(col1), STD(col2), STD(col3), STD(col4),
+       STD(col5), STD(col6), STD(col7), STD(col8),
+       STD(col9), STD(col10)
+FROM t_innodb;
+
+SELECT STD(col1), STD(col2), STD(col3), STD(col4),
+       STD(col5), STD(col6), STD(col7), STD(col8),
+       STD(col9), STD(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT STD(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 12. STDDEV()
+--echo --------------------------
+
+SELECT STDDEV(col1), STDDEV(col2), STDDEV(col3), STDDEV(col4),
+       STDDEV(col5), STDDEV(col6), STDDEV(col7), STDDEV(col8),
+       STDDEV(col9), STDDEV(col10)
+FROM t_innodb;
+
+SELECT STDDEV(col1), STDDEV(col2), STDDEV(col3), STDDEV(col4),
+       STDDEV(col5), STDDEV(col6), STDDEV(col7), STDDEV(col8),
+       STDDEV(col9), STDDEV(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT STDDEV(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 13. STDDEV_POP()
+--echo --------------------------
+
+SELECT STDDEV_POP(col1), STDDEV_POP(col2), STDDEV_POP(col3), STDDEV_POP(col4),
+       STDDEV_POP(col5), STDDEV_POP(col6), STDDEV_POP(col7), STDDEV_POP(col8),
+       STDDEV_POP(col9), STDDEV_POP(col10)
+FROM t_innodb;
+
+SELECT STDDEV_POP(col1), STDDEV_POP(col2), STDDEV_POP(col3), STDDEV_POP(col4),
+       STDDEV_POP(col5), STDDEV_POP(col6), STDDEV_POP(col7), STDDEV_POP(col8),
+       STDDEV_POP(col9), STDDEV_POP(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT STDDEV_POP(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 14. STDDEV_POP()
+--echo --------------------------
+
+SELECT STDDEV_SAMP(col1), STDDEV_SAMP(col2), STDDEV_SAMP(col3), STDDEV_SAMP(col4),
+       STDDEV_SAMP(col5), STDDEV_SAMP(col6), STDDEV_SAMP(col7), STDDEV_SAMP(col8),
+       STDDEV_SAMP(col9), STDDEV_SAMP(col10)
+FROM t_innodb;
+
+SELECT STDDEV_SAMP(col1), STDDEV_SAMP(col2), STDDEV_SAMP(col3), STDDEV_SAMP(col4),
+       STDDEV_SAMP(col5), STDDEV_SAMP(col6), STDDEV_SAMP(col7), STDDEV_SAMP(col8),
+       STDDEV_SAMP(col9), STDDEV_SAMP(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT STDDEV_SAMP(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 15. SUM()
+--echo --------------------------
+
+SELECT SUM(col1), SUM(col2), SUM(col3), SUM(col4),
+       SUM(col5), SUM(col6), SUM(col7), SUM(col8),
+       SUM(col9), SUM(col10)
+FROM t_innodb;
+
+SELECT SUM(col1), SUM(col2), SUM(col3), SUM(col4),
+       SUM(col5), SUM(col6), SUM(col7), SUM(col8),
+       SUM(col9), SUM(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT SUM(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 16. VAR_POP()
+--echo --------------------------
+
+SELECT VAR_POP(col1), VAR_POP(col2), VAR_POP(col3), VAR_POP(col4),
+       VAR_POP(col5), VAR_POP(col6), VAR_POP(col7), VAR_POP(col8),
+       VAR_POP(col9), VAR_POP(col10)
+FROM t_innodb;
+
+SELECT VAR_POP(col1), VAR_POP(col2), VAR_POP(col3), VAR_POP(col4),
+       VAR_POP(col5), VAR_POP(col6), VAR_POP(col7), VAR_POP(col8),
+       VAR_POP(col9), VAR_POP(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT VAR_POP(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 17. VAR_SAMP()
+--echo --------------------------
+
+SELECT VAR_SAMP(col1), VAR_SAMP(col2), VAR_SAMP(col3), VAR_SAMP(col4),
+       VAR_SAMP(col5), VAR_SAMP(col6), VAR_SAMP(col7), VAR_SAMP(col8),
+       VAR_SAMP(col9), VAR_SAMP(col10)
+FROM t_innodb;
+
+SELECT VAR_SAMP(col1), VAR_SAMP(col2), VAR_SAMP(col3), VAR_SAMP(col4),
+       VAR_SAMP(col5), VAR_SAMP(col6), VAR_SAMP(col7), VAR_SAMP(col8),
+       VAR_SAMP(col9), VAR_SAMP(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT VAR_SAMP(col11)
+FROM t_duckdb WHERE id <= 3;
+
+--echo --------------------------
+--echo 18. VARIANCE()
+--echo --------------------------
+
+SELECT VARIANCE(col1), VARIANCE(col2), VARIANCE(col3), VARIANCE(col4),
+       VARIANCE(col5), VARIANCE(col6), VARIANCE(col7), VARIANCE(col8),
+       VARIANCE(col9), VARIANCE(col10)
+FROM t_innodb;
+
+SELECT VARIANCE(col1), VARIANCE(col2), VARIANCE(col3), VARIANCE(col4),
+       VARIANCE(col5), VARIANCE(col6), VARIANCE(col7), VARIANCE(col8),
+       VARIANCE(col9), VARIANCE(col10)
+FROM t_duckdb;
+
+# AVG(Blob) is not supported yet.
+--error ER_GET_ERRMSG
+SELECT VARIANCE(col11)
+FROM t_duckdb WHERE id <= 3;
+
+DROP TABLE t_innodb;
+DROP TABLE t_duckdb;

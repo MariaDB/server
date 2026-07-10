@@ -1,4 +1,5 @@
 drop table if exists t1, t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Bug#11765667: bug#58655: ASSERTION FAILED,
 #                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
@@ -2018,7 +2019,7 @@ PARTITION BY RANGE (t2.b) (
 PARTITION p1 VALUES LESS THAN (10),
 PARTITION p2 VALUES LESS THAN (20)
 ) select * from t2;
-ERROR 42S22: Unknown column 't2.b' in 'partition function'
+ERROR 42S22: Unknown column 't2.b' in 'PARTITION BY'
 create table t1 (a int)
 PARTITION BY RANGE (b) (
 PARTITION p1 VALUES LESS THAN (10),
@@ -2063,7 +2064,6 @@ ALTER TABLE t1 ANALYZE PARTITION p1 EXTENDED;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTENDED' at line 1
 ALTER TABLE t1 ANALYZE PARTITION p1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ALTER TABLE t1 CHECK PARTITION p1;
 Table	Op	Msg_type	Msg_text
@@ -2361,11 +2361,11 @@ b	c
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	ref	bc	bc	5	const	23	Using where; Using index
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	range	bc	bc	5	NULL	23	Using where; Using index
 DROP TABLE t1;
 #
 # Bug #45807: crash accessing partitioned table and sql_mode 
@@ -2858,3 +2858,68 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	t3	ref_or_null	a1,b	a1	10	func,test.t2.a	198	Using where; Full scan on NULL key
 set optimizer_switch=@tmp_os;
 drop table t1,t2,t3;
+#
+# MDEV-31030 Assertion `!error' failed in ha_partition::update_row on UPDATE
+#
+create table t (c int)
+partition by list (1 div c) (
+partition p0 values in (null),
+partition p values in (1));
+insert ignore into t values (0), (1), (0);
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+update t set c= 2;
+ERROR HY000: Table has no partition for value 0
+update ignore t set c= 3;
+select * from t;
+c
+0
+0
+1
+drop table t;
+#
+# MDEV-32388 MSAN / Valgrind errors in
+# Item_func_like::get_mm_leaf upon query from partitioned table
+#
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a LIKE '1';
+a
+1
+DROP TABLE t1;
+#
+# MDEV-20498 Assertion `table_share->tmp_table != NO_TMP_TABLE || m_lock_type == 1' failed upon REBUILD PARTITION.
+#     ALTER TABLE DROP COLUMN, ADD COLUMN misplacing rows.
+#
+CREATE TABLE t1 (a INT)
+PARTITION BY LIST (a) (
+PARTITION p0 VALUES IN (8),
+PARTITION p1 VALUES IN (4,7,0),
+PARTITION p2 VALUES IN (9,2,5),
+PARTITION p3 VALUES IN (3,1,6));
+INSERT INTO t1 VALUES (8),(5),(4),(0);
+ALTER TABLE t1 DROP a, ADD a INT NOT NULL DEFAULT 0, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER TABLE t1 DROP a, ADD a INT NOT NULL DEFAULT 0;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-20498 Assertion `table_share->tmp_table != NO_TMP_TABLE || m_lock_type == 1' failed upon REBUILD PARTITION.
+#     ALTER TABLE REBUILD PARTITION crashed on misplaced rows.
+#
+CREATE TABLE mdev20498 (a INT) ENGINE=myisam PARTITION BY LIST (a)
+(PARTITION p0 VALUES IN (0), PARTITION p1 VALUES IN (1));
+INSERT INTO mdev20498 values (0), (0), (1), (1);
+FLUSH TABLES;
+CALL mtr.add_suppression("corrupted: row in wrong partition:");
+ALTER TABLE mdev20498 REBUILD PARTITION p0;
+ERROR HY000: Found a row in wrong partition (0 != 1) a:1
+ALTER TABLE mdev20498 REBUILD PARTITION p0, p1;
+DROP TABLE mdev20498;
+#
+# End of 10.6 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

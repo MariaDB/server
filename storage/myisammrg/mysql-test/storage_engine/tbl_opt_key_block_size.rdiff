@@ -1,5 +1,5 @@
---- tbl_opt_key_block_size.result	2013-01-22 22:05:05.246633000 +0400
-+++ tbl_opt_key_block_size.reject	2013-01-23 02:51:01.787475681 +0400
+--- tbl_opt_key_block_size.result
++++ tbl_opt_key_block_size.reject
 @@ -5,12 +5,12 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

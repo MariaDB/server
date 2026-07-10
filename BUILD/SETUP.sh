@@ -126,11 +126,13 @@ get_make_parallel_flag
 # SSL library to use.--with-ssl will select our bundled yaSSL
 # implementation of SSL. --with-ssl=yes will first try system library
 # then the bundled one  --with-ssl=system will use the system library.
-# We use bundled by default as this is guaranteed to work with Galera
-SSL_LIBRARY=--with-ssl
+# We normally use bundled by default as this is guaranteed to work with Galera
+# However as bundled gives problem on SuSE with tls_version1.test, system
+# is used
+SSL_LIBRARY=--with-ssl=system
 
 if [ "x$warning_mode" = "xpedantic" ]; then
-  warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -D_POSIX_SOURCE"
+  warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -Wno-format-truncation -D_POSIX_SOURCE"
   c_warnings="$warnings"
   cxx_warnings="$warnings -std=c++98"
 # NOTE: warning mode should not influence optimize/debug mode.
@@ -145,7 +147,7 @@ elif [ "x$warning_mode" = "xmaintainer" ]; then
   debug_extra_cflags="-g3"
 else
 # Both C and C++ warnings
-  warnings="-Wall -Wextra -Wunused -Wwrite-strings -Wno-uninitialized -Wno-strict-aliasing -Wimplicit-fallthrough=2 -Wformat-security -Wvla"
+  warnings="-Wall -Wextra -Wunused -Wwrite-strings -Wno-uninitialized -Wno-strict-aliasing -Wformat-security -Wvla"
 
 # For more warnings, uncomment the following line
 # warnings="$warnings -Wshadow"
@@ -202,6 +204,7 @@ base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
 base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables --with-plugin-s3=STATIC"
+base_configs="$base_configs $SSL_LIBRARY"
 
 if test -d "$path/../cmd-line-utils/readline"
 then
@@ -212,18 +215,17 @@ then
 fi
 
 max_plugins="--with-plugins=max"
-max_no_embedded_configs="$SSL_LIBRARY $max_plugins"
-max_no_qc_configs="$SSL_LIBRARY $max_plugins --without-query-cache"
-max_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC --with-plugin-hashicorp_key_management=DYNAMIC"
-all_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-innodb_plugin --with-libevent"
+max_no_embedded_configs="$max_plugins"
+max_no_qc_configs="$max_plugins --without-query-cache"
+max_configs="$max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC --with-plugin-hashicorp_key_management=DYNAMIC --with-plugin-auth_gssapi=DYNAMIC"
+all_configs="$max_configs"
 
 #
 # CPU and platform specific compilation flags.
 #
 alpha_cflags="$check_cpu_cflags -Wa,-m$cpu_flag"
-amd64_cflags="$check_cpu_cflags"
-amd64_cxxflags=""  # If dropping '--with-big-tables', add here  "-DBIG_TABLES"
 pentium_cflags="$check_cpu_cflags -m32"
+amd64_cflags="$check_cpu_cflags -m64"
 pentium64_cflags="$check_cpu_cflags -m64"
 ppc_cflags="$check_cpu_cflags"
 sparc_cflags=""
@@ -263,6 +265,12 @@ if test `$CC -v 2>&1 | tail -1 | sed 's/ .*$//'` = 'gcc' ; then
     c_warnings="$c_warnings -Wimplicit-fallthrough=2"
     cxx_warnings="$cxx_warnings -Wimplicit-fallthrough=2"
   fi
+fi
+
+if test `$CC -v 2>&1 | head -1 | sed 's/ .*$//'` = 'clang' ; then
+    dbug_cflags="$dbug_cflags -Wframe-larger-than=16384 -fno-inline"
+    c_warnings="$c_warnings -Wframe-larger-than=16384"
+    cxx_warnings="$cxx_warnings -Wframe-larger-than=16384"
 fi
 
 

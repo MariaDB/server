@@ -1,0 +1,12 @@
+#
+# MDEV-36205 subdist optimization
+#
+create table t1 (
+id int unsigned auto_increment primary key,
+v vector(500) not null,
+vector index(v)
+);
+set rand_seed1=1234567890, rand_seed2=3;
+insert t1 (v) select vec_fromtext(json_arrayagg(rand() order by rand())) from seq_1_to_500 veclen, seq_1_to_200 numvecs group by numvecs.seq;
+drop table t1;
+# End of 12.1 tests

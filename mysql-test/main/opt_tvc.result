@@ -46,12 +46,11 @@ a	b
 2	5
 explain extended select * from t1 where a in (1,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a`
 explain extended select * from t1
 where a in
 (
@@ -59,12 +58,49 @@ select *
 from (values (1),(2)) as tvc_0
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`1` = `test`.`t1`.`a`
+select * from t1 where a in (1,2,2,2,3,4,5,6,7);
+a	b
+1	2
+4	6
+1	1
+2	5
+7	8
+select * from t1
+where a in
+(
+select *
+from (values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) as tvc_0
+);
+a	b
+1	2
+4	6
+1	1
+2	5
+7	8
+explain extended select * from t1 where a in (1,2,2,2,3,4,5,6,7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2),(2),(2),(3),(4),(5),(6),(7)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a`
+explain extended select * from t1
+where a in
+(
+select *
+from (values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) as tvc_0
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) `tvc_0` join `test`.`t1` where `tvc_0`.`1` = `test`.`t1`.`a`
 # AND-condition with IN-predicates in WHERE-part
 select * from t1
 where a in (1,2) and
@@ -90,15 +126,13 @@ explain extended select * from t1
 where a in (1,2) and
 b in (1,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+1	PRIMARY	<derived5>	eq_ref	distinct_key	distinct_key	4	test.t1.b	1	100.00	
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) semi join ((values (1),(5)) `tvc_1`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(5)) `tvc_1` join (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a` and `tvc_1`.`_col_1` = `test`.`t1`.`b`
 explain extended select * from t1
 where a in
 (
@@ -111,15 +145,13 @@ select *
 from (values (1),(5)) as tvc_1
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+1	PRIMARY	<derived5>	eq_ref	distinct_key	distinct_key	4	test.t1.b	1	100.00	
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) semi join ((values (1),(5)) `tvc_1`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(5)) `tvc_1` join (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`1` = `test`.`t1`.`a` and `tvc_1`.`1` = `test`.`t1`.`b`
 # subquery with IN-predicate
 select * from t1
 where a in
@@ -150,11 +182,11 @@ from t2 where b in (3,4)
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	MATERIALIZED	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t2.b	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(4)) `tvc_0` join `test`.`t2`) where `test`.`t2`.`b` = `tvc_0`.`_col_1`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(4)) `tvc_0` join `test`.`t2`) where `tvc_0`.`_col_1` = `test`.`t2`.`b`
 explain extended select * from t1
 where a in
 (
@@ -168,11 +200,11 @@ from (values (3),(4)) as tvc_0
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	MATERIALIZED	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t2.b	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(4)) `tvc_0` join `test`.`t2`) where `test`.`t2`.`b` = `tvc_0`.`3`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(4)) `tvc_0` join `test`.`t2`) where `tvc_0`.`3` = `test`.`t2`.`b`
 # derived table with IN-predicate
 select * from
 (
@@ -206,12 +238,11 @@ from t1
 where a in (1,2)
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a`
 explain extended select * from
 (
 select *
@@ -224,12 +255,11 @@ as tvc_0
 )
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`1` = `test`.`t1`.`a`
 # non-recursive CTE with IN-predicate
 with tvc_0 as
 (
@@ -265,12 +295,11 @@ where a in (1,2)
 )
 select * from tvc_0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	with tvc_0 as (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where `test`.`t1`.`a` in (1,2))/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	with tvc_0 as (/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (dual) join `test`.`t1` where `test`.`t1`.`a` in (1,2))/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a`
 explain extended select * from
 (
 select *
@@ -283,12 +312,11 @@ as tvc_0
 )
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`1` = `test`.`t1`.`a`
 # VIEW with IN-predicate
 create view v1 as
 select *
@@ -316,20 +344,18 @@ a	b
 2	5
 explain extended select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a`
 explain extended select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1),(2)) `tvc_0` join `test`.`t1` where `tvc_0`.`1` = `test`.`t1`.`a`
 drop view v1,v2;
 # subselect defined by derived table with IN-predicate
 select * from t1
@@ -382,11 +408,11 @@ as dr_table
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	MATERIALIZED	<derived5>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0` join `test`.`t1`) where `test`.`t1`.`a` = 1 and `test`.`t1`.`a` = `tvc_0`.`_col_1`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0` join `test`.`t1`) where `test`.`t1`.`a` = 1 and `tvc_0`.`_col_1` = `test`.`t1`.`a`
 explain extended select * from t1
 where a in
 (
@@ -407,11 +433,11 @@ as dr_table
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	MATERIALIZED	<derived5>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0` join `test`.`t1`) where `test`.`t1`.`a` = 1 and `test`.`t1`.`a` = `tvc_0`.`1`
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1),(2)) `tvc_0` join `test`.`t1`) where `test`.`t1`.`a` = 1 and `tvc_0`.`1` = `test`.`t1`.`a`
 # derived table with IN-predicate and group by
 select * from
 (
@@ -444,13 +470,12 @@ where b in (3,5)
 group by b
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
-2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary; Using filesort
+2	DERIVED	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.b	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `dr_table`.`max(a)` AS `max(a)`,`dr_table`.`b` AS `b` from (/* select#2 */ select max(`test`.`t1`.`a`) AS `max(a)`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(5)) `tvc_0`) where 1 group by `test`.`t1`.`b`) `dr_table`
+Note	1003	/* select#1 */ select `dr_table`.`max(a)` AS `max(a)`,`dr_table`.`b` AS `b` from (/* select#2 */ select max(`test`.`t1`.`a`) AS `max(a)`,`test`.`t1`.`b` AS `b` from (values (3),(5)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`b` group by `test`.`t1`.`b`) `dr_table`
 explain extended select * from
 (
 select max(a),b
@@ -464,13 +489,12 @@ as tvc_0
 group by b
 ) as dr_table;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
-2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	MATERIALIZED	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary; Using filesort
+2	DERIVED	<derived4>	eq_ref	distinct_key	distinct_key	4	test.t1.b	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `dr_table`.`max(a)` AS `max(a)`,`dr_table`.`b` AS `b` from (/* select#2 */ select max(`test`.`t1`.`a`) AS `max(a)`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (3),(5)) `tvc_0`) where 1 group by `test`.`t1`.`b`) `dr_table`
+Note	1003	/* select#1 */ select `dr_table`.`max(a)` AS `max(a)`,`dr_table`.`b` AS `b` from (/* select#2 */ select max(`test`.`t1`.`a`) AS `max(a)`,`test`.`t1`.`b` AS `b` from (values (3),(5)) `tvc_0` join `test`.`t1` where `tvc_0`.`3` = `test`.`t1`.`b` group by `test`.`t1`.`b`) `dr_table`
 # prepare statement
 prepare stmt from "select * from t1 where a in (1,2)";
 execute stmt;
@@ -506,27 +530,25 @@ a	b
 4	yq
 explain extended select * from t3 where a in (1,4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived3>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
 1	PRIMARY	t3	ref	idx	idx	5	tvc_0._col_1	3	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t3` semi join ((values (1),(4)) `tvc_0`) where `test`.`t3`.`a` = `tvc_0`.`_col_1`
-# use vectors in IN predeicate
+Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from (values (1),(4)) `tvc_0` join `test`.`t3` where `test`.`t3`.`a` = `tvc_0`.`_col_1`
+# use vectors in IN predicate
 set @@in_predicate_conversion_threshold= 4;
 select * from t1 where (a,b) in ((1,2),(3,4));
 a	b
 1	2
 explain extended select * from t1 where (a,b) in ((1,2),(3,4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join ((values (1,2),(3,4)) `tvc_0`) where 1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from (values (1,2),(3,4)) `tvc_0` join `test`.`t1` where `tvc_0`.`_col_1` = `test`.`t1`.`a` and `tvc_0`.`_col_2` = `test`.`t1`.`b`
 set @@in_predicate_conversion_threshold= 2;
-# trasformation works for the one IN predicate and doesn't work for the other
+# transformation works for the one IN predicate and doesn't work for the other
 set @@in_predicate_conversion_threshold= 5;
 select * from t2
 where (a,b) in ((1,2),(8,9)) and
@@ -539,11 +561,10 @@ where (a,b) in ((1,2),(8,9)) and
 (a,c) in ((1,3),(8,0),(5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	8	test.t2.a,test.t2.c	1	100.00	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` semi join ((values (1,3),(8,0),(5,1)) `tvc_0`) where (`test`.`t2`.`a`,`test`.`t2`.`b`) in (<cache>((1,2)),<cache>((8,9)))
+Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from (values (1,3),(8,0),(5,1)) `tvc_0` join `test`.`t2` where `tvc_0`.`_col_1` = `test`.`t2`.`a` and `tvc_0`.`_col_2` = `test`.`t2`.`c` and (`test`.`t2`.`a`,`test`.`t2`.`b`) in (<cache>((1,2)),<cache>((8,9)))
 set @@in_predicate_conversion_threshold= 2;
 #
 # mdev-14281: conversion of NOT IN predicate into subquery predicate
@@ -568,18 +589,18 @@ explain extended select * from t1
 where (a,b) not in ((1,2),(8,9), (5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	8	func,func	1	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`_col_2`)))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<primary_index_lookup>(<cache>(`test`.`t1`.`a`) in <temporary table> on distinct_key where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`_col_2`)))))
 explain extended select * from t1
 where (a,b) not in (select * from (values (1,2),(8,9), (5,1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	8	func,func	1	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`2`)))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<primary_index_lookup>(<cache>(`test`.`t1`.`a`) in <temporary table> on distinct_key where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`2`)))))
 select * from t1
 where b < 7 and (a,b) not in ((1,2),(8,9), (5,1));
 a	b
@@ -590,10 +611,10 @@ explain extended select * from t1
 where b < 7 and (a,b) not in ((1,2),(8,9), (5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	8	func,func	1	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` < 7 and !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`_col_2`)))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` < 7 and !<expr_cache><`test`.`t1`.`a`,`test`.`t1`.`b`>(<in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`b`),<exists>(<primary_index_lookup>(<cache>(`test`.`t1`.`a`) in <temporary table> on distinct_key where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t1`.`b`) = `tvc_0`.`_col_2`)))))
 select * from t2
 where (a,c) not in ((1,2),(8,9), (5,1));
 a	b	c
@@ -606,10 +627,10 @@ explain extended select * from t2
 where (a,c) not in ((1,2),(8,9), (5,1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	8	func,func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	8	func,func	1	100.00	Using where; Full scan on NULL key
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where !<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`c`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`c`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in (temporary) on key0 where trigcond(<cache>(`test`.`t2`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t2`.`c`) = `tvc_0`.`_col_2`)))))
+Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where !<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`c`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`c`),<exists>(<primary_index_lookup>(<cache>(`test`.`t2`.`a`) in <temporary table> on distinct_key where trigcond(<cache>(`test`.`t2`.`a`) = `tvc_0`.`_col_1`) and trigcond(<cache>(`test`.`t2`.`c`) = `tvc_0`.`_col_2`)))))
 drop table t1, t2, t3;
 set @@in_predicate_conversion_threshold= default;
 #
@@ -759,3 +780,15 @@ deallocate prepare stmt;
 drop table t1;
 set in_predicate_conversion_threshold=default;
 # End of 10.3 tests
+#
+# MDEV-32575 MSAN / Valgrind errors in test_if_cheaper_ordering
+#            upon reaching in_predicate_conversion_threshold
+#
+create table t1 (a int, b int, c int, primary key (a, b));
+insert into t1 (a, b) values (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8);
+set in_predicate_conversion_threshold = 2;
+select * from t1 where a in (1, 2) and b = 2 order by a, b;
+a	b	c
+1	2	NULL
+drop table t1;
+# End of 11.4 tests

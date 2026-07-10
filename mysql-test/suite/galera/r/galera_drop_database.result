@@ -48,6 +48,6 @@ SHOW TABLES;
 Tables_in_fts
 DROP DATABASE fts;
 connection node_2;
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 Warnings:
 Note	1049	Unknown database 'fts'

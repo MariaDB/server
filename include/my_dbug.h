@@ -24,7 +24,7 @@
 #ifdef  __cplusplus
 extern "C" {
 #endif
-#if !defined(DBUG_OFF) && !defined(_lint)
+#if !defined(DBUG_OFF)
 
 struct _db_stack_frame_ {
   const char *func;      /* function name of the previous stack frame       */
@@ -51,11 +51,7 @@ extern void _db_enter_(const char *_func_, const char *_file_, uint _line_,
                        struct _db_stack_frame_ *_stack_frame_);
 extern  void _db_return_(struct _db_stack_frame_ *_stack_frame_);
 extern  int _db_pargs_(uint _line_,const char *keyword);
-extern  void _db_doprnt_(const char *format,...)
-#ifdef WAITING_FOR_BUGFIX_TO_VSPRINTF
-  ATTRIBUTE_FORMAT(printf, 1, 2)
-#endif
-  ;
+extern void _db_doprnt_(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 extern  void _db_dump_(uint _line_,const char *keyword,
                        const unsigned char *memory, size_t length);
 extern  void _db_end_(void);
@@ -79,6 +75,7 @@ extern int (*dbug_sanity)(void);
 
 #define DBUG_PRINT(keyword,arglist) \
         do if (_db_pargs_(__LINE__,keyword)) _db_doprnt_ arglist; while(0)
+#define DBUG_DUMP(keyword,a1,a2) _db_dump_(__LINE__,keyword,a1,a2)
 
 #ifdef HAVE_ATTRIBUTE_CLEANUP
 #define DBUG_ENTER(a) struct _db_stack_frame_ _db_stack_frame_  __attribute__((cleanup(_db_return_))); \
@@ -98,6 +95,7 @@ extern int (*dbug_sanity)(void);
 #define DBUG_RETURN(a1) return(a1)
 #define DBUG_VOID_RETURN return
 #define DBUG_PRINT(keyword,arglist) do{} while(0)
+#define DBUG_DUMP(keyword,a1,a2) do{} while(0)
 #endif
 
 #define DBUG_EXECUTE(keyword,a1) \
@@ -115,7 +113,6 @@ extern int (*dbug_sanity)(void);
 #define DBUG_SET_INITIAL(a1) _db_set_init_ (a1)
 #define DBUG_PROCESS(a1) _db_process_(a1)
 #define DBUG_FILE _db_fp_()
-#define DBUG_DUMP(keyword,a1,a2) _db_dump_(__LINE__,keyword,a1,a2)
 #define DBUG_END()  _db_end_ ()
 #define DBUG_LOCK_FILE _db_lock_file_()
 #define DBUG_UNLOCK_FILE _db_unlock_file_()
@@ -210,7 +207,7 @@ extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, 
 #define DBUG_ASSERT(A)                  do { } while(0)
 #define IF_DBUG_ASSERT(A,B)             B
 #endif /* DBUG_ASSERT_AS_PRINTF */
-#endif /* !defined(DBUG_OFF) && !defined(_lint) */
+#endif /* !defined(DBUG_OFF) */
 
 #ifdef EXTRA_DEBUG
 /**
@@ -234,7 +231,7 @@ void debug_sync_point(const char* lock_name, uint lock_timeout);
   one should #include <sstream>. We intentionally avoid including it here to save
   compilation time.
 */
-# ifdef DBUG_OFF
+# if defined DBUG_OFF || !defined DBUG_TRACE
 #  define DBUG_LOG(keyword, v) do {} while (0)
 # else
 #  define DBUG_LOG(keyword, v) do { \

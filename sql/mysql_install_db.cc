@@ -160,7 +160,7 @@ int main(int argc, char **argv)
   char *datadir = NULL;
   MY_INIT(argv[0]);
   GetModuleFileName(NULL, self_name, MAX_PATH);
-  strcpy(mysqld_path,self_name);
+  safe_strcpy(mysqld_path, sizeof(mysqld_path), self_name);
   p= strrchr(mysqld_path, FN_LIBCHAR);
   if (p)
   {
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
       Figure out default data directory. It "data" directory, next to "bin" directory, where
       mysql_install_db.exe resides.
     */
-    strcpy(default_datadir, self_name);
+    safe_strcpy(default_datadir, sizeof(default_datadir), self_name);
     p = strrchr(default_datadir, FN_LIBCHAR);
     if (p)
     {
@@ -335,7 +335,8 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
     " %s"
     " --bootstrap"
     " --datadir=."
-    " --loose-innodb-buffer-pool-size=20M"
+    " --tmpdir=."
+    " --loose-innodb-buffer-pool-size=21M"
     "\""
     , mysqld_path, opt_verbose_bootstrap ? "--console" : "");
   return cmdline;
@@ -343,10 +344,29 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
 
 static char my_ini_path[MAX_PATH];
 
+/**
+  Wrapper for WritePrivateProfileStringA, with retries and sleeps
+  if file is locked by another process.
+*/
+static BOOL write_private_profile_string_with_retries(const char *appname,
+  const char *key, const char *val, const char *filename)
+{
+  static constexpr int RETRIES=50;
+  static constexpr int SLEEP_MS=10;
+  for (int n= RETRIES;; n--)
+  {
+    if (WritePrivateProfileStringA(appname, key, val, filename))
+      return TRUE;
+    if (GetLastError() != ERROR_ACCESS_DENIED || !n)
+      return FALSE;
+    Sleep(SLEEP_MS);
+  }
+}
+
 static void write_myini_str(const char *key, const char* val, const char *section="mysqld")
 {
   DBUG_ASSERT(my_ini_path[0]);
-  if (!WritePrivateProfileString(section, key, val, my_ini_path))
+  if (!write_private_profile_string_with_retries(section, key, val, my_ini_path))
   {
     die("Can't write to ini file key=%s, val=%s, section=%s, Windows error %u",key,val,section,
       GetLastError());
@@ -438,7 +458,10 @@ static constexpr const char* update_root_passwd=
   "UPDATE mysql.global_priv SET priv=json_set(priv,"
   "'$.password_last_changed', UNIX_TIMESTAMP(),"
   "'$.plugin','mysql_native_password',"
-  "'$.authentication_string','%s') where User='root';\n";
+  "'$.authentication_string','%s',"
+  "'$.auth_or', json_array(json_object(), json_object('plugin', 'gssapi','authentication_string','SID:BA'))"
+  ") where User= 'root';\n ";
+
 static constexpr char remove_default_user_cmd[]=
   "DELETE FROM mysql.user where User='';\n";
 static constexpr char allow_remote_root_access_cmd[]=

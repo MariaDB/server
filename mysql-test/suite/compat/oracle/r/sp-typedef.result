@@ -1,0 +1,9 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-38883 Server crashes when creating a package with function with IN/OUT qualifier
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1 (a UNKNOWN);
+END;
+$$
+ERROR HY000: Unknown data type: 'UNKNOWN'

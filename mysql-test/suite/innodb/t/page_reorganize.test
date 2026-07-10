@@ -2,8 +2,6 @@
 --source include/have_innodb_16k.inc
 --source include/have_debug.inc
 
---source include/count_sessions.inc
-
 --echo #
 --echo # Bug# 20005279 ASSERT !OTHER_LOCK, LOCK_MOVE_REORGANIZE_PAGE()
 --echo #
@@ -43,7 +41,7 @@ let $wait_condition=
 SET @save_dbug = @@debug_dbug;
 SET DEBUG_DBUG = '+d,do_page_reorganize,do_lock_reverse_page_reorganize';
 insert into t1(f2) values (repeat('+', 100));
-SET DEBUG = @save_dbug;
+SET DEBUG_DBUG = @save_dbug;
 commit;
 
 connection con1;
@@ -60,5 +58,3 @@ CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
 SET DEBUG_DBUG = '+d,do_page_reorganize';
 INSERT INTO t1 VALUES(0,0);
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc

@@ -1,7 +1,7 @@
 #!/bin/sh -eu
 
 # This is a simple example of wsrep notification script (wsrep_notify_cmd).
-# It will create 'wsrep' schema and two tables in it: 'membeship' and 'status'
+# It will create 'wsrep' schema and two tables in it: 'membership' and 'status'
 # and fill them on every membership or node status change.
 #
 # Edit parameters below to specify the address and login to server:
@@ -186,6 +186,8 @@ then
              "$ssl_verify_server_cert" = "on" ]
         then
             SSL_PARAM="$SSL_PARAM --ssl-verify-server-cert"
+        else
+            SSL_PARAM="$SSL_PARAM --disable-ssl-verify-server-cert"
         fi
     fi
 fi

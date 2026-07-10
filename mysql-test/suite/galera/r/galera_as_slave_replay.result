@@ -2,6 +2,7 @@ connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
 connection node_2;
 connection node_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_3;
 RESET MASTER;
@@ -63,10 +64,12 @@ SET DEBUG_SYNC = "RESET";
 connection node_2a;
 STOP SLAVE;
 RESET SLAVE;
+SET GLOBAL gtid_slave_pos = "";
 DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;
-RESET MASTER;
+include/kill_binlog_dump_threads.inc
+include/reset_master.inc
 connection node_1;
 disconnect node_2a;
 disconnect node_3;

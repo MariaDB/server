@@ -70,8 +70,8 @@ row_merge_create_fts_sort_index(
 				is created */
 	dict_table_t*	table,	/*!< in,out: table that FTS index
 				is being created on */
-	ibool*		opt_doc_id_size)
-				/*!< out: whether to use 4 bytes
+	bool		opt_doc_id_size)
+				/*!< in: whether to use 4 bytes
 				instead of 8 bytes integer to
 				store Doc ID during sort */
 {
@@ -117,29 +117,8 @@ row_merge_create_fts_sort_index(
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
-	*opt_doc_id_size = FALSE;
 
-	/* Check whether we can use 4 bytes instead of 8 bytes integer
-	field to hold the Doc ID, thus reduce the overall sort size */
-	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_ADD_DOC_ID)) {
-		/* If Doc ID column is being added by this create
-		index, then just check the number of rows in the table */
-		if (dict_table_get_n_rows(table) < MAX_DOC_ID_OPT_VAL) {
-			*opt_doc_id_size = TRUE;
-		}
-	} else {
-		doc_id_t	max_doc_id;
-
-		/* If the Doc ID column is supplied by user, then
-		check the maximum Doc ID in the table */
-		max_doc_id = fts_get_max_doc_id((dict_table_t*) table);
-
-		if (max_doc_id && max_doc_id < MAX_DOC_ID_OPT_VAL) {
-			*opt_doc_id_size = TRUE;
-		}
-	}
-
-	if (*opt_doc_id_size) {
+	if (opt_doc_id_size) {
 		field->col->len = sizeof(ib_uint32_t);
 		field->fixed_len = sizeof(ib_uint32_t);
 	} else {
@@ -472,14 +451,12 @@ row_merge_fts_doc_tokenize(
 	ulint		len;
 	row_merge_buf_t* buf;
 	dfield_t*	field;
-	fts_string_t	t_str;
 	ibool		buf_full = FALSE;
-	byte		str_buf[FTS_MAX_WORD_LEN + 1];
+	CharBuffer<FTS_MAX_WORD_LEN> str_buf;
 	ulint		data_size[FTS_NUM_AUX_INDEX];
 	ulint		n_tuple[FTS_NUM_AUX_INDEX];
 	st_mysql_ftparser*	parser;
 
-	t_str.f_n_char = 0;
 	t_ctx->buf_used = 0;
 
 	memset(n_tuple, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
@@ -489,7 +466,10 @@ row_merge_fts_doc_tokenize(
 
 	/* Tokenize the data and add each word string, its corresponding
 	doc id and position to sort buffer */
-	while (t_ctx->processed_len < doc->text.f_len) {
+	while (parser
+               ? (!t_ctx->processed_len
+                  || UT_LIST_GET_LEN(t_ctx->fts_token_list))
+               : t_ctx->processed_len < doc->text.f_len) {
 		ulint		idx = 0;
 		ulint		cur_len;
 		doc_id_t	write_doc_id;
@@ -503,7 +483,7 @@ row_merge_fts_doc_tokenize(
 				row_merge_fts_doc_tokenize_by_parser(doc,
 					parser, t_ctx);
 
-				/* Just indictate we have parsed all the word */
+				/* Just indicate that we have parsed all words */
 				t_ctx->processed_len += 1;
 			}
 
@@ -541,11 +521,8 @@ row_merge_fts_doc_tokenize(
 			continue;
 		}
 
-		t_str.f_len = innobase_fts_casedn_str(
-			doc->charset, (char*) str.f_str, str.f_len,
-			(char*) &str_buf, FTS_MAX_WORD_LEN + 1);
-
-		t_str.f_str = (byte*) &str_buf;
+		str_buf.copy_casedn(doc->charset,
+			LEX_CSTRING{(const char *) str.f_str, str.f_len});
 
 		/* if "cached_stopword" is defined, ignore words in the
 		stopword list */
@@ -563,8 +540,8 @@ row_merge_fts_doc_tokenize(
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */
-		t_ctx->buf_used = fts_select_index(
-			doc->charset, t_str.f_str, t_str.f_len);
+		t_ctx->buf_used = fts_select_index(doc->charset,
+			(const byte*) str_buf.ptr(), str_buf.length());
 
 		buf = sort_buf[t_ctx->buf_used];
 
@@ -578,7 +555,7 @@ row_merge_fts_doc_tokenize(
 				       FTS_NUM_FIELDS_SORT * sizeof *field));
 
 		/* The first field is the tokenized word */
-		dfield_set_data(field, t_str.f_str, t_str.f_len);
+		dfield_set_data(field, str_buf.ptr(), str_buf.length());
 		len = dfield_get_len(field);
 
 		dict_col_copy_type(dict_index_get_nth_col(buf->index, 0), &field->type);
@@ -595,7 +572,7 @@ row_merge_fts_doc_tokenize(
 		variable-length column is less than 128 bytes or the
 		maximum length is less than 256 bytes. */
 
-		/* One variable length column, word with its lenght less than
+		/* One variable length column, word with its length less than
 		fts_max_token_size, add one extra size and one extra byte.
 
 		Since the max length for FTS token now is larger than 255,
@@ -829,7 +806,8 @@ loop:
 			/* Not yet finish processing the "doc" on hand,
 			continue processing it */
 			ut_ad(doc.text.f_str);
-			ut_ad(t_ctx.processed_len < doc.text.f_len);
+			ut_ad(buf[0]->index->parser
+			      || t_ctx.processed_len < doc.text.f_len);
 		}
 
 		processed = row_merge_fts_doc_tokenize(
@@ -839,25 +817,13 @@ loop:
 
 		/* Current sort buffer full, need to recycle */
 		if (!processed) {
-			ut_ad(t_ctx.processed_len < doc.text.f_len);
+			ut_ad(buf[0]->index->parser
+			      || t_ctx.processed_len < doc.text.f_len);
 			ut_ad(t_ctx.rows_added[t_ctx.buf_used]);
 			break;
 		}
 
 		num_doc_processed++;
-
-		if (UNIV_UNLIKELY(fts_enable_diag_print)
-		    && num_doc_processed % 10000 == 1) {
-			ib::info() << "Number of documents processed: "
-				<< num_doc_processed;
-#ifdef FTS_INTERNAL_DIAG_PRINT
-			for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
-				ib::info() << "ID " << psort_info->psort_id
-					<< ", partition " << i << ", word "
-					<< mycount[i];
-			}
-#endif
-		}
 
 		mem_heap_empty(blob_heap);
 
@@ -999,10 +965,6 @@ exit:
 		}
 	}
 
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: start merge sort\n");
-	}
-
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (!merge_file[i]->offset) {
 			continue;
@@ -1029,9 +991,6 @@ exit:
 	}
 
 func_exit:
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		DEBUG_FTS_SORT_PRINT("  InnoDB_FTS: complete merge sort\n");
-	}
 
 	mem_heap_free(blob_heap);
 
@@ -1276,7 +1235,7 @@ row_fts_insert_tuple(
 		ulint	num_item;
 
 		/* Getting a new word, flush the last position info
-		for the currnt word in fts_node */
+		for the current word in fts_node */
 		if (ib_vector_size(positions) > 0) {
 			fts_cache_node_add_positions(
 				NULL, fts_node, *in_doc_id, positions);
@@ -1540,12 +1499,10 @@ row_fts_merge_insert(
 	byte**			block;
 	byte**			crypt_block;
 	const mrec_t**		mrec;
-	ulint			count = 0;
 	int*			sel_tree;
 	ulint			height;
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
-	uint64_t		count_diag = 0;
 	fts_table_t		fts_table;
 	char			aux_table_name[MAX_FULL_NAME_LEN];
 	dict_table_t*		aux_table;
@@ -1604,13 +1561,6 @@ row_fts_merge_insert(
 
 		buf[i] = static_cast<mrec_buf_t*>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
-
-		count_diag += psort_info[i].merge_file[id]->n_rec;
-	}
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "InnoDB_FTS: to insert " << count_diag
-			<< " records";
 	}
 
 	/* Initialize related variables if creating FTS indexes */
@@ -1625,9 +1575,6 @@ row_fts_merge_insert(
 	/* We should set the flags2 with aux_table_name here,
 	in order to get the correct aux table names. */
 	index->table->flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME
-			& ((1U << DICT_TF2_BITS) - 1););
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table->id;
@@ -1757,8 +1704,6 @@ row_fts_merge_insert(
 						offsets, index);
 		}
 
-		count++;
-
 		mem_heap_empty(tuple_heap);
 	}
 
@@ -1777,10 +1722,6 @@ exit:
 	trx->free();
 
 	mem_heap_free(heap);
-
-	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
-		ib::info() << "InnoDB_FTS: inserted " << count << " records";
-	}
 
 	return(error);
 }

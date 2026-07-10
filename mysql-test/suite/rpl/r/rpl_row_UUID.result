@@ -31,7 +31,7 @@ t1	CREATE TABLE `t1` (
   `blob_column` longblob DEFAULT NULL,
   `vchar_column` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master;
 DROP PROCEDURE test.p1;
 DROP FUNCTION test.fn1;

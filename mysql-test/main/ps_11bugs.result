@@ -191,3 +191,93 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '+ -><()~*:""&|'
 SET @@sort_buffer_size=DEFAULT;
 End of 5.0 tests.
+# Start of 10.5 tests
+#
+# MDEV-25593 Assertion `0' failed in Type_handler_temporal_result::Item_get_date on double EXECUTE
+#
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+PREPARE stmt FROM 'SELECT ? AS c1';
+EXECUTE stmt USING current_timestamp;
+c1
+2001-01-01 10:20:30
+EXECUTE stmt USING @unknown;
+c1
+NULL
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ? AS c1 FROM DUAL';
+EXECUTE stmt USING current_time;
+c1
+10:20:30
+EXECUTE stmt USING DEFAULT;
+c1
+NULL
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ? AS c1 FROM DUAL';
+EXECUTE stmt USING current_time;
+c1
+10:20:30
+EXECUTE stmt USING IGNORE;
+c1
+NULL
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM "SELECT DATE('') between''AND ? AS c1";
+EXECUTE stmt USING current_time;
+c1
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
+EXECUTE stmt USING @unknown;
+c1
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: ''
+Warning	1292	Truncated incorrect datetime value: ''
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT CONCAT(UNIX_TIMESTAMP(?)) AS c1';
+EXECUTE stmt USING CURRENT_TIMESTAMP;
+c1
+978344430
+EXECUTE stmt USING @unknown;
+c1
+NULL
+DEALLOCATE PREPARE stmt;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+#
+# MDEV-35596 Assertion `type_handler()->result_type() == value.type_handler()->result_type()' failed in virtual bool Item_param::get_date(THD*, MYSQL_TIME*, date_mode_t)
+#
+CREATE TABLE t (c TIMESTAMP);
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+INSERT INTO t (c) VALUES (now());
+EXECUTE s USING NULL;
+DROP TABLE t;
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+EXECUTE s USING NULL;
+DROP TABLE t;
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+EXECUTE s USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+EXECUTE s USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t;
+# End of 10.5 tests

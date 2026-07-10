@@ -2,7 +2,7 @@
 #
 # Test the bug condition of a parallel slave server shutdown
 # hang when the parallel workers were idle.
-# The bug reported scenario is extented to cover the multi-sources case as well as
+# The bug reported scenario is extended to cover the multi-sources case as well as
 # checking is done for both the idle and busy workers cases.
 # 
 # MDEV-25336 Parallel replication causes failed assert while restarting
@@ -23,7 +23,7 @@ set default_master_connection = '';
 
 set default_master_connection = 'm2';
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
-eval change master to master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=slave_pos;
+eval change master to master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
 select @@global.slave_parallel_workers as two;

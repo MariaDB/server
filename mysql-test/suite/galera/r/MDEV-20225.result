@@ -15,7 +15,7 @@ connection node_2a;
 SET GLOBAL debug_dbug = 'RESET';
 SET DEBUG_SYNC = 'now SIGNAL signal.mdev_20225_continue';
 SET DEBUG_SYNC = 'RESET';
-SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
 connection node_2;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation

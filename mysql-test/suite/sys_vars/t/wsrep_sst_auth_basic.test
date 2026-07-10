@@ -4,9 +4,6 @@
 --echo # wsrep_sst_auth
 --echo #
 
---echo # save the initial value
-SET @wsrep_sst_auth_global_saved = @@global.wsrep_sst_auth;
-
 --echo # default
 SELECT @@global.wsrep_sst_auth;
 
@@ -37,9 +34,31 @@ SET @@global.wsrep_sst_auth=1;
 SELECT @@global.wsrep_sst_auth;
 --error ER_PARSE_ERROR
 SET @@global.wsrep_sst_auth=user:pass;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth='user new:pass';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth='user$new:pass';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user'new:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user;new:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user|new:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user&new:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user\\new:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user\"new:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user\nnew:pass";
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_auth="user\tnew:pass";
 
 --echo
 --echo # restore the initial value
 SET @@global.wsrep_sst_auth = @wsrep_sst_auth_global_saved;
+
+call mtr.add_suppression("WSREP: Illegal character in variable:");
 
 --echo # End of test

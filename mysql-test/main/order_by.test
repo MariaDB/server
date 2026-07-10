@@ -3,14 +3,12 @@
 # Testing ORDER BY
 #
 
-# Tests will be skipped for the view protocol because the view protocol creates 
-# an additional util connection and other statistics data
-# Check after fix MDEV-27871, possible this include can be removed
---source include/no_view_protocol.inc
-
 call mtr.add_suppression("Sort aborted.*");
+--source include/have_sequence.inc
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
 --source include/have_sequence.inc
+
+--source include/test_db_charset_latin1.inc
 
 #
 # Test old ORDER BY bug
@@ -798,10 +796,15 @@ INSERT INTO t2 SELECT * FROM t1 ORDER BY id;
 
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
+EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 6000;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 10 AND 12 ORDER BY c3 LIMIT 20;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 20 AND 30 ORDER BY c3 LIMIT 4000;
 
 SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
+
+# Show that order by optimization takes into account index only scans
+ALTER TABLE t2 DROP INDEX k3, ADD INDEX k3 (c3,c2);
+EXPLAIN SELECT c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
 
 DROP TABLE t1,t2;
 
@@ -823,13 +826,17 @@ INSERT INTO t1 SELECT a +64, b +64 FROM t1;
 
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
 
+--disable_view_protocol
 --disable_query_log
 --let $q = `show status like 'Created_tmp_tables';`
 eval set @tmp_tables_before = 
   CAST(REPLACE('$q', 'Created_tmp_tables', '') AS UNSIGNED);
 --enable_query_log
 
+#Enable after fix MDEV-31548
+--disable_cursor_protocol
 SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
+--enable_cursor_protocol
 
 # this query creates one temporary table in itself, which we are not
 # interested in.
@@ -841,6 +848,7 @@ eval set @tmp_tables_after =
 --enable_query_log
 
 SELECT @tmp_tables_after = @tmp_tables_before ;
+--enable_view_protocol
 
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
 
@@ -850,7 +858,10 @@ eval set @tmp_tables_before =
   CAST(REPLACE('$q', 'Created_tmp_tables', '') AS UNSIGNED);
 --enable_query_log
 
+#Enable after fix MDEV-31548
+--disable_cursor_protocol
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
+--enable_cursor_protocol
 
 --disable_query_log
 --let $q = `show status like 'Created_tmp_tables';`
@@ -887,7 +898,7 @@ INSERT INTO t2 (a,b) VALUES (1,2), (2,3);
 INSERT INTO t3 (c) VALUES (1), (2);
 
 SELECT
-  (SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+  (SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a) as exp
   FROM t3;
 
 DROP TABLE t1, t2, t3;
@@ -907,8 +918,12 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES (1, 10), (2, NULL);
 
 --echo # Must use ref-or-null on the a_c index
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+
 --echo # Must return 1 row
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 
@@ -1457,6 +1472,7 @@ SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 0;
 SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 10 OFFSET 10;
 SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 0 OFFSET 10;
 
+--disable_view_protocol
 --disable_ps2_protocol
 ################
 ## Test with SQL_CALC_FOUND_ROWS
@@ -1505,6 +1521,7 @@ WHERE t1.f2>20
 ORDER BY tmp.f1, f0 LIMIT 30 OFFSET 30;
 SELECT FOUND_ROWS();
 --enable_ps2_protocol
+--enable_view_protocol
 
 ################
 ## Test views
@@ -1878,6 +1895,8 @@ insert into t1
 analyze table t1;
 --enable_result_log
 
+--disable_cursor_protocol
+--disable_view_protocol
 --disable_ps2_protocol
 explain
 select b, count(*) num_cnt from t1
@@ -1899,6 +1918,8 @@ select b, count(*) num_cnt from t1
 --enable_result_log
 show status like '%Handler_read%';
 --enable_ps2_protocol
+--enable_view_protocol
+--enable_cursor_protocol
 
 drop table t0, t1;
 
@@ -1997,9 +2018,11 @@ WHERE f1 = ANY ( SELECT f1
                  WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
 ORDER BY field;
 
+--disable_view_protocol
 eval $q1;
 eval $q2;
 eval EXPLAIN EXTENDED $q2;
+--enable_view_protocol
 
 DROP TABLE t1,t2,t3;
 
@@ -2394,7 +2417,7 @@ let $query= select
                    t2.key1 = t1.a and t2.key1 IS NOT NULL
                  ORDER BY
                    t2.key2 ASC
-                LIMIT 1)
+                LIMIT 1) as "con"
            from t1;
 
 --echo # here type should show ref not index
@@ -2440,6 +2463,86 @@ set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
     optimizer_use_condition_selectivity=@tmp_o; 
 
 drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-32324: Server crashes inside filesort at my_decimal::to_binary
+--echo #
+SELECT 1.000000 two UNION SELECT 1 ORDER BY ( SELECT two LIMIT 1 OFFSET 1 ) ;
+
+--echo # MDEV-32475: test_if_skip_sort_order() should catch the join types
+--echo #             JT_EQ_REF, JT_CONST and JT_SYSTEM and skip sort order for these
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq+1 FROM seq_1_to_100;
+INSERT INTO t2 VALUES (0, 1),(1, 2);
+
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL;
+
+--echo # Table t1 must use eq_ref, not index below:
+EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-29681 Server crashes when optimizing SQL with ORDER BY
+--echo #
+CREATE TABLE t1 (b INT);
+CREATE TABLE t2 (a INT, c INT);
+
+--echo # First test empty tables
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a+1;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=2;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3)
+  ORDER BY a+1, a-b DESC, c<>a;
+
+--echo # Insert some data
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3),(4,4);
+
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=b, a-10 DESC, b+a, c+a+a+b;
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3) ORDER BY a=2;
+
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b LIMIT 3)
+  ORDER BY a=b, a-10, b+a, c+a+a+b;
+
+--echo # When there is no LIMIT clause the derived table must be merged
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b) ORDER BY a+16, b+a, c<>b;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b) ORDER BY a+16 DESC, b+a, c<>b;
+
+--echo # Test UNIONs:
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT * FROM t1 JOIN t2 ON a!=b
+                  LIMIT 3)
+                  ORDER BY a+16, b+a, c<>b;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT * FROM t1 JOIN t2 ON a!=b
+                  LIMIT 3)
+                  ORDER BY a+16, b+a, c<>b;
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  LIMIT 3)
+                  ORDER BY b-a-c;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  LIMIT 3)
+                  ORDER BY b-a-c;
+--sorted_result
+(SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  ORDER BY a LIMIT 3)
+                  ORDER BY b-a-c LIMIT 1;
+EXPLAIN EXTENDED (SELECT * FROM t1 JOIN t2 ON a=b UNION
+                  SELECT NULL, NULL, NULL
+                  ORDER BY a LIMIT 3)
+                  ORDER BY b-a-c LIMIT 1;
+DROP TABLE t1, t2;
 
 --echo # End of 10.4 tests
 
@@ -2540,7 +2643,7 @@ drop table t1;
 --echo # MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
 --echo #
 
-create table t1 (a varchar(200) character set utf8, b int);
+create table t1 (a varchar(200) character set utf8 collate utf8_general_ci, b int);
 insert into t1 select seq, seq from seq_1_to_10;
 select * from t1 order by a;
 --echo #
@@ -2677,8 +2780,8 @@ CREATE TABLE t2 (a INT, b INT);
 
 INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
                             (2354,7),(321421,3),(535,2),(4535,3);
-INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3);
-
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000),(3000,3000);
+INSERT INTO t2 select seq,seq from seq_10_to_100;
 --echo # Join order should have the SJM scan table as the first table for both
 --echo # the queries with GROUP BY and ORDER BY clause.
 
@@ -2688,6 +2791,7 @@ let $query= SELECT t1.a
             ORDER BY t1.a DESC;
 
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
@@ -2697,6 +2801,7 @@ let $query= SELECT t1.a, group_concat(t1.b)
             GROUP BY t1.a DESC;
 
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 DROP TABLE t1, t2;
@@ -2713,3 +2818,73 @@ explain select * from t1 force index(r) order by a,b limit 20;
 explain select * from t1 force index(r) order by a desc,b limit 20;
         select * from t1 force index(r) order by a desc,b limit 20;
 drop table t1;
+
+--echo #
+--echo # MDEV-38087 Unexpected error `Unknown column '???' in 'GROUP BY'`
+--echo #
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (select 1) dt GROUP BY -1;
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (select 1) dt order BY -5;
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (select 1) dt order BY 50;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-38649: Wrong result (missing rows) upon condition pushdown on table with DESC key
+--echo #
+CREATE TABLE t1 (a INT, b INT not null, KEY(b));
+INSERT INTO t1 VALUES (2,8),(9,1),(4,6);
+SELECT a, b FROM t1 WHERE b != 10 and b < 30 ORDER BY b DESC;
+SELECT a, b FROM t1 use index() WHERE b != 10 and b < 30 ORDER BY b DESC;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-38921: Incorrect ORDER BY Result
+--echo #
+CREATE TABLE t2 (a INT, b INT not null, KEY(b));
+INSERT INTO t2 VALUES (2,8),(9,1),(4,6),(11,13),(15,17);
+SELECT a, b FROM t2 WHERE b != 10 and b < 30 ORDER BY b DESC;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-38934: ICP, Reverse scan: range access will scan whole index for
+--echo #             range w/o max endpoint
+--echo #
+CREATE TABLE t1 (
+  a int,
+  b int,
+  INDEX(a)
+);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10000;
+SELECT COUNT(*) FROM t1 WHERE a > 9900 AND (a+1 > 9901) ORDER BY a DESC;
+FLUSH STATUS;
+--disable_result_log
+--disable_ps_protocol
+SELECT * FROM t1 WHERE a > 9900 AND (a+1 > 9901) ORDER BY a DESC;
+--enable_ps_protocol
+--enable_result_log
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+
+SELECT COUNT(*) FROM t1 WHERE a > 9900 AND (a+1 > 990000) ORDER BY a DESC;
+FLUSH STATUS;
+--disable_result_log
+--disable_ps_protocol
+SELECT * FROM t1 WHERE a > 9900 AND (a+1 > 999000) ORDER BY a DESC;
+--enable_ps_protocol
+--enable_result_log
+SELECT * FROM information_schema.SESSION_STATUS WHERE VARIABLE_NAME LIKE '%icp%';
+
+--echo # Another testcase: check that we correctly handle the case
+--echo # where the range starting with +inf has no matches due to ICP,
+--echo # but there are other ranges with matches:
+select * from t1 where (a > 9990 and (a+1)<0) or a=23 order by a desc;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 12.3 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

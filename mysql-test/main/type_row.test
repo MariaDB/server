@@ -88,3 +88,22 @@ SET sql_mode=DEFAULT;
 --echo #
 --echo # End of 10.7 tests
 --echo #
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-35913 Assertion `m_comparator.cmp_type() != ROW_RESULT'
+--echo #
+
+CREATE TABLE t1 (a TEXT UNIQUE);
+INSERT INTO t1 VALUES('1');
+SELECT 1 FROM t1 WHERE ROW(a, (a,a)) IN ((1, (1,1)),(2, (2,1)));
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT KEY,b INT,vb DATE AS (b) VIRTUAL,KEY(vb));
+SELECT * FROM t1 WHERE b<7 AND (a,b) NOT IN ((1,2),(8,9),(5,1));
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

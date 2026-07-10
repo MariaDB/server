@@ -1,41 +1,20 @@
-disable_query_log;
--- source include/test_outfile.inc
-# Server are started in "var/master-data", so "../../tmp" will be "var/tmp"
-eval set @tmpdir="../../tmp";
-enable_query_log;
--- source include/have_outfile.inc
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
---disable_ps2_protocol
+--source include/not_embedded.inc
 
 #
 # test of into outfile|dumpfile
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 create table t1 (`a` blob);
 insert into t1 values("hello world"),("Hello mars"),(NULL);
-disable_query_log;
 eval select * into outfile "../../tmp/outfile-test.1" from t1;
-enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.1"));
-disable_query_log;
 eval select * into dumpfile "../../tmp/outfile-test.2" from t1 limit 1;
-enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.2"));
-disable_query_log;
 eval select * into dumpfile "../../tmp/outfile-test.3" from t1 where a is null;
-enable_query_log;
-select load_file(concat(@tmpdir,"/outfile-test.3"));
+select hex(load_file(concat(@tmpdir,"/outfile-test.3")));
 
 # the following should give errors
 
-disable_query_log;
 --error ER_FILE_EXISTS_ERROR
 eval select * into outfile "../../tmp/outfile-test.1" from t1;
 
@@ -44,18 +23,15 @@ eval select * into dumpfile "../../tmp/outfile-test.2" from t1;
 
 --error ER_FILE_EXISTS_ERROR
 eval select * into dumpfile "../../tmp/outfile-test.3" from t1;
-enable_query_log;
-select load_file(concat(@tmpdir,"/outfile-test.not-exist"));
+select load_file('../../tmp/outfile-test.not-exist');
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.1
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.2
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.3
 drop table t1;
 
 # Bug#8191 SELECT INTO OUTFILE insists on FROM clause
-disable_query_log;
-eval select 1 into outfile "../../tmp/outfile-test.4";
-enable_query_log;
-select load_file(concat(@tmpdir,"/outfile-test.4"));
+select 1 into outfile "../../tmp/outfile-test.4";
+select load_file('../../tmp/outfile-test.4');
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.4
 
 #
@@ -75,19 +51,16 @@ DROP TABLE t1;
 #
 # Bug#13202 SELECT * INTO OUTFILE ... FROM information_schema.schemata now fails
 #
-disable_query_log;
-eval SELECT * INTO OUTFILE "../../tmp/outfile-test.4"
+SELECT * INTO OUTFILE "../../tmp/outfile-test.4"
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 FROM information_schema.schemata LIMIT 0, 5;
 # enable_query_log;
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.4
 
 use information_schema;
-# disable_query_log;
-eval SELECT * INTO OUTFILE "../../tmp/outfile-test.4"
+SELECT * INTO OUTFILE "../../tmp/outfile-test.4"
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 FROM schemata LIMIT 0, 5;
-enable_query_log;
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.4
 use test;
 
@@ -110,7 +83,7 @@ create user user_1@localhost;
 grant all on mysqltest.* to user_1@localhost;
 connect (con28181_1,localhost,user_1,,mysqltest);
 
---error ER_ACCESS_DENIED_ERROR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
 eval select schema_name
 into outfile "../../tmp/outfile-test.4"
 fields terminated by ',' optionally enclosed by '"'
@@ -123,7 +96,7 @@ disconnect con28181_1;
 grant file on *.* to user_1@localhost;
 
 connect (con28181_2,localhost,user_1,,mysqltest);
-eval select schema_name
+select schema_name
 into outfile "../../tmp/outfile-test.4"
 fields terminated by ',' optionally enclosed by '"'
  lines terminated by '\n'
@@ -138,6 +111,23 @@ revoke all privileges on *.* from user_1@localhost;
 drop user user_1@localhost;
 drop database mysqltest;
 
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
---enable_ps2_protocol
+--echo #
+--echo # MDEV-39493 FILE privilege isn't checked for derived
+--echo #
+
+create user u@localhost;
+grant select on *.* to u@localhost;
+connect u,localhost,u;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select 'hello' into outfile '$MYSQLTEST_VARDIR/tmp/3701920.out';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select 'hello' into dumpfile '$MYSQLTEST_VARDIR/tmp/3701920.dump';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select * into outfile '$MYSQLTEST_VARDIR/tmp/3701920.out' from (select 'hello') t;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp select * into dumpfile '$MYSQLTEST_VARDIR/tmp/3701920.dump' from (select 'hello') t;
+disconnect u;
+connection default;
+drop user u@localhost;
+
+--echo # End of 10.6 tests

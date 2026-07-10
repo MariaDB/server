@@ -9,7 +9,7 @@ CREATE TABLE `bookstore` (
 `author` VARCHAR(24) NOT NULL,
 `year` INT(4) NOT NULL,
 `price` DOUBLE(8,2) NOT NULL)
-ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='bookstore.xml' OPTION_LIST='expand=1,mulnode=author,limit=6,xmlsup=libxml2';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=XML FILE_NAME='bookstore.xml' OPTION_LIST='expand=1,mulnode=author,limit=6,xmlsup=libxml2';
 SELECT * FROM bookstore;
 category	title	lang	author	year	price
 COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00

@@ -49,7 +49,7 @@ public:
 template <uint width> class Bitmap
 {
 /*
-  Workaround GCC optimizer bug (generating SSE instuctions on unaligned data)
+  Workaround GCC optimizer bug (generating SSE instructions on unaligned data)
 */
 #if defined (__GNUC__) && defined(__x86_64__) && (__GNUC__ < 6) && !defined(__clang__)
 #define NEED_GCC_NO_SSE_WORKAROUND
@@ -175,7 +175,7 @@ public:
 
 private:
   /*
-     Intersect with a bitmap represented as as longlong.
+     Intersect with a bitmap represented as longlong.
      In addition, pad the rest of the bitmap with 0 or 1 bits
      depending on pad_with_ones parameter.
   */
@@ -270,12 +270,20 @@ public:
   {
     return buffer[0];
   }
-  uint bits_set()
+  uint bits_set() const
   {
     uint res= 0;
     for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
-      res += my_count_bits(buffer[i]);
+      if (buffer[i])
+        res+= my_count_bits(buffer[i]);
     return res;
+  }
+  uint find_first_bit() const
+  {
+    for (size_t i= 0; i < ARRAY_ELEMENTS; i++)
+      if (buffer[i])
+        return (uint)i*BITS_PER_ELEMENT + my_find_first_bit(buffer[i]);
+    return width;
   }
   class Iterator
   {

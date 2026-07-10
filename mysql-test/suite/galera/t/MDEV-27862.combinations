@@ -1,4 +1,7 @@
 [binlogoff]
+wsrep-auto-increment-control=OFF
 
 [binlogon]
 log-bin
+log-slave-updates
+wsrep-auto-increment-control=OFF

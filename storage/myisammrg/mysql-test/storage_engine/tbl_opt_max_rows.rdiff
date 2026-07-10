@@ -1,5 +1,5 @@
---- tbl_opt_max_rows.result	2013-01-22 22:05:05.246633000 +0400
-+++ tbl_opt_max_rows.reject	2013-01-23 02:51:02.403467936 +0400
+--- tbl_opt_max_rows.result
++++ tbl_opt_max_rows.reject
 @@ -5,12 +5,12 @@
  t1	CREATE TABLE `t1` (
    `a` int(11) DEFAULT NULL,

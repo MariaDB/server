@@ -1,0 +1,11 @@
+#
+# MDEV-36437 mariabackup - confusing error message when running out of file handles with partitioned MyISAM
+#
+create table t1 (
+id bigint(20) not null auto_increment,
+primary key (id)
+) engine=myisam
+partition by hash (id)
+partitions 600;
+FOUND 1 /Error 24 on file ./test/t1#P#p\d+\.MY[DI] open during `test`.`t1` table copy: Too many open files/ in backup.log
+drop table t1;

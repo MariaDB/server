@@ -175,6 +175,9 @@
     </collation>
     <collation name="utf8mb4_test_520_nopad_ci" id="329" version="5.2.0" flag="nopad">
     </collation>
+    <collation name="utf8mb4_uca1400_test01_as_ci" id="330" version="14.0.0">
+      <settings strength="2"/>
+    </collation>
   </charset>
 
   <charset name="utf16">
@@ -352,7 +355,10 @@
         <import source="ascii2_non_existing_ci"/>
       </rules>
     </collation>
-    <collation name="ascii2_nopad_bin" id="325" flag="binary" flag="nopad"/>
+    <collation name="ascii2_nopad_bin" id="325">
+      <flag>binary</flag>
+      <flag>nopad</flag>
+    </collation>
   </charset>
 
   <charset name="latin1">

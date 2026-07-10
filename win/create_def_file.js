@@ -28,7 +28,7 @@
   cscript create_def_file.js [x86|x64] [object|static_lib|directory ...]
   
   If directory is passed as a parameter, script will process all object files
-  and static libraries in this directory and recursively in all subdrectories.
+  and static libraries in this directory and recursively in all subdirectories.
 
   Note :The script does not work properly if  /GL (global optimization) 
   compiler option was used to produce object files or libraries. This is a
@@ -58,7 +58,7 @@ var fso = new ActiveXObject("Scripting.FileSystemObject");
   If .def file is used with together with lib.exe
   the name mangling for stdcall is slightly different.
 
-  Undescore prefix for stdcall function name must be removed for
+  Underscore prefix for stdcall function name must be removed for
   lib.exe but not link.exe (see ScrubSymbol())
 
   This difference is not documented anywhere and could

@@ -253,7 +253,7 @@ row_upd_check_references_constraints(
 				FALSE, foreign, table, entry, thr);
 
 			if (ref_table) {
-				dict_table_close(ref_table);
+				ref_table->release();
 			}
 
 			if (err != DB_SUCCESS) {
@@ -338,7 +338,7 @@ wsrep_row_upd_check_foreign_constraints(
 				TRUE, foreign, table, entry, thr);
 
 			if (opened) {
-				dict_table_close(opened);
+				opened->release();
 			}
 
 			if (err != DB_SUCCESS) {
@@ -702,7 +702,7 @@ fetch; output: fetched length of the prefix
 @param[in,out]	heap		heap where to allocate
 @return BLOB prefix
 @retval NULL if the record is incomplete (should only happen
-in row_vers_vc_matches_cluster() executed concurrently with another purge) */
+in row_purge_vc_matches_cluster() executed concurrently with another purge) */
 static
 byte*
 row_upd_ext_fetch(
@@ -1060,10 +1060,8 @@ row_upd_replace_vcol(
 	bool	is_undo_log = true;
 
 	/* We will read those unchanged (but indexed) virtual columns in */
-	if (ptr != NULL) {
-		const byte*	end_ptr;
-
-		end_ptr = ptr + mach_read_from_2(ptr);
+	if (ptr) {
+		const byte* const end_ptr = ptr + mach_read_from_2(ptr);
 		ptr += 2;
 
 		while (ptr != end_ptr) {
@@ -1189,7 +1187,7 @@ row_upd_replace(
 		*ext = NULL;
 	}
 
-	row_upd_replace_vcol(row, table, update, true, NULL, NULL);
+	row_upd_replace_vcol(row, table, update, true, nullptr, nullptr);
 }
 
 /***********************************************************//**
@@ -1416,16 +1414,11 @@ row_upd_changes_ord_field_binary_func(
 			if (UNIV_LIKELY_NULL(buf)) {
 				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
 					/* The externally stored field
-					was not written yet. This
-					record should only be seen by
-					trx_rollback_recovered()
-					when the server had crashed before
-					storing the field. */
-					ut_ad(!thr
-					      || thr->graph->trx->is_recovered);
-					ut_ad(!thr
-					      || thr->graph->trx
-					         == trx_roll_crash_recv_trx);
+					was not written yet. InnoDB must
+					have ran out of space or been killed
+					before storing the page */
+					ut_ad(thr);
+					ut_ad(thr->graph->trx->in_rollback);
 					return(TRUE);
 				}
 
@@ -1831,18 +1824,15 @@ row_upd_sec_index_entry(
 	upd_node_t*	node,	/*!< in: row update node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	mtr_t			mtr;
 	btr_pcur_t		pcur;
 	mem_heap_t*		heap;
 	dtuple_t*		entry;
 	dict_index_t*		index;
 	dberr_t			err	= DB_SUCCESS;
-	trx_t*			trx	= thr_get_trx(thr);
-	btr_latch_mode		mode;
+	mtr_t			mtr{thr_get_trx(thr)};
 	ulint			flags;
-	enum row_search_result	search_result;
 
-	ut_ad(trx->id != 0);
+	ut_ad(mtr.trx->id != 0);
 
 	index = node->index;
 	ut_ad(index->is_committed());
@@ -1851,9 +1841,9 @@ row_upd_sec_index_entry(
 	if index->is_committed(). */
 	ut_ad(!dict_index_is_online_ddl(index));
 
-	const bool referenced = row_upd_index_is_referenced(index, trx);
+	const bool referenced = row_upd_index_is_referenced(index, mtr.trx);
 #ifdef WITH_WSREP
-	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
+	const bool foreign = wsrep_row_upd_index_is_foreign(index, mtr.trx);
 #endif /* WITH_WSREP */
 
 	heap = mem_heap_create(1024);
@@ -1864,11 +1854,10 @@ row_upd_sec_index_entry(
 
 	log_free_check();
 
-	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
+	DEBUG_SYNC_C_IF_THD(mtr.trx->mysql_thd,
 			    "before_row_upd_sec_index_entry");
 
 	mtr.start();
-	mode = BTR_MODIFY_LEAF;
 
 	switch (index->table->space_id) {
 	case SRV_TMP_SPACE_ID:
@@ -1878,24 +1867,17 @@ row_upd_sec_index_entry(
 	default:
 		index->set_modified(mtr);
 		/* fall through */
-	case IBUF_SPACE_ID:
+	case 0:
 		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
-		/* We can only buffer delete-mark operations if there
-		are no foreign key constraints referring to the index. */
-		if (!referenced) {
-			mode = BTR_DELETE_MARK_LEAF;
-		}
-		break;
 	}
 
-	/* Set the query thread, so that ibuf_insert_low() will be
-	able to invoke thd_get_trx(). */
-	pcur.btr_cur.thr = thr;
 	pcur.btr_cur.page_cur.index = index;
+	const rec_t *rec;
 
 	if (index->is_spatial()) {
-		mode = btr_latch_mode(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK);
-		if (UNIV_LIKELY(!rtr_search(entry, mode, &pcur, &mtr))) {
+		constexpr btr_latch_mode mode = btr_latch_mode(
+			BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK);
+		if (UNIV_LIKELY(!rtr_search(entry, mode, &pcur, thr, &mtr))) {
 			goto found;
 		}
 
@@ -1905,20 +1887,8 @@ row_upd_sec_index_entry(
 		}
 
 		goto not_found;
-	}
-
-	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
-
-	switch (search_result) {
-	const rec_t* rec;
-	case ROW_NOT_DELETED_REF:	/* should only occur for BTR_DELETE */
-		ut_error;
-		break;
-	case ROW_BUFFERED:
-		/* Entry was delete marked already. */
-		break;
-
-	case ROW_NOT_FOUND:
+	} else if (!row_search_index_entry(entry, BTR_MODIFY_LEAF,
+                                           &pcur, &mtr)) {
 not_found:
 		rec = btr_pcur_get_rec(&pcur);
 		ib::error()
@@ -1929,11 +1899,10 @@ not_found:
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
-		ut_ad(btr_validate_index(index, 0) == DB_SUCCESS);
+		ut_ad(btr_validate_index(index, mtr.trx) == DB_SUCCESS);
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
-		break;
-	case ROW_FOUND:
+	} else {
 found:
 		ut_ad(err == DB_SUCCESS);
 		rec = btr_pcur_get_rec(&pcur);
@@ -1948,7 +1917,7 @@ found:
 				btr_pcur_get_block(&pcur),
 				btr_pcur_get_rec(&pcur), index, thr, &mtr);
 			if (err != DB_SUCCESS) {
-				break;
+				goto close;
 			}
 
 			btr_rec_set_deleted<true>(btr_pcur_get_block(&pcur),
@@ -1956,8 +1925,8 @@ found:
 						  &mtr);
 #ifdef WITH_WSREP
 			if (!referenced && foreign
-			    && wsrep_must_process_fk(node, trx)
-			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+			    && wsrep_must_process_fk(node, mtr.trx)
+			    && !wsrep_thd_is_BF(mtr.trx->mysql_thd, FALSE)) {
 
 				rec_offs* offsets = rec_get_offsets(
 					rec, index, NULL, index->n_core_fields,
@@ -1978,13 +1947,13 @@ found:
 					WSREP_DEBUG("Foreign key check fail: "
 						"%s on table %s index %s query %s",
 						ut_strerr(err), index->name(), index->table->name.m_name,
-						wsrep_thd_query(trx->mysql_thd));
+						wsrep_thd_query(mtr.trx->mysql_thd));
 					break;
 				default:
 					WSREP_ERROR("Foreign key check fail: "
 						"%s on table %s index %s query %s",
 						ut_strerr(err), index->name(), index->table->name.m_name,
-						wsrep_thd_query(trx->mysql_thd));
+						wsrep_thd_query(mtr.trx->mysql_thd));
 					break;
 				}
 			}
@@ -2022,7 +1991,7 @@ close:
 
 	mem_heap_empty(heap);
 
-	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
+	DEBUG_SYNC_C_IF_THD(mtr.trx->mysql_thd,
 			    "before_row_upd_sec_new_index_entry");
 
 	/* Build a new index entry */
@@ -2160,6 +2129,25 @@ row_upd_clust_rec_by_insert_inherit_func(
 	return(inherit);
 }
 
+/** Mark 'disowned' BLOBs as 'owned' and 'inherited' again,
+after resuming from a lock wait.
+@param entry  clustered index entry */
+static ATTRIBUTE_COLD void row_upd_reown_inherited_fields(dtuple_t *entry)
+{
+  for (ulint i= 0; i < entry->n_fields; i++)
+  {
+    const dfield_t *dfield= dtuple_get_nth_field(entry, i);
+    if (dfield_is_ext(dfield))
+    {
+      byte *blob_len= static_cast<byte*>(dfield->data) +
+        dfield->len - (BTR_EXTERN_FIELD_REF_SIZE - BTR_EXTERN_LEN);
+      ut_ad(*blob_len & BTR_EXTERN_OWNER_FLAG);
+      *blob_len= byte((*blob_len & ~BTR_EXTERN_OWNER_FLAG) |
+        BTR_EXTERN_INHERITED_FLAG);
+    }
+  }
+}
+
 /***********************************************************//**
 Marks the clustered index record deleted and inserts the updated version
 of the record to the index. This function should be used when the ordering
@@ -2238,12 +2226,16 @@ row_upd_clust_rec_by_insert(
 			/* If the clustered index record is already delete
 			marked, then we are here after a DB_LOCK_WAIT.
 			Skip delete marking clustered index and disowning
-			its blobs. */
+			its blobs. Mark the BLOBs in the index entry
+			(which we copied from the already "disowned" rec)
+			as "owned", like it was on the previous call of
+			row_upd_clust_rec_by_insert(). */
 			ut_ad(row_get_rec_trx_id(rec, index, offsets)
 			      == trx->id);
 			ut_ad(!trx_undo_roll_ptr_is_insert(
 			              row_get_rec_roll_ptr(rec, index,
 							   offsets)));
+			row_upd_reown_inherited_fields(entry);
 			goto check_fk;
 		}
 
@@ -2546,13 +2538,13 @@ row_upd_clust_step(
 	dict_index_t*	index;
 	btr_pcur_t*	pcur;
 	dberr_t		err;
-	mtr_t		mtr;
 	rec_t*		rec;
 	mem_heap_t*	heap	= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets;
 	ulint		flags;
 	trx_t*		trx = thr_get_trx(thr);
+	mtr_t		mtr{trx};
 
 	rec_offs_init(offsets_);
 

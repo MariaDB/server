@@ -1,8 +1,4 @@
 include/rpl_init.inc [topology=1->2]
-connection server_2;
-include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid= current_pos;
-include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT);
 FLUSH LOGS;
@@ -47,6 +43,7 @@ SET GLOBAL gtid_slave_pos= "";
 connection server_1;
 SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET gtid_domain_id=10;
 SET gtid_seq_no=50;
@@ -95,6 +92,7 @@ SET GLOBAL gtid_slave_pos= "";
 connection server_1;
 SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 include/kill_binlog_dump_threads.inc
 SET gtid_domain_id= 9;
@@ -147,6 +145,7 @@ SET GLOBAL gtid_slave_pos= "";
 connection server_1;
 SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 include/kill_binlog_dump_threads.inc
 SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";

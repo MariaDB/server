@@ -17,6 +17,7 @@
 source include/not_embedded.inc;
 
 create user foo@localhost;
+grant select on test.* to foo@localhost;
 create role role1;
 create role role2;
 create role role3;
@@ -244,6 +245,7 @@ show status like 'debug%';
 #
 
 connection default;
+disconnect foo;
 drop user foo@localhost;
 drop role role1;
 drop role role2;

@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -30,7 +30,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -59,7 +59,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -72,7 +72,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `a` (`a`,`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -126,7 +126,7 @@ create table t1 (a int, b int as (a+1), foreign key (b) references t2(a));
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 create table t1 (a int, b int as (a+1));
 alter table t1 add foreign key (b) references t2(a);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
 # Allowed FK options.
 create table t2 (a int primary key, b char(5));
@@ -215,6 +215,25 @@ INDEX(vc(32))
 );
 DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
 DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 FROM seq_1_to_2 ;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+a
+1
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 UNION SELECT 1;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
 #
 # MDEV-11737 Failing assertion: block->magic_n == MEM_BLOCK_MAGIC_N
 # 
@@ -284,3 +303,23 @@ IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE')
 GOOD
 alter table t1 drop column va;
 drop table t1;
+#
+#  MDEV-39081 InnoDB: tried to purge non-delete-marked record,
+#   assertion fails in row_purge_del_mark_error
+#
+CREATE TABLE t1(
+pk INT AUTO_INCREMENT,
+f1 INT DEFAULT 0,
+f2 INT as (1 + 1) VIRTUAL,
+KEY (f1), PRIMARY KEY (pk), UNIQUE (f2)) ENGINE=InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+CONNECT con1,localhost,root,,;
+INSERT INTO t1 (pk) VALUES(1);
+DELETE FROM t1;
+INSERT INTO t1 (pk) VALUES(1);
+UPDATE t1 set f1 = 2;
+disconnect con1;
+connection default;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;

@@ -179,7 +179,8 @@ set @now= now(6);
 insert into t1 values (1);
 set @str= concat('select x, row_start < @now as A, row_end > @now as B from t1 partition (p0)');
 prepare select_p0 from @str;
-set @str= concat('select x, row_start > @now as C, row_end = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
+--replace_result $sys_time_max SYS_TIME_MAX
+--eval set @str= concat("select x, row_start > @now as C, row_end = $sys_time_max as D from t1 partition (pn)");
 prepare select_pn from @str;
 
 execute select_p0;
@@ -278,7 +279,7 @@ partition by system_time interval 6 day limit 98;
 
 --error ER_DATA_OUT_OF_RANGE
 create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year partitions 3;
+partition by system_time interval 60 year partitions 4;
 
 --echo # INTERVAL and ALTER TABLE
 create or replace table t1 (i int) with system versioning
@@ -994,12 +995,12 @@ create or replace table t1 (
   pk integer auto_increment,
   primary key (pk),
   f varchar(45000)
-) with system versioning engine=memory
+) charset=latin1 with system versioning engine=memory
   partition by system_time interval 1 year (partition p1 history,
                                             partition pn current);
 
 --echo # fill the table until full
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 --error ER_RECORD_FILE_FULL
 insert into t1 (f) select f from t1;
 --echo # leave space for exactly one record in current partition
@@ -1013,15 +1014,13 @@ create or replace table t1 (
   pk integer auto_increment,
   primary key (pk),
   f varchar(45000)
-) with system versioning engine=memory
+) charset=latin1 with system versioning engine=memory
   partition by system_time interval 1 year (partition p1 history,
                                             partition pn current);
 
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 
---disable_ps2_protocol
 select * into outfile 'MDEV-17891.data' from t1;
---enable_ps2_protocol
 load data infile 'MDEV-17891.data' replace into table t1;
 --error ER_RECORD_FILE_FULL
 load data infile 'MDEV-17891.data' replace into table t1;
@@ -1267,7 +1266,7 @@ select count(*) from t1 partition (p0);
 select count(*) from t1 partition (p1);
 drop table t1;
 
---echo # UDPATE
+--echo # UPDATE
 create table t1 (x int) with system versioning
 partition by system_time limit 100 (
   partition p0 history,
@@ -1367,9 +1366,7 @@ partition by system_time limit 100 (
   partition pn current);
 
 insert into t1 select seq from seq_0_to_49;
---disable_ps2_protocol
 select x into outfile 'MDEV-20077.data' from t1;
---enable_ps2_protocol
 
 load data infile 'MDEV-20077.data' replace into table t1 (x);
 load data infile 'MDEV-20077.data' replace into table t1 (x);
@@ -1908,7 +1905,7 @@ partition by system_time interval 1 hour auto;
 insert into t1 values (1);
 
 call mtr.add_suppression("rror number .*(File exists|file operation)");
-call mtr.add_suppression("InnoDB: Cannot create file");
+call mtr.add_suppression("InnoDB: The file '.*test/t1#P#p1\\.ibd' already exists");
 
 --let $datadir= `select @@datadir`
 --let $dummy= $datadir/test/t1#P#p1.ibd
@@ -2208,9 +2205,7 @@ create or replace table t1 (x int primary key) with system versioning
 partition by system_time interval 1 hour auto;
 
 insert t1 values (1), (2), (3);
---disable_ps2_protocol
 select x into outfile 'MDEV-17554.data' from t1;
---enable_ps2_protocol
 
 set timestamp= unix_timestamp('2000-01-01 01:00:00');
 load data infile 'MDEV-17554.data' replace into table t1 (x);
@@ -2597,8 +2592,8 @@ lock tables t write;
 --error ER_UNKNOWN_PARTITION
 delete from t partition (px);
 unlock tables;
-# cleanup
 drop table t;
+set timestamp= default;
 
 --echo #
 --echo # MDEV-28978 Assertion failure in THD::binlog_query or unexpected
@@ -2639,6 +2634,24 @@ alter table t partition by system_time interval 10 week;
 # cleanup
 drop table t;
 
+--echo #
+--echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
+create table t1 (a varchar(100)) with system versioning
+partition by system_time interval 1 day
+starts '2021-09-30 00:00:00' partitions 3;
+set system_versioning_insert_history=1;
+--replace_result $sys_time_max SYS_TIME_MAX
+eval insert into t1 (a,row_start,row_end) values
+('p0',                   '2021-09-30', '2021-09-30 10:00:00'),
+('p1',                   '2021-09-30', '2021-10-01 10:00:00'),
+('overflows, so also p1','2021-09-30', '2021-10-10 10:00:00'),
+('pn, current',          '2021-09-30', $sys_time_max);
+select table_name,partition_name,partition_ordinal_position,partition_method,partition_description,table_rows
+from information_schema.partitions where table_schema='test';
+drop table t1;
+set system_versioning_insert_history=0;
+
 --disable_prepare_warnings
 
 --echo #
@@ -2653,8 +2666,212 @@ drop table t;
 create table t (a int) with system versioning partition by system_time partitions 3;
 
 --echo #
+--echo # MDEV-36115 InnoDB: assertion: node->pcur->rel_pos == BTR_PCUR_ON
+--echo #            in row_update_for_mysql
+--echo #
+create table t (a int key) engine=innodb
+with system versioning
+partition by key() partitions 3;
+
+start transaction;
+insert into t values (1),(2),(3),(4),(5),(6),(7),(8);
+set timestamp=+1;
+delete from t;
+insert into t values (1),(2);
+DELETE from t;
+drop table t;
+
+--echo #
+--echo # MDEV-36817 Server crashes in do_mark_index_columns instead of
+--echo #            ER_DUP_ENTRY on partitioned table
+--echo #
+create table t (f int, unique(f)) engine=innodb partition by key (f) partitions 2;
+insert into t (f) values (1), (3);
+--error ER_DUP_ENTRY
+update t set f = 0;
+drop table t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-31903 Server crashes in _ma_reset_history upon UNLOCK table with auto-create history partitions
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create table t1 (x int) engine=aria with system versioning partition by system_time interval 1 hour auto partitions 3;
+insert into t1 values (1);
+
+create table t2 (x int) engine=aria;
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+lock tables t1 write, t2 write;
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+insert into t2 values (5);
+unlock tables;
+drop table t1, t2;
+set timestamp= default;
+
+--echo #
+--echo # MDEV-29872 MSAN/Valgrind uninitialised value errors in TABLE::vers_switch_partition
+--echo #
+create table t (a int) with system versioning partition by system_time limit 100 partitions 3;
+let $emb= `select if(version() like '%embedded%', 1, 0)`;
+if (!$emb)
+{
+  --disable_result_log
+  --disable_query_log
+  --error ER_DELAYED_NOT_SUPPORTED
+  insert delayed into t () values ();
+  --enable_query_log
+  --enable_result_log
+}
+# cleanup
+drop table t;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-34775 Wrong reopen of already open routine due to auto-create in SP
+--echo #
+
+create table t (a int) with system versioning
+partition by system_time
+interval 1 minute auto;
+
+--delimiter $
+create function f()
+returns int
+begin
+  replace into t select * from t;
+  return 0;
+end $
+--delimiter ;
+
+set timestamp= @@timestamp + 61;
+select f();
+
+drop table t;
+drop function f;
+
+--echo #
+--echo # MDEV-33370 Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo #            is_bulk_op())' failed after ALTER TABLE of versioned table
+--echo #
+create table t1 (i int) with system versioning
+partition by system_time interval 1 month (
+    partition ver_p1 history,
+    partition ver_p2 history,
+    partition ver_pn current);
+
+--error ER_DATA_OUT_OF_RANGE
+alter table `t1` partition by system_time interval 10007 year ;
+drop table t1;
+
+--echo #
+--echo # MDEV-29114 ALTER puts row into different partition for system_time
+--echo #            interval partitioning
+--echo #
+--echo # CREATE case
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour (
+  partition p0 history, partition p1 history, partition pn current);
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= 3;
+
+--echo # CREATE result: row 1 got into p1
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+flush tables;
+--echo # For CREATE pruning is affected by current timestamp, but SELECT works
+--echo # in any case since row 1 got into p1
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+select * from t1 for system_time as of '2000-01-01 00:59:59';
+set timestamp= unix_timestamp('2020-01-01 00:00:00');
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+select * from t1 for system_time as of '2000-01-01 00:59:59';
+
+--echo # ALTER case
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+alter table t1
+partition by system_time interval 1 hour (
+  partition p0 history, partition p1 history, partition pn current);
+
+--echo # ALTER result: row 1 got into p1
+Select *, row_start, row_end from t1 partition (p0);
+Select *, row_start, row_end from t1 partition (p1);
+flush tables;
+Explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+Select * from t1 for system_time as of '2000-01-01 00:59:59';
+
+drop table t1;
+
+--echo #
+--echo # MDEV-36362 MariaDB crashes when parsing fuzzer generated PARTITION
+--echo #
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t
+partition by system_time
+interval setval(a, 1) second_microsecond;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t (x int) with system versioning
+partition by system_time interval nextval(s) hour;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+create table t (x int) with system versioning
+partition by system_time interval lastval(s) hour;
+
+--echo #
+--echo # MDEV-33289 INTERVAL partitioning by system time does not work close to
+--echo #            the end of timestamp range
+--echo #
+set timestamp= unix_timestamp('2024-01-21 00:00:00');
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year auto;
+insert into t values (0);
+set timestamp= unix_timestamp('2034-01-20 23:59:59');
+update t set a= 1;
+set timestamp= unix_timestamp('2034-01-20 00:00:00');
+update t set a= 2;
+set timestamp= unix_timestamp('2035-01-21 00:00:00');
+update t set a= 3;
+
+select * from t partition (p0);
+select * from t partition (p1);
+select * from t partition (pn);
+select * from t for system_time as of '2035-01-20 00:00:00';
+drop tables t;
+
+--error ER_DATA_OUT_OF_RANGE
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year partitions 10;
+
+create or replace table t (a int) with system versioning
+partition by system_time interval 10 year;
+drop table t;
+
+--echo #
+--echo # MDEV-38710 Assertion is_lock_owner on error returning from auto-create in mysql_admin_table
+--echo #
+
+set timestamp=2147483647;
+create table t (x int) with system versioning partition by system_time interval 1 hour auto;
+repair table t;
+drop table t;
+set timestamp=default;
+
+--echo # End of 10.11 tests
 
 set global innodb_stats_persistent= @save_persistent;
 --source suite/versioning/common_finish.inc

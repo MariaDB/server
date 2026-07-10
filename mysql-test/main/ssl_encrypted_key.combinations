@@ -1,0 +1,8 @@
+[pass]
+loose-ssl_passphrase=pass:MySecretPass
+
+[env]
+loose-ssl_passphrase=env:SSL_KEY_PASSWORD
+
+[file]
+loose-ssl_passphrase=file:$MYSQL_TEST_DIR/std_data/encrypted-server-key-password.txt

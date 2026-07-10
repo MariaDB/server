@@ -65,8 +65,19 @@ public:
   bool report_error(THD *thd);
   bool is_invalidated() const { return m_invalidated; }
   void reset_reprepare_observer() { m_invalidated= FALSE; }
+
+  bool can_retry() const
+  {
+    // The method must be called only for a statement that is invalidated
+    assert(is_invalidated());
+    return m_attempt <= MAX_REPREPARE_ATTEMPTS;
+  }
+
 private:
-  bool m_invalidated;
+  bool m_invalidated{false};
+  int m_attempt{0};
+
+  static const int MAX_REPREPARE_ATTEMPTS= 3;
 };
 
 
@@ -78,6 +89,9 @@ void mysqld_stmt_close(THD *thd, char *packet);
 void mysql_sql_stmt_prepare(THD *thd);
 void mysql_sql_stmt_execute(THD *thd);
 void mysql_sql_stmt_execute_immediate(THD *thd);
+// Bind a dynamic cursor placeholder from an Item (from the USING clause)
+bool mysql_sql_stmt_set_placeholder(THD *thd, const Lex_ident_sys &ps_name,
+                                    uint placeholder_offset, Item *value);
 void mysql_sql_stmt_close(THD *thd);
 void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length);
 void mysqld_stmt_reset(THD *thd, char *packet);

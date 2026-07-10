@@ -1,0 +1,7 @@
+--echo #
+--echo # MDEV-11339 Support UUID v4 generation
+--echo #
+
+SELECT UUID_v4() REGEXP '[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}' AS is_correct_version_and_revision;
+
+--echo # End of 11.7 tests

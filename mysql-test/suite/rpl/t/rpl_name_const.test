@@ -16,7 +16,7 @@ source include/master-slave.inc;
 
 create table t1 (id int);
 
---echo ==== create a procedure that has a column aliase in a subquery ====
+--echo ==== create a procedure that has a column aliases in a subquery ====
 --disable_warnings
 drop procedure if exists test_procedure;
 --enable_warnings

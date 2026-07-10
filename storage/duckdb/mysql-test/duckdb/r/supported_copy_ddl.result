@@ -1,0 +1,60 @@
+#
+# RENAME TABLE WITH DIFFERENT DATABASES
+#
+CREATE DATABASE db1;
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE = DuckDB;
+ALTER TABLE t RENAME TO db1.t, ALGORITHM = INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ALTER TABLE t RENAME TO db1.t;
+SHOW CREATE TABLE db1.t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int NOT NULL,
+  `b` int DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=DUCKDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+CALL dbms_duckdb.query("SELECT table_schema, table_name, column_name, column_default, is_nullable, data_type FROM information_schema.columns WHERE table_name = 't'");
+RESULT
+table_schema	table_name	column_name	column_default	is_nullable	data_type	
+VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	
+[ Rows: 2]
+db1	t	a	NULL	NO	INTEGER
+db1	t	b	NULL	YES	INTEGER
+
+
+CALL dbms_duckdb.query("SELECT table_name, constraint_type, constraint_text FROM duckdb_constraints WHERE table_name = 't'");
+RESULT
+table_name	constraint_type	constraint_text	
+VARCHAR	VARCHAR	VARCHAR	
+[ Rows: 1]
+t	NOT NULL	NOT NULL
+
+
+DROP DATABASE db1;
+#
+# ALTER COLUMN ORDER
+#
+CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE = DuckDB;
+ALTER TABLE t ADD COLUMN c INT FIRST, ALGORITHM = INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ALTER TABLE t ADD COLUMN c INT FIRST;
+ALTER TABLE t ADD COLUMN d INT AFTER a, ALGORITHM = INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ALTER TABLE t ADD COLUMN d INT AFTER a;
+ALTER TABLE t MODIFY COLUMN c INT AFTER a, ALGORITHM = INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ALTER TABLE t MODIFY COLUMN c INT AFTER a;
+ALTER TABLE t MODIFY COLUMN d INT FIRST, ALGORITHM = INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ALTER TABLE t MODIFY COLUMN d INT FIRST;
+DROP TABLE t;
+#
+# BUGFIX: Interrupt fetch query when copy ddl from DuckDB to DuckDB.
+#
+CREATE TABLE t1(id INT AUTO_INCREMENT KEY, a INT) ENGINE = InnoDB;
+ALTER TABLE t1 ENGINE = DuckDB;
+SET GLOBAL duckdb_copy_ddl_in_batch = OFF;
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM = COPY;
+include/assert.inc [Insert data in batch]
+SET GLOBAL duckdb_copy_ddl_in_batch = default;
+DROP TABLE t1;

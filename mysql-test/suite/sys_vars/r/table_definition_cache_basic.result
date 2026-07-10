@@ -92,7 +92,7 @@ SELECT @@table_definition_cache = @@global.table_definition_cache;
 SET table_definition_cache = 1;
 ERROR HY000: Variable 'table_definition_cache' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT global.table_definition_cache;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT table_definition_cache = @@session.table_definition_cache;
-ERROR 42S22: Unknown column 'table_definition_cache' in 'field list'
+ERROR 42S22: Unknown column 'table_definition_cache' in 'SELECT'
 SET @@global.table_definition_cache = @start_value;

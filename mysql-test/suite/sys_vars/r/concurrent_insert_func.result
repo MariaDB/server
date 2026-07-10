@@ -41,7 +41,7 @@ SELECT state,info FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE state= "Waiting for table level lock" AND info LIKE "INSERT INTO t1%";
 state	info
 Waiting for table level lock	INSERT INTO t1(name) VALUES('Record_7')
-## table contents befor UNLOCK ##
+## table contents before UNLOCK ##
 SELECT * FROM t1;
 name
 Record_1

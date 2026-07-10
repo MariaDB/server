@@ -47,10 +47,13 @@ static constexpr uint32_t TRX_SYS_SPACE= 0;
 static const ulint TRX_MAGIC_N = 91118598;
 
 constexpr uint innodb_purge_threads_MAX= 32;
+constexpr uint innodb_purge_batch_size_MAX= 5000;
 
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
 	TRX_STATE_NOT_STARTED,
+	/** The transaction was aborted (rolled back) due to an error */
+	TRX_STATE_ABORTED,
 
 	TRX_STATE_ACTIVE,
 	/** XA PREPARE has been executed; only XA COMMIT or XA ROLLBACK
@@ -58,7 +61,17 @@ enum trx_state_t {
 	TRX_STATE_PREPARED,
 	/** XA PREPARE transaction that was returned to ha_recover() */
 	TRX_STATE_PREPARED_RECOVERED,
+        /** The transaction has been committed (or completely rolled back) */
 	TRX_STATE_COMMITTED_IN_MEMORY
+};
+
+/** Transaction bulk insert operation @see trx_t::bulk_insert */
+enum trx_bulk_insert {
+    TRX_NO_BULK,
+    /** bulk insert is being executed during DML */
+    TRX_DML_BULK = 2,
+    /** bulk insert is being executed in copy_data_between_tables() */
+    TRX_DDL_BULK = 3
 };
 
 /** Memory objects */
@@ -75,8 +88,6 @@ struct trx_undo_t;
 struct roll_node_t;
 /** Commit command node in a query graph */
 struct commit_node_t;
-/** SAVEPOINT command node in a query graph */
-struct trx_named_savept_t;
 /* @} */
 
 /** Row identifier (DB_ROW_ID, DATA_ROW_ID) */
@@ -87,11 +98,6 @@ typedef ib_id_t	trx_id_t;
 typedef ib_id_t	roll_ptr_t;
 /** Undo number */
 typedef ib_id_t	undo_no_t;
-
-/** Transaction savepoint */
-struct trx_savept_t{
-	undo_no_t	least_undo_no;	/*!< least undo number to undo */
-};
 
 /** File objects */
 /* @{ */
@@ -107,7 +113,21 @@ typedef	byte	trx_undo_rec_t;
 
 /* @} */
 
+/** Info required to purge a record */
+struct trx_purge_rec_t
+{
+  /** Undo log record, or nullptr (roll_ptr!=0 if the log can be skipped) */
+  const trx_undo_rec_t *undo_rec;
+  /** File pointer to undo_rec */
+  roll_ptr_t roll_ptr;
+};
+
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
+
+/** Number of std::unordered_map hash buckets expected to be needed
+for table IDs in a purge batch. GNU libstdc++ would default to 1 and
+enlarge and rehash on demand. */
+static constexpr size_t TRX_PURGE_TABLE_BUCKETS= 128;
 
 /** The number of rollback segments; rollback segment id must fit in
 the 7 bits reserved for it in DB_ROLL_PTR. */

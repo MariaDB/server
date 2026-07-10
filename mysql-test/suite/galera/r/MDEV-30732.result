@@ -1,0 +1,627 @@
+connection node_2;
+connection node_1;
+SET GLOBAL sql_mode=0;
+SET sql_mode=DEFAULT;
+CREATE TABLE t (c INT,c2 BLOB NOT NULL,KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * from t;
+c	c2
+1	
+1	
+1	
+1	
+1	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 BLOB NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 BLOB NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 VARCHAR(270) NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 VARCHAR(270) NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 CHAR(80) NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * from t;
+c	c2
+1	
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 CHAR(80) NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * from t;
+c	c2
+1	
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 TEXT NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 TEXT NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 BLOB NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 BLOB NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 VARCHAR(270) NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 VARCHAR(270) NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 CHAR(80) NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * from t;
+c	c2
+1	
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 CHAR(80) NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+SELECT * from t;
+c	c2
+1	
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 TEXT NOT NULL,UNIQUE KEY k2 (c2 (1),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY,c2 TEXT NOT NULL,KEY k2 (c, c2 (1))) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * from t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+SET GLOBAL sql_mode=0;
+SET sql_mode=DEFAULT;
+CREATE TABLE t (c INT,c2 BLOB,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 BLOB NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 BLOB,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 BLOB NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 VARCHAR(270),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 VARCHAR(270) NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 VARCHAR(270),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 VARCHAR(270) NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 CHAR(80),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 CHAR(80) NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 CHAR(80),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 CHAR(80) NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="" WHERE c=1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 TEXT,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 TEXT NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 TEXT,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 TEXT NOT NULL,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+Warnings:
+Warning	1364	Field 'c2' doesn't have a default value
+UPDATE t SET c2=NULL WHERE c = 1;
+Warnings:
+Warning	1048	Column 'c2' cannot be null
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	
+3	
+4	
+5	
+DROP TABLE t;
+SET GLOBAL sql_mode=DEFAULT;
+CREATE TABLE t (c INT,c2 BLOB,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 VARCHAR(270),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 CHAR(80),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT,c2 TEXT,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(1),(1),(1),(1);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 BLOB,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 VARCHAR(270),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 CHAR(80),KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;
+CREATE TABLE t (c INT NOT NULL PRIMARY KEY,c2 TEXT,KEY k2 (c2 (6),c)) DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;
+INSERT INTO t (c) VALUES (1),(2),(3),(4),(5);
+UPDATE t SET c2=NULL WHERE c = 1;
+UPDATE t SET c2="TESTtest" WHERE c = 1;
+UPDATE t SET c2="BUGbug" WHERE c2 = "TESTtest";
+DELETE FROM t WHERE c2="BUGbug";
+SELECT * FROM t;
+c	c2
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+DROP TABLE t;

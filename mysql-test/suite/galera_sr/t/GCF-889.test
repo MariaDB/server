@@ -26,4 +26,3 @@ SET GLOBAL wsrep_ignore_apply_errors = 7;
 
 --connection node_1
 DROP TABLE t1;
-

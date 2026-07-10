@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Note that this test expact that there are tables test1 and test2 in
+# Note that this test expect that there are tables test1 and test2 in
 # the current directory where test2 has also a .frm file
 #
 

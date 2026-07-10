@@ -305,19 +305,6 @@ ib_vector_remove(
 }
 
 /********************************************************************
-Sort the vector elements. */
-UNIV_INLINE
-void
-ib_vector_sort(
-/*===========*/
-				/* out: void */
-	ib_vector_t*	vec,	/* in: vector */
-	ib_compare_t	compare)/* in: the comparator to use for sort */
-{
-	qsort(vec->data, vec->used, vec->sizeof_value, compare);
-}
-
-/********************************************************************
 Destroy the vector. Make sure the vector owns the allocator, e.g.,
 the heap in the the heap allocator. */
 UNIV_INLINE

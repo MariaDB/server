@@ -1,5 +1,5 @@
---- encrypt_and_grep.result	2022-09-02 22:36:21.669650278 +0530
-+++ encrypt_and_grep.reject	2022-11-29 19:01:22.080027528 +0530
+--- encrypt_and_grep.result
++++ encrypt_and_grep.reject
 @@ -14,6 +14,9 @@
  SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
  NAME

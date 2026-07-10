@@ -12,6 +12,7 @@
 #
 # Parameters:
 #   $slave_timeout
+#     Timeout used when waiting for the slave threads to start.
 #     See include/wait_for_slave_param.inc
 #
 #   $rpl_debug

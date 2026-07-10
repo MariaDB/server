@@ -104,11 +104,11 @@ SELECT @@max_user_connections;
 @@max_user_connections
 102
 SELECT local.max_user_connections;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.max_user_connections;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT max_user_connections = @@session.max_user_connections;
-ERROR 42S22: Unknown column 'max_user_connections' in 'field list'
+ERROR 42S22: Unknown column 'max_user_connections' in 'SELECT'
 SET @@global.max_user_connections = @start_global_value;
 SELECT @@global.max_user_connections;
 @@global.max_user_connections

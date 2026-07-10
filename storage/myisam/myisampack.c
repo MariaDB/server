@@ -20,6 +20,7 @@
 #define USE_MY_FUNC			/* We need at least my_malloc */
 #endif
 
+#define VER "1.23"
 #include "myisamdef.h"
 #include "my_default.h"
 #include <queues.h>
@@ -30,6 +31,7 @@
 #endif
 #include <my_getopt.h>
 #include <assert.h>
+#include <welcome_copyright_notice.h>
 
 #if SIZEOF_LONG_LONG > 4
 #define BITS_SAVED 64
@@ -131,8 +133,8 @@ static void free_counts_and_tree_and_queue(HUFF_TREE *huff_trees,
 					   uint trees,
 					   HUFF_COUNTS *huff_counts,
 					   uint fields);
-static int compare_tree(void* cmp_arg __attribute__((unused)),
-			const uchar *s,const uchar *t);
+static int compare_tree(void *cmp_arg __attribute__((unused)),
+                        const void *s, const void *t);
 static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts);
 static void check_counts(HUFF_COUNTS *huff_counts,uint trees,
 			 my_off_t records);
@@ -142,9 +144,9 @@ static int test_space_compress(HUFF_COUNTS *huff_counts,my_off_t records,
 			       enum en_fieldtype field_type);
 static HUFF_TREE* make_huff_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_tree(HUFF_TREE *tree,HUFF_COUNTS *huff_counts);
-static int compare_huff_elements(void *not_used, uchar *a,uchar *b);
-static int save_counts_in_queue(uchar *key,element_count count,
-				    HUFF_TREE *tree);
+static int compare_huff_elements(void *not_used, const void *a, const void *b);
+static int save_counts_in_queue(void *key, element_count count,
+				    void *tree);
 static my_off_t calc_packed_length(HUFF_COUNTS *huff_counts,uint flag);
 static uint join_same_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_decode_table(HUFF_TREE *huff_tree,uint trees);
@@ -176,7 +178,7 @@ static int mrg_rrnd(PACK_MRG_INFO *info,uchar *buf);
 static void mrg_reset(PACK_MRG_INFO *mrg);
 #if !defined(DBUG_OFF)
 static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count);
-static int fakecmp(my_off_t **count1, my_off_t **count2);
+static int fakecmp(const void *count1, const void *count2);
 #endif
 
 
@@ -248,9 +250,6 @@ int main(int argc, char **argv)
   free_defaults(default_argv);
   my_end(verbose ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(error ? 2 : 0);
-#ifndef _lint
-  return 0;					/* No compiler warning */
-#endif
 }
 
 enum options_mp {OPT_CHARSETS_DIR_MP=256};
@@ -287,13 +286,6 @@ static struct my_option my_long_options[] =
    &opt_wait, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s Ver 1.23 for %s on %s\n",
-              my_progname, SYSTEM_TYPE, MACHINE_TYPE);
-}
 
 
 static void usage(void)
@@ -415,7 +407,7 @@ static MI_INFO *open_isam_file(char *name,int mode)
     }
     if (verbose)
       puts("Recompressing already compressed table");
-    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
 
     /* We want to use the new checksums if we have null fields */
     if (share->has_null_fields)
@@ -822,8 +814,8 @@ static HUFF_COUNTS *init_huff_count(MI_INFO *info,my_off_t records)
         'tree_pos'. It's keys are implemented by pointers into 'tree_buff'.
         This is accomplished by '-1' as the element size.
       */
-      init_tree(&count[i].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
-		NULL, MYF(0));
+      init_tree(&count[i].int_tree, 0, 0, -1, compare_tree, NULL, NULL,
+                MYF(0));
       if (records && type != FIELD_BLOB && type != FIELD_VARCHAR)
 	count[i].tree_pos=count[i].tree_buff =
 	  my_malloc(PSI_NOT_INSTRUMENTED, count[i].field_length > 1 ? tree_buff_length : 2,
@@ -1182,10 +1174,11 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
 }
 
 static int compare_huff_elements(void *not_used __attribute__((unused)),
-				 uchar *a, uchar *b)
+                                 const void *a_, const void *b_)
 {
-  return *((my_off_t*) a) < *((my_off_t*) b) ? -1 :
-    (*((my_off_t*) a) == *((my_off_t*) b)  ? 0 : 1);
+  const my_off_t *a= a_;
+  const my_off_t *b= b_;
+  return *a < *b ? -1 : (*a == *b ? 0 : 1);
 }
 
 	/* Check each tree if we should use pre-space-compress, end-space-
@@ -1421,7 +1414,7 @@ test_space_compress(HUFF_COUNTS *huff_counts, my_off_t records,
   min_pos= -2;
   huff_counts->counts[(uint) ' ']=space_count;
 
-	/* Test with allways space-count */
+	/* Test with always space-count */
   new_length=huff_counts->bytes_packed+length_bits*records/8;
   if (new_length+1 < min_pack)
   {
@@ -1694,9 +1687,11 @@ static int make_huff_tree(HUFF_TREE *huff_tree, HUFF_COUNTS *huff_counts)
   return 0;
 }
 
-static int compare_tree(void* cmp_arg __attribute__((unused)),
-			register const uchar *s, register const uchar *t)
+static int compare_tree(void *cmp_arg __attribute__((unused)), const void *s_,
+                        const void *t_)
 {
+  const uchar *s= s_;
+  const uchar *t= t_;
   uint length;
   for (length=global_count->field_length; length-- ;)
     if (*s++ != *t++)
@@ -1725,9 +1720,10 @@ static int compare_tree(void* cmp_arg __attribute__((unused)),
     0
  */
 
-static int save_counts_in_queue(uchar *key, element_count count,
-				HUFF_TREE *tree)
+static int save_counts_in_queue(void *key_, element_count count, void *tree_)
 {
+  uchar *key= key_;
+  HUFF_TREE *tree= tree_;
   HUFF_ELEMENT *new_huff_el;
 
   new_huff_el=tree->element_buffer+(tree->elements++);
@@ -2819,7 +2815,7 @@ static char *make_old_name(char *new_name, char *old_name)
   return fn_format(new_name,old_name,"",OLD_EXT,2+4);
 }
 
-	/* rutines for bit writing buffer */
+	/* routines for bit writing buffer */
 
 static void init_file_buffer(File file, pbool read_buffer)
 {
@@ -3227,8 +3223,10 @@ static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count)
     -1                  count1 >  count2
 */
 
-static int fakecmp(my_off_t **count1, my_off_t **count2)
+static int fakecmp(const void *count1_, const void *count2_)
 {
+  const my_off_t *const *count1= count1_;
+  const my_off_t *const *count2= count2_;
   return ((**count1 < **count2) ? 1 :
           (**count1 > **count2) ? -1 : 0);
 }

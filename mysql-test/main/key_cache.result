@@ -1,4 +1,5 @@
 drop table if exists t1, t2, t3;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
@@ -134,7 +135,7 @@ i
 explain select count(*) from t1, t2 where t1.p = t2.i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	2	Using index
-1	SIMPLE	t2	ref	k1	k1	5	test.t1.p	2	Using index
+1	SIMPLE	t2	ref	k1	k1	5	test.t1.p	1	Using index
 select count(*) from t1, t2 where t1.p = t2.i;
 count(*)
 3
@@ -434,31 +435,31 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
 KEY_BLOCKS_USED	4
 KEY_BLOCKS_WARM	0
-KEY_READ_REQUESTS	22
+KEY_READ_REQUESTS	21
 KEY_READS	0
 KEY_WRITE_REQUESTS	26
 KEY_WRITES	6
 select variable_value into @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	NULL	NULL	2097152	1024	4	#	0	22	0	26	6
+default	NULL	NULL	2097152	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t2 where a='zzzz';
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	NULL	NULL	2097152	1024	4	#	0	29	0	32	9
+default	NULL	NULL	2097152	1024	4	#	0	28	0	32	9
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t1;
 delete from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	NULL	NULL	2097152	1024	4	#	0	29	0	32	9
+default	NULL	NULL	2097152	1024	4	#	0	28	0	32	9
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 set global key_cache_segments=2;
 select @@key_cache_segments;
@@ -482,13 +483,13 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
 KEY_BLOCKS_USED	4
 KEY_BLOCKS_WARM	0
-KEY_READ_REQUESTS	22
+KEY_READ_REQUESTS	21
 KEY_READS	0
 KEY_WRITE_REQUESTS	26
 KEY_WRITES	6
@@ -497,13 +498,13 @@ variable_value < @key_blocks_unused
 1
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	2097152	1024	4	#	0	22	0	26	6
+default	2	NULL	2097152	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t1;
 delete from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	2097152	1024	4	#	0	22	0	26	6
+default	2	NULL	2097152	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 set global key_cache_segments=1;
 select @@key_cache_segments;
@@ -527,13 +528,13 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 VARIABLE_NAME	VARIABLE_VALUE
 KEY_BLOCKS_NOT_FLUSHED	0
 KEY_BLOCKS_USED	4
 KEY_BLOCKS_WARM	0
-KEY_READ_REQUESTS	22
+KEY_READ_REQUESTS	21
 KEY_READS	0
 KEY_WRITE_REQUESTS	26
 KEY_WRITES	6
@@ -542,16 +543,16 @@ variable_value = @key_blocks_unused
 1
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	1	NULL	2097152	1024	4	#	0	22	0	26	6
+default	1	NULL	2097152	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 delete from t1;
 delete from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	1	NULL	2097152	1024	4	#	0	22	0	26	6
+default	1	NULL	2097152	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	1	0	2	1
 flush tables;
-flush status;
+flush global status;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	1	NULL	2097152	1024	4	#	0	0	0	0	0
@@ -583,10 +584,10 @@ p	i	a
 3	1	yyyy
 4	3	zzzz
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	4	#	0	22	0	26	6
+default	2	NULL	32768	1024	4	#	0	21	0	26	6
 small	NULL	NULL	1048576	1024	1	#	0	0	0	0	0
 insert into t1(a) select a from t1;
 insert into t1(a) select a from t1;
@@ -606,7 +607,7 @@ insert into t2(i,a) select i,a from t2;
 insert into t2(i,a) select i,a from t2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	6733	#	3684	103
+default	2	NULL	32768	1024	#	#	0	6732	#	3684	103
 small	NULL	NULL	1048576	1024	#	#	0	0	#	0	0
 select * from t1 where p between 1010 and 1020 ;
 p	a
@@ -625,12 +626,16 @@ p	i	a
 1020	3	zzzz
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
-default	2	NULL	32768	1024	#	#	0	6750	#	3684	103
+default	2	NULL	32768	1024	#	#	0	6749	#	3684	103
 small	NULL	NULL	1048576	1024	#	#	0	0	#	0	0
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 flush tables;
-flush status;
+flush global status;
 update t1 set a='zzzz' where a='qqqq';
-update t2 set i=1 where i=2;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	32768	1024	#	#	0	3076	18	1552	18
@@ -856,3 +861,4 @@ SET GLOBAL keycache1.key_buffer_size=0;
 #
 # End of 10.3 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

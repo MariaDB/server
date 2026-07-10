@@ -29,6 +29,7 @@ typedef enum {RPL_AUTH_MASTER=0,RPL_IDLE_SLAVE,RPL_ACTIVE_SLAVE,
 	      RPL_ANY /* wild card used by change_rpl_status */ } RPL_STATUS;
 extern ulong rpl_status;
 
+extern ulong init_rpl_role_val;
 extern mysql_mutex_t LOCK_rpl_status;
 extern mysql_cond_t COND_rpl_status;
 extern TYPELIB rpl_role_typelib;

@@ -1,0 +1,5 @@
+!include ../my.cnf
+
+[mysqld.1]
+plugin-load-add=@ENV.HA_CONNECT_SO
+loose-enable-connect

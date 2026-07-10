@@ -10,7 +10,10 @@
 #                  
 ############################################################################
 
---disable_ps_protocol
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
+{
+   --skip Test temporarily disabled for ps-protocol and cursor-protocol
+}
 --source include/default_charset.inc
 set sql_mode="";
 
@@ -959,10 +962,6 @@ CREATE PROCEDURE function()
 DROP PROCEDURE function;
 
 --error ER_PARSE_ERROR
-CREATE PROCEDURE accessible()
-   SELECT * from t1 where f2=f1;
-
---error ER_PARSE_ERROR
 CREATE PROCEDURE add()
    SELECT * from t1 where f2=f1;
 
@@ -1102,9 +1101,11 @@ CREATE PROCEDURE current_user()
 CREATE PROCEDURE cursor()
   SELECT * from t1 where f2=f1;
 
---error ER_PARSE_ERROR
 CREATE PROCEDURE database()
-   SELECT * from t1 where f2=f1;
+   SELECT 1;
+
+CALL database();
+DROP PROCEDURE database;
 
 --error ER_PARSE_ERROR
 CREATE PROCEDURE databases()
@@ -1367,6 +1368,12 @@ CREATE PROCEDURE iterate()
 CREATE PROCEDURE join()
    SELECT * from t1 where f2=f1;
 
+CREATE PROCEDURE json_table()
+   SELECT 1;
+
+CALL json_table();
+DROP PROCEDURE json_table;
+
 --error ER_PARSE_ERROR
 CREATE PROCEDURE key()
    SELECT * from t1 where f2=f1;
@@ -1444,10 +1451,6 @@ CREATE PROCEDURE low_priority()
    SELECT * from t1 where f2=f1;
 
 --error ER_PARSE_ERROR
-CREATE PROCEDURE master_ssl_verify_server_cert()
-   SELECT * from t1 where f2=f1;
-
---error ER_PARSE_ERROR
 CREATE PROCEDURE match()
    SELECT * from t1 where f2=f1;
 
@@ -1486,6 +1489,13 @@ CREATE PROCEDURE modifies()
 --error ER_PARSE_ERROR
 CREATE PROCEDURE natural()
    SELECT * from t1 where f2=f1;
+
+CREATE PROCEDURE nested()
+   SELECT 1;
+
+CALL nested();
+
+DROP PROCEDURE nested;
 
 --error ER_PARSE_ERROR
 CREATE PROCEDURE not()
@@ -1527,6 +1537,13 @@ CREATE PROCEDURE or()
 CREATE PROCEDURE order()
    SELECT * from t1 where f2=f1;
 
+CREATE PROCEDURE ordinality()
+   SELECT 1;
+
+CALL ordinality;
+
+DROP PROCEDURE ordinality;
+
 --error ER_PARSE_ERROR
 CREATE PROCEDURE out()
    SELECT * from t1 where f2=f1;
@@ -1538,6 +1555,13 @@ CREATE PROCEDURE outer()
 --error ER_PARSE_ERROR
 CREATE PROCEDURE outfile()
    SELECT * from t1 where f2=f1;
+
+CREATE PROCEDURE path()
+   SELECT 1;
+
+CALL path();
+
+DROP PROCEDURE path;
 
 --error ER_PARSE_ERROR
 CREATE PROCEDURE precision()
@@ -1619,9 +1643,11 @@ CREATE PROCEDURE right()
 CREATE PROCEDURE rlike()
    SELECT * from t1 where f2=f1;
 
---error ER_PARSE_ERROR
 CREATE PROCEDURE schema()
-   SELECT * from t1 where f2=f1;
+   SELECT 1;
+
+CALL schema();
+DROP PROCEDURE schema;
 
 --error ER_PARSE_ERROR
 CREATE PROCEDURE schemas()
@@ -2138,10 +2164,6 @@ CREATE FUNCTION year(f1 year) returns year
 DROP FUNCTION year;
 
 --error ER_PARSE_ERROR
-CREATE FUNCTION year(3)(f1 year(3)) returns year(3)
-    return f1;
-
---error ER_PARSE_ERROR
 CREATE FUNCTION year(4)(f1 year(4)) returns year(4)
     return f1;
 
@@ -2444,11 +2466,6 @@ CREATE FUNCTION fn1(f1 timestamp ) returns timestamp
 
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1(f1 year ) returns year
-    return f1;
-
-DROP FUNCTION IF EXISTS fn1;
---error ER_PARSE_ERROR
-CREATE FUNCTION fn1(f1 year(f1 3) ) returns year(3)
     return f1;
 
 DROP FUNCTION IF EXISTS fn1;
@@ -3048,14 +3065,6 @@ let $message= Testcase ....:
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1()
-  accessible:BEGIN
-    SELECT @x;
-END//
-delimiter ;//
-
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
@@ -3481,7 +3490,7 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1()
   database:BEGIN
     SELECT @x;
@@ -4285,6 +4294,15 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
+CREATE PROCEDURE sp1()
+  json_table:BEGIN
+    SELECT @x;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1()
   key:BEGIN
@@ -4512,14 +4530,6 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1()
-  master_ssl_verify_server_cert:BEGIN
-    SELECT @x;
-END//
-delimiter ;//
-
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
@@ -4645,6 +4655,16 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
+
+CREATE PROCEDURE sp1()
+  nested:BEGIN
+    SELECT @x;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1()
   not:BEGIN
@@ -4766,6 +4786,16 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
+
+CREATE PROCEDURE sp1()
+  ordinality:BEGIN
+    SELECT @x;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1()
   out:BEGIN
@@ -4800,6 +4830,16 @@ delimiter ;//
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
+
+delimiter //;
+
+CREATE PROCEDURE sp1()
+  path:BEGIN
+    SELECT @x;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -5066,7 +5106,7 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1()
   schema:BEGIN
     SELECT @x;
@@ -8400,20 +8440,6 @@ DROP PROCEDURE IF EXISTS sp1;
 delimiter //;
 CREATE PROCEDURE sp1( )
 BEGIN
-    declare x, y, z year(3) default 2005;
-    SELECT x, y, z;
-END//
-delimiter ;//
-
-CALL sp1();
-
---disable_warnings
-DROP PROCEDURE IF EXISTS sp1;
---enable_warnings
-
-delimiter //;
-CREATE PROCEDURE sp1( )
-BEGIN
     declare x, y, z year(4) default 2005;
     SELECT x, y, z;
 END//
@@ -8504,14 +8530,6 @@ delimiter ;//
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
-
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1()
-BEGIN
-    declare accessible char;
-END//
-delimiter ;//
 
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
@@ -8938,7 +8956,7 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1()
 BEGIN
     declare database char;
@@ -9736,10 +9754,19 @@ BEGIN
     declare join char;
 END//
 delimiter ;//
-
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
+
+delimiter //;
+
+CREATE PROCEDURE sp1()
+BEGIN
+    declare json_table char;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -9969,14 +9996,6 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1()
-BEGIN
-    declare master_ssl_verify_server_cert char;
-END//
-delimiter ;//
-
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
@@ -10102,6 +10121,16 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
+
+CREATE PROCEDURE sp1()
+BEGIN
+    declare nested char;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1()
 BEGIN
@@ -10221,6 +10250,16 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
+
+CREATE PROCEDURE sp1()
+BEGIN
+    declare ordinality char;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1()
 BEGIN
@@ -10255,6 +10294,16 @@ delimiter ;//
 --disable_warnings
 DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
+
+delimiter //;
+
+CREATE PROCEDURE sp1()
+BEGIN
+    declare path char;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -10506,7 +10555,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1()
 BEGIN
     declare schema char;
@@ -11219,15 +11268,6 @@ END//
 delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1( )
-BEGIN
-    declare accessible condition for sqlstate '02000';
-    declare exit handler for add set @var2 = 1;
-END//
-delimiter ;//
-
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
@@ -11624,7 +11664,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1( )
 BEGIN
     declare database condition for sqlstate '02000';
@@ -12361,6 +12401,17 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
+
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare json_table condition for sqlstate '02000';
+    declare exit handler for json_table set @var2 = 1;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -12573,17 +12624,6 @@ delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
 BEGIN
-    declare master_ssl_verify_server_cert condition for sqlstate '02000';
-    declare exit handler for int set @var2 = 1;
-END//
-delimiter ;//
-
-DROP PROCEDURE IF EXISTS sp1;
-
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1( )
-BEGIN
     declare match condition for sqlstate '02000';
     declare exit handler for match set @var2 = 1;
 END//
@@ -12689,6 +12729,17 @@ END//
 delimiter ;//
 
 DROP PROCEDURE IF EXISTS sp1;
+
+delimiter //;
+
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare nested condition for sqlstate '02000';
+    declare exit handler for nested set @var2 = 1;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -12800,6 +12851,17 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
+
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare ordinality condition for sqlstate '02000';
+    declare exit handler for ordinality set @var2 = 1;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -12831,6 +12893,17 @@ END//
 delimiter ;//
 
 DROP PROCEDURE IF EXISTS sp1;
+
+delimiter //;
+
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare path condition for sqlstate '02000';
+    declare exit handler for path set @var2 = 1;
+END//
+delimiter ;//
+
+DROP PROCEDURE sp1;
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -13075,7 +13148,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1( )
 BEGIN
     declare schema condition for sqlstate '02000';
@@ -13818,18 +13891,6 @@ BEGIN
 END//
 delimiter ;//
 
-DROP PROCEDURE IF EXISTS sp1;
-
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1( )
-BEGIN
-    declare accessible handler for sqlstate '02000' set @var2 = 1;
-END//
-delimiter ;//
-
-DROP PROCEDURE IF EXISTS sp1;
-
 delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
@@ -14181,7 +14242,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+
 CREATE PROCEDURE sp1( )
 BEGIN
     declare database handler for sqlstate '02000' set @var2 = 1;
@@ -14851,6 +14912,14 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare json_table handler for sqlstate '02000' set @var2 = 1;
+END//
+delimiter ;//
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -15044,16 +15113,6 @@ delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
 BEGIN
-    declare master_ssl_verify_server_cert handler for sqlstate '02000' set @var2 = 1;
-END//
-delimiter ;//
-
-DROP PROCEDURE IF EXISTS sp1;
-
-delimiter //;
---error ER_PARSE_ERROR
-CREATE PROCEDURE sp1( )
-BEGIN
     declare match handler for sqlstate '02000' set @var2 = 1;
 END//
 delimiter ;//
@@ -15149,6 +15208,14 @@ END//
 delimiter ;//
 
 DROP PROCEDURE IF EXISTS sp1;
+
+delimiter //;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare nested handler for sqlstate '02000' set @var2 = 1;
+END//
+delimiter ;//
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -15251,6 +15318,14 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare ordinality handler for sqlstate '02000' set @var2 = 1;
+END//
+delimiter ;//
+
+delimiter //;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -15279,6 +15354,14 @@ END//
 delimiter ;//
 
 DROP PROCEDURE IF EXISTS sp1;
+
+delimiter //;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE PROCEDURE sp1( )
+BEGIN
+    declare path handler for sqlstate '02000' set @var2 = 1;
+END//
+delimiter ;//
 
 delimiter //;
 --error ER_PARSE_ERROR
@@ -15511,7 +15594,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE sp1( )
 BEGIN
     declare schema handler for sqlstate '02000' set @var2 = 1;
@@ -17021,18 +17104,6 @@ delimiter //;
 CREATE PROCEDURE sp1()
 BEGIN
     declare x year;
-    SELECT f1 into x from t2 limit 1;
-END//
-delimiter ;//
-
-CALL sp1();
-
-DROP PROCEDURE IF EXISTS sp1;
-
-delimiter //;
-CREATE PROCEDURE sp1()
-BEGIN
-    declare x year(3);
     SELECT f1 into x from t2 limit 1;
 END//
 delimiter ;//
@@ -27008,7 +27079,7 @@ DROP PROCEDURE IF EXISTS sp4;
 
 set @@sql_mode = 'ansi, error_for_division_by_zero';
 
-# now set the corrent value:
+# now set the correct value:
 set @@sql_mode = 'ansi,error_for_division_by_zero';
 
 SHOW VARIABLES LIKE 'sql_mode';
@@ -29548,4 +29619,3 @@ DROP TABLE IF EXISTS res_t1;
 let $message= .                               +++ END OF SCRIPT +++;
 --source include/show_msg80.inc
 # ==============================================================================
---enable_ps_protocol

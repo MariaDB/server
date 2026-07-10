@@ -1,7 +1,6 @@
 !include ../galera_2nodes.cnf
 
-[mysqld.1]
+[mysqld]
 wsrep_debug=1
-
-[mysqld.2]
-wsrep_debug=1
+wsrep_sync_wait=0
+loose-galera-var-ignore-apply-errors=1

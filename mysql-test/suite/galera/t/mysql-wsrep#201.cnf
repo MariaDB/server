@@ -5,5 +5,3 @@ query_cache_type=1
 
 [mysqld.2]
 query_cache_type=1
-
-

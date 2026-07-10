@@ -13,7 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
-IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCXX
+IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
   AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   IF(NOT DEFINED BUGGY_GCC_NO_DTRACE_MODULES)
     EXECUTE_PROCESS(
@@ -125,16 +125,20 @@ FUNCTION(DTRACE_INSTRUMENT target)
         WORKING_DIRECTORY ${objdir}
       )
     ELSEIF(CMAKE_SYSTEM_NAME MATCHES "Linux")
-      # dtrace on Linux runs gcc and uses flags from environment
-      SET(CFLAGS_SAVED $ENV{CFLAGS})
-      SET(ENV{CFLAGS} ${CMAKE_C_FLAGS})
+      IF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # dtrace on Linux runs gcc and uses flags from environment
+        SET(CFLAGS_SAVED $ENV{CFLAGS})
+        SET(ENV{CFLAGS} ${CMAKE_C_FLAGS})
+      ENDIF()
       SET(outfile "${CMAKE_BINARY_DIR}/probes_mysql.o")
       # Systemtap object
       EXECUTE_PROCESS(
         COMMAND ${DTRACE} -G -s ${CMAKE_SOURCE_DIR}/include/probes_mysql.d.base
         -o ${outfile}
         )
-      SET(ENV{CFLAGS} ${CFLAGS_SAVED})
+      IF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        SET(ENV{CFLAGS} ${CFLAGS_SAVED})
+      ENDIF()
     ENDIF()
 
     # Do not try to extend the library if we have not built the .o file

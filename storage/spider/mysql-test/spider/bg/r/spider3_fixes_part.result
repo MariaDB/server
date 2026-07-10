@@ -8,6 +8,7 @@ child3_1
 child3_2
 child3_3
 for slave1_1
+include/start_slave.inc
 
 drop and create databases
 connection master_1;
@@ -34,10 +35,6 @@ SELECT 1;
 1
 auto_increment with partition
 connection master_1;
-SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
-SET SESSION spider_auto_increment_mode = -1;
-Warnings:
-Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
 connection slave1_1;
 connection master_1;
 DROP TABLE IF EXISTS t1, t2;
@@ -51,6 +48,16 @@ PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_P_1
 MASTER_1_AUTO_INCREMENT_INCREMENT2
 MASTER_1_AUTO_INCREMENT_OFFSET2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
 'srv "s_2_1"')
 1
@@ -192,7 +199,6 @@ LAST_INSERT_ID()
 SELECT MAX(id) FROM t2;
 MAX(id)
 10000
-SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
 connection slave1_1;
 SELECT id FROM t1 ORDER BY id;
 id

@@ -96,8 +96,11 @@ struct st_mariadb_encryption
   /**
     processes (encrypts or decrypts) a chunk of data
 
-    writes the output to th dst buffer. note that it might write
+    writes the output to the dst buffer. note that it might write
     more bytes that were in the input. or less. or none at all.
+
+    dlen points to the starting length of the output buffer. Upon return, it
+    should be set to the number of bytes written.
   */
   int (*crypt_ctx_update)(void *ctx, const unsigned char* src, unsigned int slen,
                           unsigned char* dst, unsigned int* dlen);
@@ -123,4 +126,3 @@ struct st_mariadb_encryption
 }
 #endif
 #endif
-

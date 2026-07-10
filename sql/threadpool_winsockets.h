@@ -46,7 +46,7 @@ struct win_aiosocket
 
 
   /**
-   Begins asynchronnous reading from socket/pipe. 
+   Begins asynchronous reading from socket/pipe.
    On IO completion, pre-read some bytes into internal buffer
   */
   DWORD begin_read();

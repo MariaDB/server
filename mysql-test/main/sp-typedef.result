@@ -1,0 +1,7 @@
+#
+# MDEV-38883 Server crashes when creating a package with function with IN/OUT qualifier
+#
+CREATE PACKAGE pkg FUNCTION func (a IN INT) RETURN INT;
+ERROR HY000: Unknown data type: 'IN'
+CREATE PACKAGE pkg FUNCTION func (a UNKNOWN) RETURN INT;
+ERROR HY000: Unknown data type: 'UNKNOWN'

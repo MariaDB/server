@@ -1,0 +1,133 @@
+--echo #
+--echo # DuckDB DELETE operations test
+--echo #
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS db_dml_delete CHARACTER SET utf8mb4;
+USE db_dml_delete;
+SET GLOBAL duckdb_dml_in_batch = OFF;
+--enable_query_log
+
+# -----------------------------------------------------------------
+# Setup: create and populate test tables
+# -----------------------------------------------------------------
+--echo # Setup
+
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  val VARCHAR(50)
+) ENGINE = DuckDB;
+
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  val VARCHAR(50)
+) ENGINE = DuckDB;
+
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+INSERT INTO t1 VALUES (4, 'four');
+INSERT INTO t1 VALUES (5, 'five');
+
+INSERT INTO t2 VALUES (1, 'alpha');
+INSERT INTO t2 VALUES (3, 'beta');
+INSERT INTO t2 VALUES (5, 'gamma');
+
+# -----------------------------------------------------------------
+# Test 1: DELETE single row by PK
+# -----------------------------------------------------------------
+--echo # Test 1: DELETE single row by PK
+
+DELETE FROM t1 WHERE id = 1;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 2: DELETE by non-PK condition
+# -----------------------------------------------------------------
+--echo # Test 2: DELETE by non-PK condition
+
+DELETE FROM t1 WHERE val = 'three';
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 3: DELETE with range condition
+# -----------------------------------------------------------------
+--echo # Test 3: DELETE with range condition
+
+DELETE FROM t1 WHERE id >= 4;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 4: DELETE all rows
+# -----------------------------------------------------------------
+--echo # Test 4: DELETE all rows
+
+DELETE FROM t1;
+SELECT * FROM t1 ORDER BY id;
+SELECT COUNT(*) FROM t1;
+
+# -----------------------------------------------------------------
+# Test 5: DELETE with subquery
+# -----------------------------------------------------------------
+--echo # Test 5: DELETE with subquery
+
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+INSERT INTO t1 VALUES (4, 'four');
+INSERT INTO t1 VALUES (5, 'five');
+
+# Subquery DELETE requires rnd_pos on t2 which DuckDB doesn't support
+--error ER_ILLEGAL_HA
+DELETE FROM t1 WHERE id IN (SELECT id FROM t2);
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 6: DELETE in transaction — COMMIT
+# -----------------------------------------------------------------
+--echo # Test 6: DELETE in transaction — COMMIT
+
+--disable_query_log
+DELETE FROM t1;
+DELETE FROM t2;
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+--enable_query_log
+
+BEGIN;
+DELETE FROM t1 WHERE id = 2;
+SELECT * FROM t1 ORDER BY id;
+COMMIT;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Test 7: DELETE in transaction — ROLLBACK
+# -----------------------------------------------------------------
+--echo # Test 7: DELETE in transaction — ROLLBACK
+
+--disable_query_log
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, 'one');
+INSERT INTO t1 VALUES (2, 'two');
+INSERT INTO t1 VALUES (3, 'three');
+--enable_query_log
+
+BEGIN;
+DELETE FROM t1 WHERE id = 2;
+SELECT * FROM t1 ORDER BY id;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY id;
+
+# -----------------------------------------------------------------
+# Cleanup
+# -----------------------------------------------------------------
+--disable_query_log
+DROP TABLE t1;
+DROP TABLE t2;
+DROP DATABASE db_dml_delete;
+USE test;
+--enable_query_log

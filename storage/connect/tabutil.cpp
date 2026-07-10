@@ -86,12 +86,12 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
   uint         k;
   TABLE_SHARE *s;
 
-	k = sprintf(key, "%s", db) + 1;
-	k += sprintf(key + k, "%s", name);
+	k = snprintf(key, sizeof(key), "%s", db) + 1;
+	k += snprintf(key + k, sizeof(key) - k, "%s", name);
   key[++k] = 0;
 
 	if (!(s = alloc_table_share(db, name, key, ++k))) {
-    strcpy(g->Message, "Error allocating share\n");
+    strcpy(g->Message, "Error allocating share");
     return NULL;
     } // endif s
 
@@ -109,7 +109,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
     if (thd->is_error())
       thd->clear_error();  // Avoid stopping info commands
 
-    snprintf(g->Message, sizeof(g->Message), "Error %d opening share\n", s->error);
+    snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
     free_table_share(s);
     return NULL;
   } // endif open_table_def
@@ -431,8 +431,8 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     hc->get_table()->field = NULL;
 
     // Make caller use the source definition
-    sp = hc->get_table()->s->option_struct->srcdef;
-    hc->get_table()->s->option_struct->srcdef = tabp->GetSrc();
+    sp = hc->get_table()->s->option_struct_table->srcdef;
+    hc->get_table()->s->option_struct_table->srcdef = tabp->GetSrc();
   } // endif srcdef
 
   if (mysql) {
@@ -466,7 +466,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   } else if (b) {
     // Restore s structure that can be in cache
     hc->get_table()->field = fp;
-    hc->get_table()->s->option_struct->srcdef = sp;
+    hc->get_table()->s->option_struct_table->srcdef = sp;
   } // endif s
 
   if (trace(1) && tdbp)

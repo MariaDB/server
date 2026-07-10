@@ -49,7 +49,7 @@ UPDATE grandparent SET id = 10 WHERE id = 5;
 --error ER_LOCK_WAIT_TIMEOUT
 DELETE FROM child;
 
-# SR transaction succesffull
+# SR transaction successful
 
 --connection node_1
 COMMIT;

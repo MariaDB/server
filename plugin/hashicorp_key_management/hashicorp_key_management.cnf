@@ -96,8 +96,8 @@
 # becomes invalid and an attempt to read this information causes
 # a new request send to the vault server.
 #
-# If the value of this parameter is zero, then information abount
-# latest key version numbers always considered invalid, unless
+# If the value of this parameter is zero, then information about
+# latest key version numbers is always considered invalid, unless
 # there is no communication with the vault server and use of the
 # cache is allowed when the server is unavailable.
 #

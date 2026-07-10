@@ -43,6 +43,14 @@
 
 C_MODE_START
 
+#ifdef _WIN32
+/*
+  We cannot use mmap() on Windows with Aria as mmap() can cause file
+  size to increase in _ma_dynmap_file(). The extra \0 data causes
+  the file to be regarded as corrupted.
+*/
+#undef HAVE_MMAP
+#endif
 /*
   Limit max keys according to HA_MAX_POSSIBLE_KEY; See myisamchk.h for details
 */
@@ -63,6 +71,13 @@ C_MODE_START
 #define MARIA_MAX_KEY_BLOCK_LENGTH      32768
 /* Minimal page cache when we only want to be able to scan a table */
 #define MARIA_MIN_PAGE_CACHE_SIZE       (8192L*16L)
+
+/*
+  File align size (must be power of 2) used for pre-allocation of
+  temporary table space. It is used to reduce the number of calls to
+  update_tmp_file_size for static and dynamic rows.
+*/
+#define MARIA_TRACK_INCREMENT_SIZE	        8192
 
 /*
   In the following macros '_keyno_' is 0 .. keys-1.
@@ -147,7 +162,7 @@ typedef struct st_maria_info
 } MARIA_INFO;
 
 struct st_maria_share;
-struct st_maria_handler;                        /* For referense */
+struct st_maria_handler;                        /* For reference */
 struct st_maria_keydef;
 
 struct st_maria_key                 /* Internal info about a key */
@@ -169,7 +184,7 @@ struct st_maria_decode_tree     /* Decode huff-table */
 
 typedef struct s3_info S3_INFO;
 
-extern ulong maria_block_size, maria_checkpoint_frequency;
+extern uint maria_block_size, maria_checkpoint_frequency;
 extern ulong maria_concurrent_insert;
 extern my_bool maria_flush, maria_single_user, maria_page_checksums;
 extern my_off_t maria_max_temp_length;
@@ -193,6 +208,7 @@ extern int maria_close(MARIA_HA *file);
 extern int maria_delete(MARIA_HA *file, const uchar *buff);
 extern MARIA_HA *maria_open(const char *name, int mode,
                             uint wait_if_locked, S3_INFO *s3);
+extern void ma_change_pagecache(MARIA_HA *info);
 extern int maria_panic(enum ha_panic_function function);
 extern int maria_rfirst(MARIA_HA *file, uchar *buf, int inx);
 extern int maria_rkey(MARIA_HA *file, uchar *buf, int inx,
@@ -213,7 +229,6 @@ extern int maria_rsame_with_pos(MARIA_HA *file, uchar *record,
 extern int maria_update(MARIA_HA *file, const uchar *old,
                         const uchar *new_record);
 extern int maria_write(MARIA_HA *file, const uchar *buff);
-extern MARIA_RECORD_POS maria_position(MARIA_HA *file);
 extern int maria_status(MARIA_HA *info, MARIA_INFO *x, uint flag);
 extern int maria_lock_database(MARIA_HA *file, int lock_type);
 extern int maria_delete_table(const char *name);
@@ -340,7 +355,7 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
 typedef struct st_sort_key_blocks MA_SORT_KEY_BLOCKS;
 typedef struct st_sort_ftbuf MA_SORT_FT_BUF;
 
-extern PAGECACHE maria_pagecache_var, *maria_pagecache;
+extern PAGECACHES maria_pagecaches;
 int maria_assign_to_pagecache(MARIA_HA *info, ulonglong key_map,
 			      PAGECACHE *key_cache);
 void maria_change_pagecache(PAGECACHE *old_key_cache,
@@ -382,6 +397,7 @@ typedef struct st_maria_sort_param
   MEM_ROOT wordroot;
   uchar *record;
   MY_TMPDIR *tmpdir;
+  HA_CHECK *check_param;
 
   /* 
     The next two are used to collect statistics, see maria_update_key_parts for
@@ -398,7 +414,7 @@ typedef struct st_maria_sort_param
   my_bool calc_checksum;                /* calculate table checksum */
   size_t rec_buff_size;
 
-  int (*key_cmp)(struct st_maria_sort_param *, const void *, const void *);
+  int (*key_cmp)(void *, const void *, const void *);
   int (*key_read)(struct st_maria_sort_param *, uchar *);
   int (*key_write)(struct st_maria_sort_param *, const uchar *);
   void (*lock_in_memory)(HA_CHECK *);
@@ -448,7 +464,7 @@ typedef struct st_maria_state_info
   my_off_t dellink;			/* Link to next removed block */
   pgcache_page_no_t first_bitmap_with_space;
   ulonglong auto_increment;
-  TrID create_trid;                     /* Minum trid for file */
+  TrID create_trid;                     /* Minimum trid for file */
   TrID last_change_trn;                 /* selfdescriptive */
   ulong update_count;			/* Updated for each write lock */
   ulong status;
@@ -687,6 +703,7 @@ typedef struct st_maria_share
   LIST *open_list;			/* Tables open with this share */
   PAGECACHE *pagecache;			/* ref to the current key cache */
   MARIA_DECODE_TREE *decode_trees;
+  int crash_error;                      /* Reason for marked crashed */
   /*
     Previous auto-increment value. Used to verify if we can restore the
     auto-increment counter if we have to abort an insert (duplicate key).
@@ -738,7 +755,7 @@ typedef struct st_maria_share
   my_off_t (*recpos_to_keypos)(struct st_maria_share *share, my_off_t pos);
   my_bool (*row_is_visible)(MARIA_HA *);
 
-  /* Mapings to read/write the data file */
+  /* Mappings to read/write the data file */
   size_t (*file_read)(MARIA_HA *, uchar *, size_t, my_off_t, myf);
   size_t (*file_write)(MARIA_HA *, const uchar *, size_t, my_off_t, myf);
   /* query cache invalidator for merged tables */
@@ -754,13 +771,19 @@ typedef struct st_maria_share
   ulong max_pack_length;
   ulong state_diff_length;
   uint rec_reflength;			/* rec_reflength in use now */
+  /*
+    Extra flag to use for my_malloc(); set to MY_THREAD_SPECIFIC for temporary
+    tables whose memory allocation should be accounted to the current THD.
+  */
+  uint malloc_flag;
   uint keypage_header;
   uint32 ftkeys;			/* Number of distinct full-text keys
 						   + 1 */
   PAGECACHE_FILE kfile;			/* Shared keyfile */
   S3_INFO *s3_path;                     /* Connection and path in s3 */
   File data_file;			/* Shared data file */
-  int mode;				/* mode of file on open */
+  int	index_mode;			/* mode on index file on open */
+  int	data_mode;			/* mode of data file on open */
   uint reopen;				/* How many times opened */
   uint in_trans;                        /* Number of references by trn */
   uint w_locks, r_locks, tot_locks;	/* Number of read/write locks */
@@ -771,6 +794,14 @@ typedef struct st_maria_share
   myf write_flag;
   enum data_file_type data_file_type;
   enum pagecache_page_type page_type;   /* value depending transactional */
+
+  /*
+    tracked will cause lost bytes (not aligned) but this is ok as it is always
+    used with tmp_file_tracking if set
+  */
+  my_bool tracked;                      /* Tracked table (always internal) */
+  struct tmp_file_tracking track_data,track_index;
+
   /**
      if Checkpoint looking at table; protected by close_lock or THR_LOCK_maria
   */
@@ -963,7 +994,7 @@ struct st_maria_handler
   my_off_t last_search_keypage;		/* Last keypage when searching */
 
   /*
-    QQ: the folloing two xxx_length fields should be removed,
+    QQ: the following two xxx_length fields should be removed,
      as they are not compatible with parallel repair
   */
   ulong packed_length, blob_length;	/* Length of found, packed record */
@@ -982,7 +1013,7 @@ struct st_maria_handler
   int lastinx;				/* Last used index */
   uint last_rkey_length;		/* Last length in maria_rkey() */
   uint *last_rtree_keypos;              /* Last key positions for rtrees */
-  uint bulk_insert_ref_length;          /* Lenght of row ref during bi */
+  uint bulk_insert_ref_length;          /* Length of row ref during bi */
   uint non_flushable_state;
   enum ha_rkey_function last_key_func;	/* CONTAIN, OVERLAP, etc */
   uint save_lastkey_data_length;
@@ -1013,6 +1044,7 @@ struct st_maria_handler
   my_bool switched_transactional;
   /* If transaction will autocommit */
   my_bool autocommit;
+  my_bool has_cond_pushdown;
 #ifdef _WIN32
   my_bool owned_by_merge;               /* This Maria table is part of a merge union */
 #endif
@@ -1024,6 +1056,8 @@ struct st_maria_handler
   my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
+  rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
+  void *rowid_filter_func_arg;         /* parameter for the func */
 };
 
 /* Table options for the Aria and S3 storage engine */
@@ -1065,6 +1099,7 @@ struct ha_table_option_struct
 #define STATE_IN_REPAIR  	 1024U /* We are running repair on table */
 #define STATE_CRASHED_PRINTED	 2048U
 #define STATE_DATA_FILE_FULL     4096U
+#define STATE_HAS_LSN            8192U /* Some page still has LSN */
 
 #define STATE_CRASHED_FLAGS (STATE_CRASHED | STATE_CRASHED_ON_REPAIR | STATE_CRASHED_PRINTED)
 
@@ -1124,19 +1159,23 @@ struct ha_table_option_struct
 #define int4store_aligned(A,B) int4store((A),(B))
 
 #define maria_mark_crashed(x) do{(x)->s->state.changed|= STATE_CRASHED; \
+    (x)->s->crash_error= my_errno;                                      \
     DBUG_PRINT("error", ("Marked table crashed"));                      \
   }while(0)
 #define maria_mark_crashed_share(x)                                     \
   do{(x)->state.changed|= STATE_CRASHED;                                \
+    (x)->crash_error= my_errno;                                         \
     DBUG_PRINT("error", ("Marked table crashed"));                      \
   }while(0)
 #define maria_mark_crashed_on_repair(x) do{(x)->s->state.changed|=      \
       STATE_CRASHED|STATE_CRASHED_ON_REPAIR;                            \
     (x)->update|= HA_STATE_CHANGED;                                     \
+    (x)->s->crash_error= my_errno;                                      \
     DBUG_PRINT("error", ("Marked table crashed on repair"));            \
   }while(0)
 #define maria_mark_in_repair(x) do{(x)->s->state.changed|=      \
       STATE_CRASHED | STATE_IN_REPAIR;                          \
+    (x)->s->crash_error= my_errno;                              \
     (x)->update|= HA_STATE_CHANGED;                             \
     DBUG_PRINT("error", ("Marked table crashed for repair"));   \
   }while(0)
@@ -1235,7 +1274,7 @@ extern uchar maria_zero_string[];
 extern my_bool maria_inited, maria_in_ha_maria, maria_recovery_changed_data;
 extern my_bool maria_recovery_verbose, maria_checkpoint_disabled;
 extern my_bool maria_assert_if_crashed_table, aria_readonly;
-extern ulong maria_checkpoint_min_log_activity;
+extern uint maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
 extern int (*maria_create_trn_hook)(MARIA_HA *);
 extern my_bool (*ma_killed)(MARIA_HA *);
@@ -1348,7 +1387,11 @@ extern int _ma_read_rnd_no_record(MARIA_HA *info, uchar *buf,
                                   MARIA_RECORD_POS filepos,
                                   my_bool skip_deleted_blocks);
 my_off_t _ma_no_keypos_to_recpos(MARIA_SHARE *share, my_off_t pos);
-
+/* Get position to last record */
+static inline MARIA_RECORD_POS maria_position(MARIA_HA *info)
+{
+  return info->cur_row.lastpos;
+}
 extern my_bool _ma_ck_write(MARIA_HA *info, MARIA_KEY *key);
 extern my_bool _ma_enlarge_root(MARIA_HA *info, MARIA_KEY *key,
                                 MARIA_RECORD_POS *root);
@@ -1653,19 +1696,12 @@ int _ma_open_keyfile(MARIA_SHARE *share);
 void _ma_setup_functions(MARIA_SHARE *share);
 my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size);
 void _ma_remap_file(MARIA_HA *info, my_off_t size);
+my_bool maria_read_crypt_data(File kfile, MARIA_SHARE *share);
 
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, my_bool temporary,
                              myf flags)__attribute__((visibility("default"))) ;
-
-
-/*
-  This cannot be in my_base.h as it clashes with HA_SPATIAL.
-  But it was introduced for Aria engine, and is only used there.
-  So it can safely stay here, only visible to Aria
-*/
-#define HA_RTREE_INDEX	        16384	/* For RTREE search */
 
 #define MARIA_FLUSH_DATA  1
 #define MARIA_FLUSH_INDEX 2
@@ -1734,13 +1770,34 @@ extern my_bool maria_flush_log_for_page_none(PAGECACHE_IO_HOOK_ARGS *args);
 extern PAGECACHE *maria_log_pagecache;
 extern void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
                                    void *func_arg);
-check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
+extern void ma_set_rowid_filter_func(MARIA_HA *info,
+                                     rowid_filter_func_t check_func,
+                                     void *func_arg);
+static inline void ma_reset_index_filter_functions(MARIA_HA *info)
+{
+  info->index_cond_func= NULL;
+  info->rowid_filter_func= NULL;
+  info->has_cond_pushdown= 0;
+}
+check_result_t ma_check_index_cond_real(MARIA_HA *info, uint keynr,
+                                        uchar *record);
+static inline check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr,
+                                                 uchar *record)
+{
+  if (!info->has_cond_pushdown)
+    return CHECK_POS;
+  return ma_check_index_cond_real(info, keynr, record);
+}
 
+extern void ma_update_pagecache_stats();
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+extern uint _ma_write_flags_callback(void *callback_data, myf flags);
 extern void free_maria_share(MARIA_SHARE *share);
+extern int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
+                                    ulonglong file_size);
 
 static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
 {
@@ -1759,6 +1816,7 @@ static inline void decrement_share_in_trans(MARIA_SHARE *share)
   else
     mysql_mutex_unlock(&share->intern_lock);
 }
+
 C_MODE_END
 #endif
 

@@ -103,31 +103,32 @@ Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
 void
 ut_sprintf_timestamp(
 /*=================*/
-	char*	buf) /*!< in: buffer where to sprintf */
+	char*	buf, /*!< in: buffer where to sprintf */
+	size_t	buf_size) /*!< in: size of the buffer */
 {
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
 	GetLocalTime(&cal_tm);
 
-	sprintf(buf, "%02u%02u%02u %2u:%02u:%02u",
-		cal_tm.wYear % 100,
-		cal_tm.wMonth,
-		cal_tm.wDay,
-		cal_tm.wHour,
-		cal_tm.wMinute,
-		cal_tm.wSecond);
+	snprintf(buf, buf_size, "%02u%02u%02u %2u:%02u:%02u",
+		 cal_tm.wYear % 100,
+		 cal_tm.wMonth,
+		 cal_tm.wDay,
+		 cal_tm.wHour,
+		 cal_tm.wMinute,
+		 cal_tm.wSecond);
 #else
 	time_t	   tm;
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
-	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		cal_tm.tm_year % 100,
-		cal_tm.tm_mon + 1,
-		cal_tm.tm_mday,
-		cal_tm.tm_hour,
-		cal_tm.tm_min,
-		cal_tm.tm_sec);
+	snprintf(buf, buf_size, "%02d%02d%02d %2d:%02d:%02d",
+		 cal_tm.tm_year % 100,
+		 cal_tm.tm_mon + 1,
+		 cal_tm.tm_mday,
+		 cal_tm.tm_hour,
+		 cal_tm.tm_min,
+		 cal_tm.tm_sec);
 #endif
 }
 
@@ -258,47 +259,6 @@ ut_print_name(
 	}
 }
 
-/** Format a table name, quoted as an SQL identifier.
-If the name contains a slash '/', the result will contain two
-identifiers separated by a period (.), as in SQL
-database_name.table_name.
-@see table_name_t
-@param[in]	name		table or index name
-@param[out]	formatted	formatted result, will be NUL-terminated
-@param[in]	formatted_size	size of the buffer in bytes
-@return pointer to 'formatted' */
-char*
-ut_format_name(
-	const char*	name,
-	char*		formatted,
-	ulint		formatted_size)
-{
-	switch (formatted_size) {
-	case 1:
-		formatted[0] = '\0';
-		/* FALL-THROUGH */
-	case 0:
-		return(formatted);
-	}
-
-	char*	end;
-
-	end = innobase_convert_name(formatted, formatted_size,
-				    name, strlen(name), NULL);
-
-	/* If the space in 'formatted' was completely used, then sacrifice
-	the last character in order to write '\0' at the end. */
-	if ((ulint) (end - formatted) == formatted_size) {
-		end--;
-	}
-
-	ut_a((ulint) (end - formatted) < formatted_size);
-
-	*end = '\0';
-
-	return(formatted);
-}
-
 /**********************************************************************//**
 Catenate files. */
 void
@@ -353,14 +313,16 @@ ut_strerr(
 		return("Lock wait");
 	case DB_DEADLOCK:
 		return("Deadlock");
+	case DB_RECORD_CHANGED:
+		return("Record changed");
+#ifdef WITH_WSREP
 	case DB_ROLLBACK:
 		return("Rollback");
+#endif
 	case DB_DUPLICATE_KEY:
 		return("Duplicate key");
 	case DB_MISSING_HISTORY:
 		return("Required history data has been deleted");
-	case DB_CLUSTER_NOT_FOUND:
-		return("Cluster not found");
 	case DB_TABLE_NOT_FOUND:
 		return("Table not found");
 	case DB_TOO_BIG_RECORD:
@@ -379,8 +341,6 @@ ut_strerr(
 		return("Data structure corruption");
 	case DB_CANNOT_DROP_CONSTRAINT:
 		return("Cannot drop constraint");
-	case DB_NO_SAVEPOINT:
-		return("No such savepoint");
 	case DB_TABLESPACE_EXISTS:
 		return("Tablespace already exists");
 	case DB_TABLESPACE_DELETED:
@@ -438,7 +398,7 @@ ut_strerr(
 	case DB_TEMP_FILE_WRITE_FAIL:
 		return("Temp file write failure");
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
-		return("Can't create specificed geometry data object");
+		return("Can't create specified geometry data object");
 	case DB_CANNOT_OPEN_FILE:
 		return("Cannot open a file");
 	case DB_TABLE_CORRUPT:

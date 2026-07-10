@@ -96,8 +96,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   thd->mysys_var->current_cond= &sleep_condition;
   thd->mysys_var->current_mutex= &sleep_mutex;
+  thd->mark_connection_idle();
   thd->proc_info="feedback";
-  thd->set_command(COM_SLEEP);
   thd->system_thread= SYSTEM_THREAD_EVENT_WORKER; // whatever
   thd->set_time();
   thd->init_for_queries();
@@ -108,9 +108,9 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->security_ctx->master_access= ALL_KNOWN_ACL;
   bzero((char*) &thd->net, sizeof(thd->net));
   lex_start(thd);
-  mysql_init_select(thd->lex);
+  thd->lex->init_select();
 
-  LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
+  const LEX_CSTRING tbl_name= i_s_feedback->table_name;
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
@@ -183,7 +183,7 @@ static void send_report(const char *when)
     str.length(0);
     str.append(STRING_WITH_LEN("FEEDBACK_SERVER_UID"));
     str.append('\t');
-    str.append(server_uid_buf, sizeof(server_uid_buf)-1);
+    str.append(server_uid,  sizeof(server_uid)-1);
     str.append('\n');
     str.append(STRING_WITH_LEN("FEEDBACK_WHEN"));
     str.append('\t');
@@ -257,7 +257,8 @@ ret:
       the effect of the background thread on SHOW STATUS.
     */
     server_threads.erase(thd);
-    thd->set_status_var_init();
+    DBUG_ASSERT(thd->status_var.tmp_space_used == 0);
+    thd->set_status_var_init(clear_for_new_connection);
     thd->killed= KILL_CONNECTION;
     delete thd;
     thd= 0;
@@ -290,7 +291,6 @@ pthread_handler_t background_thread(void *arg __attribute__((unused)))
   }
 
   my_thread_end();
-  pthread_exit(0);
   return 0;
 }
 

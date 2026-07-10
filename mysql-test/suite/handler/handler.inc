@@ -993,15 +993,9 @@ connection default;
 --reap
 handler t1 close;
 
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
-connection con3;
 disconnect con3;
---source include/wait_until_disconnected.inc
 connection default;
 
 --echo #
@@ -1091,7 +1085,7 @@ drop table t2, t3;
 
 --echo # 
 --echo # HANDLER statement and operation-type aware metadata locks.
---echo # Check that when we clone a ticket for HANDLER we downrade
+--echo # Check that when we clone a ticket for HANDLER we downgrade
 --echo # the lock.
 --echo #
 connect (con1,localhost,root,,);
@@ -1110,9 +1104,7 @@ handler t1 read a prev;
 handler t1 close;
 --echo # Cleanup.
 drop table t1;
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 
 --echo #
@@ -1280,11 +1272,8 @@ HANDLER t1 READ id NEXT;
 HANDLER t1 READ id NEXT;
 
 HANDLER t1 CLOSE;
-connection con51355;
 disconnect con51355;
---source include/wait_until_disconnected.inc
 connection default;
-
 
 --echo #
 --echo # Bug#54401 assert in Diagnostics_area::set_eof_status , HANDLER

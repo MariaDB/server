@@ -28,6 +28,11 @@ wsrep_last_seen_gtid_do_not_match
 1
 SET DEBUG_SYNC = "now SIGNAL after_group_continue";
 connection node_1;
+SELECT * from t1;
+f1
+1
+connection ctrl;
+SET DEBUG_SYNC = "RESET";
 SET SESSION wsrep_sync_wait = 0;
 connection ctrl;
 connection node_1;
@@ -69,6 +74,11 @@ SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
 connection node_1a;
 connection ctrl;
 SET DEBUG_SYNC = "RESET";
+SELECT * from t1;
+f1
+1
+2
+3
 DROP TABLE t1;
 disconnect ctrl;
 disconnect node_1a;

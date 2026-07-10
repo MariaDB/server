@@ -74,7 +74,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     }
     if (info->s->file_map) /* Don't use cache if mmap */
       break;
-#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)
+#if defined(HAVE_MMAP) && defined(HAVE_MADVISE) && !defined(HAVE_valgrind)
     if ((share->options & HA_OPTION_COMPRESS_RECORD))
     {
       mysql_mutex_lock(&share->intern_lock);
@@ -162,7 +162,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       error= end_io_cache(&info->rec_cache);
       /* Sergei will insert full text index caching here */
     }
-#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)
+#if defined(HAVE_MMAP) && defined(HAVE_MADVISE) && !defined(HAVE_valgrind)
     if (info->opt_flag & MEMMAP_USED)
       madvise((char*) share->file_map, share->state.state.data_file_length,
               MADV_RANDOM);
@@ -225,7 +225,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     info->read_record=	share->read_record;
     info->opt_flag&= ~(KEY_READ_USED | REMEMBER_OLD_POS);
     break;
-  case HA_EXTRA_NO_USER_CHANGE: /* Database is somehow locked agains changes */
+  case HA_EXTRA_NO_USER_CHANGE: /* Database is locked preventing changes */
     info->lock_type= F_EXTRA_LCK; /* Simulate as locked */
     break;
   case HA_EXTRA_WAIT_LOCK:
@@ -239,25 +239,17 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       break;
 
     /* we're going to modify pieces of the state, stall Checkpoint */
-    mysql_mutex_lock(&share->intern_lock);
     if (info->lock_type == F_UNLCK)
     {
-      mysql_mutex_unlock(&share->intern_lock);
       error= 1;					/* Not possibly if not lock */
       break;
     }
+    mysql_mutex_lock(&share->intern_lock);
     if (maria_is_any_key_active(share->state.key_map))
     {
-      MARIA_KEYDEF *key= share->keyinfo;
-      uint i;
-      for (i =0 ; i < share->base.keys ; i++,key++)
-      {
-        if (!(key->flag & HA_NOSAME) && info->s->base.auto_key != i+1)
-        {
-          maria_clear_key_active(share->state.key_map, i);
-          info->update|= HA_STATE_CHANGED;
-        }
-      }
+      if (share->state.key_map != *(ulonglong*)extra_arg)
+        info->update|= HA_STATE_CHANGED;
+      share->state.key_map= *(ulonglong*)extra_arg;
 
       if (!share->changed)
       {
@@ -424,9 +416,25 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     break;
   case HA_EXTRA_FLUSH:
     if (!share->temporary)
-      error= _ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
-                                   FLUSH_KEEP, FLUSH_KEEP);
-
+    {
+      if (_ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
+                                FLUSH_KEEP, FLUSH_KEEP))
+        error= my_errno;
+      if (!error && share->changed)
+      {
+        mysql_mutex_lock(&share->intern_lock);
+        if (_ma_state_info_write(share,
+                                 MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET |
+                                 MA_STATE_INFO_WRITE_FULL_INFO))
+          error= my_errno;
+        mysql_mutex_unlock(&share->intern_lock);
+      }
+      if (info->opt_flag & WRITE_CACHE_USED)
+      {
+        if ((my_b_flush_io_cache(&info->rec_cache, 0)))
+          error= my_errno;
+      }
+    }
     mysql_mutex_lock(&share->intern_lock);
     /* Tell maria_lock_database() that we locked the intern_lock mutex */
     info->intern_lock_locked= 1;
@@ -437,12 +445,12 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       share->not_flushed= 0;
       if (_ma_sync_table_files(info))
 	error= my_errno;
-      if (error)
-      {
-	/* Fatal error found */
-	share->changed= 1;
-        _ma_set_fatal_error(info, HA_ERR_CRASHED);
-      }
+    }
+    if (error)
+    {
+      /* Fatal error found */
+      share->changed= 1;
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
     }
     mysql_mutex_unlock(&share->intern_lock);
     break;
@@ -464,7 +472,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     maria_extra_keyflag(info, function);
     break;
   case HA_EXTRA_MMAP:
-#ifdef HAVE_MMAP
+#if defined(HAVE_MMAP) && !defined(HAVE_valgrind)
     if (block_records)
       break;                                    /* Not supported */
     mysql_mutex_lock(&share->intern_lock);
@@ -510,8 +518,17 @@ void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
 {
   info->index_cond_func= func;
   info->index_cond_func_arg= func_arg;
+  info->has_cond_pushdown= (info->index_cond_func || info->rowid_filter_func);
 }
 
+void ma_set_rowid_filter_func(MARIA_HA *info,
+                              rowid_filter_func_t check_func,
+                              void *func_arg)
+{
+  info->rowid_filter_func= check_func;
+  info->rowid_filter_func_arg= func_arg;
+  info->has_cond_pushdown= (info->index_cond_func || info->rowid_filter_func);
+}
 
 /*
   Start/Stop Inserting Duplicates Into a Table, WL#1648.
@@ -542,7 +559,7 @@ int maria_reset(MARIA_HA *info)
 {
   int error= 0;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   DBUG_ENTER("maria_reset");
   /*
     Free buffers and reset the following flags:
@@ -599,6 +616,20 @@ uint _ma_file_callback_to_id(void *callback_data)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
   return share ? share->id : 0;
+}
+
+/*
+  Disable MY_WAIT_IF_FULL flag for temporary tables
+
+  Temporary tables does not have MY_WAIT_IF_FULL in share->write_flags
+*/
+
+uint _ma_write_flags_callback(void *callback_data, myf flags)
+{
+  MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
+  if (share)
+    flags&= ~(~share->write_flag & MY_WAIT_IF_FULL);
+  return flags;
 }
 
 

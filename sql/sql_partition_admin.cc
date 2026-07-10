@@ -152,7 +152,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   if (unlikely(part_table->file->ht != partition_hton))
   {
     /*
-      Only allowed on partitioned tables throught the generic ha_partition
+      Only allowed on partitioned tables throughout the generic ha_partition
       handler, i.e not yet for native partitioning.
     */
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
@@ -325,7 +325,7 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
   @param thd        Thread handle
   @param name       name of table/partition 1 (to be exchanged with 2)
   @param from_name  name of table/partition 2 (to be exchanged with 1)
-  @param tmp_name   temporary name to use while exchaning
+  @param tmp_name   temporary name to use while exchanging
   @param ht         handlerton of the table/partitions
 
   @return Operation status
@@ -383,7 +383,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                            &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
@@ -507,7 +507,6 @@ bool Sql_cmd_alter_table_exchange_partition::
   TABLE_LIST *swap_table_list;
   handlerton *table_hton;
   partition_element *part_elem;
-  const char *partition_name;
   char temp_name[FN_REFLEN+1];
   char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
@@ -629,10 +628,11 @@ bool Sql_cmd_alter_table_exchange_partition::
   ddl_log.new_table_id.length= MY_UUID_SIZE;
 
   /* set lock pruning on first table */
-  partition_name= alter_info->partition_names.head();
+  const Lex_cstring_strlen partition_name=
+    Lex_cstring_strlen(alter_info->partition_names.head());
   if (unlikely(table_list->table->part_info->
-               set_named_partition_bitmap(partition_name,
-                                          strlen(partition_name))))
+               set_named_partition_bitmap(partition_name.str,
+                                          partition_name.length)))
     DBUG_RETURN(true);
 
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
@@ -653,11 +653,10 @@ bool Sql_cmd_alter_table_exchange_partition::
                        swap_table_list->db.str,
                        swap_table_list->table_name.str,
                        "", 0);
-  /* create a unique temp name */
-  my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
-              tmp_file_prefix, current_pid, thd->thread_id);
-  if (lower_case_table_names)
-    my_casedn_str(files_charset_info, temp_name);
+
+  LEX_STRING tmp= { temp_name, sizeof(temp_name) };
+  make_tmp_table_name(thd, &tmp, "exchange");
+
   build_table_filename(temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
@@ -1020,7 +1019,7 @@ bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
   const char *path= lpt->table_list->table->s->path.str;
   TABLE_LIST *table_from= lpt->table_list->next_local;
 
-  const char *partition_name=
+  const Lex_ident_partition &partition_name=
     thd->lex->part_info->curr_part_elem->partition_name;
 
   if (create_partition_name(part_file_name, sizeof(part_file_name), path,

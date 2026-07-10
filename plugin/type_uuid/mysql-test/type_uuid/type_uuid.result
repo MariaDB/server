@@ -6,12 +6,18 @@
 #
 CREATE TABLE t1 (a UUID AUTO_INCREMENT);
 ERROR 42000: Incorrect column specifier for column 'a'
+CREATE TABLE t1 (a UUID(6));
+ERROR HY000: Data type 'UUID' doesn't support LENGTH attribute.
+CREATE TABLE t1 (a UUID CHARACTER SET latin1);
+ERROR HY000: Data type 'UUID' doesn't support CHARACTER SET attribute.
+CREATE TABLE t1 (a UUID REF_SYSTEM_ID=4);
+ERROR HY000: Data type 'UUID' doesn't support REF_SYSTEM_ID attribute.
 CREATE TABLE t1 (a UUID);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	uuid	YES		NULL	
@@ -38,6 +44,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 DROP TABLE t1;
 CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000001');
@@ -67,7 +76,7 @@ t1	CREATE TABLE `t1` (
   `c3` uuid DEFAULT '00000000-0000-0000-0000-000000000000',
   `c4` uuid DEFAULT 'ffffffff-ffff-ffff-ffff-ffffffffffff',
   `c5` uuid DEFAULT cast(X'ffffffffffffffffffffffffffffffff' as uuid)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 c1	uuid	YES		00000000-0000-0000-0000-000000000000	
@@ -98,6 +107,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -120,6 +132,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -142,6 +157,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -164,6 +182,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1
@@ -186,6 +207,9 @@ PRIVILEGES	#
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
+CREATE_OPTIONS	
 DROP TABLE t1;
 CREATE TABLE t1 (c1 UUID DEFAULT 0x00);
 ERROR 42000: Invalid default value for 'c1'
@@ -225,7 +249,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST('00000000-0000-0000-0000-000000000000' AS UUID)` uuid NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Text and binary formats, comparison operators
@@ -1509,7 +1533,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c, c_text)` uuid DEFAULT NULL,
   `COALESCE(c, c_mediumtext)` uuid DEFAULT NULL,
   `COALESCE(c, c_longtext)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 LEAST(c, c_char),
@@ -1528,7 +1552,7 @@ t2	CREATE TABLE `t2` (
   `LEAST(c, c_text)` uuid DEFAULT NULL,
   `LEAST(c, c_mediumtext)` uuid DEFAULT NULL,
   `LEAST(c, c_longtext)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a UUID);
@@ -1567,10 +1591,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `COALESCE(a, '00000000-0000-0000-0000-000000000000')` uuid DEFAULT NULL,
+  `COALESCE(a, '00000000-0000-0000-0000-000000000000')` uuid NOT NULL,
   `LEAST(a,'00000000-0000-0000-0000-000000000000')` uuid DEFAULT NULL,
   `GREATEST(a,'00000000-0000-0000-0000-000000000000')` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 0x00000000000000000000000000000000) FROM t1 ORDER BY a;
 COALESCE(a, 0x00000000000000000000000000000000)
@@ -1603,10 +1627,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `COALESCE(a, 0x00000000000000000000000000000000)` uuid DEFAULT NULL,
+  `COALESCE(a, 0x00000000000000000000000000000000)` uuid NOT NULL,
   `LEAST(a,0x00000000000000000000000000000000)` uuid DEFAULT NULL,
   `GREATEST(a,0x00000000000000000000000000000000)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SELECT COALESCE(a, 10) FROM t1;
 ERROR HY000: Illegal parameter data types uuid and int for operation 'coalesce'
@@ -1830,8 +1854,8 @@ CREATE TABLE t1 AS SELECT CAST(CAST('00000000-0000-0000-0000-000000000000' AS UU
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(36) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff');
@@ -1847,14 +1871,14 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CAST(a AS CHAR)` varchar(36) DEFAULT NULL,
-  `CAST(a AS CHAR(36))` varchar(36) DEFAULT NULL,
-  `CAST(a AS CHAR(530))` text DEFAULT NULL,
-  `CAST(a AS CHAR(65535))` text DEFAULT NULL,
-  `CAST(a AS CHAR(66000))` mediumtext DEFAULT NULL,
-  `CAST(a AS CHAR(16777215))` mediumtext DEFAULT NULL,
-  `CAST(a AS CHAR(16777216))` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CAST(a AS CHAR)` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(36))` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(530))` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(65535))` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(66000))` mediumtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(16777215))` mediumtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CAST(a AS CHAR(16777216))` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 CAST(a AS CHAR)	ffffffff-ffff-ffff-ffff-ffffffffffff
 CAST(a AS CHAR(36))	ffffffff-ffff-ffff-ffff-ffffffffffff
@@ -1890,7 +1914,7 @@ t2	CREATE TABLE `t2` (
   `cb66000` mediumblob DEFAULT NULL,
   `cb16777215` mediumblob DEFAULT NULL,
   `cb16777216` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CAST(a AS BINARY(4)) AS cb4,
@@ -1909,7 +1933,7 @@ t2	CREATE TABLE `t2` (
   `cb32` binary(32) DEFAULT NULL,
   `cb530` varbinary(530) DEFAULT NULL,
   `cb65535` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 HEX(cb4),
 HEX(cb),
@@ -1971,8 +1995,13 @@ INSERT INTO t1 VALUES
 ('00000000-0000-0000-0000-000000000000'),
 ('00000000-0000-0000-0000-000000000001'),
 ('00000000-0000-0000-0000-000000000002');
-SELECT * FROM t1 WHERE a;
-ERROR HY000: Illegal parameter data types uuid and bigint for operation '<>'
+SELECT * FROM t1 WHERE a ORDER BY a;
+a
+00000000-0000-0000-0000-000000000001
+00000000-0000-0000-0000-000000000002
+SELECT * FROM t1 WHERE NOT a;
+a
+00000000-0000-0000-0000-000000000000
 DROP TABLE t1;
 #
 # GROUP BY
@@ -2021,7 +2050,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `MIN(a)` uuid DEFAULT NULL,
   `MAX(a)` uuid DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 MIN(a)	MAX(a)
 00000000-0000-0000-0000-000000000000	00000000-0000-0000-0000-000000000002
@@ -2084,7 +2113,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` uuid NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)'
   USING '00000000-0000-0000-0000-000000000001';
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)'
@@ -2121,9 +2150,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(36) DEFAULT NULL,
-  `c2` varchar(36) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_utf8'1', LEFT(a,35)) AS c1,
@@ -2133,10 +2162,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` varchar(36) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(_latin1'1', LEFT(a,35)) AS c1,
@@ -2146,10 +2175,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(36) DEFAULT NULL,
-  `c2` varchar(36) DEFAULT NULL,
-  `c3` varchar(36) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(36) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2163,7 +2192,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2177,7 +2206,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2191,7 +2220,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2205,7 +2234,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 ORDER BY c;
 c
 00000000-0000-0000-0000-000000000000
@@ -2465,7 +2494,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=COALESCE(CAST('00000000-0000-0000-0000
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = UUID'00000000-0000-0000-0000-000000000001' and `test`.`t1`.`id` > 0
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = uuid'00000000-0000-0000-0000-000000000001' and `test`.`t1`.`id` > 0
 DROP TABLE t1;
 #
 # Optimizer: equal field propagation
@@ -2480,14 +2509,14 @@ AND LENGTH(CONCAT(a,RAND()))>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = UUID'00000000-0000-0000-0000-000000000001' and octet_length(concat(UUID'00000000-0000-0000-0000-000000000001',rand())) > 1
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = uuid'00000000-0000-0000-0000-000000000001' and octet_length(concat(uuid'00000000-0000-0000-0000-000000000001',rand())) > 1
 EXPLAIN EXTENDED SELECT * FROM t1
 WHERE a=COALESCE(CAST('00000000-0000-0000-0000-000000000001' AS UUID))
 AND LENGTH(a)>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = UUID'00000000-0000-0000-0000-000000000001'
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = uuid'00000000-0000-0000-0000-000000000001'
 DROP TABLE t1;
 #
 # Optimizer: equal expression propagation
@@ -2524,7 +2553,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t1 WHERE b IN (SELECT a AS a_inner FROM t1 GROUP BY a_inner);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	17	func	2	Using index; Using where
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	17	func	1	Using index; Using where
 SET @@optimizer_switch=DEFAULT;
 DROP TABLE t1;
 #
@@ -3182,8 +3211,278 @@ d
 11111111-0000-0000-0000-000000000000
 SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
 d
-11111111-0000-0000-0000-000000000000
+00000000-0000-0000-0000-111111111111
 SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
 d
-00000000-0000-0000-0000-111111111111
+11111111-0000-0000-0000-000000000000
 DROP TABLE t1;
+#
+# MDEV-31719 Wrong result of: WHERE inet6_column IN ('','::1')
+#
+CREATE TABLE t1 (a UUID);
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000');
+SELECT * FROM t1 WHERE a IN ('','00000000-0000-0000-0000-000000000001');
+a
+Warnings:
+Warning	1292	Incorrect uuid value: ''
+SELECT * FROM t1 WHERE a='';
+a
+Warnings:
+Warning	1292	Incorrect uuid value: ''
+Warning	1292	Incorrect uuid value: ''
+DROP TABLE t1;
+# End of 10.6 tests
+# Start of 11.8 tests
+#
+# MDEV-34189 Unexpected error on `WHERE inet6col`
+#
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a UUID, KEY(a));
+INSERT INTO t1 VALUES (-1,NULL);
+INSERT INTO t1 VALUES (0,'00000000-0000-0000-0000-000000000000');
+INSERT INTO t1 SELECT seq,concat('ba2f21be-d306-11ef-ab9e-', lpad(seq,12,'0')) FROM seq_1_to_31;
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a;
+id	a
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a;
+id	a
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE a IS TRUE;
+id	a
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE NOT a IS TRUE;
+id	a
+-1	NULL
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not true
+SELECT id, a FROM t1 WHERE a IS NOT TRUE;
+id	a
+-1	NULL
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is true
+SELECT id, a FROM t1 WHERE NOT a IS NOT TRUE;
+id	a
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE a IS FALSE;
+id	a
+0	00000000-0000-0000-0000-000000000000
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE NOT a IS FALSE;
+id	a
+-1	NULL
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	33	96.97	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is not false
+SELECT id, a FROM t1 WHERE a IS NOT FALSE;
+id	a
+-1	NULL
+1	ba2f21be-d306-11ef-ab9e-000000000001
+2	ba2f21be-d306-11ef-ab9e-000000000002
+3	ba2f21be-d306-11ef-ab9e-000000000003
+4	ba2f21be-d306-11ef-ab9e-000000000004
+5	ba2f21be-d306-11ef-ab9e-000000000005
+6	ba2f21be-d306-11ef-ab9e-000000000006
+7	ba2f21be-d306-11ef-ab9e-000000000007
+8	ba2f21be-d306-11ef-ab9e-000000000008
+9	ba2f21be-d306-11ef-ab9e-000000000009
+10	ba2f21be-d306-11ef-ab9e-000000000010
+11	ba2f21be-d306-11ef-ab9e-000000000011
+12	ba2f21be-d306-11ef-ab9e-000000000012
+13	ba2f21be-d306-11ef-ab9e-000000000013
+14	ba2f21be-d306-11ef-ab9e-000000000014
+15	ba2f21be-d306-11ef-ab9e-000000000015
+16	ba2f21be-d306-11ef-ab9e-000000000016
+17	ba2f21be-d306-11ef-ab9e-000000000017
+18	ba2f21be-d306-11ef-ab9e-000000000018
+19	ba2f21be-d306-11ef-ab9e-000000000019
+20	ba2f21be-d306-11ef-ab9e-000000000020
+21	ba2f21be-d306-11ef-ab9e-000000000021
+22	ba2f21be-d306-11ef-ab9e-000000000022
+23	ba2f21be-d306-11ef-ab9e-000000000023
+24	ba2f21be-d306-11ef-ab9e-000000000024
+25	ba2f21be-d306-11ef-ab9e-000000000025
+26	ba2f21be-d306-11ef-ab9e-000000000026
+27	ba2f21be-d306-11ef-ab9e-000000000027
+28	ba2f21be-d306-11ef-ab9e-000000000028
+29	ba2f21be-d306-11ef-ab9e-000000000029
+30	ba2f21be-d306-11ef-ab9e-000000000030
+31	ba2f21be-d306-11ef-ab9e-000000000031
+EXPLAIN EXTENDED
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` is false
+SELECT id, a FROM t1 WHERE NOT a IS NOT FALSE;
+id	a
+0	00000000-0000-0000-0000-000000000000
+DROP TABLE t1;
+# End of 11.8 tests

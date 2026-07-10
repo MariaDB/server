@@ -7,7 +7,7 @@
  # Test 3) Query some information_shema tables that are dependent upon
  #         the page size.
  SELECT	t.name table_name, t.n_cols, t.flag table_flags,
-@@ -36,13 +36,13 @@
+@@ -36,7 +36,7 @@
  table_name	n_cols	table_flags	index_name	root_page	type	n_fields	merge_threshold
  test/t1	5	0	PRIMARY	3	3	1	50
  test/t2	5	1	PRIMARY	3	3	1	50
@@ -16,14 +16,16 @@
  test/t4	5	33	PRIMARY	3	3	1	50
  === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
  Space_Name	Page_Size	Zip_Size	Path
+@@ -45,7 +45,7 @@
+ innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
  test/t1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1.ibd
  test/t2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2.ibd
 -test/t3	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
 +test/t3	DEFAULT	4096	MYSQLD_DATADIR/test/t3.ibd
  test/t4	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
+ innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
  DROP TABLE t1, t2, t3, t4;
- # Test 4) The maximum row size is dependent upon the page size.
-@@ -53,133 +53,97 @@
+@@ -57,133 +57,97 @@
  c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
  c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
  c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
@@ -199,7 +201,7 @@
  SHOW WARNINGS;
  Level	Code	Message
  SELECT table_name, row_format, create_options
-@@ -217,8 +181,11 @@
+@@ -221,8 +185,11 @@
  DROP TABLE t1;
  SET SESSION innodb_strict_mode = OFF;
  CREATE TABLE t1 (i int) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
@@ -211,7 +213,7 @@
  SELECT table_name, row_format, create_options
  FROM information_schema.tables WHERE table_name = 't1';
  table_name	row_format	create_options
-@@ -276,105 +243,11 @@
+@@ -282,107 +249,13 @@
  ERROR HY000: Can't create table `test`.`t5` (errno: 140 "Wrong create options")
  SHOW WARNINGS;
  Level	Code	Message
@@ -220,6 +222,8 @@
  Error	1005	Can't create table `test`.`t5` (errno: 140 "Wrong create options")
  Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
  SET GLOBAL innodb_file_per_table = ON;
+ Warnings:
+ Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 -# Test 7) This series of tests were moved from innodb-index to here
 -# because the second alter table t1 assumes a 16k page size.
 -# Moving the test allows the rest of innodb-index to be run on all
@@ -307,7 +311,7 @@
 -  `d` text NOT NULL,
 -  PRIMARY KEY (`a`,`b`(255),`c`(255)),
 -  KEY `b` (`b`(767))
--) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci STATS_PERSISTENT=0
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci STATS_PERSISTENT=0
 -CHECK TABLE t1;
 -Table	Op	Msg_type	Msg_text
 -test.t1	check	status	OK
@@ -318,7 +322,7 @@
  # Test 8) Test creating a table that could lead to undo log overflow.
  CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
  h blob,i blob,j blob,k blob,l blob,m blob,n blob,
-@@ -389,10 +262,6 @@
+@@ -397,10 +270,6 @@
  UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
  k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b;
  CREATE INDEX t1a ON t1 (a(767));
@@ -329,7 +333,7 @@
  UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
  k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c;
  CREATE INDEX t1f ON t1 (f(767));
-@@ -407,30 +276,6 @@
+@@ -415,30 +284,6 @@
  COMMIT;
  CREATE INDEX t1g ON t1 (g(767));
  UPDATE t1 SET g=@e;
@@ -360,7 +364,7 @@
  CREATE INDEX t1t ON t1 (t(767));
  BEGIN;
  UPDATE t1 SET t=@e;
-@@ -463,24 +308,8 @@
+@@ -471,24 +316,8 @@
    `t` blob DEFAULT NULL,
    `u` blob DEFAULT NULL,
    KEY `t1a` (`a`(767)),
@@ -385,7 +389,7 @@
    KEY `t1t` (`t`(767)),
    KEY `t1u` (`u`(767)),
    KEY `t1ut` (`u`(767),`t`(767)),
-@@ -572,14 +401,14 @@
+@@ -580,14 +409,14 @@
  PRIMARY KEY (c(767),d(767)))
  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
  Warnings:
@@ -402,7 +406,7 @@
  DROP TABLE t1;
  CREATE TABLE t1(
  c text NOT NULL, d text NOT NULL,
-@@ -589,7 +418,7 @@
+@@ -597,7 +426,7 @@
  CREATE TABLE t1(c text, PRIMARY KEY (c(440)))
  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
  Warnings:

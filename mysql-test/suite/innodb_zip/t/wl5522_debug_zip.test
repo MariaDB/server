@@ -14,6 +14,8 @@
 --source include/default_charset.inc
 --source include/have_sequence.inc
 
+--source include/test_db_charset_latin1.inc
+
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded\\.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue\\.");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
@@ -25,8 +27,8 @@ call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t1 ");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*ibdata1' page");
-call mtr.add_suppression("InnoDB: File '.*ibdata1' is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page \\d+ from file '.*test/t1\\.ibd'");
+call mtr.add_suppression("InnoDB: File '.*(ibdata1|t1\\.ibd)' is corrupted");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -75,7 +77,7 @@ SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
 SELECT * FROM t1;
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Execute the statement that causes the crash
 --error 2013
@@ -96,7 +98,7 @@ SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
 SELECT COUNT(*) FROM t1;
 
 # Don't start up the server right away.
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Execute the statement that causes the crash
 --error 2013
@@ -113,7 +115,7 @@ EOF
 
 --echo # Restart and reconnect to the server
 --enable_reconnect
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
@@ -216,21 +218,6 @@ SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
 
 --replace_result \\ /
 --error ER_GET_ERRMSG
-ALTER TABLE t1 IMPORT TABLESPACE;
-
-SET SESSION debug_dbug=@saved_debug_dbug;
-
-# Restore files
-perl;
-do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
-ib_restore_tablespaces("test", "t1");
-EOF
-
-# Test failure after ibuf check
-SET SESSION debug_dbug="+d,ib_import_check_bitmap_failure";
-
-# Need proper mapping of error codes :-(
---error ER_NOT_KEYFILE
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 SET SESSION debug_dbug=@saved_debug_dbug;
@@ -656,3 +643,5 @@ call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 #cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
+
+--source include/test_db_charset_restore.inc

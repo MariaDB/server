@@ -108,7 +108,7 @@ size_t my_fcvt(double x, int precision, char *to, my_bool *error)
   src= res;
   len= (int)(end - src);
 
-  if (sign)
+  if (sign && x != 0.0)
     *dst++= '-';
 
   if (decpt <= 0)
@@ -242,7 +242,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
 
   /*
     Number of digits in the exponent from the 'e' conversion.
-     The sign of the exponent is taken into account separetely, we don't need
+     The sign of the exponent is taken into account separately, we don't need
      to count it here.
    */
   exp_len= 1 + (decpt >= 101 || decpt <= -99) + (decpt >= 11 || decpt <= -9);
@@ -344,7 +344,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
       At this point we are sure we have enough space to put all digits
       returned by dtoa
     */
-    if (sign && dst < dend)
+    if (sign && x != 0.0 && dst < dend)
       *dst++= '-';
     if (decpt <= 0)
     {
@@ -404,7 +404,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
       At this point we are sure we have enough space to put all digits
       returned by dtoa
     */
-    if (sign && dst < dend)
+    if (sign && x != 0.0 && dst < dend)
       *dst++= '-';
     if (dst < dend)
       *dst++= *src++;
@@ -416,7 +416,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
     }
     if (dst < dend)
       *dst++= 'e';
-    if (decpt_sign && dst < dend)
+    if (decpt_sign && x != 0.0 && dst < dend)
       *dst++= '-';
 
     if (decpt >= 100 && dst < dend)
@@ -1465,22 +1465,22 @@ static double my_strtod_int(const char *s00, char **se, int *error, char *buf, s
     s00= s;
     esign= 0;
     if (++s < end)
-      switch (c= *s) {
+      switch (*s) {
       case '-': esign= 1;
         /* fall through */
-      case '+': c= *++s;
+      case '+': s++;
       }
-    if (s < end && c >= '0' && c <= '9')
+    if (s < end && *s >= '0' && *s <= '9')
     {
-      while (s < end && c == '0')
-        c= *++s;
-      if (s < end && c > '0' && c <= '9') {
-        L= c - '0';
+      while (s < end && *s == '0')
+        s++;
+      if (s < end && *s > '0' && *s <= '9') {
+        L= *s - '0';
         s1= s;
-        while (++s < end && (c= *s) >= '0' && c <= '9')
+        while (++s < end && *s >= '0' && *s <= '9')
         {
           if (L < 19999)
-            L= 10*L + c - '0';
+            L= 10*L + *s - '0';
         }
         if (s - s1 > 8 || L > 19999)
           /* Avoid confusion from exponents

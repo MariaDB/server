@@ -24,7 +24,7 @@ call p1()|
 call p1()|
 drop procedure p1|
 #
-# B. Recursion. Recusion is disabled in SP, and recursive use of PS is not
+# B. Recursion. Recursion is disabled in SP, and recursive use of PS is not
 # possible as well.
 #
 create procedure p1()

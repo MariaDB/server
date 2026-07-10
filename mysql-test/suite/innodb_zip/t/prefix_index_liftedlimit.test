@@ -14,6 +14,7 @@
 
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_query_log
 SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
@@ -585,7 +586,7 @@ DROP TABLE worklog5743;
 
 #------------------------------------------------------------------------------
 # Prefix index with utf8 charset
-# utf8 charcter takes 3 bytes in mysql so prefix index limit is 3072/3 = 1024
+# utf8 character takes 3 bytes in mysql so prefix index limit is 3072/3 = 1024
 CREATE TABLE worklog5743 (
 col_1_text TEXT (4000) CHARACTER SET 'utf8',
 col_2_text TEXT (4000) CHARACTER SET 'utf8',
@@ -623,7 +624,7 @@ SELECT col_1_varchar = REPEAT("c", 4000) FROM worklog5743;
 DROP TABLE worklog5743;
 
 #------------------------------------------------------------------------------
-# prefinx index on utf8 charset with transaction
+# prefix index on utf8 charset with transaction
 CREATE TABLE worklog5743 (
 col_1_varbinary VARBINARY (4000) ,
 col_2_varchar VARCHAR (4000) CHARACTER SET 'utf8',
@@ -690,7 +691,7 @@ SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743
 WHERE col_1_text = REPEAT("c", 4000) AND col_2_text = REPEAT("o", 4000);
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 DELETE FROM worklog5743 WHERE col_1_text = REPEAT("b", 4000);
-SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743;
+SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743 ORDER BY col_1_text;
 DROP TABLE worklog5743;
 
 
@@ -722,11 +723,11 @@ SELECT col_1_text = REPEAT("a", 200) , col_2_text  = REPEAT("o", 200) FROM
 worklog5743;
 
 --connection con1
-select @@session.tx_isolation;
+select @@session.transaction_isolation;
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-select @@session.tx_isolation;
+select @@session.transaction_isolation;
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
@@ -789,7 +790,7 @@ WHERE info='COMMIT';
 
 --connection con1
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-select @@session.tx_isolation;
+select @@session.transaction_isolation;
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
@@ -871,7 +872,7 @@ SELECT tbl1.col_1_varchar = tbl2.col_1_varchar
 FROM worklog5743 tbl1 , worklog5743 tbl2
 WHERE tbl1.col_1_varchar = tbl2.col_1_varchar ;
 
-# Select in subquey
+# Select in subquery
 SELECT tbl1.col_1_varchar = REPEAT("c", 4000) FROM worklog5743 tbl1
 WHERE col_1_varchar IN (SELECT tbl2.col_1_varchar FROM worklog5743 tbl2) ;
 SELECT tbl1.col_1_varchar = REPEAT("c", 4000) FROM worklog5743 tbl1
@@ -1328,3 +1329,5 @@ SHOW CREATE TABLE worklog5743;
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 DROP TABLE worklog5743;
+
+--source include/test_db_charset_restore.inc

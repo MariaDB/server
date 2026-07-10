@@ -196,7 +196,6 @@ load_synonyms(grn_ctx *ctx)
   const char *path;
   grn_file_reader *file_reader;
   int number_of_lines;
-  grn_encoding encoding;
   grn_obj line, key, value;
 
   grn_getenv("GRN_QUERY_EXPANDER_TSV_SYNONYMS_FILE",
@@ -234,7 +233,7 @@ load_synonyms(grn_ctx *ctx)
     }
     number_of_lines++;
     if (number_of_lines == 1) {
-      encoding = guess_encoding(ctx, &line_value, &line_length);
+      guess_encoding(ctx, &line_value, &line_length);
     }
     GRN_BULK_REWIND(&key);
     GRN_BULK_REWIND(&value);

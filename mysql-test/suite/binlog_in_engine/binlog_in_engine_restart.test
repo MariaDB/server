@@ -1,0 +1,50 @@
+--source include/big_test.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+--source include/have_sequence.inc
+
+# Note: This test also tests the --binlog-directory option by putting it
+# in binlog_in_engine_restart.opt .
+
+--source include/reset_master.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+let $i= 0;
+while ($i < 10) {
+  eval INSERT INTO t1 SELECT seq+1000000+100000*$i, seq FROM seq_1_to_4000;
+  inc $i;
+}
+SELECT @@GLOBAL.gtid_binlog_state;
+--exec $MYSQL_BINLOG --start-position=42-42-42 --gtid-strict-mode=0 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog1.txt
+
+--source include/restart_mysqld.inc
+
+SELECT @@GLOBAL.gtid_binlog_state;
+--let $gtid_pos2= `SELECT @@GLOBAL.gtid_binlog_pos`
+INSERT INTO t1 VALUES (2, 0);
+let $i= 0;
+while ($i < 10) {
+  eval INSERT INTO t1 SELECT seq+2000000+100000*$i, seq FROM seq_1_to_4000;
+  inc $i;
+}
+SELECT @@GLOBAL.gtid_binlog_state;
+--exec $MYSQL_BINLOG --start-position=$gtid_pos2 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog2.txt
+
+--source include/restart_mysqld.inc
+
+SELECT @@GLOBAL.gtid_binlog_state;
+--let $gtid_pos3= `SELECT @@GLOBAL.gtid_binlog_pos`
+INSERT INTO t1 VALUES (3, 0);
+let $i= 0;
+while ($i < 10) {
+  eval INSERT INTO t1 SELECT seq+3000000+100000*$i, seq FROM seq_1_to_4000;
+  inc $i;
+}
+
+--let $binlog_name= binlog-000005.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+
+DROP TABLE t1;

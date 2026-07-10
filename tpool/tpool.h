@@ -19,7 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <mutex>
 #include <atomic>
 #include <tpool_structs.h>
-#ifdef LINUX_NATIVE_AIO
+#ifdef HAVE_LIBAIO
 #include <libaio.h>
 #endif
 #ifdef HAVE_URING
@@ -30,6 +30,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <cassert>
+
 /**
   Windows-specific native file handle struct.
   Apart from the actual handle, contains PTP_IO
@@ -57,6 +59,18 @@ typedef void (*callback_func)(void *);
 typedef void (*callback_func_np)(void);
 class task;
 
+struct group_stats
+{
+  /** Current number of running tasks*/
+  size_t tasks_running;
+  /** Current number of tasks in the queue*/
+  size_t queue_size;
+  /** Total number of tasks executed */
+  unsigned long long total_tasks_executed;
+  /** Total number of tasks enqueued */
+  unsigned long long total_tasks_enqueued;
+};
+
 /** A class that can be used e.g. for
 restricting concurrency for specific class of tasks. */
 
@@ -66,13 +80,18 @@ private:
   circular_queue<task*> m_queue;
   std::mutex m_mtx;
   std::condition_variable m_cv;
+  unsigned long long m_total_tasks;
+  unsigned long long m_total_enqueues;
   unsigned int m_tasks_running;
   unsigned int m_max_concurrent_tasks;
+  const bool m_enable_task_release;
+
 public:
-  task_group(unsigned int max_concurrency= 100000);
+  task_group(unsigned int max_concurrency= 100000, bool m_enable_task_release= true);
   void set_max_tasks(unsigned int max_concurrent_tasks);
   void execute(task* t);
   void cancel_pending(task *t);
+  void get_stats(group_stats *stats);
   ~task_group();
 };
 
@@ -119,17 +138,29 @@ enum class aio_opcode
 };
 constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 
+#ifdef TPOOL_OPAQUE_AIOCB
+struct aiocb;
+#else
 /** IO control block, includes parameters for the IO, and the callback*/
 
 struct aiocb
 #ifdef _WIN32
   :OVERLAPPED
-#elif defined LINUX_NATIVE_AIO
-  :iocb
-#elif defined HAVE_URING
-  :iovec
 #endif
 {
+#if defined HAVE_LIBAIO || defined HAVE_URING
+  union {
+# ifdef HAVE_LIBAIO
+    /** The context between io_submit() and io_getevents();
+    must be the first data member! */
+    iocb m_iocb;
+# endif
+# ifdef HAVE_URING
+    /** The context between io_uring_submit() and io_uring_wait_cqe() */
+    iovec m_iovec;
+# endif
+  };
+#endif
   native_file_handle m_fh;
   aio_opcode m_opcode;
   unsigned long long m_offset;
@@ -153,6 +184,7 @@ struct aiocb
   }
 };
 
+#endif /* TPOOL_OPAQUE_AIOCB */
 
 /**
  AIO interface
@@ -169,21 +201,12 @@ public:
   virtual int bind(native_file_handle &fd)= 0;
   /** "Unind" file to AIO handler (used on Windows only) */
   virtual int unbind(const native_file_handle &fd)= 0;
+  virtual const char *get_implementation() const=0;
   virtual ~aio(){};
 protected:
   static void synchronous(aiocb *cb);
   /** finish a partial read/write callback synchronously */
-  static inline void finish_synchronous(aiocb *cb)
-  {
-    if (!cb->m_err && cb->m_ret_len != cb->m_len)
-    {
-      /* partial read/write */
-      cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
-      cb->m_len-= (unsigned int) cb->m_ret_len;
-      cb->m_offset+= cb->m_ret_len;
-      synchronous(cb);
-    }
-  }
+  static void finish_synchronous(aiocb *cb);
 };
 
 class timer
@@ -198,43 +221,92 @@ class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
 
+enum aio_implementation
+{
+  OS_IO_DEFAULT
+#ifdef __linux__
+  , OS_IO_URING
+  , OS_IO_LIBAIO
+#endif
+};
+
 class thread_pool
 {
 protected:
   /* AIO handler */
-  std::unique_ptr<aio> m_aio;
-  virtual aio *create_native_aio(int max_io)= 0;
+  std::unique_ptr<aio> m_aio{};
+  aio_implementation m_aio_impl= OS_IO_DEFAULT;
+  virtual aio *create_native_aio(int max_io, aio_implementation)= 0;
 
+public:
   /**
     Functions to be called at worker thread start/end
     can be used for example to set some TLS variables
   */
-  void (*m_worker_init_callback)(void);
-  void (*m_worker_destroy_callback)(void);
+  void (*m_worker_init_callback)(void)= [] {};
+  void (*m_worker_destroy_callback)(void)= [] {};
 
-public:
-  thread_pool() : m_aio(), m_worker_init_callback(), m_worker_destroy_callback()
-  {
-  }
+  thread_pool()= default;
   virtual void submit_task(task *t)= 0;
   virtual timer* create_timer(callback_func func, void *data=nullptr) = 0;
   void set_thread_callbacks(void (*init)(), void (*destroy)())
   {
+    assert(init);
+    assert(destroy);
     m_worker_init_callback= init;
     m_worker_destroy_callback= destroy;
   }
-  int configure_aio(bool use_native_aio, int max_io)
+  int configure_aio(bool use_native_aio, int max_io, aio_implementation impl)
   {
     if (use_native_aio)
-      m_aio.reset(create_native_aio(max_io));
+    {
+      m_aio.reset(create_native_aio(max_io, impl));
+      m_aio_impl= impl;
+    }
     else
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
   }
+
+  int reconfigure_aio(bool use_native_aio, int max_io)
+  {
+    assert(m_aio);
+    if (use_native_aio)
+    {
+      auto new_aio= create_native_aio(max_io, m_aio_impl);
+      if (!new_aio)
+        return -1;
+      m_aio.reset(new_aio);
+    }
+    return 0;
+  }
+
   void disable_aio()
   {
     m_aio.reset();
   }
+  const char *get_aio_implementation() const
+  {
+    return m_aio->get_implementation();
+  }
+
+  /**
+  Tweaks how fast worker threads are created, or how often they are signaled.
+
+  @param threads - desired number of concurrently active threads
+  Special value 0 means default. Not the same as max number of threads
+  in the pool - oversubscription is allowed and stalls are still detected
+
+  @note
+  It is designed to use with "batch" operations, where huge number
+  of tasks is submitted in rapid succession. In this case, it is
+  better to temporarily restrict concurrency, which will make thread
+  creation throttling more aggressive.
+  Once the batch is over, restore default concurrency
+  by calling set_concurrency(0).
+  */
+  virtual void set_concurrency(unsigned int threads=0){}
+
   int bind(native_file_handle &fd) { return m_aio->bind(fd); }
   void unbind(const native_file_handle &fd) { if (m_aio) m_aio->unbind(fd); }
   int submit_io(aiocb *cb) { return m_aio->submit_io(cb); }
@@ -242,6 +314,19 @@ public:
   virtual void wait_end() {};
   virtual ~thread_pool() {}
 };
+
+/** Return true if compiled with native AIO support.*/
+constexpr bool supports_native_aio()
+{
+#ifdef _WIN32
+  return true;
+#elif defined(__linux__) && (defined(HAVE_LIBAIO) || defined(HAVE_URING))
+  return true;
+#else
+  return false;
+#endif
+}
+
 const int DEFAULT_MIN_POOL_THREADS= 1;
 const int DEFAULT_MAX_POOL_THREADS= 500;
 extern thread_pool *
@@ -259,10 +344,10 @@ create_thread_pool_win(int min_threads= DEFAULT_MIN_POOL_THREADS,
   opened with FILE_FLAG_OVERLAPPED, and bound to completion
   port.
 */
-SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
-           unsigned long long offset);
+SSIZE_T pwrite(const native_file_handle &h, const void *buf, size_t count,
+               unsigned long long offset);
 SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
-          unsigned long long offset);
+              unsigned long long offset);
 HANDLE win_get_syncio_event();
 #endif
 } // namespace tpool

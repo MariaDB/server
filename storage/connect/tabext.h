@@ -59,7 +59,7 @@ public:
 	EXTDEF(void);                  // Constructor
 
 	// Implementation
-	virtual const char *GetType(void) { return "EXT"; }
+	const char *GetType(void) override { return "EXT"; }
 	inline PCSZ GetTabname(void) { return Tabname; }
 	inline PCSZ GetTabschema(void) { return Tabschema; }
 	inline PCSZ GetUsername(void) { return Username; };
@@ -72,8 +72,8 @@ public:
 	inline int  GetOptions(void) { return Options; }
 
 	// Methods
-	virtual int  Indexable(void) { return 2; }
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
+	int  Indexable(void) override { return 2; }
+	bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
 
 protected:
 	// Members
@@ -115,15 +115,15 @@ public:
 	// Implementation
 
 	// Properties
-	virtual bool IsRemote(void) { return true; }
+	bool IsRemote(void) override { return true; }
 
 	// Methods
-	virtual PCSZ GetServer(void) { return "Remote"; }
-	virtual int  GetRecpos(void);
+	PCSZ GetServer(void) override { return "Remote"; }
+	int  GetRecpos(void) override;
 
 	// Database routines
-	virtual int  GetMaxSize(PGLOBAL g);
-	virtual int  GetProgMax(PGLOBAL g);
+	int  GetMaxSize(PGLOBAL g) override;
+	int  GetProgMax(PGLOBAL g) override;
 
 protected:
 	// Internal functions
@@ -185,9 +185,9 @@ public:
 	inline void  SetCrp(PCOLRES crp) { Crp = crp; }
 
 	// Methods
-	virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-	virtual void   ReadColumn(PGLOBAL) = 0;
-	virtual void   WriteColumn(PGLOBAL) = 0;
+	bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
+	void   ReadColumn(PGLOBAL) override = 0;
+	void   WriteColumn(PGLOBAL) override = 0;
 
 protected:
 	// Constructor for count(*) column

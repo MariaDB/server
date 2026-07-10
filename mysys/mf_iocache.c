@@ -16,7 +16,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
-  Cashing of files with only does (sequential) read or writes of fixed-
+  Caсhing of files with only does (sequential) read or writes of fixed-
   length records. A read isn't allowed to go over file-length. A read is ok
   if it ends at file-length and next read can try to read after file-length
   (and get a EOF-error).
@@ -26,7 +26,7 @@
   One can change info->pos_in_file to a higher value to skip bytes in file if
   also info->read_pos is set to info->read_end.
   If called through open_cached_file(), then the temporary file will
-  only be created if a write exeeds the file buffer or if one calls
+  only be created if a write exceeds the file buffer or if one calls
   my_b_flush_io_cache().
 
   If one uses SEQ_READ_APPEND, then two buffers are allocated, one for
@@ -54,6 +54,7 @@ TODO:
 #include "mysql/psi/mysql_file.h"
 
 PSI_file_key key_file_io_cache;
+TMPFILE_SIZE_CB update_tmp_file_size= 0;
 
 #define lock_append_buffer(info) \
   mysql_mutex_lock(&(info)->append_buffer_lock)
@@ -72,6 +73,60 @@ static int _my_b_cache_write_r(IO_CACHE *info, const uchar *Buffer, size_t Count
 int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count)= 0;
 int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
 
+
+static inline my_bool tmp_file_track(IO_CACHE *info, ulonglong file_size)
+{
+  DBUG_ENTER("tmp_file_track");
+  if ((info->myflags & (MY_TRACK | MY_TRACK_WITH_LIMIT)) &&
+      update_tmp_file_size)
+  {
+    if (info->tracking.file_size < file_size)
+    {
+      int error;
+      info->tracking.file_size= file_size;
+      if ((error= update_tmp_file_size(&info->tracking,
+                                       !(info->myflags &
+                                         MY_TRACK_WITH_LIMIT))))
+      {
+        if (info->myflags & MY_WME)
+          my_error(error, MYF(0));
+        info->error= -1;
+        DBUG_RETURN(1);
+      }
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+my_bool io_cache_tmp_file_track(IO_CACHE *info, ulonglong file_size)
+{
+  return tmp_file_track(info, file_size);
+}
+
+
+/**
+  Reset tmp space tracking for the data in the io cache
+
+  This is called when deleting or truncating the
+  cached file.
+*/
+
+static void reset_tracking_io_cache(IO_CACHE *info)
+{
+  if ((info->myflags & (MY_TRACK | MY_TRACK_WITH_LIMIT)) &&
+      info->tracking.file_size)
+  {
+    info->tracking.file_size= 0;
+    update_tmp_file_size(&info->tracking, 1);
+  }
+}
+
+void truncate_io_cache(IO_CACHE *info)
+{
+  if (mysql_file_seek(info->file, 0L, MY_SEEK_END, MYF(0)) != 0 &&
+      my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
+    reset_tracking_io_cache(info);
+}
 
 
 static void
@@ -157,7 +212,7 @@ int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
 {
   size_t min_cache;
   my_off_t pos;
-  my_off_t end_of_file= ~(my_off_t) 0;
+  my_off_t end_of_file= MY_FILEPOS_ERROR;
   DBUG_ENTER("init_io_cache_ext");
   DBUG_PRINT("enter",("cache:%p  type: %d  pos: %llu",
 		      info, (int) type, (ulonglong) seek_offset));
@@ -169,6 +224,8 @@ int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
   info->buffer=0;
   info->seek_not_done= 0;
   info->next_file_user= NULL;
+  info->tracking.previous_file_size= 0;
+  info->tracking.file_size= 0;
 
   if (file >= 0)
   {
@@ -407,11 +464,18 @@ void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset)
 }
 
 
-/*
+/**
   Use this to reset cache to re-start reading or to change the type
   between READ_CACHE <-> WRITE_CACHE
   If we are doing a reinit of a cache where we have the start of the file
   in the cache, we are reusing this memory without flushing it to disk.
+
+  @param info          IO_CACHE
+  @param type          READ_CACHE or WRITE_CACHE
+  @param seek_offset   Where to start reading or writing
+  @param use_async_io  Not used
+  @param clear_cache   0  No clear, keep all information
+                       1  truncate file. seek_offset has to be 0.
 */
 
 my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
@@ -451,7 +515,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
 	info->write_end=info->write_buffer+info->buffer_length;
 	info->seek_not_done=1;
       }
-      info->end_of_file = ~(my_off_t) 0;
+      info->end_of_file= MY_FILE_ERROR;
     }
     pos=info->request_pos+(seek_offset-info->pos_in_file);
     if (type == WRITE_CACHE)
@@ -478,8 +542,24 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
       }
     }
     /* flush cache if we want to reuse it */
-    if (!clear_cache && my_b_flush_io_cache(info,1))
-      DBUG_RETURN(1);
+    if (!clear_cache && info->type == WRITE_CACHE)
+    {
+      int ret;
+      myf save_flags;
+      if (type == WRITE_CACHE && seek_offset > info->pos_in_file)
+      {
+        /* Write only up to where we will start next write */
+        my_off_t buffer_used= seek_offset - info->pos_in_file;
+        info->write_pos= info->write_buffer + buffer_used;
+      }
+      save_flags= info->myflags;
+      /* Allow temporary space over usage. Will be detected on next write */
+      info->myflags&= ~MY_TRACK_WITH_LIMIT;
+      ret= my_b_flush_io_cache(info,1);
+      info->myflags= save_flags;
+      if (ret)
+        DBUG_RETURN(ret);
+    }
     info->pos_in_file=seek_offset;
     /* Better to do always do a seek */
     info->seek_not_done=1;
@@ -506,7 +586,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
         info->write_end=(info->buffer + info->buffer_length -
                          (seek_offset & (IO_SIZE-1)));
       }
-      info->end_of_file= ~(my_off_t) 0;
+      info->end_of_file= MY_FILEPOS_ERROR;
     }
   }
   info->type=type;
@@ -1523,7 +1603,8 @@ int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
     }
     info->seek_not_done=0;
   }
-  if (mysql_file_write(info->file, Buffer, Count, info->myflags | MY_NABP))
+  if (tmp_file_track(info, info->pos_in_file + Count) ||
+      mysql_file_write(info->file, Buffer, Count, info->myflags | MY_NABP))
     return info->error= -1;
 
   info->pos_in_file+= Count;
@@ -1592,7 +1673,8 @@ int my_b_append(IO_CACHE *info, const uchar *Buffer, size_t Count)
   if (Count >= IO_SIZE)
   {					/* Fill first intern buffer */
     length= IO_ROUND_DN(Count);
-    if (mysql_file_write(info->file,Buffer, length, info->myflags | MY_NABP))
+    if (tmp_file_track(info, info->end_of_file + length) ||
+        mysql_file_write(info->file,Buffer, length, info->myflags | MY_NABP))
     {
       unlock_append_buffer(info);
       return info->error= -1;
@@ -1710,15 +1792,29 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 
     if ((length=(size_t) (info->write_pos - info->write_buffer)))
     {
+      /*
+        The write_function() updates info->pos_in_file. So compute the new end
+        position here before calling it, but update the value only after we
+        check for error return.
+      */
+      uchar *new_write_end= (info->write_buffer + info->buffer_length -
+                             ((info->pos_in_file + length) & (IO_SIZE - 1)));
+
+      my_off_t eof= info->end_of_file;
+      if (eof != MY_FILE_ERROR)
+        eof+= info->write_pos - info->append_read_pos;
+
       if (append_cache)
       {
-        if (mysql_file_write(info->file, info->write_buffer, length,
+        if (tmp_file_track(info, eof) ||
+            mysql_file_write(info->file, info->write_buffer, length,
                              info->myflags | MY_NABP))
         {
+          UNLOCK_APPEND_BUFFER;
           info->error= -1;
           DBUG_RETURN(-1);
         }
-        info->end_of_file+= info->write_pos - info->append_read_pos;
+        info->end_of_file= eof;
         info->append_read_pos= info->write_buffer;
         DBUG_ASSERT(info->end_of_file == mysql_file_tell(info->file, MYF(0)));
       }
@@ -1726,16 +1822,17 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
       {
         int res= info->write_function(info, info->write_buffer, length);
         if (res)
+        {
+          UNLOCK_APPEND_BUFFER;
           DBUG_RETURN(res);
-
+        }
         set_if_bigger(info->end_of_file, info->pos_in_file);
       }
-      info->write_end= (info->write_buffer + info->buffer_length -
-                        ((info->pos_in_file + length) & (IO_SIZE - 1)));
+      info->write_end= new_write_end;
       info->write_pos= info->write_buffer;
       ++info->disk_writes;
       UNLOCK_APPEND_BUFFER;
-      DBUG_RETURN(info->error);
+      DBUG_RETURN(0);
     }
   }
   UNLOCK_APPEND_BUFFER;
@@ -1764,7 +1861,7 @@ int end_io_cache(IO_CACHE *info)
 {
   int error=0;
   DBUG_ENTER("end_io_cache");
-  DBUG_PRINT("enter",("cache: %p", info));
+  DBUG_PRINT("enter",("cache: %p  file: %d", info, info->file));
 
   /*
     Every thread must call remove_io_thread(). The last one destroys
@@ -1785,13 +1882,20 @@ int end_io_cache(IO_CACHE *info)
     /* Destroy allocated mutex */
     mysql_mutex_destroy(&info->append_buffer_lock);
   }
+  /*
+    We have to call reset_tracking_io_cache() also in case of file == -1
+    because close_cached_file() sets file to -1 to avoid flushing
+  */
+  reset_tracking_io_cache(info);
   info->share= 0;
-  info->type= TYPE_NOT_SET;                  /* Ensure that flush_io_cache() does nothing */
-  info->write_end= 0;                        /* Ensure that my_b_write() fails */
-  info->write_function= 0;                   /* my_b_write will crash if used */
+  info->type= TYPE_NOT_SET; /* Ensure that flush_io_cache() does nothing */
+  info->write_end= 0;       /* Ensure that my_b_write() fails */
+  info->write_function= 0;  /* my_b_write will crash if used */
+
+  DBUG_ASSERT(info->tracking.file_size == 0 &&
+              info->tracking.previous_file_size == 0);
   DBUG_RETURN(error);
 } /* end_io_cache */
-
 
 /**********************************************************************
  Testing of MF_IOCACHE

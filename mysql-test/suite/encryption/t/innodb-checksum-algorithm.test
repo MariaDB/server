@@ -2,12 +2,10 @@
 -- source include/innodb_page_size.inc
 -- source include/have_file_key_management_plugin.inc
 
-SET @saved_file_per_table = @@global.innodb_file_per_table;
 SET @saved_encrypt_tables = @@global.innodb_encrypt_tables;
 SET @saved_encryption_threads = @@global.innodb_encryption_threads;
 SET @saved_encryption_key_id = @@global.innodb_default_encryption_key_id;
 
-SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encrypt_tables = ON;
 SET GLOBAL innodb_encryption_threads = 4;
 
@@ -77,7 +75,6 @@ update tp set b=substr(b,1);
 CHECK TABLE tce, tc, te, t, tpe, tp;
 DROP TABLE tce, tc, te, t, tpe, tp;
 
-SET GLOBAL innodb_file_per_table = @saved_file_per_table;
 SET GLOBAL innodb_encrypt_tables = @saved_encrypt_tables;
 SET GLOBAL innodb_encryption_threads = @saved_encryption_threads;
 SET GLOBAL innodb_default_encryption_key_id = @saved_encryption_key_id;

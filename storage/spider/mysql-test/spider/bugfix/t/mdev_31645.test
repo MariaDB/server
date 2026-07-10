@@ -1,0 +1,30 @@
+--echo #
+--echo # MDEV-31645 Spider doesn't recognize semi JOIN
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--enable_prepare_warnings
+set spider_same_server_link=1;
+set global spider_same_server_link=1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE t1 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a));
+CREATE TABLE t2 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a)) ENGINE=SPIDER COMMENT='srv "srv", WRAPPER "mysql", TABLE "t1"';
+
+SELECT * FROM t2 WHERE b IN (SELECT b FROM t2 WHERE a > 10);
+SELECT * FROM t2
+WHERE A BETWEEN 0 AND 10 AND B IN(SELECT B FROM t2 WHERE A BETWEEN 11 AND 20);
+drop table t1, t2;
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_31645
+--echo #

@@ -160,6 +160,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -278,6 +279,8 @@ GRANT PROXY ON ''@'%' TO 'not_root'@'localhost' WITH GRANT OPTION;
 connect  con1,localhost,not_root,,;
 connection con1;
 DROP USER 'root'@'localhost';
+Warnings:
+Note	4227	Dropped users 'root'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP USER 'root'@'127.0.0.1';
 DROP USER 'root'@'::1';
 use mysqltest1;
@@ -288,7 +291,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `g` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 use mysql;
 select count(*) from user;
 count(*)

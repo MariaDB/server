@@ -1318,7 +1318,7 @@ drop procedure test_signal $$
 
 # RETURN statement clears Diagnostics Area, thus
 # the warnings raised in a stored function are not
-# visible outsidef the stored function. So, we're using
+# visible outside the stored function. So, we're using
 # @@warning_count variable to check that SIGNAL succeeded.
 
 create function test_signal_func() returns integer

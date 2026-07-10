@@ -83,15 +83,6 @@ inline void row_log_abort_sec(dict_index_t *index)
   index->online_log= nullptr;
 }
 
-/** Logs an operation to a secondary index that is (or was) being created.
-@param	index	index, S or X latched
-@param	tuple	index tuple
-@param	trx_id	transaction ID for insert, or 0 for delete
-@retval false if row_log_apply() failure happens
-or true otherwise */
-bool row_log_online_op(dict_index_t *index, const dtuple_t *tuple,
-                       trx_id_t trx_id) ATTRIBUTE_COLD;
-
 /******************************************************//**
 Gets the error status of the online index rebuild log.
 @return DB_SUCCESS or error code */
@@ -101,16 +92,6 @@ row_log_table_get_error(
 	const dict_index_t*	index)	/*!< in: clustered index of a table
 					that is being rebuilt online */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Check whether a virtual column is indexed in the new table being
-created during alter table
-@param[in]	index	cluster index
-@param[in]	v_no	virtual column number
-@return true if it is indexed, else false */
-bool
-row_log_col_is_indexed(
-	const dict_index_t*	index,
-	ulint			v_no);
 
 /******************************************************//**
 Logs a delete operation to a table that is being rebuilt.
@@ -201,7 +182,7 @@ row_log_get_max_trx(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Apply the row log to the index upon completing index creation.
-@param[in]	trx	transaction (for checking if the operation was
+@param[in,out]	trx	transaction (for checking if the operation was
 interrupted)
 @param[in,out]	index	secondary index
 @param[in,out]	table	MySQL table (for reporting duplicates)
@@ -211,7 +192,7 @@ stage->inc() will be called for each block of log that is applied.
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_apply(
-	const trx_t*		trx,
+	trx_t*			trx,
 	dict_index_t*		index,
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)
@@ -227,6 +208,16 @@ unsigned row_log_get_n_core_fields(const dict_index_t *index);
 @return error code present in online log */
 dberr_t row_log_get_error(const dict_index_t *index);
 
+/** Mark all indexed virtual columns for computation during
+online DDL. Virtual columns that are part of any index must be
+computed and logged in the row log so their values are available
+for index building and concurrent DML replay during ALTER TABLE
+operations.
+@param table       InnoDB table object
+@param maria_table MariaDB table handle */
+ATTRIBUTE_COLD
+void row_log_mark_virtual_cols(const dict_table_t *table,
+                               TABLE *maria_table) noexcept;
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase
 of an ALTER TABLE for this index.

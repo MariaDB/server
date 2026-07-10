@@ -25,7 +25,7 @@ FROM performance_schema.session_account_connect_attrs;
 COUNT(DISTINCT PROCESSLIST_ID)
 1
 CREATE USER wl5924@localhost;
-connect non_privileged_user,localhost,wl5924,,test;
+connect non_privileged_user,localhost,wl5924,,"*NO-ONE*";
 connection default;
 # must return 1
 SELECT COUNT(DISTINCT PROCESSLIST_ID)
@@ -49,6 +49,7 @@ ERROR 42000: SELECT command denied to user 'wl5924'@'localhost' for table `perfo
 connection default;
 disconnect non_privileged_user;
 grant select on performance_schema.* to wl5924@localhost;
+change_user wl5924,,;
 SELECT SUM(ISNULL(ATTR_VALUE)), COUNT(*)
 FROM performance_schema.session_account_connect_attrs
 WHERE ATTR_NAME IN ('_os', '_client_name', '_pid',
@@ -56,4 +57,5 @@ WHERE ATTR_NAME IN ('_os', '_client_name', '_pid',
 AND PROCESSLIST_ID = CONNECTION_ID();
 SUM(ISNULL(ATTR_VALUE))	COUNT(*)
 0	6
+change_user root,,test;
 DROP USER wl5924@localhost;

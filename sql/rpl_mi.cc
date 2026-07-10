@@ -21,50 +21,63 @@
 #include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
+#include "sql_acl.h"
+#include <sql_common.h>
 
 #ifdef HAVE_REPLICATION
 
-#define DEFAULT_CONNECT_RETRY 60
-
 static void init_master_log_pos(Master_info* mi);
 
+static void init_ssl_config(Master_info* mi);
+
+static void init_connection_config(Master_info* mi);
+
+static void init_group_counters(Master_info* mi);
+
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
-                         bool is_slave_recovery)
-  :Slave_reporting_capability("I/O"),
-   ssl(0), ssl_verify_server_cert(1), fd(-1), io_thd(0), 
-   rli(is_slave_recovery), port(MYSQL_PORT),
+                         bool is_slave_recovery):
+   Master_info_file(ignore_server_ids, domain_id_filter.m_domain_ids[0],
+                                       domain_id_filter.m_domain_ids[1]),
+   Slave_reporting_capability("I/O"), fd(-1), io_thd(0), rli(is_slave_recovery),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
-   connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
+   connects_tried(0), binlog_storage_engine(0), inited(0), abort_slave(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), slave_run_id(0),
    clock_diff_with_master(0),
-   sync_counter(0), heartbeat_period(0), received_heartbeats(0),
+   sync_counter(0), received_heartbeats(0),
    master_id(0), prev_master_id(0),
-   using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
+   events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
-   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0)
+   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0),
+   semi_sync_reply_enabled(0)
 {
   char *tmp;
+  port= MYSQL_PORT;
   host[0] = 0; user[0] = 0; password[0] = 0;
-  ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
-  ssl_cipher[0]= 0; ssl_key[0]= 0;
-  ssl_crl[0]= 0; ssl_crlpath[0]= 0;
+  master_log_pos = 0;
+  master_log_name[0] = 0;
 
   /*
     Store connection name and lower case connection name
     It's safe to ignore any OMM errors as this is checked by error()
   */
-  connection_name.length= cmp_connection_name.length=
-    connection_name_arg->length;
+  connection_name.length= connection_name_arg->length;
+  size_t cmp_connection_name_nbytes= connection_name_arg->length *
+                                     system_charset_info->casedn_multiply() +
+                                     1;
   if ((connection_name.str= tmp= (char*)
-       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length*2+2, MYF(MY_WME))))
+       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length + 1 +
+                                    cmp_connection_name_nbytes,
+                 MYF(MY_WME))))
   {
     strmake(tmp, connection_name_arg->str, connection_name.length);
     tmp+= connection_name_arg->length+1;
     cmp_connection_name.str= tmp;
-    memcpy(tmp, connection_name_arg->str, connection_name.length+1);
-    my_casedn_str(system_charset_info, tmp);
+    cmp_connection_name.length=
+      system_charset_info->casedn_z(connection_name_arg->str,
+                                    connection_name_arg->length,
+                                    tmp, cmp_connection_name_nbytes);
   }
   /*
     When MySQL restarted, all Rpl_filter settings which aren't in the my.cnf
@@ -140,18 +153,6 @@ Master_info::~Master_info()
 }
 
 /**
-   A comparison function to be supplied as argument to @c sort_dynamic()
-   and @c bsearch()
-
-   @return -1 if first argument is less, 0 if it equal to, 1 if it is greater
-   than the second
-*/
-static int change_master_id_cmp(const void *id1, const void *id2)
-{
-  return (*(ulong *) id1 - *(ulong *) id2);
-}
-
-/**
    Reports if the s_id server has been configured to ignore events 
    it generates with
 
@@ -175,152 +176,76 @@ bool Master_info::shall_ignore_server_id(ulong s_id)
                    change_master_id_cmp) != NULL;
 }
 
+void Master_info::reset_master_server_id()
+{
+  master_id= 0;
+  prev_master_id= 0;
+}
+
 void Master_info::clear_in_memory_info(bool all)
 {
   init_master_log_pos(this);
+  reset_master_server_id();
   if (all)
   {
     port= MYSQL_PORT;
     host[0] = 0; user[0] = 0; password[0] = 0;
     domain_id_filter.clear_ids();
     reset_dynamic(&ignore_server_ids);
+    init_ssl_config(this);
+    init_connection_config(this);
+    init_group_counters(this);
   }
 }
 
 
-const char *
-Master_info::using_gtid_astext(enum enum_using_gtid arg)
+void init_ssl_config(Master_info* mi)
 {
-  switch (arg)
-  {
-  case USE_GTID_NO:
-    return "No";
-  case USE_GTID_SLAVE_POS:
-    return "Slave_Pos";
-  default:
-    DBUG_ASSERT(arg == USE_GTID_CURRENT_POS);
-    return "Current_Pos";
-  }
+  DBUG_ENTER("init_ssl_config");
+  mi->master_ssl= 1;
+  mi->master_ssl_verify_server_cert= 0;
+  mi->master_ssl_ca= nullptr; mi->master_ssl_capath= nullptr; mi->master_ssl_cert= nullptr;
+  mi->master_ssl_cipher= nullptr; mi->master_ssl_key= nullptr; mi->master_ssl_crl= nullptr;
+  mi->master_ssl_crlpath= nullptr;
+  DBUG_VOID_RETURN;
+}
+
+
+void init_group_counters(Master_info* mi)
+{
+  DBUG_ENTER("init_group_counters");
+  mi->total_ddl_groups= 0;
+  mi->total_non_trans_groups= 0;
+  mi->total_trans_groups= 0;
+  DBUG_VOID_RETURN;
+}
+
+
+void init_connection_config(Master_info* mi)
+{
+  DBUG_ENTER("init_connection_config");
+  mi->connect_retry.set_default();
+  mi->retry_count.set_default();
+  mi->master_id= 0;
+  mi->prev_master_id= 0;
+  mi->received_heartbeats= 0;
+  DBUG_VOID_RETURN;
 }
 
 
 void init_master_log_pos(Master_info* mi)
 {
   DBUG_ENTER("init_master_log_pos");
-
   mi->master_log_name[0] = 0;
   mi->master_log_pos = BIN_LOG_HEADER_SIZE;             // skip magic number
-  mi->using_gtid= Master_info::USE_GTID_NO;
+  mi->master_use_gtid.set_default();
+  mi->master_heartbeat_period.set_default();
   mi->gtid_current_pos.reset();
   mi->events_queued_since_last_gtid= 0;
   mi->gtid_reconnect_event_skip_count= 0;
   mi->gtid_event_seen= false;
-
-  /* Intentionally init ssl_verify_server_cert to 0, no option available  */
-  mi->ssl_verify_server_cert= 0;
-  /* 
-    always request heartbeat unless master_heartbeat_period is set
-    explicitly zero.  Here is the default value for heartbeat period
-    if CHANGE MASTER did not specify it.  (no data loss in conversion
-    as hb period has a max)
-  */
-  mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
-                                    (slave_net_timeout/2.0));
-  DBUG_ASSERT(mi->heartbeat_period > (float) 0.001
-              || mi->heartbeat_period == 0);
-
   DBUG_VOID_RETURN;
 }
-
-/**
-  Parses the IO_CACHE for "key=" and returns the "key".
-  If no '=' found, returns the whole line (for END_MARKER).
-
-  @param key      [OUT]               Key buffer
-  @param max_size [IN]                Maximum buffer size
-  @param f        [IN]                IO_CACHE file
-  @param found_equal [OUT]            Set true if a '=' was found.
-
-  @retval 0                           Either "key=" or '\n' found
-  @retval 1                           EOF
-*/
-static int
-read_mi_key_from_file(char *key, int max_size, IO_CACHE *f, bool *found_equal)
-{
-  int i= 0, c;
-
-  DBUG_ENTER("read_key_from_file");
-
-  *found_equal= false;
-  if (max_size <= 0)
-    DBUG_RETURN(1);
-  for (;;)
-  {
-    if (i >= max_size-1)
-    {
-      key[i] = '\0';
-      DBUG_RETURN(0);
-    }
-    c= my_b_get(f);
-    if (c == my_b_EOF)
-    {
-      DBUG_RETURN(1);
-    }
-    else if (c == '\n')
-    {
-      key[i]= '\0';
-      DBUG_RETURN(0);
-    }
-    else if (c == '=')
-    {
-      key[i]= '\0';
-      *found_equal= true;
-      DBUG_RETURN(0);
-    }
-    else
-    {
-      key[i]= c;
-      ++i;
-    }
-  }
-  /* NotReached */
-}
-
-enum {
-  LINES_IN_MASTER_INFO_WITH_SSL= 14,
-
-  /* 5.1.16 added value of master_ssl_verify_server_cert */
-  LINE_FOR_MASTER_SSL_VERIFY_SERVER_CERT= 15,
-
-  /* 5.5 added value of master_heartbeat_period */
-  LINE_FOR_MASTER_HEARTBEAT_PERIOD= 16,
-
-  /* MySQL Cluster 6.3 added master_bind */
-  LINE_FOR_MASTER_BIND = 17,
-
-  /* 6.0 added value of master_ignore_server_id */
-  LINE_FOR_REPLICATE_IGNORE_SERVER_IDS= 18,
-
-  /* 6.0 added value of master_uuid */
-  LINE_FOR_MASTER_UUID= 19,
-
-  /* line for master_retry_count */
-  LINE_FOR_MASTER_RETRY_COUNT= 20,
-
-  /* line for ssl_crl */
-  LINE_FOR_SSL_CRL= 21,
-
-  /* line for ssl_crl */
-  LINE_FOR_SSL_CRLPATH= 22,
-
-  /* MySQL 5.6 fixed-position lines. */
-  LINE_FOR_FIRST_MYSQL_5_6=23,
-  LINE_FOR_LAST_MYSQL_5_6=23,
-  /* Reserved lines for MySQL future versions. */
-  LINE_FOR_LAST_MYSQL_FUTURE=33,
-  /* Number of (fixed-position) lines used when saving master info file */
-  LINES_IN_MASTER_INFO= LINE_FOR_LAST_MYSQL_FUTURE
-};
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
                      const char* slave_info_fname,
@@ -443,233 +368,15 @@ file '%s')", fname);
     }
 
     mi->fd = fd;
-    int port, connect_retry, master_log_pos, lines;
-    int ssl= 0, ssl_verify_server_cert= 0;
-    float master_heartbeat_period= 0.0;
-    char *first_non_digit;
-    char buf[HOSTNAME_LENGTH+1];
-
-    /*
-       Starting from 4.1.x master.info has new format. Now its
-       first line contains number of lines in file. By reading this
-       number we will be always distinguish to which version our
-       master.info corresponds to. We can't simply count lines in
-       file since versions before 4.1.x could generate files with more
-       lines than needed.
-       If first line doesn't contain a number or contain number less than
-       LINES_IN_MASTER_INFO_WITH_SSL then such file is treated like file
-       from pre 4.1.1 version.
-       There is no ambiguity when reading an old master.info, as before
-       4.1.1, the first line contained the binlog's name, which is either
-       empty or has an extension (contains a '.'), so can't be confused
-       with an integer.
-
-       So we're just reading first line and trying to figure which version
-       is this.
-    */
-
-    /*
-       The first row is temporarily stored in mi->master_log_name,
-       if it is line count and not binlog name (new format) it will be
-       overwritten by the second row later.
-    */
-    if (init_strvar_from_file(mi->master_log_name,
-                              sizeof(mi->master_log_name), &mi->file,
-                              ""))
+    if (mi->load_from_file())
       goto errwithmsg;
-
-    lines= strtoul(mi->master_log_name, &first_non_digit, 10);
-
-    if (mi->master_log_name[0]!='\0' &&
-        *first_non_digit=='\0' && lines >= LINES_IN_MASTER_INFO_WITH_SSL)
-    {
-      /* Seems to be new format => read master log name from next line */
-      if (init_strvar_from_file(mi->master_log_name,
-            sizeof(mi->master_log_name), &mi->file, ""))
-        goto errwithmsg;
-    }
-    else
-      lines= 7;
-
-    if (init_intvar_from_file(&master_log_pos, &mi->file, 4) ||
-        init_strvar_from_file(mi->host, sizeof(mi->host), &mi->file, 0) ||
-        init_strvar_from_file(mi->user, sizeof(mi->user), &mi->file, "test") ||
-        init_strvar_from_file(mi->password, SCRAMBLED_PASSWORD_CHAR_LENGTH+1,
-                              &mi->file, 0) ||
-        init_intvar_from_file(&port, &mi->file, MYSQL_PORT) ||
-        init_intvar_from_file(&connect_retry, &mi->file,
-                              DEFAULT_CONNECT_RETRY))
-      goto errwithmsg;
-
-    /*
-       If file has ssl part use it even if we have server without
-       SSL support. But these options will be ignored later when
-       slave will try connect to master, so in this case warning
-       is printed.
-     */
-    if (lines >= LINES_IN_MASTER_INFO_WITH_SSL)
-    {
-      if (init_intvar_from_file(&ssl, &mi->file, 0) ||
-          init_strvar_from_file(mi->ssl_ca, sizeof(mi->ssl_ca),
-                                &mi->file, 0) ||
-          init_strvar_from_file(mi->ssl_capath, sizeof(mi->ssl_capath),
-                                &mi->file, 0) ||
-          init_strvar_from_file(mi->ssl_cert, sizeof(mi->ssl_cert),
-                                &mi->file, 0) ||
-          init_strvar_from_file(mi->ssl_cipher, sizeof(mi->ssl_cipher),
-                                &mi->file, 0) ||
-          init_strvar_from_file(mi->ssl_key, sizeof(mi->ssl_key),
-                                &mi->file, 0))
-        goto errwithmsg;
-
-      /*
-        Starting from 5.1.16 ssl_verify_server_cert might be
-        in the file
-      */
-      if (lines >= LINE_FOR_MASTER_SSL_VERIFY_SERVER_CERT &&
-          init_intvar_from_file(&ssl_verify_server_cert, &mi->file, 0))
-        goto errwithmsg;
-      /*
-        Starting from 6.0 master_heartbeat_period might be
-        in the file
-      */
-      if (lines >= LINE_FOR_MASTER_HEARTBEAT_PERIOD &&
-          init_floatvar_from_file(&master_heartbeat_period, &mi->file, 0.0))
-        goto errwithmsg;
-      /*
-	Starting from MySQL Cluster 6.3 master_bind might be in the file
-	(this is just a reservation to avoid future upgrade problems) 
-       */
-      if (lines >= LINE_FOR_MASTER_BIND &&
-	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-	  goto errwithmsg;
-      /*
-        Starting from 6.0 list of server_id of ignorable servers might be
-        in the file
-      */
-      if (lines >= LINE_FOR_REPLICATE_IGNORE_SERVER_IDS &&
-          init_dynarray_intvar_from_file(&mi->ignore_server_ids, &mi->file))
-      {
-        sql_print_error("Failed to initialize master info ignore_server_ids");
-        goto errwithmsg;
-      }
-
-      /* reserved */
-      if (lines >= LINE_FOR_MASTER_UUID &&
-	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-	  goto errwithmsg;
-
-      /* Starting from 5.5 the master_retry_count may be in the repository. */
-      if (lines >= LINE_FOR_MASTER_RETRY_COUNT &&
-	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-	  goto errwithmsg;
-
-      if (lines >= LINE_FOR_SSL_CRLPATH &&
-	  (init_strvar_from_file(mi->ssl_crl, sizeof(mi->ssl_crl),
-                                 &mi->file, "") ||
-	   init_strvar_from_file(mi->ssl_crlpath, sizeof(mi->ssl_crlpath),
-                                 &mi->file, "")))
-	  goto errwithmsg;
-
-      /*
-        Starting with MariaDB 10.0, we use a key=value syntax, which is nicer
-        in several ways. But we leave a bunch of empty lines to accomodate
-        any future old-style additions in MySQL (this will make it easier for
-        users moving from MariaDB to MySQL, to not have MySQL try to
-        interpret a MariaDB key=value line.)
-      */
-      if (lines >= LINE_FOR_LAST_MYSQL_FUTURE)
-      {
-        uint i;
-        bool got_eq;
-        bool seen_using_gtid= false;
-        bool seen_do_domain_ids=false, seen_ignore_domain_ids=false;
-
-        /* Skip lines used by / reserved for MySQL >= 5.6. */
-        for (i= LINE_FOR_FIRST_MYSQL_5_6; i <= LINE_FOR_LAST_MYSQL_FUTURE; ++i)
-        {
-          if (init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-          goto errwithmsg;
-        }
-
-        /*
-          Parse any extra key=value lines. read_key_from_file() parses the file
-          for "key=" and returns the "key" if found. The "value" can then the
-          parsed on case by case basis. The "unknown" lines would be ignored to
-          facilitate downgrades.
-          10.0 does not have the END_MARKER before any left-overs at the end
-          of the file. So ignore any but the first occurrence of a key.
-        */
-        while (!read_mi_key_from_file(buf, sizeof(buf), &mi->file, &got_eq))
-        {
-          if (got_eq && !seen_using_gtid && !strcmp(buf, "using_gtid"))
-          {
-            int val;
-            if (!init_intvar_from_file(&val, &mi->file, 0))
-            {
-              if (val == Master_info::USE_GTID_CURRENT_POS)
-                mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
-              else if (val == Master_info::USE_GTID_SLAVE_POS)
-                mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
-              else
-                mi->using_gtid= Master_info::USE_GTID_NO;
-              seen_using_gtid= true;
-            } else {
-              sql_print_error("Failed to initialize master info using_gtid");
-              goto errwithmsg;
-            }
-          }
-          else if (got_eq && !seen_do_domain_ids && !strcmp(buf, "do_domain_ids"))
-          {
-            if (mi->domain_id_filter.init_ids(&mi->file,
-                                              Domain_id_filter::DO_DOMAIN_IDS))
-            {
-              sql_print_error("Failed to initialize master info do_domain_ids");
-              goto errwithmsg;
-            }
-            seen_do_domain_ids= true;
-          }
-          else if (got_eq && !seen_ignore_domain_ids &&
-                   !strcmp(buf, "ignore_domain_ids"))
-          {
-            if (mi->domain_id_filter.init_ids(&mi->file,
-                                              Domain_id_filter::IGNORE_DOMAIN_IDS))
-            {
-              sql_print_error("Failed to initialize master info "
-                              "ignore_domain_ids");
-              goto errwithmsg;
-            }
-            seen_ignore_domain_ids= true;
-          }
-          else if (!got_eq && !strcmp(buf, "END_MARKER"))
-          {
-            /*
-              Guard agaist extra left-overs at the end of file, in case a later
-              update causes the file to shrink compared to earlier contents.
-            */
-            break;
-          }
-        }
-      }
-    }
 
 #ifndef HAVE_OPENSSL
-    if (ssl)
+    if (mi->master_ssl)
       sql_print_warning("SSL information in the master info file "
                       "('%s') are ignored because this MySQL slave was "
                       "compiled without SSL support.", fname);
 #endif /* HAVE_OPENSSL */
-
-    /*
-      This has to be handled here as init_intvar_from_file can't handle
-      my_off_t types
-    */
-    mi->master_log_pos= (my_off_t) master_log_pos;
-    mi->port= (uint) port;
-    mi->connect_retry= (uint) connect_retry;
-    mi->ssl= (my_bool) ssl;
-    mi->ssl_verify_server_cert= ssl_verify_server_cert;
-    mi->heartbeat_period= MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD, master_heartbeat_period);
   }
   DBUG_PRINT("master_info",("log_file_name: %s  position: %ld",
                             mi->master_log_name,
@@ -714,7 +421,6 @@ int flush_master_info(Master_info* mi,
                       bool need_lock_relay_log)
 {
   IO_CACHE* file = &mi->file;
-  char lbuf[22];
   int err= 0;
 
   DBUG_ENTER("flush_master_info");
@@ -751,45 +457,6 @@ int flush_master_info(Master_info* mi,
   }
 
   /*
-    produce a line listing the total number and all the ignored server_id:s
-  */
-  char* ignore_server_ids_buf;
-  {
-    ignore_server_ids_buf=
-      (char *) my_malloc(PSI_INSTRUMENT_ME,
-                         (sizeof(global_system_variables.server_id) * 3 + 1) *
-                         (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
-    if (!ignore_server_ids_buf)
-      DBUG_RETURN(1);                           /* error */
-    ulong cur_len= sprintf(ignore_server_ids_buf, "%zu",
-                           mi->ignore_server_ids.elements);
-    for (ulong i= 0; i < mi->ignore_server_ids.elements; i++)
-    {
-      ulong s_id;
-      get_dynamic(&mi->ignore_server_ids, (uchar*) &s_id, i);
-      cur_len+= sprintf(ignore_server_ids_buf + cur_len, " %lu", s_id);
-    }
-  }
-
-  char *do_domain_ids_buf= 0, *ignore_domain_ids_buf= 0;
-
-  do_domain_ids_buf=
-    mi->domain_id_filter.as_string(Domain_id_filter::DO_DOMAIN_IDS);
-  if (do_domain_ids_buf == NULL)
-  {
-    err= 1;                                     /* error */
-    goto done;
-  }
-
-  ignore_domain_ids_buf=
-    mi->domain_id_filter.as_string(Domain_id_filter::IGNORE_DOMAIN_IDS);
-  if (ignore_domain_ids_buf == NULL)
-  {
-    err= 1;                                     /* error */
-    goto done;
-  }
-
-  /*
     We flushed the relay log BEFORE the master.info file, because if we crash
     now, we will get a duplicate event in the relay log at restart. If we
     flushed in the other order, we would get a hole in the relay log.
@@ -797,34 +464,7 @@ int flush_master_info(Master_info* mi,
     can add detection and scrap one event; with a hole there's nothing we can
     do).
   */
-
-  /*
-     In certain cases this code may create master.info files that seems
-     corrupted, because of extra lines filled with garbage in the end
-     file (this happens if new contents take less space than previous
-     contents of file). But because of number of lines in the first line
-     of file we don't care about this garbage.
-  */
-  char heartbeat_buf[FLOATING_POINT_BUFFER];
-  my_fcvt(mi->heartbeat_period, 3, heartbeat_buf, NULL);
-  my_b_seek(file, 0L);
-  my_b_printf(file,
-              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n"
-              "\n\n\n\n\n\n\n\n\n\n\n"
-              "using_gtid=%d\n"
-              "do_domain_ids=%s\n"
-              "ignore_domain_ids=%s\n"
-              "END_MARKER\n",
-              LINES_IN_MASTER_INFO,
-              mi->master_log_name, llstr(mi->master_log_pos, lbuf),
-              mi->host, mi->user,
-              mi->password, mi->port, mi->connect_retry,
-              (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
-              mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
-              heartbeat_buf, "", ignore_server_ids_buf,
-              "", 0,
-              mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid,
-              do_domain_ids_buf, ignore_domain_ids_buf);
+  mi->save_to_file();
   err= flush_io_cache(file);
   if (sync_masterinfo_period && !err &&
       ++(mi->sync_counter) >= sync_masterinfo_period)
@@ -835,11 +475,6 @@ int flush_master_info(Master_info* mi,
 
   /* Fix err; flush_io_cache()/my_sync() may return -1 */
   err= (err != 0) ? 1 : 0;
-
-done:
-  my_free(ignore_server_ids_buf);
-  my_free(do_domain_ids_buf);
-  my_free(ignore_domain_ids_buf);
   DBUG_RETURN(err);
 }
 
@@ -862,12 +497,12 @@ void end_master_info(Master_info* mi)
 }
 
 /* Multi-Master By P.Linux */
-uchar *get_key_master_info(Master_info *mi, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+const uchar *get_key_master_info(const void *mi_, size_t *length, my_bool)
 {
+  auto mi= static_cast<const Master_info *>(mi_);
   /* Return lower case name */
   *length= mi->cmp_connection_name.length;
-  return (uchar*) mi->cmp_connection_name.str;
+  return reinterpret_cast<const uchar *>(mi->cmp_connection_name.str);
 }
 
 /*
@@ -877,8 +512,9 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
   Stops associated slave threads and frees master_info
 */
 
-void free_key_master_info(Master_info *mi)
+void free_key_master_info(void *mi_)
 {
+  Master_info *mi= static_cast<Master_info*>(mi_);
   DBUG_ENTER("free_key_master_info");
   mysql_mutex_unlock(&LOCK_active_mi);
 
@@ -1021,10 +657,12 @@ void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter)
       dst_filter->set_wild_ignore_table(tmp.ptr());
   }
 
-  if (dst_filter->rewrite_db_is_empty())
+  dst_filter->get_rewrite_db(&tmp);
+  if (tmp.is_empty())
   {
-    if (!src_filter->rewrite_db_is_empty())
-      dst_filter->copy_rewrite_db(src_filter);
+    src_filter->get_rewrite_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_rewrite_db(tmp.ptr());
   }
 }
 
@@ -1088,7 +726,7 @@ bool Master_info_index::init_all_master_info()
 {
   int thread_mask;
   int err_num= 0, succ_num= 0; // The number of success read Master_info
-  char sign[MAX_CONNECTION_NAME+1];
+  Info_file::String_value<MAX_CONNECTION_NAME+1> sign;
   File index_file_nr;
   THD *thd;
   DBUG_ENTER("init_all_master_info");
@@ -1113,22 +751,20 @@ bool Master_info_index::init_all_master_info()
   }
 
   /* Initialize Master_info Hash Table */
-  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info, 
-                   MAX_REPLICATION_THREAD, 0, 0, 
-                   (my_hash_get_key) get_key_master_info, 
-                   (my_hash_free_key)free_key_master_info, HASH_UNIQUE))
-  {                                                      
+  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash,
+                   Lex_ident_master_info::charset_info(),
+                   MAX_REPLICATION_THREAD, 0, 0, get_key_master_info,
+                   free_key_master_info, HASH_UNIQUE))
+  {
     sql_print_error("Initializing Master_info hash table failed");
     DBUG_RETURN(1);
   }
 
   thd= new THD(next_thread_id());  /* Needed by start_slave_threads */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   reinit_io_cache(&index_file, READ_CACHE, 0L,0,0);
-  while (!init_strvar_from_file(sign, sizeof(sign),
-                                &index_file, NULL))
+  while (!sign.load_from(&index_file))
   {
     LEX_CSTRING connection_name;
     Master_info *mi;
@@ -1177,8 +813,7 @@ bool Master_info_index::init_all_master_info()
       else
       {
         /* Master_info already in HASH */
-        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
-                                          ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_DEFAULT(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str,
                         (int) connection_name.length, connection_name.str);
         mi->unlock_slave_threads();
@@ -1196,8 +831,7 @@ bool Master_info_index::init_all_master_info()
                                              Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info was already registered */
-        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
-                                          ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_DEFAULT(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str,
                         (int) connection_name.length, connection_name.str);
         mi->unlock_slave_threads();
@@ -1364,27 +998,21 @@ Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
                                    Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
-  char buff[MAX_CONNECTION_NAME+1], *res;
-  size_t buff_length;
   DBUG_ENTER("get_master_info");
   DBUG_PRINT("enter",
              ("connection_name: '%.*s'", (int) connection_name->length,
               connection_name->str));
 
-  /* Make name lower case for comparison */
-  res= strmake(buff, connection_name->str, connection_name->length);
-  my_casedn_str(system_charset_info, buff); 
-  buff_length= (size_t) (res-buff);
-
+  if (!connection_name->str)
+    connection_name= &empty_clex_str;
   mi= (Master_info*) my_hash_search(&master_info_hash,
-                                    (uchar*) buff, buff_length);
+                                    (uchar*) connection_name->str,
+                                    connection_name->length);
   if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)
   {
     my_error(WARN_NO_MASTER_INFO,
-             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING :
-                 0),
-             (int) connection_name->length,
-             connection_name->str);
+             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING : 0),
+             (int) connection_name->length, connection_name->str);
   }
   DBUG_RETURN(mi);
 }
@@ -1498,7 +1126,7 @@ bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files
   {
     File index_file_nr;
 
-    // Close IO_CACHE and FILE handler fisrt
+    // Close IO_CACHE and FILE handler first
     end_io_cache(&index_file);
     my_close(index_file.file, MYF(MY_WME));
 
@@ -1516,7 +1144,7 @@ bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files
         my_close(index_file_nr,MYF(0));
 
       sql_print_error("Create of Master Info Index file '%s' failed with "
-                      "error: %M",
+                      "error: %iE",
                       index_file_name, error);
       DBUG_RETURN(TRUE);
     }
@@ -1643,6 +1271,9 @@ bool Master_info_index::start_all_slaves(THD *thd)
   DBUG_ENTER("start_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
+  if (check_global_access(thd, PRIV_STMT_START_SLAVE))
+    DBUG_RETURN(true);
+
   for (uint i= 0; i< master_info_hash.records; i++)
   {
     Master_info *mi;
@@ -1720,6 +1351,9 @@ bool Master_info_index::stop_all_slaves(THD *thd)
   DBUG_ENTER("stop_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(thd);
+
+  if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
+    DBUG_RETURN(true);
 
   for (uint i= 0; i< master_info_hash.records; i++)
   {
@@ -1874,7 +1508,7 @@ bool Domain_id_filter::update_ids(DYNAMIC_ARRAY *do_ids,
     return true;
   }
 
-  if (using_gtid == Master_info::USE_GTID_NO &&
+  if (!using_gtid &&
       (!do_list_empty || !ignore_list_empty))
   {
     sql_print_error("DO_DOMAIN_IDS or IGNORE_DOMAIN_IDS lists can't be "
@@ -1893,73 +1527,12 @@ bool Domain_id_filter::update_ids(DYNAMIC_ARRAY *do_ids,
   return false;
 }
 
-/**
-  Serialize and store the ids from domain id lists into the thd's protocol
-  buffer.
-
-  @param thd [IN]                   thread handler
-
-  @retval void
-*/
-void Domain_id_filter::store_ids(THD *thd)
+void Domain_id_filter::store_ids(Field ***field)
 {
   for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
   {
-    prot_store_ids(thd, &m_domain_ids[i]);
+    field_store_ids(*((*field)++), &m_domain_ids[i]);
   }
-}
-
-/**
-  Initialize the given domain_id list (DYNAMIC_ARRAY) with the
-  space-separated list of numbers from the specified IO_CACHE where
-  the first number represents the total number of entries to follows.
-
-  @param f    [IN]                  IO_CACHE file
-  @param type [IN]                  domain id list type
-
-  @retval false                     Success
-          true                      Error
-*/
-bool Domain_id_filter::init_ids(IO_CACHE *f, enum_list_type type)
-{
-  return init_dynarray_intvar_from_file(&m_domain_ids[type], f);
-}
-
-/**
-  Return the elements of the give domain id list type as string.
-
-  @param type [IN]                  domain id list type
-
-  @retval                           a string buffer storing the total number
-                                    of elements followed by the individual
-                                    elements (space-separated) in the
-                                    specified list.
-
-  Note: Its caller's responsibility to free the returned string buffer.
-*/
-char *Domain_id_filter::as_string(enum_list_type type)
-{
-  char *buf;
-  size_t sz;
-  DYNAMIC_ARRAY *ids= &m_domain_ids[type];
-
-  sz= (sizeof(ulong) * 3 + 1) * (1 + ids->elements);
-
-  if (!(buf= (char *) my_malloc(PSI_INSTRUMENT_ME, sz, MYF(MY_WME))))
-    return NULL;
-
-  // Store the total number of elements followed by the individual elements.
-  size_t cur_len= sprintf(buf, "%zu", ids->elements);
-  sz-= cur_len;
-
-  for (uint i= 0; i < ids->elements; i++)
-  {
-    ulong domain_id;
-    get_dynamic(ids, (void *) &domain_id, i);
-    cur_len+= my_snprintf(buf + cur_len, sz, " %lu", domain_id);
-    sz-= cur_len;
-  }
-  return buf;
 }
 
 void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
@@ -1983,40 +1556,37 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
   return;
 }
 
-/**
-  Serialize and store the ids from the given ids DYNAMIC_ARRAY into the thd's
-  protocol buffer.
-
-  @param thd [IN]                   thread handler
-  @param ids [IN]                   ids list
-
-  @retval void
-*/
-
-void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
+static size_t store_ids(DYNAMIC_ARRAY *ids, char *buff, size_t buff_len)
 {
-  char buff[FN_REFLEN];
-  uint i, cur_len;
+  uint i;
+  size_t cur_len;
 
   for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
   {
     ulong id, len;
     char dbuff[FN_REFLEN];
     get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
-    if (cur_len + len + 4 > FN_REFLEN)
+    len= snprintf(dbuff, sizeof(dbuff), (i == 0 ? "%lu" : ", %lu"), id);
+    if (cur_len + len + 4 > buff_len)
     {
       /*
         break the loop whenever remained space could not fit
         ellipses on the next cycle
       */
-      cur_len+= sprintf(dbuff + cur_len, "...");
+      cur_len+= snprintf(dbuff + cur_len, sizeof(dbuff) - cur_len, "...");
       break;
     }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+    cur_len+= snprintf(buff + cur_len, sizeof(dbuff) - cur_len, "%s", dbuff);
   }
-  thd->protocol->store(buff, cur_len, &my_charset_bin);
-  return;
+  return cur_len;
+}
+
+
+void field_store_ids(Field *field, DYNAMIC_ARRAY *ids)
+{
+  char buff[FN_REFLEN];
+  size_t cur_len= store_ids(ids, buff, sizeof(buff));
+  field->store(buff, cur_len, &my_charset_bin);
 }
 
 
@@ -2067,6 +1637,60 @@ bool Master_info_index::flush_all_relay_logs()
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(result);
+}
+
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout)
+{
+  DBUG_ASSERT(mi);
+  DBUG_ASSERT(mi->mysql);
+  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &timeout);
+  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &timeout);
+
+#ifdef HAVE_OPENSSL
+  if (mi->master_ssl)
+  {
+    mysql_ssl_set(mysql,
+                  mi->master_ssl_key, mi->master_ssl_cert, mi->master_ssl_ca,
+                  mi->master_ssl_capath, mi->master_ssl_cipher);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->master_ssl_crl);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->master_ssl_crlpath);
+    /*
+      mysql_options() expects a pointer to my_bool. master_ssl_verify_server_cert
+      is a trilean that can be -1 (default), 0 (no), or 1 (yes). When the default
+      value is used, the bool() conversion operator redirects to the global option
+      ::master_ssl_verify_server_cert. We must use this conversion rather than
+      passing a pointer directly, as (my_bool*)&trilean would not handle the
+      default case correctly.
+    */
+    bool ssl_verify_server_cert= mi->master_ssl_verify_server_cert;
+    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &ssl_verify_server_cert);
+  }
+  else
+#endif
+    mysql->options.use_ssl= 0;
+
+  /*
+    If server's default charset is not supported (like utf16, utf32) as client
+    charset, then set client charset to 'latin1' (default client charset).
+  */
+  if (is_supported_parser_charset(default_charset_info))
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
+  else
+  {
+    sql_print_information("'%s' can not be used as client character set. "
+                          "'%s' will be used as default client character set "
+                          "while connecting to master.",
+                          default_charset_info->cs_name.str,
+                          default_client_charset_info->cs_name.str);
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
+                  default_client_charset_info->cs_name.str);
+  }
+
+  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
+  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
+    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 }
 
 #endif /* HAVE_REPLICATION */

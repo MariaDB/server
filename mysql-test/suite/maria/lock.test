@@ -86,7 +86,7 @@ unlock tables;
 DROP TABLE t1,t2,tmp;
 
 --echo #
---echo # Using spatical keys (disables versioning)
+--echo # Using spatial keys (disables versioning)
 --echo #
 
 CREATE TABLE t1 (f1 INT, c1 geometry NOT NULL, SPATIAL KEY i1 (c1)) transactional=1 ENGINE=Aria;

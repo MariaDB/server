@@ -7,6 +7,7 @@ create table t1 (
 ) partition by key(a);
 insert into t1 select a from t2;
 explain partitions select * from t1 where a in (2,3,4);
+--source include/explain-no-costs.inc
 explain format=json select * from t1 where a in (2,3,4);
 --source include/analyze-format.inc
 analyze format=json select * from t1 where a in (2,3,4);

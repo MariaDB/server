@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set long_query_time=0.1;
 TEST GROUP 1:
@@ -5,7 +6,7 @@ Typical cases of in-to-exists and materialization subquery strategies
 =====================================================================
 drop database if exists world;
 set names utf8;
-create database world;
+create database world character set latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -39,8 +40,6 @@ create index Language on CountryLanguage(Language);
 create index CityName on City(Name);
 alter table City change population population int(11) null default 0;
 select max(id) from City into @max_city_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into City values (@max_city_id + 1,'Kilifarevo','BGR',NULL);
 SELECT COUNT(*) FROM Country;
 COUNT(*)
@@ -60,47 +59,19 @@ Q1.1m:
 MATERIALIZATION: there are too many rows in the outer query
 to be looked up in the inner table.
 EXPLAIN
-SELECT Name FROM Country
+SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
 Name LIKE 'L%') AND
-surfacearea > 1000000;
+surfacearea > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	Name,SurfaceArea	NULL	NULL	NULL	239	Using where
 2	MATERIALIZED	City	ALL	Population,Country	NULL	NULL	NULL	4079	Using where
-SELECT Name FROM Country
+SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
 Name LIKE 'L%') AND
-surfacearea > 1000000;
-Name
-Algeria
-Angola
-Argentina
-Australia
-Bolivia
-Brazil
-Egypt
-South Africa
-Ethiopia
-Indonesia
-India
-Iran
-Canada
-Kazakstan
-China
-Colombia
-Congo, The Democratic Republic of the
-Libyan Arab Jamahiriya
-Mali
-Mauritania
-Mexico
-Mongolia
-Niger
-Peru
-Saudi Arabia
-Sudan
-Chad
-Russian Federation
-United States
+surfacearea > 100000;
+count(*)
+107
 Q1.1e:
 IN-EXISTS: the materialization cost is the same as above, but
 there are much fewer outer rows to be looked up, thus the
@@ -136,10 +107,22 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	ALL	PRIMARY,SurfaceArea	NULL	NULL	NULL	239	Using where
 1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	17	Using where
 2	MATERIALIZED	CountryLanguage	ALL	Percentage,Language	NULL	NULL	NULL	984	Using where
+EXPLAIN
 SELECT *
 FROM Country, City
 WHERE City.Country = Country.Code AND
-Country.SurfaceArea < 3000 AND Country.SurfaceArea > 10 AND
+Country.SurfaceArea < 500 AND Country.SurfaceArea > 10 AND
+(City.Name IN
+(select Language from CountryLanguage where Percentage > 50) OR
+City.name LIKE '%Island%');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	Country	range	PRIMARY,SurfaceArea	SurfaceArea	4	NULL	32	Using index condition; Rowid-ordered scan
+1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	17	Using where
+2	MATERIALIZED	CountryLanguage	ALL	Percentage,Language	NULL	NULL	NULL	984	Using where
+SELECT *
+FROM Country, City
+WHERE City.Country = Country.Code AND
+Country.SurfaceArea < 500 AND Country.SurfaceArea > 10 AND
 (City.Name IN
 (select Language from CountryLanguage where Percentage > 50) OR
 City.name LIKE '%Island%');
@@ -515,9 +498,30 @@ FROM City JOIN Country ON City.Country = Country.Code
 GROUP BY City.Name
 HAVING City.Name IN (select Name from Country where population < 1000000);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	City	ALL	Country	NULL	NULL	NULL	4079	Using temporary; Using filesort
+1	PRIMARY	Country	eq_ref	PRIMARY	PRIMARY	3	world.City.Country	1	Using index
+2	MATERIALIZED	Country	ALL	Name	NULL	NULL	NULL	239	Using where
+Last_query_cost	5.934845
+EXPLAIN
+SELECT straight_join City.Name, City.Population
+FROM Country JOIN City ON City.Country = Country.Code
+GROUP BY City.Name
+HAVING City.Name IN (select Name from Country where population < 1000000);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	index	PRIMARY	PRIMARY	3	NULL	239	Using index; Using temporary; Using filesort
 1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	17	
 2	MATERIALIZED	Country	ALL	Name	NULL	NULL	NULL	239	Using where
+Last_query_cost	7.972473
+EXPLAIN
+SELECT City.Name, City.Population
+FROM Country LEFT JOIN City ON City.Country = Country.Code
+GROUP BY City.Name
+HAVING City.Name IN (select Name from Country where population < 1000000);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	Country	index	NULL	PRIMARY	3	NULL	239	Using index; Using temporary; Using filesort
+1	PRIMARY	City	ref	Country	Country	3	world.Country.Code	17	
+2	MATERIALIZED	Country	ALL	Name	NULL	NULL	NULL	239	Using where
+Last_query_cost	7.972473
 SELECT City.Name, City.Population
 FROM City JOIN Country ON City.Country = Country.Code
 GROUP BY City.Name
@@ -566,3 +570,4 @@ Tests of various combinations of optimizer switches, types of queries,
 available indexes, column nullability, constness of tables/predicates.
 =====================================================================
 set optimizer_switch=default;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

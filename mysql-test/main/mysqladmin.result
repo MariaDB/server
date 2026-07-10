@@ -17,6 +17,34 @@ mysqld is alive
 # Creating an empty file 'cnf_file'
 # Using --defaults-extra-file option with 'cnf_file'.
 mysqld is alive
+#
+# MDEV-33992 mariadb-admin flush-status command should do
+# FLUSH GLOBAL STATUS
+#
+flush session status;
+flush global status;
+connect  con1,localhost,root,;
+connect  con2,localhost,root,;
+connect  con3,localhost,root,;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+connection default;
+show status like 'Max_used_connections';
+Variable_name	Value
+Max_used_connections	4
+show global status like 'Max_used_connections';
+Variable_name	Value
+Max_used_connections	4
+#
+# Running mariadb-admin flush-status
+#
+show status like 'Max_used_connections';
+Variable_name	Value
+Max_used_connections	2
+show global status like 'Max_used_connections';
+Variable_name	Value
+Max_used_connections	2
 # restart: --ssl-key=MYSQLTEST_VARDIR/tmp/ssl_key.pem --ssl-cert=MYSQLTEST_VARDIR/tmp/ssl_cert.pem
 connect  ssl_con,localhost,root,,,,,SSL;
 SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
@@ -26,3 +54,4 @@ Result
 OK
 # Cleanup
 # restart
+# End of 11.5

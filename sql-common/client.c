@@ -21,7 +21,7 @@
   The differences for the two cases are:
 
   - Things that only works for the client:
-  - Trying to automaticly determinate user name if not supplied to
+  - Trying to automatically determinate user name if not supplied to
     mysql_real_connect()
   - Support for reading local file with LOAD DATA LOCAL
   - SHARED memory handling
@@ -30,7 +30,7 @@
   - Things that only works for the server
   - Alarm handling on connect
   
-  In all other cases, the code should be idential for the client and
+  In all other cases, the code should be identical for the client and
   server.
 */ 
 
@@ -167,6 +167,7 @@ static void mysql_close_free_options(MYSQL *mysql);
 static void mysql_close_free(MYSQL *mysql);
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
+static my_bool parse_ok_packet(MYSQL *mysql, ulong length);
 
 CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 
@@ -723,6 +724,12 @@ void end_server(MYSQL *mysql)
   DBUG_ENTER("end_server");
   if (mysql->net.vio != 0)
   {
+    struct st_VioSSLFd *ssl_fd= (struct st_VioSSLFd*) mysql->connector_fd;
+    if (ssl_fd)
+      SSL_CTX_free(ssl_fd->ssl_context);
+    my_free(ssl_fd);
+    mysql->connector_fd = 0;
+
     DBUG_PRINT("info",("Net: %s", vio_description(mysql->net.vio)));
 #ifdef MYSQL_SERVER
     slave_io_thread_detach_vio();
@@ -804,8 +811,7 @@ static char *opt_strdup(const char *from, myf my_flags)
   return my_strdup(key_memory_mysql_options, from, my_flags);
 }
 
-static TYPELIB option_types={array_elements(default_options)-1,
-			     "options",default_options, NULL};
+static TYPELIB option_types=CREATE_TYPELIB_FOR(default_options);
 
 static int add_init_command(struct st_mysql_options *options, const char *cmd)
 {
@@ -1432,6 +1438,7 @@ mysql_init(MYSQL *mysql)
     bzero((char*) (mysql), sizeof(*(mysql)));
   mysql->options.connect_timeout= CONNECT_TIMEOUT;
   mysql->charset=default_client_charset_info;
+  mysql->options.use_ssl= 1;
   strmov(mysql->net.sqlstate, not_error_sqlstate);
 
   /*
@@ -1455,7 +1462,7 @@ mysql_init(MYSQL *mysql)
     mysql_reconnect()).
     This is a change: < 5.0.3 mysql->reconnect was set to 1 by default.
     How this change impacts existing apps:
-    - existing apps which relyed on the default will see a behaviour change;
+    - existing apps which relied on the default will see a behaviour change;
     they will have to set reconnect=1 after mysql_real_connect().
     - existing apps which explicitly asked for reconnection (the only way they
     could do it was by setting mysql.reconnect to 1 after mysql_real_connect())
@@ -1509,7 +1516,6 @@ mysql_ssl_set(MYSQL *mysql __attribute__((unused)) ,
 static void
 mysql_ssl_free(MYSQL *mysql __attribute__((unused)))
 {
-  struct st_VioSSLFd *ssl_fd= (struct st_VioSSLFd*) mysql->connector_fd;
   DBUG_ENTER("mysql_ssl_free");
 
   my_free(mysql->options.ssl_key);
@@ -1522,9 +1528,6 @@ mysql_ssl_free(MYSQL *mysql __attribute__((unused)))
     my_free(mysql->options.extension->ssl_crl);
     my_free(mysql->options.extension->ssl_crlpath);
   }
-  if (ssl_fd)
-    SSL_CTX_free(ssl_fd->ssl_context);
-  my_free(mysql->connector_fd);
   mysql->options.ssl_key = 0;
   mysql->options.ssl_cert = 0;
   mysql->options.ssl_ca = 0;
@@ -1536,7 +1539,6 @@ mysql_ssl_free(MYSQL *mysql __attribute__((unused)))
     mysql->options.extension->ssl_crlpath = 0;
   }
   mysql->options.use_ssl = FALSE;
-  mysql->connector_fd = 0;
   DBUG_VOID_RETURN;
 }
 
@@ -1570,8 +1572,7 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 
   SYNOPSIS
   ssl_verify_server_cert()
-    vio              pointer to a SSL connected vio
-    server_hostname  name of the server that we connected to
+    MYSQL            mysql
     errptr           if we fail, we'll return (a pointer to a string
                      describing) the reason here
 
@@ -1583,33 +1584,24 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 
 #if defined(HAVE_OPENSSL)
 
-#ifdef HAVE_X509_check_host
 #include <openssl/x509v3.h>
-#endif
 
-static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const char **errptr)
+static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr, int is_local)
 {
   SSL *ssl;
   X509 *server_cert= NULL;
-#ifndef HAVE_X509_check_host
-  char *cn= NULL;
-  int cn_loc= -1;
-  ASN1_STRING *cn_asn1= NULL;
-  X509_NAME_ENTRY *cn_entry= NULL;
-  X509_NAME *subject= NULL;
-#endif
   int ret_validation= 1;
 
   DBUG_ENTER("ssl_verify_server_cert");
-  DBUG_PRINT("enter", ("server_hostname: %s", server_hostname));
+  DBUG_PRINT("enter", ("server_hostname: %s", mysql->host));
 
-  if (!(ssl= (SSL*)vio->ssl_arg))
+  if (!(ssl= (SSL*)mysql->net.vio->ssl_arg))
   {
     *errptr= "No SSL pointer found";
     goto error;
   }
 
-  if (!server_hostname)
+  if (!mysql->host)
   {
     *errptr= "No server hostname supplied";
     goto error;
@@ -1621,70 +1613,35 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     goto error;
   }
 
-  if (X509_V_OK != SSL_get_verify_result(ssl))
+  switch (DBUG_IF("simulate_ssl_unable_to_get_issuer_cert")
+              ? X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+              : SSL_get_verify_result(ssl))
   {
+  case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:     /* OpenSSL */
+  case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:       /* OpenSSL */
+  case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE: /* wolfSSL */
+    /*
+      If the caller have specified CA - it'll define whether the
+      cert is good. Otherwise we'll do more checks.
+    */
+    ret_validation= (mysql->options.ssl_ca && mysql->options.ssl_ca[0]) ||
+                  (mysql->options.ssl_capath && mysql->options.ssl_capath[0]);
+    mysql->tls_self_signed_error= *errptr= "SSL certificate is self-signed";
+    break;
+  case X509_V_OK:
+    ret_validation= !is_local &&
+                    X509_check_host(server_cert, mysql->host,
+                                    strlen(mysql->host), 0, 0) != 1 &&
+                    X509_check_ip_asc(server_cert, mysql->host, 0) != 1;
+    *errptr= "SSL certificate validation failure";
+    break;
+  default:
     *errptr= "Failed to verify the server certificate";
-    goto error;
+    break;
   }
-  /*
-    We already know that the certificate exchanged was valid; the SSL library
-    handled that. Now we need to verify that the contents of the certificate
-    are what we expect.
-  */
-
-#ifdef HAVE_X509_check_host
-  ret_validation=
-    X509_check_host(server_cert, server_hostname,
-       strlen(server_hostname), 0, 0) != 1;
-#ifndef HAVE_WOLFSSL
-   if (ret_validation)
-   {
-     ret_validation=
-         X509_check_ip_asc(server_cert, server_hostname, 0) != 1;
-   }
-#endif
-#else
-  subject= X509_get_subject_name(server_cert);
-  cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
-  if (cn_loc < 0)
-  {
-    *errptr= "Failed to get CN location in the certificate subject";
-    goto error;
-  }
-  cn_entry= X509_NAME_get_entry(subject, cn_loc);
-  if (cn_entry == NULL)
-  {
-    *errptr= "Failed to get CN entry using CN location";
-    goto error;
-  }
-
-  cn_asn1 = X509_NAME_ENTRY_get_data(cn_entry);
-  if (cn_asn1 == NULL)
-  {
-    *errptr= "Failed to get CN from CN entry";
-    goto error;
-  }
-
-  cn= (char *) ASN1_STRING_get0_data(cn_asn1);
-
-  if ((size_t)ASN1_STRING_length(cn_asn1) != strlen(cn))
-  {
-    *errptr= "NULL embedded in the certificate CN";
-    goto error;
-  }
-
-  DBUG_PRINT("info", ("Server hostname in cert: %s", cn));
-  if (!strcmp(cn, server_hostname))
-  {
-    /* Success */
-    ret_validation= 0;
-  }
-#endif
-  *errptr= "SSL certificate validation failure";
 
 error:
-  if (server_cert != NULL)
-    X509_free (server_cert);
+  X509_free(server_cert);
   DBUG_RETURN(ret_validation);
 }
 
@@ -1813,6 +1770,7 @@ C_MODE_END
 typedef struct st_mysql_client_plugin_AUTHENTICATION auth_plugin_t;
 static int client_mpvio_write_packet(struct st_plugin_vio*, const uchar*, int);
 static int native_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
+static int native_password_auth_hash(MYSQL *mysql, uchar *out, size_t *outlen);
 static int old_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
 
 static auth_plugin_t native_password_client_plugin=
@@ -1822,13 +1780,14 @@ static auth_plugin_t native_password_client_plugin=
   native_password_plugin_name,
   "R.J.Silk, Sergei Golubchik",
   "Native MySQL authentication",
-  {1, 0, 0},
+  {1, 0, 1},
   "GPL",
   NULL,
   NULL,
   NULL,
   NULL,
-  native_password_auth_client
+  native_password_auth_client,
+  native_password_auth_hash
 };
 
 static auth_plugin_t old_password_client_plugin=
@@ -1844,7 +1803,8 @@ static auth_plugin_t old_password_client_plugin=
   NULL,
   NULL,
   NULL,
-  old_password_auth_client
+  old_password_auth_client,
+  NULL
 };
 
 
@@ -1936,7 +1896,7 @@ typedef struct {
 
 
 /*
-  Write 1-8 bytes of string length header infromation to dest depending on
+  Write 1-8 bytes of string length header information to dest depending on
   value of src_len, then copy src_len bytes from src to dest.
  
  @param dest Destination buffer of size src_len+8
@@ -2035,6 +1995,29 @@ error:
   return res;
 }
 
+/**
+  Checks if self-signed certificate error should be ignored.
+*/
+static my_bool is_local_connection(const char *hostname, enum enum_vio_type viotype)
+{
+  const char *local_host_names[]= {
+#ifdef _WIN32
+  "localhost",
+#endif
+  "127.0.0.1", "::1"};
+  size_t i;
+
+  if (viotype != VIO_TYPE_TCPIP || !hostname)
+    return TRUE;
+
+  for (i= 0; i < array_elements(local_host_names); i++)
+  {
+    if (strcmp(hostname, local_host_names[i]) == 0)
+      return TRUE;
+  }
+  return FALSE;
+}
+
 #define MAX_CONNECTION_ATTR_STORAGE_LENGTH 65536
 
 /**
@@ -2072,6 +2055,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
 {
   MYSQL *mysql= mpvio->mysql;
   NET *net= &mysql->net;
+  enum enum_vio_type vio_type= net->vio->type;
   char *buff, *end;
   size_t buff_size;
   size_t connect_attrs_len=
@@ -2106,6 +2090,12 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
 
+  if (vio_type == VIO_TYPE_NAMEDPIPE)
+  {
+    mysql->server_capabilities&= ~CLIENT_SSL;
+    mysql->options.use_ssl= 0;
+  }
+
   /* Remove options that server doesn't support */
   mysql->client_flag= mysql->client_flag &
                        (~(CLIENT_COMPRESS | CLIENT_SSL | CLIENT_PROTOCOL_41) 
@@ -2136,9 +2126,9 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
      certificate, a ssl connection is required.
      If the server does not support ssl, we abort the connection.
   */
-  if (mysql->options.use_ssl &&
-      (mysql->options.extension && mysql->options.extension->tls_verify_server_cert) &&
-      !(mysql->server_capabilities & CLIENT_SSL))
+  if (mysql->options.use_ssl && !(mysql->server_capabilities & CLIENT_SSL) &&
+      (!mysql->options.extension ||
+       !mysql->options.extension->tls_allow_invalid_server_cert))
   {
     set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                              ER(CR_SSL_CONNECTION_ERROR),
@@ -2156,9 +2146,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     enum enum_ssl_init_error ssl_init_error;
     const char *cert_error;
     unsigned long ssl_error;
-#ifdef EMBEDDED_LIBRARY
-    DBUG_ASSERT(0); // embedded should not do SSL connect
-#endif
+    my_bool is_local;
 
     /*
       Send mysql->client_flag, max_packet_size - unencrypted otherwise
@@ -2189,7 +2177,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
                                ER(CR_SSL_CONNECTION_ERROR), sslGetErrString(ssl_init_error));
       goto error;
     }
-    mysql->connector_fd= (unsigned char *) ssl_fd;
+    mysql->connector_fd= (uchar *) ssl_fd;
 
     /* Connect to the server */
     DBUG_PRINT("info", ("IO layer change in progress..."));
@@ -2206,18 +2194,39 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     }
     DBUG_PRINT("info", ("IO layer change done!"));
 
+    is_local= is_local_connection(mysql->host, vio_type);
     /* Verify server cert */
-    if ((mysql->options.extension && mysql->options.extension->tls_verify_server_cert) &&
-        ssl_verify_server_cert(net->vio, mysql->host, &cert_error))
+    if ((!mysql->options.extension ||
+         !mysql->options.extension->tls_allow_invalid_server_cert) &&
+        ssl_verify_server_cert(mysql, &cert_error, is_local))
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                                ER(CR_SSL_CONNECTION_ERROR), cert_error);
       goto error;
     }
+    if (mysql->tls_self_signed_error)
+    {
+      /*
+        If connection is local, we allow self-signed cert.
+
+        If no password or plugin uses insecure protocol - refuse the cert.
+
+        Otherwise one last cert check after auth.
+      */
+      if (is_local)
+        mysql->tls_self_signed_error= 0;
+      else if (!mysql->passwd || !mysql->passwd[0] ||
+               !mpvio->plugin->hash_password_bin)
+      {
+        set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
+                    ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+        goto error;
+      }
+    }
   }
 #endif /* HAVE_OPENSSL */
 
-  DBUG_PRINT("info",("Server version = '%s'  capabilites: %lu  status: %u  client_flag: %lu",
+  DBUG_PRINT("info",("Server version = '%s'  capabilities: %lu  status: %u  client_flag: %lu",
 		     mysql->server_version, mysql->server_capabilities,
 		     mysql->server_status, mysql->client_flag));
 
@@ -2354,7 +2363,7 @@ static int client_mpvio_read_packet(struct st_plugin_vio *mpv, uchar **buf)
   to send data to the server.
 
   It transparently wraps the data into a change user or authentication
-  handshake packet, if neccessary.
+  handshake packet, if necessary.
 */
 static int client_mpvio_write_packet(struct st_plugin_vio *mpv,
                                      const uchar *pkt, int pkt_len)
@@ -2412,6 +2421,7 @@ void mpvio_info(Vio *vio, MYSQL_PLUGIN_VIO_INFO *info)
       info->protocol= addr.sa_family == AF_UNIX ?
         MYSQL_VIO_SOCKET : MYSQL_VIO_TCP;
       info->socket= (int)vio_fd(vio);
+      info->tls= 1;
       return;
     }
 #ifdef _WIN32
@@ -2568,6 +2578,14 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
                          auth_plugin_name, MYSQL_CLIENT_AUTHENTICATION_PLUGIN)))
       DBUG_RETURN (1);
 
+    /* refuse insecure plugin if TLS is in doubt */
+    if (mysql->tls_self_signed_error && !auth_plugin->hash_password_bin)
+    {
+      set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
+                  ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+      DBUG_RETURN (1);
+    }
+
     mpvio.plugin= auth_plugin;
     res= auth_plugin->authenticate_user((struct st_plugin_vio *)&mpvio, mysql);
 
@@ -2589,7 +2607,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     if (res != CR_OK_HANDSHAKE_COMPLETE)
     {
       /* Read what server thinks about out new auth message report */
-      if (cli_safe_read(mysql) == packet_error)
+      if ((pkt_length= cli_safe_read(mysql)) == packet_error)
       {
         if (mysql->net.last_errno == CR_SERVER_LOST)
           set_mysql_extended_error(mysql, CR_SERVER_LOST, unknown_sqlstate,
@@ -2604,7 +2622,44 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     net->read_pos[0] should always be 0 here if the server implements
     the protocol correctly
   */
-  DBUG_RETURN (mysql->net.read_pos[0] != 0);
+  if (mysql->net.read_pos[0] != 0)
+    DBUG_RETURN(1);
+  if (!mysql->tls_self_signed_error)
+    DBUG_RETURN(0);
+
+  /* Last attempt to validate the cert: compare cert info packet */
+  DBUG_ASSERT(mysql->options.use_ssl);
+  DBUG_ASSERT(mysql->net.vio->ssl_arg);
+  DBUG_ASSERT(!mysql->options.extension ||
+              !mysql->options.extension->tls_allow_invalid_server_cert);
+  DBUG_ASSERT(!mysql->options.ssl_ca || !mysql->options.ssl_ca[0]);
+  DBUG_ASSERT(!mysql->options.ssl_capath || !mysql->options.ssl_capath[0]);
+  DBUG_ASSERT(auth_plugin->hash_password_bin);
+  DBUG_ASSERT(mysql->passwd[0]);
+
+  parse_ok_packet(mysql, pkt_length); /* set mysql->info */
+  if (mysql->info && mysql->info[0] == '\1')
+  {
+    uchar fp[128], buf[1024], digest[256/8];
+    size_t buflen= sizeof(buf);
+    uint fplen= sizeof(fp);
+    char *hexsig= mysql->info + 1, hexdigest[sizeof(digest)*2+1];
+    X509 *cert= SSL_get_peer_certificate((SSL*)mysql->net.vio->ssl_arg);
+    X509_digest(cert, EVP_sha256(), fp, &fplen);
+    X509_free(cert);
+    auth_plugin->hash_password_bin(mysql, buf, &buflen);
+    my_sha256_multi(digest, buf, buflen, mysql->scramble, SCRAMBLE_LENGTH,
+                    fp, fplen, NULL);
+    mysql->info= NULL; /* no need to confuse the client with binary info */
+
+    octet2hex(hexdigest, digest, sizeof(digest));
+    if (strcmp(hexdigest, hexsig) == 0)
+      DBUG_RETURN(0); /* phew. self-signed certificate is validated! */
+  }
+
+  set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
+                    ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+  DBUG_RETURN(1);
 }
 
 
@@ -2695,6 +2750,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
   mysql->methods= &client_methods;
   mysql->client_flag=0;			/* For handshake */
+  mysql->tls_self_signed_error= 0;
 
   /* use default options */
   if (mysql->options.my_cnf_file || mysql->options.my_cnf_group)
@@ -3070,9 +3126,10 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   mysql->port=port;
 
   /*
-    remove the rpl hack from the version string,
-    see RPL_VERSION_HACK comment
+    remove the rpl hack from the version string, in case we're connecting
+    to a pre-11.0 server
   */
+#define RPL_VERSION_HACK "5.5.5-"
   if ((mysql->server_capabilities & CLIENT_PLUGIN_AUTH) &&
       strncmp(mysql->server_version, RPL_VERSION_HACK,
               sizeof(RPL_VERSION_HACK) - 1) == 0)
@@ -3131,7 +3188,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     if (mysql->net.last_errno == CR_SERVER_LOST)
         set_mysql_extended_error(mysql, CR_SERVER_LOST, unknown_sqlstate,
                                  ER(CR_SERVER_LOST_EXTENDED),
-                                 "Setting intital database",
+                                 "Setting initial database",
                                  errno);
     goto error;
   }
@@ -3448,6 +3505,29 @@ void STDCALL mysql_close(MYSQL *mysql)
 }
 
 
+static my_bool parse_ok_packet(MYSQL *mysql, ulong length)
+{
+  uchar *pos= mysql->net.read_pos + 1;
+  DBUG_ASSERT(pos[-1] == 0);
+
+  mysql->affected_rows= net_field_length_ll(&pos);
+  mysql->insert_id=	  net_field_length_ll(&pos);
+  if (protocol_41(mysql))
+  {
+    mysql->server_status=uint2korr(pos); pos+=2;
+    mysql->warning_count=uint2korr(pos); pos+=2;
+  }
+  else if (mysql->server_capabilities & CLIENT_TRANSACTIONS)
+  {
+    mysql->server_status=uint2korr(pos); pos+=2;
+    mysql->warning_count= 0;
+  }
+  if (pos < mysql->net.read_pos + length && net_field_length(&pos))
+    mysql->info=(char*) pos;
+  return 0;
+}
+
+
 static my_bool cli_read_query_result(MYSQL *mysql)
 {
   uchar *pos;
@@ -3468,31 +3548,10 @@ static my_bool cli_read_query_result(MYSQL *mysql)
 #ifdef MYSQL_CLIENT			/* Avoid warn of unused labels*/
 get_info:
 #endif
-  pos=(uchar*) mysql->net.read_pos;
+  pos= mysql->net.read_pos;
   if ((field_count= net_field_length(&pos)) == 0)
-  {
-    mysql->affected_rows= net_field_length_ll(&pos);
-    mysql->insert_id=	  net_field_length_ll(&pos);
-    DBUG_PRINT("info",("affected_rows: %lu  insert_id: %lu",
-		       (ulong) mysql->affected_rows,
-		       (ulong) mysql->insert_id));
-    if (protocol_41(mysql))
-    {
-      mysql->server_status=uint2korr(pos); pos+=2;
-      mysql->warning_count=uint2korr(pos); pos+=2;
-    }
-    else if (mysql->server_capabilities & CLIENT_TRANSACTIONS)
-    {
-      /* MySQL 4.0 protocol */
-      mysql->server_status=uint2korr(pos); pos+=2;
-      mysql->warning_count= 0;
-    }
-    DBUG_PRINT("info",("status: %u  warning_count: %u",
-		       mysql->server_status, mysql->warning_count));
-    if (pos < mysql->net.read_pos+length && net_field_length(&pos))
-      mysql->info=(char*) pos;
-    DBUG_RETURN(0);
-  }
+    DBUG_RETURN(parse_ok_packet(mysql, length));
+
 #ifdef MYSQL_CLIENT
   if (field_count == NULL_LENGTH)		/* LOAD DATA LOCAL INFILE */
   {
@@ -3756,7 +3815,7 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     mysql->options.compress= 1;			/* Remember for connect */
     mysql->options.client_flag|= CLIENT_COMPRESS;
     break;
-  case MYSQL_OPT_NAMED_PIPE:			/* This option is depricated */
+  case MYSQL_OPT_NAMED_PIPE:			/* This option is deprecated */
     mysql->options.protocol=MYSQL_PROTOCOL_PIPE; /* Force named pipe */
     break;
   case MYSQL_OPT_LOCAL_INFILE:			/* Allow LOAD DATA LOCAL ?*/
@@ -3817,7 +3876,7 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
                   sizeof(struct st_mysql_options_extention),
                   MYF(MY_WME | MY_ZEROFILL));
     if (mysql->options.extension)
-      mysql->options.extension->tls_verify_server_cert= *(my_bool*) arg;
+      mysql->options.extension->tls_allow_invalid_server_cert= !*(my_bool*) arg;
     break;
   case MYSQL_PLUGIN_DIR:
     EXTENSION_SET_STRING(&mysql->options, plugin_dir, arg);
@@ -3906,12 +3965,13 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
 /**
   A function to return the key from a connection attribute
 */
-uchar *
-get_attr_key(LEX_STRING *part, size_t *length,
+const uchar *
+get_attr_key(const void *part_, size_t *length,
              my_bool not_used __attribute__((unused)))
 {
+  const LEX_STRING *part= part_;
   *length= part[0].length;
-  return (uchar *) part[0].str;
+  return (const uchar *) part[0].str;
 }
 
 int STDCALL
@@ -3960,7 +4020,7 @@ mysql_options4(MYSQL *mysql,enum mysql_option option,
       {
         if (my_hash_init(key_memory_mysql_options,
                          &mysql->options.extension->connection_attributes,
-                         &my_charset_bin, 0, 0, 0, (my_hash_get_key)
+                         &my_charset_bin, 0, 0, 0,
                          get_attr_key, my_free, HASH_UNIQUE))
         {
           set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
@@ -4092,10 +4152,10 @@ int STDCALL mysql_set_character_set(MYSQL *mysql, const char *cs_name)
   if (mysql->options.charset_dir)
     charsets_dir= mysql->options.charset_dir;
 
-  if (strlen(cs_name) < MY_CS_NAME_SIZE &&
+  if (strlen(cs_name) < MY_CS_CHARACTER_SET_NAME_SIZE &&
      (cs= get_charset_by_csname(cs_name, MY_CS_PRIMARY, MYF(MY_UTF8_IS_UTF8MB3))))
   {
-    char buff[MY_CS_NAME_SIZE + 10];
+    char buff[MY_CS_CHARACTER_SET_NAME_SIZE + 10];
     charsets_dir= save_csdir;
     /* Skip execution of "SET NAMES" for pre-4.1 servers */
     if (mysql_get_server_version(mysql) < 40100)
@@ -4170,6 +4230,22 @@ static int native_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
   DBUG_RETURN(CR_OK);
 }
 
+
+static int native_password_auth_hash(MYSQL *mysql, uchar *out, size_t *out_length)
+{
+  uchar hash_stage1[MY_SHA1_HASH_SIZE];
+
+  if (*out_length < MY_SHA1_HASH_SIZE)
+    return 1;
+  *out_length= MY_SHA1_HASH_SIZE;
+
+  my_sha1(hash_stage1, mysql->passwd, strlen(mysql->passwd));
+  my_sha1(out, (char*)hash_stage1, MY_SHA1_HASH_SIZE);
+
+  return 0;
+}
+
+
 /**
   client authentication plugin that does old MySQL authentication
   using an 8-byte (4.0-) scramble
@@ -4234,4 +4310,29 @@ int STDCALL mysql_cancel(MYSQL *mysql)
   if (mysql->net.vio)
 	return vio_shutdown(mysql->net.vio, SHUT_RDWR);
   return -1;
+}
+
+
+MYSQL_RES *STDCALL mysql_use_result(MYSQL *mysql)
+{
+  return (*mysql->methods->use_result)(mysql);
+}
+
+
+MYSQL_FIELD *STDCALL mysql_fetch_fields(MYSQL_RES *res)
+{
+  return (res)->fields;
+}
+
+
+ulong STDCALL
+mysql_real_escape_string(MYSQL *mysql, char *to,const char *from,
+			 ulong length)
+{
+  my_bool overflow;
+  if (mysql->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
+    return (ulong) escape_quotes_for_mysql(mysql->charset, to, 0, from, length,
+                                           &overflow);
+  return (ulong) escape_string_for_mysql(mysql->charset, to, 0, from, length,
+                                         &overflow);
 }

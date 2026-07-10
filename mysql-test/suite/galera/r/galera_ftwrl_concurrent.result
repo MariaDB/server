@@ -1,0 +1,122 @@
+connection node_2;
+connection node_1;
+connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait=0;
+#
+# Case 1: FTWRL
+#
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+FLUSH TABLES WITH READ LOCK;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Donor/Desynced
+SET SESSION debug_sync = "wsrep_unlock_global_read_lock_after_resume_and_resync SIGNAL unlock_ready WAIT_FOR unlock_continue";
+UNLOCK TABLES;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR unlock_ready";
+connect node_1_a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1_a;
+SET SESSION debug_sync = "wsrep_global_read_lock_block_commit_after_pause SIGNAL lock_ready WAIT_FOR lock_continue";
+FLUSH TABLES WITH READ LOCK;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR lock_ready";
+SET debug_sync = "now SIGNAL unlock_continue";
+connection node_1;
+connection node_1_ctrl;
+SET debug_sync = "now SIGNAL lock_continue";
+connection node_1_a;
+UNLOCK TABLES;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+connection node_1_ctrl;
+SET debug_sync = "RESET";
+#
+# Case 2: BACKUP STAGE
+#
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Donor/Desynced
+SET SESSION debug_sync = "wsrep_backup_stage_after_resume_and_resync SIGNAL resume_and_resync_ready WAIT_FOR resume_and_resync_continue";
+BACKUP STAGE END;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR resume_and_resync_ready";
+connection node_1_a;
+BACKUP STAGE START;
+SET SESSION debug_sync = "wsrep_backup_stage_after_desync_and_pause SIGNAL desync_and_pause_ready WAIT_FOR desync_and_pause_continue";
+BACKUP STAGE BLOCK_DDL;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR desync_and_pause_ready";
+SET debug_sync = "now SIGNAL resume_and_resync_continue";
+connection node_1;
+connection node_1_ctrl;
+SET debug_sync = "now SIGNAL desync_and_pause_continue";
+connection node_1_a;
+BACKUP STAGE END;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+connection node_1_ctrl;
+SET debug_sync = "RESET";
+#
+# Case 3: FTWRL first, BACKUP STAGE second
+#
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=0;
+FLUSH TABLES WITH READ LOCK;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Donor/Desynced
+SET SESSION debug_sync = "wsrep_unlock_global_read_lock_after_resume_and_resync SIGNAL unlock_ready WAIT_FOR unlock_continue";
+UNLOCK TABLES;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR unlock_ready";
+connection node_1_a;
+BACKUP STAGE START;
+SET SESSION debug_sync = "wsrep_backup_stage_after_desync_and_pause SIGNAL desync_and_pause_ready WAIT_FOR desync_and_pause_continue";
+BACKUP STAGE BLOCK_DDL;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR desync_and_pause_ready";
+SET debug_sync = "now SIGNAL unlock_continue";
+connection node_1;
+connection node_1_ctrl;
+SET debug_sync = "now SIGNAL desync_and_pause_continue";
+connection node_1_a;
+BACKUP STAGE END;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+connection node_1_ctrl;
+SET debug_sync = "RESET";
+#
+# Case 4: BACKUP STAGE first, then FTWRL
+#
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Donor/Desynced
+SET SESSION debug_sync = "wsrep_backup_stage_after_resume_and_resync SIGNAL resume_and_resync_ready WAIT_FOR resume_and_resync_continue";
+BACKUP STAGE END;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR resume_and_resync_ready";
+connection node_1_a;
+SET SESSION debug_sync = "wsrep_global_read_lock_block_commit_after_pause SIGNAL lock_ready WAIT_FOR lock_continue";
+FLUSH TABLES WITH READ LOCK;
+connection node_1_ctrl;
+SET debug_sync = "now WAIT_FOR lock_ready";
+SET debug_sync = "now SIGNAL resume_and_resync_continue";
+connection node_1;
+connection node_1_ctrl;
+SET debug_sync = "now SIGNAL lock_continue";
+connection node_1_a;
+UNLOCK TABLES;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+connection node_1_ctrl;
+SET debug_sync = "RESET";

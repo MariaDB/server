@@ -1,0 +1,39 @@
+SET debug_dbug="+d,simulate_uuidv4_my_random_bytes_failure";
+#
+# MDEV-11339 Support UUID v4 generation
+#
+CREATE TABLE t1 (
+a int primary key not null,
+u UUID DEFAULT UUID_v4(),
+unique key(u)
+);
+INSERT INTO t1(a) SELECT seq FROM seq_1_to_16;
+Warnings:
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUID_v4: RANDOM_BYTES() failed, using fallback
+SELECT COUNT(DISTINCT u) AS distinct_uuid_count FROM t1;
+distinct_uuid_count
+16
+SELECT
+u REGEXP '[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}' AS is_correct_version_and_revision,
+COUNT(*)
+FROM t1 GROUP BY is_correct_version_and_revision;
+is_correct_version_and_revision	COUNT(*)
+1	16
+DROP TABLE t1;
+# End of 11.7 tests
+SET debug_dbug="";

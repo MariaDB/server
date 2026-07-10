@@ -1,0 +1,69 @@
+--source ../include/have_duckdb.inc
+
+--echo #
+--echo # 1) Prepare
+--echo #
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+
+CREATE TABLE db1.t1(a INT PRIMARY KEY) ENGINE = DUCKDB;
+CREATE TABLE db2.t2(a INT PRIMARY KEY) ENGINE = DUCKDB;
+
+--write_file $MYSQL_TMP_DIR/duckdb_meta.inc
+  --sorted_result
+  SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE ENGINE = "DuckDB";
+  SELECT run_in_duckdb("SELECT table_schema, table_name FROM information_schema.tables WHERE table_catalog = 'duckdb' AND table_schema != 'mysql'");
+EOF
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+--echo #
+--echo # 2) Simple Rename
+--echo #
+--echo Rename DuckDB tables
+RENAME TABLE db1.t1 TO db1.t1_rename, db2.t2 TO db2.t2_rename;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+ALTER TABLE db1.t1_rename RENAME TO db1.t1;
+ALTER TABLE db2.t2_rename RENAME TO db2.t2;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+--echo Failed to rename single DuckDB table for different schemas
+--error ER_GET_ERRMSG
+RENAME TABLE db1.t1 TO db2.t1;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+--echo Failed to rename DuckDB tables for different schemas
+--error ER_GET_ERRMSG
+ALTER TABLE db1.t1 RENAME TO db2.t1, ALGORITHM = INPLACE;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+--error ER_GET_ERRMSG
+RENAME TABLE db1.t1 TO db1.t1_rename, db2.t2 TO db1.t2_rename;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+
+--echo #
+--echo # 3) Inplace rename
+--echo #
+CREATE TABLE db1.t3(a INT PRIMARY KEY) ENGINE = DUCKDB;
+ALTER TABLE db1.t3 RENAME TO db1.t3_rename, CHECKSUM = 1;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+
+--echo #
+--echo # 4) COPY rename
+--echo #
+ALTER TABLE db1.t3_rename RENAME TO db1.t3, ALGORITHM = COPY;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+ALTER TABLE db1.t3 RENAME TO db2.t3, ALGORITHM = COPY;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+
+
+--echo #
+--echo # 5) Cleanup
+--echo #
+DROP DATABASE db1;
+DROP DATABASE db2;
+--source $MYSQL_TMP_DIR/duckdb_meta.inc
+--remove_file $MYSQL_TMP_DIR/duckdb_meta.inc

@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -79,7 +79,7 @@ struct monitor_value_t {
 	monitor_running_t mon_status;	/* whether monitor still running */
 };
 
-/** Follwoing defines are possible values for "monitor_type" field in
+/** Following defines are possible values for "monitor_type" field in
 "struct monitor_info" */
 enum monitor_type_t {
 	MONITOR_NONE = 0,	/*!< No monitoring */
@@ -156,7 +156,7 @@ enum monitor_id_t {
 	MONITOR_OVLD_ROW_LOCK_WAIT,
 	MONITOR_OVLD_LOCK_AVG_WAIT_TIME,
 
-	/* Buffer and I/O realted counters. */
+	/* Buffer and I/O related counters. */
 	MONITOR_MODULE_BUFFER,
 	MONITOR_OVLD_BUFFER_POOL_SIZE,
 	MONITOR_OVLD_BUF_POOL_READS,
@@ -175,8 +175,6 @@ enum monitor_id_t {
 	MONITOR_OVLD_PAGE_CREATED,
 	MONITOR_OVLD_PAGES_WRITTEN,
 	MONITOR_OVLD_PAGES_READ,
-	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS,
-	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED,
 	MONITOR_OVLD_BYTE_READ,
 	MONITOR_OVLD_BYTE_WRITTEN,
 	MONITOR_FLUSH_BATCH_SCANNED,
@@ -196,7 +194,6 @@ enum monitor_id_t {
 	MONITOR_FLUSH_ADAPTIVE_AVG_PASS,
 
 	MONITOR_LRU_GET_FREE_LOOPS,
-	MONITOR_LRU_GET_FREE_WAITS,
 
 	MONITOR_FLUSH_AVG_PAGE_RATE,
 	MONITOR_FLUSH_LSN_AVG_RATE,
@@ -217,7 +214,6 @@ enum monitor_id_t {
 	MONITOR_LRU_BATCH_SCANNED_PER_CALL,
 	MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
 	MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
-	MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT,
 	MONITOR_LRU_GET_FREE_SEARCH,
 	MONITOR_LRU_SEARCH_SCANNED,
 	MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
@@ -230,12 +226,8 @@ enum monitor_id_t {
 	MONITOR_MODULE_BUF_PAGE,
 	MONITOR_INDEX_LEAF_PAGE_READ,
 	MONITOR_INDEX_NON_LEAF_PAGE_READ,
-	MONITOR_INDEX_IBUF_LEAF_PAGE_READ,
-	MONITOR_INDEX_IBUF_NON_LEAF_PAGE_READ,
 	MONITOR_UNDO_LOG_PAGE_READ,
 	MONITOR_INODE_PAGE_READ,
-	MONITOR_IBUF_FREELIST_PAGE_READ,
-	MONITOR_IBUF_BITMAP_PAGE_READ,
 	MONITOR_SYSTEM_PAGE_READ,
 	MONITOR_TRX_SYSTEM_PAGE_READ,
 	MONITOR_FSP_HDR_PAGE_READ,
@@ -246,12 +238,8 @@ enum monitor_id_t {
 	MONITOR_OTHER_PAGE_READ,
 	MONITOR_INDEX_LEAF_PAGE_WRITTEN,
 	MONITOR_INDEX_NON_LEAF_PAGE_WRITTEN,
-	MONITOR_INDEX_IBUF_LEAF_PAGE_WRITTEN,
-	MONITOR_INDEX_IBUF_NON_LEAF_PAGE_WRITTEN,
 	MONITOR_UNDO_LOG_PAGE_WRITTEN,
 	MONITOR_INODE_PAGE_WRITTEN,
-	MONITOR_IBUF_FREELIST_PAGE_WRITTEN,
-	MONITOR_IBUF_BITMAP_PAGE_WRITTEN,
 	MONITOR_SYSTEM_PAGE_WRITTEN,
 	MONITOR_TRX_SYSTEM_PAGE_WRITTEN,
 	MONITOR_FSP_HDR_PAGE_WRITTEN,
@@ -337,9 +325,9 @@ enum monitor_id_t {
 	MONITOR_MODULE_ADAPTIVE_HASH,
 	MONITOR_OVLD_ADAPTIVE_HASH_SEARCH,
 	MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE,
-	MONITOR_ADAPTIVE_HASH_PAGE_ADDED,
+	MONITOR_OVLD_ADAPTIVE_HASH_PAGE_ADDED,
 	MONITOR_ADAPTIVE_HASH_PAGE_REMOVED,
-	MONITOR_ADAPTIVE_HASH_ROW_ADDED,
+	MONITOR_OVLD_ADAPTIVE_HASH_ROW_ADDED,
 	MONITOR_ADAPTIVE_HASH_ROW_REMOVED,
 	MONITOR_ADAPTIVE_HASH_ROW_REMOVE_NOT_FOUND,
 	MONITOR_ADAPTIVE_HASH_ROW_UPDATED,
@@ -348,17 +336,6 @@ enum monitor_id_t {
 	/* Tablespace related counters */
 	MONITOR_MODULE_FIL_SYSTEM,
 	MONITOR_OVLD_N_FILE_OPENED,
-
-	/* InnoDB Change Buffer related counters */
-	MONITOR_MODULE_IBUF_SYSTEM,
-	MONITOR_OVLD_IBUF_MERGE_INSERT,
-	MONITOR_OVLD_IBUF_MERGE_DELETE,
-	MONITOR_OVLD_IBUF_MERGE_PURGE,
-	MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT,
-	MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE,
-	MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE,
-	MONITOR_OVLD_IBUF_MERGES,
-	MONITOR_OVLD_IBUF_SIZE,
 
 	/* Counters for server operations */
 	MONITOR_MODULE_SERVER,
@@ -373,17 +350,6 @@ enum monitor_id_t {
 	MONITOR_OVLD_SRV_DBLWR_WRITES,
 	MONITOR_OVLD_SRV_DBLWR_PAGES_WRITTEN,
 	MONITOR_OVLD_SRV_PAGE_SIZE,
-
-	/* Data DML related counters */
-	MONITOR_MODULE_DML_STATS,
-	MONITOR_OLVD_ROW_READ,
-	MONITOR_OLVD_ROW_INSERTED,
-	MONITOR_OLVD_ROW_DELETED,
-	MONITOR_OLVD_ROW_UPDTATED,
-	MONITOR_OLVD_SYSTEM_ROW_READ,
-	MONITOR_OLVD_SYSTEM_ROW_INSERTED,
-	MONITOR_OLVD_SYSTEM_ROW_DELETED,
-	MONITOR_OLVD_SYSTEM_ROW_UPDATED,
 
 	/* Data DDL related counters */
 	MONITOR_MODULE_DDL_STATS,
@@ -466,11 +432,11 @@ counter option. */
   (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &                      \
    (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
 
-/** The actual monitor counter array that records each monintor counter
+/** The actual monitor counter array that records each monitor counter
 value */
 extern monitor_value_t	 innodb_counter_value[NUM_MONITOR];
 
-/** Following are macro defines for basic montior counter manipulations.
+/** Following are macro defines for basic monitor counter manipulations.
 Please note we do not provide any synchronization for these monitor
 operations due to performance consideration. Most counters can
 be placed under existing mutex protections in respective code
@@ -713,7 +679,7 @@ is monotonically increasing, only max value needs to be updated */
 		}							\
 	}
 
-/** Some values such as log sequence number are montomically increasing
+/** Some values such as log sequence number are monotonically increasing
 number, do not need to record max/min values */
 #define MONITOR_SET_SIMPLE(monitor, value)				\
 	MONITOR_CHECK_DEFINED(value);					\
@@ -841,13 +807,9 @@ void
 srv_mon_reset(
 /*==========*/
 	monitor_id_t	monitor);	/*!< in: monitor id*/
-/*************************************************************//**
-This function resets all values of a monitor counter */
-UNIV_INLINE
-void
-srv_mon_reset_all(
-/*==============*/
-	monitor_id_t	monitor);	/*!< in: monitor id*/
+
+/** This function resets all values of a monitor counter */
+void srv_mon_reset_all(monitor_id_t monitor) noexcept;
 /*************************************************************//**
 Turn on monitor counters that are marked as default ON. */
 void

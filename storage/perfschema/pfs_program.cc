@@ -63,19 +63,19 @@ void cleanup_program(void)
 }
 
 C_MODE_START
-static uchar *program_hash_get_key(const uchar *entry, size_t *length,
-                                   my_bool)
+static const uchar *program_hash_get_key(const void *entry, size_t *length,
+                                         my_bool)
 {
   const PFS_program * const *typed_entry;
   const PFS_program *program;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_program* const *> (entry);
+  typed_entry= static_cast<const PFS_program* const *> (entry);
   assert(typed_entry != NULL);
   program= *typed_entry;
   assert(program != NULL);
   *length= program->m_key.m_key_length;
   result= program->m_key.m_hash_key;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 
@@ -118,31 +118,21 @@ static void set_program_key(PFS_program_key *key,
    */
 
   char *ptr= &key->m_hash_key[0];
+  const char *end= ptr + sizeof(key->m_hash_key) - 1;
 
   ptr[0]= object_type;
   ptr++;
 
   if (object_name_length > 0)
-  {
-    char tmp_object_name[COL_OBJECT_NAME_SIZE + 1];
-    memcpy(tmp_object_name, object_name, object_name_length);
-    tmp_object_name[object_name_length]= '\0';
-    my_casedn_str(system_charset_info, tmp_object_name);
-    memcpy(ptr, tmp_object_name, object_name_length);
-    ptr+= object_name_length;
-  }
+    ptr+= system_charset_info->casedn(object_name, object_name_length,
+                                      ptr, end - ptr);
   ptr[0]= 0;
   ptr++;
 
   if (schema_name_length > 0)
-  {
-    char tmp_schema_name[COL_OBJECT_SCHEMA_SIZE + 1];
-    memcpy(tmp_schema_name, schema_name, schema_name_length);
-    tmp_schema_name[schema_name_length]='\0';
-    my_casedn_str(system_charset_info, tmp_schema_name);
-    memcpy(ptr, tmp_schema_name, schema_name_length);
-    ptr+= schema_name_length;
-  }
+    ptr+= system_charset_info->opt_casedn(schema_name, schema_name_length,
+                                          ptr, end - ptr,
+                                          lower_case_table_names);
   ptr[0]= 0;
   ptr++;
 
@@ -246,6 +236,8 @@ search:
     pfs->m_schema_name_length= schema_name_length;
     pfs->m_enabled= is_enabled;
     pfs->m_timed= is_timed;
+    pfs->m_stmt_stat.reset();
+    pfs->m_sp_stat.reset();
 
     /* Insert this record. */
     pfs->m_lock.dirty_to_allocated(& dirty_state);

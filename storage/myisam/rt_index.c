@@ -14,9 +14,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "myisamdef.h"
-
-#ifdef HAVE_RTREE_KEYS
-
 #include "rt_index.h"
 #include "rt_key.h"
 #include "rt_mbr.h"
@@ -767,7 +764,6 @@ static int rtree_delete_req(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *key,
 {
   uchar *k;
   uchar *last;
-  ulong i;
   uint nod_flag;
   uchar *page_buf;
   int res;
@@ -787,7 +783,7 @@ static int rtree_delete_req(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *key,
   k = rt_PAGE_FIRST_KEY(page_buf, nod_flag);
   last = rt_PAGE_END(page_buf);
 
-  for (i = 0; k < last; k = rt_PAGE_NEXT_KEY(k, key_length, nod_flag), ++i)
+  for (; k < last; k = rt_PAGE_NEXT_KEY(k, key_length, nod_flag))
   {
     if (nod_flag)
     { 
@@ -1121,6 +1117,3 @@ err1:
   my_afree((uchar*)page_buf);
   return HA_POS_ERROR;
 }
-
-#endif /*HAVE_RTREE_KEYS*/
-

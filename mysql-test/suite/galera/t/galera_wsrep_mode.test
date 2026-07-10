@@ -16,7 +16,6 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE t1;
 SET GLOBAL wsrep_mode = default;
 
-
 # MDEV-25698 SIGSEGV in wsrep_should_replicate_ddl
 
 SET GLOBAL wsrep_mode = STRICT_REPLICATION;

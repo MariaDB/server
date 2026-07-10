@@ -1,0 +1,88 @@
+# Assigning strong cursors from weak cursors
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10152 Add support for TYPE .. IS REF CURSOR
+--echo #
+
+--echo # Copy non-opened weak to strong
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD(a INT, b INT);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c0 cur0_t;
+  c1 cur1_t;
+BEGIN
+  c0:= c1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # OPEN weak, copy to strong
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c0 cur0_t;
+  c1 cur1_t;
+  v0 rec0_t;
+BEGIN
+  OPEN c1 FOR SELECT 1,'b1' FROM DUAL;
+  c0:= c1;
+  FETCH c0 INTO v0;
+  SELECT v0.a||' '||v0.b AS line;
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # Copy non-openend strong to weak
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD(a INT, b INT);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c0 cur0_t;
+  c1 cur1_t;
+BEGIN
+  c1:=c0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # OPEN strong, copy to weak
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD(a INT, b VARCHAR(10));
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  TYPE cur1_t IS REF CURSOR;
+  c0 cur0_t;
+  c1 cur1_t;
+  v0 rec0_t;
+BEGIN
+  OPEN c0 FOR SELECT 1,'b1' FROM DUAL;
+  c1:= c0;
+  FETCH c1 INTO v0;
+  SELECT v0.a||' '||v0.b AS line;
+  CLOSE c1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

@@ -1,0 +1,19 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.1]
+wsrep-debug=SERVER
+loose-wsrep-duplicate-primary-value=1
+wsrep-auto-increment-control=OFF
+auto-increment-offset=1
+
+[mysqld.2]
+wsrep-debug=SERVER
+loose-wsrep-duplicate-primary-value=1
+wsrep-auto-increment-control=OFF
+auto-increment-offset=1
+
+[mysqld.3]
+wsrep-debug=SERVER
+loose-wsrep-duplicate-primary-value=1
+wsrep-auto-increment-control=OFF
+auto-increment-offset=1

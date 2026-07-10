@@ -586,7 +586,7 @@ AC_MSG_RESULT([$enable_memory_debug])
 
 if test "x$enable_memory_debug" = "xyes"; then
   AC_DEFINE(USE_MEMORY_DEBUG, [1],
-            [Define to 1 if you enable debuging memory management])
+            [Define to 1 if you enable debugging memory management])
 fi
 
 # epoll/kqueue/poll/select check
@@ -736,7 +736,7 @@ else
   AC_MSG_RESULT($ac_benchmark_available)
 fi
 if test "$benchmark_available" = "yes"; then
-  AC_DEFINE(GRN_WITH_BENCHMARK, 1, [Define to 1 if benchamrk is available])
+  AC_DEFINE(GRN_WITH_BENCHMARK, 1, [Define to 1 if benchmark is available])
 fi
 AM_CONDITIONAL([WITH_BENCHMARK], [test "$benchmark_available" = "yes"])
 

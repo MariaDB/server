@@ -1,0 +1,14 @@
+!include ../my.cnf
+
+[mysqld.1]
+wsrep-on=ON
+wsrep-provider=@ENV.WSREP_PROVIDER
+wsrep-cluster-address=gcomm://
+binlog-format=ROW
+log-bin
+log-slave-updates
+gtid-domain-id=10
+gtid-strict-mode=ON
+wsrep-gtid-mode=ON
+wsrep-gtid-domain-id=100
+server-id=10

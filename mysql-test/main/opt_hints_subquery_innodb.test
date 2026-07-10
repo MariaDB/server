@@ -1,0 +1,21 @@
+--echo #
+--echo # MDEV-36169: LooseScan optimization picks invalid plan
+--echo #
+
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (a INTEGER NOT NULL, b INT, UNIQUE KEY (a)) engine=InnoDB;
+CREATE TABLE t2 (a INTEGER NOT NULL, KEY (a));
+CREATE TABLE t3 (a INTEGER NOT NULL, b INT, KEY (a));
+INSERT INTO t1 VALUES (1,10), (2,20), (3,30), (4,40);
+INSERT INTO t2 VALUES (2), (2), (3), (3), (4), (5);
+INSERT INTO t3 VALUES (10,3), (15,3), (20,4), (30,5);
+
+--echo # Must not be: t3, t3(LooseScan), t1
+EXPLAIN EXTENDED  
+SELECT  * FROM t1 
+WHERE 
+  t1.a IN (SELECT /*+ SEMIJOIN(LOOSESCAN) */ a FROM t2) AND 
+  t1.b IN (SELECT /*+ SEMIJOIN(LOOSESCAN) */ a FROM t3);
+
+DROP TABLE t1,t2,t3;

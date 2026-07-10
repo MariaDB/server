@@ -1,0 +1,4 @@
+set @save_debug_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,select_export_kill';
+mariadb-dump: Couldn't execute async query 'SELECT /*!40001 SQL_NO_CACHE */ `Host`, `User`, `Priv` INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/global_priv.txt' /*!50138 CHARACTER SET binary */ FROM `mysql`.`global_priv`' (Query execution was interrupted)
+set global debug_dbug=@save_debug_dbug;

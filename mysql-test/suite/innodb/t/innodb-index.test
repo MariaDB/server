@@ -1,6 +1,8 @@
 -- source include/have_innodb.inc
+--source include/no_checkpoint_prepare.inc
 # Embedded server tests do not support restarting.
 -- source include/not_embedded.inc
+--source include/test_db_charset_latin1.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -167,7 +169,7 @@ alter table t4 drop index d;
 alter table t2 drop index b;
 --error ER_DROP_INDEX_FK
 alter table t2 drop index b, drop index c, drop index d;
---error ER_FK_COLUMN_CANNOT_CHANGE
+--error ER_FK_COLUMN_NOT_NULL
 alter table t2 MODIFY b INT NOT NULL, ALGORITHM=COPY;
 # NULL -> NOT NULL only allowed INPLACE if strict sql_mode is on.
 set @old_sql_mode = @@sql_mode;
@@ -219,13 +221,9 @@ show create table t4;
 # mysqltest first does replace_regex, then replace_result
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
-# a foreign key 'test/dc' already exists
---error ER_CANT_CREATE_TABLE
 alter table t3 add constraint dc foreign key (a) references t1(a);
-SET FOREIGN_KEY_CHECKS=0;
---error ER_FK_FAIL_ADD_SYSTEM
+alter table t3 drop foreign key dc;
 alter table t3 add constraint dc foreign key (a) references t1(a);
-SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 show create table t3;
 --enable_info
 alter table t2 drop index b, add index (beta);
@@ -236,7 +234,6 @@ delete from t1;
 --error ER_CANT_DROP_FIELD_OR_KEY
 drop index dc on t4;
 --enable_info
---error ER_CANT_DROP_FIELD_OR_KEY
 alter table t3 drop foreign key dc;
 alter table t4 drop foreign key dc;
 --disable_info
@@ -921,7 +918,7 @@ create table t1(f1 int not null, f2 int not null,
 insert into t1 values(1,3), (2,2);
 alter table t1 drop primary key, lock=none;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t1 drop index f1, lock=none;
+alter table t1 drop index f1, algorithm=inplace, lock=none;
 drop table t1;
 
 --echo #
@@ -1132,29 +1129,13 @@ CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 --let CLEANUP_IF_CHECKPOINT=DROP TABLE t1, t2;
 --source include/no_checkpoint_end.inc
 
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-
 --echo # Wrong space_id in a dirty file and a missing file
-
---copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t0.ibd
 --move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
---eval $check_no_innodb
---source include/shutdown_mysqld.inc
-
---echo # Restore t1 and t2
-
---move_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
---move_file $MYSQLD_DATADIR/test/t0.ibd $MYSQLD_DATADIR/test/t1.ibd
-
---source include/start_mysqld.inc
-
-SELECT * FROM t1;
-SELECT * FROM t2;
+# Because the tables were created after the checkpoint,
+# InnoDB will start up, but the tables will be corrupted.
+CHECK TABLE t1, t2;
 
 DROP TABLE t1, t2;
 
@@ -1187,8 +1168,10 @@ DROP TABLE t;
 --echo #
 CREATE TABLE t1 (a VARCHAR(8), PRIMARY KEY(a DESC)) ENGINE=InnoDB;
 ALTER TABLE t1 RENAME COLUMN a TO b, ALGORITHM=INPLACE;
+--disable_cursor_protocol
 SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
 SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id;
+--enable_cursor_protocol
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
 DROP TABLE t1;
 
@@ -1217,12 +1200,25 @@ DROP TABLE t1;
 CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(8), b INT, KEY(a DESC,b)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,'foo',10);
 ALTER TABLE t1 RENAME COLUMN b TO c, ALGORITHM=INPLACE;
+--disable_cursor_protocol
 SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
 SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id ORDER BY INDEX_ID DESC LIMIT 1;
+--enable_cursor_protocol
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
 DROP TABLE t1;
 
 --echo # End of 10.8 tests
+
+--echo #
+--echo # MDEV-35849: index records in a wrong order
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY, a VARCHAR(1), KEY (a DESC)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,NULL),(2,'x');
+CHECK TABLE t;
+DROP TABLE t;
+
+--echo # End of 11.8 tests
 
 --disable_query_log
 
@@ -1230,5 +1226,7 @@ call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 
 --enable_query_log
+--source include/test_db_charset_restore.inc

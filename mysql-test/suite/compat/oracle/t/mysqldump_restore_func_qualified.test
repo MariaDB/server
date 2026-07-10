@@ -1,0 +1,50 @@
+# See comments in mysql-test/main/mysqldump_restore.test
+--source include/not_embedded.inc
+
+let $mysqldumpfile = $MYSQLTEST_VARDIR/tmp/mysqldump_func_qualified.sql;
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-27744 LPAD in vcol created in ORACLE mode makes table corrupted in non-ORACLE
+--echo #
+
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+  a0 VARCHAR(64) NOT NULL DEFAULT LTRIM(now()),
+  a1 VARCHAR(64) AS (LTRIM(a0)) PERSISTENT,
+  b0 VARCHAR(64) NOT NULL DEFAULT LPAD(now(),10),
+  b1 VARCHAR(64) AS (LPAD(b0,10)) PERSISTENT
+);
+CREATE VIEW v1 AS SELECT
+  LTRIM(now()) AS a0,
+  LPAD(now(),10) AS b0;
+SET sql_mode=ORACLE;
+CREATE TABLE t2 (
+  a0 VARCHAR(64) NOT NULL DEFAULT LTRIM(now()),
+  a1 VARCHAR(64) AS (LTRIM(a0)) PERSISTENT,
+  b0 VARCHAR(64) NOT NULL DEFAULT LPAD(now(),10),
+  b1 VARCHAR(64) AS (LPAD(b0,10)) PERSISTENT
+);
+CREATE VIEW v2 AS SELECT
+  LTRIM(now()) AS a0,
+  LPAD(now(),10) AS b0;
+--exec $MYSQL_DUMP --no-autocommit=0 --skip-extended-insert test --skip-comments --compact t1 t2 v1 v2
+--exec $MYSQL_DUMP --skip-extended-insert test --skip-comments t1 t2 v1 v2 > $mysqldumpfile
+DROP TABLE t1,t2;
+DROP VIEW v1,v2;
+--exec $MYSQL test < $mysqldumpfile
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+SHOW CREATE VIEW v1;
+SHOW CREATE VIEW v2;
+--remove_file $mysqldumpfile
+DROP TABLE t1,t2;
+DROP VIEW v1, v2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

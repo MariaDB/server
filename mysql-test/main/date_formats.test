@@ -2,135 +2,14 @@
 # Test of date format functions
 #
 
-#remove this include after fix MDEV-27871
--- source include/no_view_protocol.inc
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
-SELECT variable_name, variable_value
-FROM information_schema.global_variables
-WHERE variable_name IN ('date_format', 'datetime_format', 'time_format')
-ORDER BY variable_name;
-
-SELECT variable_name, variable_value
-FROM information_schema.session_variables
-WHERE variable_name IN ('date_format', 'datetime_format', 'time_format')
-ORDER BY variable_name;
-
-#
-# The following tests will work only when we at some point will enable
-# dynamic changing of formats
-#
-
-# SET time_format='%H%i%s';
-# SET time_format='%H:%i:%s.%f';
-# SET time_format='%h-%i-%s.%f%p';
-# SET time_format='%h:%i:%s.%f %p';
-# SET time_format='%h:%i:%s%p';
-# 
-# SET date_format='%Y%m%d';
-# SET date_format='%Y.%m.%d';
-# SET date_format='%d.%m.%Y';
-# SET date_format='%m-%d-%Y';
-# 
-# --error ER_WRONG_VALUE_FOR_VAR
-# SET datetime_format= NULL;
-# set datetime_format= '%Y%m%d%H%i%s';
-# set datetime_format= '%Y-%m-%d %H:%i:%s';
-# set datetime_format= '%m-%d-%y %H:%i:%s.%f';
-# set datetime_format= '%d-%m-%Y %h:%i:%s%p';
-# set datetime_format= '%H:%i:%s %Y-%m-%d';
-# set datetime_format= '%H:%i:%s.%f %m-%d-%Y';
-# set datetime_format= '%h:%i:%s %p %Y-%m-%d';
-# set datetime_format= '%h:%i:%s.%f %p %Y-%m-%d';
-# 
-# SELECT variable_name, variable_value
-# FROM information_schema.session_variables
-# WHERE variable_name IN ('date_format', 'datetime_format', 'time_format')
-# ORDER BY variable_name;
-# 
-# --error 1231
-# SET time_format='%h:%i:%s';
-# --error 1231
-# SET time_format='%H %i:%s';
-# --error 1231
-# SET time_format='%H::%i:%s';
-# --error 1231
-# SET time_format='%H:%i:%s%f';
-# --error 1231
-# SET time_format='%H:%i.%f:%s';
-# --error 1231
-# SET time_format='%H:%i:%s%p';
-# --error 1231
-# SET time_format='%h:%i:%s.%f %p %Y-%m-%d';
-# --error 1231
-# SET time_format='%H%i%s.%f';
-# --error 1231
-# SET time_format='%H:%i-%s.%f';
-# --error 1231
-# SET date_format='%d.%m.%d';
-# --error 1231
-# SET datetime_format='%h.%m.%y %d.%i.%s';
-# --error 1231
-# set datetime_format= '%H:%i:%s.%f %p %Y-%m-%d';
-# 
-# #
-# # Test GLOBAL values
-# 
-# set GLOBAL datetime_format= '%H:%i:%s %Y-%m-%d';
-# SET SESSION datetime_format=default;
-# select @@global.datetime_format, @@session.datetime_format;
-# SET GLOBAL datetime_format=default;
-# SET SESSION datetime_format=default;
-# select @@global.datetime_format, @@session.datetime_format;
-# 
-# SET GLOBAL date_format=default;
-# SET GLOBAL time_format=default;
-# SET GLOBAL datetime_format=default;
-# SET time_format=default;
-# SET date_format=default;
-# SET datetime_format=default;
-
-# SET date_format='%d.%m.%Y';
-# select CAST('01.01.2001' as DATE) as a;
-# SET datetime_format='%d.%m.%Y %H.%i.%s';
-# select CAST('01.01.2001 05.12.06' as DATETIME) as a;
-# SET time_format='%H.%i.%s';
-# select CAST('05.12.06' as TIME) as a;
-# 
-# SET datetime_format='%d.%m.%Y %h:%i:%s %p';
-# select CAST('01.01.2001 05:12:06AM' as DATETIME) as a;
-# select CAST('01.01.2001 05:12:06 PM' as DATETIME) as a;
-# 
-# SET time_format='%h:%i:%s %p';
-# select CAST('05:12:06 AM' as TIME) as a;
-# select CAST('05:12:06.1234PM' as TIME) as a;
-# 
-# SET time_format='%h.%i.%s %p';
-# SET date_format='%d.%m.%y';
-# SET datetime_format='%d.%m.%y %h.%i.%s %p';
-# select CAST('12-12-06' as DATE) as a;
-# 
-# select adddate('01.01.97 11.59.59.000001 PM', 10);
-# select datediff('31.12.97 11.59:59.000001 PM','01.01.98');
-# select weekofyear('31.11.97 11:59:59.000001 PM');
-# select makedate(1997,1);
-# select addtime('31.12.97 11.59.59.999999 PM', '1 1.1.1.000002');
-# select maketime(23,11,12);
-# select timediff('01.01.97 11:59:59.000001 PM','31.12.95 11:59:59.000002 PM');
-# 
-# SET time_format='%i:%s:%H';
-# select cast(str_to_date('15-01-2001 12:59:59', '%d-%m-%Y %H:%i:%S') as TIME);
-
 #
 # Test of str_to_date
 #
+let $old_charset= `SELECT @@character_set_client`;
 
 select str_to_date(concat('15-01-2001',' 2:59:58.999'),
-	           concat('%d-%m-%Y',' ','%H:%i:%s.%f'));
-select STR_TO_DATE('2004.12.12 22.30.61','%Y.%m.%d %T');
+	           concat('%d-%m-%Y',' ','%H:%i:%s.%f')) as exp;
+select STR_TO_DATE('2004.12.12 22.30.61','%Y.%m.%d %T') as exp;
 
 create table t1 (date char(30), format char(30) not null);
 insert into t1 values
@@ -175,7 +54,7 @@ select date,format,DATE(str_to_date(date, format)) as date2 from t1;
 select date,format,TIME(str_to_date(date, format)) as time from t1;
 select date,format,concat(TIME(str_to_date(date, format))) as time2 from t1;
 # Test small bug in %f handling
-select concat('',str_to_date('8:11:2.123456 03-01-02','%H:%i:%S.%f %y-%m-%d'));
+select concat('',str_to_date('8:11:2.123456 03-01-02','%H:%i:%S.%f %y-%m-%d')) as exp;
 
 # Test wrong dates or converion specifiers
 
@@ -282,7 +161,7 @@ set names latin1;
 set lc_time_names=en_US;
 
 #
-# Bug #14016 
+# Bug #14016
 #
 create table t1 (f1 datetime);
 insert into t1 (f1) values ("2005-01-01");
@@ -354,21 +233,16 @@ SELECT DATE_FORMAT("2009-01-01",'%W %d %M %Y') as valid_date;
 
 --echo "End of 5.0 tests"
 
-
---echo #
 --echo # Start of 5.1 tests
---echo #
 
 --echo #
 --echo # Bug#58005 utf8 + get_format causes failed assertion: !str || str != Ptr'
 --echo #
 SET NAMES utf8;
-SELECT LEAST('%', GET_FORMAT(datetime, 'eur'), CAST(GET_FORMAT(datetime, 'eur') AS CHAR(65535)));
+SELECT LEAST('%', GET_FORMAT(datetime, 'eur'), CAST(GET_FORMAT(datetime, 'eur') AS CHAR(65535))) as exp;
 SET NAMES latin1;
 
---echo #
 --echo # End of 5.1 tests
---echo #
 
 #
 # TIME_FORMAT and non-time format specifiers
@@ -378,3 +252,184 @@ select time_format('2001-01-01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%d %T');
 select time_format('01 02:02:02', '%T');
 select time_format('2001-01-01 02:02:02', '%T');
+
+--echo # End of 10.2 test
+
+--echo #
+--echo # MDEV-31684 Add timezone information to DATE_FORMAT
+--echo #
+
+SET @old_timezone= @@time_zone;
+
+
+--echo # Using named timezones
+
+SET TIME_ZONE='Japan';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET @@time_zone='Europe/Moscow';
+SELECT DATE_FORMAT('1965-02-17 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('1965-12-31 22:23:00', '%z %Z') AS current_timezone;
+SELECT DATE_FORMAT('1985-06-01', '%z %Z');
+
+--echo # Using positive and negative offset
+
+SET TIME_ZONE= '-05:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET TIME_ZONE= '+04:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+--echo # Using UTC
+
+SET TIME_ZONE='UTC';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+
+SET @@time_zone= @old_timezone;
+
+--echo # More timezone test:
+
+--echo #
+--echo # Check for time zone with leap seconds
+--echo #
+set time_zone='Europe/Moscow';
+
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+
+set time_zone='leap/Europe/Moscow';
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+
+--echo #
+--echo # Values around and in spring time-gap
+--echo #
+
+set time_zone='MET';
+
+--echo # Normal value with DST
+SELECT DATE_FORMAT('2003-03-30 01:59:59', '%z %Z');
+
+--echo # Values around and in spring time-gap
+SELECT DATE_FORMAT('2023-03-26 01:59:59', '%z %Z');
+SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
+
+
+--echo # End of 11.3 test
+
+--echo #
+--echo MDEV-26112 STR_TO_DATE should work with lc_time_names
+--echo #
+
+--disable_service_connection
+
+SET names utf8;
+set @@lc_time_names="uk_UA";
+select str_to_date("1 березень 2010", "%e %M %Y"), str_to_date("1 березня 2010", "%e %M %Y");
+select str_to_date("Березень 15. 2010", "%M %d. %Y");
+select str_to_date("пн 27 квітня 2026", "%a %e %M %Y"), str_to_date("неділя 28 грудня 2010", "%W %e %M %Y");
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+
+set @@lc_time_names="de_DE";
+select str_to_date("1 März 2010", "%e %M %Y"), str_to_date("1 Juni 2010", "%e %M %Y");
+select str_to_date("1 Sep 2010", "%e %b %Y"), str_to_date("1 Mär 2010", "%e %b %Y");
+select str_to_date(date_format("2010-03-01","%e. %M %Y"), "%e. %M %Y");
+
+set @@lc_time_names="vi_VN";
+select str_to_date("1 Tháng hai 2026", "%e %M %Y"), str_to_date("20 tháng 3 2010", "%e %M %Y");
+select str_to_date("1 Tháng một 2026", "%e %M %Y");
+--enable_service_connection
+
+--echo #
+--echo MDEV-38967 add to STR_TO_DATE() locale parameter (optional)
+--echo #
+
+SELECT str_to_date('15 квітня 2026', '%d %M %Y', 'uk_UA');
+SELECT str_to_date('20 févr. 2026', '%d %b %Y', 'fr_FR');
+SELECT str_to_date('Понеділок 01 листопад 2026', '%W %d %M %Y', 'uk_UA') as a;
+SELECT str_to_date('mar. 02 Mars 2026', '%a %d %M %Y', 'fr_FR');
+select str_to_date("1 Tháng hai 2026", "%e %M %Y",'vi_VN'), str_to_date("20 tháng 3 2010", "%e %M %Y",'vi_VN');
+select str_to_date("1 Tháng một 2026", "%e %M %Y",'vi_VN');
+
+SET lc_time_names = 'de_DE';
+SELECT str_to_date('10 April 2026', '%d %M %Y','en_US');
+SELECT str_to_date('10 травня 2026', '%d %M %Y', 'uk_UA');
+select str_to_date(date_format("2010-03-01","%e. %M %Y","uk_UA"), "%e. %M %Y","uk_UA") as a;
+select str_to_date(date_format("2010-03-01","%e. %M %Y","it_IT"), "%e. %M %Y","uk_UA") as a;
+select str_to_date(date_format("2010-03-01","%e. %M %Y","it_IT"), "%e. %M %Y","it_CH") as a;
+
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y',NULL);
+
+# invalid locale tests a warning and fallback to en_US
+--disable_warnings
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y',"");
+show warnings;
+SELECT str_to_date('10 Dezember 2026', '%d %M %Y','aaaaa');
+show warnings;
+SELECT str_to_date('10 December 2026', '%d %M %Y','aaaaa');
+show warnings;
+SELECT str_to_date('1 May 2026', '%d %M %Y','aaaaa');
+show warnings;
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y','1');
+show warnings;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y',POINT(1,1));
+--enable_warnings
+
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y','de_DE');
+SELECT DATE_FORMAT('2010-03-01', '%d %M %Y',NULL);
+
+SET @lc = 'de_DE';
+SELECT str_to_date('18 Oktober 2022', '%d %M %Y', @lc);
+prepare stmt from "SELECT str_to_date(?, '%d %M %Y', ?);";
+execute stmt using '20 september 2026','da_DK';
+execute stmt using '20 вересня 2026','uk_UA';
+
+SELECT str_to_date('20.févr..2026', '%d.%b.%Y', 'fr_FR');
+SELECT str_to_date('10.March.2026', '%d.%M.%Y', 'en_US');
+SELECT str_to_date('12. Mär 2026', '%d.%M %Y', 'de_DE');
+
+--vertical_results
+SELECT
+str_to_date('1 Tháng một 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng hai 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng ba 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng tư 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng năm 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng sáu 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng bảy 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng tám 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng chín 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười một 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng mười hai 2026', '%d %M %Y','vi_VN');
+
+SELECT
+str_to_date('1 Tháng 1 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 2 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 3 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 4 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 5 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 6 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 7 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 8 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 9 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 10 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 11 2026', '%d %M %Y','vi_VN'),
+str_to_date('1 Tháng 12 2026', '%d %M %Y','vi_VN');
+
+--echo #
+--echo # MDEV-39721: SIGSEGV in check_word|(extract_date_time|extract_oracle_date_time)
+--echo #
+
+--echo # locale as a session var
+SET SESSION lc_time_names='ar_DZ';
+SELECT STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y');
+
+--echo # locale as third param to STR_TO_DATE
+SELECT STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y', 'ar_DZ');
+
+--echo # End of 12.3 test
+
+SET @@lc_time_names=DEFAULT;
+eval SET NAMES $old_charset;

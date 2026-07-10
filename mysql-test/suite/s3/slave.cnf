@@ -10,6 +10,8 @@ s3-secret-key=@ENV.S3_SECRET_KEY
 s3-region=@ENV.S3_REGION
 s3-port=@ENV.S3_PORT
 s3-use-http=@ENV.S3_USE_HTTP
+s3-ssl-no-verify=@ENV.S3_SSL_NO_VERIFY
+s3-provider=@ENV.S3_PROVIDER
 
 # You can change the following when running the tests against
 # your own S3 setup

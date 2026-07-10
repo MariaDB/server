@@ -1,0 +1,34 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+#
+# Testing how tables and databases with special characters
+# are treated in certification
+#
+# The test creates two tables having foreign key constraint
+# reference and executes two transactions which modify
+# same rows. The same test is executed with different names
+# containing special characters to see if the certification
+# can detect the conflicts
+#
+# Actual test is in include file galera_table_with_hyphen.inc
+# It create the test tables from  parameters $fk_child and
+# $fk_parent
+# 
+--connection node_1
+set wsrep_sync_wait=0;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+
+--let $fk_child  = child
+--let $fk_parent = par-ent
+
+--source galera_table_with_hyphen.inc
+
+--let $fk_child  = c-hild
+--let $fk_parent = p-arent-
+
+--source galera_table_with_hyphen.inc

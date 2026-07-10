@@ -78,11 +78,13 @@ my %debuggers = (
     options => '-f -o {log} {exe} {args}',
   },
   rr => {
-    options => '_RR_TRACE_DIR={log} rr record {exe} {args} --loose-skip-innodb-use-native-aio --loose-innodb-flush-method=fsync',
+    options => '_RR_TRACE_DIR={log} rr record {exe} {args}',
     run => 'env',
     pre => sub {
+      push @::global_suppressions, qr/InnoDB: native AIO failed/;
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')
         if ::mtr_grab_file('/proc/sys/kernel/perf_event_paranoid') > 1;
+      $ENV{LSAN_OPTIONS}= "report_objects=1:" . ($ENV{LSAN_OPTIONS} || '');
     }
   },
   valgdb => {
@@ -94,7 +96,7 @@ py
 import subprocess,shlex,time
 valg=subprocess.Popen(shlex.split("""valgrind --tool=memcheck --show-reachable=yes --leak-check=yes --num-callers=16 --quiet --suppressions=valgrind.supp --vgdb-error=0 {exe} {args} --loose-wait-for-pos-timeout=1500"""))
 time.sleep(2)
-gdb.execute("target remote | /usr/lib64/valgrind/../../bin/vgdb --pid=" + str(valg.pid))
+gdb.execute("target remote | vgdb --pid=" + str(valg.pid))
 EEE
     pre => sub {
       my $debug_libraries_path= "/usr/lib/debug";
@@ -263,6 +265,7 @@ sub pre_setup() {
     $::opt_suite_timeout= 24 * 60;                              # in minutes
     $::opt_shutdown_timeout= ($interactive ? 24 * 60 : 3) * 60; # in seconds
     $::opt_start_timeout= $::opt_shutdown_timeout;              # in seconds
+    $::opt_debug_sync_timeout= 3000;                            # in seconds
   }
 }
 

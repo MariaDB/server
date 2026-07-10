@@ -21,8 +21,6 @@
 
 #include "mysys_priv.h"
 #include "my_static.h"
-#include "my_alarm.h"
-
 
 PSI_memory_key key_memory_DYNAMIC_STRING;
 PSI_memory_key key_memory_IO_CACHE;
@@ -64,7 +62,7 @@ char		curr_dir[FN_REFLEN]= {0},
 		home_dir_buff[FN_REFLEN]= {0};
 ulong		my_stream_opened=0,my_tmp_file_created=0;
 ulong           my_file_total_opened= 0;
-int		my_umask=0664, my_umask_dir=0777;
+mode_t		my_umask=0664, my_umask_dir=0777;
 #ifdef _WIN32
 SECURITY_ATTRIBUTES my_dir_security_attributes= {sizeof(SECURITY_ATTRIBUTES),NULL,FALSE};
 #endif
@@ -94,10 +92,8 @@ const char *soundex_map=	  "01230120022455012623010202";
 	/* from my_malloc */
 USED_MEM* my_once_root_block=0;			/* pointer to first block */
 uint	  my_once_extra=ONCE_ALLOC_INIT;	/* Memory to alloc / block */
+size_t    my_once_allocated= 0;
 
-	/* from my_alarm */
-int volatile my_have_got_alarm=0;	/* declare variable to reset */
-ulong my_time_to_wait_for_lock=2;	/* In seconds */
 
 	/* from errors.c */
 #ifdef SHARED_LIBRARY
@@ -135,5 +131,4 @@ my_bool my_disable_copystat_in_redel=0;
 const char *sql_protocol_names_lib[] =
 { "TCP", "SOCKET", "PIPE", NullS };
 
-TYPELIB sql_protocol_typelib ={ array_elements(sql_protocol_names_lib) - 1, "",
-                                sql_protocol_names_lib, NULL };
+TYPELIB sql_protocol_typelib= CREATE_TYPELIB_FOR(sql_protocol_names_lib);

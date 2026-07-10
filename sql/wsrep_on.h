@@ -46,10 +46,6 @@ extern ulong wsrep_forced_binlog_format;
 #define WSREP_EMULATE_BINLOG(thd) \
   (WSREP(thd) && wsrep_emulate_bin_log)
 
-#define WSREP_BINLOG_FORMAT(my_format) \
-   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ? \
-   wsrep_forced_binlog_format : my_format)
-
 #else
 
 #define WSREP_ON false
@@ -57,7 +53,6 @@ extern ulong wsrep_forced_binlog_format;
 #define WSREP_NNULL(T) (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_EMULATE_BINLOG_NNULL(thd) (0)
-#define WSREP_BINLOG_FORMAT(my_format) ((ulong)my_format)
 
 #endif
 #endif

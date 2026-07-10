@@ -73,7 +73,7 @@ class DOMNODE : public XMLNODE {
   // Methods
   virtual RCODE  GetContent(PGLOBAL g, char *buf, int len);
   virtual bool   SetContent(PGLOBAL g, char *txtp, int len);
-  virtual PXNODE Clone(PGLOBAL g, PXNODE np);
+  PXNODE Clone(PGLOBAL g, PXNODE np) override;
   virtual PXLIST GetChildElements(PGLOBAL g, char *xp, PXLIST lp);
   virtual PXLIST SelectNodes(PGLOBAL g, char *xp, PXLIST lp);
   virtual PXNODE SelectSingleNode(PGLOBAL g, char *xp, PXNODE np);

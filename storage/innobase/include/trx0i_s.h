@@ -70,20 +70,6 @@ do {								\
 	}							\
 } while (0)
 
-/** A row of INFORMATION_SCHEMA.innodb_locks */
-struct i_s_locks_row_t;
-
-/** Objects of trx_i_s_cache_t::locks_hash */
-struct i_s_hash_chain_t;
-
-/** Objects of this type are added to the hash table
-trx_i_s_cache_t::locks_hash */
-struct i_s_hash_chain_t {
-	i_s_locks_row_t*	value;	/*!< row of
-					INFORMATION_SCHEMA.innodb_locks*/
-	i_s_hash_chain_t*	next;	/*!< next item in the hash chain */
-};
-
 /** This structure represents INFORMATION_SCHEMA.innodb_locks row */
 struct i_s_locks_row_t {
 	trx_id_t	lock_trx_id;	/*!< transaction identifier */
@@ -106,7 +92,7 @@ struct i_s_locks_row_t {
 	table_id_t	lock_table_id;
 					/*!< table identifier from
 					lock_get_table_id */
-	i_s_hash_chain_t hash_chain;	/*!< hash table chain node for
+	i_s_locks_row_t *next;		/*!< hash table chain node for
 					trx_i_s_cache_t::locks_hash */
 	/* @} */
 };
@@ -122,7 +108,7 @@ struct i_s_trx_row_t {
 					is waiting, or NULL */
 	time_t		trx_wait_started; /*!< trx_t->lock.wait_started */
 	uintmax_t	trx_weight;	/*!< TRX_WEIGHT() */
-	ulint		trx_mysql_thread_id; /*!< thd_get_thread_id() */
+	my_thread_id	trx_mysql_thread_id; /*!< thd_get_thread_id() */
 	const char*	trx_query;	/*!< MySQL statement being
 					executed in the transaction */
 	CHARSET_INFO*	trx_query_cs;	/*!< the charset of trx_query */
@@ -160,9 +146,6 @@ struct i_s_lock_waits_row_t {
 	const i_s_locks_row_t*	blocking_lock_row;	/*!< blocking lock */
 };
 
-/** Cache of INFORMATION_SCHEMA table data */
-struct trx_i_s_cache_t;
-
 /** Auxiliary enum used by functions that need to select one of the
 INFORMATION_SCHEMA tables */
 enum i_s_table {
@@ -171,90 +154,42 @@ enum i_s_table {
 	I_S_INNODB_LOCK_WAITS	/*!< INFORMATION_SCHEMA.innodb_lock_waits */
 };
 
-/** This is the intermediate buffer where data needed to fill the
-INFORMATION SCHEMA tables is fetched and later retrieved by the C++
-code in handler/i_s.cc. */
-extern trx_i_s_cache_t*	trx_i_s_cache;
-
 /*******************************************************************//**
 Initialize INFORMATION SCHEMA trx related cache. */
-void
-trx_i_s_cache_init(
-/*===============*/
-	trx_i_s_cache_t*	cache);	/*!< out: cache to init */
+void trx_i_s_cache_init();
 /*******************************************************************//**
 Free the INFORMATION SCHEMA trx related cache. */
-void
-trx_i_s_cache_free(
-/*===============*/
-	trx_i_s_cache_t*	cache);	/*!< in/out: cache to free */
+void trx_i_s_cache_free();
 
 /*******************************************************************//**
 Issue a shared/read lock on the tables cache. */
-void
-trx_i_s_cache_start_read(
-/*=====================*/
-	trx_i_s_cache_t*	cache);	/*!< in: cache */
+void trx_i_s_cache_start_read() noexcept;
 
 /*******************************************************************//**
 Release a shared/read lock on the tables cache. */
-void
-trx_i_s_cache_end_read(
-/*===================*/
-	trx_i_s_cache_t*	cache);	/*!< in: cache */
-
-/*******************************************************************//**
-Issue an exclusive/write lock on the tables cache. */
-void
-trx_i_s_cache_start_write(
-/*======================*/
-	trx_i_s_cache_t*	cache);	/*!< in: cache */
-
-/*******************************************************************//**
-Release an exclusive/write lock on the tables cache. */
-void
-trx_i_s_cache_end_write(
-/*====================*/
-	trx_i_s_cache_t*	cache);	/*!< in: cache */
-
+void trx_i_s_cache_end_read() noexcept;
 
 /*******************************************************************//**
 Retrieves the number of used rows in the cache for a given
 INFORMATION SCHEMA table.
+@param table  table to be read
 @return number of rows */
-ulint
-trx_i_s_cache_get_rows_used(
-/*========================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache */
-	enum i_s_table		table);	/*!< in: which table */
+ulint trx_i_s_cache_get_rows_used(i_s_table table);
 
 /*******************************************************************//**
 Retrieves the nth row in the cache for a given INFORMATION SCHEMA
 table.
+@param table table to read
+@param n     row number
 @return row */
-void*
-trx_i_s_cache_get_nth_row(
-/*======================*/
-	trx_i_s_cache_t*	cache,	/*!< in: cache */
-	enum i_s_table		table,	/*!< in: which table */
-	ulint			n);	/*!< in: row number */
+void *trx_i_s_cache_get_nth_row(i_s_table table, ulint n);
 
 /*******************************************************************//**
 Update the transactions cache if it has not been read for some time.
-@return 0 - fetched, 1 - not */
-int
-trx_i_s_possibly_fetch_data_into_cache(
-/*===================================*/
-	trx_i_s_cache_t*	cache);	/*!< in/out: cache */
+@retval false when fetched or cached
+@retval true if fetched but the cache was truncated */
+bool trx_i_s_possibly_fetch_data_into_cache();
 
-/*******************************************************************//**
-Returns true, if the data in the cache is truncated due to the memory
-limit posed by TRX_I_S_MEM_LIMIT.
-@return TRUE if truncated */
-bool
-trx_i_s_cache_is_truncated(
-/*=======================*/
-	trx_i_s_cache_t*	cache);	/*!< in: cache */
 /** The maximum length of a resulting lock_id_size in
 trx_i_s_create_lock_id(), not including the terminating NUL.
 ":%lu:%lu:%lu" -> 63 chars */

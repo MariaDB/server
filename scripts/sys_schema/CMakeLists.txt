@@ -38,6 +38,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/schema_object_overview.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/schema_auto_increment_columns.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/x_schema_flattened_keys.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/schema_redundant_indexes.sql
+${CMAKE_CURRENT_SOURCE_DIR}/views/i_s/privileges_by_table_by_level.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/ps_check_lost_instrumentation_57.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/latest_file_io.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/x_latest_file_io.sql
@@ -130,6 +131,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/session_ssl_status.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/create_synonym_db.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/execute_prepared_stmt.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/diagnostics.sql
+${CMAKE_CURRENT_SOURCE_DIR}/procedures/optimizer_switch.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_statement_avg_latency_histogram.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_trace_statement_digest.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_trace_thread.sql
@@ -174,4 +176,4 @@ FOREACH(f ${files})
   FILE(READ ${f} content)
   SET(CMAKE_CONFIGURABLE_FILE_CONTENT "${CMAKE_CONFIGURABLE_FILE_CONTENT}${content}\n")
 ENDFOREACH()
-CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in ${CMAKE_BINARY_DIR}/scripts/mysql_sys_schema.sql)
+CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in ${CMAKE_BINARY_DIR}/scripts/mariadb_sys_schema.sql)

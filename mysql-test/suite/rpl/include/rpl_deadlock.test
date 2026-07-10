@@ -62,7 +62,7 @@ SELECT COUNT(*) FROM t2;
 COMMIT;
 
 --echo
---echo # Test that the performance schema coulumn shows > 0 values.
+--echo # Test that the performance schema column shows > 0 values.
 --echo
 
 --let $assert_text= current number of retries should be more than the value saved before deadlock.
@@ -88,7 +88,7 @@ connection slave;
 DELETE FROM t2;
 # Set slave position to the BEGIN log event
 --replace_result $master_pos_begin <master_pos_begin>
-eval CHANGE MASTER TO MASTER_LOG_POS=$master_pos_begin; 
+eval CHANGE MASTER TO MASTER_LOG_POS=$master_pos_begin, MASTER_USE_GTID=NO;
 BEGIN;
 # Hold lock
 SELECT * FROM t1 FOR UPDATE;
@@ -111,7 +111,7 @@ source include/check_slave_is_running.inc;
 
 # 3) Test lock wait timeout and purged relay log
 # Set max_relay_log_size=0, block slave and wait lock timeout error.
-# Restart slave and check that no erros appear
+# Restart slave and check that no errors appear
 --echo *** Test lock wait timeout and purged relay logs ***
 
 connection slave;
@@ -121,7 +121,7 @@ SET global max_relay_log_size=0;
 DELETE FROM t2;
 # Set slave position to the BEGIN log event
 --replace_result $master_pos_begin <master_pos_begin>
-eval CHANGE MASTER TO MASTER_LOG_POS=$master_pos_begin; 
+eval CHANGE MASTER TO MASTER_LOG_POS=$master_pos_begin, MASTER_USE_GTID=NO;
 BEGIN;
 # Hold lock
 SELECT * FROM t1 FOR UPDATE;

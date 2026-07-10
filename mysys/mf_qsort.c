@@ -38,7 +38,7 @@ do {							\
    if (swap_ptrs)					\
    {							\
      reg1 char **a = (char**) (A), **b = (char**) (B);  \
-     char *tmp = *a; *a++ = *b; *b++ = tmp;		\
+     char *tmp = *a; *a = *b; *b = tmp;			\
    }							\
    else							\
    {							\
@@ -84,7 +84,7 @@ typedef struct st_stack
 /****************************************************************************
 ** 'standard' quicksort with the following extensions:
 **
-** Can be compiled with the qsort2_cmp compare function
+** Can be compiled with the qsort_cmp2 compare function
 ** Store ranges on stack to avoid recursion
 ** Use insert sort on small ranges
 ** Optimize for sorting of pointers (used often by MySQL)
@@ -92,7 +92,7 @@ typedef struct st_stack
 *****************************************************************************/
 
 #ifdef QSORT_EXTRA_CMP_ARGUMENT
-qsort_t my_qsort2(void *base_ptr, size_t count, size_t size, qsort2_cmp cmp,
+qsort_t my_qsort2(void *base_ptr, size_t count, size_t size, qsort_cmp2 cmp,
 	       void *cmp_argument)
 #else
 qsort_t my_qsort(void *base_ptr, size_t count, size_t size, qsort_cmp cmp)
@@ -187,19 +187,19 @@ qsort_t my_qsort(void *base_ptr, size_t count, size_t size, qsort_cmp cmp)
       Prepare for next iteration.
        Skip partitions of size 1 as these doesn't have to be sorted
        Push the larger partition and sort the smaller one first.
-       This ensures that the stack is keept small.
+       This ensures that the stack is kept small.
     */
 
-    if ((int) (high_ptr - low) <= 0)
+    if ((longlong) (high_ptr - low) <= 0)
     {
-      if ((int) (high - low_ptr) <= 0)
+      if ((longlong) (high - low_ptr) <= 0)
       {
 	POP(low, high);			/* Nothing more to sort */
       }
       else
 	low = low_ptr;			/* Ignore small left part. */
     }
-    else if ((int) (high - low_ptr) <= 0)
+    else if ((longlong) (high - low_ptr) <= 0)
       high = high_ptr;			/* Ignore small right part. */
     else if ((high_ptr - low) > (high - low_ptr))
     {

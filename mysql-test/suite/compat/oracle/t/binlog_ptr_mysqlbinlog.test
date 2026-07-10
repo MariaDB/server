@@ -7,7 +7,7 @@
 # 1) "Gtid_log_event::print"
 # 2) "Xid_log_event::print" if flashback is enabled
 # 3) "Query_log_event::print" if flashback is enabled and engine is
-#    non-transacional.
+#    non-transactional.
 #
 # Test verifies all these cases.
 #
@@ -17,6 +17,8 @@
 #
 --source include/have_log_bin.inc
 --source include/have_innodb.inc
+
+call mtr.add_suppression("Binlog_format changed to.*flashback");
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 SET @@SQL_MODE = 'ORACLE';

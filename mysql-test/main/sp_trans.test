@@ -170,7 +170,7 @@ create procedure bug10015_8() start transaction|
 select *, bug10015_7() from t1|
 drop procedure bug10015_8|
 # Again it is OK to drop temporary table
-# We are surpressing warnings since they are not essential
+# We are suppressing warnings since they are not essential
 create procedure bug10015_8() drop temporary table if exists t1_temp|
 --disable_warnings
 select *, bug10015_7() from t1|
@@ -612,9 +612,11 @@ drop table t3|
 # BUG#11758414: Default default_storage_engine not honored when set
 #               from within a stored procedure
 #
+--disable_cursor_protocol
 SELECT @@GLOBAL.default_storage_engine INTO @old_engine|
 SET @@GLOBAL.default_storage_engine=InnoDB|
 SET @@SESSION.default_storage_engine=InnoDB|
+--enable_cursor_protocol
 # show defaults at define-time
 SHOW GLOBAL VARIABLES LIKE 'default_storage_engine'|
 SHOW SESSION VARIABLES LIKE 'default_storage_engine'|

@@ -6,7 +6,7 @@ connection node_1;
 CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 connection node_2;
-CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread\\.");
 SET GLOBAL wsrep_slave_threads = 0;
 Warnings:
 Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
@@ -33,7 +33,6 @@ connection node_2;
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 70
-SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;
 DROP TABLE t2;
 #

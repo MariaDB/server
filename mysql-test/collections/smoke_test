@@ -30,7 +30,6 @@ handler.interface
 heap.heap
 innodb.innodb
 innodb.autoinc_persist
-innodb.innodb_defrag_binlog
 innodb.innodb_mysql
 innodb.monitor
 innodb.purge

@@ -55,9 +55,9 @@
 #include "my_sys.h"			/* defines errno */
 #include <errno.h>
 
-#define char_val(X) (X >= '0' && X <= '9' ? X-'0' :\
+#define char_val(X, Y) (X >= '0' && X <= '9' ? X-'0' :\
 		     X >= 'A' && X <= 'Z' ? X-'A'+10 :\
-		     X >= 'a' && X <= 'z' ? X-'a'+10 :\
+		     X >= 'a' && X <= 'z' ? (Y <= 36 ? X-'a'+10 : X-'a'+36) :\
 		     '\177')
 
 char *str2int(register const char *src, register int radix, long int lower,
@@ -76,10 +76,10 @@ char *str2int(register const char *src, register int radix, long int lower,
 
   *val = 0;
 
-  /*  Check that the radix is in the range 2..36  */
+  /*  Check that the radix is in the range 2..62  */
 
 #ifndef DBUG_OFF
-  if (radix < 2 || radix > 36) {
+  if (radix < 2 || radix > 62) {
     errno=EDOM;
     return NullS;
   }
@@ -126,7 +126,7 @@ char *str2int(register const char *src, register int radix, long int lower,
       to left in order to avoid overflow.  Answer is after last digit.
       */
 
-  for (n = 0; (digits[n]=char_val(*src)) < radix && n < 20; n++,src++) ;
+  for (n = 0; (digits[n]=char_val(*src, radix)) < radix && n < 20; n++,src++) ;
 
   /*  Check that there is at least one digit  */
 

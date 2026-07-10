@@ -4,6 +4,8 @@
 --source include/not_embedded.inc
 
 --disable_service_connection
+let $count_sessions=1;
+--source include/wait_until_count_sessions.inc
 set @save_log_warnings=@@log_warnings, @save_max_connections=@@max_connections;
 SET GLOBAL log_warnings=4;
 SET GLOBAL max_connections=10;

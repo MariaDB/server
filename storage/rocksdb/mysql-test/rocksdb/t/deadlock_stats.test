@@ -1,3 +1,7 @@
 let $engine=rocksdb;
 
+if (`SELECT $CURSOR_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for cursor-protocol
+}
 --source include/deadlock_stats.inc

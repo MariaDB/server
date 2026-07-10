@@ -44,6 +44,10 @@ CREATE TABLE tbl_b (
 pkey int NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
 INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
@@ -57,6 +61,10 @@ TRUNCATE TABLE mysql.general_log;
 connection child2_2;
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
+explain SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	index	PRIMARY	PRIMARY	4	NULL	2	Using index
+1	SIMPLE	b	eq_ref	PRIMARY	PRIMARY	4	auto_test_local.a.pkey	1	Using index
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 pkey
 0

@@ -90,7 +90,6 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
     nextflag|= SEARCH_SAVE_BUFF;
   }
   switch (keyinfo->key_alg) {
-#ifdef HAVE_RTREE_KEYS
   case HA_KEY_ALG_RTREE:
     if (maria_rtree_find_first(info, &key, nextflag) < 0)
     {
@@ -98,7 +97,6 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
       info->cur_row.lastpos= HA_OFFSET_ERROR;
     }
     break;
-#endif
   case HA_KEY_ALG_BTREE:
   default:
     if (!_ma_search(info, &key, nextflag, info->s->state.key_root[inx]))
@@ -120,6 +118,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
 
       /* The key references a concurrently inserted record. */
       if (search_flag == HA_READ_KEY_EXACT &&
+          (keyinfo->flag & HA_NOSAME) &&
           last_used_keyseg == keyinfo->seg + keyinfo->keysegs)
       {
         /* Simply ignore the key if it matches exactly. (Bug #29838) */

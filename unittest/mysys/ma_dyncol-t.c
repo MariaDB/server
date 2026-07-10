@@ -735,10 +735,12 @@ static void test_mdev_9773()
   mariadb_dyncol_free(&dynstr);
 }
 
+#define BIG_STRING_SIZE (1024*1024)
+
 int main(int argc __attribute__((unused)), char **argv)
 {
   uint i;
-  char *big_string= (char *)malloc(1024*1024);
+  char *big_string= (char *)malloc(BIG_STRING_SIZE);
 
   MY_INIT(argv[0]);
   plan(68);
@@ -780,15 +782,15 @@ int main(int argc __attribute__((unused)), char **argv)
   test_value_single_string("", 1, charset_list[0]);
   test_value_single_string("1234567890", 11, charset_list[0]);
   test_value_single_string("nulls\0\0\0\0\0", 10, charset_list[0]);
-  sprintf(big_string, "%x", 0x7a);
+  snprintf(big_string, BIG_STRING_SIZE, "%x", 0x7a);
   test_value_single_string(big_string, 0x7a, charset_list[0]);
-  sprintf(big_string, "%x", 0x80);
+  snprintf(big_string, BIG_STRING_SIZE, "%x", 0x80);
   test_value_single_string(big_string, 0x80, charset_list[0]);
-  sprintf(big_string, "%x", 0x7ffa);
+  snprintf(big_string, BIG_STRING_SIZE, "%x", 0x7ffa);
   test_value_single_string(big_string, 0x7ffa, charset_list[0]);
-  sprintf(big_string, "%x", 0x8000);
+  snprintf(big_string, BIG_STRING_SIZE, "%x", 0x8000);
   test_value_single_string(big_string, 0x8000, charset_list[0]);
-  sprintf(big_string, "%x", 1024*1024);
+  snprintf(big_string, BIG_STRING_SIZE, "%x", 1024*1024);
   test_value_single_string(big_string, 1024*1024, charset_list[0]);
   test_value_single_date(0, 0, 0, "zero date");
   test_value_single_date(9999, 12, 31, "max date");

@@ -77,3 +77,22 @@ COMMIT;
 # Cleanup
 DROP TABLE t1;
 DROP SEQUENCE s1;
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+CREATE SEQUENCE s1 as mediumint unsigned ENGINE=InnoDB;
+PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
+execute stmt;
+drop table s2;
+execute stmt;
+show create sequence s2;
+drop table s2;
+execute stmt;
+select * from s2;
+DROP SEQUENCE s1, s2;
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

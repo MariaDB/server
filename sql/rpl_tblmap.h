@@ -76,6 +76,7 @@ public:
   int       remove_table(ulonglong table_id);
   void      clear_tables();
   ulong     count() const { return m_table_ids.records; }
+  void      get_table_ids(ulonglong *table_ids, size_t n_table_ids);
 
 private:
   /*
@@ -105,7 +106,7 @@ private:
   */
   entry *m_free;
 
-  /* Correspondance between an id (a number) and a TABLE object */
+  /* Correspondence between an id (a number) and a TABLE object */
   HASH m_table_ids;
 };
 

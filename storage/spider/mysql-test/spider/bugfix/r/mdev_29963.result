@@ -1,0 +1,54 @@
+#
+# MDEV-29963 SIGSEGV in spider_db_mbase::append_lock_tables on LOCK TABLES
+#
+for master_1
+for child2
+for child3
+set spider_same_server_link=1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t (a INT) ENGINE=Spider;
+CREATE TABLE t2 (b INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+LOCK TABLES t AS a READ,t2 AS b LOW_PRIORITY WRITE,t2 AS c WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t2;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+LOCK TABLES t2 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t2,t;
+CREATE TABLE t (a INT);
+CREATE TABLE t1 (a INT) ENGINE=Spider;
+CREATE TABLE t2 (b INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+LOCK TABLES t1 READ, t2 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t2;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+LOCK TABLES t2 WRITE;
+UNLOCK TABLES;
+DROP TABLE t, t1, t2;
+CREATE TABLE t1 (c INT) ENGINE=Spider;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT="WRAPPER 'mysql',srv 'srv',TABLE 't1'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+LOCK TABLES t1 WRITE,t2 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+TRUNCATE t2;
+ERROR HY000: Unable to connect to foreign data source: localhost
+LOCK TABLES t2 AS o WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_29963
+#

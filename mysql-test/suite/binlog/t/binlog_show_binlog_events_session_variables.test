@@ -1,0 +1,25 @@
+# ==== Purpose ====
+#
+# Test verifies that reading binary log by using "SHOW BINLOG EVENTS" command
+# from should correctly print the values of session variables such as
+# foreign_key_checks, sql_auto_is_null, unique_checks etc
+#
+# ==== References ====
+#
+# MDEV-29804 SHOW BINLOG EVENTS produces semantically/syntactically incorrect statements
+
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+ 
+reset master;
+
+set foreign_key_checks= 0, sql_auto_is_null=1, check_constraint_checks=0, unique_checks=0;
+create table t (a int, check(a>1), foreign key(a) references x (x)) engine=InnoDB as select 1 as a;
+ 
+source include/show_binlog_events.inc;
+ 
+# Cleanup
+drop table t;
+reset master;

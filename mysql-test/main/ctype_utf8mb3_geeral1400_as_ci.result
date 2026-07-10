@@ -1,0 +1,39 @@
+#
+# Start of 11.5 tests
+#
+#
+#  MDEV-33806 Server crashes when executing Admin SQL/DML after setting character_set_collations to utf8mb3_general1400_as_ci
+#
+CREATE TABLE t1(a CHAR (32),KEY (a)) DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general1400_as_ci;
+SELECT * FROM t1 WHERE a LIKE 'a%';
+a
+INSERT INTO t1 VALUES ('a');
+SELECT * FROM t1 WHERE a LIKE 'a%';
+a
+a
+FOR i IN 0..32
+DO
+INSERT INTO t1 VALUES (CONCAT('b', i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE a LIKE 'a%';
+a
+a
+DROP TABLE t1;
+#
+# End of 11.5 tests
+#
+#
+# MDEV-35717: UBSAN: runtime error: applying zero offset to null pointer in `my_strnncoll_utf8mb3_general1400_as_ci`
+#
+CREATE TABLE t (c INT,c2 CHAR,c3 DATE,CHECK (c>0));
+ALTER TABLE t ADD INDEX (c2) USING HASH;
+DROP TABLE t;
+#
+# MDEV-39356: Server crashes when executing UPDATE ... FOR PORTION OF with a normal table
+#
+CREATE OR REPLACE TABLE t (id INT);
+UPDATE t FOR PORTION OF p FROM '2026-02-01' TO '2026-03-01'  SET id = 2;
+ERROR HY000: Period `p` is not found in table
+DROP TABLE t;
+# End of 11.8 tests

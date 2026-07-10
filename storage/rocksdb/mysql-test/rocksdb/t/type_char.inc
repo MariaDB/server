@@ -13,7 +13,7 @@ eval CREATE TABLE t1 (
   c20 CHAR(20) $extra_col_opts,
   c255 CHAR(255) $extra_col_opts,
   PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 
 SHOW COLUMNS IN t1;
 

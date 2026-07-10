@@ -103,7 +103,7 @@ SET debug_sync='now SIGNAL cont4';
 --source include/wait_condition.inc
 SELECT * FROM t2 WHERE a >= 10 ORDER BY a;
 # The two INSERT transactions should have been committed in opposite order,
-# but in the same group commit (seen by precense of cid=# in the SHOW
+# but in the same group commit (seen by presence of cid=# in the SHOW
 # BINLOG output).
 --let $binlog_file= slave-bin.000002
 --source include/show_binlog_events.inc

@@ -3,7 +3,7 @@
 #
 create table t (a int);
 insert into t values (1),(5),(2),(3),(4);
-create table tf (a int, key(a desc)) connection 'mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated;
+create table tf (a int, key(a desc)) connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated;
 select * from tf;
 a
 1

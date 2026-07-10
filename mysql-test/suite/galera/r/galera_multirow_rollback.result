@@ -54,7 +54,7 @@ INSERT INTO p VALUES(1, 0);
 START TRANSACTION;
 INSERT INTO c VALUES (3,1);
 INSERT INTO c VALUES (1,1), (2,2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`c`, CONSTRAINT `c_ibfk_1` FOREIGN KEY (`fk1`) REFERENCES `p` (`id`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`c`, CONSTRAINT `1` FOREIGN KEY (`fk1`) REFERENCES `p` (`id`))
 COMMIT;
 SELECT * FROM p;
 id	j

@@ -16,6 +16,7 @@ let $my_socket_debug_dbug=0;
 --echo #==============================================================================
 --source ../include/socket_ipv6.inc
 
+--disable_cursor_protocol
 --echo #==============================================================================
 --echo # Get hostname, port number
 --echo #==============================================================================
@@ -256,14 +257,10 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo #==============================================================================
 
 --echo # 5.1 Disconnect con1
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --echo # 5.2 Disconnect con2
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
 --connection default
 
 --echo #==============================================================================
@@ -291,3 +288,4 @@ WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin;
 --source include/wait_condition.inc
 exit;
+--enable_cursor_protocol

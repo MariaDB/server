@@ -1,0 +1,49 @@
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Aborting");
+# restart
+RESET MASTER;
+CREATE TABLE t1(a varchar(60) PRIMARY KEY, b VARCHAR(60)) ENGINE INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+CREATE TABLE t2 (val INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (0);
+connect  con1,localhost,root,,;
+*** Start a background load...
+CALL gen_load();
+connection default;
+*** Doing backup...
+*** Doing prepare...
+*** Stop the background load...
+UPDATE t2 SET val=1;
+connection con1;
+connection default;
+disconnect con1;
+*** Provision a new slave from the backup
+connect  server2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+*** Stopping provisioned server
+*** Removing old datadir for provisioned server
+*** Provision new server from backup
+# restart
+*** Configure slave position from xtrabackup_binlog_pos_innodb
+CREATE TABLE t3 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
+LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t3 FIELDS ESCAPED BY '' (file, pos);
+CHANGE MASTER TO
+master_ssl_verify_server_cert=0,
+master_port=PORT, master_host='127.0.0.1', master_user='root',
+master_log_file= "MASTER_FILE",
+master_log_pos= MASTER_POS;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
+START SLAVE;
+connection default;
+connection server2;
+connection server2;
+STOP SLAVE;
+RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2, t3;
+connection default;
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2;

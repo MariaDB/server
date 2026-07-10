@@ -92,7 +92,7 @@ DROP TABLE `£Τ£±` ;
 DROP TABLE `£Τ£²` ;
 DROP TABLE `£Τ£³` ;
 
-# Test mixed strage engine
+# Test mixed storage engine
 CREATE TABLE `£Τ£±` (`£Γ£±` char(1), INDEX(`£Γ£±`)) DEFAULT CHARSET = ujis engine = InnoDB;
 CREATE TABLE `£Τ£²` (`£Γ£±` char(1), INDEX(`£Γ£±`)) DEFAULT CHARSET = ujis engine = MyISAM;
 INSERT INTO `£Τ£±` VALUES('±'),('±'),('¤Ά'),('¤Ά'),('νά'),('νά');

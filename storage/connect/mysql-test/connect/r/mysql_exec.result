@@ -13,6 +13,7 @@ command VARCHAR(128) NOT NULL,
 warnings INT(4) NOT NULL FLAG=3,
 number INT(5) NOT NULL FLAG=1,
 message VARCHAR(255) FLAG=2)
+CHARSET=latin1
 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test' OPTION_LIST='Execsrc=1,maxerr=2';
 SELECT * FROM t1 WHERE command IN ('Warning','Note',
 'drop table if exists t1',
@@ -30,7 +31,7 @@ create table t1 (id int key auto_increment, msg varchar(32) not null)	0	0	Affect
 insert into t1(msg) values('One'),(NULL),('Three')	1	3	Affected rows
 Warning	0	1048	Column 'msg' cannot be null
 insert into t1 values(2,'Deux') on duplicate key update msg = 'Two'	0	2	Affected rows
-insert into t1(message) values('Four'),('Five'),('Six')	0	1054	Remote: Unknown column 'message' in 'field list'
+insert into t1(message) values('Four'),('Five'),('Six')	0	1054	Remote: Unknown column 'message' in 'INSERT INTO'
 insert ignore into t1(id) values(NULL)	1	1	Affected rows
 Warning	0	1364	Field 'msg' doesn't have a default value
 update t1 set msg = 'Four' where id = 4	0	1	Affected rows
@@ -43,7 +44,7 @@ Warning	1105	Result set columns
 DROP PROCEDURE IF EXISTS p1;
 Warnings:
 Note	1305	PROCEDURE test.p1 does not exist
-CREATE PROCEDURE p1(cmd varchar(512))
+CREATE PROCEDURE p1(cmd varchar(512) CHARACTER SET latin1)
 READS SQL DATA
 SELECT * FROM t1 WHERE command IN ('Warning','Note',cmd);
 CALL p1('insert ignore into t1(id) values(NULL)');

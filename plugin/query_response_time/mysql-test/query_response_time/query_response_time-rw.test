@@ -1,0 +1,240 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+# The file with expected results fits only to a run without
+# ps-protocol/sp-protocol/cursor-protocol/view-protocol.
+if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
+            + $VIEW_PROTOCOL > 0`)
+{
+  --skip Test requires: ps-protocol/sp-protocol/cursor-protocol/view-protocol disabled
+}
+
+--delimiter |
+
+CREATE FUNCTION DML_FUNC()
+RETURNS INT
+BEGIN
+  INSERT INTO t1 (b) VALUES (1), (2);
+  UPDATE t1 SET b = 1;
+  RETURN 1;
+END|
+
+CREATE PROCEDURE NESTED_PROC()
+BEGIN
+  SELECT DML_FUNC();
+END|
+
+CREATE PROCEDURE PREPARE_EXECUTE_PROC()
+BEGIN
+
+  PREPARE p_stmt_select FROM "SELECT 1";
+  PREPARE p_stmt_insert FROM "INSERT INTO t1 (b) VALUES (1), (2)";
+  PREPARE p_stmt_update FROM "UPDATE t1 SET b = 1";
+
+  EXECUTE p_stmt_select;
+  EXECUTE p_stmt_insert;
+  EXECUTE p_stmt_update;
+
+  DEALLOCATE PREPARE p_stmt_select;
+  DEALLOCATE PREPARE p_stmt_insert;
+  DEALLOCATE PREPARE p_stmt_update;
+
+END|
+
+--delimiter ;
+
+--let $i=2
+
+while ($i)
+{
+
+  SET default_storage_engine=InnoDB;
+  if ($i==1)
+  {
+    SET default_storage_engine=MyISAM;
+  }
+
+  if ($i==0)
+  {
+    --echo
+    --echo ==========================
+    --echo = Test for MyISAM engine
+    --echo ==========================
+    --echo
+  }
+  if ($i==1)
+  {
+    --echo
+    --echo ==========================
+    --echo = Test for Innodb engine
+    --echo ==========================
+  }
+
+  --echo
+  --echo ============================
+  --echo = Test for simple DML and DDL
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                   b INT UNSIGNED NOT NULL DEFAULT 0);
+  INSERT INTO t1 (b) VALUES (1), (2);
+  UPDATE t1 SET b = 1;
+  SELECT * FROM t1;
+  DELETE FROM t1;
+  ALTER TABLE t1 ADD COLUMN (c INT);
+  DROP TABLE t1;
+  --source query_response_time-rw-end.inc
+
+  CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                   b INT(10) UNSIGNED NOT NULL DEFAULT 0);
+  --echo
+  --echo ============================
+  --echo = Test for SELECT+DML
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  SELECT DML_FUNC();
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ============================
+  --echo = Test for nested calls
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  CALL NESTED_PROC();
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ==============================================
+  --echo = Test for PREPARE-EXECUTE in stored procedure
+  --echo ==============================================
+  --echo
+  --source query_response_time-rw-begin.inc
+  CALL PREPARE_EXECUTE_PROC();
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ============================
+  --echo = Test for 'PREPARE'
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  PREPARE rw_stmt FROM 'DELETE FROM t1';
+  PREPARE ro_stmt FROM 'SELECT * FROM t1';
+  PREPARE select_dml_stmt FROM 'SELECT DML_FUNC()';
+  PREPARE nested_call_stmt FROM 'CALL NESTED_PROC()';
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ============================
+  --echo = Test for 'EXECUTE'
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  EXECUTE rw_stmt;
+  EXECUTE ro_stmt;
+  EXECUTE select_dml_stmt;
+  EXECUTE nested_call_stmt;
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ============================
+  --echo = Test for 'DEALLOCATE PREPARE'
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  DEALLOCATE PREPARE rw_stmt;
+  DEALLOCATE PREPARE ro_stmt;
+  DEALLOCATE PREPARE select_dml_stmt;
+  DEALLOCATE PREPARE nested_call_stmt;
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ============================
+  --echo = Test for transactions
+  --echo ============================
+  --echo
+  --source query_response_time-rw-begin.inc
+  BEGIN;
+    SELECT * FROM t1;
+  COMMIT;
+  --source query_response_time-rw-end.inc
+  --source query_response_time-rw-begin.inc
+  BEGIN;
+   INSERT INTO t1 (b) VALUES (1), (2);
+   UPDATE t1 SET b = 1;
+   SELECT * FROM t1;
+   DELETE FROM t1;
+  COMMIT;
+  --source query_response_time-rw-end.inc
+  --source query_response_time-rw-begin.inc
+  BEGIN;
+    SELECT DML_FUNC();
+    CALL NESTED_PROC();
+  COMMIT;
+  --source query_response_time-rw-end.inc
+  --source query_response_time-rw-begin.inc
+  BEGIN;
+   INSERT INTO t1 (b) VALUES (1), (2);
+   UPDATE t1 SET b = 1;
+  ROLLBACK;
+  --source query_response_time-rw-end.inc
+
+  --echo
+  --echo ============================
+  --echo = Test for implicit commit
+  --echo ============================
+  --echo
+  SET autocommit = 0;
+  --source query_response_time-rw-begin.inc
+  INSERT INTO t1 (b) VALUES (1), (2);
+  CREATE INDEX ab ON t1 (a, b);
+  --source query_response_time-rw-end.inc
+  SET autocommit = 1;
+
+  --echo
+  --echo ============================
+  --echo = Test for trigger
+  --echo ============================
+  --echo
+  CREATE TABLE t2 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                   b INT UNSIGNED NOT NULL DEFAULT 0);
+  --source query_response_time-rw-begin.inc
+  --delimiter |
+  CREATE TRIGGER test_trigger BEFORE INSERT ON t1
+    FOR EACH ROW
+    BEGIN
+      INSERT INTO t2 SET b = NEW.b;
+      INSERT INTO t2 SET b = NEW.b;
+    END;
+  |
+  --delimiter ;
+  --source query_response_time-rw-end.inc
+  --source query_response_time-rw-begin.inc
+  INSERT INTO t1 (b) VALUES (1), (2);
+  --source query_response_time-rw-end.inc
+
+  DROP TABLE t1;
+  DROP TABLE t2;
+
+  --dec $i
+}
+
+SET default_storage_engine=default;
+DROP FUNCTION DML_FUNC;
+DROP PROCEDURE NESTED_PROC;
+DROP PROCEDURE PREPARE_EXECUTE_PROC;
+
+--echo #
+--echo # MDEV-33931 QUERY_RESPONSE_TIME counts SHOW statements and I_S queries
+--echo # as "writes"
+--echo #
+
+set global query_response_time_stats=1;
+flush query_response_time_read_write;
+select count(*) from information_schema.query_response_time_read_write where write_count > 0;
+select count(*) from information_schema.query_response_time_read_write where write_count > 0;
+select count(*) > 0 from information_schema.query_response_time_read_write where read_count > 0;
+set global query_response_time_stats= 0;

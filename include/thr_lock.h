@@ -41,15 +41,16 @@ enum thr_lock_type { TL_IGNORE=-1,
                        modify tables.
                      */
                      TL_READ_DEFAULT,
+		     /* READ, but skip locks if found */
+		     TL_READ_SKIP_LOCKED,
 		     TL_READ,			/* Read lock */
+                     /* Get shared locks on all read rows */
 		     TL_READ_WITH_SHARED_LOCKS,
 		     /* High prior. than TL_WRITE. Allow concurrent insert */
 		     TL_READ_HIGH_PRIORITY,
 		     /* READ, Don't allow concurrent insert */
 		     TL_READ_NO_INSERT,
-		     /* READ, but skip locks if found */
-		     TL_READ_SKIP_LOCKED,
-		     /* 
+		     /*
 			Write lock, but allow other threads to read / write.
 			Used by BDB tables in MySQL to mark that someone is
 			reading/writing to the table.
@@ -84,6 +85,9 @@ enum thr_lock_type { TL_IGNORE=-1,
   while < TL_FIRST_WRITE is a read transaction.
 */
 #define TL_FIRST_WRITE TL_WRITE_ALLOW_WRITE
+
+/* First lock that can block readonly slaves using InnoDB tables */
+#define TL_BLOCKS_READONLY TL_READ_WITH_SHARED_LOCKS
 
 enum enum_thr_lock_result { THR_LOCK_SUCCESS= 0, THR_LOCK_ABORTED= 1,
                             THR_LOCK_WAIT_TIMEOUT= 2, THR_LOCK_DEADLOCK= 3 };
@@ -173,8 +177,6 @@ void thr_print_locks(void);		/* For debugging */
 my_bool thr_upgrade_write_delay_lock(THR_LOCK_DATA *data,
                                      enum thr_lock_type new_lock_type,
                                      ulong lock_wait_timeout);
-void    thr_downgrade_write_lock(THR_LOCK_DATA *data,
-                                 enum thr_lock_type new_lock_type);
 my_bool thr_reschedule_write_lock(THR_LOCK_DATA *data,
                                   ulong lock_wait_timeout);
 void thr_set_lock_wait_callback(void (*before_wait)(void),

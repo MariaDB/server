@@ -139,10 +139,10 @@ struct pos_events_waits_history : public PFS_double_index
 class table_events_waits_common : public PFS_engine_table
 {
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_events_waits_common(const PFS_engine_table_share *share, void *pos);
 
@@ -173,9 +173,9 @@ public:
   static int delete_all_rows();
   static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_waits_current();
@@ -209,9 +209,9 @@ public:
   static int delete_all_rows();
   static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_waits_history();
@@ -242,9 +242,9 @@ public:
   static int delete_all_rows();
   static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+    int rnd_pos(const void *pos) override;
+    void reset_position(void) override;;
 
 protected:
   table_events_waits_history_long();

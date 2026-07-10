@@ -43,7 +43,13 @@ static void setup_codepages();
 #define _SC_PAGESIZE _SC_PAGE_SIZE
 #endif
 
-extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
+#if defined(__linux__)
+#define EXE_LINKPATH "/proc/self/exe"
+#elif defined(__FreeBSD__)
+/* unfortunately, not mounted by default */
+#define EXE_LINKPATH "/proc/curproc/file"
+#endif
+
 
 #define SCALE_SEC       100
 #define SCALE_USEC      10000
@@ -54,7 +60,7 @@ size_t  my_system_page_size= 8192;	/* Default if no sysconf() */
 
 ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
-static ulong atoi_octal(const char *str)
+static mode_t atoi_octal(const char *str)
 {
   long int tmp;
   while (*str && my_isspace(&my_charset_latin1, *str))
@@ -62,7 +68,7 @@ static ulong atoi_octal(const char *str)
   str2int(str,
 	  (*str == '0' ? 8 : 10),       /* Octalt or decimalt */
 	  0, INT_MAX, &tmp);
-  return (ulong) tmp;
+  return (mode_t) tmp;
 }
 
 MYSQL_FILE *mysql_stdin= NULL;
@@ -151,16 +157,14 @@ my_bool my_init(void)
   my_umask= 0660;                       /* Default umask for new files */
   my_umask_dir= 0700;                   /* Default umask for new directories */
   my_global_flags= 0;
-#ifdef _SC_PAGESIZE
-  my_system_page_size= sysconf(_SC_PAGESIZE);
-#endif
+  my_system_page_size= my_getpagesize();
 
   /* Default creation of new files */
   if ((str= getenv("UMASK")) != 0)
-    my_umask= (int) (atoi_octal(str) | 0600);
+    my_umask= atoi_octal(str) | 0600;
   /* Default creation of new dir's */
   if ((str= getenv("UMASK_DIR")) != 0)
-    my_umask_dir= (int) (atoi_octal(str) | 0700);
+    my_umask_dir= atoi_octal(str) | 0700;
 
   init_glob_errs();
 
@@ -169,14 +173,33 @@ my_bool my_init(void)
   mysql_stdin= & instrumented_stdin;
 
   my_progname_short= "unknown";
-  if (my_progname)
-    my_progname_short= my_progname + dirname_length(my_progname);
-
   /* Initialize our mutex handling */
   my_mutex_init();
 
   if (my_thread_global_init())
     return 1;
+
+  if (my_progname)
+  {
+    char link_name[FN_REFLEN];
+    my_progname_short= my_progname + dirname_length(my_progname);
+    /*
+      if my_progname_short doesn't start from "mariadb", but it's
+      a symlink to an actual executable, that does - warn the user.
+      First try to find the actual name via /proc, but if it's unmounted
+      (which it usually is on FreeBSD) resort to my_progname
+    */
+    if (strncmp(my_progname_short, "mariadb", 7))
+    {
+      int res= 1;
+#ifdef EXE_LINKPATH
+      res= my_readlink(link_name, EXE_LINKPATH, MYF(0));
+#endif
+      if ((res == 0 || my_readlink(link_name, my_progname, MYF(0)) == 0) &&
+           strncmp(link_name + dirname_length(link_name), "mariadb", 7) == 0)
+      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
+    }
+  }
 
 #if defined(SAFEMALLOC) && !defined(DBUG_OFF)
   dbug_sanity= sf_sanity;
@@ -324,8 +347,7 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
 #endif
  
   /* At very last, delete mysys key, it is used everywhere including DBUG */
-  pthread_key_delete(THR_KEY_mysys);
-  my_init_done= my_thr_key_mysys_exists= 0;
+  my_init_done= 0;
 } /* my_end */
 
 #ifdef DBUG_ASSERT_EXISTS
@@ -442,7 +464,7 @@ PSI_mutex_key key_LOCK_localtime_r;
 
 PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
   key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock,
-  key_LOCK_alarm, key_LOCK_timer,
+  key_LOCK_timer,
   key_my_thread_var_mutex, key_THR_LOCK_charset, key_THR_LOCK_heap,
   key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
@@ -461,7 +483,6 @@ static PSI_mutex_info all_mysys_mutexes[]=
   { &key_IO_CACHE_append_buffer_lock, "IO_CACHE::append_buffer_lock", 0},
   { &key_IO_CACHE_SHARE_mutex, "IO_CACHE::SHARE_mutex", 0},
   { &key_KEY_CACHE_cache_lock, "KEY_CACHE::cache_lock", 0},
-  { &key_LOCK_alarm, "LOCK_alarm", PSI_FLAG_GLOBAL},
   { &key_LOCK_timer, "LOCK_timer", PSI_FLAG_GLOBAL},
   { &key_my_thread_var_mutex, "my_thread_var::mutex", 0},
   { &key_THR_LOCK_charset, "THR_LOCK_charset", PSI_FLAG_GLOBAL},
@@ -478,13 +499,12 @@ static PSI_mutex_info all_mysys_mutexes[]=
   { &key_LOCK_uuid_generator, "LOCK_uuid_generator", PSI_FLAG_GLOBAL }
 };
 
-PSI_cond_key key_COND_alarm, key_COND_timer, key_IO_CACHE_SHARE_cond,
+PSI_cond_key key_COND_timer, key_IO_CACHE_SHARE_cond,
   key_IO_CACHE_SHARE_cond_writer, key_my_thread_var_suspend,
   key_THR_COND_threads, key_WT_RESOURCE_cond;
 
 static PSI_cond_info all_mysys_conds[]=
 {
-  { &key_COND_alarm, "COND_alarm", PSI_FLAG_GLOBAL},
   { &key_COND_timer, "COND_timer", PSI_FLAG_GLOBAL},
   { &key_IO_CACHE_SHARE_cond, "IO_CACHE_SHARE::cond", 0},
   { &key_IO_CACHE_SHARE_cond_writer, "IO_CACHE_SHARE::cond_writer", 0},
@@ -500,16 +520,10 @@ static PSI_rwlock_info all_mysys_rwlocks[]=
   { &key_SAFEHASH_mutex, "SAFE_HASH::mutex", 0}
 };
 
-#ifdef USE_ALARM_THREAD
-PSI_thread_key key_thread_alarm;
-#endif
 PSI_thread_key key_thread_timer;
 
 static PSI_thread_info all_mysys_threads[]=
 {
-#ifdef USE_ALARM_THREAD
-  { &key_thread_alarm, "alarm", PSI_FLAG_GLOBAL},
-#endif
   { &key_thread_timer, "statement_timer", PSI_FLAG_GLOBAL}
 };
 

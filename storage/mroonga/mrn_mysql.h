@@ -59,7 +59,7 @@
 
 #define MRN_DBUG_ENTER_FUNCTION() DBUG_ENTER(__FUNCTION__)
 
-#if !defined(DBUG_OFF) && !defined(_lint)
+#if !defined(DBUG_OFF)
 #  define MRN_DBUG_ENTER_METHOD()                 \
     char method_name[MRN_MESSAGE_BUFFER_SIZE];    \
     method_name[0] = '\0';                        \

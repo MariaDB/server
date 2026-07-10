@@ -1,0 +1,62 @@
+call mtr.add_suppression("InnoDB: New log files created");
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-18931 Rename Mariabackup's xtrabackup_* files to mariadb_backup_*
+--echo #
+
+--let $basedir=$MYSQLTEST_VARDIR/tmp/backup
+--let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1
+
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE MYISAM;
+INSERT INTO t1 VALUES (1);
+
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir
+--enable_result_log
+
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir
+
+#
+# Emulate a backup created by an older version:
+#   Rename mariadb_backup_checkpoints
+#
+
+--move_file $basedir/mariadb_backup_checkpoints $basedir/xtrabackup_checkpoints
+--move_file $incremental_dir/mariadb_backup_checkpoints $incremental_dir/xtrabackup_checkpoints
+
+#
+# Emulate a backup created by an older version:
+#   Rename mariadb_backup_info
+# Note, mariadb_backup_info is not currently used during --prepare or --restore
+# But it's still good to rename it:
+# - we can start using it during --prepare or --restore
+# - to provide full emulation
+#
+
+--move_file $basedir/mariadb_backup_info $basedir/mariadb_backup_info
+--move_file $incremental_dir/mariadb_backup_info $incremental_dir/mariadb_backup_info
+
+
+--disable_result_log
+--echo # Prepare full backup, apply incremental one
+--exec $XTRABACKUP --prepare --target-dir=$basedir
+--exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir
+--enable_result_log
+
+--let $targetdir=$basedir
+--source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM test.t1;
+
+DROP TABLE t1;
+--rmdir $basedir
+--rmdir $incremental_dir
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

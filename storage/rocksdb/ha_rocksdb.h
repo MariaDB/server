@@ -15,10 +15,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface /* gcc class implementation */
-#endif
-
 /* C++ standard header files */
 #include <set>
 #include <string>
@@ -397,7 +393,7 @@ class ha_rocksdb : public my_core::handler {
     current lookup to be covered. If the bitmap field is null, that means this
     index does not cover the current lookup for any record.
    */
-  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, 0, 0};
+  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, 0, 0, 0};
 
   int alloc_key_buffers(const TABLE *const table_arg,
                         const Rdb_tbl_def *const tbl_def_arg,
@@ -441,7 +437,7 @@ class ha_rocksdb : public my_core::handler {
 
   ha_rocksdb(my_core::handlerton *const hton,
              my_core::TABLE_SHARE *const table_arg);
-  virtual ~ha_rocksdb() override {
+  ~ha_rocksdb() override {
     int err MY_ATTRIBUTE((__unused__));
     err = finalize_bulk_load(false);
     if (err != 0) {
@@ -458,7 +454,7 @@ class ha_rocksdb : public my_core::handler {
 
     const char *table_type() const
 
-    is non-virtual in class handler, so there's no point to override it.
+    is non-in class handler, so there's no point to override it.
   */
 
   /* The following is only used by SHOW KEYS: */
@@ -623,15 +619,19 @@ public:
                        bool sorted) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
-  virtual double scan_time() override {
+  IO_AND_CPU_COST scan_time() override
+  {
+    IO_AND_CPU_COST cost;
     DBUG_ENTER_FUNC();
-
-    DBUG_RETURN(
-        static_cast<double>((stats.records + stats.deleted) / 20.0 + 10));
+    cost= handler::scan_time();
+    cost.cpu+= stats.deleted * ROW_NEXT_FIND_COST; // We have to skip over deleted rows
+    DBUG_RETURN(cost);
   }
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges,
+                               ha_rows rows, ulonglong blocks) override;
 
-  virtual double read_time(uint, uint, ha_rows rows) override;
-  virtual void print_error(int error, myf errflag) override;
+  ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  void print_error(int error, myf errflag) override;
 
   int open(const char *const name, int mode, uint test_if_locked) override
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -980,11 +980,11 @@ public:
 
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
  public:
-  virtual void rpl_before_delete_rows() override;
-  virtual void rpl_after_delete_rows() override;
-  virtual void rpl_before_update_rows() override;
-  virtual void rpl_after_update_rows() override;
-  virtual bool use_read_free_rpl() const override;
+  void rpl_before_delete_rows() override;
+  void rpl_after_delete_rows() override;
+  void rpl_before_update_rows() override;
+  void rpl_after_update_rows() override;
+  bool use_read_free_rpl() const override;
 #endif // MARIAROCKS_NOT_YET
 
  private:
@@ -1064,7 +1064,8 @@ const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_STABLE;
 
 extern uint32_t rocksdb_ignore_datadic_errors;
 
-void sql_print_verbose_info(const char *format, ...);
+void sql_print_verbose_info(const char *format, ...)
+  ATTRIBUTE_FORMAT(printf, 1, 2);
 
 }  // namespace myrocks
 

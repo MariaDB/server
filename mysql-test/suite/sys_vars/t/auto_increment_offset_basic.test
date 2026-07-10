@@ -163,7 +163,7 @@ SELECT @@global.auto_increment_offset;
 
 --echo '#---------------------FN_DYNVARS_001_09----------------------#'
 ###############################################################################
-#  Check if global and session variables are independant of each other        #
+#  Check if global and session variables are independent of each other        #
 ###############################################################################
 
 SET @@global.auto_increment_offset = 10;

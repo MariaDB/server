@@ -1,5 +1,5 @@
---- r/galera_sst_mariabackup_data_dir.result	2021-04-10 14:26:02.798965488 +0300
-+++ r/galera_sst_mariabackup_data_dir,debug.reject	2021-04-10 14:54:44.825538224 +0300
+--- r/galera_sst_mariabackup_data_dir.result
++++ r/galera_sst_mariabackup_data_dir,debug.reject
 @@ -516,5 +516,189 @@
  1
  DROP TABLE t1;

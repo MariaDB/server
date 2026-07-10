@@ -40,13 +40,7 @@
 #include <memory.h>
 #endif
 
-#if !defined(HAVE_MEMCPY) && !defined(HAVE_MEMMOVE)
-# define memcpy(d, s, n)	bcopy ((s), (d), (n))
-# define memset(A,C,B)		bfill((A),(B),(C))
-# define memmove(d, s, n)	bmove ((d), (s), (n))
-#elif defined(HAVE_MEMMOVE)
 # define bmove(d, s, n)		memmove((d), (s), (n))
-#endif
 
 /* Unixware 7 */
 #if !defined(HAVE_BFILL)
@@ -74,16 +68,11 @@ extern "C" {
 #endif
 
 /* Declared in int2str() */
+extern const char _dig_vec_base62[];
 extern const char _dig_vec_upper[];
 extern const char _dig_vec_lower[];
 
 extern char *strmov_overlapp(char *dest, const char *src);
-
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS)
-#define LINT_INIT_STRUCT(var) bzero(&var, sizeof(var)) /* No uninitialize-warning */
-#else
-#define LINT_INIT_STRUCT(var)
-#endif
 
 /* Prototypes for string functions */
 
@@ -159,10 +148,6 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
 
 extern char *llstr(longlong value,char *buff);
 extern char *ullstr(longlong value,char *buff);
-#ifndef HAVE_STRTOUL
-extern long strtol(const char *str, char **ptr, int base);
-extern ulong strtoul(const char *str, char **ptr, int base);
-#endif
 
 extern char *int2str(long val, char *dst, int radix, int upcase);
 extern char *int10_to_str(long val,char *dst,int radix);
@@ -175,17 +160,11 @@ longlong my_strtoll10(const char *nptr, char **endptr, int *error);
 #undef strtoll
 #define strtoll(A,B,C) strtol((A),(B),(C))
 #define strtoull(A,B,C) strtoul((A),(B),(C))
-#ifndef HAVE_STRTOULL
-#define HAVE_STRTOULL
-#endif
-#ifndef HAVE_STRTOLL
-#define HAVE_STRTOLL
-#endif
 #else
 #ifdef HAVE_LONG_LONG
 extern char *ll2str(longlong val,char *dst,int radix, int upcase);
 extern char *longlong10_to_str(longlong val,char *dst,int radix);
-#if (!defined(HAVE_STRTOULL) || defined(NO_STRTOLL_PROTO))
+#if defined(NO_STRTOLL_PROTO)
 extern longlong strtoll(const char *str, char **ptr, int base);
 extern ulonglong strtoull(const char *str, char **ptr, int base);
 #endif
@@ -219,6 +198,15 @@ template<typename T> inline constexpr const char *_swl_check(T s)
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
 
+#ifdef  __cplusplus
+static inline constexpr
+LEX_CSTRING operator""_LEX_CSTRING(const char *str, size_t length)
+{
+  return LEX_CSTRING{str, length};
+}
+#endif /* __cplusplus */
+
+
 /* A variant with const and unsigned */
 struct st_mysql_const_unsigned_lex_string
 {
@@ -232,22 +220,15 @@ static inline void lex_string_set(LEX_CSTRING *lex_str, const char *c_str)
   lex_str->str= c_str;
   lex_str->length= strlen(c_str);
 }
-static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
-                                   size_t len)
-{
-  lex_str->str= c_str;
-  lex_str->length= len;
-}
 
-/*
-  Copies src into dst and ensures dst is a NULL terminated C string.
+/**
+  Copies a string.
 
-  Returns 1 if the src string was truncated due to too small size of dst.
-  Returns 0 if src completely fit within dst. Pads the remaining dst with '\0'
-
-  Note: dst_size must be > 0
+  @param dst        destination buffer, will be NUL padded.
+  @param dst_size   size of dst buffer, must be > 0
+  @param src        NUL terminated source string
 */
-static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
+static inline void safe_strcpy(char *dst, size_t dst_size, const char *src)
 {
   DBUG_ASSERT(dst_size > 0);
 
@@ -257,49 +238,74 @@ static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
    * 2) IF there is no 0 byte in the first dst_size bytes of src, strncpy will
    *    copy dst_size bytes, and the final byte won't be 0.
    *
-   * In GCC 8+, the `-Wstringop-truncation` warning will object to strncpy()
+   * In GCC 8+, the `-Wstringop-truncation` warning may object to strncpy()
    * being used in this way, so we need to disable this warning for this
    * single statement.
    */
 
-#if defined(__GNUC__) && __GNUC__ >= 8
+#if defined __GNUC__ && __GNUC__ >= 8
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
 #endif
   strncpy(dst, src, dst_size);
-#if defined(__GNUC__) && __GNUC__ >= 8
+#if defined __GNUC__ && __GNUC__ >= 8
 #pragma GCC diagnostic pop
 #endif
+  dst[dst_size - 1]= 0;
+}
 
-  if (dst[dst_size-1])
+/**
+  Copies a string, checking for truncation.
+
+  @param dst        destination buffer, will be NUL padded.
+  @param dst_size   size of dst buffer, must be > 0
+  @param src        NUL terminated source string
+
+  @retval 1 if the src string was truncated due to too small size of dst.
+  @retval 0 if src completely fit within dst,
+*/
+static inline int safe_strcpy_truncated(char *dst, size_t dst_size,
+                                        const char *src)
+{
+
+  DBUG_ASSERT(dst_size > 0);
+  if (dst_size == 0)
+    return 1;
+  /*
+    We do not want to use strncpy() as we do not want to rely on
+    strncpy() filling the unused dst with 0.
+    We cannot use strmake() here as it in debug mode fills the buffers
+    with 'Z'.
+  */
+  if (strnmov(dst, src, dst_size) == dst+dst_size)
   {
-    /* Only possible in case (2), meaning src was truncated. */
     dst[dst_size-1]= 0;
     return 1;
   }
   return 0;
 }
 
-/*
-  Appends src to dst and ensures dst is a NULL terminated C string.
+/**
+  Appends src to dst and ensures dst is a NUL terminated C string.
 
-  Returns 1 if the src string was truncated due to too small size of dst.
-  Returns 0 if src completely fit within the remaining dst space. Pads the
-            remaining dst with '\0'.
-
-  Note: dst_size must be > 0
+  @retval 1 if the src string was truncated due to too small size of dst.
+  @retval 0 if src completely fit within the remaining dst space,
+  including NUL termination.
 */
 static inline int safe_strcat(char *dst, size_t dst_size, const char *src)
 {
   size_t init_len= strlen(dst);
-  if (init_len >= dst_size - 1)
+  if (init_len >= dst_size)
     return 1;
-  return safe_strcpy(dst + init_len, dst_size - init_len, src);
+  return safe_strcpy_truncated(dst + init_len, dst_size - init_len, src);
 }
 
 #ifdef __cplusplus
 static inline char *safe_str(char *str)
 { return str ? str : const_cast<char*>(""); }
+
+static inline const char *safe_str(const LEX_CSTRING *lcs)
+{ return lcs && lcs->str ? lcs->str : ""; }
 #endif
 
 static inline const char *safe_str(const char *str)

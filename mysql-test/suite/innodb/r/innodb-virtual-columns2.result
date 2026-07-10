@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(8) NOT NULL DEFAULT '',
   `vi` smallint(6) GENERATED ALWAYS AS (`i`) VIRTUAL,
   KEY `y` (`y`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
 y	i	c	vi
 INSERT INTO t1 (i) VALUES (1),(2);
@@ -33,7 +33,7 @@ t1	CREATE TABLE `t1` (
   `i` smallint(6) DEFAULT NULL,
   `vi` smallint(6) GENERATED ALWAYS AS (`i`) VIRTUAL,
   KEY `y` (`y`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
 y	i	vi
 INSERT INTO t1 (i) VALUES (1),(2);
@@ -55,7 +55,7 @@ t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL,
   `vi` smallint(6) GENERATED ALWAYS AS (`i`) VIRTUAL,
   KEY `y` (`y`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 WHERE y BETWEEN 2012 AND 2016 FOR UPDATE;
 y	i	b	vi
 INSERT INTO t1 (i) VALUES (1),(2);

@@ -1,0 +1,23 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+SET @old_format= @@GLOBAL.binlog_row_image;
+SET GLOBAL binlog_row_image=MINIMAL;
+--source include/stop_slave.inc
+--source include/start_slave.inc
+SET GLOBAL binlog_row_image= @old_format;
+--connection default
+SET SESSION binlog_row_image=MINIMAL;
+
+CREATE TABLE t (id INT AUTO_INCREMENT, col_int BIGINT NOT NULL, UNIQUE (col_int), KEY(id)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,1);
+UPDATE t SET id = 2;
+ 
+--sync_slave_with_master
+ 
+# Cleanup
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

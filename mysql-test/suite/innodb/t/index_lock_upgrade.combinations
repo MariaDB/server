@@ -1,0 +1,33 @@
+# MDEV-38814: exercise both states of innodb_index_shrink.
+#
+# [on]: legacy behavior.
+#
+# [off]: innodb_index_shrink=OFF. All DB_UNDERFLOW fallbacks on growing
+# records are eliminated, DB_OVERFLOW fallbacks on growing records are forced
+# to split when the page cannot satisfy BTR_CUR_PAGE_REORGANIZE_LIMIT, and the
+# index-lock upgrade count drops accordingly on the same workload.
+# Same-size record UPDATEs are unaffected.
+# Shrinking-record UPDATEs are marginally affected, because they occur after
+# the record-growing UPDATEs and an extra page is produced via split as a
+# side-effect, so they operate on a slightly different B-tree.
+#
+# Compressed pages (t3) get the optimistic-side change but not the
+# pessimistic-side one, by design. The optimistic gate
+# (page_get_data_size vs BTR_CUR_PAGE_COMPRESS_LIMIT) is an
+# uncompressed-frame metric that translates cleanly to compressed pages,
+# so it applies uniformly. The pessimistic gate
+# (page_get_max_insert_size_after_reorganize vs
+# BTR_CUR_PAGE_REORGANIZE_LIMIT) is also an uncompressed-frame metric,
+# but the actual constraint on a compressed page is whether the
+# compressed image fits in KEY_BLOCK_SIZE after recompress, a
+# different question. Using the uncompressed metric there would
+# mispredict in both directions, so btr_cur_pessimistic_update() falls
+# through to the legacy btr_cur_insert_if_possible() path, which
+# already handles compressed-page complexity. The t3 rdiff therefore
+# shows shrink on/off deltas only on the optimistic-side counters.
+
+[on]
+--loose-innodb-index-shrink=ON
+
+[off]
+--loose-innodb-index-shrink=OFF

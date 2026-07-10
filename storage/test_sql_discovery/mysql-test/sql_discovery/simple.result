@@ -91,7 +91,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE t1 (
   a int(11) DEFAULT NULL
-) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @@test_sql_discovery_statement='t1:create table t2 (a int)';
 select * from t1;
@@ -133,7 +133,7 @@ t1	CREATE TABLE t1 (
   KEY d (d,b),
   SPATIAL KEY f (f),
   FULLTEXT KEY e (e)
-) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci MIN_ROWS=10 MAX_ROWS=100 CHECKSUM=1 COMMENT='abc'
+) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci MIN_ROWS=10 MAX_ROWS=100 CHECKSUM=1 COMMENT='abc'
 show status like 'handler_discover';
 Variable_name	Value
 Handler_discover	16
@@ -164,7 +164,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE t1 (
   a int(11) DEFAULT NULL
-) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show status like 'handler_discover';
 Variable_name	Value
 Handler_discover	17

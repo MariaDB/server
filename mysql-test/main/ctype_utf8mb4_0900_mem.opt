@@ -1,0 +1,1 @@
+--init_connect="set @a='ctype_utf8mb4_0900_mem - run a dedicated mariadbd for this test'"

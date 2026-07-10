@@ -1,0 +1,44 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SET AUTOCOMMIT=ON;
+SELECT @@autocommit;
+
+SET LOCAL enforce_storage_engine=InnoDB;
+
+CREATE TABLE t1(id int not null primary key auto_increment, name varchar(64)) ENGINE=InnoDB;
+INSERT INTO t1(name) VALUES ('name1'),('name3'),('name6'),('name2');
+
+DELIMITER |;
+CREATE PROCEDURE sel_proc()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  SELECT * FROM t1;
+END|
+
+CREATE PROCEDURE ins_proc()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  INSERT INTO t1 VALUES ('name_proc');
+END|
+DELIMITER ;|
+
+SET AUTOCOMMIT=OFF;
+SELECT @@autocommit;
+
+START TRANSACTION;
+
+insert into t1(name) values('name10');
+
+select param_list, returns, db, type from mysql.proc where name='sel_proc';
+
+call ins_proc();
+
+COMMIT;
+
+SET AUTOCOMMIT=ON;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE sel_proc;
+DROP PROCEDURE ins_proc;

@@ -1,0 +1,117 @@
+#
+# Cross-engine UNION: DuckDB + InnoDB via select_handler unit pushdown
+#
+
+# Setup
+
+CREATE DATABASE IF NOT EXISTS cross_engine_union CHARACTER SET utf8mb4;
+USE cross_engine_union;
+CREATE TABLE t_duck (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+CREATE TABLE t_inno (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=InnoDB;
+INSERT INTO t_duck VALUES (1, 'duck_a'), (2, 'duck_b'), (3, 'duck_c');
+INSERT INTO t_inno VALUES (2, 'inno_b'), (3, 'inno_c'), (4, 'inno_d');
+
+# (1) UNION ALL — keeps duplicates
+
+SELECT id, val FROM t_duck
+UNION ALL
+SELECT id, val FROM t_inno
+ORDER BY id, val;
+id	val
+1	duck_a
+2	duck_b
+2	inno_b
+3	duck_c
+3	inno_c
+4	inno_d
+
+# (2) UNION — removes duplicates
+
+SELECT id FROM t_duck
+UNION
+SELECT id FROM t_inno
+ORDER BY id;
+id
+1
+2
+3
+4
+
+# (3) UNION ALL with WHERE filters
+
+SELECT id, val FROM t_duck WHERE id >= 2
+UNION ALL
+SELECT id, val FROM t_inno WHERE id <= 3
+ORDER BY id, val;
+id	val
+2	duck_b
+2	inno_b
+3	duck_c
+3	inno_c
+
+# (4) Three-way UNION across engines
+
+CREATE TABLE t_duck2 (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=DuckDB;
+INSERT INTO t_duck2 VALUES (10, 'extra');
+SELECT id, val FROM t_duck
+UNION ALL
+SELECT id, val FROM t_inno
+UNION ALL
+SELECT id, val FROM t_duck2
+ORDER BY id;
+id	val
+1	duck_a
+10	extra
+2	duck_b
+2	inno_b
+3	duck_c
+3	inno_c
+4	inno_d
+
+# (5) UNION with aggregation
+
+SELECT COUNT(*) AS cnt FROM (
+SELECT id FROM t_duck
+UNION ALL
+SELECT id FROM t_inno
+) AS combined;
+cnt
+6
+
+# (6) UNION between two DuckDB tables (pure DuckDB, no cross-engine)
+
+SELECT id, val FROM t_duck
+UNION ALL
+SELECT id, val FROM t_duck2
+ORDER BY id;
+id	val
+1	duck_a
+10	extra
+2	duck_b
+3	duck_c
+
+# (7) EXCEPT
+
+SELECT id FROM t_duck
+EXCEPT
+SELECT id FROM t_inno
+ORDER BY id;
+id
+1
+
+# (8) INTERSECT
+
+SELECT id FROM t_duck
+INTERSECT
+SELECT id FROM t_inno
+ORDER BY id;
+id
+2
+3
+
+# Cleanup
+
+DROP TABLE t_duck;
+DROP TABLE t_inno;
+DROP TABLE t_duck2;
+DROP DATABASE cross_engine_union;

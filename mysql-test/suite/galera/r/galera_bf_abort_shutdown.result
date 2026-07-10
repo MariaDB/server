@@ -5,7 +5,7 @@ connection node_2;
 connection node_1;
 CREATE TABLE t1 (f1 INT PRIMARY KEY);
 connection node_2;
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:.*");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR continue';
 INSERT INTO t1 VALUES (1);
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;

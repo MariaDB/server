@@ -9,14 +9,14 @@ connection master;
 flush binary logs;
 create table t2 (a timestamp);
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1658586280/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
@@ -47,45 +47,49 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 connection slave;
-set global explicit_defaults_for_timestamp=1;
-reset slave;
-include/start_slave.inc
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `f1` timestamp NULL DEFAULT NULL,
-  `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-set time_zone='+2:00';
-select * from t1;
-f1	f2
-NULL	NULL
-NULL	NULL
-drop table t1;
-include/stop_slave.inc
 set global explicit_defaults_for_timestamp=0;
-reset slave;
+Warnings:
+Warning	1287	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
+include/reset_slave.inc
 include/start_slave.inc
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set time_zone='+2:00';
 select * from t1;
 f1	f2
 2022-07-23 16:24:48	2022-07-23 16:24:48
 2022-07-23 16:25:35	0000-00-00 00:00:00
+drop table t1;
+include/stop_slave.inc
+set global explicit_defaults_for_timestamp=1;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+include/start_slave.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` timestamp NULL DEFAULT NULL,
+  `f2` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1;
+f1	f2
+NULL	NULL
+NULL	NULL
 drop table t1;
 connection master;
 drop table t2;

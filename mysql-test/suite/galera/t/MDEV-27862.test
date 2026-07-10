@@ -1,34 +1,46 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--disable_ps2_protocol
 
 # NEXTVAL
 
 --connection node_1
-
 CREATE SEQUENCE seq NOCACHE ENGINE=InnoDB;
-
-SELECT NEXTVAL(seq) = 1;
+SELECT NEXTVAL(seq);
 
 --connection node_2
+--let $wait_condition = SELECT next_not_cached_value = 2 FROM seq;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM seq
+--source include/wait_condition_with_debug.inc
 
-SELECT NEXTVAL(seq) = 2;
+SELECT NEXTVAL(seq);
 
 --connection node_1
+--let $wait_condition = SELECT next_not_cached_value = 3 FROM seq;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM seq
+--source include/wait_condition_with_debug.inc
 
-SELECT NEXTVAL(seq) = 3;
-
+SELECT NEXTVAL(seq);
 
 # SETVAL
 
 SELECT SETVAL(seq, 100);
 
 --connection node_2
+--let $wait_condition = SELECT next_not_cached_value = 101 FROM seq;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM seq
+--source include/wait_condition_with_debug.inc
 
-SELECT NEXTVAL(seq) = 101;
+SELECT NEXTVAL(seq);
 
 --connection node_1
+--let $wait_condition = SELECT next_not_cached_value = 102 FROM seq;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM seq
+--source include/wait_condition_with_debug.inc
 
-SELECT NEXTVAL(seq) = 102;
+SELECT NEXTVAL(seq);
 
 DROP SEQUENCE seq;
 
@@ -44,13 +56,20 @@ INSERT INTO t1 VALUES (NEXTVAL(seq_transaction));
 COMMIT;
 
 --connection node_2
+--let $wait_condition = SELECT next_not_cached_value = 3 FROM seq_transaction;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM seq
+--source include/wait_condition_with_debug.inc
 
-SELECT COUNT(*) = 2 FROM t1;
-SELECT NEXTVAL(seq_transaction) = 3;
+SELECT COUNT(*) FROM t1;
+SELECT NEXTVAL(seq_transaction);
 
 --connection node_1
-SELECT NEXTVAL(seq_transaction) = 4;
+--let $wait_condition = SELECT next_not_cached_value = 4 FROM seq_transaction;
+--let $wait_condition_on_error_output = SELECT next_not_cached_value FROM seq
+--source include/wait_condition_with_debug.inc
+SELECT NEXTVAL(seq_transaction);
 
 DROP SEQUENCE seq_transaction;
 DROP TABLE t1;
 
+--enable_ps2_protocol

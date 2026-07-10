@@ -182,4 +182,19 @@ SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
 SET GLOBAL net_buffer_length=@save_net_buffer_length;
 DROP TABLE t1;
 
---echo End of 5.1 tests
+--echo #
+--echo # End of 5.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-31811 deprecate old_mode values
+--echo #
+select @@old_mode;
+set old_mode='zero_date_time_cast,no_progress_info';
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=old-mode='[0-9A-Z_]+' is deprecated and will be removed in a future release;
+source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # End of 11.3 tests
+--echo #

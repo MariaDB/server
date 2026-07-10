@@ -2,6 +2,9 @@
 -- source include/have_log_bin.inc
 
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.'); 
+
+--source include/test_db_charset_latin1.inc
+
 #
 # SQL Syntax for Prepared Statements test
 #
@@ -238,7 +241,7 @@ drop table t1;
 #
 # Bug#5034 "prepared "select 1 into @arg15", second execute crashes
 # server".
-# Check that descendands of select_result can be reused in prepared 
+# Check that descendants of select_result can be reused in prepared
 # statements or are correctly created and deleted on each execute
 #
 
@@ -766,13 +769,13 @@ prepare stmt from "select @@time_zone";
 execute stmt;
 set @@time_zone:='Japan';
 execute stmt;
-prepare stmt from "select @@tx_isolation";
+prepare stmt from "select @@transaction_isolation";
 execute stmt;
 set transaction isolation level read committed;
 execute stmt;
 set transaction isolation level serializable;
 execute stmt;
-set @@tx_isolation=default;
+set @@transaction_isolation=default;
 execute stmt;
 deallocate prepare stmt;
 
@@ -2000,7 +2003,10 @@ prepare stmt from "create view v1 as select * from `t1` `b`";
 
 prepare stmt from "select ?";
 set @arg= 123456789.987654321;
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @arg;
+--enable_cursor_protocol
 execute stmt using @arg;
 set @arg= "string";
 select @arg;
@@ -2009,7 +2015,10 @@ set @arg= 123456;
 select @arg;
 execute stmt using @arg;
 set @arg= cast(-12345.54321 as decimal(20, 10));
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @arg;
+--enable_cursor_protocol
 execute stmt using @arg;
 deallocate prepare stmt;
 
@@ -2365,26 +2374,6 @@ select func_1(), func_1(), func_1() from dual;
 drop function func_1;
 drop procedure proc_1;
 prepare abc from "flush master";
-deallocate prepare abc;
-
-
-create procedure proc_1() flush des_key_file;
-call proc_1();
-call proc_1();
-call proc_1();
-delimiter |;
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
-create function func_1() returns int begin flush des_key_file; return 1; end|
-create function func_1() returns int begin call proc_1(); return 1; end|
-delimiter ;|
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
-select func_1(), func_1(), func_1() from dual;
-drop function func_1;
-drop procedure proc_1;
-prepare abc from "flush des_key_file";
-execute abc;
-execute abc;
-execute abc;
 deallocate prepare abc;
 
 
@@ -3331,6 +3320,8 @@ SELECT @x_str_1, @x_int_1, @x_int_2, @x_int_3;
 --echo
 --echo -- Testing decs...
 
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 --echo
 EXECUTE stmt_dec USING @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
@@ -3338,6 +3329,7 @@ SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 --echo
 EXECUTE stmt_dec USING @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
+--enable_cursor_protocol
 
 --echo
 DEALLOCATE PREPARE stmt_str;
@@ -3570,7 +3562,9 @@ execute st;
 show status like '%Handler_read%';
 flush status;
 --disable_ps2_protocol
+--disable_cursor_protocol
 select * from t1 use index() where a=3;
+--enable_cursor_protocol
 show status like '%Handler_read%';
 --enable_ps2_protocol
 flush status;
@@ -3632,12 +3626,16 @@ DROP TABLE t1, t2;
 --echo # with out of range in GROUP BY
 --echo #
 CREATE TABLE t1 (a INT);
-
---error ER_DATA_OUT_OF_RANGE
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
+execute stmt;
+SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
+insert into t1 values(1),(2);
+--error ER_DATA_OUT_OF_RANGE
+execute stmt;
 --error ER_DATA_OUT_OF_RANGE
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
 
+deallocate prepare stmt;
 drop table t1;
 
 --echo # End of 5.3 tests
@@ -5233,5 +5231,388 @@ $
 delimiter ;$
 
 --echo #
---echo # End of 10.4 tests
+--echo #  MDEV-32965: Assertion `thd->active_stmt_arena_to_use()-> is_stmt_prepare_or_first_sp_execute() || thd->active_stmt_arena_to_use()-> is_conventional() || thd->active_stmt_arena_to_use()->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed
 --echo #
+CREATE TABLE t (f VARCHAR(8)) CHARACTER SET utf8;
+
+INSERT INTO t VALUES ('foo'),('bar');
+EXECUTE IMMEDIATE 'SELECT GROUP_CONCAT(@x) FROM t GROUP BY @x := f';
+
+# Cleanup
+
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-15703: Crash in EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT
+--echo #
+
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)';
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING DEFAULT;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)';
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING IGNORE;
+DEALLOCATE PREPARE stmt;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING IGNORE;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE a INT DEFAULT ?; END' USING DEFAULT;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE a INT DEFAULT ?; END' USING IGNORE;
+
+CREATE PROCEDURE p1(a INT) SELECT 1;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CALL p1(?)' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'CALL p1(?)' USING IGNORE;
+DROP PROCEDURE p1;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT ? UNION SELECT 1' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT ? UNION SELECT 1' USING IGNORE;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION ALL SELECT 1) AS derived' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION ALL SELECT 1) AS derived' USING IGNORE;
+
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION DISTINCT SELECT 1) AS derived' USING DEFAULT;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SELECT * FROM (SELECT ? UNION DISTINCT SELECT 1) AS derived' USING IGNORE;
+
+--echo # multi-update and DEFAULT
+CREATE TABLE t1 (a INT, b INT DEFAULT a);
+INSERT into t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT DEFAULT a);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+UPDATE t1,t2 SET t1.b = DEFAULT, t2.b = DEFAULT WHERE t1.a=t2.a;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--echo # re-check the case for Prepared Statement with parameters
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 VALUES (1,2),(2,3);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING DEFAULT, DEFAULT;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # multi-update and IGNORE
+CREATE TABLE t1 (a INT, b INT default a);
+INSERT INTO t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT default a);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+UPDATE t1,t2 SET t1.b = IGNORE, t2.b = IGNORE WHERE t1.a=t2.a;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--echo # re-check the case for Prepared Statement with parameters
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 VALUES (1,2),(2,3);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING IGNORE, IGNORE;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # multi-update and DEFAULT parameter (no default)
+CREATE TABLE t1 (a INT, b INT NOT NULL);
+INSERT INTO t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT NOT NULL);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+--error ER_NO_DEFAULT_FOR_FIELD
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING DEFAULT, DEFAULT;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # multi-update and IGNORE parameter (no default)
+CREATE TABLE t1 (a INT, b INT NOT NULL);
+INSERT INTO t1 VALUES (1,2),(2,3);
+CREATE TABLE t2 (a INT, b INT NOT NULL);
+INSERT INTO t2 VALUES (1,10),(2,30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET t1.b = ?, t2.b = ? WHERE t1.a=t2.a' USING IGNORE, IGNORE;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-33549: Incorrect handling of UPDATE in PS mode in case a table's colum declared as NOT NULL
+--echo #
+
+CREATE TABLE t1 (a INT, b INT DEFAULT NULL);
+INSERT INTO t1 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1 SET b=?' USING DEFAULT;
+SELECT * FROM t1;
+
+--echo # Run twice the same update in PS mode to check
+--echo # that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1 SET b=?';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # The same test for multi-table update
+CREATE TABLE t1 (a INT, b INT DEFAULT NULL);
+CREATE TABLE t2 (a INT, c INT DEFAULT NULL);
+
+INSERT INTO t1 VALUES (20, 30);
+INSERT INTO t2 VALUES (20, 30);
+
+EXECUTE IMMEDIATE 'UPDATE t1,t2 SET b=? WHERE t1.a=t2.a' USING DEFAULT;
+SELECT * FROM t1;
+--echo # Run twice the same multi-table update in PS mode to check
+--echo # that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1,t2 SET b=? WHERE t1.a=t2.a';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+DEALLOCATE PREPARE stmt;
+--echo # Clean up
+DROP TABLE t1;
+
+--echo # This time checks that a default value for table's column
+--echo # represented by a function call is handled correctly on UPDATE in PS mode
+CREATE TABLE t1 (a INT, b INT DEFAULT MOD(a, 3));
+INSERT INTO t1 VALUES (20, 30);
+EXECUTE IMMEDIATE 'UPDATE t1, t2 SET b=? WHERE t1.a=t2.a' USING DEFAULT;
+SELECT * FROM t1;
+
+--echo # Run twice the same multi-table update in PS mode to check
+--echo # that no memory relating issues taken place.
+PREPARE stmt FROM 'UPDATE t1, t2 SET b=? WHERE t1.a=t2.a';
+EXECUTE stmt USING DEFAULT;
+EXECUTE stmt USING DEFAULT;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # MDEV-33218: Assertion `active_arena->is_stmt_prepare_or_first_stmt_execute() || active_arena->state == Query_arena::STMT_SP_QUERY_ARGUMENTS' failed. in st_select_lex::fix_prepare_information
+CREATE TABLE t1 AS SELECT 1 f;
+PREPARE stmt FROM 'SHOW CREATE TABLE t1';
+DROP TABLE t1;
+--error ER_NO_SUCH_TABLE
+EXECUTE stmt;
+CREATE VIEW t1 AS SELECT 1;
+EXECUTE stmt;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP VIEW t1;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-35330: Assertion `marked_for_read()` failed in VSec9::VSec9 | Item_func_from_unixtime::get_date
+--echo #
+
+CREATE TABLE t (a INT,b TIMESTAMP DEFAULT FROM_UNIXTIME(a));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10');
+
+SELECT * FROM t;
+
+EXECUTE IMMEDIATE 'UPDATE t SET b=?' USING DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+
+CREATE TABLE t (a INT, b INT DEFAULT (a+5));
+INSERT INTO t values (1,2), (2,DEFAULT);
+EXECUTE IMMEDIATE 'INSERT INTO t VALUES (3,4), (4,?)' USING DEFAULT;
+
+SELECT * FROM t;
+
+EXECUTE IMMEDIATE 'UPDATE t SET b=?' USING DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+
+CREATE TABLE t (a INT,b TIMESTAMP DEFAULT FROM_UNIXTIME(a));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10');
+
+SELECT * FROM t;
+
+PREPARE s FROM 'UPDATE t SET b=?';
+EXECUTE s USING DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+
+CREATE TABLE t (a INT, b TIMESTAMP DEFAULT FROM_UNIXTIME(a), c INT DEFAULT (a+5));
+INSERT INTO t VALUES (1,'2025-07-18 18:37:10',3);
+
+SELECT * FROM t;
+
+EXECUTE IMMEDIATE 'UPDATE t SET b=?, c=?' USING DEFAULT, DEFAULT;
+
+SELECT * FROM t;
+
+DROP TABLE t;
+--echo # End of 10.6 tests
+
+--echo # Beginning of 10.11 test
+
+--echo #
+--echo # MDEV-30277: Assertion failure in Diagnostics_area::set_error_status
+--echo # / Reprepare_observer::report_error
+--echo #
+
+CREATE TABLE t (a INT);
+PREPARE stmt FROM " DELETE FROM t LIMIT ?";
+ALTER TABLE t FORCE;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE stmt USING DEFAULT;
+
+DROP TABLE t;
+
+--echo # End of 10.11 test
+
+--echo #
+--echo # MDEV-34322: ASAN heap-buffer-overflow in Field::is_null / Item_param::assign_default or bogus ER_BAD_NULL_ERROR
+--echo #
+CREATE TABLE t1 (a INT NOT NULL DEFAULT '0', b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+# Cleanup
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (30 + 100), b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+# Cleanup
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (b + 100), b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+# Cleanup
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT NOT NULL DEFAULT (FLOOR(RAND()*100)), b INT);
+INSERT INTO t1 VALUES (1,11);
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @x = NULL;
+EXECUTE IMMEDIATE "UPDATE t1 SET a = ?" USING DEFAULT;
+# Cleanup
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-32694: ASAN errors in Binary_string::alloced_length / reset_stmt_params
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7);
+
+PREPARE stmt FROM 'BEGIN NOT ATOMIC SELECT * FROM t1 LIMIT ?; SELECT * FROM t1 LIMIT ?; END';
+--echo # Expected output is row (1) produced by the first query
+--echo # the rows (1), (2), (3) produced by the second one
+EXECUTE stmt USING 1, 3;
+ALTER TABLE t1 ADD COLUMN f INT;
+
+--echo # Because metadata of the table t1 has been changed,
+--echo # the second execution of the same prepared statement should result in
+--echo # re-compilation of the first statement enclosed in the BEGIN / END block
+--echo # and since different actual values are provided to positional parameters
+--echo # on the second execution, the exepected output is the row (1), (2), (3)
+--echo # produced by the first query and the rows (1), (2), (3), (4), (5)
+--echo # produced by the second one
+EXECUTE stmt USING 3, 5;
+
+# Cleanup
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # Check that the order of parameters preserved after re-compilation of a
+--echo # failed statement inside anonymous BEGIN / END block.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+PREPARE stmt FROM 'BEGIN NOT ATOMIC SELECT a, ?, ? FROM t1; END';
+--echo # Expected output is the row (1, 10, 20)
+EXECUTE stmt USING 10, 20;
+ALTER TABLE t1 ADD COLUMN b INT;
+--echo # Expected output is the row (1, 300, 400)
+EXECUTE stmt USING 300, 400;
+ALTER TABLE t1 DROP COLUMN b;
+--echo # Expected output is the row (1, 500, 700)
+EXECUTE stmt USING 500, 700;
+ALTER TABLE t1 ADD COLUMN b INT;
+--echo # Expected output is the row (1, 700, 900)
+EXECUTE stmt USING 700, 900;
+
+# Cleanup
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-38620: Server crashes in setup_returning_fields upon 2nd
+--echo # execution of multi-table-styled DELETE from a view
+--echo #
+
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT * FROM t;
+PREPARE stmt FROM "DELETE v FROM v";
+EXECUTE stmt;
+EXECUTE stmt;
+ 
+DROP VIEW v;
+DROP TABLE t;
+
+--echo # End of 11.4 tests
+
+--echo #
+--echo # MDEV-25008 Delete query gets stuck on mariadb , same query works on MySQL 8.0.21
+--echo #
+
+create table t1 (a int, b int, primary key (a), key (b));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+CREATE TABLE t2 ( id INT(10) );
+insert into t2 values (1),(2);
+
+# calls select_lex->optimize_unflattened_subqueries(false) in the err label
+set @@optimizer_switch="index_merge=off";
+set sql_safe_updates=1;
+set @var1=1;
+set @var2=2;
+prepare stmt from 'update t1 set b=(SELECT 1 FROM t2 WHERE id = t1.a) where 1=? or b=2';
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+execute stmt using @var1;
+execute stmt using @var2;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1 where a=1 or b=2;
+drop table t1, t2;
+
+--echo # End of 11.7 tests
+
+--source include/test_db_charset_restore.inc

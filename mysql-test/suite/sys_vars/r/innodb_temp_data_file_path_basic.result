@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.innodb_temp_data_file_path)
 1
 1 Expected
 SELECT innodb_temp_data_file_path = @@SESSION.innodb_temp_data_file_path;
-ERROR 42S22: Unknown column 'innodb_temp_data_file_path' in 'field list'
+ERROR 42S22: Unknown column 'innodb_temp_data_file_path' in 'SELECT'
 Expected error 'Readonly variable'

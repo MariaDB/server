@@ -9,10 +9,6 @@
 # Slow test, don't run during staging part
 -- source include/not_staging.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
-
 connect (comp_con,localhost,root,,,,,COMPRESS);
 
 # Check compression turned on
@@ -27,7 +23,3 @@ SHOW STATUS LIKE 'Compression';
 
 connection default;
 disconnect comp_con;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-

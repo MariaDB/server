@@ -20,7 +20,7 @@ SET @old_general_log_file=    @@global.general_log_file;
 SET GLOBAL general_log_file = '.../log/rewrite_general_con.log';
 SET GLOBAL log_output =       'FILE,TABLE';
 SET GLOBAL general_log=       'ON';
-connect con1, localhost, root,,;
+connect con1, localhost, root,,test;
 select NAME, PROCESSLIST_USER, PROCESSLIST_HOST, CONNECTION_TYPE
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();

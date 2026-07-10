@@ -1,0 +1,23 @@
+#
+# MENT-2042 Assertion `bf_aborted()' failed in  wsrep::transaction::xa_replay_common()
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--connection node_1
+--let connection_id = `SELECT CONNECTION_ID()`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+#
+# Execute XA transaction up to COMMIT
+#
+
+--error ER_NOT_SUPPORTED_YET
+XA START 'a';
+
+DROP TABLE t1;
+--disconnect node_1a

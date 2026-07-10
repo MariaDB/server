@@ -48,6 +48,7 @@ our $timestamp= 0;
 our $timediff= 0;
 our $name;
 our $verbose;
+# TODO: no option for that? Why is it different from $verbose?
 our $verbose_restart= 0;
 our $timer= 1;
 our $tests_total;
@@ -72,6 +73,34 @@ if (-t STDOUT) {
   } elsif ($ENV{TERM} =~ /xterm/) {
     $set_titlebar = sub { syswrite STDOUT, "\e]0;$_[0]\a"; };
     $set_color = sub { syswrite STDOUT, color($color_map{$_[0]}); }
+  }
+}
+
+# On Windows, stdio does not support line buffering
+# This can make MTR output from multiple forked processes interleaved, messed up.
+# Below is DYI stdout line buffering.
+my $out_line="";
+
+# Flush buffered line
+sub flush_out {
+    print $out_line;
+    $out_line = "";
+}
+
+use if $^O eq "MSWin32", "threads::shared";
+our $flush_lock :shared;
+
+# Print to stdout
+sub print_out {
+  if(IS_WIN32PERL) {
+    $out_line .= $_[0];
+    # Flush buffered output on new lines.
+    if (rindex($_[0], "\n") != -1) {
+      lock($flush_lock);
+      flush_out();
+    }
+  } else {
+    print($_[0]);
   }
 }
 
@@ -115,10 +144,10 @@ sub _mtr_report_test_name ($) {
 
   return unless defined $verbose;
 
-  print _name(). _timestamp();
-  printf "%-40s ", $tname;
+  print_out _name(). _timestamp();
+  print_out (sprintf "%-40s ", $tname);
   my $worker = $tinfo->{worker};
-  print "w$worker " if defined $worker;
+  print_out "w$worker " if defined $worker;
 
   return $tname;
 }
@@ -425,9 +454,8 @@ sub mtr_report_stats ($$$$) {
     # Print info about reporting the error
     print
       "The log files in var/log may give you some hint of what went wrong.\n\n",
-      "If you want to report this error, please read first ",
-      "the documentation\n",
-      "at http://dev.mysql.com/doc/mysql/en/mysql-test-suite.html\n\n";
+      "If you want to report this error, MariaDB's bug tracker is found at\n",
+      "https://jira.mariadb.org\n\n";
 
    }
   else
@@ -660,14 +688,14 @@ sub mtr_report (@) {
   {
     my @s = split /\[ (\S+) \]/, _name() . "@_\n";
     if (@s > 1) {
-      print $s[0];
+      print_out $s[0];
       &$set_color($s[1]);
-      print "[ $s[1] ]";
+      print_out "[ $s[1] ]";
       &$set_color('reset');
-      print $s[2];
+      print_out $s[2];
       titlebar_stat($s[1]) if $set_titlebar;
     } else {
-      print $s[0];
+      print_out $s[0];
     }
   }
 }
@@ -675,6 +703,7 @@ sub mtr_report (@) {
 
 # Print warning to screen
 sub mtr_warning (@) {
+  flush_out();
   print STDERR _name(). _timestamp().
     "mysql-test-run: WARNING: ". join(" ", @_). "\n";
 }
@@ -682,7 +711,7 @@ sub mtr_warning (@) {
 
 # Print error to screen and then exit
 sub mtr_error (@) {
-  IO::Handle::flush(\*STDOUT) if IS_WINDOWS;
+  flush_out();
   print STDERR _name(). _timestamp().
     "mysql-test-run: *** ERROR: ". join(" ", @_). "\n";
   if (IS_WINDOWS)

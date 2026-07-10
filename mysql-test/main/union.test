@@ -1,6 +1,8 @@
 #
 # Test of unions
 #
+--source include/have_sequence.inc
+
 
 CREATE TABLE t1 (a int not null, b char (10) not null);
 insert into t1 values(1,'a'),(2,'b'),(3,'c'),(3,'c');
@@ -503,7 +505,7 @@ insert into t1 select * from t2;
 insert into t2 select * from t1;
 insert into t1 select * from t2;
 insert into t2 select * from t1;
-set local tmp_table_size=1024;
+set local tmp_table_size=16384;
 select count(*) from (select * from t1 union all select * from t2 order by 1) b;
 select count(*) from t1;
 select count(*) from t2;
@@ -523,6 +525,7 @@ insert t1 select a+1, a+b from t1;
 FLUSH STATUS;
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 show status like 'Slow_queries';
 select count(*) from t1 where a=7;
 show status like 'Slow_queries';
@@ -536,6 +539,7 @@ show status like 'Slow_queries';
 flush status;
 select a from t1 where b not in (1,2,3) union select a from t1 where b not in (4,5,6); 
 show status like 'Slow_queries';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 drop table t1;
@@ -1113,7 +1117,6 @@ DROP TABLE t1;
 -- echo # Bug#32858: Error: "Incorrect usage of UNION and INTO" does not take 
 -- echo # subselects into account
 -- echo #
---disable_ps2_protocol
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
@@ -1161,7 +1164,6 @@ SELECT ( SELECT a UNION SELECT a ) INTO DUMPFILE 'union.out.file4' FROM t1;
 
 DROP TABLE t1;
 remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.1/data/test union.out.fil*;
---enable_ps2_protocol
 
 --echo # 
 --echo # Bug #49734: Crash on EXPLAIN EXTENDED UNION ... ORDER BY 
@@ -1390,9 +1392,11 @@ INSERT INTO t3 VALUES (7), (8), (9);
 TRUNCATE table mysql.slow_log;
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 --sorted_result
 SELECT * FROM t17059925 UNION SELECT * FROM t2 UNION SELECT * FROM t3;
 SELECT sql_text, rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%t17059925%';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps_protocol
 DROP TABLE t17059925, t2, t3;
@@ -2028,3 +2032,21 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo
+--echo # check union all & union distinct
+--echo
+
+select 1 as res union select 2 union select 1 union select 2;
+select 1 as res union distinct select 2 union distinct select 1 union distinct select 2;
+select 1 as res union all select 2 union all select 1 union all select 2;
+
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union select 2;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union distinct select 2;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2;
+
+select 1 as res union all select 2 union distinct select 1 union all select 2;
+select 1 as res union select 2 union all select 1 union distinct select 3;
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2;
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2 union distinct select 5;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2 union all select 1 union distinct select 3 union all select 2;

@@ -457,7 +457,8 @@ if ($is_remote == 1)
 {
     --echo #
     --echo # Reset server state
-    RESET MASTER;
+    # Use the include script to kill any lingering dump threads first.
+    --source include/reset_master.inc
     --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE.orig | $MYSQL
     FLUSH LOGS;
     --exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILE2.orig | $MYSQL

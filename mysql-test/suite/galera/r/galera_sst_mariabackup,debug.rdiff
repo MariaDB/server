@@ -1,5 +1,5 @@
 --- r/galera_sst_mariabackup.result
-+++ r/galera_sst_mariabackup.reject
++++ r/galera_sst_mariabackup,debug.reject
 @@ -516,5 +516,189 @@
  1
  DROP TABLE t1;
@@ -188,5 +188,6 @@
 +DROP TABLE t1;
 +COMMIT;
 +SET GLOBAL debug_dbug = $debug_orig;
- disconnect node_2;
- disconnect node_1;
+ connection node_2;
+ Shutting down server ...
+ connection node_1;

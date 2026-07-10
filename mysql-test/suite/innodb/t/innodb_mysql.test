@@ -41,7 +41,7 @@ drop table t1, t2;
 
 SET SESSION BINLOG_FORMAT=STATEMENT;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-query_vertical select @@session.sql_log_bin, @@session.binlog_format, @@session.tx_isolation;
+query_vertical select @@session.sql_log_bin, @@session.binlog_format, @@session.transaction_isolation;
 CREATE TABLE t1 ( a INT ) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 DROP TABLE t1;
@@ -301,7 +301,7 @@ BEGIN
 END||
 delimiter ;||
 
---echo ** DELETE is prevented by foreign key constrains but errors are silenced.
+--echo ** DELETE is prevented by foreign key constraints but errors are silenced.
 --echo ** The AFTER trigger isn't fired.
 DELETE IGNORE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
 --echo ** Tables are modified by best effort:
@@ -625,7 +625,9 @@ CREATE TABLE t2 (a INT, b INT,
 --echo # set up our data elements
 INSERT INTO t1 (d) VALUES (1);
 INSERT INTO t2 (a,b) VALUES (1,1);
+--disable_cursor_protocol
 SELECT SECOND(c) INTO @bug47453 FROM t2;
+--enable_cursor_protocol
 
 SELECT SECOND(c)-@bug47453 FROM t1 JOIN t2 ON d=a;
 UPDATE t1 JOIN t2 ON d=a SET b=1 WHERE a=1;
@@ -968,7 +970,6 @@ UPDATE t1 SET y = 1 WHERE x = 1;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 COMMIT;
 DROP TABLE t1;

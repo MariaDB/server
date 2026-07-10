@@ -26,14 +26,6 @@
 #include "m_string.h"                           // strlen
 #include "sql_plugin.h"                         // st_plugin_int
 
-/*
-  Disable __attribute__() on non-gcc compilers.
-*/
-#if !defined(__attribute__) && !defined(__GNUC__)
-#define __attribute__(A)
-#endif
-
-
 #define HEART_STRING_BUFFER 100
   
 struct mysql_heartbeat_context
@@ -77,14 +69,14 @@ pthread_handler_t mysql_heartbeat(void *p)
     daemon_example_plugin_init()
 
   DESCRIPTION
-    Starts up heartbeatbeat thread
+    Starts up heartbeat thread (mysql_heartbeat)
 
   RETURN VALUE
     0                    success
     1                    failure (cannot happen)
 */
 
-static int daemon_example_plugin_init(void *p __attribute__ ((unused)))
+static int daemon_example_plugin_init(void *p)
 {
 
   DBUG_ENTER("daemon_example_plugin_init");
@@ -150,7 +142,7 @@ static int daemon_example_plugin_init(void *p __attribute__ ((unused)))
 
 */
 
-static int daemon_example_plugin_deinit(void *p __attribute__ ((unused)))
+static int daemon_example_plugin_deinit(void *p)
 {
   DBUG_ENTER("daemon_example_plugin_deinit");
   char buffer[HEART_STRING_BUFFER];
@@ -162,6 +154,10 @@ static int daemon_example_plugin_deinit(void *p __attribute__ ((unused)))
 
   pthread_cancel(con->heartbeat_thread);
   pthread_join(con->heartbeat_thread, NULL);
+  /*
+    As thread is joined, we can close the file it writes to and
+    free the memory it uses.
+  */
 
   localtime_r(&result, &tm_tmp);
   my_snprintf(buffer, sizeof(buffer),
@@ -173,12 +169,6 @@ static int daemon_example_plugin_deinit(void *p __attribute__ ((unused)))
               tm_tmp.tm_min,
               tm_tmp.tm_sec);
   my_write(con->heartbeat_file, (uchar*) buffer, strlen(buffer), MYF(0));
-
-  /*
-    Need to wait for the hearbeat thread to terminate before closing
-    the file it writes to and freeing the memory it uses.
-  */
-  pthread_join(con->heartbeat_thread, NULL);
 
   my_close(con->heartbeat_file, MYF(0));
 

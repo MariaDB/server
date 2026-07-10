@@ -1,0 +1,13 @@
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-32637 Implement native UUID7 function
+--echo #
+
+SELECT UUID_v7() REGEXP '[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}' AS is_correct_version_and_revision;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

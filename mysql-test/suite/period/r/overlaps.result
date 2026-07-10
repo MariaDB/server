@@ -10,8 +10,22 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`id`)
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+def	test	PRIMARY	def	test	t	p
+create or replace table t_multi(id int, id2 int, s date, e date,
+period for very_interesting_period(s,e),
+primary key(id, very_interesting_period without overlaps),
+unique(id2, very_interesting_period without overlaps)
+);
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+def	test	PRIMARY	def	test	t	p
+def	test	PRIMARY	def	test	t_multi	very_interesting_period
+def	test	id2	def	test	t_multi	very_interesting_period
+drop table t_multi;
 insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-05-01', '2003-07-01');
 insert into t values (1, '2003-02-01', '2003-04-01');
@@ -148,7 +162,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   UNIQUE KEY `u` (`u`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (1, 3, '2003-04-01', '2003-05-01');
@@ -167,7 +181,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   UNIQUE KEY `u` (`u`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t values (2, NULL, '2003-03-01', '2003-05-01');
 insert into t values (2, NULL, '2003-03-01', '2003-05-01');
 ERROR 23000: Duplicate entry '2-2003-05-01-2003-03-01' for key 'PRIMARY'
@@ -211,7 +225,7 @@ t	CREATE TABLE `t` (
   `y` int(11) DEFAULT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop y;
 create or replace table t1 like t;
 show create table t1;
@@ -222,7 +236,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps));
@@ -313,7 +327,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   UNIQUE KEY `f` (`f`,`p` WITHOUT OVERLAPS)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1000
 (PARTITION `p1` HISTORY ENGINE = InnoDB,
  PARTITION `p2` HISTORY ENGINE = InnoDB,
@@ -449,3 +463,85 @@ VALUES
 ('2000-01-01 00:00:00.000000', '2001-01-01 00:00:00.000000', 'abc');
 ERROR 23000: Duplicate entry 'abc-2001-01-01 00:00:00.000000-2000-01-01 00:00:00.000000' for key 'index_name'
 DROP TABLE t1;
+# MDEV-25370 Update for portion changes autoincrement key in period table
+create or replace table cars(id int auto_increment,
+price int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps));
+insert into cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+select * from cars;
+id	price	s	e
+1	1000	2018-01-01	2020-01-01
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+select * from cars;
+id	price	s	e
+1	1000	2018-01-01	2019-01-01
+1	1000	2019-12-01	2020-01-01
+1	1100	2019-01-01	2019-12-01
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+select * from cars;
+id	price	s	e
+1	1000	2018-01-01	2019-01-01
+1	1000	2019-12-01	2019-12-10
+1	1000	2019-12-20	2020-01-01
+1	1100	2019-01-01	2019-12-01
+# AUTO_INCREMENT field is separate from WITHOUT OVERLAPS
+create or replace table cars(id int primary key auto_increment, 
+car_id int,
+price int, s date, e date,
+period for p(s,e),
+unique(car_id, p without overlaps));
+insert cars(car_id, price, s, e) values (1, 1000, '2018-01-01', '2020-01-01');
+select * from cars;
+id	car_id	price	s	e
+1	1	1000	2018-01-01	2020-01-01
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+select * from cars;
+id	car_id	price	s	e
+1	1	1100	2019-01-01	2019-12-01
+2	1	1000	2018-01-01	2019-01-01
+3	1	1000	2019-12-01	2020-01-01
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+select * from cars;
+id	car_id	price	s	e
+1	1	1100	2019-01-01	2019-12-01
+2	1	1000	2018-01-01	2019-01-01
+4	1	1000	2019-12-01	2019-12-10
+5	1	1000	2019-12-20	2020-01-01
+# AUTO_INCREMENT field is both standalone and in WITHOUT OVERLAPS
+create or replace table cars(id int primary key auto_increment,
+price int, s date, e date,
+period for p(s,e),
+unique(id, p without overlaps));
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+insert cars(price, s, e) values (1000, '2021-01-01', '2022-01-01');
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+# autoincrement index is: id int primary key
+# id increments each time.
+select * from cars;
+id	price	s	e
+1	1100	2019-01-01	2019-12-01
+2	1000	2021-01-01	2022-01-01
+3	1000	2018-01-01	2019-01-01
+4	1000	2019-12-01	2020-01-01
+truncate cars;
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+select * from cars;
+id	price	s	e
+2	1000	2018-01-01	2019-12-10
+3	1000	2019-12-20	2020-01-01
+create or replace table cars(id int unique auto_increment,
+price int, s date, e date,
+period for p(s,e),
+primary key (id, p without overlaps));
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+# autoincrement index is: primary key (id, p without overlaps)
+# id is not incremented, hence duplication error
+update cars for portion of p from '2019-01-01' to '2019-12-01' set price= 1100;
+ERROR 23000: Duplicate entry '1' for key 'id'
+truncate cars;
+insert cars(price, s, e) values (1000, '2018-01-01', '2020-01-01');
+delete from cars for portion of p from '2019-12-10' to '2019-12-20';
+ERROR 23000: Duplicate entry '1' for key 'id'
+drop table cars;

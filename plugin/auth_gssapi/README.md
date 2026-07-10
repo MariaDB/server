@@ -49,7 +49,7 @@ Usually nothing need to be done.  MariaDB server should to run on a domain joine
 Creating service principal is not required here (but you can still do it using [_setspn_](https://technet.microsoft.com/en-us/library/cc731241.aspx) tool)
 
 
-# Installing plugin
+## Installing plugin
 -	Start the server
 
 -	On Unix, edit my the my.cnf/my.ini configuration file, set the parameter gssapi-keytab-path to point to previously
@@ -72,7 +72,7 @@ configure alternative principal name with
 	INSTALL SONAME 'auth_gssapi'
 ```
 
-#Creating users
+## Creating users
 
 Now, you can create a user for GSSAPI/SSPI authentication. CREATE USER command, for Kerberos user
 would be like this (*long* form, see below for short one)
@@ -94,7 +94,7 @@ CREATE USER usr1 IDENTIFIED WITH gssapi;
 If this syntax is used, realm part is *not* used for comparison
 thus 'usr1@EXAMPLE.COM', 'usr1@EXAMPLE.CO.UK' and 'mymachine\usr1' will all identify as 'usr1'.
 
-#Login as GSSAPI user with command line clients
+## Login as GSSAPI user with command line clients
 
 Using command line client, do
 
@@ -102,7 +102,7 @@ Using command line client, do
 mysql --plugin-dir=/path/to/plugin-dir -u usr1
 ```
 
-#Plugin variables
+## Plugin variables
 -	**gssapi-keytab-path** (Unix only) - Path to the server keytab file
 -	**gssapi-principal-name** - name of the service principal.
 -	**gssapi-mech-name** (Windows only) - Name of the SSPI package used by server. Can be either 'Kerberos' or 'Negotiate'.
@@ -111,7 +111,7 @@ mysql --plugin-dir=/path/to/plugin-dir -u usr1
  to allow non-domain environment (e.g if server does not run in domain environment).
 
 
-#Implementation
+## Implementation
 
 Overview of the protocol between client and server
 

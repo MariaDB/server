@@ -1,6 +1,7 @@
 --source innodb_default_row_format.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/test_db_charset_latin1.inc
 
 --echo #
 --echo # MDEV-23244 ALTER TABLE…ADD PRIMARY KEY fails to flag
@@ -33,3 +34,16 @@ SET DEBUG_SYNC='RESET';
 
 SELECT * FROM t1;
 DROP TABLE t0,t1;
+
+--source include/test_db_charset_restore.inc
+
+--echo #
+--echo # MDEV-35419 Server crashes when a adding column to the table which has a primary key using hash
+--echo #
+# it's not really using hash, it ignores the declaration
+# for ALTER from MEMORY and back to be possible
+create table t1 (a int,primary key using hash (a)) engine=innodb;
+alter table t1 add b int;
+drop table t1;
+
+--echo # End of 11.7 tests

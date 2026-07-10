@@ -1,0 +1,17 @@
+call mtr.add_suppression("\\[ERROR\\] SPIDER plugin initialization failed");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER_WRAPPER_PROTOCOLS' registration as a INFORMATION SCHEMA failed.");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER_ALLOC_MEM' registration as a INFORMATION SCHEMA failed.");
+# We create a table with identical name of the spider system table, to
+# fail the spider init query ([ERROR] SPIDER plugin initialization
+# failed at 'alter table mysql.spider_tables add column if not exists
+# link_id int not null default 0 after table_name, drop primary key,
+# add primary key (db_name, table_name, link_id), algorithm=copy,
+# lock=shared;' by 'Unknown column 'table_name' in 'spider_tables'')
+# This will cause the init of spider_alloc_mem to fail because it
+# depends on the main spider plugin.
+create table mysql.spider_tables (c int);
+--let $restart_parameters= --plugin-load-add=ha_spider
+--source include/restart_mysqld.inc
+SELECT * FROM information_schema.SPIDER_ALLOC_MEM;
+SELECT * FROM information_schema.SPIDER_WRAPPER_PROTOCOLS;

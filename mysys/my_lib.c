@@ -57,7 +57,7 @@
 #define NAMES_START_SIZE   32768
 
 
-static int	comp_names(struct fileinfo *a,struct fileinfo *b);
+static int	comp_names(const void *a, const void *b);
 
 typedef struct {
   MY_DIR        dir;
@@ -83,8 +83,10 @@ void my_dirend(MY_DIR *dir)
 
         /* Compare in sort of filenames */
 
-static int comp_names(struct fileinfo *a, struct fileinfo *b)
+static int comp_names(const void *a_, const void *b_)
 {
+  const struct fileinfo *a= a_;
+  const struct fileinfo *b= b_;
   return (strcmp(a->name,b->name));
 } /* comp_names */
 
@@ -142,7 +144,15 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
 
   dp= (struct dirent*) dirent_tmp;
   
+  /* readdir_r is deprecated on macOS but still used for older platforms */
+#ifdef __APPLE__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
   while (!(READDIR(dirp,(struct dirent*) dirent_tmp,dp)))
+#ifdef __APPLE__
+#pragma GCC diagnostic pop
+#endif
   {
     MY_STAT statbuf, *mystat= 0;
     
@@ -199,7 +209,7 @@ err_open:
 
 /*
 *****************************************************************************
-** Read long filename using windows rutines
+** Read long filename using windows routines
 *****************************************************************************
 */
 
@@ -332,13 +342,6 @@ int my_fstat(File Filedes, MY_STAT *stat_area,
   DBUG_PRINT("my",("fd: %d  MyFlags: %lu", Filedes, MyFlags));
 #ifdef _WIN32
   DBUG_RETURN(my_win_fstat(Filedes, stat_area));
-#elif defined HAVE_valgrind
-  {
-    int s= fstat(Filedes, stat_area);
-    if (!s)
-      MSAN_STAT_WORKAROUND(stat_area);
-    DBUG_RETURN(s);
-  }
 #else
   DBUG_RETURN(fstat(Filedes, (struct stat *) stat_area));
 #endif
@@ -355,13 +358,10 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
   if ((m_used= (stat_area == NULL)))
     if (!(stat_area= (MY_STAT *) my_malloc(key_memory_MY_STAT, sizeof(MY_STAT),
                                            my_flags)))
-      goto error;
+      goto err;
 #ifndef _WIN32
   if (!stat((char *) path, (struct stat *) stat_area))
-  {
-    MSAN_STAT_WORKAROUND(stat_area);
     DBUG_RETURN(stat_area);
-  }
 #else
   if (!my_win_stat(path, stat_area))
     DBUG_RETURN(stat_area);
@@ -371,7 +371,7 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
   if (m_used)					/* Free if new area */
     my_free(stat_area);
 
-error:
+err:
   if (my_flags & (MY_FAE+MY_WME))
   {
     my_error(EE_STAT, MYF(ME_BELL), path, my_errno);

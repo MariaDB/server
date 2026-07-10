@@ -1,0 +1,22 @@
+-- source include/have_working_dns.inc
+-- source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-37262 XMLISVALID() schema validation function.
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (
+  x XMLTYPE
+) CHARACTER SET utf8;
+
+INSERT INTO t1 VALUES ('<root> TEXT </root>');
+
+--replace_regex /1 row in set [(].*[)]/0 rows in set (TIME)/
+--exec $MYSQL -vvv --column-type-info --database=test -e "SELECT * FROM t1;"
+
+--replace_regex /1 row in set [(].*[)]/0 rows in set (TIME)/
+--exec $MYSQL -vvv --column-type-info --database=test -e "SELECT CAST('<a></a>' AS XMLTYPE) as C;"
+
+DROP TABLE t1;
+

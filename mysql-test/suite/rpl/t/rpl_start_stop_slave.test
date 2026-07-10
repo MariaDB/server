@@ -9,7 +9,7 @@
 #
 # ==== Method ====
 #
-#This is a new functionality of having an interruptable sleep of the slave.
+#This is a new functionality of having an interruptible sleep of the slave.
 #We find the thread id for the slave thread. On finding the thread ID of the 
 #slave thread we kill the slave thread. A successful kill in less than 60 sec 
 #should serve the purpose of checking the functionality.
@@ -19,7 +19,17 @@
 --source include/master-slave.inc
 
 connection slave;
---let $connection_id=`SELECT id FROM information_schema.processlist where state LIKE 'Waiting for master to send event'`
+--let $i= 100
+while ($i > 0) {
+  dec $i;
+  --let $connection_id=`SELECT id FROM information_schema.processlist where state LIKE 'Waiting for master to send event'`
+  if ($connection_id) {
+    let $i= 0;
+  }
+  if ($i > 0) {
+    --sleep 0.1
+  }
+}
 
 if(!$connection_id)
 {

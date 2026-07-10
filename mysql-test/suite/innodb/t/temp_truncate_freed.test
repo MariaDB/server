@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+
+set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
+set @old_immediate_scrub_data_val= @@innodb_immediate_scrub_data_uncompressed;
+
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SET GLOBAL innodb_immediate_scrub_data_uncompressed=1;
+SET GLOBAL innodb_buffer_pool_size= 16777216;
+
+CREATE TEMPORARY TABLE t1(c1 MEDIUMTEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (repeat(1,16777215));
+DROP TEMPORARY TABLE t1;
+SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
+SET GLOBAL innodb_buffer_pool_size=10485760;
+
+set global innodb_immediate_scrub_data_uncompressed = @old_immediate_scrub_data_val;
+# this may occasionally be aborted on a heavily loaded builder
+--error 0,ER_WRONG_USAGE
+set global innodb_buffer_pool_size = @old_innodb_buffer_pool_size;

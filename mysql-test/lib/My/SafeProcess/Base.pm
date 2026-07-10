@@ -114,6 +114,10 @@ sub create_process {
 
     lock($win32_spawn_lock);
 
+    # STDOUT/STDERR are temporarily reassigned, avoid prevent
+    # output from another thread
+    lock($mtr_report::flush_lock);
+
     #printf STDERR "stdin %d, stdout %d, stderr %d\n",
     #    fileno STDIN, fileno STDOUT, fileno STDERR;
 
@@ -156,7 +160,7 @@ sub create_process {
       die "create_process failed: $^E";
     }
 
-    # Retore IO redirects
+    # Restore IO redirects
     open STDERR, '>&', $olderr
       or croak("unable to reestablish STDERR");
     open STDOUT, '>&', $oldout

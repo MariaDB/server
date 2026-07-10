@@ -1,0 +1,27 @@
+--echo #
+--echo # DuckDB transaction tests
+--echo #
+
+# -----------------------------------------------------------------
+# Suite 1: binlog ON, basic transaction ability
+# -----------------------------------------------------------------
+--echo # Suite 1: Basic transactions (binlog ON)
+
+--source ../include/transaction_basic.inc
+
+# -----------------------------------------------------------------
+# Suite 2: binlog OFF, basic transaction ability
+# -----------------------------------------------------------------
+--echo # Suite 2: Basic transactions (binlog OFF)
+
+--let $restart_parameters=--skip-log-bin
+--source include/restart_mysqld.inc
+
+--source ../include/transaction_basic.inc
+
+# -----------------------------------------------------------------
+# Restore default parameters
+# -----------------------------------------------------------------
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+

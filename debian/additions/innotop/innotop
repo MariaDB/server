@@ -469,7 +469,7 @@ sub parse_status_text {
    # too many locks to print, the output might be truncated)
 
    my $time_text;
-   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[0-9]\./) ) {
+   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10|11\.[0-9]\./) ) {
       ( $time_text ) = $fulltext =~ m/^([0-9-]* [0-9:]*) [0-9a-fx]* INNODB MONITOR OUTPUT/m;
       $innodb_data{'ts'} = [ parse_innodb_timestamp_56( $time_text ) ];
    } else {
@@ -640,7 +640,7 @@ sub parse_fk_section {
    return 0 unless $fulltext;
 
    my ( $ts, $type );
-   if ( ($mysqlversion =~ /^5.[67]\./) || ($mysqlversion =~ /^10.[0-9]\./) ) {
+   if ( ($mysqlversion =~ /^5.[67]\./) || ($mysqlversion =~ /^10|11.[0-9]\./) ) {
       ( $ts, $type ) = $fulltext =~ m/^([0-9-]* [0-9:]*)\s[0-9a-fx]*\s+(\w+)/m;
       $section->{'ts'} = [ parse_innodb_timestamp_56( $ts ) ];
    } else {
@@ -901,7 +901,7 @@ sub parse_dl_section {
    my ( $ts ) = $fulltext =~ m/^$s$/m;
    return 0 unless $ts;
 
-   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[0-9]\./) ) {
+   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10|11\.[0-9]\./) ) {
       $dl->{'ts'} = [ parse_innodb_timestamp_56( $ts ) ];
    }
    else {

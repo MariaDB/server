@@ -1,12 +1,14 @@
-INCLUDE (CheckCSourceRuns)
 INCLUDE (ExternalProject)
 
 SET(WITH_PCRE "auto" CACHE STRING
    "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
 
 MACRO(BUNDLE_PCRE2)
+  SET(WITH_PCRE "bundled" CACHE STRING
+   "Which pcre to use (possible values are 'bundled', 'system', or 'auto')")
+
   SET(dir "${CMAKE_BINARY_DIR}/extra/pcre2")
-  SET(PCRE_INCLUDES ${dir}/src/pcre2-build ${dir}/src/pcre2/src)
+  MESSAGE(STATUS "Will download and bundle pcre2")
   SET(byproducts)
   FOREACH(lib pcre2-posix pcre2-8)
     ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
@@ -40,22 +42,31 @@ MACRO(BUNDLE_PCRE2)
     ENDIF()
     SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
+    MAKE_DIRECTORY(${dir}/src/pcre2-build/interface)
+    TARGET_INCLUDE_DIRECTORIES(${lib} INTERFACE ${dir}/src/pcre2-build/interface)
   ENDFOREACH()
+
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINSIZEREL")
-    STRING(REPLACE "/WX" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
-    SET(pcre2_flags${v} "${pcre2_flags${v}} -std=c99 ")
+    SET(pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
     IF(MSVC)
+      STRING(REPLACE "/WX" "" pcre2_flags${v} "${pcre2_flags${v}}")
       # Suppress a warning
-      STRING(APPEND pcre2_flags${v} " /wd4244 " )
-      # Disable asan support
-      STRING(REPLACE "-fsanitize=address" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
+      STRING(APPEND pcre2_flags${v} " /wd4244 /wd4267 " )
     ENDIF()
   ENDFOREACH()
+
+  IF(CMAKE_MSVC_RUNTIME_LIBRARY)
+    SET(CMAKE_MSVC_RUNTIME_LIBRARY_ARG
+      "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}")
+  ELSE()
+    SET(CMAKE_MSVC_RUNTIME_LIBRARY_ARG)
+  ENDIF()
+
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.42/pcre2-10.42.zip"
-    URL_MD5 fe90992fbfb03f854bd9f344074f49eb
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.zip"
+    URL_MD5 7906aec38f872b74f1b925122dde9069
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"
@@ -69,6 +80,7 @@ MACRO(BUNDLE_PCRE2)
       "-DCMAKE_C_FLAGS_RELEASE=${pcre2_flags_RELEASE}"
       "-DCMAKE_C_FLAGS_MINSIZEREL=${pcre2_flags_MINSIZEREL}"
       "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+      ${CMAKE_MSVC_RUNTIME_LIBRARY_ARG}
       ${stdlibs}
       ${byproducts}
   )
@@ -76,18 +88,28 @@ SET_TARGET_PROPERTIES(pcre2 PROPERTIES EXCLUDE_FROM_ALL TRUE)
 ENDMACRO()
 
 MACRO (CHECK_PCRE)
-  IF(WITH_PCRE STREQUAL "system" OR WITH_PCRE STREQUAL "auto")
-    CHECK_LIBRARY_EXISTS(pcre2-8 pcre2_match_8 "" HAVE_PCRE2)
-  ENDIF()
-  IF(NOT HAVE_PCRE2 OR WITH_PCRE STREQUAL "bundled")
-    IF (WITH_PCRE STREQUAL "system")
-      MESSAGE(FATAL_ERROR "system pcre2-8 library is not found or unusable")
+  IF (NOT TARGET pcre2 AND NOT PCRE_FOUND)
+    IF(WITH_PCRE STREQUAL "system" OR WITH_PCRE STREQUAL "auto")
+      FIND_PACKAGE(PkgConfig QUIET)
+      PKG_CHECK_MODULES(PCRE libpcre2-8)
+      # in case pkg-config or libpcre2-8.pc is not installed:
+      CHECK_LIBRARY_EXISTS(pcre2-8 pcre2_match_8 "${PCRE_LIBRARY_DIRS}" HAVE_PCRE2_MATCH_8)
+      find_path(PCRE2_INCLUDE_DIR NAMES pcre2.h)
+      MESSAGE_ONCE(PCRE2_H "Looking for include file pcre2.h: ${PCRE2_INCLUDE_DIR}")
+      IF (PCRE2_INCLUDE_DIR)
+        SET(PCRE_INCLUDE_DIRS ${PCRE2_INCLUDE_DIR})
+      ENDIF()
     ENDIF()
-    BUNDLE_PCRE2()
-  ELSE()
-    CHECK_LIBRARY_EXISTS(pcre2-posix PCRE2regcomp "" NEEDS_PCRE2_DEBIAN_HACK)
-    IF(NEEDS_PCRE2_DEBIAN_HACK)
-      SET(PCRE2_DEBIAN_HACK "-Dregcomp=PCRE2regcomp -Dregexec=PCRE2regexec -Dregerror=PCRE2regerror -Dregfree=PCRE2regfree")
+    IF(NOT HAVE_PCRE2_MATCH_8 OR NOT PCRE_INCLUDE_DIRS OR WITH_PCRE STREQUAL "bundled")
+      IF (WITH_PCRE STREQUAL "system")
+        MESSAGE(FATAL_ERROR "system pcre2-8 library is not found or unusable")
+      ENDIF()
+      BUNDLE_PCRE2()
+    ELSE()
+      CHECK_LIBRARY_EXISTS(pcre2-posix PCRE2regcomp "${PCRE_LIBRARY_DIRS}" NEEDS_PCRE2_DEBIAN_HACK)
+      IF(NEEDS_PCRE2_DEBIAN_HACK)
+        SET(PCRE2_DEBIAN_HACK "-Dregcomp=PCRE2regcomp -Dregexec=PCRE2regexec -Dregerror=PCRE2regerror -Dregfree=PCRE2regfree")
+      ENDIF()
     ENDIF()
   ENDIF()
 ENDMACRO()

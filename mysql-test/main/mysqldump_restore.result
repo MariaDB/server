@@ -34,7 +34,7 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ANSI_QUOTES';
 INSERT INTO t1 VALUES (1.2345, 2.3456);
 INSERT INTO t1 VALUES ('1.2345', 2.3456);
 INSERT INTO t1 VALUES ("1.2345", 2.3456);
-ERROR 42S22: Unknown column '1.2345' in 'field list'
+ERROR 42S22: Unknown column '1.2345' in 'VALUES'
 SET SQL_MODE=@OLD_SQL_MODE;
 # Begin testing mysqldump output + restore
 # Create 'original table name - <table>_orig

@@ -1,10 +1,5 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
-
---disable_warnings
-drop table if exists t0,t1,t2;
---enable_warnings
 
 create table t0(a int primary key);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -46,5 +41,3 @@ set debug_sync='RESET';
 
 disconnect con1;
 drop table t0,t1,t2;
---source include/wait_until_count_sessions.inc
-

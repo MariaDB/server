@@ -25,9 +25,14 @@ source include/have_binlog_format_row.inc;
 source include/binlog_start_pos.inc;
 source include/master-slave.inc;
 
+connection slave;
+source include/stop_slave.inc;
+connection master;
+source include/kill_binlog_dump_threads.inc;
 SET timestamp=1000000000;
 RESET MASTER;
 connection slave;
+source include/start_slave.inc;
 SET timestamp=1000000000;
 RESET MASTER;
 

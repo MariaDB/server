@@ -1,0 +1,29 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+--source include/force_restart.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--connection node_1
+--echo # Node_1
+SHOW global variables like 'gtid%pos';
+
+--connection node_2
+--echo # Node_2
+SHOW global variables like 'gtid%pos';
+
+--source include/galera_end.inc

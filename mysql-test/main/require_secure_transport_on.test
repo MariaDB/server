@@ -1,0 +1,15 @@
+--source include/no_view_protocol.inc
+--source include/not_windows.inc
+--source include/have_ssl_communication.inc
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SECURE_TRANSPORT_REQUIRED
+connect without_ssl,localhost,root,,,,,TCP NOSSL;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect with_ssl,localhost,root,,,,,TCP SSL;
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+disconnect with_ssl;
+
+connection default;
+

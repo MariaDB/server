@@ -430,8 +430,7 @@ char *PlugGetMessage(PGLOBAL g, int mid)
     const int BUF_SIZE= 512;
     msg = (char*)PlugSubAlloc(g, NULL, BUF_SIZE);   // Extend buf allocation
     n = snprintf(msg, BUF_SIZE, "Message %d, rc=%d: ", mid, rc);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                   (LPTSTR)(msg + n), BUF_SIZE - n, NULL);
     return msg;
     } // endif n

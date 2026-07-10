@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = MINIMAL;
 #
@@ -5,7 +6,8 @@ SET GLOBAL binlog_row_metadata = MINIMAL;
 #
 CREATE TABLE t1(c_year YEAR, c_date DATE, c_time TIME, c_time_f TIME(3),
 c_datetime DATETIME, c_datetime_f DATETIME(3),
-c_timestamp TIMESTAMP, c_timestamp_f TIMESTAMP(3) DEFAULT "2017-1-1 10:10:10");
+c_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+c_timestamp_f TIMESTAMP(3) DEFAULT "2017-1-1 10:10:10");
 INSERT INTO t1(c_year) VALUES(2017);
 # Columns(YEAR,
 #         DATE,
@@ -14,7 +16,7 @@ INSERT INTO t1(c_year) VALUES(2017);
 #         DATETIME,
 #         DATETIME(3),
 #         TIMESTAMP NOT NULL,
-#         TIMESTAMP(3) NOT NULL)
+#         TIMESTAMP(3))
 DROP TABLE t1;
 RESET MASTER;
 #
@@ -93,7 +95,7 @@ INSERT INTO t1(c_char) VALUES("1");
 #         TINYTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         TEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         MEDIUMTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
-#         LONGTEXT CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+#         LONGTEXT CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = FULL;
 INSERT INTO t1(c_char) VALUES("1");
@@ -102,7 +104,7 @@ INSERT INTO t1(c_char) VALUES("1");
 #         `c_tinytext` TINYTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         `c_text` TEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         `c_mediumtext` MEDIUMTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c_longtext` LONGTEXT CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+#         `c_longtext` LONGTEXT CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 #
@@ -126,9 +128,9 @@ CREATE TABLE t1(c_char_utf8 CHAR(10) CHARSET utf8,
 c_varchar_utf8 VARCHAR(10) CHARSET utf8,
 c_text_utf8 TEXT CHARSET utf8);
 INSERT INTO t1 VALUES("1", "2", "3");
-# Columns(`c_char_utf8` CHAR(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci,
-#         `c_varchar_utf8` VARCHAR(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci,
-#         `c_text_utf8` TEXT CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
+# Columns(`c_char_utf8` CHAR(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci,
+#         `c_varchar_utf8` VARCHAR(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci,
+#         `c_text_utf8` TEXT CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 CREATE TABLE t1(c_utf8mb4_520 CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -137,7 +139,7 @@ c_utf8mb4_def TEXT CHARSET utf8mb4);
 INSERT INTO t1 VALUES("1", "2", "3");
 # Columns(`c_utf8mb4_520` CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,
 #         `c_utf8mb4_0900` VARCHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_polish_ci,
-#         `c_utf8mb4_def` TEXT CHARSET utf8mb4 COLLATE utf8mb4_general_ci)
+#         `c_utf8mb4_def` TEXT CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci)
 DROP TABLE t1;
 RESET MASTER;
 #
@@ -281,7 +283,7 @@ INSERT INTO t1(c_point) VALUES(ST_PointFromText('POINT(10 10)'));
 DROP TABLE t1;
 RESET MASTER;
 #
-# Comptibility Test: Verify mysqlbinlog can print OLD table_map_log_event
+# Compatibility Test: Verify mysqlbinlog can print OLD table_map_log_event
 # without any optional metadata
 #
 CREATE TABLE t1(c_int INT, c_tiny_int_unsigned TINYINT UNSIGNED,
@@ -310,3 +312,4 @@ SET SESSION debug_dbug = '';
 SET GLOBAL binlog_row_metadata = NO_LOG;
 DROP TABLE t1;
 RESET MASTER;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

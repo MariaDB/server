@@ -164,6 +164,7 @@ program.  The paths leading to call of cold functions within code are
 marked as unlikely by the branch prediction mechanism.  optimize a
 rarely invoked function for size instead for speed. */
 # define ATTRIBUTE_COLD __attribute__((cold))
+# define ATTRIBUTE_MALLOC __attribute__((malloc))
 #elif defined _MSC_VER
 # define ATTRIBUTE_NORETURN __declspec(noreturn)
 # define ATTRIBUTE_NOINLINE __declspec(noinline)
@@ -176,6 +177,22 @@ rarely invoked function for size instead for speed. */
 # define ATTRIBUTE_COLD /* empty */
 #endif
 
+#ifndef ATTRIBUTE_MALLOC
+# define ATTRIBUTE_MALLOC
+#endif
+
 #include <my_attribute.h>
+
+/*
+   C++11 thread_local incurs a performance penalty on some platforms
+   accessing "extern thread_local" variable (not static).
+   To workaround, we use the platform specific thread local
+   storage mechanism, which also available in plain C.
+*/
+#if defined (_MSC_VER)
+#  define MY_THREAD_LOCAL __declspec(thread)
+#else
+#  define MY_THREAD_LOCAL __thread
+#endif
 
 #endif /* MY_COMPILER_INCLUDED */

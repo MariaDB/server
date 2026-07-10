@@ -211,8 +211,13 @@ INSERT INTO wp (FTS_DOC_ID, title, text) VALUES
    (1, 'MySQL Tutorial','DBMS stands for DataBase ...'),
    (2, 'How To Use MySQL Well','After you went through a ...');
 
+if ($MTR_COMBINATION_ORIG) {
 --error ER_INNODB_FT_WRONG_DOCID_COLUMN
 CREATE FULLTEXT INDEX idx ON wp(title, text);
+}
+if (!$MTR_COMBINATION_ORIG) {
+CREATE FULLTEXT INDEX idx ON wp(title, text);
+}
 
 DROP TABLE wp;
 CREATE TABLE wp(

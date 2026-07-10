@@ -119,7 +119,7 @@ retry:
                                         MY_MEMORY_ORDER_ACQUIRE);
 
     do {
-      /* attempting to my_assume_aligned onlink below broke the implementation */
+      /* attempting to my_assume_aligned on link below broke the implementation */
       link= (intptr) my_atomic_loadptr_explicit((void **) &cursor->curr->link,
                                                 MY_MEMORY_ORDER_RELAXED);
       cursor->next= my_assume_aligned<sizeof(LF_SLIST *)>(PTR(link));
@@ -324,9 +324,9 @@ static inline my_hash_value_type calc_hash(CHARSET_INFO *cs,
                                            const uchar *key,
                                            size_t keylen)
 {
-  ulong nr1= 1, nr2= 4;
-  my_ci_hash_sort(cs, (uchar*) key, keylen, &nr1, &nr2);
-  return nr1;
+  my_hasher_st hasher= my_hasher_mysql5x();
+  my_ci_hash_sort(&hasher, cs, (uchar*) key, keylen);
+  return hasher.m_nr1;
 }
 
 #define MAX_LOAD 1.0    /* average number of elements in a bucket */

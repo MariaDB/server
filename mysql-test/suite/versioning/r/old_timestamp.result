@@ -1,0 +1,106 @@
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sv_basic` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `sv_basic` (`a`, row_start, row_end) VALUES (1,'2023-12-19 14:23:22.304434','2038-01-19 03:14:07.999999'),
+(2,'2023-12-19 14:23:22.304434','2023-12-19 14:23:22.305292'),
+(3,'2023-12-19 14:23:22.304434','2038-01-19 03:14:07.999999');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sv_explicit` (
+  `a` int(11) DEFAULT NULL,
+  `row_foo_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_foo_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_foo_start`, `row_foo_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `sv_explicit` VALUES
+(1,'2023-12-19 14:23:22.358302','2038-01-19 03:14:07.999999'),
+(2,'2023-12-19 14:23:22.358302','2023-12-19 14:23:22.359113'),
+(3,'2023-12-19 14:23:22.358302','2038-01-19 03:14:07.999999');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sv_partition` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+(PARTITION `p_hist` HISTORY ENGINE = MyISAM,
+ PARTITION `p_cur` CURRENT ENGINE = MyISAM);
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `sv_partition` (`a`, row_start, row_end) VALUES (2,'2023-12-19 14:23:22.331143','2023-12-19 14:23:22.332359'),
+(1,'2023-12-19 14:23:22.331143','2038-01-19 03:14:07.999999'),
+(3,'2023-12-19 14:23:22.331143','2038-01-19 03:14:07.999999');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sv_basic` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `sv_basic` (`a`, row_start, row_end) VALUES (1,'2023-12-19 14:23:22.304434','2106-02-07 06:28:15.999999'),
+(2,'2023-12-19 14:23:22.304434','2023-12-19 14:23:22.305292'),
+(3,'2023-12-19 14:23:22.304434','2106-02-07 06:28:15.999999');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sv_explicit` (
+  `a` int(11) DEFAULT NULL,
+  `row_foo_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_foo_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_foo_start`, `row_foo_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `sv_explicit` VALUES
+(1,'2023-12-19 14:23:22.358302','2106-02-07 06:28:15.999999'),
+(2,'2023-12-19 14:23:22.358302','2023-12-19 14:23:22.359113'),
+(3,'2023-12-19 14:23:22.358302','2106-02-07 06:28:15.999999');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sv_partition` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+(PARTITION `p_hist` HISTORY ENGINE = MyISAM,
+ PARTITION `p_cur` CURRENT ENGINE = MyISAM);
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `sv_partition` (`a`, row_start, row_end) VALUES (2,'2023-12-19 14:23:22.331143','2023-12-19 14:23:22.332359'),
+(1,'2023-12-19 14:23:22.331143','2106-02-07 06:28:15.999999'),
+(3,'2023-12-19 14:23:22.331143','2106-02-07 06:28:15.999999');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+test.sv_basic                                      Needs upgrade with ALTER TABLE FORCE
+test.sv_explicit                                   Needs upgrade with ALTER TABLE FORCE
+test.sv_partition                                  Needs upgrade with ALTER TABLE FORCE
+set @@time_zone="+00:00";
+select a,row_end from sv_basic for system_time all;
+a	row_end
+1	2106-02-07 06:28:15.999999
+2	2023-12-19 14:23:22.305292
+3	2106-02-07 06:28:15.999999
+select a,row_end from sv_partition for system_time all;
+a	row_end
+1	2106-02-07 06:28:15.999999
+2	2023-12-19 14:23:22.332359
+3	2106-02-07 06:28:15.999999
+select a,row_foo_end from sv_explicit for system_time all;
+a	row_foo_end
+1	2106-02-07 06:28:15.999999
+2	2023-12-19 14:23:22.359113
+3	2106-02-07 06:28:15.999999
+drop table sv_basic,sv_partition,sv_explicit;

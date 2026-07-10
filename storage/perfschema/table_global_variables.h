@@ -47,7 +47,7 @@ class table_global_variables_context : public PFS_table_context
 {
 public:
   table_global_variables_context(ulonglong hash_version, bool restore) :
-    PFS_table_context(hash_version, restore, THR_PFS_VG)  {}
+    PFS_table_context(hash_version, restore, &THR_PFS_VG)  {}
 };
 
 /**
@@ -74,16 +74,16 @@ public:
   static PFS_engine_table* create();
   static ha_rows get_row_count();
 
-  virtual int rnd_init(bool scan);
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_init(bool scan) override;
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
   table_global_variables();
 
 public:

@@ -33,11 +33,8 @@
 let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
-  let $_slave_timeout= 120;
-  if ($VALGRIND_TEST)
-  {
-    let $_slave_timeout= 1200;
-  }
+  source include/slow_environ.inc;
+  let $_slave_timeout= 120$_timeout_adjustment;
 }
 
 --let $_result= `SELECT master_gtid_wait('$master_pos', $_slave_timeout)`
@@ -45,6 +42,7 @@ if ($_result == -1)
 {
   --let $_current_gtid_pos= `SELECT @@GLOBAL.gtid_slave_pos`
   --echo Timeout in master_gtid_wait('$master_pos', $_slave_timeout), current slave GTID position is: $_current_gtid_pos.
+  --source include/show_rpl_debug_info.inc
   --die Failed to sync with master
 }
 

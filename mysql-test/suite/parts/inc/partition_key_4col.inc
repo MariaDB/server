@@ -10,6 +10,7 @@ insert into t1 values
 ('1983-12-31', 'cdef', 'srtbvsr', 'w'), 
 ('1980-10-14', 'fgbbd', 'dtzndtz', 'w'),
 ('2000-06-15', 'jukg','zikhuk','m');
+--sorted_result
 select * from t1;
 select * from t1 where a<19851231;
 drop table t1;

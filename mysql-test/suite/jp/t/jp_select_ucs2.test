@@ -17,6 +17,7 @@ drop table if exists `£Ô£¹`;
 # Test Displaying Japanese charact in ucs2 encoding 
 #
 
+SET character_set_collations='ucs2=ucs2_general_ci';
 SET NAMES ujis;
 SET character_set_database = ucs2;
 SET collation_connection = ucs2_general_ci;

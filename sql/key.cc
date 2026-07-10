@@ -148,7 +148,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
-		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
+                                        Field::image_type(key_info->algorithm));
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;
@@ -552,10 +552,10 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
     @retval +1                  first_rec is greater than second_rec
 */
 
-int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
+int key_rec_cmp(const KEY *const *key, const uchar *first_rec,
+                const uchar *second_rec)
 {
-  KEY **key= (KEY**) key_p;
-  KEY *key_info= *(key++);                     // Start with first key
+  const KEY *key_info= *(key++);                     // Start with first key
   uint key_parts, key_part_num;
   KEY_PART_INFO *key_part= key_info->key_part;
   uchar *rec0= key_part->field->ptr - key_part->offset;
@@ -609,7 +609,7 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
       }
       /*
         No null values in the fields
-        We use the virtual method cmp_max with a max length parameter.
+        We use the virtual method cmp_prefix with a max length parameter.
         For most field types this translates into a cmp without
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.
@@ -646,10 +646,10 @@ next_loop:
     @retval +1  key1 > key2 
 */
 
-int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2, 
+int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
                   uint tuple_length)
 {
-  uchar *key1_end= key1 + tuple_length;
+  const uchar *key1_end= key1 + tuple_length;
   int UNINIT_VAR(len);
   int res;
   for (;key1 < key1_end; key1 += len, key2 += len, part++)
@@ -676,7 +676,6 @@ int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2,
   return 0;
 }
 
-
 /**
   Get hash value for the key from a key buffer 
 
@@ -695,7 +694,7 @@ int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2,
 
 ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 {
-  ulong nr=1, nr2=4;
+  my_hasher_st hasher= my_hasher_mysql5x();
   KEY_PART_INFO *key_part= key_info->key_part;
   KEY_PART_INFO *end_key_part= key_part + used_key_parts;
 
@@ -712,7 +711,7 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
       key++;                       /* Skip null byte */
       if (*pos)                    /* Found null */
       {
-        nr^= (nr << 1) | 1;
+        hasher.m_nr1^= (hasher.m_nr1 << 1) | 1;
         /* Add key pack length to key for VARCHAR segments */
         switch (key_part->type) {
         case HA_KEYTYPE_VARTEXT1:
@@ -758,27 +757,26 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 
     if (is_string)
     {
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length= cs->charpos(pos + pack_length,
-                                        pos + pack_length + length,
-                                        length / cs->mbmaxlen);
-        set_if_smaller(length, char_length);
-      }
-      cs->hash_sort(pos+pack_length, length, &nr, &nr2);
+      /*
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+
+        In this case, the passed key tuple is already a prefix, no
+        special handling is required.
+      */
+      cs->hash_sort(&hasher, pos+pack_length, length);
       key+= pack_length;
     }
     else
     {
       for (; pos < (uchar*)key ; pos++)
       {
-        nr^=(ulong) ((((uint) nr & 63)+nr2)*((uint) *pos)) + (nr << 8);
-        nr2+=3;
+        MY_HASH_ADD_MARIADB(hasher.m_nr1, hasher.m_nr2, *pos);
       }
     }
   }
-  DBUG_PRINT("exit", ("hash: %lx", nr));
-  return(nr);
+  DBUG_PRINT("exit", ("hash: %lx", hasher.m_nr1));
+  return(hasher.m_nr1);
 }
 
 
@@ -868,25 +866,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Compare the strings taking into account length in characters
-        and collation
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+        In this case, we get properly truncated prefixes here.
       */
-      size_t byte_len1= length1, byte_len2= length2;
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length1= cs->charpos(pos1 + pack_length,
-                                         pos1 + pack_length + length1,
-                                         length1 / cs->mbmaxlen);
-        size_t char_length2= cs->charpos(pos2 + pack_length,
-                                         pos2 + pack_length + length2,
-                                         length2 / cs->mbmaxlen);
-        set_if_smaller(length1, char_length1);
-        set_if_smaller(length2, char_length2);
-      }
-      if (length1 != length2 ||
-          cs->strnncollsp(pos1 + pack_length, byte_len1,
-                          pos2 + pack_length, byte_len2))
-        return TRUE;
+      if (cs->strnncollsp(pos1 + pack_length, length1,
+                          pos2 + pack_length, length2))
+        return true;
       key1+= pack_length; key2+= pack_length;
     }
     else

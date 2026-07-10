@@ -1,0 +1,197 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+# See index_ahi_option.test for info on AHI usage detection strategy
+
+SET @orig_debug=@@debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,index_ahi_option_debug_check';
+
+--echo #
+--echo # Test InnoDB index-level adaptive_hash_index options (debug)
+--echo #
+
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
+if ($MTR_COMBINATION_AHI) {
+  SET @combination_value= 'ON';
+}
+if ($MTR_COMBINATION_NO_AHI) {
+  SET @combination_value= 'OFF';
+}
+if ($MTR_COMBINATION_IF_SPECIFIED) {
+  SET @combination_value= 'if_specified';
+}
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+
+CREATE TABLE t1_ahi_default (
+  id INT PRIMARY KEY,
+  col1 INT, col2 INT, col3 INT,
+  INDEX idx_1 (col1) adaptive_hash_index=DEFAULT complete_fields=0 bytes_from_incomplete_field=3 for_equal_hash_point_to_last_record=0,
+  INDEX idx_2 (col1, col2) adaptive_hash_index=YES complete_fields=1 bytes_from_incomplete_field=2 for_equal_hash_point_to_last_record=0,
+  INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO complete_fields=2 bytes_from_incomplete_field=2 for_equal_hash_point_to_last_record=1
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+
+INSERT INTO t1_ahi_default SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
+
+--disable_query_log
+--disable_result_log
+DELIMITER $$;
+
+CREATE PROCEDURE run_and_check_idx(p_rounds INT, p_idx_num INT, p_table_name VARCHAR(64))
+BEGIN
+  DECLARE start_val BIGINT;
+  DECLARE end_val BIGINT;
+  DECLARE i INT DEFAULT 0;
+
+  SELECT count INTO start_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
+
+  IF p_idx_num = 1 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8)');
+  ELSEIF p_idx_num = 2 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16)');
+  ELSEIF p_idx_num = 3 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24)');
+  ELSEIF p_idx_num = 4 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_4) WHERE col2 = (50 << 8) AND id = 50 /* Need PK as well since complete_fields is clamped to 2 (col2 + id) */');
+  ELSEIF p_idx_num = 5 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_5) WHERE col3 = (50 << 16)');
+  ELSEIF p_idx_num = 6 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_6) WHERE col2 = (50 << 8) AND col1 = 50');
+  ELSEIF p_idx_num = 7 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_7) WHERE col3 = (50 << 16) AND col2 = (50 << 8)');
+  ELSEIF p_idx_num = 8 THEN
+    SET @query= CONCAT('SELECT COUNT(*) INTO @dummy FROM ', p_table_name, ' FORCE INDEX(idx_8) WHERE col3 = (50 << 16) AND col2 = (50 << 8) AND col1 = 50 AND id = 50 /* Need PK as well since complete_fields is 4 (col3 + col2 + col1 + id) */');
+  END IF;
+
+  PREPARE stmt FROM @query;
+  WHILE i < p_rounds OR p_rounds < 0 DO
+    EXECUTE stmt;
+    SET i= i + 1;
+  END WHILE;
+  DEALLOCATE PREPARE stmt;
+
+  IF COALESCE(@dummy, 0) = 0 THEN
+    SELECT '# WARNING: No rows selected' AS warning_msg;
+  END IF;
+
+  SELECT count INTO end_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
+
+  IF end_val > start_val + COALESCE(@ahi_check_threshold, 0) THEN
+    SELECT CONCAT('# Used AHI in SELECT (idx_', p_idx_num, ')') AS result_msg;
+  ELSE
+    SELECT CONCAT('# No AHI used in SELECT (idx_', p_idx_num, ')') AS result_msg;
+  END IF;
+
+END$$
+
+DELIMITER ;$$
+--enable_result_log
+--enable_query_log
+
+SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
+let $query_rounds= 240;
+
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default');
+eval CALL run_and_check_idx($query_rounds, 2, 't1_ahi_default');
+eval CALL run_and_check_idx($query_rounds, 3, 't1_ahi_default');
+
+RENAME TABLE t1_ahi_default TO t1;
+ALTER TABLE t1 adaptive_hash_index=OFF, ALGORITHM=INSTANT, LOCK=NONE;
+RENAME TABLE t1 TO t1_ahi_no;
+
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_no');
+eval CALL run_and_check_idx($query_rounds, 2, 't1_ahi_no');
+eval CALL run_and_check_idx($query_rounds, 3, 't1_ahi_no');
+
+RENAME TABLE t1_ahi_no TO t1;
+ALTER TABLE t1 adaptive_hash_index='ON', ALGORITHM=INSTANT, LOCK=NONE;
+RENAME TABLE t1 TO t1_ahi_yes;
+
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 2, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 3, 't1_ahi_yes');
+
+# Test "illegal" options
+ALTER TABLE t1_ahi_yes ADD INDEX idx_4 (col2) complete_fields=3  /* complete_fields=3 > n_uniq==2 (col2 + id), will get clamped to 2 in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_5 (col3) bytes_from_incomplete_field=5  /* bytes_from_incomplete_field=5 > maximum of 4 (col3 INT), will get clamped in rec_fold() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_6 (col2, col1) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=0  /* complete_fields=0 bytes_from_incomplete_field=0 will disable AHI in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_7 (col3, col2) complete_fields=0 bytes_from_incomplete_field=0 for_equal_hash_point_to_last_record=1  /* complete_fields=0 bytes_from_incomplete_field=0 will disable AHI in innodb_ahi_enable() */;
+ALTER TABLE t1_ahi_yes ADD INDEX idx_8 (col3, col2, col1) complete_fields=4 bytes_from_incomplete_field=1  /* bytes_from_incomplete_field=1 is inapplicable since complete_fields=4 covers all unique fields (col3 + col2 + col1 + id), will get reset to 0 in innodb_ahi_enable() */;
+
+eval CALL run_and_check_idx($query_rounds, 4, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 5, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 6, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 7, 't1_ahi_yes');
+eval CALL run_and_check_idx($query_rounds, 8, 't1_ahi_yes');
+
+DROP TABLE t1_ahi_yes;
+SET GLOBAL DEBUG_DBUG=@orig_debug;
+
+--echo #
+--echo # Test ALTER TABLE adaptive_hash_index=OFF with concurrent AHI access
+--echo #
+
+CREATE TABLE t1_ahi_default_2 (
+  id INT PRIMARY KEY,
+  col1 INT,
+  INDEX idx_1 (col1) adaptive_hash_index=DEFAULT complete_fields=0 bytes_from_incomplete_field=3 for_equal_hash_point_to_last_record=0
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+
+INSERT INTO t1_ahi_default_2 SELECT seq, seq FROM seq_0_to_255;
+
+# Warm-up AHI
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+
+connect(con1, localhost, root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+--disable_query_log
+SET DEBUG_DBUG='+d,btr_cur_n_sea_delay';
+--enable_query_log
+--send CALL run_and_check_idx(-1, 1, 't1_ahi_default_2');
+
+connection default;
+--sleep 0.2
+
+# Toggle AHI status while con1 is reading.
+#
+# After any transition that disables AHI (OFF, or IF_SPECIFIED for a
+# DEFAULT table), con1 may still have one in-flight ++btr_cur_n_sea:
+# the increment in btr_cur_t::search_leaf() is not protected by the
+# AHI partition latch, which was released earlier inside
+# btr_search_guess_on_hash().
+# If con1 is preempted between that latch release and the increment,
+# the stray lands after our start_val read. At most 1 such increment
+# can be pending (con1 is single-threaded); @ahi_check_threshold= 1
+# absorbs it for the entire concurrent block.
+--disable_query_log
+SET @ahi_check_threshold= 1;
+--enable_query_log
+SET GLOBAL innodb_adaptive_hash_index= OFF;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+SET GLOBAL innodb_adaptive_hash_index= ON;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+SET GLOBAL innodb_adaptive_hash_index= IF_SPECIFIED;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+eval CALL run_and_check_idx($query_rounds, 1, 't1_ahi_default_2');
+--disable_query_log
+SET @ahi_check_threshold= NULL;
+--enable_query_log
+
+--replace_result $con1_id con1_id
+eval KILL $con1_id;
+
+connection con1;
+--error 2013,ER_CONNECTION_KILLED
+--reap
+disconnect con1;
+
+connection default;
+DROP TABLE t1_ahi_default_2;
+DROP PROCEDURE run_and_check_idx;
+SET @@global.innodb_adaptive_hash_index= @start_global_value;
+SET GLOBAL innodb_monitor_disable= module_adaptive_hash;
+--disable_warnings
+SET GLOBAL innodb_monitor_disable= default;
+SET GLOBAL innodb_monitor_enable= default;
+--enable_warnings

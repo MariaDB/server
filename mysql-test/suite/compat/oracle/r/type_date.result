@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `mdb_date` date DEFAULT NULL,
   `ora_date` datetime DEFAULT NULL,
   `max_date` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET sql_mode=ORACLE;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -60,7 +60,7 @@ t1	CREATE TABLE `t1` (
   `mdb_date` date DEFAULT NULL,
   `ora_date` datetime DEFAULT NULL,
   `max_date` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # ALTER..MODIFY and ALTER..CHANGE understand qualifiers 
@@ -126,6 +126,7 @@ DROP TABLE t1;
 #
 # Qualified syntax is not supported yet in SP
 # See MDEV-23353 Qualified data types in SP
+# For now it's trying to parse as "RETURN mariadb_schema.DATE%ROWTYPE"
 #
 SET sql_mode=ORACLE;
 CREATE FUNCTION f1() RETURN mariadb_schema.DATE AS
@@ -133,7 +134,10 @@ BEGIN
 RETURN CURRENT_DATE;
 END;
 $$
-ERROR HY000: Unknown data type: 'mariadb_schema'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'AS
+BEGIN
+RETURN CURRENT_DATE;
+END' at line 2
 CREATE PROCEDURE p1(a mariadb_schema.DATE) AS
 BEGIN
 NULL;

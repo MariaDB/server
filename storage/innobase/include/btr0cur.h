@@ -33,9 +33,6 @@ Created 10/16/1994 Heikki Tuuri
 #include "rem0types.h"
 #include "gis0type.h"
 #include "my_base.h"
-#ifdef BTR_CUR_HASH_ADAPT
-# include "srw_lock.h"
-#endif
 
 /** Mode flags for btr_cur operations; these can be ORed */
 enum {
@@ -56,11 +53,7 @@ enum {
 	BTR_KEEP_POS_FLAG = 8,
 	/** the caller is creating the index or wants to bypass the
 	index->info.online creation log */
-	BTR_CREATE_FLAG = 16,
-	/** the caller of btr_cur_optimistic_update() or
-	btr_cur_update_in_place() will take care of
-	updating IBUF_BITMAP_FREE */
-	BTR_KEEP_IBUF_BITMAP = 32
+	BTR_CREATE_FLAG = 16
 };
 
 #include "que0types.h"
@@ -78,14 +71,10 @@ page_zip_des_t*
 btr_cur_get_page_zip(
 /*=================*/
 	btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the page of a tree cursor.
+/** Returns the page of a tree cursor.
 @return pointer to page */
-UNIV_INLINE
-page_t*
-btr_cur_get_page(
-/*=============*/
-	btr_cur_t*	cursor);/*!< in: tree cursor */
+#define btr_cur_get_page(cursor) (cursor)->block()->page.frame
+
 /*********************************************************//**
 Returns the index of a cursor.
 @param cursor b-tree cursor
@@ -104,11 +93,12 @@ btr_cur_position(
 
 /** Load the instant ALTER TABLE metadata from the clustered index
 when loading a table definition.
+@param[in,out]	mtr	mini-transaction
 @param[in,out]	table	table definition from the data dictionary
 @return	error code
 @retval	DB_SUCCESS	if no error occurred */
 dberr_t
-btr_cur_instant_init(dict_table_t* table)
+btr_cur_instant_init(mtr_t *mtr, dict_table_t* table)
 	ATTRIBUTE_COLD __attribute__((nonnull, warn_unused_result));
 
 /** Initialize the n_core_null_bytes on first access to a clustered
@@ -213,14 +203,8 @@ btr_cur_pessimistic_insert(
 See if there is enough place in the page modification log to log
 an update-in-place.
 
-@retval false if out of space; IBUF_BITMAP_FREE will be reset
-outside mtr if the page was recompressed
-@retval true if enough place;
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE if this is
-a secondary index leaf page. This has to be done either within the
-same mini-transaction, or by invoking ibuf_reset_free_bits() before
-mtr_commit(mtr). */
+@retval false if out of space
+@retval true if enough place */
 bool
 btr_cur_update_alloc_zip_func(
 /*==========================*/
@@ -262,7 +246,7 @@ Updates a record when the update causes no size changes in its fields.
 @return locking or undo log related error code, or
 @retval DB_SUCCESS on success
 @retval DB_ZIP_OVERFLOW if there is not enough space left
-on the compressed page (IBUF_BITMAP_FREE was reset outside mtr) */
+on a ROW_FORMAT=COMPRESSED page */
 dberr_t
 btr_cur_update_in_place(
 /*====================*/
@@ -464,11 +448,12 @@ number of rows, otherwise count the estimated(see
 btr_estimate_n_rows_in_range_on_level() for details) number if rows, and
 fetch the right page. If leaves are reached, unlatch non-leaf pages except
 the right leaf parent. After the right leaf page is fetched, commit mtr.
-@param[in]  index index
-@param[in]  range_start range start
-@param[in]  range_end   range end
+@param trx transaction
+@param index B-tree
+@param range_start first key
+@param range_end   last key
 @return estimated number of rows; */
-ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
+ha_rows btr_estimate_n_rows_in_range(trx_t *trx, dict_index_t *index,
                                      btr_pos_t *range_start,
                                      btr_pos_t *range_end);
 
@@ -662,44 +647,36 @@ struct btr_path_t {
 
 /** Values for the flag documenting the used search method */
 enum btr_cur_method {
-	BTR_CUR_HASH = 1,	/*!< successful shortcut using
+	BTR_CUR_BINARY,		/*!< success using the binary search */
+#ifdef BTR_CUR_HASH_ADAPT
+	BTR_CUR_HASH,		/*!< successful shortcut using
 				the hash index */
+	BTR_CUR_HASH_ABORT,	/*!< the hash index could not be used */
 	BTR_CUR_HASH_FAIL,	/*!< failure using hash, success using
 				binary search: the misleading hash
 				reference is stored in the field
 				hash_node, and might be necessary to
 				update */
-	BTR_CUR_BINARY,		/*!< success using the binary search */
-	BTR_CUR_INSERT_TO_IBUF,	/*!< performed the intended insert to
-				the insert buffer */
-	BTR_CUR_DEL_MARK_IBUF,	/*!< performed the intended delete
-				mark in the insert/delete buffer */
-	BTR_CUR_DELETE_IBUF,	/*!< performed the intended delete in
-				the insert/delete buffer */
-	BTR_CUR_DELETE_REF	/*!< row_purge_poss_sec() failed */
+#endif
 };
 
 /** The tree cursor: the definition appears here only for the compiler
 to know struct size! */
 struct btr_cur_t {
 	page_cur_t	page_cur;	/*!< page cursor */
-	purge_node_t*	purge_node;	/*!< purge node, for BTR_DELETE */
-	/*------------------------------*/
-	que_thr_t*	thr;		/*!< this field is only used
-					when search_leaf()
-					is called for an index entry
-					insertion: the calling query
-					thread is passed here to be
-					used in the insert buffer */
 	/*------------------------------*/
 	/** The following fields are used in
 	search_leaf() to pass information: */
 	/* @{ */
+#ifdef BTR_CUR_HASH_ADAPT
 	enum btr_cur_method	flag;	/*!< Search method used */
+#else
+	static constexpr btr_cur_method flag{BTR_CUR_BINARY};
+#endif
 	ulint		tree_height;	/*!< Tree height if the search is done
 					for a pessimistic insert or update
 					operation */
-	ulint		up_match;	/*!< If the search mode was PAGE_CUR_LE,
+	uint16_t	up_match;	/*!< If the search mode was PAGE_CUR_LE,
 					the number of matched fields to the
 					the first user record to the right of
 					the cursor record after search_leaf();
@@ -712,32 +689,27 @@ struct btr_cur_t {
 					record if that record is on a
 					different leaf page! (See the note in
 					row_ins_duplicate_error_in_clust.) */
-	ulint		up_bytes;	/*!< number of matched bytes to the
+	uint16_t	up_bytes;	/*!< number of matched bytes to the
 					right at the time cursor positioned;
 					only used internally in searches: not
 					defined after the search */
-	ulint		low_match;	/*!< if search mode was PAGE_CUR_LE,
+	uint16_t	low_match;	/*!< if search mode was PAGE_CUR_LE,
 					the number of matched fields to the
 					first user record AT THE CURSOR or
 					to the left of it after search_leaf();
 					NOT defined for PAGE_CUR_GE or any
 					other search modes; see also the NOTE
 					in up_match! */
-	ulint		low_bytes;	/*!< number of matched bytes to the
+	uint16_t	low_bytes;	/*!< number of matched bytes to the
 					left at the time cursor positioned;
 					only used internally in searches: not
 					defined after the search */
-	ulint		n_fields;	/*!< prefix length used in a hash
-					search if hash_node != NULL */
-	ulint		n_bytes;	/*!< hash prefix bytes if hash_node !=
-					NULL */
-	ulint		fold;		/*!< fold value used in the search if
+#ifdef BTR_CUR_HASH_ADAPT
+	uint32_t	n_bytes_fields;	/*!< prefix used in a hash search */
+	uint32_t	fold;		/*!< fold value used in the search if
 					flag is BTR_CUR_HASH */
+#endif
 	/* @} */
-	btr_path_t*	path_arr;	/*!< in estimating the number of
-					rows in range, we store in this array
-					information of the path through
-					the tree */
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
   btr_cur_t() { memset((void*) this, 0, sizeof *this); }
 
@@ -778,6 +750,21 @@ struct btr_cur_t {
   @return error code */
   inline dberr_t open_random_leaf(rec_offs *&offsets, mem_heap_t *& heap,
                                   mtr_t &mtr);
+
+#ifdef BTR_CUR_HASH_ADAPT
+  /** Update adaptive hash index based on search pattern.
+  @param  mtr  mini-transaction (to update trx AHI statistics) */
+  void search_info_update(const mtr_t &mtr) const noexcept;
+
+  /** Check if a guessed position for a tree cursor is correct.
+  @param tuple  search key
+  @param ge     false=PAGE_CUR_LE, true=PAGE_CUR_GE
+  @param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+  @retval true  on mismatch or corruption
+  @retval false on a match; if mode=PAGE_CUR_LE, then up_match,low_match
+  will be set correctly. */
+  bool check_mismatch(const dtuple_t &tuple, bool ge, ulint comp) noexcept;
+#endif
 };
 
 /** Modify the delete-mark flag of a record.
@@ -829,26 +816,26 @@ earlier version of the row.  In rollback we are not allowed to free an
 inherited external field. */
 #define BTR_EXTERN_INHERITED_FLAG	64U
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** Number of searches down the B-tree in btr_cur_t::search_leaf(). */
-extern ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_non_sea;
-/** Old value of btr_cur_n_non_sea.  Copied by
-srv_refresh_innodb_monitor_stats().  Referenced by
-srv_printf_innodb_monitor(). */
-extern ulint	btr_cur_n_non_sea_old;
-/** Number of successful adaptive hash index lookups in
-btr_cur_t::search_leaf(). */
-extern ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_sea;
-/** Old value of btr_cur_n_sea.  Copied by
-srv_refresh_innodb_monitor_stats().  Referenced by
-srv_printf_innodb_monitor(). */
-extern ulint	btr_cur_n_sea_old;
-#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
 extern uint	btr_cur_limit_optimistic_insert_debug;
+/** Number of times index lock was upgraded from SX to X */
+extern Atomic_counter<uint64_t> btr_cur_n_index_lock_upgrades;
+/** Number of times btr_cur_pessimistic_insert() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_insert_calls;
+/** Number of times btr_cur_pessimistic_update() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_calls;
+/** Number of times btr_cur_pessimistic_delete() was called */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_delete_calls;
+/** Number of times DB_UNDERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_underflows;
+/** Number of times DB_OVERFLOW was returned as optimistic update error in btr_cur_pessimistic_update() */
+extern Atomic_counter<uint64_t> btr_cur_pessimistic_update_optim_err_overflows;
 #endif /* UNIV_DEBUG */
+
+/** innodb_index_shrink; see the comment in btr0cur.cc */
+extern my_bool btr_cur_index_shrink;
 
 #include "btr0cur.inl"
 

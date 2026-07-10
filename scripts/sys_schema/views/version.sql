@@ -33,5 +33,5 @@ VIEW version (
   sys_version,
   mysql_version
 ) AS 
-SELECT '1.5.1' AS sys_version, 
+SELECT '1.5.2' AS sys_version,
         version() AS mysql_version;

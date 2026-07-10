@@ -1,0 +1,93 @@
+--source include/have_sequence.inc
+
+--echo # Small driving table
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 1), (2, 2000),(3,300);
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+--echo # Table that will be accessed by an index lookup (`ref` access)
+CREATE TABLE t2 (a INT, b INT, KEY key_b(b));
+--echo # All t11.b values are NULL
+INSERT INTO t2 SELECT seq/100,  NULL FROM seq_1_to_1000;
+
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+
+--echo # NULL-rejecting equality t1.b = t2.b will not return any matches
+--echo # because all values of t2.b are NULL. So "rows" = 1 for t2 where 1 is
+--echo # a special value meaning "very few" rows
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b = t2.b;
+
+--echo # However, rows estimation for not NULL-rejecting conditions
+--echo # must not be affected ("rows" > 1 is expected)
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b <=> t2.b;
+
+--echo # Insert some non-NULL values and re-collect the stats
+INSERT INTO t2 SELECT 1, 1 FROM seq_1_to_100;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS (b) INDEXES (key_b);
+
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b = t2.b;
+
+--echo # Test composite index for two columns. Key prefix is used for access
+CREATE TABLE t3 (a INT, b INT, KEY key_ab(a,b));
+--echo # All t3.b values are NULL
+INSERT INTO t3 SELECT seq/100,  NULL FROM seq_1_to_1000;
+
+ANALYZE TABLE t3 PERSISTENT FOR COLUMNS(b) INDEXES(key_ab);
+
+--echo # NULL-rejecting equality t1.b = t3.b, same as above.
+--echo # "rows" must be estimated to 1
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t1.b = t3.b;
+
+--echo # Rows estimation for not NULL-rejecting conditions are not affected
+--echo # ("rows" > 1 is expected)
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a;
+
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t1.b <=> t3.b;
+
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t3.b is NULL;
+
+--echo # Insert some non-NULL values and re-collect the stats
+INSERT INTO t3 SELECT 1, 1 FROM seq_1_to_100;
+
+ANALYZE TABLE t3 PERSISTENT FOR COLUMNS (b) INDEXES (key_ab);
+
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t3 ON t1.a = t3.a AND t1.b = t3.b;
+
+--echo # Test composite index for 3 columns. Key prefix is used for access
+CREATE TABLE t4 (a INT, b INT, c INT, KEY key_abc(a,b,c));
+
+--echo # All t3.b values are NULL
+INSERT INTO t4 SELECT seq/10,  NULL, seq/10 FROM seq_1_to_1000;
+
+ANALYZE TABLE t4 PERSISTENT FOR COLUMNS(b) INDEXES(key_abc);
+
+--echo # NULL-rejecting equality t1.b = t3.b, same as above.
+--echo # "rows" must be estimated to 1
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a AND t1.b = t4.b;
+
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a AND t1.b = t4.b and t1.b = t4.c;
+
+--echo # "rows" expected to be > 1
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a;
+
+EXPLAIN EXTENDED SELECT * FROM t1 JOIN t4 ON t1.a = t4.a AND t1.b <=> t4.c;
+
+DROP TABLE t1, t2, t3, t4;
+
+--echo # Test for partially covered column
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 SELECT seq FROM seq_1_to_10;
+
+CREATE TABLE t2 (
+  a VARCHAR(10),
+  b VARCHAR(10),
+  INDEX i1(a, b(5))
+);
+INSERT INTO t2 SELECT seq, NULL FROM seq_1_to_1000;
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS (b) INDEXES (i1);
+
+EXPLAIN SELECT * FROM t1, t2 WHERE t2.a=t1.a AND t2.b=t1.a;
+
+DROP TABLE t1, t2;

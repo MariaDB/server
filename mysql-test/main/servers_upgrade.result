@@ -1,0 +1,24 @@
+#
+# MDEV-36087 MariDB 11.7.2 - /usr/sbin/mariadbd got signal 11
+#
+call mtr.add_suppression('$SEARCH_PATTERN');
+create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port 3306);
+show create server s;
+Server	Create Server
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER mysql OPTIONS (host '127.0.0.1', database 'test', user 'root', port '3306');
+alter table mysql.servers drop column Options;
+show create server s;
+Server	Create Server
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER mysql OPTIONS (host '127.0.0.1', database 'test', user 'root', port '3306');
+# restart
+show create server s;
+Server	Create Server
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER mysql OPTIONS ();
+ALTER TABLE mysql.servers
+ADD Options JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));
+flush privileges;
+show create server s;
+Server	Create Server
+s	CREATE SERVER `s` FOREIGN DATA WRAPPER mysql OPTIONS ();
+drop server s;
+NOT FOUND /Column count of mysql\.servers is wrong\. Expected 10, found 9\. The table is probably corrupted/ in mysqld.1.err

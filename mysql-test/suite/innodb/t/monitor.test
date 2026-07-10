@@ -5,10 +5,15 @@
 # sys_vars.innodb_monitor_enable_basic
 
 --source include/have_innodb.inc
-# Test turn on/off the monitor counter  with "all" option
-# By default, they will be off.
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Cannot reset all values for monitor counter");
+--enable_query_log
+
 select name, if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics;
+
+create temporary table orig_innodb_metrics as select name, enabled from information_schema.innodb_metrics;
 
 set global innodb_monitor_disable = All;
 select name from information_schema.innodb_metrics where enabled;
@@ -256,98 +261,11 @@ where name='trx_rollbacks';
 
 set global innodb_monitor_disable = module_trx;
 
-# Test DML Module
-set global innodb_monitor_enable = module_dml;
-
-insert into monitor_test values(9);
-
-update monitor_test set col = 10 where col = 9;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-delete from monitor_test;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-	from information_schema.innodb_metrics
-	where name like "dml%";
-
-# test reset counter while the counter is on
-set global innodb_monitor_reset =  module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# insert/delete some rows after the reset
-insert into monitor_test values(9);
-insert into monitor_test values(1);
-
-delete from monitor_test;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# We do not allow reset_all while the counter is on, nothing
-# should be reset here
-set global innodb_monitor_reset_all  =  module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# Turn off the counter
-set global innodb_monitor_disable = module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# Reset all counter values
-set global innodb_monitor_reset_all  = module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# Open individual counter "dml_inserts"
-set global innodb_monitor_enable = dml_inserts;
-
-insert into monitor_test values(9);
-insert into monitor_test values(1);
-
-delete from monitor_test;
-
-# Only counter "dml_inserts" should be updated
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-set global innodb_monitor_disable = module_dml;
-
 drop table monitor_test;
 
 set global innodb_monitor_enable = file_num_open_files;
 
-# Counters are unpredictable when innodb-file-per-table is on
+# Counters are unpredictable
 --replace_column 2 # 3 # 4 # 5 # 6 # 7 #
 select name, max_count, min_count, count,
        max_count_reset, min_count_reset, count_reset,
@@ -402,35 +320,45 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 let $innodb_monitor_enable = `SELECT @@innodb_monitor_enable`;
 
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*1*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='module_buffer_page';
 INSERT INTO t1 VALUES (1), (2), (3), (4); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+
+let $wait_condition= select count > 0 from information_schema.innodb_metrics where name like 'buffer_page_written_index_leaf';
+source include/wait_condition.inc;
+
+SELECT /*2*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_disable='module_buffer_page';
 SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*3*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='%';
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_monitor_reset_all= '%', innodb_compression_algorithm= foo;
 INSERT INTO t1 VALUES (5), (6), (7), (8); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+
+let $wait_condition= select count > 0 from information_schema.innodb_metrics where name like 'buffer_page_written_index_leaf';
+source include/wait_condition.inc;
+
+SELECT /*4*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_disable='%';
 SET GLOBAL innodb_monitor_reset_all='%';
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*5*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 SET GLOBAL innodb_monitor_enable='ALL';
 INSERT INTO t1 VALUES (9), (10), (11), (12); FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
-SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+SELECT /*6*/ NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 
 DROP TABLE t1;
@@ -547,8 +475,36 @@ DROP TABLE fl2;
 DROP TABLE fl1;
 DROP TABLE fl0;
 
---disable_warnings
-SET GLOBAL innodb_monitor_enable=default;
-SET GLOBAL innodb_monitor_disable=default;
-SET GLOBAL innodb_monitor_reset_all=default;
---enable_warnings
+set global innodb_monitor_disable = 'adaptive\\_hash\\_p%';
+set global innodb_monitor_disable = 'adaptive\\_hash\\_r%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_batch\\_n%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_batch\\_s%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_g%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_s%';
+set global innodb_monitor_disable = 'buffer\\_LRU\\_u%';
+set global innodb_monitor_disable = 'buffer\\_f%';
+set global innodb_monitor_disable = 'buffer\\_page\\_%';
+set global innodb_monitor_disable = 'c%';
+set global innodb_monitor_disable = 'ddl%';
+set global innodb_monitor_disable = 'icp%';
+set global innodb_monitor_disable = 'index\\_p%';
+set global innodb_monitor_disable = 'innodb\\_di%';
+set global innodb_monitor_disable = 'innodb\\_l%';
+set global innodb_monitor_disable = 'innodb\\_m%';
+set global innodb_monitor_disable = 'lock\\_re%';
+set global innodb_monitor_disable = 'lock\\_ta%';
+set global innodb_monitor_disable = 'log%';
+set global innodb_monitor_disable = 'm%';
+set global innodb_monitor_disable = 'p%';
+set global innodb_monitor_disable = 't%';
+set global innodb_monitor_enable = 'log\\_w%';
+set global innodb_monitor_enable = 'trx_rseg_history_len';
+set global innodb_monitor_enable = 'trx_undo_slots_cached';
+
+set global innodb_monitor_enable=default;
+set global innodb_monitor_disable=default;
+set global innodb_monitor_reset_all=default;
+
+select name, orig.enabled, new.enabled from
+  orig_innodb_metrics orig join information_schema.innodb_metrics new using(name)
+  where orig.enabled != new.enabled;

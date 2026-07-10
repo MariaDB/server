@@ -1,271 +1,294 @@
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=myisam;
-insert into t1 (a) values (1),(2),(3);
-alter online table t1 modify b int default 5, alter c set default 'X';
-alter online table t1 change b new_name int;
-alter online table t1 modify e enum('a','b','c');
-alter online table t1 comment "new comment";
-alter table t1 add constraint q check (a > 0);
-alter online table t1 drop constraint q;
-alter online table t1 algorithm=INPLACE, lock=NONE;
-alter online table t1;
-alter table t1 algorithm=INPLACE;
-alter table t1 lock=NONE;
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL,
-  `new_name` int(11) DEFAULT NULL,
-  `c` varchar(80) DEFAULT 'X',
-  `e` enum('a','b','c') DEFAULT NULL,
-  PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new comment'
+#
+# alter ignore cannot be done online
+#
+create table t (a int);
+alter ignore table t add primary key (a), algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: ALTER IGNORE TABLE. Try LOCK=SHARED
+drop table t;
+#
+# MDEV-28771 Assertion `table->in_use&&tdc->flushed' failed after ALTER
+#
+create table t (a char(1));
+insert into t values ('a'),('b');
+select * from t join t as t2 join t as t3;
+a	a	a
+a	a	a
+b	a	a
+a	b	a
+b	b	a
+a	a	b
+b	a	b
+a	b	b
+b	b	b
+alter table t modify a int;
+ERROR 22007: Truncated incorrect INTEGER value: 'a'
+select * from t;
+a
+a
+b
+drop table t;
+create table t (c double precision key,c2 char,c3 year);
+insert into t values (7,3,1);
+select a from t where a=all (select a from t where b=2 union select a from t where b=2);
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+insert into t values (3,1,1);
+alter table t change c c date,add key(c);
+ERROR 22007: Incorrect date value: '7' for column `test`.`t`.`c` at row 1
+select * from t;
+c	c2	c3
+7	3	2001
+3	1	2001
+drop table t;
+set sql_mode='';
+create table t (c char unique,c2 int,stamp timestamp);
+insert into t values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5);
+Warnings:
+Warning	1265	Data truncated for column 'stamp' at row 1
+Warning	1265	Data truncated for column 'stamp' at row 2
+Warning	1265	Data truncated for column 'stamp' at row 3
+Warning	1265	Data truncated for column 'stamp' at row 4
+Warning	1265	Data truncated for column 'stamp' at row 5
+update t set c=(select * from t) where c in (select * from t);
+ERROR 21000: Operand should contain 1 column(s)
+alter table t modify c date;
+ERROR 23000: Duplicate entry '0000-00-00' for key 'c'
+select * from t;
+c	c2	stamp
+1	1	0000-00-00 00:00:00
+2	2	0000-00-00 00:00:00
+3	3	0000-00-00 00:00:00
+4	4	0000-00-00 00:00:00
+5	5	0000-00-00 00:00:00
+drop table t;
+set sql_mode=default;
+#
+# MDEV-28944 XA assertions failing in binlog_rollback and binlog_commit
+#
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1);
+connect  con1,localhost,root,,test;
+XA START 'xid';
+SELECT * FROM t;
+a
+1
+connection default;
+ALTER TABLE t NOWAIT ADD KEY (a);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+UPDATE t SET a = 2;
+XA END 'xid';
+XA COMMIT 'xid' ONE PHASE;
+DROP TABLE t;
+disconnect con1;
+connection default;
+#
+# MDEV-29068 Cascade foreign key updates do not apply in online alter
+#
+create table t1 (a int primary key) engine=InnoDB;
+insert into t1 values (1),(2),(3);
+create table t2 (b int, foreign key (b)
+references t1 (a)
+on update cascade) engine=InnoDB;
+insert into t2 values (1),(2),(3);
+alter table t2 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: ON UPDATE CASCADE. Try LOCK=SHARED
+alter table t2 add c int, algorithm=inplace, lock=none;
+create or replace table t2 (b int, foreign key (b)
+references t1 (a)
+on delete set null) engine=InnoDB;
+alter table t2 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: ON DELETE SET NULL. Try LOCK=SHARED
+alter table t2 add c int, algorithm=inplace, lock=none;
+create or replace table t2 (b int, foreign key (b)
+references t1 (a)
+on delete no action) engine=InnoDB;
+insert into t2 values (1),(2),(3);
+alter table t2 add c int, algorithm=copy, lock=none;
+create or replace table t2 (b int, foreign key (b)
+references t1 (a)
+on update restrict) engine=InnoDB;
+insert into t2 values (1),(2),(3);
+alter table t2 add c int, algorithm=copy, lock=none;
+drop table t2, t1;
+create table t1 (a int primary key, b int unique) engine=InnoDB;
+insert into t1 values (1, 1),(2, 2),(3, 3);
+create table t2 (a int references t1 (a),
+b int references t1 (b) on update cascade) engine=InnoDB;
+insert into t2 values (1, 1),(2, 2);
+alter table t2 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: ON UPDATE CASCADE. Try LOCK=SHARED
+alter table t2 add c int, algorithm=copy;
+alter table t2 add d int, algorithm=inplace;
+drop table t2, t1;
+#
+# MDEV-30891 Assertion `!table->versioned(VERS_TRX_ID)' failed
+# in Write_rows_log_event::binlog_row_logging_function
+#
+set system_versioning_alter_history= keep;
+create table t1 (id int,
+row_start bigint unsigned generated always as row start,
+row_end bigint unsigned generated always as row end,
+period for system_time (row_start, row_end))
+engine=innodb with system versioning;
+alter table t1 add c int, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: BIGINT GENERATED ALWAYS AS ROW_START. Try LOCK=SHARED
+alter table t1 add c int, algorithm=inplace;
+alter table t1 add d int, lock=none;
+set system_versioning_alter_history= default;
 drop table t1;
-create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
-insert into t1 (a) values (1),(2),(3);
-alter online table t1 modify b int default 5, alter c set default 'X';
-alter online table t1 change b new_name int;
-alter online table t1 modify e enum('a','b','c');
-alter online table t1 comment "new comment";
-alter online table t1 rename to t2;
-show create table t2;
+#
+# MDEV-31058 ER_KEY_NOT_FOUND upon concurrent CHANGE column autoinc
+# and DML
+#
+create table t (a serial, b int) engine=innodb;
+alter table t drop a, modify b serial, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+set statement sql_mode= NO_AUTO_VALUE_ON_ZERO for
+alter table t drop a, modify b serial, algorithm=copy, lock=none;
+create or replace table t (a serial, b int) engine=innodb;
+show create table t;
 Table	Create Table
-t2	CREATE TEMPORARY TABLE `t2` (
-  `a` int(11) NOT NULL,
-  `new_name` int(11) DEFAULT NULL,
-  `c` varchar(80) DEFAULT 'X',
-  `e` enum('a','b','c') DEFAULT NULL,
-  PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new comment'
-drop table t2;
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
-insert into t1 (a) values (1),(2),(3);
-alter online table t1 modify b int default 5;
-alter online table t1 change b new_name int;
-alter online table t1 modify e enum('a','b','c');
-alter online table t1 comment "new comment";
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL,
-  `new_name` int(11) DEFAULT NULL,
-  `c` varchar(80) DEFAULT NULL,
-  `e` enum('a','b','c') DEFAULT NULL,
-  PRIMARY KEY (`a`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 COMMENT='new comment'
-alter online table t1 page_checksum=1;
-alter online table t1 page_checksum=0;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-drop table t1;
-create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
-insert into t1 (a) values (1),(2),(3);
-alter online table t1 drop column b, add b int;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify b bigint;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify e enum('c','a','b');
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify c varchar(50);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 modify c varchar(100);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 add f int;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 engine=memory;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
-alter online table t1 rename to t2;
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
-alter online table t1 checksum=1;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter online table t1 add constraint check (b > 0);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter table t1 engine=innodb;
-alter table t1 add index (b);
-alter online table t1 add index c (c);
-alter online table t1 drop index b;
-alter online table t1 comment "new comment";
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL,
+t	CREATE TABLE `t` (
+  `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `b` int(11) DEFAULT NULL,
-  `c` varchar(80) DEFAULT NULL,
-  `e` enum('a','b') DEFAULT NULL,
-  PRIMARY KEY (`a`),
-  KEY `c` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='new comment'
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# a is unique in the old table, but is shrunk in the new one.
+# Only unsafe approach is fine because of possible collisions.
+alter table t modify a int, modify b serial, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+#
+# Check that we treat autoinc columns correctly modify old autoinc is
+# fine, adding new autoinc for existed column is unsafe.
+#
+create or replace table t (a serial) engine=innodb;
+alter table t change a b serial, algorithm=copy, lock=none;
+Warnings:
+Note	1831	Duplicate index `b`. This is deprecated and will be disallowed in a future release
+# Shrinking the autoinc field is considered safe.
+# ER_WARN_DATA_OUT_OF_RANGE should be emitted otherwise.
+alter table t change b b int auto_increment primary key,
+algorithm=copy, lock=none;
+alter table t add c int default(0), drop primary key, drop key a;
+# key `b` is still there
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `b` int(11) NOT NULL AUTO_INCREMENT,
+  `c` int(11) DEFAULT 0,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t drop b, change c c serial, algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+# Check existed unique keys.
+create or replace table t(a int, b int not null, c int not null, d int);
+# No unique in the old table;
+alter table t add unique(b, c), modify d int auto_increment, add key(d),
+algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+alter table t add unique(a, b);
+# Unique in the old table has nulls;
+alter table t modify d int auto_increment, add key(d),
+algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+alter table t add unique(b, c);
+# Change unique's column;
+alter table t change b x bigint, modify d int auto_increment, add key(d),
+algorithm=copy, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+# Finally good. Simple renames with a type unchanged will not affect
+# the result. Also NOT NULL -> NULL transform is fine.
+alter table t modify d int auto_increment, add key(d),
+change b x int null,
+algorithm=copy, lock=none;
+drop table t;
+# MDEV-31172 Server crash or ASAN errors in online_alter_check_autoinc
+create table t (a int, b int, c char(8), key(a,b,c));
+alter table t modify c int auto_increment key, algorithm=copy;
+drop table t;
+# MDEV-31601 Some ALTER TABLE .. fail when they worked before, and with
+# a wrong error message
+create table t (a int) engine=aria;
+insert into t values (1),(2);
+alter table t algorithm=nocopy, order by a;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=COPY
+alter table t engine=myisam, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+drop table t;
+create temporary table t (f int);
+alter table t force, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=COPY
+drop table t;
+create sequence s engine=MyISAM;
+alter table s engine=Aria, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: SEQUENCE. Try LOCK=SHARED
+alter table s engine=Aria;
+drop sequence  s;
+# MDEV-31631 Adding auto-increment column to a table with history online
+# behaves differently from non-online
+create sequence s;
+create table t1(a int, x int NULL default(nextval(s)));
+alter table t1 add b int default (nextval(s)), lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Function or expression 'NEXTVAL()' cannot be used in the DEFAULT clause of `b`. Try LOCK=SHARED
+alter table t1 add b int primary key auto_increment, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: ADD COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+create table t2(a int, b int NULL default(nextval(s)));
+alter table t2 modify b int not null default (nextval(s)), lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Function or expression 'NEXTVAL()' cannot be used in the DEFAULT clause of `b`. Try LOCK=SHARED
+drop table t2;
 drop table t1;
-create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
-insert into t1 (a) values (1),(2),(3);
-alter online table t1 drop column b, add b int;
-alter online table t1 modify b bigint;
-alter online table t1 modify e enum('c','a','b');
-alter online table t1 modify c varchar(50);
-alter online table t1 modify c varchar(100);
-alter online table t1 add f int;
-alter online table t1 engine=memory;
-alter table t1 engine=innodb;
-alter table t1 add index (b);
-alter online table t1 add index c (c);
-alter online table t1 drop index b;
-drop table t1;
-create table t1 (a int not null primary key, b int, c varchar(80));
-create table t2 (a int not null primary key, b int, c varchar(80));
-create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
-alter online table t3 union=(t1,t2);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
-drop table t1,t2,t3;
-create table t1 (i int) partition by hash(i) partitions 2;
-alter online table t1 comment 'test';
-drop table t1;
+drop sequence s;
+#
+# MDEV-33348 ALTER TABLE lock waiting stages are indistinguishable
+#
+connect con2, localhost, root;
 create table t1 (a int);
-alter online table t1 modify a int comment 'test';
+insert t1 values (5);
+start transaction;
+select * from t1;
+a
+5
+connection default;
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+connection con2;
+set @con= $con;
+select stage, state, info from information_schema.processlist where id = @con;
+stage	4
+state	Waiting for table metadata lock
+info	alter table t1 add b int NULL, algorithm= copy, lock= none
+rollback;
+connection default;
 drop table t1;
-create table t1 (a int) engine=innodb;
-alter online table t1 modify a int comment 'test';
-drop table t1;
-create table t1 (a int) partition by hash(a) partitions 2;
-alter online table t1 modify a int comment 'test';
-drop table t1;
-#
-# MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
-#
-CREATE TABLE t1 (a BINARY(10));
-ALTER TABLE t1 MODIFY a BINARY(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a VARBINARY(10));
-ALTER TABLE t1 MODIFY a VARBINARY(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a TINYBLOB);
-ALTER TABLE t1 MODIFY a TINYBLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a MEDIUMBLOB);
-ALTER TABLE t1 MODIFY a MEDIUMBLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a BLOB);
-ALTER TABLE t1 MODIFY a BLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a LONGBLOB);
-ALTER TABLE t1 MODIFY a LONGBLOB, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a CHAR(10));
-ALTER TABLE t1 MODIFY a CHAR(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10));
-ALTER TABLE t1 MODIFY a VARCHAR(10), ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a TINYTEXT);
-ALTER TABLE t1 MODIFY a TINYTEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a MEDIUMTEXT);
-ALTER TABLE t1 MODIFY a MEDIUMTEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a TEXT);
-ALTER TABLE t1 MODIFY a TEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a LONGTEXT);
-ALTER TABLE t1 MODIFY a LONGTEXT, ALGORITHM=INPLACE;
-DROP TABLE t1;
-CREATE TABLE t1 (a CHAR(10));
-ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10));
-ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a TINYTEXT);
-ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a MEDIUMTEXT);
-ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a TEXT);
-ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a LONGTEXT);
-ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a CHAR(10) COLLATE latin1_bin);
-ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
-ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a TINYTEXT COLLATE latin1_bin);
-ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_bin);
-ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a TEXT COLLATE latin1_bin);
-ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a LONGTEXT COLLATE latin1_bin);
-ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a CHAR(10) COLLATE latin1_general_ci);
-ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_general_ci);
-ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a TINYTEXT COLLATE latin1_general_ci);
-ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_general_ci);
-ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a TEXT COLLATE latin1_general_ci);
-ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
-ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-DROP TABLE t1;
-select @@global.delay_key_write;
-@@global.delay_key_write
-ON
-create table t1 (a int, b int, key(b));
-flush tables;
-flush status;
-show status like 'Feature_delay_key_write';
-Variable_name	Value
-Feature_delay_key_write	0
-insert t1 values (1,2),(2,3),(3,4);
-show status like 'Feature_delay_key_write';
-Variable_name	Value
-Feature_delay_key_write	0
-alter online table t1 delay_key_write=1;
-show status like 'Feature_delay_key_write';
-Variable_name	Value
-Feature_delay_key_write	0
-flush tables;
-insert t1 values (1,2),(2,3),(3,4);
-show status like 'Feature_delay_key_write';
-Variable_name	Value
-Feature_delay_key_write	1
-alter online table t1 delay_key_write=0;
-show status like 'Feature_delay_key_write';
-Variable_name	Value
-Feature_delay_key_write	1
-flush tables;
-insert t1 values (1,2),(2,3),(3,4);
-show status like 'Feature_delay_key_write';
-Variable_name	Value
-Feature_delay_key_write	1
-drop table t1;
+disconnect con2;
+# MDEV-34164 Server crashes when executing OPTIMIZE or REPAIR TABLE for InnoDB temporary tables
+create temporary table t1 (i int) engine=innodb;
+create table t2 (i int) engine=aria ;
+optimize table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	status	Table is already up to date
+drop table t1,t2;
+create temporary table t1 (f int) engine=innodb;
+create temporary table t2 (f int) engine=innodb;
+optimize local table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+drop table t1,t2;
+set @save_sql_mode = @@sql_mode;
+set sql_mode= '';
+create temporary table t (c decimal zerofill,c2 int zerofill,c3 char binary,key(c)) engine=innodb;
+insert into t values (1,1,1);
+set session enforce_storage_engine=aria;
+optimize no_write_to_binlog table t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t	optimize	status	OK
+Warnings:
+Note	1266	Using storage engine Aria for table 't'
+drop table t;
+set sql_mode= @save_sql_mode;
+# End of 11.2 tests

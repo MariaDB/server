@@ -11,11 +11,11 @@ test.t1	analyze	status	OK
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 explain select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	g	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	g	g	34	NULL	5	Using where
 select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 ST_astext(t1.g)
-POINT(1 1)
 POINT(1.5 1.5)
+POINT(1 1)
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 delete from t1 where MBRWithin(t1.g, @g1);
 check table t1;
@@ -141,7 +141,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`i`),
   SPATIAL KEY `idx` (`g`),
   SPATIAL KEY `idx2` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop index idx on t1;
 drop table t1;
 create table t1 (i int, i2 char(10), g geometry not null, primary key (i, i2), spatial index (g))engine=innodb;
@@ -157,11 +157,11 @@ test.t1	analyze	status	OK
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 explain select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	g	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	g	g	34	NULL	5	Using where
 select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 ST_astext(t1.g)
-POINT(1 1)
 POINT(1.5 1.5)
+POINT(1 1)
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 delete from t1 where MBRWithin(t1.g, @g1);
 check table t1;
@@ -866,3 +866,17 @@ INSERT INTO `address` VALUES (1,'47 MySakila Drive',NULL,'Alberta',300,'','',0x0
 (605,'1325 Fukuyama Street','','Heilongjiang',537,'27107','288241215394',0x00000000010100000017540A70700160401E1C47077F7D4740,'2014-09-25 22:30:44');
 COMMIT;
 DROP TABLE address;
+#
+# MDEV-35116 InnoDB fails to set error index
+#        for HA_ERR_NULL_IN_SPATIAL
+#
+BINLOG ' SOgWTg8BAAAAbgAAAHIAAAAAAAQANS42LjMtbTUtZGVidWctbG9nAAAAAAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAABI6BZOEzgNAAgAEgAEBAQEEgAAVgAEGggAAAAICAgCAAAAAAVAYI8=';
+CREATE TABLE t1 (i INT, g GEOMETRY NOT NULL,
+SPATIAL INDEX (g)) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (PRIMARY KEY(a)) ENGINE=InnoDB
+WITH RECURSIVE t(a) AS (VALUES(1),(1)) SELECT * FROM t;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Could not execute Write_rows_v1 event on table .*");
+BINLOG ' SVtYRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=SVtYRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf /+ AgAAAA==';
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t1;

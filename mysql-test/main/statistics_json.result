@@ -1,6 +1,7 @@
 #
 # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 #
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @SINGLE_PREC_TYPE='single_prec_hb';
 set @DOUBLE_PREC_TYPE='double_prec_hb';
 set @DEFAULT_HIST_TYPE='double_prec_hb';
@@ -78,7 +79,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -101,7 +102,7 @@ COUNT(*)
 SELECT * FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='a';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 SELECT MIN(t1.a), MAX(t1.a), 
 (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
 (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.a)",
@@ -232,34 +233,7 @@ hist_size, hist_type, decode_histogram(hist_type,histogram)
 FROM mysql.column_stats
 ORDER BY db_name, table_name, column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
-test	t1	a	0	49	0.0000	1.0000	4	JSON_HB	{
-  "target_histogram_size": 4,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "0",
-      "size": 0.275,
-      "ndv": 11
-    },
-    {
-      "start": "12",
-      "size": 0.275,
-      "ndv": 11
-    },
-    {
-      "start": "29",
-      "size": 0.275,
-      "ndv": 11
-    },
-    {
-      "start": "41",
-      "end": "49",
-      "size": 0.175,
-      "ndv": 7
-    }
-  ]
-}
+test	t1	a	0	49	0.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	JSON_HB	{
   "target_histogram_size": 4,
   "collected_at": "REPLACED",
@@ -409,49 +383,7 @@ hist_size, hist_type, decode_histogram(hist_type,histogram)
 FROM mysql.column_stats
 ORDER BY db_name, table_name, column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
-test	t1	a	0	49	0.0000	1.0000	7	JSON_HB	{
-  "target_histogram_size": 8,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "0",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "7",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "14",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "22",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "31",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "38",
-      "size": 0.15,
-      "ndv": 6
-    },
-    {
-      "start": "44",
-      "end": "49",
-      "size": 0.1,
-      "ndv": 4
-    }
-  ]
-}
+test	t1	a	0	49	0.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	5	JSON_HB	{
   "target_histogram_size": 8,
   "collected_at": "REPLACED",
@@ -653,13 +585,13 @@ test	t1	40
 test	t3	17
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
 SELECT * FROM mysql.index_stats;
@@ -682,13 +614,13 @@ test	s1	40
 test	t3	17
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	s1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	s1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	s1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	s1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	s1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
 SELECT * FROM mysql.index_stats;
@@ -711,13 +643,13 @@ test	t1	40
 test	t3	17
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
-test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
 SELECT * FROM mysql.index_stats;
@@ -739,7 +671,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -780,7 +712,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
@@ -805,7 +737,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -832,7 +764,7 @@ db_name	table_name	cardinality
 test	s1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	s1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	s1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	s1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -870,7 +802,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -905,7 +837,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -916,6 +848,13 @@ test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
 test	t1	idx3	1	8.5000
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(x) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats where column_name="x";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	x	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -934,7 +873,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -951,7 +890,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -992,7 +931,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1021,7 +960,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1032,15 +971,15 @@ test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
 test	t1	idx3	1	8.5000
-LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats'
-  INTO TABLE mysql.column_stats
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats' IGNORE
+INTO TABLE mysql.column_stats
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_index_stats'
   INTO TABLE mysql.index_stats
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1074,7 +1013,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1137,7 +1076,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1152,7 +1091,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	NULL	NULL	1.0000	NULL	NULL	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1176,7 +1115,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1208,7 +1147,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1238,7 +1177,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1253,7 +1192,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1335,7 +1274,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1366,8 +1305,8 @@ test	t1	40
 test	t2	40
 SELECT * FROM mysql.column_stats ORDER BY column_name, table_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
-test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
+test	t2	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
@@ -1411,7 +1350,7 @@ db_name	table_name	cardinality
 test	t2	40
 SELECT * FROM mysql.column_stats ORDER BY column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t2	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
@@ -1470,12 +1409,17 @@ test	t2	idx4	1	6.2000
 test	t2	idx4	2	1.7222
 test	t2	idx4	3	1.1154
 test	t2	idx4	4	1.0000
+SELECT * FROM mysql.column_stats where column_name="b";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
 ALTER TABLE t2 CHANGE COLUMN b b varchar(30);
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t2	idx2	1	7.0000
 test	t2	idx2	2	2.3846
 test	t2	idx3	1	8.5000
+SELECT * FROM mysql.column_stats where column_name="b";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -1511,6 +1455,9 @@ test	t2	idx4	1	6.2000
 test	t2	idx4	2	1.7222
 test	t2	idx4	3	1.1154
 test	t2	idx4	4	1.0000
+SELECT * FROM mysql.column_stats where column_name="b";
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t2	b	0	zzzzzzzzzzzzzzzzzz	0.0000	13.9000	6.6667	0	NULL	NULL
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -1584,7 +1531,7 @@ test.t1	analyze	Warning	Engine-independent statistics are not collected for colu
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1622,7 +1569,7 @@ Table	Op	Msg_type	Msg_text
 mysql.column_stats	analyze	error	Invalid argument
 ANALYZE TABLE mysql.column_stats;
 Table	Op	Msg_type	Msg_text
-mysql.column_stats	analyze	status	OK
+mysql.column_stats	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 SELECT * FROM mysql.column_stats;
@@ -1640,7 +1587,7 @@ db_name	table_name	cardinality
 test	t1	40
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	a	0	49	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
@@ -1728,7 +1675,7 @@ WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -1799,7 +1746,7 @@ WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -1811,7 +1758,7 @@ WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -3529,7 +3476,7 @@ WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -4047,7 +3994,7 @@ db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_fre
 test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
 drop table t1;
 #
-# MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+# MDEV-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
 # Encountered illegal value '' when converting to DECIMAL
 #
 set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
@@ -4243,7 +4190,7 @@ t1	id	1	17384	0.0000	4.0000	14.0000	{
 }
 set analyze_sample_percentage=0.1;
 #
-# This query will show an innacurate avg_frequency value.
+# This query will show an inaccurate avg_frequency value.
 #
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -4536,6 +4483,8 @@ set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1;
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
@@ -4765,457 +4714,7 @@ set histogram_size=50;
 ANALYZE TABLE Country, City, CountryLanguage persistent for all;
 SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
 column_name	min_value	max_value	hist_size	hist_type	histogram
-Code	ABW	ZWE	48	JSON_HB	{
-  "target_histogram_size": 50,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "ABW",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "AND",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ASM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "AUT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BFA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BIH",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BRA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "BWA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "CHL",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "COG",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "CRI",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "CZE",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "DOM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ESH",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "FJI",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GAB",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GIN",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GRC",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "GUM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "HRV",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "IOT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ISR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "KAZ",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "KNA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "LBR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "LSO",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MAR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MEX",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MMR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MSR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "MYT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "NGA",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "NPL",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "PAN",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "PNG",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "PRY",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "ROM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SEN",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SLB",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SPM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "SWE",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "TCD",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "TKM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "TUR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "UKR",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "VAT",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "VNM",
-      "size": 0.020920502,
-      "ndv": 5
-    },
-    {
-      "start": "YUG",
-      "end": "ZWE",
-      "size": 0.016736402,
-      "ndv": 4
-    }
-  ]
-}
-Country	ABW	ZWE	39	JSON_HB	{
-  "target_histogram_size": 50,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "ABW",
-      "size": 0.020102966,
-      "ndv": 11
-    },
-    {
-      "start": "ATG",
-      "size": 0.020102966,
-      "ndv": 14
-    },
-    {
-      "start": "BLR",
-      "size": 0.006619269,
-      "ndv": 4
-    },
-    {
-      "start": "BRA",
-      "size": 0.061289532,
-      "ndv": 1
-    },
-    {
-      "start": "BRB",
-      "size": 0.020102966,
-      "ndv": 9
-    },
-    {
-      "start": "CHL",
-      "size": 0.002206423,
-      "ndv": 1
-    },
-    {
-      "start": "CHN",
-      "size": 0.0889924,
-      "ndv": 1
-    },
-    {
-      "start": "CIV",
-      "size": 0.020102966,
-      "ndv": 10
-    },
-    {
-      "start": "CUB",
-      "size": 0.020102966,
-      "ndv": 6
-    },
-    {
-      "start": "DEU",
-      "size": 0.020102966,
-      "ndv": 8
-    },
-    {
-      "start": "EGY",
-      "size": 0.020102966,
-      "ndv": 4
-    },
-    {
-      "start": "ESP",
-      "size": 0.020102966,
-      "ndv": 11
-    },
-    {
-      "start": "GBR",
-      "size": 0.020102966,
-      "ndv": 3
-    },
-    {
-      "start": "GIB",
-      "size": 0.020102966,
-      "ndv": 19
-    },
-    {
-      "start": "IDN",
-      "size": 0.012503064,
-      "ndv": 1
-    },
-    {
-      "start": "IND",
-      "size": 0.083598921,
-      "ndv": 1
-    },
-    {
-      "start": "IRL",
-      "size": 0.020102966,
-      "ndv": 3
-    },
-    {
-      "start": "IRQ",
-      "size": 0.020102966,
-      "ndv": 6
-    },
-    {
-      "start": "JOR",
-      "size": 2.451581e-4,
-      "ndv": 1
-    },
-    {
-      "start": "JPN",
-      "size": 0.060799215,
-      "ndv": 1
-    },
-    {
-      "start": "KAZ",
-      "size": 0.020102966,
-      "ndv": 7
-    },
-    {
-      "start": "KOR",
-      "size": 0.020102966,
-      "ndv": 16
-    },
-    {
-      "start": "MDA",
-      "size": 0.002451581,
-      "ndv": 3
-    },
-    {
-      "start": "MEX",
-      "size": 0.042412356,
-      "ndv": 1
-    },
-    {
-      "start": "MHL",
-      "size": 0.020102966,
-      "ndv": 20
-    },
-    {
-      "start": "NGA",
-      "size": 0.020102966,
-      "ndv": 4
-    },
-    {
-      "start": "NLD",
-      "size": 0.020102966,
-      "ndv": 7
-    },
-    {
-      "start": "PAK",
-      "size": 0.007354744,
-      "ndv": 4
-    },
-    {
-      "start": "PHL",
-      "size": 0.033341505,
-      "ndv": 1
-    },
-    {
-      "start": "PLW",
-      "size": 0.020102966,
-      "ndv": 8
-    },
-    {
-      "start": "PSE",
-      "size": 0.008580534,
-      "ndv": 5
-    },
-    {
-      "start": "RUS",
-      "size": 0.046334886,
-      "ndv": 1
-    },
-    {
-      "start": "RWA",
-      "size": 0.020102966,
-      "ndv": 18
-    },
-    {
-      "start": "SWE",
-      "size": 0.020102966,
-      "ndv": 16
-    },
-    {
-      "start": "TUR",
-      "size": 0.020102966,
-      "ndv": 4
-    },
-    {
-      "start": "TZA",
-      "size": 0.015199804,
-      "ndv": 4
-    },
-    {
-      "start": "USA",
-      "size": 0.067173327,
-      "ndv": 1
-    },
-    {
-      "start": "UZB",
-      "size": 0.020102966,
-      "ndv": 7
-    },
-    {
-      "start": "VNM",
-      "end": "ZWE",
-      "size": 0.018632018,
-      "ndv": 9
-    }
-  ]
-}
+Code	ABW	ZWE	NULL	NULL	NULL
 Name	Afghanistan	Zimbabwe	48	JSON_HB	{
   "target_histogram_size": 50,
   "collected_at": "REPLACED",
@@ -5461,6 +4960,210 @@ Name	Afghanistan	Zimbabwe	48	JSON_HB	{
       "end": "Zimbabwe",
       "size": 0.016736402,
       "ndv": 4
+    }
+  ]
+}
+ID	1	4079	NULL	NULL	NULL
+Country	ABW	ZWE	39	JSON_HB	{
+  "target_histogram_size": 50,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "ABW",
+      "size": 0.020102966,
+      "ndv": 11
+    },
+    {
+      "start": "ATG",
+      "size": 0.020102966,
+      "ndv": 14
+    },
+    {
+      "start": "BLR",
+      "size": 0.006619269,
+      "ndv": 4
+    },
+    {
+      "start": "BRA",
+      "size": 0.061289532,
+      "ndv": 1
+    },
+    {
+      "start": "BRB",
+      "size": 0.020102966,
+      "ndv": 9
+    },
+    {
+      "start": "CHL",
+      "size": 0.002206423,
+      "ndv": 1
+    },
+    {
+      "start": "CHN",
+      "size": 0.0889924,
+      "ndv": 1
+    },
+    {
+      "start": "CIV",
+      "size": 0.020102966,
+      "ndv": 10
+    },
+    {
+      "start": "CUB",
+      "size": 0.020102966,
+      "ndv": 6
+    },
+    {
+      "start": "DEU",
+      "size": 0.020102966,
+      "ndv": 8
+    },
+    {
+      "start": "EGY",
+      "size": 0.020102966,
+      "ndv": 4
+    },
+    {
+      "start": "ESP",
+      "size": 0.020102966,
+      "ndv": 11
+    },
+    {
+      "start": "GBR",
+      "size": 0.020102966,
+      "ndv": 3
+    },
+    {
+      "start": "GIB",
+      "size": 0.020102966,
+      "ndv": 19
+    },
+    {
+      "start": "IDN",
+      "size": 0.012503064,
+      "ndv": 1
+    },
+    {
+      "start": "IND",
+      "size": 0.083598921,
+      "ndv": 1
+    },
+    {
+      "start": "IRL",
+      "size": 0.020102966,
+      "ndv": 3
+    },
+    {
+      "start": "IRQ",
+      "size": 0.020102966,
+      "ndv": 6
+    },
+    {
+      "start": "JOR",
+      "size": 2.451581e-4,
+      "ndv": 1
+    },
+    {
+      "start": "JPN",
+      "size": 0.060799215,
+      "ndv": 1
+    },
+    {
+      "start": "KAZ",
+      "size": 0.020102966,
+      "ndv": 7
+    },
+    {
+      "start": "KOR",
+      "size": 0.020102966,
+      "ndv": 16
+    },
+    {
+      "start": "MDA",
+      "size": 0.002451581,
+      "ndv": 3
+    },
+    {
+      "start": "MEX",
+      "size": 0.042412356,
+      "ndv": 1
+    },
+    {
+      "start": "MHL",
+      "size": 0.020102966,
+      "ndv": 20
+    },
+    {
+      "start": "NGA",
+      "size": 0.020102966,
+      "ndv": 4
+    },
+    {
+      "start": "NLD",
+      "size": 0.020102966,
+      "ndv": 7
+    },
+    {
+      "start": "PAK",
+      "size": 0.007354744,
+      "ndv": 4
+    },
+    {
+      "start": "PHL",
+      "size": 0.033341505,
+      "ndv": 1
+    },
+    {
+      "start": "PLW",
+      "size": 0.020102966,
+      "ndv": 8
+    },
+    {
+      "start": "PSE",
+      "size": 0.008580534,
+      "ndv": 5
+    },
+    {
+      "start": "RUS",
+      "size": 0.046334886,
+      "ndv": 1
+    },
+    {
+      "start": "RWA",
+      "size": 0.020102966,
+      "ndv": 18
+    },
+    {
+      "start": "SWE",
+      "size": 0.020102966,
+      "ndv": 16
+    },
+    {
+      "start": "TUR",
+      "size": 0.020102966,
+      "ndv": 4
+    },
+    {
+      "start": "TZA",
+      "size": 0.015199804,
+      "ndv": 4
+    },
+    {
+      "start": "USA",
+      "size": 0.067173327,
+      "ndv": 1
+    },
+    {
+      "start": "UZB",
+      "size": 0.020102966,
+      "ndv": 7
+    },
+    {
+      "start": "VNM",
+      "end": "ZWE",
+      "size": 0.018632018,
+      "ndv": 9
     }
   ]
 }
@@ -6200,264 +5903,6 @@ Capital	1	4074	47	JSON_HB	{
       "end": "4074",
       "size": 0.00862069,
       "ndv": 2
-    }
-  ]
-}
-ID	1	4079	50	JSON_HB	{
-  "target_histogram_size": 50,
-  "collected_at": "REPLACED",
-  "collected_by": "REPLACED",
-  "histogram_hb": [
-    {
-      "start": "1",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "83",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "165",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "247",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "329",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "411",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "493",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "575",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "657",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "739",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "821",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "903",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "985",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1067",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1149",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1231",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1313",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1395",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1477",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1559",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1641",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1723",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1805",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1887",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "1969",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2051",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2133",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2215",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2297",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2379",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2461",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2543",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2625",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2707",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2789",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2871",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "2953",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3035",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3117",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3199",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3281",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3363",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3445",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3527",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3609",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3691",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3773",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3855",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "3937",
-      "size": 0.020102966,
-      "ndv": 82
-    },
-    {
-      "start": "4019",
-      "end": "4079",
-      "size": 0.014954646,
-      "ndv": 61
     }
   ]
 }
@@ -7728,10 +7173,10 @@ Percentage	0.0	99.9	47	JSON_HB	{
 }
 analyze select * from Country use index () where Code between 'BBC' and 'GGG';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	24.58	25.52	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	20.00	25.52	Using where
 analyze select * from Country use index () where Code < 'BBC';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	8.37	7.11	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	4.00	7.11	Using where
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 DROP SCHEMA world;
@@ -7950,7 +7395,7 @@ DROP TABLE t1;
 #
 select variable_comment from information_schema.system_variables where VARIABLE_NAME='HISTOGRAM_TYPE';
 variable_comment
-Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced, JSON_HB - height-balanced, stored as JSON.
+Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced, JSON_HB - height-balanced, stored as JSON
 #
 # MDEV-26709: JSON histogram may contain bucketS than histogram_size allows
 #
@@ -8294,6 +7739,8 @@ analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '13715197108439488792'
 select histogram
 from mysql.column_stats where table_name='t1' and db_name=database();
 histogram
@@ -8338,12 +7785,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 18,
+          "cost": "COST_REPLACED",
           "filtered": 5.555555344,
           "attached_condition": "t1.a > 'y'"
         }
@@ -8352,3 +7802,955 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-36765 JSON Histogram cannot handle >1 byte characters
+#
+CREATE TABLE t1 (f varchar(50)) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO t1 VALUES (UNHEX('E983A8E996800AE983A8E99680'));
+SET STATEMENT histogram_type=JSON_HB FOR ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT min_value, max_value, hist_type
+FROM mysql.column_stats WHERE db_name = 'test' AND table_name = 't1';
+min_value	max_value	hist_type
+部門
+部門	部門
+部門	JSON_HB
+DROP TABLE t1;
+create table t1 (
+col1 varchar(10) charset utf8
+);
+set names utf8;
+select hex('б'), collation('б');
+hex('б')	collation('б')
+D0B1	utf8mb3_uca1400_ai_ci
+insert into t1 values 
+('а'),('б'),('в'),('г'),('д'),('е'),('ж'),('з'),('и'),('й');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select hex(col1) from t1;
+hex(col1)
+D0B0
+D0B1
+D0B2
+D0B3
+D0B4
+D0B5
+D0B6
+D0B7
+D0B8
+D0B9
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "а",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "в",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "г",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "д",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "е",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ж",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "з",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "и",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "й",
+            "end": "й",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+explain extended select * from t1 where col1 < 'а';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'а'
+explain extended select * from t1 where col1 < 'в';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	20.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'в'
+explain extended select * from t1 where col1 < 'д';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	40.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'д'
+explain extended select * from t1 where col1 < 'ж';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'ж'
+explain extended select * from t1 where col1 < 'й';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	90.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'й'
+delete from t1;
+insert into t1 values 
+('"а'),('"б'),('"в'),('"г'),('"д'),('"е'),('"ж'),('"з'),('"и'),('"й');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"а",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"в",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"г",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"д",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"е",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ж",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"з",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"и",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"й",
+            "end": "\"й",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select hex(col1) from t1;
+hex(col1)
+22D0B0
+22D0B1
+22D0B2
+22D0B3
+22D0B4
+22D0B5
+22D0B6
+22D0B7
+22D0B8
+22D0B9
+explain extended select * from t1 where col1 < '"а';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"а'
+explain extended select * from t1 where col1 < '"в';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	20.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"в'
+explain extended select * from t1 where col1 < '"д';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	40.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"д'
+explain extended select * from t1 where col1 < '"ж';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"ж'
+explain extended select * from t1 where col1 < '"й';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	90.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"й'
+drop table t1;
+select JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251));
+JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251))
+ФФ
+#
+# MDEV-36977 Histogram code lacks coverage for non-latin characters
+#
+create table t1 (
+col1 varchar(10) charset utf8 collate utf8mb3_general_ci
+);
+set names utf8;
+select hex('Ꙃ'), collation('Ꙃ');
+hex('Ꙃ')	collation('Ꙃ')
+EA9982	utf8mb3_uca1400_ai_ci
+insert into t1 values
+('Ꙩ'),('Ꙛ'),('ꙮ'),('Ꙃ'),('Ꚛ'),('ꘐ'),('ꘜ'),('ꕫ'),('ꖿ'), ('ꙛ');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+ꕫ	EA95AB
+ꖿ	EA96BF
+ꘐ	EA9890
+ꘜ	EA989C
+Ꙃ	EA9982
+Ꙛ	EA999A
+ꙛ	EA999B
+Ꙩ	EA99A8
+ꙮ	EA99AE
+Ꚛ	EA9A9A
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꖿ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꘐ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꘜ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙩ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꙮ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꚛ",
+            "end": "Ꚛ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < 'ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < 'ꖿ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < 'Ꙃ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < 'ꙛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < 'Ꚛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+delete from t1;
+insert into t1 values
+('"Ꙩ'),('"Ꙛ'),('"ꙮ'),('"Ꙃ'),('"Ꚛ'),('"ꘐ'),('"ꘜ'),('"ꕫ'),('"ꖿ'), ('"ꙛ');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꖿ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꘐ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꘜ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙩ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꙮ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꚛ",
+            "end": "\"Ꚛ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"ꕫ	22EA95AB
+"ꖿ	22EA96BF
+"ꘐ	22EA9890
+"ꘜ	22EA989C
+"Ꙃ	22EA9982
+"Ꙛ	22EA999A
+"ꙛ	22EA999B
+"Ꙩ	22EA99A8
+"ꙮ	22EA99AE
+"Ꚛ	22EA9A9A
+analyze select * from t1 where col1 < '"ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"ꖿ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '"Ꙃ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '"ꙛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < '"Ꚛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+drop table t1;
+create table t1 (
+col1 varchar(10) charset utf32 collate utf32_uca1400_ai_ci
+);
+show variables like "histogram_size";
+Variable_name	Value
+histogram_size	254
+SET NAMES utf8mb4;
+select hex('🌀'), collation('🌀');
+hex('?')	collation('?')
+F09F8C80	utf8mb4_uca1400_ai_ci
+insert into t1 values
+('𝄞'),('🌀'),('😎'),('😀'),('🂡'),('🌚'), ('🀄'),('𝄢'), ('😺'), ('🧸');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+𝄞	0001D11E
+𝄢	0001D122
+🀄	0001F004
+🂡	0001F0A1
+🌀	0001F300
+🌚	0001F31A
+🧸	0001F9F8
+😀	0001F600
+😎	0001F60E
+😺	0001F63A
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "𝄢",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🀄",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🌚",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🧸",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😎",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😺",
+            "end": "😺",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < '𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '𝄢';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	30.00	30.00	Using where
+analyze select * from t1 where col1 < '🌚';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+analyze select * from t1 where col1 < '😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"😎'),('"😀'),('"🂡'),('"🌚'), ('"🀄'),('"𝄢'), ('"😺'), ('"🧸');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"𝄢",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🀄",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌚",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🧸",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😎",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😺",
+            "end": "\"😺",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"𝄞	000000220001D11E
+"𝄢	000000220001D122
+"🀄	000000220001F004
+"🂡	000000220001F0A1
+"🌀	000000220001F300
+"🌚	000000220001F31A
+"🧸	000000220001F9F8
+"😀	000000220001F600
+"😎	000000220001F60E
+"😺	000000220001F63A
+analyze select * from t1 where col1 < '"𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"𝄢';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '"🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	30.00	30.00	Using where
+analyze select * from t1 where col1 < '"🌚';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+analyze select * from t1 where col1 < '"😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+drop table t1;
+create table t1 (
+col1 varchar(10) charset utf32 collate utf32_general_ci
+);
+show variables like "histogram_size";
+Variable_name	Value
+histogram_size	254
+SET NAMES utf8mb4;
+insert into t1 values
+('𝄞'),('🌀'),('б'),('😀'),('🂡'),('🀄'), ('ꕫ'),('Ꙃ'), ('😺'), ('d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+d	00000064
+б	00000431
+ꕫ	0000A56B
+Ꙃ	0000A642
+😺	0001F63A
+🀄	0001F004
+🂡	0001F0A1
+😀	0001F600
+🌀	0001F300
+𝄞	0001D11E
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "𝄞",
+            "end": "𝄞",
+            "size": 0.6,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < 'ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	20.00	20.00	Using where
+analyze select * from t1 where col1 < '𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"б'),('"😀'),('"🂡'),('"🌚'), ('"ꕫ'),('"Ꙃ'), ('"😺'), ('"d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"𝄞",
+            "end": "\"𝄞",
+            "size": 0.6,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"d	0000002200000064
+"б	0000002200000431
+"ꕫ	000000220000A56B
+"Ꙃ	000000220000A642
+"😺	000000220001F63A
+"🌚	000000220001F31A
+"🂡	000000220001F0A1
+"😀	000000220001F600
+"🌀	000000220001F300
+"𝄞	000000220001D11E
+analyze select * from t1 where col1 < '"d';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	20.00	20.00	Using where
+analyze select * from t1 where col1 < '"𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '"🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '"😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+drop table t1;
+create table t1 (
+col1 varchar(10) charset utf32  COLLATE utf32_uca1400_ai_ci
+);
+show variables like "histogram_size";
+Variable_name	Value
+histogram_size	254
+SET NAMES utf8mb4;
+insert into t1 values
+('𝄞'),('🌀'),('б'),('😀'),('🂡'),('🀄'), ('ꕫ'),('Ꙃ'), ('😺'), ('d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+𝄞	0001D11E
+🀄	0001F004
+🂡	0001F0A1
+🌀	0001F300
+😀	0001F600
+😺	0001F63A
+d	00000064
+б	00000431
+Ꙃ	0000A642
+ꕫ	0000A56B
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🀄",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😺",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꕫ",
+            "end": "ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < 'ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+analyze select * from t1 where col1 < '𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	20.00	20.00	Using where
+analyze select * from t1 where col1 < '😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"б'),('"😀'),('"🂡'),('"🌚'), ('"ꕫ'),('"Ꙃ'), ('"😺'), ('"d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌚",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😺",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꕫ",
+            "end": "\"ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"𝄞	000000220001D11E
+"🂡	000000220001F0A1
+"🌀	000000220001F300
+"🌚	000000220001F31A
+"😀	000000220001F600
+"😺	000000220001F63A
+"d	0000002200000064
+"б	0000002200000431
+"Ꙃ	000000220000A642
+"ꕫ	000000220000A56B
+analyze select * from t1 where col1 < '"d';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < '"ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+analyze select * from t1 where col1 < '"𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '"😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+drop table t1;
+# End of 10.11 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

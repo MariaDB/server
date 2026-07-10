@@ -324,7 +324,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='ttl_duration=1'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='ttl_duration=1'
 set global rocksdb_force_flush_memtable_now=1;
 set global rocksdb_compact_cf='default';
 SELECT COUNT(*) FROM t1;

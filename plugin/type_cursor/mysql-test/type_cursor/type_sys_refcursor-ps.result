@@ -1,0 +1,430 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Sending a cursor via an SP IN parameter using EXECUTE IMMEDIATE
+#
+CREATE PROCEDURE p1(IN c0 SYS_REFCURSOR)
+BEGIN
+DECLARE v INT;
+FETCH c0 INTO v;
+SELECT 'p1' AS stage, c0, v;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;                    -- c0 takes m_statement_cursors.at(0)
+OPEN c1 FOR VALUES (10),(20),(30);       -- c1 takes m_statement_cursors.at(1)
+EXECUTE IMMEDIATE 'CALL p1(?)' USING c1; -- should fetch 10 from c1
+FETCH c1 INTO v;                         -- should fetch 20 from c1
+SELECT 'p2-c1' AS stage, c1, v;
+FETCH c0 INTO v;                         -- should fetch 1 from c0
+SELECT 'p2-c0' AS stage, c0, v;
+END;
+/
+CALL p2;
+stage	c0	v
+p1	1	10
+stage	c1	v
+p2-c1	1	20
+stage	c0	v
+p2-c0	0	1
+CALL p2;
+stage	c0	v
+p1	1	10
+stage	c1	v
+p2-c1	1	20
+stage	c0	v
+p2-c0	0	1
+/* make sure it starts from m_statement_cursors(0) on the second execution */
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# SYS_REFCURSOR dynamic parameters with PREPARE..EXECUTE
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+OPEN c1 FOR SELECT 1;
+PREPARE stmt FROM 'SELECT ?,?';
+EXECUTE stmt USING c0,c1;
+EXECUTE stmt USING c0,c1;
+END;
+/
+CALL p1;
+?	?
+0	1
+?	?
+0	1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+OPEN c1 FOR SELECT 1;
+PREPARE stmt FROM 'SELECT ?,?';
+EXECUTE stmt USING COALESCE(c0), COALESCE(c1);
+EXECUTE stmt USING COALESCE(c0), COALESCE(c1);
+END;
+/
+CALL p1;
+?	?
+0	1
+?	?
+0	1
+DROP PROCEDURE p1;
+# 
+# Make sure various combinations of
+# Item_param, Item_func_coalesce, Item_func_sp 
+# do not leak m_statement_cursors elements:
+# c0 is expected to be 0 in all SELECT statements below.
+#
+CREATE FUNCTION ff0() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE ff0c0 SYS_REFCURSOR;
+OPEN ff0c0 FOR SELECT 10;
+RETURN ff0c0;
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-0', c0;
+EXECUTE IMMEDIATE 'SELECT COALESCE(?) FROM seq_1_to_5' USING c0;
+SELECT 'p1-1', c0;
+EXECUTE IMMEDIATE 'SELECT COALESCE(?) FROM seq_1_to_5' USING c0;
+SELECT 'p1-2', c0;
+EXECUTE IMMEDIATE 'SELECT LAST_VALUE(NULL,COALESCE(?)) FROM seq_1_to_5' USING c0;
+SELECT 'p1-3', c0;
+EXECUTE IMMEDIATE 'SELECT LAST_VALUE(COALESCE(?), COALESCE(?)) FROM seq_1_to_5' USING c0, c0;
+SELECT 'p1-4', c0;
+EXECUTE IMMEDIATE 'SELECT LAST_VALUE(COALESCE(?),NULL) FROM seq_1_to_5' USING c0;
+SELECT 'p1-5', c0;
+END;
+/
+CALL p1;
+p1-0	c0
+p1-0	0
+COALESCE(?)
+0
+0
+0
+0
+0
+p1-1	c0
+p1-1	0
+COALESCE(?)
+0
+0
+0
+0
+0
+p1-2	c0
+p1-2	0
+LAST_VALUE(NULL,COALESCE(?))
+0
+0
+0
+0
+0
+p1-3	c0
+p1-3	0
+LAST_VALUE(COALESCE(?), COALESCE(?))
+0
+0
+0
+0
+0
+p1-4	c0
+p1-4	0
+LAST_VALUE(COALESCE(?),NULL)
+NULL
+NULL
+NULL
+NULL
+NULL
+p1-5	c0
+p1-5	0
+DROP PROCEDURE p1;
+DROP FUNCTION ff0;
+#
+# Similar tests using PREPARE..EXECUTE
+#
+CREATE FUNCTION ff0() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE ff0c0 SYS_REFCURSOR;
+OPEN ff0c0 FOR SELECT 10;
+RETURN ff0c0;
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+OPEN c0 FOR SELECT 1;
+SELECT 'p1-0', c0;
+PREPARE stmt FROM 'SELECT COALESCE(?) FROM seq_1_to_5';
+EXECUTE stmt USING c0;
+DEALLOCATE PREPARE stmt;
+SELECT 'p1-1', c0;
+PREPARE stmt FROM 'SELECT COALESCE(?) FROM seq_1_to_5';
+EXECUTE stmt USING c0;
+DEALLOCATE PREPARE stmt;
+SELECT 'p1-2', c0;
+PREPARE stmt FROM 'SELECT LAST_VALUE(NULL,COALESCE(?)) FROM seq_1_to_5';
+EXECUTE stmt USING c0;
+DEALLOCATE PREPARE stmt;
+SELECT 'p1-3', c0;
+PREPARE stmt FROM 'SELECT LAST_VALUE(COALESCE(?), COALESCE(?)) FROM seq_1_to_5';
+EXECUTE stmt USING c0, c0;
+DEALLOCATE PREPARE stmt;
+SELECT 'p1-4', c0;
+PREPARE stmt FROM 'SELECT LAST_VALUE(COALESCE(?),NULL) FROM seq_1_to_5';
+EXECUTE stmt USING c0;
+DEALLOCATE PREPARE stmt;
+SELECT 'p1-5', c0;
+END;
+/
+CALL p1;
+p1-0	c0
+p1-0	0
+COALESCE(?)
+0
+0
+0
+0
+0
+p1-1	c0
+p1-1	0
+COALESCE(?)
+0
+0
+0
+0
+0
+p1-2	c0
+p1-2	0
+LAST_VALUE(NULL,COALESCE(?))
+0
+0
+0
+0
+0
+p1-3	c0
+p1-3	0
+LAST_VALUE(COALESCE(?), COALESCE(?))
+0
+0
+0
+0
+0
+p1-4	c0
+p1-4	0
+LAST_VALUE(COALESCE(?),NULL)
+NULL
+NULL
+NULL
+NULL
+NULL
+p1-5	c0
+p1-5	0
+DROP PROCEDURE p1;
+DROP FUNCTION ff0;
+#
+# Getting a cursor via an SP OUT parameter using EXECUTE IMMEDIATE
+#
+CREATE PROCEDURE p1(OUT c1 SYS_REFCURSOR)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 10; -- will be closed on return
+OPEN c1 FOR SELECT 11;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING c0;
+FETCH c0 INTO v;
+SELECT c0, v;
+END;
+/
+CALL p2;
+c0	v
+1	11
+CALL p2;
+c0	v
+1	11
+/* make sure it starts from m_statement_cursors(0) on the second execution */
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Getting a cursor via an SP OUT parameter using EXECUTE IMMEDIATE
+# This script demonstrates that two open cursors co-exist.
+#
+CREATE PROCEDURE p1(OUT f1c0 SYS_REFCURSOR)
+BEGIN
+OPEN f1c0 FOR SELECT 10;
+END;
+/
+CREATE PROCEDURE p2(count INT)
+BEGIN
+DECLARE p2c0 SYS_REFCURSOR;
+DECLARE v INT;
+FOR i IN 1..count DO
+EXECUTE IMMEDIATE 'CALL p1(?)' USING p2c0;
+SELECT CONCAT('p2c0=', CAST(p2c0 AS CHAR)) AS p2c0;
+END FOR;
+FETCH p2c0 INTO v;
+SELECT CONCAT('v=', v) AS v;
+END;
+/
+SET @@max_open_cursors=2;
+CALL p2(10);
+p2c0=0
+p2c0=1
+p2c0=0
+p2c0=1
+p2c0=0
+p2c0=1
+p2c0=0
+p2c0=1
+p2c0=0
+p2c0=1
+v=10
+SET @@max_open_cursors=1;
+CALL p2(10);
+p2c0=0
+ERROR HY000: Too many open cursors; max 1 cursors allowed
+SET @@max_open_cursors=DEFAULT;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Getting a cursor via an SP INOUT parameter using EXECUTE IMMEDIATE
+#
+CREATE PROCEDURE p1(INOUT c1 SYS_REFCURSOR)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 10; -- will be closed on return
+OPEN c1 FOR SELECT 11;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE v INT;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING c0;
+FETCH c0 INTO v;
+SELECT c0, v;
+END;
+/
+CALL p2;
+c0	v
+1	11
+CALL p2;
+c0	v
+1	11
+/* make sure it starts from m_statement_cursors(0) on the second execution */
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Getting a cursor via an SP INOUT parameter using EXECUTE IMMEDIATE
+# This script demonstates that only one cursor is needed.
+#
+CREATE PROCEDURE p1(INOUT f1c0 SYS_REFCURSOR)
+BEGIN
+OPEN f1c0 FOR SELECT 10;
+END;
+/
+CREATE PROCEDURE p2(count INT)
+BEGIN
+DECLARE p2c0 SYS_REFCURSOR;
+DECLARE v INT;
+FOR i IN 1..count DO
+EXECUTE IMMEDIATE 'CALL p1(?)' USING p2c0;
+SELECT CONCAT('p2c0=', CAST(p2c0 AS CHAR)) AS p2c0;
+END FOR;
+FETCH p2c0 INTO v;
+SELECT CONCAT('v=', v) AS v;
+END;
+/
+SET @@max_open_cursors=1;
+CALL p2(10);
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+p2c0=0
+v=10
+SET @@max_open_cursors=DEFAULT;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Setting Item_param from not-NULL to NULL via EXECUTE IMMEDIATE
+# OUT param
+#
+CREATE PROCEDURE p1(OUT p1c0 SYS_REFCURSOR)
+BEGIN
+SELECT 'p1-0' AS stage, p1c0;
+SET p1c0= NULL;
+SELECT 'p1-1' AS stage, p1c0;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE p2c0 SYS_REFCURSOR;
+OPEN p2c0 FOR SELECT 10;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING p2c0;
+SELECT 'p2-1' AS stage, p2c0;
+OPEN p2c0 FOR SELECT 20;
+SELECT 'p2-2' AS stage, p2c0; -- Should return 0 if cursor array elements do not leak.
+END;
+/
+CALL p2;
+p1-0	NULL
+p1-1	NULL
+p2-1	NULL
+p2-2	0
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Setting Item_param from not-NULL to NULL via EXECUTE IMMEDIATE
+# INOUT param
+#
+CREATE PROCEDURE p1(INOUT p1c0 SYS_REFCURSOR)
+BEGIN
+SELECT 'p1-0' AS stage, p1c0;
+SET p1c0= NULL;
+SELECT 'p1-1' AS stage, p1c0;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE p2c0 SYS_REFCURSOR;
+OPEN p2c0 FOR SELECT 10;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING p2c0;
+SELECT 'p2-1' AS stage, p2c0;
+OPEN p2c0 FOR SELECT 20;
+SELECT 'pc-2' AS stage, p2c0; -- Should return 0 if cursor array elements do not leak.
+END;
+/
+CALL p2;
+p1-0	0
+p1-1	NULL
+p2-1	NULL
+pc-2	0
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;

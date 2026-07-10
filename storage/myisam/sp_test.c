@@ -19,7 +19,6 @@
 #include <my_global.h>
 #include "myisam.h"
 
-#ifdef HAVE_SPATIAL
 #include "sp_defs.h"
 
 #define MAX_REC_LENGTH 1024
@@ -89,7 +88,7 @@ int run_test(const char *filename)
   
   keyinfo[0].seg=keyseg;
   keyinfo[0].keysegs=1;
-  keyinfo[0].flag=HA_SPATIAL;
+  keyinfo[0].flag=0;
   keyinfo[0].key_alg=KEYALG;
   
   keyinfo[0].seg[0].type= HA_KEYTYPE_BINARY;
@@ -487,12 +486,5 @@ static void rtree_PrintWKB(uchar *wkb, uint n_dims)
     }
   }
 }
-
-#else
-int main(int argc __attribute__((unused)),char *argv[] __attribute__((unused)))
-{
-  exit(0);
-}
-#endif /*HAVE_SPATIAL*/
 
 #include "mi_extrafunc.h"

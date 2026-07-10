@@ -1,11 +1,14 @@
 -- source include/have_debug.inc
 -- source include/have_innodb.inc
--- source include/count_sessions.inc
 -- source include/have_debug_sync.inc
 # This test is slow on buildbot.
 --source include/big_test.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connect (stop_purge,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 
 #
 # Test for BUG# 12739098, check whether trx->error_status is reset on error.
@@ -102,7 +105,7 @@ SIGNAL opened WAIT_FOR flushed';
 send ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
-SET debug = '+d,row_log_tmpfile_fail';
+SET debug_dbug = '+d,row_log_tmpfile_fail';
 INSERT INTO t1 select NULL,'aaa','bbb' from t480;
 INSERT INTO t1 select NULL,'aaaa','bbbb' from t480;
 SET DEBUG_SYNC= 'now SIGNAL flushed';
@@ -155,12 +158,12 @@ SET DEBUG_SYNC='now SIGNAL log2';
 --connection con1
 reap;
 --disconnect con1
+--disconnect stop_purge
 --connection default
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;
 
 SET DEBUG_SYNC='RESET';
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo #  BUG#21612714 ALTER TABLE SORTING SKIPPED WHEN CHANGE PK AND DROP

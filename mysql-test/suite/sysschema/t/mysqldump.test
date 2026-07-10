@@ -32,4 +32,4 @@ DROP TEMPORARY TABLE tmp_tables_priv;
 
 FLUSH PRIVILEGES;
 --let $MYSQLD_DATADIR= `select @@datadir`
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info

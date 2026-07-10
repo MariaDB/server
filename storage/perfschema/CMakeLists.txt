@@ -24,7 +24,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_BINARY_DIR}/sql
                     ${CMAKE_CURRENT_BINARY_DIR}
-                    ${PCRE_INCLUDES}
+                    ${PCRE_INCLUDE_DIRS}
                     ${SSL_INCLUDE_DIRS})
 
 ADD_DEFINITIONS(-DMYSQL_SERVER)
@@ -49,7 +49,6 @@ cursor_by_thread.h
 cursor_by_user.h
 pfs.h
 pfs_account.h
-pfs_atomic.h
 pfs_buffer_container.h
 pfs_builtin_memory.h
 pfs_column_types.h
@@ -132,7 +131,6 @@ table_setup_actors.h
 table_setup_consumers.h
 table_setup_instruments.h
 table_setup_objects.h
-table_setup_timers.h
 table_sync_instances.h
 table_status_by_account.h
 table_status_by_host.h
@@ -249,7 +247,6 @@ table_setup_actors.cc
 table_setup_consumers.cc
 table_setup_instruments.cc
 table_setup_objects.cc
-table_setup_timers.cc
 table_sync_instances.cc
 table_status_by_account.cc
 table_status_by_host.cc

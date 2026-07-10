@@ -1,0 +1,229 @@
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+#
+# CREATE PACKAGE for sql_mode='';
+# Resembles SQL Standard 'CREATE MODULE'.
+#
+
+SET sql_mode='';
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg
+  PROCEDURE p1();
+  FUNCTION f1() RETURNS INT;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE BODY pkg
+  -- variable declarations
+  DECLARE a INT DEFAULT 11;
+  DECLARE b INT DEFAULT 10;
+
+  -- routine declarations
+  PROCEDURE p1()
+  BEGIN
+    SELECT CURRENT_USER;
+  END;
+  FUNCTION f1() RETURNS INT
+  BEGIN
+    RETURN a;
+  END;
+
+  -- initialization section
+  SET a=a-b;
+END;
+$$
+DELIMITER ;$$
+
+
+SHOW CREATE PACKAGE pkg;
+SHOW CREATE PACKAGE BODY pkg;
+
+CALL pkg.p1();
+SELECT pkg.f1();
+
+DROP PACKAGE pkg;
+
+
+--echo #
+--echo # MDEV-33428 Error messages ER_PACKAGE_ROUTINE_* are not good enough
+--echo #
+
+--echo #
+--echo # Routines declared in CREATE PACKAGE missing in CREATE PACKAGE BODY
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2
+  PROCEDURE p1();
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2
+  PROCEDURE p2() BEGIN SELECT 0; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2
+  FUNCTION f1() RETURNS INT;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2
+  FUNCTION f2() RETURNS INT BEGIN RETURN 10; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2
+  PROCEDURE p1();
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2
+  FUNCTION p1() RETURNS INT BEGIN RETURN 10; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2
+  PROCEDURE p1();
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2
+  PROCEDURE p1(a INT) BEGIN SELECT 0; END; -- Notice different prototype
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+--echo #
+--echo # Forward declarations in CREATE PACKAGE BODY with missing implementations
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2
+  PROCEDURE p1();
+END;
+$$
+--error ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
+CREATE PACKAGE BODY test2
+  PROCEDURE p1() BEGIN SELECT 0; END;
+  PROCEDURE p2();
+END;
+$$
+--error ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
+CREATE PACKAGE BODY test2
+  FUNCTION f1() RETURNS INT;
+  PROCEDURE p1() BEGIN SELECT 0; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-12252 ROW data type for stored function return values
+--echo #
+
+--echo #
+--echo # Testing fixed ROW type with package routines
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg
+  FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(32));
+  PROCEDURE p1(r ROW(a INT, b VARCHAR(32)));
+  PROCEDURE p2();
+END;
+$$
+CREATE PACKAGE BODY pkg
+  FUNCTION f1() RETURNS ROW(a INT, b VARCHAR(32))
+  BEGIN
+    RETURN ROW(1,'b1');
+  END;
+  PROCEDURE p1(r ROW(a INT, b VARCHAR(32)))
+  BEGIN
+    SELECT r.a, r.b;
+  END;
+  PROCEDURE p2()
+  BEGIN
+    CALL p1(f1());
+  END; 
+END;
+$$
+DELIMITER ;$$
+CALL pkg.p1(pkg.f1());
+CALL pkg.p2;
+DROP PACKAGE pkg;
+
+
+--echo #
+--echo # Testing "ROW TYPE OF table" with package routines
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER /;
+CREATE PACKAGE pkg
+  FUNCTION f1() RETURNS ROW TYPE OF t1;
+  PROCEDURE p1(r ROW TYPE OF t1);
+  PROCEDURE p2();
+END;
+/
+CREATE PACKAGE BODY pkg
+  FUNCTION f1() RETURNS ROW TYPE OF t1
+  BEGIN
+    DECLARE r ROW TYPE OF t1;
+    SELECT * INTO r FROM t1;
+    RETURN r;
+  END;
+  PROCEDURE p1(r ROW TYPE OF t1)
+  BEGIN
+    SELECT CONCAT(r.a, ' ', r.b);
+  END;
+  PROCEDURE p2()
+  BEGIN
+    CALL p1(f1());
+  END;
+END;
+/
+DELIMITER ;/
+CALL pkg.p1(pkg.f1());
+CALL pkg.p2;
+DROP PACKAGE pkg;
+DROP TABLE t1;
+
+--echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-36067 Assertion failure in TABLE_SHARE::init_from_sql_statement_string
+--echo #
+rename table mysql.proc to test.proc_backup;
+select * from information_schema.tables where
+  table_schema='sys' and table_name='x$schema_table_lock_waits';
+rename table test.proc_backup to mysql.proc;
+
+--echo # End of 11.8 tests

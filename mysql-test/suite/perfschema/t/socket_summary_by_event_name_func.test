@@ -6,7 +6,7 @@
 #==============================================================================
 #
 # Performance schema table socket_summary_by_event_name holds statistics
-# aggreagated by event name. Table socket_summary_by_instances maintains statistics
+# aggregated by event name. Table socket_summary_by_instances maintains statistics
 # per socket instance.
 #
 # This test verifies that the statistics in socket_summary_by_event_name
@@ -41,8 +41,10 @@ let $my_socket_debug_dbug= 0;
 --echo #==============================================================================
 --echo # Get hostname, port number
 --echo #==============================================================================
+--disable_cursor_protocol
 SELECT @@hostname INTO @MY_HOSTNAME;
 SELECT @@port INTO @MY_MASTER_PORT;
+--enable_cursor_protocol
 
 if ($my_socket_debug)
 {
@@ -145,7 +147,7 @@ WHERE t_inst.event_name LIKE '%client%'
 --connection default
 UPDATE performance_schema.threads
   SET INSTRUMENTED='NO' WHERE PROCESSLIST_ID = CONNECTION_ID();
-
+--disable_cursor_protocol
 --echo #
 --echo # 1.2 Get the default THREAD_ID;
 --echo #
@@ -161,6 +163,7 @@ let $default_object_instance_begin= `SELECT @my_object_instance_begin`;
 --disable_query_log
 SELECT @my_object_instance_begin INTO @default_object_instance_begin;
 --enable_query_log
+--enable_cursor_protocol
 
 if ($my_socket_debug)
 {
@@ -314,16 +317,12 @@ if (`SELECT @tables_match = 0`)
 --echo #
 --echo # 5.1 Disconnect con1
 --echo #
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --echo #
 --echo # 5.2 Disconnect con2
 --echo #
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
 
 --echo #
 --echo # 5.3 Drop mysqltest

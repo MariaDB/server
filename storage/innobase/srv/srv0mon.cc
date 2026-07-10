@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,9 +25,9 @@ Database monitor counter interfaces
 Created 12/9/2009 Jimmy Yang
 *******************************************************/
 
-#include "buf0buf.h"
+#include "btr0sea.h"
+#include "buf0flu.h"
 #include "dict0mem.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "os0file.h"
@@ -35,6 +35,7 @@ Created 12/9/2009 Jimmy Yang
 #include "srv0srv.h"
 #include "trx0rseg.h"
 #include "trx0sys.h"
+#include "log.h"
 
 /* Macro to standardize the counter names for counters in the
 "monitor_buf_page" module as they have very structured defines */
@@ -137,7 +138,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of row locks currently being waited for"
 	 " (innodb_row_lock_current_waits)",
 	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ROW_LOCK_CURRENT_WAIT},
 
 	{"lock_row_lock_time", "lock",
@@ -278,18 +279,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_READ},
 
-	{"buffer_index_sec_rec_cluster_reads", "buffer",
-	 "Number of secondary record reads triggered cluster read",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS},
-
-	{"buffer_index_sec_rec_cluster_reads_avoided", "buffer",
-	 "Number of secondary record reads avoided triggering cluster read",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED},
-
 	{"buffer_data_reads", "buffer",
 	 "Amount of data read in bytes (innodb_data_reads)",
 	 static_cast<monitor_type_t>(
@@ -375,11 +364,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Total loops in LRU get free.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_LRU_GET_FREE_LOOPS},
-
-	{"buffer_LRU_get_free_waits", "buffer",
-	 "Total sleep waits in LRU get free.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_GET_FREE_WAITS},
 
 	{"buffer_flush_avg_page_rate", "buffer",
 	 "Average number of pages at which flushing is happening",
@@ -484,11 +468,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE},
 
-	{"buffer_LRU_single_flush_failure_count", "Buffer",
-	 "Number of times attempt to flush a single page from LRU failed",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT},
-
 	{"buffer_LRU_get_free_search", "Buffer",
 	 "Number of searches performed for a clean page",
 	 MONITOR_NONE,
@@ -539,22 +518,9 @@ static monitor_info_t	innodb_counter_info[] =
 	MONITOR_BUF_PAGE_READ("index_non_leaf","Index Non-leaf",
 			      INDEX_NON_LEAF),
 
-	MONITOR_BUF_PAGE_READ("index_ibuf_leaf", "Insert Buffer Index Leaf",
-			      INDEX_IBUF_LEAF),
-
-	MONITOR_BUF_PAGE_READ("index_ibuf_non_leaf",
-			      "Insert Buffer Index Non-Leaf",
-			       INDEX_IBUF_NON_LEAF),
-
 	MONITOR_BUF_PAGE_READ("undo_log", "Undo Log", UNDO_LOG),
 
 	MONITOR_BUF_PAGE_READ("index_inode", "Index Inode", INODE),
-
-	MONITOR_BUF_PAGE_READ("ibuf_free_list", "Insert Buffer Free List",
-			      IBUF_FREELIST),
-
-	MONITOR_BUF_PAGE_READ("ibuf_bitmap", "Insert Buffer Bitmap",
-			      IBUF_BITMAP),
 
 	MONITOR_BUF_PAGE_READ("system_page", "System", SYSTEM),
 
@@ -578,22 +544,9 @@ static monitor_info_t	innodb_counter_info[] =
 	MONITOR_BUF_PAGE_WRITTEN("index_non_leaf","Index Non-leaf",
 				 INDEX_NON_LEAF),
 
-	MONITOR_BUF_PAGE_WRITTEN("index_ibuf_leaf", "Insert Buffer Index Leaf",
-				 INDEX_IBUF_LEAF),
-
-	MONITOR_BUF_PAGE_WRITTEN("index_ibuf_non_leaf",
-				 "Insert Buffer Index Non-Leaf",
-				 INDEX_IBUF_NON_LEAF),
-
 	MONITOR_BUF_PAGE_WRITTEN("undo_log", "Undo Log", UNDO_LOG),
 
 	MONITOR_BUF_PAGE_WRITTEN("index_inode", "Index Inode", INODE),
-
-	MONITOR_BUF_PAGE_WRITTEN("ibuf_free_list", "Insert Buffer Free List",
-				 IBUF_FREELIST),
-
-	MONITOR_BUF_PAGE_WRITTEN("ibuf_bitmap", "Insert Buffer Bitmap",
-				 IBUF_BITMAP),
 
 	MONITOR_BUF_PAGE_WRITTEN("system_page", "System", SYSTEM),
 
@@ -921,8 +874,9 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"adaptive_hash_pages_added", "adaptive_hash_index",
 	 "Number of index pages on which the Adaptive Hash Index is built",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_ADAPTIVE_HASH_PAGE_ADDED},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_PAGE_ADDED},
 
 	{"adaptive_hash_pages_removed", "adaptive_hash_index",
 	 "Number of index pages whose corresponding Adaptive Hash Index"
@@ -932,8 +886,9 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"adaptive_hash_rows_added", "adaptive_hash_index",
 	 "Number of Adaptive Hash Index rows added",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_ADAPTIVE_HASH_ROW_ADDED},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_ROW_ADDED},
 
 	{"adaptive_hash_rows_removed", "adaptive_hash_index",
 	 "Number of Adaptive Hash Index rows removed",
@@ -962,57 +917,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_N_FILE_OPENED},
-
-	/* ========== Counters for Change Buffer ========== */
-	{"module_ibuf_system", "change_buffer", "InnoDB Change Buffer",
-	 MONITOR_MODULE,
-	 MONITOR_DEFAULT_START, MONITOR_MODULE_IBUF_SYSTEM},
-
-	{"ibuf_merges_insert", "change_buffer",
-	 "Number of inserted records merged by change buffering",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_INSERT},
-
-	{"ibuf_merges_delete_mark", "change_buffer",
-	 "Number of deleted records merged by change buffering",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DELETE},
-
-	{"ibuf_merges_delete", "change_buffer",
-	 "Number of purge records merged by change buffering",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_PURGE},
-
-	{"ibuf_merges_discard_insert", "change_buffer",
-	 "Number of insert merged operations discarded",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT},
-
-	{"ibuf_merges_discard_delete_mark", "change_buffer",
-	 "Number of deleted merged operations discarded",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE},
-
-	{"ibuf_merges_discard_delete", "change_buffer",
-	 "Number of purge merged  operations discarded",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE},
-
-	{"ibuf_merges", "change_buffer", "Number of change buffer merges",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGES},
-
-	{"ibuf_size", "change_buffer", "Change buffer size in pages",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_SIZE},
 
 	/* ========== Counters for server operations ========== */
 	{"module_innodb", "innodb",
@@ -1080,50 +984,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_SRV_PAGE_SIZE},
-
-	/* ========== Counters for DML operations ========== */
-	{"module_dml", "dml", "Statistics for DMLs",
-	 MONITOR_MODULE,
-	 MONITOR_DEFAULT_START, MONITOR_MODULE_DML_STATS},
-
-	{"dml_reads", "dml", "Number of rows read",
-	 static_cast<monitor_type_t>(MONITOR_EXISTING),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_ROW_READ},
-
-	{"dml_inserts", "dml", "Number of rows inserted",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_ROW_INSERTED},
-
-	{"dml_deletes", "dml", "Number of rows deleted",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_ROW_DELETED},
-
-	{"dml_updates", "dml", "Number of rows updated",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_ROW_UPDTATED},
-
-	{"dml_system_reads", "dml", "Number of system rows read",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_READ},
-
-	{"dml_system_inserts", "dml", "Number of system rows inserted",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_INSERTED},
-
-	{"dml_system_deletes", "dml", "Number of system rows deleted",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_DELETED},
-
-	{"dml_system_updates", "dml", "Number of system rows updated",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OLVD_SYSTEM_ROW_UPDATED},
 
 	/* ========== Counters for DDL operations ========== */
 	{"module_ddl", "ddl", "Statistics for DDLs",
@@ -1337,6 +1197,18 @@ srv_mon_set_module_control(
 	}
 }
 
+/** Reset all values.
+@param monitor  monitor identifier */
+void srv_mon_reset_all(monitor_id_t monitor) noexcept
+{
+  if (MONITOR_IS_ON(monitor))
+    sql_print_warning("InnoDB: Cannot reset all values for monitor counter '%s' "
+                      "while it is on. Please turn it off and retry.",
+                      srv_mon_get_name(monitor));
+  else
+    MONITOR_RESET_ALL(monitor);
+}
+
 /****************************************************************//**
 Get transaction system's rollback segment size in pages
 @return size in pages */
@@ -1432,12 +1304,13 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_pages_total */
 	case MONITOR_OVLD_BUF_POOL_PAGE_TOTAL:
-		value = buf_pool.get_n_pages();
+	case MONITOR_OVLD_BUFFER_POOL_SIZE:
+		value = buf_pool.curr_size();
 		break;
 
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
-		value = buf_pool.get_n_pages()
+		value = buf_pool.curr_size()
 			- UT_LIST_GET_LEN(buf_pool.LRU)
 			- UT_LIST_GET_LEN(buf_pool.free);
 		break;
@@ -1492,16 +1365,6 @@ srv_mon_process_existing_counter(
 		value = buf_pool.stat.n_pages_read;
 		break;
 
-	/* Number of times secondary index lookup triggered cluster lookup */
-	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS:
-		value = srv_stats.n_sec_rec_cluster_reads;
-		break;
-	/* Number of times prefix optimization avoided triggering cluster
-	lookup */
-	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED:
-		value = srv_stats.n_sec_rec_cluster_reads_avoided;
-		break;
-
 	/* innodb_data_reads, the total number of data reads */
 	case MONITOR_OVLD_BYTE_READ:
 		value = srv_stats.data_read;
@@ -1529,7 +1392,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = log_sys.get_lsn() - recv_sys.lsn;
+		value = log_get_lsn() - recv_sys.lsn;
 		break;
 
 	/* innodb_log_waits */
@@ -1564,50 +1427,6 @@ srv_mon_process_existing_counter(
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
 		value = srv_page_size;
-		break;
-
-	case MONITOR_OVLD_BUFFER_POOL_SIZE:
-		value = srv_buf_pool_size;
-		break;
-
-	/* innodb_rows_read */
-	case MONITOR_OLVD_ROW_READ:
-		value = srv_stats.n_rows_read;
-		break;
-
-	/* innodb_rows_inserted */
-	case MONITOR_OLVD_ROW_INSERTED:
-		value = srv_stats.n_rows_inserted;
-		break;
-
-	/* innodb_rows_deleted */
-	case MONITOR_OLVD_ROW_DELETED:
-		value = srv_stats.n_rows_deleted;
-		break;
-
-	/* innodb_rows_updated */
-	case MONITOR_OLVD_ROW_UPDTATED:
-		value = srv_stats.n_rows_updated;
-		break;
-
-	/* innodb_system_rows_read */
-	case MONITOR_OLVD_SYSTEM_ROW_READ:
-		value = srv_stats.n_system_rows_read;
-		break;
-
-	/* innodb_system_rows_inserted */
-	case MONITOR_OLVD_SYSTEM_ROW_INSERTED:
-		value = srv_stats.n_system_rows_inserted;
-		break;
-
-	/* innodb_system_rows_deleted */
-	case MONITOR_OLVD_SYSTEM_ROW_DELETED:
-		value = srv_stats.n_system_rows_deleted;
-		break;
-
-	/* innodb_system_rows_updated */
-	case MONITOR_OLVD_SYSTEM_ROW_UPDATED:
-		value = srv_stats.n_system_rows_updated;
 		break;
 
 	/* innodb_row_lock_current_waits */
@@ -1665,38 +1484,6 @@ srv_mon_process_existing_counter(
 		value = fil_system.n_open;
 		break;
 
-	case MONITOR_OVLD_IBUF_MERGE_INSERT:
-		value = ibuf.n_merged_ops[IBUF_OP_INSERT];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DELETE:
-		value = ibuf.n_merged_ops[IBUF_OP_DELETE_MARK];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_PURGE:
-		value = ibuf.n_merged_ops[IBUF_OP_DELETE];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT:
-		value = ibuf.n_discarded_ops[IBUF_OP_INSERT];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE:
-		value = ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE:
-		value = ibuf.n_discarded_ops[IBUF_OP_DELETE];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGES:
-		value = ibuf.n_merges;
-		break;
-
-	case MONITOR_OVLD_IBUF_SIZE:
-		value = ibuf.size;
-		break;
-
 	case MONITOR_OVLD_SERVER_ACTIVITY:
 		value = srv_get_activity_count();
 		break;
@@ -1706,7 +1493,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = log_sys.get_lsn();
+		value = log_get_lsn();
 		break;
 
         case MONITOR_OVLD_CHECKPOINTS:
@@ -1714,10 +1501,10 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		log_sys.latch.rd_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock();
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		log_sys.latch.rd_unlock();
+		log_sys.latch.wr_unlock();
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
@@ -1736,11 +1523,19 @@ srv_mon_process_existing_counter(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH:
-		value = btr_cur_n_sea;
+		value = btr_search.hit_count;
 		break;
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
-		value = btr_cur_n_non_sea;
+		value = btr_search.miss_count;
+		break;
+
+	case MONITOR_OVLD_ADAPTIVE_HASH_ROW_ADDED:
+		value = btr_search.rows_added;
+		break;
+
+	case MONITOR_OVLD_ADAPTIVE_HASH_PAGE_ADDED:
+		value = btr_search.pages_added;
 		break;
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -1808,7 +1603,7 @@ srv_mon_process_existing_counter(
 			    & MONITOR_DISPLAY_CURRENT) {
 				MONITOR_SET(monitor_id, value);
 			} else {
-				/* Most status counters are montonically
+				/* Most status counters are monotonically
 				increasing, no need to update their
 				minimum values. Only do so
 				if "update_min" set to TRUE */

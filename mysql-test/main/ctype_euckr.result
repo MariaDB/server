@@ -2244,7 +2244,7 @@ FE80
 DELETE FROM t2 WHERE a='?';
 ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER SET euckr;
 UPDATE IGNORE t2 SET u=a, a2=u;
-SELECT s as unassigned_code FROM t2 WHERE u='?';
+SELECT s as unassigned_code FROM t2 WHERE u=binary'?';
 unassigned_code
 A2E8
 A2E9
@@ -7626,7 +7626,7 @@ FEFB
 FEFC
 FEFD
 FEFE
-DELETE FROM t2 WHERE u='?';
+DELETE FROM t2 WHERE u=binary'?';
 SELECT count(*) as roundtrip_problem_chars FROM t2 WHERE hex(a) <> hex(a2);
 roundtrip_problem_chars
 0
@@ -24707,7 +24707,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
   `a` varchar(1) CHARACTER SET euckr COLLATE euckr_korean_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
 Warning	1366	Incorrect string value: '\x80 ' for column `test`.`t1`.`a` at row 1
@@ -25174,13 +25174,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET euckr COLLATE euckr_korean_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 41
@@ -25194,13 +25194,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET euckr COLLATE euckr_korean_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 4141414141
@@ -25213,7 +25213,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 414141
@@ -25226,7 +25226,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 41414141412020202020
@@ -25433,13 +25433,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET euckr COLLATE euckr_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 61
@@ -25453,13 +25453,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET euckr COLLATE euckr_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 6161616161
@@ -25472,7 +25472,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 616161
@@ -25485,7 +25485,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 61616161612020202020
@@ -25700,7 +25700,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` varchar(10) CHARACTER SET euckr COLLATE euckr_korean_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
 c2
@@ -25817,20 +25817,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'euckr_korean_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'euckr_korean_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'euckr_korean_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -25955,20 +25955,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'euckr_korean_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'euckr_korean_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'euckr_korean_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'euckr_korean_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'euckr_korean_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -26094,20 +26094,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'euckr_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'euckr_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'euckr_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'euckr_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'euckr_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'euckr_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'euckr_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'euckr_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'euckr_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'euckr_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'euckr_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -26232,20 +26232,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'euckr_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'euckr_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'euckr_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'euckr_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'euckr_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'euckr_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'euckr_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'euckr_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'euckr_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'euckr_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'euckr_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'euckr_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -26334,6 +26334,15 @@ ERROR HY000: Invalid euckr character string: '\xA2\xE8'
 EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
 ERROR HY000: Invalid euckr character string: '\xA2\xE8'
 SET sql_mode=DEFAULT;
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_euckr'' collate euckr_korean_nopad_ci, _euckr 0x0001050001) as c1;
+c1
+-1
+select strcmp(_euckr'' collate euckr_nopad_bin, _euckr 0x0001050001) as c1;
+c1
+-1
 #
 # End of 10.5 tests
 #

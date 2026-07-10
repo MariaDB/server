@@ -27,9 +27,12 @@
 
 #include <my_crypt.h>
 #include <ssl_compat.h>
-#include <cstdint>
+
+#include <random>
 
 #define CTX_ALIGN 16
+#define KEY_LENGTH 32
+#define IV_LENGTH 16
 
 class MyCTX
 {
@@ -101,10 +104,10 @@ public:
   uchar source_tail[MY_AES_BLOCK_SIZE];
 
   MyCTX_nopad() : MyCTX() { }
-  ~MyCTX_nopad() = default;
+  ~MyCTX_nopad() override = default;
 
   int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key, uint klen,
-           const uchar *iv, uint ivlen)
+           const uchar *iv, uint ivlen) override
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_nopad));
     this->key= key;
@@ -141,13 +144,13 @@ public:
     source_tail_len= new_tail_len;
   }
 
-  int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
+  int update(const uchar *src, uint slen, uchar *dst, uint *dlen) override
   {
     update_source_tail(src, slen);
     return MyCTX::update(src, slen, dst, dlen);
   }
 
-  int finish(uchar *dst, uint *dlen)
+  int finish(uchar *dst, uint *dlen) override
   {
     if (source_tail_len)
     {
@@ -206,10 +209,10 @@ public:
   const uchar *aad;
   int aadlen;
   MyCTX_gcm() : MyCTX() { }
-  ~MyCTX_gcm() { }
+  ~MyCTX_gcm() override { }
 
   int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key, uint klen,
-           const uchar *iv, uint ivlen)
+           const uchar *iv, uint ivlen) override
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_gcm));
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
@@ -219,7 +222,7 @@ public:
     return res;
   }
 
-  int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
+  int update(const uchar *src, uint slen, uchar *dst, uint *dlen) override
   {
     /*
       note that this GCM class cannot do streaming decryption, because
@@ -244,7 +247,7 @@ public:
     return MyCTX::update(src, slen, dst, dlen);
   }
 
-  int finish(uchar *dst, uint *dlen)
+  int finish(uchar *dst, uint *dlen) override
   {
     int fin;
     if (!EVP_CipherFinal_ex(ctx, dst, &fin))
@@ -359,11 +362,61 @@ unsigned int my_aes_ctx_size(enum my_aes_mode)
   return MY_AES_CTX_SIZE;
 }
 
+static std::mt19937 rnd;
+
 int my_random_bytes(uchar *buf, int num)
 {
   if (RAND_bytes(buf, num) != 1)
+  { /* shouldn't happen */
+    uchar *end= buf + num - 3;
+    uint r= rnd();
+    for (; buf < end; buf+= 4, r= rnd())
+      int4store(buf, r);
+    switch (num % 4)
+    {
+    case 0: break;
+    case 1: *buf= rnd(); break;
+    case 2: r=rnd(); int2store(buf, r); break;
+    case 3: r=rnd(); int3store(buf, r); break;
+    }
     return MY_AES_OPENSSL_ERROR;
+  }
   return MY_AES_OK;
+}
+
+static inline const EVP_MD *get_digest(enum my_digest digest)
+{
+  switch (digest)
+  {
+  case MY_DIGEST_SHA1: return EVP_sha1();
+  case MY_DIGEST_SHA224: return EVP_sha224();
+  case MY_DIGEST_SHA256: return EVP_sha256();
+  case MY_DIGEST_SHA384: return EVP_sha384();
+  case MY_DIGEST_SHA512: return EVP_sha512();
+  default:
+  {
+    assert(0);
+    return NULL;
+  }
+  }
+}
+
+void my_bytes_to_key(const unsigned char *salt, const unsigned char *input,
+                     uint input_len, unsigned char *key, unsigned char *iv,
+                     enum my_digest digest, uint use_pbkdf2)
+{
+  if (use_pbkdf2 == 0)
+    EVP_BytesToKey(EVP_aes_256_cbc(), get_digest(digest), salt,
+                   input, input_len, 1, key, iv);
+  else
+  {
+    uchar keyiv[KEY_LENGTH + IV_LENGTH];
+    PKCS5_PBKDF2_HMAC((const char*) input, input_len, salt, 8,
+                      use_pbkdf2, get_digest(digest),
+                      KEY_LENGTH + IV_LENGTH, keyiv);
+    memcpy(key, keyiv, KEY_LENGTH);
+    memcpy(iv, keyiv + KEY_LENGTH, IV_LENGTH);
+  }
 }
 
 }

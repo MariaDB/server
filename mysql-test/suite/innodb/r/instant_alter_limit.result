@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
@@ -45,3 +46,4 @@ WHERE variable_name = 'innodb_instant_alter_column';
 instants
 502
 DROP TABLE t;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

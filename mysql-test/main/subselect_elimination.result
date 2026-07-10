@@ -1,0 +1,278 @@
+#
+# MDEV-28621 group by optimization incorrectly removing subquery where
+#  subject buried in a function
+#
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT 1 FROM t1
+WHERE i in
+( SELECT  a+1
+FROM
+(SELECT (SELECT i FROM (SELECT 1 FROM t1) dt) AS a FROM t1) dt2
+GROUP BY a
+);
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
+create table t1 (a int, b int, c int);
+insert into t1 select seq, seq, seq from seq_1_to_10;
+create table t2 as select * from t1;
+create table t20 as select * from t1;
+create table t21 as select * from t1;
+create table t3 as select * from t1;
+select a, a in
+(
+select
+(
+select max(c) from t20 where t20.a<=t2.a
+) as SUBQ1 from t2 group by SUBQ1+1
+) as COL
+from t1;
+a	COL
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+10	1
+create view v2 as
+select
+a, b,
+(select max(c) from t20 where t20.a<=t2.a) as SUBQ1,
+(select max(c) from t21 where t21.a<=t2.a) as SUBQ2
+from t2;
+# test partial elimination
+explain
+select
+a,
+a in (select a from v2 where a>3 and v2.SUBQ2>=0 group by v2.SUBQ1, v2.SUBQ2)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+5	DEPENDENT SUBQUERY	t21	ALL	NULL	NULL	NULL	NULL	10	Using where
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+# test buried subselects in group by clause
+select a, a in
+(
+select
+(
+select max(c) from t20 where t20.a<=t2.a
+)*2 as SUBQ1 from t2 group by SUBQ1+1
+) as COL
+from t1;
+a	COL
+1	0
+2	1
+3	0
+4	1
+5	0
+6	1
+7	0
+8	1
+9	0
+10	1
+drop view v2;
+drop table t1, t2, t20, t21, t3;
+# Testcase from MDEV-32311
+SELECT (
+( WITH x ( x ) AS
+(SELECT ( SELECT 'x' UNION SELECT 'x' ) FROM ( SELECT ( 'x' ) ) x)
+SELECT x FROM x
+WHERE x IN ( ( SELECT 'x' AND x GROUP BY x ) )
+)
+) AS SUBQ;
+SUBQ
+x
+# MDEV-32390:
+CREATE TABLE t0 ( c43 DECIMAL ( 31 ) DEFAULT ( 45 ) ) ;
+INSERT INTO t0 VALUES ( 13 ) , ( 29 ) ;
+ALTER TABLE t0 ADD COLUMN c24 INT AFTER c43 ;
+INSERT INTO t0 VALUES ( DEFAULT , DEFAULT ) , ( DEFAULT , DEFAULT ) ;
+SELECT t1 . c22 AS c9 FROM ( SELECT ( SELECT + EXISTS ( SELECT -128 AS c29 ) <<
+LOCATE ( t0 . c43 , t0 . c24 <= t0 . c24 NOT BETWEEN 4642475734208631537 AND
+-108 , NULLIF ( 57 , -8 ) SOUNDS LIKE TRIM( TRAILING FROM 6107036197732405580 )
+) - t0 . c43 AS c57 FROM t0 LIMIT 1 ) AS c22 FROM t0 ) AS t1 HAVING TRIM( CASE
+t1 . c22 WHEN -16 THEN RAND ( ) % HEX ( t1 . c22 ) - SUBSTRING_INDEX ( t1 . c22,
+':A9SEZxtjN,fKN*zR' , 'V*vhJb}&c%Op,[T[S,j`F9NDsK;\'8 4;m"
+P,ce}1r"3ID1DN' ) >> NULLIF ( t1 . c22 , -95 ) ELSE -2 END IS TRUE
+FROM t1 . c22 >= EXISTS ( SELECT t2 . c57 AS c59 FROM ( SELECT CASE c24 WHEN
+-103 THEN 85 ELSE 22 END IS TRUE AS c57 FROM t0 ) AS t2 WHERE MOD ( 64 , 46 ) =
+CONVERT ( 73 , BINARY ) % RAND ( ) IS NOT NULL = -65 GROUP BY c57 , c22 , c22
+WINDOW w0 AS ( PARTITION BY t2 . c57 ) ) & PI ( ) ) ;
+c9
+DROP TABLE t0;
+# MDEV-32309
+SELECT
+( WITH x ( x ) AS
+(
+WITH x ( x ) AS ( SELECT 1 ) SELECT ( SELECT x ) FROM x
+)
+SELECT x FROM x WHERE x IN ( SELECT NULL GROUP BY x )
+) as col1 ;
+col1
+NULL
+# MDEV-32391
+CREATE TABLE t0 ( c15 INT , c33 INT ) engine=innodb;
+INSERT INTO t0 ( c15 ) WITH t1 AS ( SELECT SQRT ( 123 ) NOT
+REGEXP MOD ( 91 , -121 ) = ALL ( SELECT c15 AS c33 FROM t0 ) AS c49 FROM t0 )
+SELECT t1 . c49 IS UNKNOWN AS c59 FROM t1 CROSS JOIN t0 AS t2
+WHERE t1 . c49 = + EXISTS ( SELECT -5839312620871436105 AS c17 GROUP BY c49 )
+BETWEEN -109 AND CHAR_LENGTH ( 2694839150676403988 ) - - LOWER ( -13 ) ;
+DROP TABLE t0;
+# MDEV-28620
+CREATE TABLE t1 ( a int);
+INSERT INTO t1 VALUES (1),(2);
+SELECT EXISTS
+( SELECT 1 FROM t1 GROUP BY 1 IN (SELECT a FROM t1)
+ORDER BY a + (SELECT 1 FROM t1 WHERE (1,2) NOT IN (SELECT 1,0))
+) as SUBQ;
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
+# MDEV-30842 Item_subselect::get_cache_parameters and UBSAN member
+#  access within null pointer
+CREATE TABLE x (x INT) ENGINE=InnoDB;
+INSERT INTO x (x) VALUES (0);
+select NULL IN (SELECT (SELECT x FROM (SELECT x FROM
+(SELECT 0 IN (SELECT x=0 FROM (SELECT x FROM (SELECT (SELECT (SELECT (SELECT
+(SELECT 0 AS x) FROM x AS x) IN (SELECT 0 AS x) AS x) FROM x AS x) IN
+(SELECT x WHERE x=0) AS x FROM x AS x) AS x) AS x GROUP BY x) AS x FROM x) AS x)
+AS x) IN (SELECT 0 AS x) AS x FROM x) as exp;
+exp
+NULL
+INSERT INTO x (x) VALUES (x IN (SELECT (SELECT x FROM (SELECT x FROM
+(SELECT 0 IN (SELECT x=0 FROM (SELECT x FROM (SELECT (SELECT (SELECT (SELECT
+(SELECT 0 AS x) FROM x AS x) IN (SELECT 0 AS x) AS x) FROM x AS x) IN
+(SELECT x WHERE x=0) AS x FROM x AS x) AS x) AS x GROUP BY x) AS x FROM x) AS x)
+AS x) IN (SELECT 0 AS x) AS x FROM x));
+select * from x;
+x
+0
+NULL
+DROP TABLE x;
+# MDEV-28622: Item_subselect eliminated flag set but Item still
+#   evaluated/used.
+CREATE TABLE t1 (  a int) ;
+CREATE VIEW v1 (i) AS SELECT EXISTS(SELECT 1) FROM t1;
+SELECT 1 FROM v1 WHERE i NOT IN (SELECT i = 0 FROM v1 WHERE i = -1 GROUP BY i);
+1
+DROP TABLE t1;
+DROP VIEW v1;
+CREATE TABLE t(c1 INT);
+SELECT 0
+WHERE 0 IN
+(
+SELECT 0 FROM
+(
+SELECT 0 IN
+(
+SELECT
+(
+SELECT c1 FROM t
+)
+) AS c
+FROM t
+) AS dt
+WHERE c GROUP BY c
+);
+0
+DROP TABLE t;
+create table t1 (a int, b int, c int);
+insert into t1 select seq, seq, seq from seq_1_to_10;
+create table t2 as select * from t1;
+create table t20 as select * from t1;
+create table t3 as select * from t1;
+create view v2 as
+select
+a, b, (select max(c) from t20 where t20.a<=t2.a) as SUBQ1
+from t2;
+explain
+select
+a, a in (select a from v2 where a>3 group by v2.SUBQ1)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+prepare s from '
+explain
+select
+  a, a in (select a from v2 where a>3 group by v2.SUBQ1)
+from t1';
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+prepare s from '
+explain
+select
+  a, a in (select a from v2 where a>3 and SUBQ1+1 group by v2.SUBQ1)
+from t1';
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+create procedure p1()
+begin
+explain
+select
+a, a in (select a from v2 where a>3 group by v2.SUBQ1)
+from t1;
+end//
+create procedure p2()
+begin
+explain
+select
+a, a in (select a from v2 where a>3 and SUBQ1+1 group by v2.SUBQ1)
+from t1;
+end//
+call p1();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+call p1();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+call p2();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+call p2();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary
+4	DEPENDENT SUBQUERY	t20	ALL	NULL	NULL	NULL	NULL	10	Using where
+drop procedure p1;
+drop procedure p2;
+drop view v2;
+drop table t1,t2,t3,t20;
+# end of 10.4 tests

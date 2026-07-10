@@ -1,9 +1,12 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/have_debug.inc
---source include/count_sessions.inc
 
 set default_storage_engine=innodb;
+# Ensure that the history list length will actually be decremented by purge.
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 CREATE TABLE `t` (
   `a` VARCHAR(100),
   `b` VARCHAR(100),
@@ -54,7 +57,7 @@ SHOW CREATE TABLE t;
 SELECT * FROM t;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t FORCE, LOCK=NONE;
+ALTER TABLE t FORCE, ALGORITHM=INPLACE, LOCK=NONE;
 if (0) {# MDEV-14341 TODO: re-enable this
 SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL start_create WAIT_FOR go_ahead';
 --send ALTER TABLE t FORCE
@@ -338,4 +341,4 @@ DROP TABLE t1;
 connection default;
 SET DEBUG_SYNC=RESET;
 
---source include/wait_until_count_sessions.inc
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

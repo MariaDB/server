@@ -87,9 +87,9 @@ drop table t1, t2;
 # handler::unlock_row() in InnoDB does nothing.
 # Thus in order to reproduce the condition that led to the
 # warning, one needs to relax isolation by either
-# setting a weaker tx_isolation value, or by turning on
+# setting a weaker transaction_isolation value, or by turning on
 # the unsafe replication switch.
-set @@session.tx_isolation="read-committed";
+set @@session.transaction_isolation="read-committed";
 # Prepare data. We need a table with a unique index,
 # for join_read_key to be used. The other column
 # allows to control what passes WHERE clause filter.
@@ -220,7 +220,7 @@ a	b
 commit;
 #
 # Have a one more record in t2 to show that 
-# if join_read_key cache is purned, the current
+# if join_read_key cache is purged, the current
 # row under the cursor is unlocked (provided, this row didn't 
 # match the partial WHERE clause, of course).
 # Sic: the result of this test dependent on the order of retrieval
@@ -354,7 +354,7 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 commit;
 disconnect con1;
-set @@session.tx_isolation=default;
+set @@session.transaction_isolation=default;
 drop table t1;
 #
 # End of 5.1 tests

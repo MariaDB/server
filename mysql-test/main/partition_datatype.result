@@ -1,4 +1,5 @@
 drop table if exists t1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 # test with not null
 create table t1 (a bit not null) partition by key (a);
 insert into t1 values (b'1');
@@ -373,7 +374,7 @@ Warning	1264	Out of range value for column 'a' at row 1
 INSERT IGNORE INTO t1 VALUES ('1969-12-31 23:59:59', 'UTCI');
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
-INSERT IGNORE INTO t1 VALUES ('2038-01-19 03:14:08', 'UTCI');
+INSERT IGNORE INTO t1 VALUES ('2107-01-19 03:14:08', 'UTCI');
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 INSERT IGNORE INTO t1 VALUES ('1970-01-01 00:00:00', 'UTCI');
@@ -384,7 +385,6 @@ INSERT INTO t1 VALUES ('1970-01-01 00:00:01', 'UTC');
 INSERT INTO t1 VALUES ('1974-02-05 21:28:16', 'UTC');
 # Test end range
 INSERT INTO t1 VALUES ('2038-01-19 03:14:06', 'UTC');
-INSERT INTO t1 VALUES ('2038-01-19 03:14:07', 'UTC');
 # Test Daylight saving shift
 INSERT INTO t1 VALUES ('2011-03-26 22:59:59', 'UTC');
 INSERT INTO t1 VALUES ('2011-03-26 23:00:00', 'UTC');
@@ -415,7 +415,7 @@ Warning	1264	Out of range value for column 'a' at row 1
 INSERT IGNORE INTO t1 VALUES ('1970-01-01 02:29:29', 'MoscowI');
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
-INSERT IGNORE INTO t1 VALUES ('2038-01-19 06:14:08', 'MoscowI');
+INSERT IGNORE INTO t1 VALUES ('2107-01-19 06:14:08', 'MoscowI');
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 INSERT IGNORE INTO t1 VALUES ('1970-01-01 03:00:00', 'MoscowI');
@@ -436,13 +436,12 @@ INSERT INTO t1 VALUES ('1970-01-01 03:00:01', 'Moscow');
 INSERT INTO t1 VALUES ('1974-02-05 21:28:16', 'Moscow');
 # Test end range
 INSERT INTO t1 VALUES ('2038-01-19 06:14:06', 'Moscow');
-INSERT INTO t1 VALUES ('2038-01-19 06:14:07', 'Moscow');
 # Test Daylight saving shift
 INSERT INTO t1 VALUES ('2011-03-27 01:59:59', 'Moscow');
 INSERT INTO t1 VALUES ('2011-03-27 03:00:00', 'Moscow');
 INSERT INTO t1 VALUES ('2011-03-27 03:00:01', 'Moscow');
 INSERT INTO t1 VALUES ('2011-10-30 01:59:59', 'Moscow');
-# All values between 02:00 and 02:59:59 will be interpretated as DST
+# All values between 02:00 and 02:59:59 will be interpreted as DST
 INSERT INTO t1 VALUES ('2011-10-30 02:00:00', 'MoscowD');
 INSERT INTO t1 VALUES ('2011-10-30 02:00:01', 'MoscowD');
 INSERT INTO t1 VALUES ('2011-10-30 02:59:59', 'MoscowD');
@@ -461,7 +460,7 @@ p-2011-MSD-2	6
 p-2012-MSK-1	3
 p-2012-MSK-2	4
 pEnd	2
-pMax	2
+pMax	0
 SELECT * FROM t1 ORDER BY a, tz;
 a	tz
 NULL	Moscow
@@ -508,8 +507,6 @@ NULL	UTC
 2011-10-30 00:00:01	UTC
 2038-01-19 03:14:06	Moscow
 2038-01-19 03:14:06	UTC
-2038-01-19 03:14:07	Moscow
-2038-01-19 03:14:07	UTC
 SELECT * FROM t2 ORDER BY a, tz;
 a	tz
 NULL	Moscow
@@ -556,8 +553,6 @@ NULL	UTC
 2011-10-30 00:00:01	UTC
 2038-01-19 03:14:06	Moscow
 2038-01-19 03:14:06	UTC
-2038-01-19 03:14:07	Moscow
-2038-01-19 03:14:07	UTC
 SELECT * FROM t2
 WHERE a BETWEEN '2011-03-01 00:00:00' and '2011-03-26 23:00:00' ORDER BY a, tz;
 a	tz
@@ -687,7 +682,7 @@ Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-35
+33
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
 1
@@ -698,28 +693,26 @@ NULL	UTC
 0000-00-00 00:00:00	UTC
 SELECT * FROM t2 ORDER BY a DESC, tz LIMIT 3;
 a	tz
-2038-01-19 03:14:07	Moscow
-2038-01-19 03:14:07	UTC
 2038-01-19 03:14:06	Moscow
+2038-01-19 03:14:06	UTC
+2011-10-30 00:00:01	Moscow
 UPDATE IGNORE t2 SET a = TIMESTAMPADD(SECOND, 1, a);
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
-Warning	1264	Out of range value for column 'a' at row 34
-Warning	1264	Out of range value for column 'a' at row 35
 SELECT MIN(a), MAX(a) FROM t2;
 MIN(a)	MAX(a)
-0000-00-00 00:00:00	2038-01-19 03:14:07
+1970-01-01 00:00:02	2038-01-19 03:14:07
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-35
+33
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
-2
+0
 SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS
 WHERE TABLE_NAME = 't2';
 PARTITION_NAME	TABLE_ROWS
 p0	3
-p-2000	6
+p-2000	4
 p-2011-MSK	0
 p-2011-MSD-1	9
 p-2011-MSD-2	6
@@ -732,8 +725,6 @@ a	tz
 NULL	Moscow
 NULL	UTC
 NULL	UTC
-0000-00-00 00:00:00	Moscow
-0000-00-00 00:00:00	UTC
 1970-01-01 00:00:02	Moscow
 1970-01-01 00:00:02	UTC
 1974-02-05 18:28:17	Moscow
@@ -770,10 +761,10 @@ Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-36
+34
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
-3
+1
 SELECT * FROM t2 ORDER BY a, tz LIMIT 3;
 a	tz
 NULL	Moscow
@@ -787,21 +778,19 @@ a	tz
 UPDATE IGNORE t2 SET a = TIMESTAMPADD(SECOND, -1, a);
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
 SELECT MIN(a), MAX(a) FROM t2;
 MIN(a)	MAX(a)
 1970-01-01 00:00:01	2038-01-19 03:14:06
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-36
+34
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
 0
 SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS
 WHERE TABLE_NAME = 't2';
 PARTITION_NAME	TABLE_ROWS
-p0	6
+p0	4
 p-2000	4
 p-2011-MSK	2
 p-2011-MSD-1	9
@@ -813,8 +802,6 @@ pMax	0
 SELECT * FROM t2 ORDER BY a, tz;
 a	tz
 NULL	Moscow
-NULL	Moscow
-NULL	UTC
 NULL	UTC
 NULL	UTC
 NULL	UTC
@@ -878,7 +865,7 @@ p-2011-MSD-2	6
 p-2012-MSK-1	3
 p-2012-MSK-2	4
 pEnd	2
-pMax	2
+pMax	0
 SELECT * FROM t1 ORDER BY a, tz;
 a	tz
 NULL	Moscow
@@ -925,8 +912,6 @@ NULL	UTC
 2011-10-30 03:00:01	UTC
 2038-01-19 06:14:06	Moscow
 2038-01-19 06:14:06	UTC
-2038-01-19 06:14:07	Moscow
-2038-01-19 06:14:07	UTC
 SELECT * FROM t2 ORDER BY a, tz;
 a	tz
 NULL	Moscow
@@ -973,8 +958,6 @@ NULL	UTC
 2011-10-30 03:00:01	UTC
 2038-01-19 06:14:06	Moscow
 2038-01-19 06:14:06	UTC
-2038-01-19 06:14:07	Moscow
-2038-01-19 06:14:07	UTC
 # Testing the leap from 01:59:59 to 03:00:00
 SELECT * FROM t2
 WHERE a BETWEEN '2011-03-01 00:00:00' and '2011-03-27 03:00:00' ORDER BY a, tz;
@@ -1167,7 +1150,7 @@ Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-35
+33
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
 1
@@ -1178,30 +1161,28 @@ NULL	UTC
 0000-00-00 00:00:00	Moscow
 SELECT * FROM t2 ORDER BY a DESC, tz LIMIT 3;
 a	tz
-2038-01-19 06:14:07	Moscow
-2038-01-19 06:14:07	UTC
 2038-01-19 06:14:06	Moscow
+2038-01-19 06:14:06	UTC
+2011-10-30 03:00:01	Moscow
 UPDATE IGNORE t2 SET a = TIMESTAMPADD(SECOND, 1, a);
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
 Warning	1299	Invalid TIMESTAMP value in column 'a' at row 8
 Warning	1299	Invalid TIMESTAMP value in column 'a' at row 9
-Warning	1264	Out of range value for column 'a' at row 34
-Warning	1264	Out of range value for column 'a' at row 35
 SELECT MIN(a), MAX(a) FROM t2;
 MIN(a)	MAX(a)
-0000-00-00 00:00:00	2038-01-19 06:14:07
+1970-01-01 03:00:02	2038-01-19 06:14:07
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-35
+33
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
-2
+0
 SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS
 WHERE TABLE_NAME = 't2';
 PARTITION_NAME	TABLE_ROWS
 p0	3
-p-2000	6
+p-2000	4
 p-2011-MSK	0
 p-2011-MSD-1	9
 p-2011-MSD-2	8
@@ -1214,8 +1195,6 @@ a	tz
 NULL	Moscow
 NULL	Moscow
 NULL	UTC
-0000-00-00 00:00:00	Moscow
-0000-00-00 00:00:00	UTC
 1970-01-01 03:00:02	Moscow
 1970-01-01 03:00:02	UTC
 1974-02-05 21:28:17	Moscow
@@ -1252,10 +1231,10 @@ Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-36
+34
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
-3
+1
 SELECT * FROM t2 ORDER BY a, tz LIMIT 3;
 a	tz
 NULL	Moscow
@@ -1269,23 +1248,21 @@ a	tz
 UPDATE IGNORE t2 SET a = TIMESTAMPADD(SECOND, -1, a);
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
-Warning	1299	Invalid TIMESTAMP value in column 'a' at row 18
-Warning	1299	Invalid TIMESTAMP value in column 'a' at row 19
+Warning	1299	Invalid TIMESTAMP value in column 'a' at row 16
+Warning	1299	Invalid TIMESTAMP value in column 'a' at row 17
 SELECT MIN(a), MAX(a) FROM t2;
 MIN(a)	MAX(a)
 1970-01-01 03:00:01	2038-01-19 06:14:06
 SELECT COUNT(*) FROM t2;
 COUNT(*)
-36
+34
 SELECT COUNT(*) FROM t2 WHERE a = 0;
 COUNT(*)
 0
 SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS
 WHERE TABLE_NAME = 't2';
 PARTITION_NAME	TABLE_ROWS
-p0	6
+p0	4
 p-2000	4
 p-2011-MSK	0
 p-2011-MSD-1	11
@@ -1299,8 +1276,6 @@ a	tz
 NULL	Moscow
 NULL	Moscow
 NULL	Moscow
-NULL	Moscow
-NULL	UTC
 NULL	UTC
 1970-01-01 03:00:01	Moscow
 1970-01-01 03:00:01	UTC
@@ -1351,3 +1326,4 @@ t2	CREATE TABLE `t2` (
 TRUNCATE TABLE t2;
 DROP TABLE t1, t2;
 SET @@session.time_zone= @old_time_zone;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -184,11 +184,11 @@ SELECT @@max_sp_recursion_depth;
 @@max_sp_recursion_depth
 102
 SELECT local.max_sp_recursion_depth;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.max_sp_recursion_depth;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT max_sp_recursion_depth = @@session.max_sp_recursion_depth;
-ERROR 42S22: Unknown column 'max_sp_recursion_depth' in 'field list'
+ERROR 42S22: Unknown column 'max_sp_recursion_depth' in 'SELECT'
 SET @@global.max_sp_recursion_depth = @start_global_value;
 SELECT @@global.max_sp_recursion_depth;
 @@global.max_sp_recursion_depth

@@ -3,6 +3,9 @@ SHOW GLOBAL STATUS LIKE 'wsrep%';
 Variable_name	Value
 wsrep_local_state_uuid	#
 wsrep_protocol_version	#
+wsrep_protocol_application	#
+wsrep_protocol_replicator	#
+wsrep_protocol_gcs	#
 wsrep_last_committed	#
 wsrep_replicated	#
 wsrep_replicated_bytes	#
@@ -55,6 +58,8 @@ wsrep_evs_repl_latency	#
 wsrep_evs_state	#
 wsrep_gcomm_uuid	#
 wsrep_gmcast_segment	#
+wsrep_checkpoint_position	#
+wsrep_se_checkpoint	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
@@ -89,8 +94,9 @@ wsrep_thread_count	2
 # variables
 SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
 VARIABLE_NAME
+WSREP_ALLOWLIST
+WSREP_APPLIER_RETRY_COUNT
 WSREP_AUTO_INCREMENT_CONTROL
-WSREP_CAUSAL_READS
 WSREP_CERTIFICATION_RULES
 WSREP_CERTIFY_NONPK
 WSREP_CLUSTER_ADDRESS
@@ -107,7 +113,6 @@ WSREP_GTID_DOMAIN_ID
 WSREP_GTID_MODE
 WSREP_GTID_SEQ_NO
 WSREP_IGNORE_APPLY_ERRORS
-WSREP_LOAD_DATA_SPLITTING
 WSREP_LOG_CONFLICTS
 WSREP_MAX_WS_ROWS
 WSREP_MAX_WS_SIZE

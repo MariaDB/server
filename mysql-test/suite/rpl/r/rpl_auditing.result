@@ -1,0 +1,64 @@
+include/master-slave.inc
+[connection master]
+drop table if exists t1;
+connection slave;
+reset master;
+CREATE TABLE IF NOT EXISTS mysql.server_audit_filters (
+filtername char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+rule longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'true' CHECK (json_valid(rule)),
+CONSTRAINT c_filtername UNIQUE (filtername)
+) ENGINE=Aria;
+CREATE TABLE IF NOT EXISTS mysql.server_audit_users (host char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
+user char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+filtername char(80) NOT NULL DEFAULT '',
+CONSTRAINT c_host_user UNIQUE (host, user)
+) ENGINE=Aria;
+INSERT INTO mysql.server_audit_filters VALUES ('ignore_sys', '{"ignore_tables" : "mysql.*"}');
+INSERT INTO mysql.server_audit_users VALUES ('%','<replication_slave>','ignore_sys');
+INSERT INTO mysql.server_audit_users VALUES ('%','root','ignore_sys');
+install plugin server_audit soname 'server_audit2';
+set global server_audit_logging=on;
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+truncate t1;
+drop table t1;
+connection slave;
+set global server_audit_logging=off;
+truncate mysql.server_audit_filters;
+truncate mysql.server_audit_users;
+INSERT INTO mysql.server_audit_filters VALUES ('no_logging','false');
+INSERT INTO mysql.server_audit_users VALUES ('%','<replication_slave>','no_logging');
+set global server_audit_logging=on;
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+truncate t1;
+drop table t1;
+connection slave;
+set global server_audit_logging=off;
+uninstall plugin server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+truncate mysql.server_audit_filters;
+truncate mysql.server_audit_users;
+TIME,HOSTNAME,,,0,0,AUDIT_CONFIG,,file_path=server_audit.log,0
+TIME,HOSTNAME,,,0,0,AUDIT_CONFIG,,rotate_size=1000000,0
+TIME,HOSTNAME,,,0,0,AUDIT_CONFIG,,file_rotations=9,0
+TIME,HOSTNAME,root,localhost,ID,0,AUDIT_CONFIG,test,logging=ON,0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=on',0
+TIME,HOSTNAME,<replication_slave>,,ID,ID,CREATE,test,t1,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,WRITE,test,t1,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,CREATE,test,t1,
+TIME,HOSTNAME,<replication_slave>,,ID,ID,DROP,test,t1,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select master_pos_wait(\'master-bin.#', POS, 300, \'\')',0
+TIME,HOSTNAME,root,localhost,ID,0,AUDIT_CONFIG,test,logging=OFF,0
+TIME,HOSTNAME,,,0,0,AUDIT_CONFIG,,file_path=server_audit.log,0
+TIME,HOSTNAME,,,0,0,AUDIT_CONFIG,,rotate_size=1000000,0
+TIME,HOSTNAME,,,0,0,AUDIT_CONFIG,,file_rotations=9,0
+TIME,HOSTNAME,root,localhost,ID,0,AUDIT_CONFIG,test,logging=ON,0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_logging=on',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'select master_pos_wait(\'master-bin.#', POS, 300, \'\')',0
+TIME,HOSTNAME,root,localhost,ID,0,AUDIT_CONFIG,test,logging=OFF,0
+connection master;
+include/rpl_end.inc

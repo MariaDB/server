@@ -244,6 +244,7 @@ void tp_win_callback_prolog()
     thread_created++;
     tp_stats.num_worker_threads++;
     my_thread_init();
+    my_thread_set_name("worker_thread");
   }
 }
 
@@ -355,10 +356,13 @@ int TP_pool_win::init()
   if (IS_SYSVAR_AUTOSIZE(&threadpool_max_threads))
   {
     /*
-     Nr 500 comes from Microsoft documentation,
-     there is no API for GetThreadpoolThreadMaxThreads()
+     Default 500 comes from Microsoft documentation,
+     there is no API for GetThreadpoolThreadMaxThreads().
+
+     To avoid deadlocks, allow at least max_connections + safety
+     margin threads in the pool.
     */
-    SYSVAR_AUTOSIZE(threadpool_max_threads,500);
+    SYSVAR_AUTOSIZE(threadpool_max_threads,std::max(500U,(uint)max_connections + 10));
   }
   else
   {

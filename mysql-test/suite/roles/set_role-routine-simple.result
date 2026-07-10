@@ -30,6 +30,7 @@ end|
 grant execute on function mysql.test_func to test_role2;
 grant execute on procedure mysql.test_proc to test_role2;
 grant execute on mysql.* to test_role3;
+change_user test_user,,;
 show grants;
 Grants for test_user@localhost
 GRANT USAGE ON *.* TO `test_user`@`localhost`
@@ -93,6 +94,7 @@ SELECT @a;
 SELECT test_func('AABBCCDD');
 test_func('AABBCCDD')
 Test string: AABBCCDD
+change_user root,,;
 drop user 'test_user'@'localhost';
 revoke execute on function mysql.test_func from test_role2;
 revoke execute on procedure mysql.test_proc from test_role2;

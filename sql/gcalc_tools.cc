@@ -17,8 +17,6 @@
 
 #include "mariadb.h"
 
-#ifdef HAVE_SPATIAL
-
 #include "gcalc_tools.h"
 #include "spatial.h"
 
@@ -133,7 +131,7 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
   uint n_ops= c_op & ~(op_any | op_not | v_mask);
   uint n_shape= c_op & ~(op_any | op_not | v_mask); /* same as n_ops */
   op_type v_state= (op_type) (c_op & v_mask);
-  int result= 0;
+  int result= 0, t_counter= 0;
   const char *sav_cur_func= cur_func;
 
   // GCALC_DBUG_ENTER("Gcalc_function::count_internal");
@@ -177,6 +175,11 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
     //GCALC_DBUG_RETURN(mask);
 
   result= count_internal(cur_func, set_type, &cur_func);
+  if (next_func == op_any_intersection)
+  {
+    t_counter= result == result_true;
+    result= result_false;
+  }
 
   while (--n_ops)
   {
@@ -213,6 +216,10 @@ int Gcalc_function::count_internal(const char *cur_func, uint set_type,
         else
           result= result_true;
         break;
+      case op_any_intersection:
+        t_counter+= next_res == result_true;
+        result= (t_counter > 1) ? result_true : result_false;
+        break;
       default:
         GCALC_DBUG_ASSERT(FALSE);
     };
@@ -229,7 +236,7 @@ exit:
         if (result == result_true)
         {
           c_op= (c_op & ~v_mask) | v_t_found;
-          int4store(sav_cur_func, c_op);
+          int4store(const_cast<char *>(sav_cur_func), c_op);
         }
         else
         {
@@ -241,7 +248,7 @@ exit:
         if (result == result_false)
         {
           c_op= (c_op & ~v_mask) | v_f_found;
-          int4store(sav_cur_func, c_op);
+          int4store(const_cast<char *>(sav_cur_func), c_op);
         }
         else
         {
@@ -928,6 +935,7 @@ int Gcalc_operation_reducer::count_slice(Gcalc_scan_iterator *si)
         {
           add_poly_border(1, cur_t, prev_state, events);
           prev_state^= 1;
+          prev_range= prev_state ? cur_t : 0;
         }
         if (!events->is_bottom())
         {
@@ -1284,7 +1292,7 @@ inline int Gcalc_operation_reducer::get_single_result(res_point *res,
   if (res->intersection_point)
   {
     double x, y;
-    res->pi->calc_xy(&x, &y);
+    res->pi->calc_intersection_xy(&x, &y);
     if (storage->single_point(x,y))
       GCALC_DBUG_RETURN(1);
   }
@@ -1311,7 +1319,7 @@ int Gcalc_operation_reducer::get_result_thread(res_point *cur,
     {
       if (cur->intersection_point)
       {
-        cur->pi->calc_xy(&x, &y);
+        cur->pi->calc_intersection_xy(&x, &y);
       }
       else
       {
@@ -1466,6 +1474,3 @@ void Gcalc_operation_reducer::reset()
   m_res_hook= (Gcalc_dyn_list::Item **)&m_result;
   free_list(m_first_active_thread);
 }
-
-#endif /*HAVE_SPATIAL*/
-

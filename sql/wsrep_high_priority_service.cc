@@ -30,6 +30,7 @@
 #define NUMBER_OF_FIELDS_TO_IDENTIFY_WORKER 2
 #include "slave.h"
 #include "rpl_mi.h"
+#include "rpl_constants.h"
 
 namespace
 {
@@ -45,7 +46,7 @@ public:
     , m_server_status(thd->server_status)
   {
     m_thd->variables.option_bits&= ~OPTION_BEGIN;
-    m_thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+    m_thd->server_status&= ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     m_thd->wsrep_cs().enter_toi_mode(ws_meta);
   }
   ~Wsrep_non_trans_mode()
@@ -67,10 +68,10 @@ static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
-  if (!rli->relay_log.description_event_for_exec)
+  if (!rli->relay_log.description_event_for_sql_thread)
   {
-    rli->relay_log.description_event_for_exec=
-      new Format_description_log_event(4);
+    rli->relay_log.description_event_for_sql_thread=
+      new Format_description_log_event(4, 0, BINLOG_CHECKSUM_ALG_OFF);
   }
 
   static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
@@ -114,28 +115,13 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
   else
     thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
-  if (wsrep_slave_FK_checks == FALSE)
+  if (wsrep_check_mode(WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST) &&
+      !wsrep_ready_get())
     thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
   else
     thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
 }
 
-static int apply_events(THD*                       thd,
-                        Relay_log_info*            rli,
-                        const wsrep::const_buffer& data,
-                        wsrep::mutable_buffer&     err)
-{
-  int const ret= wsrep_apply_events(thd, rli, data.data(), data.size());
-  if (ret || wsrep_thd_has_ignored_error(thd))
-  {
-    if (ret)
-    {
-      wsrep_store_error(thd, err);
-    }
-    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
-  }
-  return ret;
-}
 
 /****************************************************************************
                          High priority service
@@ -166,6 +152,10 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
      same commit ordering algorithm in group commit control
    */
   thd->variables.option_bits|= OPTION_BIN_LOG;
+
+  /* Allow applying in a transaction read-only context */
+  thd->tx_read_only= false;
+  thd->variables.tx_read_only= false;
 
   thd->net.vio= 0;
   thd->reset_db(&db_str);
@@ -381,6 +371,12 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
      assert(ws_handle == wsrep::ws_handle());
   }
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+  DBUG_EXECUTE_IF("simulate_rollback_failure_in_applier", ret= 1;);
+  if (ret)
+    WSREP_WARN("Wsrep_high_priority_service::rollback: trans_rollback "
+               "returned %d for thd %lu (killed=%d, seqno=%lld)",
+               ret, thd_get_thread_id(m_thd), m_thd->killed,
+               (long long) wsrep_thd_trx_seqno(m_thd));
 
   WSREP_DEBUG("::rollback() thread: %lu, client_state %s "
               "client_mode %s trans_state %s killed %d",
@@ -389,6 +385,18 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
               wsrep_thd_client_mode_str(m_thd),
               wsrep_thd_transaction_state_str(m_thd),
               m_thd->killed);
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_rollback_mdl_release",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_rollback_mdl_release_reached "
+                      "WAIT_FOR signal.wsrep_rollback_mdl_release";
+                    DBUG_ASSERT(!debug_sync_set_action(m_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif
 
   m_thd->release_transactional_locks();
 
@@ -425,7 +433,8 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                   };);
 #endif
 
-  int ret= apply_events(thd, m_rli, data, err);
+  thd->set_time();
+  int ret= wsrep_apply_events(thd, m_rli, data, err, false);
   wsrep_thd_set_ignored_error(thd, false);
   trans_commit(thd);
 
@@ -569,6 +578,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   THD* thd= m_thd;
 
   thd->variables.option_bits |= OPTION_BEGIN;
+  thd->variables.option_bits |= OPTION_GTID_BEGIN;
   thd->variables.option_bits |= OPTION_NOT_AUTOCOMMIT;
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
@@ -592,14 +602,16 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
 #endif /* ENABLED_DEBUG_SYNC */
 
   wsrep_setup_uk_and_fk_checks(thd);
-  int ret= apply_events(thd, m_rli, data, err);
+  int ret= wsrep_apply_events(thd, m_rli, data, err, true);
 
   thd->close_temporary_tables();
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
+  if (!ret && !wsrep::commits_transaction(ws_meta.flags()))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }
   thd_proc_info(thd, "wsrep applied write set");
+
+  thd->variables.option_bits &= ~OPTION_GTID_BEGIN;
   DBUG_RETURN(ret);
 }
 
@@ -759,9 +771,9 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                                           ws_meta,
                                           thd->wsrep_sr().fragments());
   }
-  ret= ret || apply_events(thd, m_rli, data, err);
+  ret= ret || wsrep_apply_events(thd, m_rli, data, err, true);
   thd->close_temporary_tables();
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
+  if (!ret && !wsrep::commits_transaction(ws_meta.flags()))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }

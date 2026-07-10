@@ -15,7 +15,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 
-# MRI scripts have a problem with +. It's a line contination character
+# MRI scripts have a problem with +. It's a line continuation character
 # unfortunately there is no escape character. We know we don't have
 # "+" in libraries or the MariaDB paths, but Ubuntu CI builds will have
 # in their CI path due to the package names that Ubuntu generates.

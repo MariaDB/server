@@ -23,7 +23,7 @@ path=`dirname $0`
 #
 
 extra_flags="$pentium64_cflags $debug_cflags -lasan -O -g -fsanitize=address -USAFEMALLOC -UFORCE_INIT_OF_VARS -Wno-uninitialized -Wno-maybe-uninitialized -DMYSQL_SERVER_SUFFIX=-asan-max"
-extra_configs="$pentium_configs $debug_configs $valgrind_configs $max_configs $disable_asan_plugins"
+extra_configs="$pentium_configs $debug_configs $valgrind_configs $max_configs $disable_asan_plugins --with-asan=ON"
 export LDFLAGS="-ldl"
 
 . "$path/FINISH.sh"

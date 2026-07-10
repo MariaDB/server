@@ -1,7 +1,7 @@
 connection node_2;
 connection node_1;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
-call mtr.add_suppression("\\[ERROR\\] Error reading packet from server: WSREP has not yet prepared node for application use .*");
+call mtr.add_suppression("\\[ERROR\\] Error reading packet from server: WSREP has not yet prepared node for application use ");
 call mtr.add_suppression("WSREP has not yet prepared node for application use");
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
@@ -13,7 +13,7 @@ connection node_3;
 SELECT @@wsrep_on;
 @@wsrep_on
 0
-call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use (server_errno=1047)");
+call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use \\(server_errno ?= ?1047\\)");
 START SLAVE;
 include/wait_for_slave_param.inc [Slave_IO_Running]
 connection node_1;

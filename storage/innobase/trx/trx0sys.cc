@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,8 +45,30 @@ Created 3/26/1996 Heikki Tuuri
 trx_sys_t		trx_sys;
 
 #ifdef UNIV_DEBUG
-/* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
-uint	trx_rseg_n_slots_debug = 0;
+void rw_trx_hash_t::validate_element(trx_t *trx)
+{
+  ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
+  ut_ad(!trx->is_autocommit_non_locking());
+  ut_d(bool acquire_trx_mutex= !trx->mutex_is_owner());
+  ut_d(if (acquire_trx_mutex) trx->mutex_lock());
+  switch (trx->state) {
+  case TRX_STATE_NOT_STARTED:
+  case TRX_STATE_ABORTED:
+    ut_error;
+  case TRX_STATE_PREPARED:
+  case TRX_STATE_PREPARED_RECOVERED:
+  case TRX_STATE_COMMITTED_IN_MEMORY:
+    ut_ad(!trx->is_autocommit_non_locking());
+    break;
+  case TRX_STATE_ACTIVE:
+    if (!trx->is_autocommit_non_locking())
+      break;
+    ut_ad(!trx->is_recovered);
+    ut_ad(trx->read_only);
+    ut_ad(trx->mysql_thd);
+  }
+  ut_d(if (acquire_trx_mutex) trx->mutex_unlock());
+}
 #endif
 
 /** Display the MySQL binlog offset info if it is present in the trx
@@ -86,7 +108,7 @@ static
 void
 trx_sysf_get_n_rseg_slots()
 {
-	mtr_t		mtr;
+	mtr_t mtr{nullptr};
 	mtr.start();
 
 	srv_available_undo_logs = 0;
@@ -105,7 +127,6 @@ trx_sysf_get_n_rseg_slots()
 /** Initialize the transaction system when creating the database. */
 dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
 {
-  mtr->start();
   mtr->x_lock_space(fil_system.sys_space);
   static_assert(TRX_SYS_SPACE == 0, "compatibility");
 
@@ -114,11 +135,7 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   buf_block_t *block= fseg_create(fil_system.sys_space,
                                   TRX_SYS + TRX_SYS_FSEG_HEADER, mtr, &err);
   if (UNIV_UNLIKELY(!block))
-  {
-  error:
-    mtr->commit();
     return err;
-  }
   ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
   mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
@@ -138,9 +155,8 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   buf_block_t *r= trx_rseg_header_create(fil_system.sys_space, 0, 0,
                                          mtr, &err);
   if (UNIV_UNLIKELY(!r))
-    goto error;
+    return err;
   ut_a(r->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
-  mtr->commit();
 
   return trx_lists_init_at_db_start();
 }
@@ -152,6 +168,11 @@ void trx_sys_t::create()
   m_initialised= true;
   trx_list.create();
   rw_trx_hash.init();
+  rw_trx_ids.create();
+  for (auto &rseg : temp_rsegs)
+    rseg.init(nullptr, FIL_NULL);
+  for (auto &rseg : rseg_array)
+    rseg.init(nullptr, FIL_NULL);
 }
 
 size_t trx_sys_t::history_size()
@@ -208,6 +229,19 @@ TPOOL_SUPPRESS_TSAN size_t trx_sys_t::history_size_approx() const
   return size;
 }
 
+my_bool trx_sys_t::find_same_or_older_callback(void *el, void *i) noexcept
+{
+  auto element= static_cast<rw_trx_hash_element_t *>(el);
+  auto id= static_cast<trx_id_t*>(i);
+  return element->id <= *id;
+}
+
+
+bool trx_sys_t::find_same_or_older_low(trx_t *trx, trx_id_t id) noexcept
+{
+  return rw_trx_hash.iterate(trx, find_same_or_older_callback, &id);
+}
+
 /** Create a persistent rollback segment.
 @param space_id   system or undo tablespace id
 @return pointer to new rollback segment
@@ -215,13 +249,14 @@ TPOOL_SUPPRESS_TSAN size_t trx_sys_t::history_size_approx() const
 static trx_rseg_t *trx_rseg_create(uint32_t space_id)
 {
   trx_rseg_t *rseg= nullptr;
-  mtr_t mtr;
+  mtr_t mtr{nullptr};
 
   mtr.start();
 
   if (fil_space_t *space= mtr.x_lock_space(space_id))
   {
-    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    ut_ad(!space->is_temporary());
+    ut_ad(!space->is_being_imported());
     if (buf_block_t *sys_header= trx_sysf_get(&mtr))
     {
       ulint rseg_id= trx_sys_rseg_find_free(sys_header);
@@ -230,6 +265,7 @@ static trx_rseg_t *trx_rseg_create(uint32_t space_id)
           ? nullptr : trx_rseg_header_create(space, rseg_id, 0, &mtr, &err))
       {
         rseg= &trx_sys.rseg_array[rseg_id];
+        rseg->destroy();
         rseg->init(space, rblock->page.id().page_no());
         ut_ad(rseg->is_persistent());
         mtr.write<4,mtr_t::MAYBE_NOP>
@@ -291,10 +327,9 @@ bool trx_sys_create_rsegs()
 		/* Increase the number of active undo
 		tablespace in case new rollback segment
 		assigned to new undo tablespace. */
-		if (space > srv_undo_tablespaces_active) {
+		if (space > (srv_undo_space_id_start
+			     + srv_undo_tablespaces_active - 1)) {
 			srv_undo_tablespaces_active++;
-
-			ut_ad(srv_undo_tablespaces_active == space);
 		}
 	}
 
@@ -327,15 +362,11 @@ trx_sys_t::close()
 	}
 
 	rw_trx_hash.destroy();
+	rw_trx_ids.destroy();
 
 	/* There can't be any active transactions. */
-
-	for (ulint i = 0; i < array_elements(temp_rsegs); ++i) {
-		temp_rsegs[i].destroy();
-	}
-	for (ulint i = 0; i < array_elements(rseg_array); ++i) {
-		rseg_array[i].destroy();
-	}
+	for (auto& rseg : temp_rsegs) rseg.destroy();
+	for (auto& rseg : rseg_array) rseg.destroy();
 
 	ut_a(trx_list.empty());
 	trx_list.close();
@@ -350,6 +381,7 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
   trx_sys.trx_list.for_each([&](const trx_t &trx) {
     switch (trx.state) {
     case TRX_STATE_NOT_STARTED:
+    case TRX_STATE_ABORTED:
       break;
     case TRX_STATE_ACTIVE:
       if (!trx.id)
@@ -369,3 +401,21 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
 
   return total_trx;
 }
+
+#ifndef EMBEDDED_LIBRARY
+/** @return true if any active (non-prepared) transactions is recovered */
+bool trx_sys_t::any_active_transaction_recovered()
+{
+  return trx_sys.trx_list.find_first([&](trx_t &trx)
+  {
+    if (trx.state != TRX_STATE_ACTIVE)
+      return false;
+
+    bool found= false;
+    trx.mutex_lock();
+    found= trx.is_recovered;
+    trx.mutex_unlock();
+    return found;
+  });
+}
+#endif

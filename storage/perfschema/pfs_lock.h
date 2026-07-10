@@ -28,9 +28,9 @@
   Performance schema internal locks (declarations).
 */
 
-#include "my_global.h"
+#include <atomic>
 
-#include "pfs_atomic.h"
+#include "my_global.h"
 
 /* to cause bugs, testing */
 // #define MEM(X) std::memory_order_relaxed
@@ -103,7 +103,7 @@ struct pfs_lock
     The version number is stored in the high 30 bits.
     The state is stored in the low 2 bits.
   */
-  uint32 m_version_state;
+  std::atomic<uint32> m_version_state;
 
   uint32 copy_version_state()
   {
@@ -119,7 +119,7 @@ struct pfs_lock
   {
     uint32 copy;
 
-    copy= PFS_atomic::load_u32(&m_version_state);
+    copy= m_version_state.load();
 
     return ((copy & STATE_MASK) == PFS_LOCK_FREE);
   }
@@ -129,7 +129,7 @@ struct pfs_lock
   {
     uint32 copy;
 
-    copy= PFS_atomic::load_u32(&m_version_state);
+    copy= m_version_state.load();
 
     return ((copy & STATE_MASK) == PFS_LOCK_ALLOCATED);
   }
@@ -144,7 +144,7 @@ struct pfs_lock
   {
     uint32 old_val;
 
-    old_val= PFS_atomic::load_u32(&m_version_state);
+    old_val= m_version_state.load();
 
     if ((old_val & STATE_MASK) != PFS_LOCK_FREE)
     {
@@ -154,7 +154,7 @@ struct pfs_lock
     uint32 new_val= (old_val & VERSION_MASK) + PFS_LOCK_DIRTY;
     bool pass;
 
-    pass= PFS_atomic::cas_u32(&m_version_state, &old_val, new_val);
+    pass= m_version_state.compare_exchange_strong(old_val, new_val);
 
     if (pass)
     {
@@ -178,7 +178,7 @@ struct pfs_lock
     uint32 new_val= (copy & VERSION_MASK) + PFS_LOCK_DIRTY;
     /* We own the record, no need to use compare and swap. */
 
-    PFS_atomic::store_u32(&m_version_state, new_val);
+    m_version_state.store(new_val);
 
     copy_ptr->m_version_state= new_val;
   }
@@ -195,7 +195,7 @@ struct pfs_lock
     /* Increment the version, set the ALLOCATED state */
     uint32 new_val= (copy->m_version_state & VERSION_MASK) + VERSION_INC + PFS_LOCK_ALLOCATED;
 
-    PFS_atomic::store_u32(&m_version_state, new_val);
+    m_version_state.store(new_val);
   }
 
   /**
@@ -210,7 +210,7 @@ struct pfs_lock
     /* Increment the version, set the ALLOCATED state */
     uint32 new_val= (copy & VERSION_MASK) + VERSION_INC + PFS_LOCK_ALLOCATED;
 
-    PFS_atomic::store_u32(&m_version_state, new_val);
+    m_version_state.store(new_val);
   }
 
   /**
@@ -219,10 +219,10 @@ struct pfs_lock
   void set_dirty(pfs_dirty_state *copy_ptr)
   {
     /* Do not set the version to 0, read the previous value. */
-    uint32 copy= PFS_atomic::load_u32(&m_version_state);
+    uint32 copy= m_version_state.load();
     /* Increment the version, set the DIRTY state */
     uint32 new_val= (copy & VERSION_MASK) + VERSION_INC + PFS_LOCK_DIRTY;
-    PFS_atomic::store_u32(&m_version_state, new_val);
+    m_version_state.store(new_val);
 
     copy_ptr->m_version_state= new_val;
   }
@@ -238,7 +238,7 @@ struct pfs_lock
     /* Keep the same version, set the FREE state */
     uint32 new_val= (copy->m_version_state & VERSION_MASK) + PFS_LOCK_FREE;
 
-    PFS_atomic::store_u32(&m_version_state, new_val);
+    m_version_state.store(new_val);
   }
 
   /**
@@ -258,7 +258,7 @@ struct pfs_lock
     /* Keep the same version, set the FREE state */
     uint32 new_val= (copy & VERSION_MASK) + PFS_LOCK_FREE;
 
-    PFS_atomic::store_u32(&m_version_state, new_val);
+    m_version_state.store(new_val);
   }
 
   /**
@@ -268,7 +268,7 @@ struct pfs_lock
   */
   void begin_optimistic_lock(struct pfs_optimistic_state *copy)
   {
-    copy->m_version_state= PFS_atomic::load_u32(&m_version_state);
+    copy->m_version_state= m_version_state.load();
   }
 
   /**
@@ -285,7 +285,7 @@ struct pfs_lock
     if ((copy->m_version_state & STATE_MASK) != PFS_LOCK_ALLOCATED)
       return false;
 
-    version_state= PFS_atomic::load_u32(&m_version_state);
+    version_state= m_version_state.load();
 
     /* Check the version + state has not changed. */
     if (copy->m_version_state != version_state)
@@ -298,7 +298,7 @@ struct pfs_lock
   {
     uint32 version_state;
 
-    version_state= PFS_atomic::load_u32(&m_version_state);
+    version_state= m_version_state.load();
 
     return (version_state & VERSION_MASK);
   }

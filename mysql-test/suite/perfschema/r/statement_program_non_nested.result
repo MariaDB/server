@@ -145,7 +145,7 @@ Bollywood
 # Event
 SET GLOBAL event_scheduler=ON;
 CREATE TABLE table_t(a INT);
-CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND DO
+CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND ON COMPLETION NOT PRESERVE DO
 BEGIN
 INSERT INTO table_t VALUES(1);
 END|
@@ -182,7 +182,7 @@ statement/sql/call_procedure	CALL SampleProc1(30,40,50)	stored_programs	NULL	NUL
 statement/sql/call_procedure	CALL SampleProc2("Jwalamukhi",34)	stored_programs	NULL	NULL	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc3()	stored_programs	NULL	NULL	NULL	NULL	0
 statement/sql/call_procedure	CALL SampleProc4()	stored_programs	NULL	NULL	NULL	NULL	0
-statement/sql/create_event	CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND DO
+statement/sql/create_event	CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND ON COMPLETION NOT PRESERVE DO
 BEGIN
 INSERT INTO table_t VALUES(1);
 END	stored_programs	NULL	NULL	NULL	NULL	0
@@ -553,7 +553,7 @@ Bollywood
 # Event
 SET GLOBAL event_scheduler=ON;
 CREATE TABLE table_t(a INT);
-CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND DO
+CREATE EVENT e1 ON SCHEDULE EVERY 2 SECOND ON COMPLETION NOT PRESERVE DO
 BEGIN
 INSERT INTO table_t VALUES(1);
 END|
@@ -689,7 +689,7 @@ ERROR 42000: Incorrect number of arguments for FUNCTION sp.f; expected 2, got 3
 INSERT INTO t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 # the below query on PS table doesn't expose any statistics as 
-# execution of the created stored porgrams failed.
+# execution of the created stored programs failed.
 SELECT OBJECT_TYPE, OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_STATEMENTS
 FROM performance_schema.events_statements_summary_by_program
 WHERE OBJECT_SCHEMA='sp';

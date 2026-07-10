@@ -22,11 +22,13 @@ let $wait_condition =
   WHERE INFO="UPDATE bug51920 SET i=2";
 -- source include/wait_condition.inc
 
+--disable_cursor_protocol
 --enable_prepare_warnings
 SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE INFO="UPDATE bug51920 SET i=2"
 INTO @thread_id;
 --disable_prepare_warnings
+--enable_cursor_protocol
 
 KILL @thread_id;
 let $wait_condition =
@@ -38,7 +40,7 @@ let $wait_condition =
 # depending on platform.
 #
 connection con1;
--- error 1317, 2006, 2013, ER_CONNECTION_KILLED
+-- error 1317, 2006, 2013, ER_CONNECTION_KILLED, 2026
 reap;
 connection default;
 DROP TABLE bug51920;

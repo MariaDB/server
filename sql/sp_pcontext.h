@@ -18,13 +18,11 @@
 #ifndef _SP_PCONTEXT_H_
 #define _SP_PCONTEXT_H_
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_string.h"                         // LEX_STRING
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
+#include "sp_type_def.h"
+#include "sp_rcontext_handler.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -41,7 +39,7 @@ public:
   };
 
   /// Name of the SP-variable.
-  LEX_CSTRING name;
+  Lex_ident_column name;
 
   /// Mode of the SP-variable.
   enum_mode mode;
@@ -87,6 +85,27 @@ public:
                                          uint *row_field_offset);
 };
 
+
+/*
+  This class stores FETCH statement target variables:
+    FETCH cur INTO t1, t2, t2;
+  Targets can be:
+  - Local SP variables
+  - PACKAGE BODY variables
+*/
+class sp_fetch_target: public Sql_alloc,
+                       public sp_rcontext_addr
+{
+public:
+  LEX_CSTRING name;
+
+  sp_fetch_target(const LEX_CSTRING &name_arg, const sp_rcontext_addr &addr)
+   :sp_rcontext_addr(addr),
+    name(name_arg)
+  { }
+};
+
+
 ///////////////////////////////////////////////////////////////////////////
 
 /// This class represents an SQL/PSM label. Can refer to the identifier
@@ -116,7 +135,7 @@ public:
   };
 
   /// Name of the label.
-  LEX_CSTRING name;
+  Lex_ident_column name;
 
   /// Instruction pointer of the label.
   uint ip;
@@ -242,28 +261,20 @@ class sp_condition : public Sql_alloc
 {
 public:
   /// Name of the condition.
-  LEX_CSTRING name;
+  Lex_ident_column name;
 
   /// Value of the condition.
   sp_condition_value *value;
 
 public:
-  sp_condition(const LEX_CSTRING *name_arg, sp_condition_value *value_arg)
+  sp_condition(const Lex_ident_column &name_arg, sp_condition_value *value_arg)
    :Sql_alloc(),
-    name(*name_arg),
+    name(name_arg),
     value(value_arg)
   { }
-  sp_condition(const char *name_arg, size_t name_length_arg,
-               sp_condition_value *value_arg)
-   :value(value_arg)
-  {
-    name.str=    name_arg;
-    name.length= name_length_arg;
-  }
   bool eq_name(const LEX_CSTRING *str) const
   {
-    return system_charset_info->strnncoll(name.str, name.length,
-                                          str->str, str->length) == 0;
+    return name.streq(*str);
   }
 };
 
@@ -286,14 +297,14 @@ public:
     Note, m_param_context can be not NULL, but have no variables.
     This is also means a cursor with no parameters (similar to NULL).
 */
-class sp_pcursor: public LEX_CSTRING
+class sp_pcursor: public Lex_ident_column
 {
   class sp_pcontext *m_param_context; // Formal parameters
   class sp_lex_cursor *m_lex;         // The cursor statement LEX
 public:
   sp_pcursor(const LEX_CSTRING *name, class sp_pcontext *param_ctx,
              class sp_lex_cursor *lex)
-   :LEX_CSTRING(*name), m_param_context(param_ctx), m_lex(lex)
+   :Lex_ident_column(*name), m_param_context(param_ctx), m_lex(lex)
   { }
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
@@ -332,6 +343,7 @@ public:
   { }
 };
 
+
 ///////////////////////////////////////////////////////////////////////////
 
 /// The class represents parse-time context, which keeps track of declared
@@ -339,7 +351,7 @@ public:
 ///
 /// sp_pcontext objects are organized in a tree according to the following
 /// rules:
-///   - one sp_pcontext object corresponds for for each BEGIN..END block;
+///   - one sp_pcontext object corresponds for each BEGIN..END block;
 ///   - one sp_pcontext object corresponds for each exception handler;
 ///   - one additional sp_pcontext object is created to contain
 ///     Stored Program parameters.
@@ -357,7 +369,8 @@ public:
 ///   - for error checking (e.g. to check correct number of parameters);
 ///   - to resolve SQL-handlers.
 
-class sp_pcontext : public Sql_alloc
+class sp_pcontext : public Sql_alloc,
+                    public sp_type_def_list
 {
 public:
   enum enum_scope
@@ -366,13 +379,37 @@ public:
     REGULAR_SCOPE,
 
     /// HANDLER_SCOPE designates SQL-handler blocks.
-    HANDLER_SCOPE
+    HANDLER_SCOPE,
+
+    /// Declarations between CREATE PACKAGE and BEGIN
+    PACKAGE_BODY_SCOPE
   };
 
   class Lex_for_loop: public Lex_for_loop_st
   {
   public:
-    Lex_for_loop() { init(); }
+    /*
+      The label pointing to the body start,
+      either explicit or automatically generated.
+      Used during generation of "ITERATE loop_label"
+      to check if "loop_label" is a FOR loop label.
+      - In case of a FOR loop, some additional code
+        (cursor fetch or integer increment) is generated before
+        the backward jump to the beginning of the loop body.
+      - In case of other loop types (WHILE, REPEAT)
+        only the jump is generated.
+    */
+    const sp_label *m_start_label;
+
+    Lex_for_loop()
+     :m_start_label(NULL)
+    { Lex_for_loop_st::init(); }
+
+    Lex_for_loop(const Lex_for_loop_st &for_loop, const sp_label *start)
+     :m_start_label(start)
+    {
+      Lex_for_loop_st::operator=(for_loop);
+    }
   };
 
 public:
@@ -447,6 +484,9 @@ public:
     return m_vars.at(i);
   }
 
+  /// @return the number of variables with default values in this context.
+  uint default_context_var_count() const;
+
   /*
     Return the i-th last context variable.
     If i is 0, then return the very last variable in m_vars.
@@ -457,6 +497,21 @@ public:
     return m_vars.at(m_vars.elements() - i - 1);
   }
 
+  /*
+    Set data type for the last nvars context variables to "def".
+  */
+  void set_type_for_last_context_variables(const Column_definition &def,
+                                           uint nvars)
+  {
+    DBUG_ASSERT(nvars <= m_vars.elements());
+    for (uint i= 0 ; i < nvars; i++)
+    {
+      uint offset= (uint) nvars - 1 - i;
+      sp_variable *spvar= get_last_context_variable(offset);
+      spvar->field_def.set_type(def);
+      spvar->field_def.field_name= spvar->name;
+    }
+  }
   /// Add SP-variable to the parsing context.
   ///
   /// @param thd  Thread context.
@@ -501,6 +556,11 @@ public:
   /// @param n The number of variables to skip.
   void declare_var_boundary(uint n)
   { m_pboundary= n; }
+
+  const sp_variable *get_pvariable(const sp_rcontext_addr &addr) const
+  {
+    return addr.rcontext_handler()->get_pvariable(this, addr.offset());
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
@@ -584,7 +644,7 @@ public:
   // Conditions.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_condition(THD *thd, const LEX_CSTRING *name,
+  bool add_condition(THD *thd, const Lex_ident_column &name,
                                sp_condition_value *value);
 
   /// See comment for find_variable() above.
@@ -594,12 +654,12 @@ public:
   sp_condition_value *
   find_declared_or_predefined_condition(THD *thd, const LEX_CSTRING *name) const;
 
-  bool declare_condition(THD *thd, const LEX_CSTRING *name,
+  bool declare_condition(THD *thd, const Lex_ident_column &name,
                                    sp_condition_value *val)
   {
-    if (find_condition(name, true))
+    if (find_condition(&name, true))
     {
-      my_error(ER_SP_DUP_COND, MYF(0), name->str);
+      my_error(ER_SP_DUP_COND, MYF(0), name.str);
       return true;
     }
     return add_condition(thd, name, val);
@@ -680,11 +740,28 @@ public:
 
   void set_for_loop(const Lex_for_loop_st &for_loop)
   {
-    m_for_loop.init(for_loop);
+    m_for_loop= Lex_for_loop(for_loop, last_label());
   }
-  const Lex_for_loop_st &for_loop()
+  const Lex_for_loop &for_loop()
   {
     return m_for_loop;
+  }
+  enum_scope scope() const
+  {
+    return m_scope;
+  }
+
+  sp_type_def *find_type_def(const LEX_CSTRING &name,
+                             bool current_scope_only) const;
+
+  bool type_defs_add(THD *thd, sp_type_def *def)
+  {
+    if (unlikely(find_type_def(def->get_name(), true)))
+    {
+      my_error(ER_SP_DUP_DECL, MYF(0), def->get_name().str);
+      return true;
+    }
+    return sp_type_def_list::type_defs_add(def);
   }
 
 private:

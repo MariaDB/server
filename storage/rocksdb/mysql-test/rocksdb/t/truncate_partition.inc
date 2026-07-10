@@ -81,7 +81,7 @@ SELECT a,b FROM t1;
 TRUNCATE TABLE t1;
 SELECT a,b FROM t1;
 
-# manual commpact
+# manual compact
 set global rocksdb_force_flush_memtable_now = true;
 set global rocksdb_compact_cf = 'default';
 

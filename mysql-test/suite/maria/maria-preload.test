@@ -114,6 +114,13 @@ load index into cache t3 key (b), t2 key (c) ;
 eval $show_stat;
 
 drop table t1, t2;
+
+# Check flushing of pagecache variables;
+flush tables; flush status;
+eval $show_stat;
+flush global status;
+show status like "Aria_pagecache_read%";
+
 drop temporary table initial;
 
 # check that Aria didn't use key cache
@@ -124,3 +131,4 @@ show status like "key_read%";
 eval set global aria_checkpoint_interval=$def_checkinterval;
 --enable_result_log
 --enable_query_log
+

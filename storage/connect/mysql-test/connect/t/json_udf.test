@@ -1,3 +1,4 @@
+--source include/no_view_protocol.inc
 --source json_udf.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
@@ -5,7 +6,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
 --copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
 
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=VIR BLOCK_SIZE=5;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=VIR BLOCK_SIZE=5;
 
 --echo #
 --echo # Test UDF's with constant arguments
@@ -19,7 +20,10 @@ SELECT JsonValue(9223372036854775807);
 SELECT JsonValue(NULL);
 SELECT JsonValue(TRUE);
 SELECT JsonValue(FALSE);
+#Check after fix MDEV-31587
+--disable_cursor_protocol
 SELECT JsonValue();
+--enable_cursor_protocol
 SELECT JsonValue('[11, 22, 33]' json_) FROM t1;
 #
 SELECT Json_Make_Array();
@@ -60,7 +64,10 @@ SELECT Json_Make_Object(56, 3.1416, 'foo', NULL);
 SELECT Json_Make_Object(56 qty, 3.1416 price, 'foo' truc, NULL garanty);
 SELECT Json_Make_Object();
 SELECT Json_Make_Object(Json_Make_Array(56, 3.1416, 'foo'), NULL);
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT Json_Make_Array(Json_Make_Object(56 "qty", 3.1416 "price", 'foo') ,NULL);
+--enable_cursor_protocol
 SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL);
 --error ER_CANT_INITIALIZE_UDF
 SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty');
@@ -89,7 +96,7 @@ CREATE TABLE t2
   TRANSLATOR CHAR(80),
   PUBLISHER CHAR(32),
   DATEPUB int(4)
-) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=JSON FILE_NAME='biblio.json';
 
 SELECT Json_Make_Array(AUTHOR, TITLE, DATEPUB) FROM t2;
 SELECT Json_Make_Object(AUTHOR, TITLE, DATEPUB) FROM t2;
@@ -106,7 +113,7 @@ CREATE TABLE t3 (
   DEPARTMENT CHAr(4) NOT NULL FLAG=41,
   SECRETARY CHAR(5) DEFAULT NULL FLAG=46,
   SALARY DOUBLE(8,2) NOT NULL FLAG=52
-) ENGINE=CONNECT TABLE_TYPE=FIX BLOCK_SIZE=8 FILE_NAME='employee.dat' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX BLOCK_SIZE=8 FILE_NAME='employee.dat' ENDING=1;
 
 SELECT Json_Make_Object(SERIALNO, NAME, TITLE, SALARY) FROM t3 WHERE NAME = 'MERCHANT';
 SELECT DEPARTMENT, Json_Array_Grp(NAME) FROM t3 GROUP BY DEPARTMENT;

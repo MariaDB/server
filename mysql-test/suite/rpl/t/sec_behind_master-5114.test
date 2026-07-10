@@ -29,7 +29,7 @@ send INSERT INTO t1 VALUES(SLEEP(2));
 connection slave;
 
 # When the slave starts executing the event, Seconds_Behind_Master
-# should start growing steadilly. The bugfix ensures that they are
+# should start growing steadily. The bugfix ensures that they are
 # calculated based on the start time of the current event, rather
 # than the start time of the previous event. To check it, we only need
 # the first non-zero value

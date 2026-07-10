@@ -1,15 +1,8 @@
 #
 # MDEV-15333 MariaDB (still) slow start
 #
-# FIXME: Unlike MySQL, maybe MariaDB should not read the .ibd files
-# of tables with .isl file or DATA DIRECTORY attribute.
 call mtr.add_suppression("\\[ERROR\\] InnoDB: MySQL-8\\.0 tablespace in ");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Restart in MySQL for migration/recovery\\.");
-# FIXME: This is much more noisy than MariaDB 10.1!
-call mtr.add_suppression("\\[ERROR\\] InnoDB: Tablespace flags are invalid in datafile: .*test.t[rcd]\\.ibd");
-call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
-call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot find the path specified\\.");
-call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for test/td because it could not be opened\\.");
 CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT
 PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
@@ -29,19 +22,6 @@ a
 SELECT * FROM td;
 a
 DROP TABLE tr,tc,td;
-#
-# MDEV-27467 innodb to enfore the minimum innodb_buffer_pool_size in SET (resize) the same as startup
-#
-SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
-SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size -1);
-ERROR 42000: Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1210	innodb_buffer_pool_size must be at least MIN_VAL for innodb_page_size=PAGE_SIZE
-Error	1231	Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size);
-SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
 #
 # MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message
 #

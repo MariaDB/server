@@ -11,7 +11,7 @@ diaries	CREATE TABLE `diaries` (
   `title` varchar(40) DEFAULT NULL,
   `body` varchar(140) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 ALTER TABLE diaries
 CHANGE body description VARCHAR(140) FIRST,
 CHANGE title subject VARCHAR(40) AFTER internal_id,
@@ -23,7 +23,7 @@ diaries	CREATE TABLE `diaries` (
   `internal_id` int(11) NOT NULL AUTO_INCREMENT,
   `subject` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`internal_id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT IGNORE INTO diaries (subject, description)
 VALUES ("groonga (1)", "starting groonga.");
 SELECT * FROM diaries;

@@ -1,0 +1,8 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t ENGINE=InnoDB WITH SYSTEM VERSIONING AS SELECT 1 AS i;
+ERROR 42000: This version of MariaDB doesn't yet support 'SYSTEM VERSIONING AS SELECT in Galera cluster'
+connection node_2;
+SHOW CREATE TABLE t;
+ERROR 42S02: Table 'test.t' doesn't exist

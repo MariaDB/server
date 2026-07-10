@@ -5,11 +5,11 @@
 --echo # Issue #390
 --echo #---------------------------
 
-# Run 10 simulatenous threads each inserting 10,000 rows
+# Run 10 simultaneous threads each inserting 10,000 rows
 let $num_threads = 10;
 let $num_rows_per_thread = 100000;
 
-# Create the table with an AUTO_INCREMENT primary key and a separate colum
+# Create the table with an AUTO_INCREMENT primary key and a separate column
 # to store which thread created the row
 CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, thr INT) ENGINE=rocksdb;
 
@@ -99,10 +99,12 @@ while ($i > 0)
 # smallest value in the sequence for thread 'thr' that is greater than
 # the pk in the previous row.
 let $file = `SELECT CONCAT(@@datadir, "test_export.txt")`;
+--disable_cursor_protocol
 --disable_query_log
 --echo SELECT * FROM t1 ORDER BY pk INTO OUTFILE <output_file>;
 eval SELECT * FROM t1 ORDER BY pk INTO OUTFILE "$file";
 --enable_query_log
+--enable_cursor_protocol
 
 let ROCKSDB_OUTFILE = $file;
 

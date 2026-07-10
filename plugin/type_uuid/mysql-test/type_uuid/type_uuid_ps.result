@@ -1,0 +1,17 @@
+# Start of 10.11 tests
+#
+# MDEV-35427 Assertion `is_null() >= item->null_value' failed in Timestamp_or_zero_datetime_native_null::Timestamp_or_zero_datetime_native_null on EXECUTE
+#
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2025-01-15 00:00:00');
+PREPARE s FROM 'SELECT CONCAT (UNIX_TIMESTAMP(?))';
+EXECUTE s USING CAST('00000000-0000-0000-0000-000000000001' AS UUID);
+CONCAT (UNIX_TIMESTAMP(?))
+1736899200
+EXECUTE s USING @unknown_variable;
+CONCAT (UNIX_TIMESTAMP(?))
+NULL
+DEALLOCATE PREPARE s;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+# End of 10.11 tests

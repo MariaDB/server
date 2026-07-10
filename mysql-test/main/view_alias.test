@@ -56,7 +56,7 @@ DROP VIEW v1;
 eval CREATE VIEW v1 AS $query;
 DROP VIEW v1;
 
---echo # Invalid conlumn name in subquery.
+--echo # Invalid column name in subquery.
 CREATE VIEW v1 AS SELECT (SELECT ' c1 ');
 let $query = `SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 'v1'`;
 DROP VIEW v1;

@@ -1,0 +1,278 @@
+set
+@tmp_switch_sarg_casefold=@@optimizer_switch,
+optimizer_switch='sargable_casefold=on';
+create table t1 (
+col1 varchar(32), 
+col2 varchar(32), 
+col3 char(32), 
+col4  text, 
+key(col1),
+key(col2),
+key(col3),
+key(col4(32))
+) collate utf8mb3_general_ci;
+insert into t1
+select 
+concat('A-', seq),
+concat('A-', seq),
+concat('A-', seq),
+concat('A-', seq)
+from seq_1_to_100;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'col4'
+test.t1	analyze	status	Table is already up to date
+# Basic examples. All should use ref(col1):
+explain
+select * from t1 where upper(col1)='A-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	99	const	1	Using index condition
+select * from t1 where upper(col1)='A-3';
+col1	col2	col3	col4
+A-3	A-3	A-3	A-3
+explain
+select * from t1 where ucase(col1)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	99	const	1	Using index condition
+select * from t1 where ucase(col1)='a-3';
+col1	col2	col3	col4
+A-3	A-3	A-3	A-3
+explain select * from t1 where 'abc'=upper(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	99	const	1	Using index condition
+explain select * from t1 where 'xyz'=ucase(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	99	const	1	Using index condition
+create view v1 as select * from t1;
+explain select * from v1 where 'abc'=upper(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	99	const	1	Using index condition
+drop view v1;
+explain select * from t1 where upper(col3)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col3	col3	97	const	1	Using index condition
+explain select * from t1 where upper(col4)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col4	col4	99	const	1	Using where
+# must not be rewritten:
+explain select * from t1 where ucase(col1 collate utf8mb3_bin)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+# Will not do the rewrite due to collation mismatch:
+explain select * from t1 where ucase(col1)=_utf8mb3'abc' COLLATE utf8mb3_bin;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+drop table t1;
+create table t1 (
+col1 varchar(32), 
+col2 varchar(32), 
+col3 char(32), 
+col4  text, 
+key(col1),
+key(col2),
+key(col3),
+key(col4(32))
+) collate utf8mb4_general_ci;
+insert into t1
+select 
+concat('A-', seq),
+concat('A-', seq),
+concat('A-', seq),
+concat('A-', seq)
+from seq_1_to_100;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'col4'
+test.t1	analyze	status	Table is already up to date
+# Basic examples. All should use ref(col1):
+explain
+select * from t1 where upper(col1)='A-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	131	const	1	Using index condition
+select * from t1 where upper(col1)='A-3';
+col1	col2	col3	col4
+A-3	A-3	A-3	A-3
+explain
+select * from t1 where ucase(col1)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	131	const	1	Using index condition
+select * from t1 where ucase(col1)='a-3';
+col1	col2	col3	col4
+A-3	A-3	A-3	A-3
+explain select * from t1 where 'abc'=upper(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	131	const	1	Using index condition
+explain select * from t1 where 'xyz'=ucase(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	131	const	1	Using index condition
+create view v1 as select * from t1;
+explain select * from v1 where 'abc'=upper(col1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	131	const	1	Using index condition
+drop view v1;
+explain select * from t1 where upper(col3)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col3	col3	129	const	1	Using index condition
+explain select * from t1 where upper(col4)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col4	col4	131	const	1	Using where
+# must not be rewritten:
+explain select * from t1 where ucase(col1 collate utf8mb4_bin)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+# Will not do the rewrite due to collation mismatch:
+explain select * from t1 where ucase(col1)=_utf8mb4'abc' COLLATE utf8mb4_bin;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+#
+# Check if optimizer_switch turns the rewrite off:
+#
+set 
+@save_os=@@optimizer_switch, 
+optimizer_switch='sargable_casefold=off';
+explain select * from t1 where upper(col1)='A-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+explain select * from t1 where ucase(col1)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+set optimizer_switch=@save_os;
+# The following will not do the rewrite because the comparison
+# is done as DOUBLEs. Come to think of it, it won't harm to do
+# the rewrite but it is outside of the scope of this patch:
+explain select * from t1 where ucase(col1)=123.456;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+select
+coercibility(upper(col1))
+from t1 limit 1;
+coercibility(upper(col1))
+2
+select coercibility(_utf8mb3'abc' COLLATE utf8mb3_bin);
+coercibility(_utf8mb3'abc' COLLATE utf8mb3_bin)
+0
+# This is transformed too even if it doesn't create any new
+# [potential] access paths:
+explain format=json select * from t1 where upper(col1)=upper(col2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.0256761,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": 0.0256761,
+          "filtered": 100,
+          "attached_condition": "t1.col2 = t1.col1"
+        }
+      }
+    ]
+  }
+}
+#
+# Check if ref access works
+#
+create table t2 (
+a varchar(32),
+non_key varchar(32),
+key(a)
+) collate utf8mb4_general_ci;
+insert into t2
+select
+concat('A-', seq),
+concat('A-', seq)
+from seq_1_to_10;
+# Must use ref access for t1:
+explain select * from t1, t2 where upper(t1.col1)= t2.non_key;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ref	col1	col1	131	test.t2.non_key	1	
+create table t3 (
+a varchar(32),
+b varchar(32),
+key(a),
+key(b)
+) collate utf8mb3_general_ci;
+insert into t3 values ('abc','ABC'), ('xyz','XYZ');
+explain extended
+select a from t3 ignore index(a) where a=b and upper(b)='ABC';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ref	b	b	99	const	1	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t3`.`a` AS `a` from `test`.`t3` IGNORE INDEX (`a`) where `test`.`t3`.`a` = `test`.`t3`.`b` and `test`.`t3`.`b` = 'ABC'
+#
+# Check that rewrite isn't applied for non-applicable collations
+#
+create table t4 (
+col1 varchar(32) collate utf8mb3_bin,
+col2 varchar(32) collate utf8mb3_czech_ci,
+col3 varchar(32) collate latin1_bin,
+key(col1),
+key(col2),
+key(col3)
+);
+insert into t4
+select 
+concat('A-', seq),
+concat('A-', seq),
+concat('A-', seq)
+from seq_1_to_100;
+analyze table t4 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+# None should use ref access:
+explain select * from t4 where upper(col1)='A-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	100	Using where
+explain select * from t4 where upper(col2)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	100	Using where
+explain select * from t4 where upper(col3)='a-3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	100	Using where
+#
+# Check that rewrite works for UPPER(col) IN (const-list)
+#
+set
+@tmp_ot= @@optimizer_trace,
+optimizer_trace=1;
+# must use range:
+explain
+select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	col1	col1	131	NULL	3	Using index condition
+select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
+col1	col2	col3	col4
+A-3	A-3	A-3	A-3
+A-4	A-4	A-4	A-4
+A-5	A-5	A-5	A-5
+# Will not use the rewrite:
+explain
+select * from t1 where upper(col1) IN ('A-3','A-4',col2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+#
+# MDEV-31946: Optimizer handle UCASE(varchar_col)=... does not work for UPDATE/DELETE
+#
+explain delete from t1 where upper(col1)='A';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	col1	col1	131	NULL	1	Using where
+explain delete from t1 where upper(col1) IN ('A','B');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	col1	col1	131	NULL	2	Using where
+explain update t1 set col2='ABC' where upper(col1)='A';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	col1	col1	131	NULL	1	Using where
+explain update t1 set col2='ABC' where upper(col1) IN ('A','B');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	col1	col1	131	NULL	2	Using where
+drop table t1,t2,t3,t4;
+set optimizer_switch=@tmp_switch_sarg_casefold;

@@ -1,4 +1,5 @@
 /* Copyright (C) 2013-2015 Codership Oy <info@codership.com>
+   Copyright (C) 2025-2026 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -210,7 +211,11 @@ public:
 
   void set(enum wsrep::server_state::state status)
   {
-    wsrep_notify_status(status);
+    if (status == wsrep::server_state::s_donor ||
+	status == wsrep::server_state::s_synced)
+      wsrep_notify_status(status, &view_);
+    else
+      wsrep_notify_status(status);
 
     lock();
     status_= status;
@@ -271,19 +276,30 @@ class process
 {
 private:
     const char* const str_;
-    FILE*       io_;
+    FILE*       io_[2];
     int         err_;
     pid_t       pid_;
 
+    enum io_direction { READ, WRITE };
+
+    void setup_parent_pipe_end(io_direction      direction,
+                               int               pipe_fds[],
+                               int const         pipe_end,
+                               const char* const mode);
+
+    void close_io(io_direction direction, bool warn = false);
+
 public:
-/*! @arg type is a pointer to a null-terminated string which  must  contain
-         either  the  letter  'r'  for  reading  or the letter 'w' for writing.
+/*! @arg type is a pointer to a null-terminated string which must be
+         either "r", "w" or "rw"
     @arg env optional null-terminated vector of environment variables
  */
     process  (const char* cmd, const char* type, char** env);
     ~process ();
 
-    FILE* pipe () { return io_;  }
+    FILE* from () { return io_[READ];  }
+    FILE* to   () { return io_[WRITE]; }
+    void  close_to() { close_io(WRITE,  false); }
     int   error() { return err_; }
     int   wait ();
     const char* cmd() { return str_; }
@@ -291,11 +307,19 @@ public:
 
 class thd
 {
-  class thd_init
+ /* Helper class to init/deinit current thread for use with THD */
+  class my_init
   {
   public:
-    thd_init()  { my_thread_init(); }
-    ~thd_init() { my_thread_end();  }
+    my_bool const init_;
+    int  const err_;
+    my_init(my_bool const init) :
+      init_(init),
+      err_(init_ ? my_thread_init() : 0)
+    {}
+    ~my_init() {
+      if (init_ && !err_) my_thread_end();
+    }
   }
   init;
 
@@ -303,10 +327,40 @@ class thd
   thd& operator= (const thd&);
 
 public:
-
-  thd(my_bool wsrep_on, bool system_thread=false);
+  /*
+   @param[in] init  Should be set to true if called in a freshly forked
+                    thread to initialize MySQL-specific thread context
+                    and likewise deinitialize on object destruction.
+                    Should be set to false if the thread already has
+                    initialized the context, but original THD* is not
+                    available.
+   */
+  explicit thd(my_bool init=true, bool system_thread=false);
   ~thd();
+  int err() const { return init.err_; }
   THD* const ptr;
+};
+
+/* local server connection */
+class mysql
+{
+  MYSQL* mysql_;
+public:
+  mysql();
+  ~mysql();
+  int execute(const std::string& query) {
+    if (mysql_real_query(mysql_, query.c_str(), query.length())) {
+       return mysql_errno(mysql_);
+    }
+    return 0;
+  }
+  int errnum() {
+    return (mysql_errno(mysql_));
+  }
+  const char* errstr() {
+    return mysql_error(mysql_);
+  }
+  int disable_replication();
 };
 
 class string
@@ -439,5 +493,15 @@ private:
 #endif
 
 } // namespace wsrep
+
+// Functions to validate dynamic variable safety
+bool wsrep_filename_char(const unsigned char c);
+bool wsrep_comma_char(const unsigned char c);
+bool wsrep_address_char(const unsigned char c);
+bool wsrep_shell_char(const unsigned char c);
+bool wsrep_names_list(const unsigned char c);
+bool wsrep_check_request_str(const char* const str,
+                             bool (*check) (const unsigned char),
+                             bool log_warn = true);
 
 #endif /* WSREP_UTILS_H */

@@ -27,11 +27,15 @@ akey int NOT NULL,
 val int NOT NULL,
 PRIMARY KEY (akey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_b (
 bkey int NOT NULL,
 akey int NOT NULL,
 PRIMARY KEY (bkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1_2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (akey,val) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
 INSERT INTO tbl_b (bkey,akey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,4),(6,3),(7,2),(8,1),(9,0);
 

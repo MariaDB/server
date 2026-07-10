@@ -488,7 +488,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 					n = sizeof(fmt) - (strlen(fmt) + 1);
 
 					if (!tdp->Xcol || stricmp(tdp->Xcol, key)) {
-            sprintf(buf, "%d", k);
+            snprintf(buf, sizeof(buf), "%d", k);
 
 						if (tdp->Uri) {
 							strncat(strncat(fmt, sep, n), buf, n - strlen(sep));
@@ -1804,7 +1804,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL jvp)
 
           break;
         default:
-					snprintf(g->Message, sizeof(g->Message), "Unsupported column type %d\n", vp->GetType());
+					snprintf(g->Message, sizeof(g->Message), "Unsupported column type %d", vp->GetType());
 					throw 888;
 				} // endswitch Type
 

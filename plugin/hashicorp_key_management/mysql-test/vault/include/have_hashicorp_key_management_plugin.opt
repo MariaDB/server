@@ -4,3 +4,4 @@
 --loose-hashicorp-key-management-token="$VAULT_TOKEN"
 --loose-hashicorp-key-management-timeout=60
 --loose-hashicorp-key-management-check-kv-version=off
+--innodb_tablespaces_encryption

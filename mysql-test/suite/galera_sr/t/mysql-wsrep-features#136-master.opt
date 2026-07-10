@@ -1,1 +1,1 @@
---log-slave-updates --log-bin
+--log-slave-updates --log-bin --loose-features-136=1

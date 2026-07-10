@@ -1,0 +1,32 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+# test 1
+CREATE TABLE t3 (c1 MEDIUMINT NULL, c2 CHAR(5)) ENGINE=Spider PARTITION BY KEY(c1) PARTITIONS 2;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t3 DROP PRIMARY KEY;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t3 WHERE c1 <=> '1000-00-01 00:00:00' ORDER BY c1,c2 LIMIT 2;
+CREATE TABLE t1 (a INT UNSIGNED NOT NULL PRIMARY KEY, b INT UNSIGNED NOT NULL, c INT UNSIGNED, UNIQUE (b, c) USING HASH) ENGINE=Spider;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT t1.c1 FROM t3 RIGHT JOIN t1 ON t1.c1=current_date() UNION SELECT t1.c2 FROM t1 LEFT OUTER JOIN t3 ON t1.c2;
+drop table t1, t3;
+
+# test 2
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t1 (a INT, b VARCHAR(255), PRIMARY KEY(a)) ENGINE=Spider PARTITION BY RANGE (a) (PARTITION p1 VALUES LESS THAN (3), PARTITION p2 VALUES LESS THAN MAXVALUE COMMENT='srv "srv"');
+DROP SERVER srv;
+--error 1477
+SELECT * FROM t1;
+drop table t1;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

@@ -198,9 +198,8 @@ sub mtr_report_stats ($) {
     print
       "The log files in var/log may give you some hint\n",
       "of what went wrong.\n",
-      "If you want to report this error, please read first ",
-      "the documentation at\n",
-      "http://dev.mysql.com/doc/mysql/en/mysql-test-suite.html\n";
+      "If you want to report this error, MariaDB's bug tracker is found at\n",
+      "https://jira.mariadb.org\n"
   }
   if (!$::opt_extern)
   {
@@ -348,7 +347,7 @@ sub mtr_report_stats ($) {
                 /Stored routine 'test'.'bug14233_3': invalid value in column mysql.proc/ or
 
                 # BUG#29839 - lowercase_table3.test: Cannot find table test/T1
-                #             from the internal data dictiona
+                #             from the internal data dictionary
                 /Cannot find table test\/BUG29839 from the internal data dictionary/ or
                 # BUG#32080 - Excessive warnings on Solaris: setrlimit could not
                 #             change the size of core files

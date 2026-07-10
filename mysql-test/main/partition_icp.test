@@ -1,0 +1,117 @@
+#
+# MDEV-12404 Test Index Condition Pushdown for Partitioned Tables
+#
+
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+# Get current values of handler_icp_attempts and handler_icp_match as integers which we'll use to compare against later.
+set @old_handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @old_handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+
+# BLOBs are rejected by MyISAM
+CREATE TABLE t1 (a int PRIMARY KEY, b BLOB, c varchar(16) DEFAULT 'Filler...',
+INDEX (b(4), a)) ENGINE = MyISAM PARTITION BY HASH (a) PARTITIONS 3;
+
+INSERT INTO t1 (a, b) VALUES (1, 0xdeadbeef), (2, "text filler"),
+(3, 'filler...'), (4, " more filler "), (5, "test text"), (6, "testing...");
+
+SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+
+# Verify that ICP was not invoked for isam (unsupported) by verifying that handler_icp_attempts and handler_icp_match are unchanged.
+select @old_handler_icp_attempts = @handler_icp_attempts;
+select @old_handler_icp_match = @handler_icp_match;
+
+# BLOBs allowed by InnoDB
+CREATE TABLE t2 (a int PRIMARY KEY, b BLOB, c varchar(16) DEFAULT 'Filler...',
+INDEX (b(4), a)) ENGINE = innodb PARTITION BY HASH (a) PARTITIONS 3;
+
+INSERT INTO t2 (a, b) VALUES (1, 0xdeadbeef), (2, "text filler"),
+(3, 'filler...'), (4, " more filler "), (5, "test text"), (6, "testing...");
+
+# Disable ICP and verify that ICP was not invoked by showing that handler_icp_attempts and handler_icp_match are unchanged.
+set @@optimizer_switch='index_condition_pushdown=off';
+SELECT a, HEX(b) FROM t2 WHERE b >= 'te' and (a % 2);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+select @old_handler_icp_match = @handler_icp_match;
+
+# Enable index condition pushdown then verify that the pushed condition was checked.
+set @@optimizer_switch='index_condition_pushdown=on';
+SELECT a, HEX(b) FROM t2 WHERE b >= 'te' and (a % 2);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts < @handler_icp_attempts;
+select @old_handler_icp_match < @handler_icp_match;
+
+CREATE TABLE t3 (
+   pk INT PRIMARY KEY,
+   a INT,
+   b INT,
+   c INT,
+   filler varchar(100),
+   key(a,b,c)
+ ) engine=innodb partition by hash(pk) partitions 4;
+
+INSERT INTO t3 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+
+# Disable ICP and verify that ICP was not invoked by verifying that handler_icp_attempts and handler_icp_match are unchanged.
+set @@optimizer_switch='index_condition_pushdown=off';
+set @old_handler_icp_attempts = @handler_icp_attempts;
+set @old_handler_icp_match = @handler_icp_match;
+SELECT * from t3 where a < 10 AND (b+1>3);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+select @old_handler_icp_match = @handler_icp_match;
+
+# Enable index condition pushdown then verify that the pushed condition was checked.
+set @@optimizer_switch='index_condition_pushdown=on';
+SELECT * from t3 where a < 10 AND (b+1>3);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts < @handler_icp_attempts;
+select @old_handler_icp_match < @handler_icp_match;
+
+CREATE TABLE t4 (
+   pk INT PRIMARY KEY,
+   a INT,
+   b INT,
+   c INT,
+   filler varchar(100),
+   key(a,b,c)
+ ) engine=myisam partition by hash(pk) partitions 4;
+
+INSERT INTO t4 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+
+# Disable ICP and verify that ICP was not invoked by verifying that handler_icp_attempts and handler_icp_match are unchanged.
+set @@optimizer_switch='index_condition_pushdown=off';
+set @old_handler_icp_attempts = @handler_icp_attempts;
+set @old_handler_icp_match = @handler_icp_match;
+SELECT * from t4 where a < 10 AND (b+1>3);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+select @old_handler_icp_match = @handler_icp_match;
+
+# Enable index condition pushdown, then verify that the pushed condition was checked.
+set @@optimizer_switch='index_condition_pushdown=on';
+SELECT * from t4 where a < 10 AND (b+1>3);
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts < @handler_icp_attempts;
+select @old_handler_icp_match < @handler_icp_match;
+
+create table t5(pk int primary key, kp1 int, kp2 int, filler int, key(kp1, kp2)) partition by hash(pk) partitions 2;
+insert into t5 select seq, seq/40, seq, seq from seq_1_to_4000;
+select * from t5 where t5.kp1=10 and mod(t5.kp2,2)=1 and t5.kp2+1<401;
+
+drop table t1, t2, t3, t4, t5;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

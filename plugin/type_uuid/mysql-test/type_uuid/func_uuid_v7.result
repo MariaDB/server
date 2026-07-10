@@ -1,0 +1,10 @@
+#
+# MDEV-33827 UUID() returns a NULL-able result
+#
+CREATE TABLE t1 AS SELECT UUID_v7();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `UUID_v7()` uuid NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;

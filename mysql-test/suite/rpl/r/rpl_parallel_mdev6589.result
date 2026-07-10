@@ -4,7 +4,6 @@ connection server_2;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=10;
-CHANGE MASTER TO master_use_gtid=current_pos;
 include/start_slave.inc
 *** MDEV-6589: Incorrect relay log start position when restarting SQL thread after error in parallel replication ***
 connection server_1;

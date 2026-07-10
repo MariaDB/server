@@ -22,7 +22,9 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_server_service.cc
     wsrep_storage_service.cc
     wsrep_server_state.cc
+    wsrep_event_service.cc
     wsrep_status.cc
+    wsrep_allowlist_service.cc
     wsrep_utils.cc
     wsrep_xid.cc
     wsrep_check_opts.cc
@@ -36,7 +38,8 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_schema.cc
     wsrep_plugin.cc
     service_wsrep.cc
-  )
+    )
+  MYSQL_ADD_PLUGIN(wsrep_provider ${WSREP_SOURCES} DEFAULT NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
   MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
   IF(VISIBILITY_HIDDEN_FLAG AND TARGET wsrep)
     # wsrep_info plugin needs some wsrep symbols from inside mysqld
@@ -44,6 +47,9 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     GET_TARGET_PROPERTY(f wsrep COMPILE_FLAGS)
     STRING(REPLACE "${VISIBILITY_HIDDEN_FLAG}" "" f ${f})
     SET_TARGET_PROPERTIES(wsrep PROPERTIES COMPILE_FLAGS "${f}")
+  ENDIF()
+  IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0.0")
+    TARGET_LINK_LIBRARIES(wsrep stdc++fs)
   ENDIF()
 ELSE()
   ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)
@@ -54,11 +60,10 @@ INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include
 ${CMAKE_SOURCE_DIR}/sql
 ${LIBFMT_INCLUDE_DIR}
-${PCRE_INCLUDES}
-${ZLIB_INCLUDE_DIR}
+${PCRE_INCLUDE_DIRS}
+${ZLIB_INCLUDE_DIRS}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${CMAKE_SOURCE_DIR}/tpool
 )
 
 ADD_CUSTOM_COMMAND(
@@ -92,36 +97,47 @@ ENDIF()
 SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-              ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
+              ../sql-common/client.c
+               cset_narrowing.cc
+               compat56.cc derror.cc
                discover.cc ../sql-common/errmsg.c
                field.cc field_conv.cc field_comp.cc
                filesort_utils.cc
                filesort.cc gstream.cc
                signal_handler.cc
-               handler.cc
+               handler.cc item_vectorfunc.cc
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc
                item_create.cc item_func.cc item_geofunc.cc item_row.cc
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc
-               key.cc log.cc lock.cc
+               item_numconvfunc.cc
+               key.cc log.cc log_cache.cc lock.cc
                log_event.cc log_event_server.cc
                rpl_record.cc rpl_reporting.cc
-               log_event_old.cc rpl_record_old.cc
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc opt_sum.cc
+               opt_range.cc vector_mhnsw.cc
+               opt_group_by_cardinality.cc
+               opt_rewrite_date_cmp.cc
+               opt_rewrite_remove_casefold.cc
+               opt_sargable_left.cc
+               opt_sum.cc
+               opt_vcol_substitution.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
+               sql_path.cc
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
-               sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
+               sp_rcontext.cc sp_cursor.cc
+               spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
                sql_digest.cc sql_do.cc
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
                sql_help.cc sql_insert.cc sql_lex.cc
                sql_list.cc sql_load.cc sql_manager.cc
+               sql_oracle_outer_join.cc
                sql_parse.cc sql_bootstrap.cc
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc
                debug_sync.cc debug.cc
@@ -157,15 +173,16 @@ SET (SQL_SOURCE
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
-               my_json_writer.cc
-               rpl_gtid.cc rpl_parallel.cc
+               my_json_writer.cc json_schema.cc json_schema_helper.cc
+               rpl_gtid.cc gtid_index.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
+               sp_instr.cc
                sql_schema.cc
-               lex_charset.cc
+               lex_charset.cc charset_collations.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_string.cc
-               sql_type_geom.cc
+               sql_type_geom.cc sql_type_vector.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc
@@ -173,21 +190,37 @@ SET (SQL_SOURCE
                sql_tvc.cc sql_tvc.h
                opt_split.cc
                rowid_filter.cc rowid_filter.h
+               optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
+               opt_trace_ddl_info.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
+               socketpair.c socketpair.h
+               opt_vcol_substitution.h
+               opt_vcol_substitution.cc
+               opt_hints_parser.cc opt_hints_parser.h scan_char.h
+               opt_hints.cc opt_hints.h
+               sql_type_row.cc
+               sql_type_composite.cc sql_type_composite.h
+               item_composite.cc item_composite.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
 
-IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
-   NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
+MY_CHECK_CXX_COMPILER_FLAG(-Wno-unused-but-set-variable)
+IF(have_CXX__Wno_unused_but_set_variable)
+  IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"
+     AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+     AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0")
+    # Avoid excessive compile time on RHEL8 aarch64
+    SET(ARM_OLD_GCC_FLAGS -fno-strict-aliasing)
+  ENDIF()
   ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
     ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-    COMPILE_FLAGS "-Wno-unused-but-set-variable")
+    COMPILE_FLAGS "${ARM_OLD_GCC_FLAGS} -Wno-unused-but-set-variable")
 ENDIF()
 
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
@@ -212,6 +245,9 @@ MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)
 MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)
+MYSQL_ADD_PLUGIN(online_alter_log online_alter.cc STORAGE_ENGINE MANDATORY
+STATIC_ONLY NOT_EMBEDDED)
+
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
@@ -219,10 +255,10 @@ DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre2-8
   tpool
+  online_alter_log
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
-
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(sql pcre2)
 ENDIF()
@@ -286,6 +322,7 @@ IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
    sql_builtins
   )
   IF(MSVC)
+    TARGET_LINK_LIBRARIES(server PRIVATE icuuc icuin)
     IF(NOT WITHOUT_DYNAMIC_PLUGINS)
      SET_TARGET_PROPERTIES(server PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
     ENDIF()
@@ -388,6 +425,7 @@ ENDIF()
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
    ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
+  TARGET_LINK_LIBRARIES(gen_lex_token mysys dbug) # required by `yy_mariadb.hh`
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -478,14 +516,14 @@ IF(WIN32)
   ADD_CUSTOM_COMMAND(OUTPUT
     ${my_bootstrap_sql}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/scripts
-    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql+mysql_sys_schema.sql ${native_outfile}
+    cmd /c copy mariadb_system_tables.sql+mariadb_system_tables_data.sql+fill_help_tables.sql+mariadb_performance_tables.sql+mariadb_test_db.sql+mariadb_sys_schema.sql ${native_outfile}
     DEPENDS
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables.sql
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables_data.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_system_tables.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_system_tables_data.sql
     ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_performance_tables.sql
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_test_db.sql
-    ${CMAKE_BINARY_DIR}/scripts/mysql_sys_schema.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_performance_tables.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_test_db.sql
+    ${CMAKE_BINARY_DIR}/scripts/mariadb_sys_schema.sql
   )
 
   ADD_CUSTOM_COMMAND(
@@ -521,6 +559,11 @@ ENDIF(WIN32)
 IF(NOT WITH_WSREP)
   SET(EXCL_WSREP "wsrep_[a-np-z]*.h")
 ENDIF()
+INSTALL(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+    ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+    DESTINATION ${INSTALL_INCLUDEDIR}/server/private
+    COMPONENT Development)
 INSTALL(DIRECTORY . DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT Development
   FILES_MATCHING PATTERN "*.h"
   PATTERN share EXCLUDE

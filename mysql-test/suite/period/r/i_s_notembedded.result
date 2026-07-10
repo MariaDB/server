@@ -1,0 +1,118 @@
+select * from information_schema.periods;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+create or replace table t1 (id int primary key, s timestamp(6), e timestamp(6),
+period for mytime(s,e));
+create or replace table t2 (id int primary key, s timestamp(6), e timestamp(6),
+period for mytime(s,e),
+vs timestamp(6) as row start,
+ve timestamp(6) as row end,
+period for system_time(vs, ve))
+with system versioning;
+show columns from t1;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+s	timestamp(6)	NO		NULL	
+e	timestamp(6)	NO		NULL	
+select * from information_schema.periods where table_schema = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	mytime	s	e
+def	test	t2	SYSTEM_TIME	vs	ve
+def	test	t2	mytime	s	e
+create user periods_hidden@localhost;
+grant create on test.nonexist to periods_hidden@localhost;
+connect  chopped,localhost,periods_hidden,,test;
+select * from information_schema.periods where table_schema = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+connection default;
+grant select(id) on test.t1 to periods_hidden@localhost;
+connection chopped;
+connection default;
+revoke select(id) on test.t1 from periods_hidden@localhost;
+connection chopped;
+connection default;
+grant update(id) on test.t1 to periods_hidden@localhost;
+connection chopped;
+select * from information_schema.periods where table_schema = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	mytime	NULL	NULL
+connection default;
+grant select(s) on test.t1 to periods_hidden@localhost;
+connection chopped;
+select * from information_schema.periods where table_schema = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	mytime	s	NULL
+connection default;
+grant select(e) on test.t2 to periods_hidden@localhost;
+connection chopped;
+select * from information_schema.periods where table_schema = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	mytime	s	NULL
+def	test	t2	SYSTEM_TIME	NULL	NULL
+def	test	t2	mytime	NULL	e
+connection default;
+grant update on test.t2 to periods_hidden@localhost;
+connection chopped;
+select * from information_schema.periods where table_schema = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t1	mytime	s	NULL
+def	test	t2	SYSTEM_TIME	vs	ve
+def	test	t2	mytime	s	e
+connection default;
+drop tables t1, t2;
+# MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
+create table t (a int, b date, c date, period for app(b,c),
+unique idx(a, app without overlaps));
+set names latin1 collate latin1_general_cs;
+select table_name from information_schema.periods where table_schema = 'TEST';
+table_name
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+table_name
+set names latin1 collate latin1_general_ci;
+select table_name from information_schema.periods where table_schema = 'TEST';
+table_name
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+table_name
+# [DUPLICATE] MDEV-32504 Search by I_S.KEY_PERIOD_USAGE.CONSTRAINT_NAME
+# does not work
+select constraint_name from information_schema.key_period_usage where table_name = 't';
+constraint_name
+idx
+select constraint_name from information_schema.key_period_usage where constraint_name = 'idx';
+constraint_name
+idx
+drop table t;
+# MDEV-32501 KEY_PERIOD_USAGE reveals information to unprivileged user
+create table t (a int, b date, c date, f int, period for app(b, c),
+primary key(a, app without overlaps));
+grant select (f) on t to periods_hidden@localhost;
+connection chopped;
+select period_name from information_schema.key_period_usage where table_name = 't';
+period_name
+connection default;
+grant update (f) on t to periods_hidden@localhost;
+connection chopped;
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+can be seen	constraint_name	period_name
+can be seen	PRIMARY	app
+connection default;
+revoke update (f) on t from periods_hidden@localhost;
+connection chopped;
+update t set f = 1;
+ERROR 42000: UPDATE command denied to user 'periods_hidden'@'localhost' for table `test`.`t`
+select period_name from information_schema.key_period_usage where table_name = 't';
+period_name
+connection default;
+grant alter on t to periods_hidden@localhost;
+connection chopped;
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+can be seen	constraint_name	period_name
+can be seen	PRIMARY	app
+connection default;
+drop table t;
+disconnect chopped;
+connection default;
+drop user periods_hidden@localhost;

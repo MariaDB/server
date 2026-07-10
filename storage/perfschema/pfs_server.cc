@@ -54,10 +54,6 @@ PFS_global_param pfs_param;
 
 PFS_table_stat PFS_table_stat::g_reset_template;
 
-C_MODE_START
-static void destroy_pfs_thread(void *key);
-C_MODE_END
-
 static void cleanup_performance_schema(void);
 void cleanup_instrument_config(void);
 
@@ -71,40 +67,11 @@ void pre_initialize_performance_schema()
   global_idle_stat.reset();
   global_table_io_stat.reset();
   global_table_lock_stat.reset();
-
-  if (my_create_thread_local_key(&THR_PFS, destroy_pfs_thread))
-    return;
-  if (my_create_thread_local_key(&THR_PFS_VG, NULL))  // global_variables
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SV, NULL))  // session_variables
-    return;
-  if (my_create_thread_local_key(&THR_PFS_VBT, NULL)) // variables_by_thread
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SG, NULL))  // global_status
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SS, NULL))  // session_status
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SBT, NULL)) // status_by_thread
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SBU, NULL)) // status_by_user
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SBH, NULL)) // status_by_host
-    return;
-  if (my_create_thread_local_key(&THR_PFS_SBA, NULL)) // status_by_account
-    return;
-
-  THR_PFS_initialized= true;
 }
 
 struct PSI_bootstrap*
 initialize_performance_schema(PFS_global_param *param)
 {
-  if (!THR_PFS_initialized)
-  {
-    /* Pre-initialization failed. */
-    return NULL;
-  }
-
   pfs_enabled= param->m_enabled;
 
   pfs_automated_sizing(param);
@@ -208,24 +175,6 @@ initialize_performance_schema(PFS_global_param *param)
   return NULL;
 }
 
-static void destroy_pfs_thread(void *key)
-{
-  PFS_thread* pfs= reinterpret_cast<PFS_thread*> (key);
-  assert(pfs);
-  /*
-    This automatic cleanup is a last resort and best effort to avoid leaks,
-    and may not work on windows due to the implementation of pthread_key_create().
-    Please either use:
-    - my_thread_end()
-    - or PSI_server->delete_current_thread()
-    in the instrumented code, to explicitly cleanup the instrumentation.
-
-    Avoid invalid writes when the main() thread completes after shutdown:
-    the memory pointed by pfs is already released.
-  */
-  if (pfs_initialized)
-    destroy_thread(pfs);
-}
 
 static void cleanup_performance_schema(void)
 {
@@ -324,36 +273,16 @@ void shutdown_performance_schema(void)
   global_transaction_class.m_enabled= false;
 
   cleanup_performance_schema();
-  /*
-    Be careful to not delete un-initialized keys,
-    this would affect key 0, which is THR_KEY_mysys,
-  */
-  if (THR_PFS_initialized)
-  {
-    my_set_thread_local(THR_PFS, NULL);
-    my_set_thread_local(THR_PFS_VG, NULL);  // global_variables
-    my_set_thread_local(THR_PFS_SV, NULL);  // session_variables
-    my_set_thread_local(THR_PFS_VBT, NULL); // variables_by_thread
-    my_set_thread_local(THR_PFS_SG, NULL);  // global_status
-    my_set_thread_local(THR_PFS_SS, NULL);  // session_status
-    my_set_thread_local(THR_PFS_SBT, NULL); // status_by_thread
-    my_set_thread_local(THR_PFS_SBU, NULL); // status_by_user
-    my_set_thread_local(THR_PFS_SBH, NULL); // status_by_host
-    my_set_thread_local(THR_PFS_SBA, NULL); // status_by_account
-
-    my_delete_thread_local_key(THR_PFS);
-    my_delete_thread_local_key(THR_PFS_VG);
-    my_delete_thread_local_key(THR_PFS_SV);
-    my_delete_thread_local_key(THR_PFS_VBT);
-    my_delete_thread_local_key(THR_PFS_SG);
-    my_delete_thread_local_key(THR_PFS_SS);
-    my_delete_thread_local_key(THR_PFS_SBT);
-    my_delete_thread_local_key(THR_PFS_SBU);
-    my_delete_thread_local_key(THR_PFS_SBH);
-    my_delete_thread_local_key(THR_PFS_SBA);
-
-    THR_PFS_initialized= false;
-  }
+  THR_PFS= NULL;
+  THR_PFS_VG= NULL;  // global_variables
+  THR_PFS_SV= NULL;  // session_variables
+  THR_PFS_VBT= NULL; // variables_by_thread
+  THR_PFS_SG= NULL;  // global_status
+  THR_PFS_SS= NULL;  // session_status
+  THR_PFS_SBT= NULL; // status_by_thread
+  THR_PFS_SBU= NULL; // status_by_user
+  THR_PFS_SBH= NULL; // status_by_host
+  THR_PFS_SBA= NULL; // status_by_account
 }
 
 /**
@@ -390,43 +319,43 @@ void cleanup_instrument_config()
   @return 0 for success, non zero for errors
 */
 
-int add_pfs_instr_to_array(const char* name, const char* value)
+int add_pfs_instr_to_array(const LEX_CSTRING &name,
+                           const LEX_CSTRING &value_arg)
 {
-  size_t name_length= strlen(name);
-  size_t value_length= strlen(value);
+  Lex_ident_ci value(value_arg);
 
   /* Allocate structure plus string buffers plus null terminators */
   PFS_instr_config* e = (PFS_instr_config*)my_malloc(PSI_NOT_INSTRUMENTED,
                                                      sizeof(PFS_instr_config)
-                       + name_length + 1 + value_length + 1, MYF(MY_WME));
+                       + name.length + 1 + value.length + 1, MYF(MY_WME));
   if (!e) return 1;
 
   /* Copy the instrument name */
   e->m_name= (char*)e + sizeof(PFS_instr_config);
-  memcpy(e->m_name, name, name_length);
-  e->m_name_length= (uint)name_length;
-  e->m_name[name_length]= '\0';
+  memcpy(e->m_name, name.str, name.length);
+  e->m_name_length= (uint) name.length;
+  e->m_name[name.length]= '\0';
 
   /* Set flags accordingly */
-  if (!my_strcasecmp(&my_charset_latin1, value, "counted"))
+  if (value.streq("counted"_LEX_CSTRING))
   {
     e->m_enabled= true;
     e->m_timed= false;
   }
   else
-  if (!my_strcasecmp(&my_charset_latin1, value, "true") ||
-      !my_strcasecmp(&my_charset_latin1, value, "on") ||
-      !my_strcasecmp(&my_charset_latin1, value, "1") ||
-      !my_strcasecmp(&my_charset_latin1, value, "yes"))
+  if (value.streq("true"_LEX_CSTRING) ||
+      value.streq("on"_LEX_CSTRING) ||
+      value.streq("1"_LEX_CSTRING) ||
+      value.streq("yes"_LEX_CSTRING))
   {
     e->m_enabled= true;
     e->m_timed= true;
   }
   else
-  if (!my_strcasecmp(&my_charset_latin1, value, "false") ||
-      !my_strcasecmp(&my_charset_latin1, value, "off") ||
-      !my_strcasecmp(&my_charset_latin1, value, "0") ||
-      !my_strcasecmp(&my_charset_latin1, value, "no"))
+  if (value.streq("false"_LEX_CSTRING) ||
+      value.streq("off"_LEX_CSTRING) ||
+      value.streq("0"_LEX_CSTRING) ||
+      value.streq("no"_LEX_CSTRING))
   {
     e->m_enabled= false;
     e->m_timed= false;

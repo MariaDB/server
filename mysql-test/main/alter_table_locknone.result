@@ -1,0 +1,251 @@
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=myisam;
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 modify b int default 5, alter c set default 'X';
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+alter table t1 add constraint q check (a > 0);
+alter online table t1 drop constraint q;
+alter online table t1 algorithm=INPLACE, lock=NONE;
+alter online table t1;
+alter table t1 algorithm=INPLACE;
+alter table t1 lock=NONE;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `new_name` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT 'X',
+  `e` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new comment'
+drop table t1;
+create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 modify b int default 5, alter c set default 'X';
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+alter online table t1 rename to t2;
+show create table t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `new_name` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT 'X',
+  `e` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new comment'
+drop table t2;
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 modify b int default 5;
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `new_name` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT NULL,
+  `e` enum('a','b','c') DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new comment'
+alter online table t1 page_checksum=1;
+drop table t1;
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 rename to t2;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+alter table t1 engine=innodb;
+alter table t1 add index (b);
+alter online table t1 add index c (c);
+alter online table t1 drop index b;
+alter online table t1 comment "new comment";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` varchar(80) DEFAULT NULL,
+  `e` enum('a','b') DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new comment'
+drop table t1;
+create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 drop column b, add b int;
+alter online table t1 modify b bigint;
+alter online table t1 modify e enum('c','a','b');
+alter online table t1 modify c varchar(50);
+alter online table t1 modify c varchar(100);
+alter online table t1 add f int;
+alter online table t1 engine=memory;
+alter table t1 engine=innodb;
+alter table t1 add index (b);
+alter online table t1 add index c (c);
+alter online table t1 drop index b;
+drop table t1;
+create table t1 (a int not null primary key, b int, c varchar(80));
+create table t2 (a int not null primary key, b int, c varchar(80));
+create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
+alter online table t3 union=(t1,t2);
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
+drop table t1,t2,t3;
+create table t1 (i int) partition by hash(i) partitions 2;
+alter online table t1 comment 'test';
+drop table t1;
+create table t1 (a int);
+alter online table t1 modify a int comment 'test';
+drop table t1;
+create table t1 (a int) engine=innodb;
+alter online table t1 modify a int comment 'test';
+drop table t1;
+create table t1 (a int) partition by hash(a) partitions 2;
+alter online table t1 modify a int comment 'test';
+drop table t1;
+#
+# MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
+#
+CREATE TABLE t1 (a BINARY(10));
+ALTER TABLE t1 MODIFY a BINARY(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARBINARY(10));
+ALTER TABLE t1 MODIFY a VARBINARY(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYBLOB);
+ALTER TABLE t1 MODIFY a TINYBLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMBLOB);
+ALTER TABLE t1 MODIFY a MEDIUMBLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+ALTER TABLE t1 MODIFY a BLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGBLOB);
+ALTER TABLE t1 MODIFY a LONGBLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10));
+ALTER TABLE t1 MODIFY a CHAR(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10));
+ALTER TABLE t1 MODIFY a VARCHAR(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT);
+ALTER TABLE t1 MODIFY a TINYTEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT);
+ALTER TABLE t1 MODIFY a MEDIUMTEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT);
+ALTER TABLE t1 MODIFY a TEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT);
+ALTER TABLE t1 MODIFY a LONGTEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10));
+ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10));
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT);
+ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT);
+ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT);
+ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT);
+ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10) COLLATE latin1_bin);
+ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COLLATE latin1_bin);
+ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_bin);
+ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COLLATE latin1_bin);
+ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COLLATE latin1_bin);
+ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10) COLLATE latin1_general_ci);
+ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_general_ci);
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYTEXT COLLATE latin1_general_ci);
+ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_general_ci);
+ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COLLATE latin1_general_ci);
+ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
+ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+DROP TABLE t1;
+select @@global.delay_key_write;
+@@global.delay_key_write
+ON
+create table t1 (a int, b int, key(b));
+flush tables;
+flush status;
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	0
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	0
+alter online table t1 delay_key_write=1;
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	0
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	1
+alter online table t1 delay_key_write=0;
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	1
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+Variable_name	Value
+Feature_delay_key_write	1
+drop table t1;

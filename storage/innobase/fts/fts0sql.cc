@@ -60,18 +60,21 @@ fts_get_table_id(
 
 	switch (fts_table->type) {
 	case FTS_COMMON_TABLE:
-		len = fts_write_object_id(fts_table->table_id, table_id);
+		len = fts_write_object_id(fts_table->table_id, table_id,
+					  FTS_AUX_MIN_TABLE_ID_LENGTH);
 		break;
 
 	case FTS_INDEX_TABLE:
 
-		len = fts_write_object_id(fts_table->table_id, table_id);
+		len = fts_write_object_id(fts_table->table_id, table_id,
+					  FTS_AUX_MIN_TABLE_ID_LENGTH);
 
 		table_id[len] = '_';
 		++len;
 		table_id += len;
 
-		len += fts_write_object_id(fts_table->index_id, table_id);
+		len += fts_write_object_id(fts_table->index_id, table_id,
+					   FTS_AUX_MIN_TABLE_ID_LENGTH - len);
 		break;
 
 	default:
@@ -115,7 +118,7 @@ Parse an SQL string.
 que_t*
 fts_parse_sql(
 /*==========*/
-	fts_table_t*	fts_table,	/*!< in: FTS auxiliarry table info */
+	fts_table_t*	fts_table,	/*!< in: FTS auxiliary table info */
 	pars_info_t*	info,		/*!< in: info struct, or NULL */
 	const char*	sql)		/*!< in: SQL string to evaluate */
 {

@@ -14,13 +14,14 @@
 #
 # Parameters:
 #   $slave_timeout
-#     See include/wait_for_slave_param.inc
+#     Timeout used when waiting for the slave IO thread to start.
+#     See include/wait_for_slave_param.inc.
 #
 #   $rpl_allow_error
 #     By default, this file fails if there is an error in the IO
-#     thread.  However, the IO thread can recover and reconnect after
-#     certain errors.  If such an error is expected, can set
-#     $rpl_allow_error=1.  This will prevent this file from failing if
+#     thread. However, the IO thread can recover and reconnect after
+#     certain errors. If such an error is expected, can set
+#     $rpl_allow_error=1. This will prevent this file from failing if
 #     there is an error in the IO thread.
 #
 #   $rpl_debug

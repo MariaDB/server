@@ -2,8 +2,8 @@ connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 connection slave;
-CHANGE MASTER 'slave1' TO MASTER_PORT=MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root';
-CHANGE MASTER 'slave2' TO MASTER_PORT=MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root';
+CHANGE MASTER 'slave1' TO MASTER_PORT=MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root', master_ssl_verify_server_cert=0;
+CHANGE MASTER 'slave2' TO MASTER_PORT=MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root', master_ssl_verify_server_cert=0;
 START REPLICA 'slave1';
 SET default_master_connection = 'slave1';
 include/wait_for_slave_to_start.inc
@@ -48,7 +48,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -64,7 +64,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	1
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -75,12 +75,18 @@ Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 Connection_name	slave2
 Slave_SQL_State	Slave has read all relay log; waiting for more updates
 Slave_IO_State	Waiting for master to send event
@@ -109,7 +115,7 @@ Relay_Log_Space	<relay_log_space1>
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
-Master_SSL_Allowed	No
+Master_SSL_Allowed	Yes
 Master_SSL_CA_File	
 Master_SSL_CA_Path	
 Master_SSL_Cert	
@@ -125,7 +131,7 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	2
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	No
+Using_Gtid	Slave_Pos
 Gtid_IO_Pos	
 Replicate_Do_Domain_Ids	
 Replicate_Ignore_Domain_Ids	
@@ -136,12 +142,18 @@ Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
 Slave_DDL_Groups	0
 Slave_Non_Transactional_Groups	0
 Slave_Transactional_Groups	0
+Replicate_Rewrite_DB	
+Connects_Tried	1
+Master_Retry_Count	100000
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+Master_last_event_time	NULL
+Slave_last_event_time	NULL
+Master_Slave_time_diff	NULL
 "Command: STOP ALL SLAVES --> STOP ALL REPLICAS"
 STOP ALL REPLICAS;
 Warnings:

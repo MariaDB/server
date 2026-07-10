@@ -1,4 +1,4 @@
-!include include/default_mysqld.cnf
+!include include/default_my.cnf
 
 [mysqld.1]
 binlog_row_image = COMPLETE

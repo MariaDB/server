@@ -25,7 +25,7 @@ alter sequence s1 maxvalue 1000;
 
 # MDEV-24617 OPTIMIZE on a sequence causes unexpected
 # ER_BINLOG_UNSAFE_STATEMENT The test below verifies no unsafe
-# warnings anymore for any relavant commands that like OPTIMIZE can
+# warnings anymore for any relevant commands that like OPTIMIZE can
 # not produce ROW format events therefore the unsafe warning either.
 optimize table s1;
 analyze table s1;

@@ -1,0 +1,50 @@
+# `mariadb-dump --dump-slave` multi-source interactions
+# (see `main.rpl_mysqldump_slave` for general testing with single-source)
+
+--source include/have_log_bin.inc
+--let $status_items= Connection_name, Slave_IO_Running, Slave_SQL_Running
+--let $all_slaves_status= 1
+
+# $MYSQL_DUMP dumps the $SERVER_MYPORT_1 server
+--connect (  active_master, 127.0.0.1, root, , , $SERVER_MYPORT_2)
+--connect (inactive_master, 127.0.0.1, root, , , $SERVER_MYPORT_3)
+--connect (          slave, 127.0.0.1, root, , , $SERVER_MYPORT_1)
+
+evalp CHANGE MASTER TO master_ssl_verify_server_cert=0,
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0;
+START SLAVE SQL_THREAD;
+evalp CHANGE MASTER 'inactive' TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_3;
+# wait for the active default '' connection only
+--source include/wait_for_slave_sql_to_start.inc
+
+--echo # Control State
+--source include/show_slave_status.inc
+
+--echo # Basic
+--echo \$MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+--replace_result $SERVER_MYPORT_2 MYPORT_2 $SERVER_MYPORT_3 MYPORT_3
+--exec  $MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+
+# The 'inactive' connection should remain stopped
+# while the active '' connection should restart.
+
+--echo # MDEV-7611 mysqldump --dump-slave always starts stopped slave
+--echo \$MYSQL_DUMP --compact --dump-slave test
+--exec  $MYSQL_DUMP --compact --dump-slave test
+--source include/wait_for_slave_sql_to_start.inc
+--source include/show_slave_status.inc
+
+--echo # MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
+--echo \$MYSQL_DUMP --compact --dump-slave no_such_db
+--error 2
+--exec  $MYSQL_DUMP --compact --dump-slave no_such_db
+--source include/wait_for_slave_sql_to_start.inc
+--source include/show_slave_status.inc
+
+--echo # Cleanup
+STOP SLAVE SQL_THREAD;
+--disconnect active_master
+--disconnect inactive_master
+--source include/wait_for_slave_sql_to_stop.inc
+--disconnect slave

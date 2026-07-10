@@ -1,0 +1,7 @@
+#
+# MDEV-33441 No spider variables available is Spider is loaded upon server startup
+#
+set spider_same_server_link=0;
+#
+# end of test mdev_33441
+#

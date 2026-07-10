@@ -1,0 +1,39 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+RETURN c0;
+END;
+/
+CREATE VIEW v1 AS SELECT f1() AS c1;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE VIEW'
+CREATE VIEW v1 AS SELECT f1() IS NULL AS c1;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE VIEW'
+CREATE VIEW v1 AS SELECT 1 AS c1 WHERE f1() IS NOT NULL;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE VIEW'
+CREATE VIEW v1 AS SELECT f1() AS c1 WHERE f1() IS NOT NULL;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE VIEW'
+CREATE VIEW v1 AS SELECT ROW(f1(),1)=ROW(f1(),1) AS c1;
+ERROR HY000: Illegal parameter data types sys_refcursor and sys_refcursor for operation '='
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+CREATE VIEW v1 AS SELECT f1() AS c1;
+END
+/
+CALL p1;
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE VIEW'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(stmt TEXT)
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+EXECUTE IMMEDIATE stmt;
+END
+/
+CALL p1('CREATE VIEW v1 AS SELECT 1 AS c1 WHERE f1() IS NOT NULL');
+ERROR HY000: Illegal parameter data type sys_refcursor for operation 'CREATE VIEW'
+DROP PROCEDURE p1;
+DROP FUNCTION f1;

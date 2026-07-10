@@ -1,3 +1,6 @@
+#
+# MDEV-6984 Can't migrate from MySQL 5.6.21 to MariaDB 10
+#
 update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo')) where user='root';
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
@@ -72,6 +75,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -168,4 +172,4 @@ OK
 connect con1,localhost,root,foo,,,;
 update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;
-set global event_scheduler=OFF;
+# restart

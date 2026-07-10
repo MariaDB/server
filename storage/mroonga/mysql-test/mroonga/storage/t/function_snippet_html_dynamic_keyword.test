@@ -18,13 +18,6 @@
 --source ../../include/mroonga/have_mroonga.inc
 --source ../../include/mroonga/load_mroonga_functions.inc
 
-
---disable_warnings
---disable_query_log
-DROP TABLE IF EXISTS keywords;
---enable_query_log
---enable_warnings
-
 CREATE TABLE keywords (
   keyword text
 );
@@ -36,10 +29,7 @@ SELECT mroonga_snippet_html('Mroonga is the Groonga based storage engine.',
                             keyword) as snippet
   FROM keywords;
 
---disable_query_log
 DROP TABLE keywords;
---enable_query_log
-
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

@@ -55,7 +55,7 @@ public:
   }
   uint32 elements() const
   {
-    return length() / sizeof(MY_XPATH_FLT);
+    return length() / (uint32) sizeof(MY_XPATH_FLT);
   }
 };
 
@@ -137,7 +137,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xml_extractvalue>(thd, this); }
 };
 
@@ -158,7 +160,9 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+
+protected:
+  Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_xml_update>(thd, this); }
 };
 

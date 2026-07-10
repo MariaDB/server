@@ -1,0 +1,2110 @@
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+--source include/binlog_combinations.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_partition.inc
+
+let $default_storage_engine= `select @@global.default_storage_engine`;
+set global default_storage_engine= innodb;
+set default_storage_engine= innodb;
+--connect (con2, localhost, root,,)
+--connection default
+
+--echo #
+--echo # Test insert
+--echo #
+
+--echo # Insert and add column
+create or replace table t1 (a int);
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--enable_info
+--reap
+--disable_info
+select * from t1;
+
+--echo # Insert, error
+create or replace table t1 (a int);
+insert t1 values (5), (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 nowait add unique (a), algorithm= copy, lock= none;
+
+--connection con2
+--reap
+start transaction;
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--error ER_DUP_ENTRY
+--reap
+--connection con2
+commit;
+--connection default
+--disable_cursor_protocol
+--disable_view_protocol
+select variable_value into @otd from information_schema.session_status where variable_name='Opened_table_definitions';
+select * from t1;
+select variable_value-@otd from information_schema.session_status where variable_name='Opened_table_definitions';
+--enable_view_protocol
+--enable_cursor_protocol
+
+--echo # long transaction and add column
+create or replace table t1 (a int);
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+--send
+alter table t1 nowait add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+start transaction;
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+select * from t1;
+--connection con2
+rollback;
+--connection default
+
+--echo # Insert and add NOT NULL column without default value
+create or replace table t1 (a int);
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NOT NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Insert and add a column with a default value
+create or replace table t1 (a int);
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NOT NULL default (222), algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test update
+--echo #
+
+--echo # Update and add a column
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add c int default(1),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--enable_info
+--reap
+--disable_info
+select * from t1;
+
+--echo # Update and add a column in the middle
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add c int default(1) after a,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test primary key change
+--echo #
+
+--echo # Drop key, add key
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Drop key, add key. Two updates
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 33 where a = 1;
+update t1 set b= 44 where a = 2;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Various tests, see below
+--echo #
+
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+insert t1 values (5, 55);
+insert t1 values (6, 66);
+insert t1 values (7, 77);
+insert t1 values (8, 88);
+insert t1 values (9, 99);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+
+--echo # Two updates
+update t1 set b= 1001 where a = 1;
+update t1 set b= 2002 where a = 2;
+
+--echo # Two updates in transaction
+set autocommit = 0;
+start transaction;
+update t1 set b= 3003 where a = 3;
+update t1 set b= 4004 where a = 4;
+commit;
+set autocommit = 1;
+
+--echo # Second update is rolled back
+update t1 set b= 5005 where a = 5;
+
+set autocommit = 0;
+start transaction;
+update t1 set b= 6006 where a = 6;
+rollback;
+set autocommit = 1;
+
+--echo # Second execution in transaction fails
+
+set autocommit = 0;
+start transaction;
+update t1 set b= 7007 where a = 7;
+--error ER_DUP_ENTRY
+update t1 set a= 8, b= 8008 where a = 8 or a = 9 order by a;
+commit;
+set autocommit = 1;
+
+select * from t1;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+--sorted_result
+select * from t1;
+
+--echo #
+--echo # MYISAM. Only Inserts can be tested.
+--echo # (everything else is a table lock disallowing concurrent reads)
+--echo #
+
+create or replace table t1 (a int) engine=myisam;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # MYISAM + error
+
+create or replace table t1 (a int primary key) engine=myisam;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+--error ER_DUP_ENTRY,ER_DUP_KEY
+insert into t1 values (1),(2),(3),(4),(5),(6);
+select * from t1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Aria + error
+
+set @@binlog_format=row; # otherwise aria upgrades the lock to TL_READ_NO_INSERT
+create or replace table t1 (a int primary key) engine=aria;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+--error ER_DUP_ENTRY
+insert into t1 values (1),(2),(3),(4),(5),(6);
+select * from t1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+set @@binlog_format=default;
+
+--echo # Test incompatible changes
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 44 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--error ER_DUP_ENTRY
+--reap
+select * from t1;
+
+--echo # Test log read after EXCLUSIVE lock
+--echo # Transaction is started before ALTER, and UPDATE is made.
+--echo # Then more UPDATEs.
+
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+insert t1 values (5, 55);
+
+set debug_sync= 'alter_table_online_before_lock SIGNAL locking WAIT_FOR end';
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+begin;
+
+set debug_sync= 'now WAIT_FOR downgraded';
+update t1 set b= 111 where a = 1;
+
+set debug_sync= 'now WAIT_FOR locking';
+set debug_sync= 'now SIGNAL end';
+
+update t1 set b= 222 where a = 2;
+update t1 set b= 333 where a = 3;
+update t1 set b= 444 where a = 4;
+
+commit;
+
+update t1 set b= 555 where a = 5;
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test progress report.
+--echo #
+
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+
+set debug_sync= 'alter_table_online_before_lock SIGNAL locking WAIT_FOR end';
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded'
+                                             ' WAIT_FOR start_replication';
+set debug_sync= 'alter_table_online_progress SIGNAL applied WAIT_FOR proceed'
+                                           ' EXECUTE 9';
+--let $con= `select connection_id()`
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+
+set debug_sync= 'now WAIT_FOR downgraded';
+
+update t1 set b= 111 where a = 1;
+insert t1 values (5, 55);
+update t1 set b= 555 where a = 5;
+insert t1 values (6, 66);
+update t1 set b= 666 where a = 6;
+set debug_sync= 'now SIGNAL start_replication';
+
+--disable_query_log
+eval set @con= $con;
+--enable_query_log
+
+--echo # First signal is for log description event.
+set debug_sync= 'now WAIT_FOR applied';
+select stage, progress, examined_rows  from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR locking';
+
+begin;
+
+update t1 set b= 222 where a = 2;
+update t1 set b= 333 where a = 3;
+update t1 set b= 444 where a = 4;
+
+commit;
+set debug_sync= 'now SIGNAL end WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress, examined_rows from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test system versioning
+--echo #
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+set timestamp = 1;
+
+--send
+alter table t1 add system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+set timestamp = 2;
+update t1 set b= 55 where a = 1;
+set timestamp = 3;
+insert into t1 values (6, 77);
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+show create table t1;
+--replace_result 4294967295 2147483647
+select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
+
+## at the moment DROP SYSTEM VERSIONING cannot be done online
+## because it not only alters the structure, but also deletes history rows
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 drop system versioning, algorithm= copy, lock= none;
+#--connection con2
+#--send
+#set debug_sync= 'now WAIT_FOR ended';
+#
+#--connection default
+#set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+#
+#--send
+#alter table t1 drop system versioning,
+#            algorithm= copy, lock= none;
+#
+#--connection con2
+#--reap
+#update t1 set b= 88 where a = 1;
+#
+#set debug_sync= 'now SIGNAL end';
+#
+#--connection default
+#--reap
+#show create table t1;
+#select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
+#
+#--connection con2
+#--send
+#set debug_sync= 'now WAIT_FOR ended';
+#
+#--connection default
+#set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+#
+#--send
+#alter table t1 drop system versioning,
+#            algorithm= copy, lock= none;
+#
+#--connection con2
+#--reap
+#insert into t1 values (8, 99);
+#
+#set debug_sync= 'now SIGNAL end';
+#
+#--connection default
+#--reap
+#show create table t1;
+#select * from t1;
+drop table t1;
+
+--echo #
+--echo # Test ROLLBACK TO SAVEPOINT
+--echo #
+
+create or replace table t1 (a int);
+insert t1 values (1), (2);
+
+create or replace table t2 (a int);
+insert t2 values (1), (2);
+
+--connection con2
+begin;
+update t2 set a= 222 where a = 2;
+savepoint savie;
+update t2 set a= 111 where a = 1;
+
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set a= 123 where a = 1;
+
+savepoint whoopsie;
+
+rollback to savepoint savie;
+commit;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+
+select * from t1;
+select * from t2;
+
+
+create or replace table t1 (a int);
+insert t1 values (1), (2);
+
+create or replace table t2 (a int);
+insert t2 values (1), (2);
+
+create or replace table t3 (a int) engine=myisam;
+insert t3 values (1);
+
+--connection con2
+begin;
+update t2 set a= 222 where a = 2;
+savepoint savie;
+update t2 set a= 111 where a = 1;
+
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set a= 222 where a = 2;
+--disable_view_protocol
+savepoint whoopsie;
+update t1 set a= 123 where a = 1;
+insert t3 values (2);
+
+select * from t1;
+rollback to savepoint whoopsie;
+select * from t1;
+select * from t3;
+commit;
+--enable_view_protocol
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+
+select * from t1;
+select * from t2;
+select * from t3;
+
+--echo # Cleanup
+set debug_sync= 'reset';
+drop table t1;
+drop table t2;
+drop table t3;
+
+#
+# Lossy alter, Update_row_log_event cannot find 'abcde2' in the new table
+#
+create table t1 (a char(6), b int);
+insert t1 values ('abcde1',1),('abcde2',2);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set sql_mode='';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 modify a char(4), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set b=b+10 where a='abcde2';
+select * from t1;
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+set sql_mode=default;
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
+--echo #
+--echo # MDEV-28930 ALTER TABLE Deadlocks with parallel TL_WRITE
+--echo #
+create table t1(a int) engine=myisam select 1;
+
+set debug_sync='alter_table_online_before_lock SIGNAL ready WAIT_FOR go_for_locking';
+--send
+alter table t1 force;
+
+--connection con2
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go_for_locking';
+update t1 set a=2;
+
+--connection default
+--reap
+
+set debug_sync='alter_table_online_before_lock SIGNAL ready WAIT_FOR go_for_locking';
+--send
+alter table mysql.global_priv force;
+
+--connection con2
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go_for_locking';
+create user user1@localhost;
+
+--connection default
+--reap
+
+set debug_sync=reset;
+drop user user1@localhost;
+drop table t1;
+
+--echo #
+--echo # MDEV-28959 Online alter ignores strict table mode
+--echo #
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+--send set debug_sync= 'now wait_for downgraded'
+
+--connection con2
+set sql_mode='STRICT_TRANS_TABLES,STRICT_ALL_TABLES';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 modify a int not null, algorithm=copy, lock=none
+
+--connection default
+--reap
+insert into t1 values (null),(null);
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--error WARN_DATA_TRUNCATED
+--reap
+show create table t1;
+select * from t1;
+set sql_mode=default;
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-28967 Assertion `marked_for_write_or_computed()' failed in Field_new_decimal::store_value / online_alter_read_from_binlog`
+--echo #
+create  table t1 (a decimal(8,2), b varchar(8));
+insert into t1 (b) values ('x');
+
+--send set debug_sync= 'now wait_for downgraded'
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 force, algorithm=copy, lock=none
+
+--connection default
+--reap
+insert t1 (b) values ('k');
+insert t1 (b) values ('m');
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-29021 ALTER TABLE fails when a stored virtual column is dropped and added
+--echo #
+create table t1 (a char(9), b char(9) as (a) stored);
+insert into t1(a) values ('foobar');
+
+--send set debug_sync= 'now wait_for downgraded'
+
+--connection con2
+set sql_mode='';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 drop b, add b char(3) as (a) stored, algorithm=copy, lock=none
+
+--connection default
+--reap
+update t1 set a = 'foobarqux';
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+set sql_mode=default;
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo # (duplicate) MDEV-29007 Assertion `marked_for_write_or_computed()'
+--echo # failed upon online ADD COLUMN .. FIRST
+create table t (a int);
+insert into t values (1),(2);
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add c int first, algorithm=copy, lock=none;
+
+--connection default
+--reap
+insert into t values (3);
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+--connection default
+drop table t;
+set debug_sync= reset;
+
+--echo # UNIQUE blob duplicates are not ignored.
+
+create table t1 (b blob);
+insert into t1 values ('foo'),('bar');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t1 add unique(b), algorithm=copy, lock=none;
+
+--connection default
+--reap
+insert into t1 values ('qux'),('foo');
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--error ER_DUP_ENTRY
+--reap
+select * from t1;
+show create table t1;
+
+# Cleanup
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo #
+--echo # DELETE with added virtual column
+--echo #
+CREATE TABLE t1 (a CHAR(3), b CHAR(3) AS (a));
+INSERT INTO t1 (a) VALUES ('foo'),('bar');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+ALTER TABLE t1 ADD c INT, ALGORITHM=COPY, LOCK=NONE;
+
+--connection default
+--reap
+DELETE FROM t1;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+select * from t1;
+
+--connection default
+DROP TABLE t1;
+set debug_sync= reset;
+
+--echo #
+--echo # Do not ignore sql_mode when replicating
+--echo #
+create table t1 (a int);
+insert into t1 values (1);
+
+--send set debug_sync= 'now wait_for downgraded'
+
+--connection con2
+set sql_mode='STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO';
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int as (1/a) stored, algorithm=copy, lock=none
+
+--connection default
+--reap
+update t1 set a= 0 where a=1;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--error ER_DIVISION_BY_ZERO
+--reap
+
+set sql_mode= default;
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-29067 Online alter ignores check constraint violation
+--echo #
+
+--echo ## CHECK, INSERT
+create table t1 (a int);
+insert t1 values (1),(2);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add check (a<10), algorithm=copy, lock=none
+--connection default
+--reap
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+--connection con2
+--error ER_CONSTRAINT_FAILED
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+
+--echo ## DEFAULT, INSERT
+create table t1 (a int);
+insert t1 values (1),(2);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int default(a+10), algorithm=copy, lock=none
+--connection default
+--reap
+insert t1 values (11),(12);
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
+--echo ## CHECK, UPDATE
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add check (a<10), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set a=a+10 where a > 2;
+set debug_sync= 'now signal goforit';
+--connection con2
+--error ER_CONSTRAINT_FAILED
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+
+--echo ## DEFAULT, UPDATE
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int default(a), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
+
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
+--echo ## VCOL + CHECK
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4);
+--send set debug_sync= 'now wait_for downgraded'
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send alter table t1 add b int as (a), add check(b=a), algorithm=copy, lock=none
+--connection default
+--reap
+update t1 set a=a+10 where a > 2;
+insert t1 values(5);
+update t1 set a=a+10 where a = 5;
+
+set debug_sync= 'now signal goforit';
+--connection con2
+--reap
+--connection default
+show create table t1;
+select * from t1;
+drop table t1;
+set debug_sync= 'reset';
+
+--echo #
+--echo # MDEV-29013 ER_KEY_NOT_FOUND/lock timeout upon online alter
+--echo # with long unique indexes
+--echo #
+create table t1 (b text not null, unique(b));
+insert into t1 values ('foo'),('bar');
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t1 add c int, algorithm=copy, lock=none;
+
+--connection default
+--reap
+delete from t1;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+
+--connection default
+drop table t1;
+set debug_sync= reset;
+
+--echo ###
+
+create table t1 (a text, unique(a));
+create table t2 (b text, unique(b));
+insert into t2 values (null),(null);
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connection con2
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t2 add column c int, algorithm=copy, lock=none;
+
+--connection default
+--reap
+delete from t2;
+set debug_sync= 'now signal goforit';
+
+--connection con2
+--reap
+
+--connection default
+alter table t2 force;
+alter table t1 force;
+
+drop table t1, t2;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-29038 XA assertions failing in binlog_rollback and binlog_commit
+--echo #
+create table t (a int);
+insert into t values (1);
+xa begin 'xid';
+--send
+set debug_sync= 'now wait_for downgraded';
+
+--connect (con1,localhost,root,,test)
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t force, algorithm=copy, lock=none;
+
+--connection default
+--reap
+insert into t values (2);
+set debug_sync= 'now signal goforit';
+xa end 'xid';
+xa rollback 'xid';
+
+xa begin 'xid';
+--connection con1
+--reap
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t force, algorithm=copy, lock=none;
+
+--connection default
+set debug_sync= 'now wait_for downgraded';
+insert into t values (3);
+set debug_sync= 'now signal goforit';
+xa end 'xid';
+xa commit 'xid' one phase;
+
+# Cleanup
+--connection con1
+--reap
+--connection default
+drop table t;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-29069 ER_KEY_NOT_FOUND upon online autoinc addition and
+--echo # concurrent DELETE
+--echo #
+set @old_dbug=@@debug_dbug;
+set debug_dbug="+d,rpl_report_chosen_key";
+
+# UB
+#
+# create table t (a int);
+# insert into t values (10),(20),(30);
+#
+# set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+# --send
+# alter table t add pk int auto_increment primary key, algorithm=copy, lock=none;
+# --connection con2
+# set debug_sync= 'now wait_for downgraded';
+# delete from t where a = 20;
+# update t set a = a + 1 where a = 10;
+# set debug_sync= 'now signal goforit';
+#
+# --connection default
+# --reap
+# select * from t;
+
+--echo #
+--echo # Add clumsy DEFAULT
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b int default(RAND() * 20), add key(b),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+--connection default
+--reap
+select a from t;
+
+--echo # CURRENT_TIMESTAMP
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(b),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+--connection default
+--reap
+select a from t;
+
+--echo # CURRENT_TIMESTAMP, mixed key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(a, b),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select a from t;
+
+--echo # Mixed primary key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b int default (a+1), add primary key(b, a),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select a from t;
+
+--echo #
+--echo # Normal row, could be used as a key
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b int as (a * 10) unique, algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+
+--echo #
+--echo # Add key for old row
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add unique(a), algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+
+
+--echo #
+--echo # Useful UNIQUE, though a virtual column on another extra field
+--echo #
+create or replace table t (a int primary key, b int default (a+1));
+insert into t values (10, 10),(20, 20),(30, 30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t drop primary key, add c int default(a),
+              add d int as (c) stored unique, algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 2 where a = 10;
+set debug_sync= 'now signal goforit';
+--connection default
+--reap
+select * from t;
+
+--echo #
+--echo # Now this index is not usable (missing DEFAULT on field c)
+--echo #
+create or replace table t (a int primary key, b int);
+insert into t values (10, 10),(20, 20),(30, 30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t drop primary key, add c real default(rand(a)),
+              add d real as (c) stored unique, algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 2 where a = 10;
+set debug_sync= 'now signal goforit';
+--connection default
+--reap
+select a, b from t;
+
+# Cleanup
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_dbug;
+--connection default
+
+--echo #
+--echo # MDEV-30902 Server crash in LEX::first_lists_tables_same
+--echo #
+create table t1 engine=myisam select 1 as x ;
+create procedure p() alter table t1 engine=heap;
+
+set debug_sync= 'alter_table_copy_end signal ended wait_for end';
+send call p;
+
+--connection con1
+set debug_sync= 'now wait_for ended';
+insert into t1 values (2);
+set debug_sync= 'now signal end';
+
+--connection default
+--reap
+call p;
+
+drop table t1;
+drop procedure p;
+set debug_sync=reset;
+
+--echo #
+--echo # MDEV-30902 Server crash in LEX::first_lists_tables_same
+--echo #
+create table t (id int, s date, e date, period for p(s,e),
+                unique(id, p without overlaps)) engine=aria;
+insert into t values (1,'1971-01-01','1971-01-02');
+
+set debug_sync= 'alter_table_online_before_lock signal lock wait_for goon';
+send alter table t force;
+
+--connection con1
+set debug_sync= 'now wait_for lock';
+delete from t;
+set debug_sync= 'now signal goon';
+
+--connection default
+--reap
+drop table t;
+
+--echo #
+--echo # MDEV-30924 Server crashes in MYSQL_LOG::is_open upon ALTER vs FUNCTION
+--echo #
+create table t (a int);
+insert into t values (1),(2);
+
+--delimiter $
+create function f () returns int
+begin
+  update t set a = 10;
+  return 0;
+end $
+--delimiter ;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goon';
+send alter table t force, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+select f();
+set debug_sync= 'now signal goon';
+
+--connection default
+--reap
+drop table t;
+drop function f;
+
+--echo # Partitioning
+create or replace table t1 (a serial);
+insert t1 values (5), (6), (7);
+
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded wait_for goon';
+send alter table t1 ENGINE=InnoDB, ALGORITHM=COPY, LOCK=NONE
+                    PARTITION BY HASH(a) PARTITIONS 5;
+
+--connection con1
+set debug_sync= 'now WAIT_FOR downgraded';
+insert into t1 values (123), (456), (789);
+update t1 set a= a+100;
+set debug_sync= 'now SIGNAL goon';
+
+--connection default
+--reap
+select * from t1;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-31033 ER_KEY_NOT_FOUND upon online COPY ALTER on a partitioned
+--echo # table
+create table t (a int) partition by hash(a) partitions 2;
+insert into t values (1),(3);
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded wait_for goon';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection con1
+set debug_sync= 'now WAIT_FOR downgraded';
+update t set a = a + 1;
+insert t values (1),(2);
+delete from t where a = 4 limit 1;
+set debug_sync= 'now SIGNAL goon';
+
+--connection default
+--reap
+
+select * from t;
+
+drop table t;
+
+--echo #
+--echo # MDEV-31043 ER_KEY_NOT_FOUND upon concurrent ALTER and transaction
+--echo #
+let $i=2;
+let local_engine=myisam;
+while ($i) {
+eval create table t (a int, b int) engine=$local_engine;
+insert into t values (1,10),(2,20);
+set debug_sync= 'alter_table_online_before_lock signal burnit wait_for goforit';
+--send
+alter table t add c int, algorithm=copy, lock=none;
+
+--connection con1
+
+set debug_sync= 'now wait_for burnit';
+update t set b = 100;
+start transaction;
+update t set b = 200;
+
+--connection con2
+delete from t order by a limit 1;
+delete from t order by a limit 1;
+select * from t;
+--connection con1
+commit;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select * from t;
+drop table t;
+dec $i;
+let local_engine=aria;
+}
+
+--echo #
+--echo # MDEV-30949 Direct leak in binlog_online_alter_end_trans
+--echo #
+create table t (f longblob default null) engine=myisam;
+insert into t values (null);
+
+set debug_sync= "alter_table_copy_end signal copy wait_for goon";
+set debug_sync= "alter_table_online_before_lock signal lock wait_for end";
+
+send alter table t force, algorithm=copy;
+
+--connection con1
+set debug_sync= "now wait_for copy";
+insert into t select repeat('a',130000);
+set debug_sync= "now signal goon wait_for lock";
+insert into t select repeat('a',130000);
+set debug_sync= "now signal end";
+
+
+--connection default
+--reap
+drop table t;
+
+--echo #
+--echo # Test that correct fields are marked as explicit:
+--echo # Drop a, reorder b, add new column with default.
+--echo #
+create table t (a int primary key, b int);
+insert into t values (1, 1), (2, 2), (3, 3);
+
+set debug_sync= "alter_table_copy_end signal copy wait_for goon";
+send alter table t drop primary key, drop a,
+                   change b c bigint,
+                   add x longblob default 123456;
+
+--connection con1
+set debug_sync= "now wait_for copy";
+
+update t set b = 5 where a = 1;
+update t set b = NULL where a = 1;
+select * from t;
+update t set a = 100 where a = 1;
+update t set b = -10 where a = 100;
+select * from t;
+
+set debug_sync= "now signal goon";
+
+--connection default
+--reap
+select * from t;
+drop table t;
+
+--echo # Test that all the fields are unpacked.
+create table t (a int, b int);
+insert into t values (NULL, 123), (NULL, 456);
+
+set debug_sync= "alter_table_copy_end signal copy wait_for goon";
+send alter table t drop a, add primary key(b), algorithm=copy;
+--connection con1
+set debug_sync= "now wait_for copy";
+update t set b = b + 100;
+
+set debug_sync= "now signal goon";
+
+--connection default
+--reap
+select * from t;
+
+drop table t;
+
+
+set debug_sync= reset;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Slave SQL;
+--source include/search_pattern_in_file.inc
+
+
+--echo #
+--echo # MDEV-31646 Online alter applies binlog cache limit to cache writes
+--echo #
+create table t (pk int primary key, a varchar(100)) engine=MyISAM;
+insert into t select seq, repeat('x', 100) from seq_1_to_500;
+
+set @cache.size= @@max_binlog_cache_size;
+set global max_binlog_cache_size= 4096;
+
+send set debug_sync= 'now wait_for do_updates';
+
+--connection con1
+set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+send alter table t add b int, algorithm=copy, lock=none;
+
+--connection default
+--reap
+update t set a = repeat('y', 100);
+show warnings;
+
+set debug_sync= 'now signal go';
+
+--connection con1
+--reap
+show warnings;
+
+--connection default
+drop table t;
+set debug_sync= reset;
+set global max_binlog_cache_size= @cache.size;
+
+--echo # Now make sure that smaller limits will be processed fine
+
+set @old_dbug=@@debug_dbug;
+create table t (pk int primary key, a text) engine=MyISAM;
+insert into t select seq, repeat('x', 1000) from seq_1_to_50;
+
+--connection con1
+set debug_sync= 'alter_table_online_progress signal do_updates wait_for go';
+--send
+alter table t add b int, algorithm=copy, lock=none;
+
+--connection default
+set debug_sync= 'now wait_for do_updates';
+set debug_dbug="+d,online_alter_small_cache";
+--error ER_STMT_CACHE_FULL
+update t set a = repeat('y', 1000);
+show warnings;
+
+set debug_sync= 'now signal go';
+
+--connection con1
+--reap
+show warnings;
+
+--connection default
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_dbug;
+
+
+
+
+create table t (id int, a int, b text, primary key (id));
+insert into t values (1,10,''),(2,20,'');
+
+set debug_sync= 'alter_table_online_progress signal do_update wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection con1
+set @old_binlog_row_image= @@binlog_row_image;
+set binlog_row_image= noblob;
+set debug_sync= 'now wait_for do_update';
+
+update t set a = 1;
+delete from t where id = 1;
+
+set debug_sync= 'now signal go';
+set binlog_row_image= @old_binlog_row_image;
+
+--connection default
+--reap
+select * from t;
+
+drop table t;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-31812 Add switch to old_mode to disable non-locking ALTER
+--echo #
+set @old_old_mode= @@old_mode;
+create or replace table t1 (a int primary key, b int);
+set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
+send alter table t1 drop primary key, add primary key(b), algorithm= copy;
+
+--connection con2
+set debug_sync= 'now WAIT_FOR copy_end';
+select if(max_stage = 4, "online", "old") as mode
+        from information_schema.processlist where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+
+set old_mode= LOCK_ALTER_TABLE_COPY;
+set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
+send alter table t1 drop primary key, add primary key(b), algorithm= copy;
+--connection con2
+set debug_sync= 'now WAIT_FOR copy_end';
+select if(max_stage = 4, "online", "old") as mode
+        from information_schema.processlist where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+
+set debug_sync= 'alter_table_copy_end SIGNAL copy_end WAIT_FOR proceed';
+send alter table t1 drop primary key, add primary key(b),
+        algorithm= copy, lock=none;
+--connection con2
+set debug_sync= 'now WAIT_FOR copy_end';
+
+select if(max_stage = 4, "online", "old") as mode
+        from information_schema.processlist where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+set old_mode= @old_old_mode;
+drop table t1;
+set debug_sync= reset;
+
+--echo #
+--echo # MDEV-32100 Online ALTER TABLE ends with 1032 under some isolation levels
+--echo #
+
+let $tx_iso_id=4;
+
+create table iso_levels(id int, level text);
+INSERT iso_levels VALUES (0, "READ UNCOMMITTED"),
+                         (1, "READ COMMITTED"),
+                         (2, "REPEATABLE READ"),
+                         (3, "SERIALIZABLE");
+
+while($tx_iso_id) {
+dec $tx_iso_id;
+let tx_iso= `select level from iso_levels where id = $tx_iso_id`;
+
+create table t1 (a int, b int, key(b));
+
+--connection con2
+insert into t1 values (1,1),(null,null),(3,3),(4,null),(null,5);
+
+--connection default
+
+eval set session transaction isolation level $tx_iso;
+set debug_sync= "alter_table_online_downgraded signal downgraded wait_for goalters";
+
+send alter table t1 force, algorithm=copy;
+
+--connection con2
+set debug_sync= "now wait_for downgraded";
+delete from t1 where b is null;
+set debug_sync= "now signal goalters";
+
+--connection default
+--reap
+drop table t1;
+}
+set debug_sync= reset;
+drop table iso_levels;
+
+
+--echo # MDEV-32126 Assertion fails upon online ALTER and binary log enabled
+create temporary table tmp (id int, primary key(id)) engine=innodb;
+create table t1 (a int, b text);
+create table t2 (a int, b int, c char(8), d text, unique(a));
+insert into t2 values (1,1,'f','e'),(1000,1000,'c','b');
+--connection default
+set debug_sync= 'alter_table_online_before_lock signal go_trx wait_for go_alter';
+send alter table t2 force, algorithm=copy, lock=none;
+
+--connection con2
+set debug_sync= 'now wait_for go_trx';
+start transaction;
+insert into t1 values (3,'a');
+--error ER_DUP_ENTRY
+insert into t2 values (3,3,'a','x'), (3,3,'a','x');
+insert into t2 values (3,3,'a','x');
+commit;
+set debug_sync= 'now signal go_alter';
+--connection default
+--reap
+truncate t2;
+set @@binlog_format=mixed;
+--connection con2
+start transaction;
+create temporary table tmp (id int, primary key(id));
+insert into t1 values (1, repeat('x',8000)),(2, repeat('x',8000));
+update t2 set b = null order by b limit 2;
+insert into t1 values (3, repeat('x',8000));
+delete from t1;
+insert into t2 values (1,1,'f','e'),(1000,1000,'c','b');
+commit;
+
+
+--connection default
+set debug_sync= 'alter_table_online_before_lock signal go_trx wait_for go_alter';
+send alter table t2 force, algorithm=copy, lock=none;
+
+--connection con2
+set debug_sync= 'now wait_for go_trx';
+start transaction;
+drop temporary table if exists tmp;
+--error ER_DUP_ENTRY
+insert into t2 values (3,3,'a','x'), (3,3,'a','x');
+insert into t2 values (3,3,'a','x');
+commit;
+set debug_sync= 'now signal go_alter';
+
+--connection default
+--reap
+
+drop table t1, t2;
+set @@binlog_format=default;
+set debug_sync= reset;
+
+
+--echo # MDEV-32444 Data from orphaned XA transaction is lost after online alter
+
+create table t (a int primary key);
+insert into t values (1);
+
+--echo # XA commit
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+update t set a = 2 where a = 1;
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
+--disconnect con1
+
+--connection con2
+set debug_sync= 'now signal close wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+--connection default
+--reap # alter table
+
+select * from t;
+
+--echo # XA rollback
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x2';
+insert into t values (53);
+xa end 'x2';
+xa prepare 'x2';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
+--disconnect con1
+
+--connection con2
+set debug_sync= 'now signal close wait_for xa_detach';
+xa rollback 'x2';
+set debug_sync= 'now signal go';
+--connection default
+--reap # alter table
+
+select * from t;
+
+--echo # XA transaction is left uncommitted
+--echo # end then is rollbacked after alter fails
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+     for alter table t force, algorithm=copy, lock=none;
+
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'xuncommitted';
+insert into t values (3);
+xa end 'xuncommitted';
+xa prepare 'xuncommitted';
+set debug_sync= 'now signal go';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
+--disconnect con1
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap # alter table
+set debug_sync= 'now signal close wait_for xa_detach';
+xa rollback 'xuncommitted';
+
+select * from t;
+
+--echo # Same, but commit
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send set statement innodb_lock_wait_timeout=0, lock_wait_timeout= 0
+     for alter table t force, algorithm=copy, lock=none;
+
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'committed_later';
+insert into t values (3);
+xa end 'committed_later';
+xa prepare 'committed_later';
+set debug_sync= 'now signal go';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
+--disconnect con1
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap # alter table
+set debug_sync= 'now signal close wait_for xa_detach';
+xa commit 'committed_later';
+
+
+select * from t;
+
+--echo # Commit, but error in statement, and there is some stmt data to rollback
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t force, algorithm=copy, lock=none;
+--connect(con1, localhost, root,,)
+set debug_sync= 'now wait_for downgraded';
+xa begin 'x1';
+--error ER_DUP_ENTRY
+insert into t values (4), (3);
+insert into t values (5);
+xa end 'x1';
+xa prepare 'x1';
+set debug_sync= 'thread_end signal xa_detach wait_for close';
+--disconnect con1
+
+--connection con2
+set debug_sync= 'now signal close wait_for xa_detach';
+xa commit 'x1';
+set debug_sync= 'now signal go';
+--connection default
+--reap # alter table
+
+select * from t;
+
+--connect(con1, localhost, root,,)
+--connection default
+drop table t;
+set debug_sync= reset;
+
+--echo # MDEV-32771 Server crash upon online alter with concurrent XA
+
+create table t (a int primary key);
+insert t values(1),(2),(3);
+
+--echo # First, check that nothing from the rollbacked statement commits
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t add b int default (555), algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t add c int default(777), algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+--echo # Same, but add one successful statement into transaction
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t drop b, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 10 where a = 1;
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t drop primary key, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+--echo # This statement will take effect.
+update t set a = 10 where a = 1;
+--error ER_DUP_ENTRY
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+
+--echo # The only statement succeeds (test both commit and rollback)
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t add d text default ('qwe'), algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa rollback 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for go';
+send alter table t drop c, algorithm=copy;
+
+--connection con1
+set debug_sync= 'now wait_for downgraded';
+xa start 'xid';
+update t set a = 0;
+xa end 'xid';
+xa prepare 'xid';
+xa commit 'xid';
+set debug_sync= 'now signal go';
+
+--connection default
+--reap
+select * from t;
+
+drop table t;
+
+
+--echo #
+--echo # MDEV-32803 Assertion `total == 0' failed in Event_log::write_cache_raw
+--echo #
+
+create or replace table t1 (a int) engine=aria;
+insert t1 values (5);
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+send alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+set debug_sync= 'now WAIT_FOR ended';
+begin;
+insert into t1 values (123);
+insert into t1 values (456), (789);
+commit;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+drop table t1;
+
+
+--echo # MDEV-32614 LeakSanitizer errors in copy_data_between_tables
+create table t (a int, b int) engine=aria;
+insert into t select seq, seq from seq_1_to_5;
+backup stage start;
+
+--connect (con_lock,localhost,root,,)
+set lock_wait_timeout= 1;
+
+set debug_sync='copy_data_between_tables_before_reset_backup_lock signal backup wait_for continue';
+send alter table t add index (b), algorithm=copy, lock=none;
+
+--connection default
+
+set debug_sync='now wait_for backup';
+
+backup stage block_commit;
+
+set debug_sync='now signal continue';
+
+--connection con_lock
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+--disconnect con_lock
+
+--connection default
+backup stage end;
+alter table t add index (a), algorithm=copy, lock=none;
+
+--connection default
+drop table t;
+
+
+eval set global default_storage_engine= $default_storage_engine;
+
+--disconnect con1
+--disconnect con2
+--echo #
+--echo # End of 11.2 tests
+--echo #

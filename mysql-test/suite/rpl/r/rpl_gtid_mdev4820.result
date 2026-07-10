@@ -18,6 +18,7 @@ include/stop_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL gtid_slave_pos= 'OLD_GTID_POS';
 connection server_2;
@@ -44,7 +45,7 @@ RESET MASTER;
 SET GLOBAL gtid_slave_pos= '0-2-10';
 connection server_1;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
-master_user= 'root', master_use_gtid=CURRENT_POS;
+master_user= 'root', master_ssl_verify_server_cert=0, master_use_gtid=CURRENT_POS;
 START SLAVE;
 connection server_2;
 INSERT INTO t1 VALUES (11);
@@ -67,6 +68,8 @@ a
 11
 include/stop_slave.inc
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 INSERT INTO t1 VALUES (12);
 connection server_2;
 INSERT INTO t1 VALUES (22);

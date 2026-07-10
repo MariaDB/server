@@ -49,7 +49,7 @@ public:
     : m_visitor(visitor)
   {}
 
-  virtual void operator()(THD *thd)
+  void operator()(THD *thd) override
   {
     m_visitor->visit_THD(thd);
   }
@@ -132,7 +132,7 @@ public:
     : m_visitor(visitor), m_host(host)
   {}
 
-  virtual void operator()(THD *thd)
+  void operator()(THD *thd) override
   {
     PSI_thread *psi= thd->get_psi();
     PFS_thread *pfs= reinterpret_cast<PFS_thread*>(psi);
@@ -221,7 +221,7 @@ public:
     : m_visitor(visitor), m_user(user)
   {}
 
-  virtual void operator()(THD *thd)
+  void operator()(THD *thd) override
   {
     PSI_thread *psi= thd->get_psi();
     PFS_thread *pfs= reinterpret_cast<PFS_thread*>(psi);
@@ -310,7 +310,7 @@ public:
     : m_visitor(visitor), m_account(account)
   {}
 
-  virtual void operator()(THD *thd)
+  void operator()(THD *thd) override
   {
     PSI_thread *psi= thd->get_psi();
     PFS_thread *pfs= reinterpret_cast<PFS_thread*>(psi);
@@ -752,7 +752,7 @@ public:
     : m_visitor(visitor)
   {}
 
-  virtual void operator()(PFS_table_share *pfs)
+  void operator()(PFS_table_share *pfs) override
   {
     if (pfs->m_enabled)
     {
@@ -772,7 +772,7 @@ public:
     : m_visitor(visitor)
   {}
 
-  virtual void operator()(PFS_table *pfs)
+  void operator()(PFS_table *pfs) override
   {
     PFS_table_share *safe_share= sanitize_table_share(pfs->m_share);
     if (safe_share != NULL)
@@ -811,7 +811,7 @@ public:
     : m_visitor(visitor), m_share(share)
   {}
 
-  virtual void operator()(PFS_table *pfs)
+  void operator()(PFS_table *pfs) override
   {
     if (pfs->m_share == m_share)
     {
@@ -852,7 +852,7 @@ public:
     : m_visitor(visitor), m_share(share), m_index(index)
   {}
 
-  virtual void operator()(PFS_table *pfs)
+  void operator()(PFS_table *pfs) override
   {
     if (pfs->m_share == m_share)
     {
@@ -1356,8 +1356,7 @@ PFS_connection_status_visitor::~PFS_connection_status_visitor() = default;
 /** Aggregate from global status. */
 void PFS_connection_status_visitor::visit_global()
 {
-   /* NOTE: Requires lock on LOCK_status. */
-   mysql_mutex_assert_owner(&LOCK_status);
+   /* NOTE: Requires lock on LOCK_all_status_vars. */
    add_to_status(m_status_vars, &global_status_var);
 }
 

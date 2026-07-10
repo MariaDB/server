@@ -29,6 +29,8 @@ let $create4 = create table t1 (a int,
 				d varchar(16));
 eval $create1;
 set sql_warnings = 1;
+# Prefer table scans to range
+set @@optimizer_scan_setup_cost=0;
 
 --echo #
 --echo # *** INSERT ***
@@ -197,6 +199,7 @@ select * from t1;
 --echo # UPDATE tbl_name SET non-vcol=expr 
 --echo # WHERE vcol=between const1 and const2 ORDER BY vcol LIMIT 2
 insert into t1 (a) values (1), (2), (3), (4), (5);
+
 select * from t1;
 update t1 set a=6 where c between -1 and 0
           order by c limit 2;
@@ -245,7 +248,7 @@ if ($innodb_engine)
   --error ER_ROW_IS_REFERENCED_2
   update t2 set a=4 where a=3;
   select t1.a, t1.b, t2.name from t1,t2 where t1.b=t2.a;
-  alter table t1 drop foreign key t1_ibfk_1;
+  alter table t1 drop foreign key `1`;
 
   --echo #  - ON DELETE RESTRICT
   alter table t1 add foreign key (b) references t2(a) on delete restrict;
@@ -253,14 +256,14 @@ if ($innodb_engine)
   delete from t2 where a=3;
   select t1.a, t1.b, t2.name from t1,t2 where t1.b=t2.a;
   select t1.a, t1.b, t2.name from t1 left outer join t2 on (t1.b=t2.a);
-  alter table t1 drop foreign key t1_ibfk_1;
+  alter table t1 drop foreign key `1`;
 
   --echo #  - ON DELETE CASCADE
   alter table t1 add foreign key (b) references t2(a) on delete cascade;
   delete from t2 where a=3;
   select t1.a, t1.b, t2.name from t1,t2 where t1.b=t2.a;
   select t1.a, t1.b, t2.name from t1 left outer join t2 on (t1.b=t2.a);
-  alter table t1 drop foreign key t1_ibfk_1;
+  alter table t1 drop foreign key `1`;
 
   drop table t1;
   drop table t2;

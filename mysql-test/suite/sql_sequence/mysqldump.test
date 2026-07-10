@@ -12,15 +12,15 @@ CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
 insert into t1 values (1),(2);
 CREATE SEQUENCE x1 engine=innodb;
 --echo # dump whole database
---exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact test
 --echo # dump by tables order 1
---exec $MYSQL_DUMP --compact --tables test t1 a1 x1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --tables test t1 a1 x1
 --echo # dump by tables order 2
---exec $MYSQL_DUMP --compact --tables test a1 t1 x1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --tables test a1 t1 x1
 --echo # dump by tables only tables
---exec $MYSQL_DUMP --compact --tables test t1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --tables test t1
 --echo # dump by tables only sequences
---exec $MYSQL_DUMP --compact --tables test a1 x1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --tables test a1 x1
 --echo # end of dumps
 
 DROP TABLE a1,t1,x1;
@@ -35,3 +35,87 @@ LOCK TABLES t1 READ;
 SELECT * FROM t1;
 unlock tables;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE s1 as tinyint;
+CREATE SEQUENCE s2 as smallint;
+CREATE SEQUENCE s3 as mediumint;
+CREATE SEQUENCE s4 as int;
+CREATE SEQUENCE s5 as bigint;
+CREATE SEQUENCE s6 as tinyint unsigned;
+CREATE SEQUENCE s7 as smallint unsigned;
+CREATE SEQUENCE s8 as mediumint unsigned;
+CREATE SEQUENCE s9 as int unsigned;
+CREATE SEQUENCE s10 as bigint unsigned;
+
+--echo # Dump database 1
+--exec $MYSQL_DUMP test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # Restore from database 1 to database 2
+
+--exec $MYSQL test2 < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+USE test2;
+SHOW CREATE SEQUENCE s1;
+SHOW CREATE SEQUENCE s2;
+SHOW CREATE SEQUENCE s3;
+SHOW CREATE SEQUENCE s4;
+SHOW CREATE SEQUENCE s5;
+SHOW CREATE SEQUENCE s6;
+SHOW CREATE SEQUENCE s7;
+SHOW CREATE SEQUENCE s8;
+SHOW CREATE SEQUENCE s9;
+SHOW CREATE SEQUENCE s10;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+DROP DATABASE test1;
+DROP DATABASE test2;
+
+--echo ## test ORACLE mode
+set sql_mode=ORACLE;
+
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE s1 as tinyint;
+CREATE SEQUENCE s2 as smallint;
+CREATE SEQUENCE s3 as mediumint;
+CREATE SEQUENCE s4 as int;
+CREATE SEQUENCE s5 as bigint;
+CREATE SEQUENCE s6 as tinyint unsigned;
+CREATE SEQUENCE s7 as smallint unsigned;
+CREATE SEQUENCE s8 as mediumint unsigned;
+CREATE SEQUENCE s9 as int unsigned;
+CREATE SEQUENCE s10 as bigint unsigned;
+
+--echo # Dump database 1
+--exec $MYSQL_DUMP test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # Restore from database 1 to database 2
+
+--exec $MYSQL test2 < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+USE test2;
+SHOW CREATE SEQUENCE s1;
+SHOW CREATE SEQUENCE s2;
+SHOW CREATE SEQUENCE s3;
+SHOW CREATE SEQUENCE s4;
+SHOW CREATE SEQUENCE s5;
+SHOW CREATE SEQUENCE s6;
+SHOW CREATE SEQUENCE s7;
+SHOW CREATE SEQUENCE s8;
+SHOW CREATE SEQUENCE s9;
+SHOW CREATE SEQUENCE s10;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+DROP DATABASE test1;
+DROP DATABASE test2;
+
+set sql_mode=default;
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

@@ -143,6 +143,8 @@ static my_bool read_and_check_content(TRANSLOG_HEADER_BUFFER *rec,
 }
 
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 int main(int argc __attribute__((unused)), char *argv[])
 {
   uint32 i;
@@ -197,7 +199,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   }
 #endif
 
-  if (ma_control_file_open(TRUE, TRUE, TRUE))
+  if (ma_control_file_open(TRUE, TRUE, TRUE, control_file_open_flags))
   {
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);
@@ -664,5 +666,6 @@ err:
   my_end(0);
   return(MY_TEST(exit_status()));
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #include "../ma_check_standalone.h"

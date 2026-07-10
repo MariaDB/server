@@ -130,20 +130,19 @@
 */
 #define OPEN_TRIGGER_ONLY      (1 << 21)
 
+/**
+  This flag is used in information schema to determine if handling function
+  can treat open result extensively and provide some user output even if
+  table open fails.
+*/
+#define I_S_EXTENDED_ERROR_HANDLING (1 << 22)
+
 /*
   Minimum length pattern before Turbo Boyer-Moore is used
   for SELECT "text" LIKE "%pattern%", excluding the two
   wildcards in class Item_func_like.
 */
 #define MIN_TURBOBM_PATTERN_LEN 3
-
-/* 
-   Defines for binary logging.
-   Do not decrease the value of BIN_LOG_HEADER_SIZE.
-   Do not even increase it before checking code.
-*/
-
-#define BIN_LOG_HEADER_SIZE    4 
 
 #define DEFAULT_KEY_CACHE_NAME "default"
 
@@ -217,7 +216,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 #define FRM_FORMINFO_SIZE 288
 #define FRM_MAX_SIZE (1024*1024)
 
-static inline bool is_binary_frm_header(uchar *head)
+static inline bool is_binary_frm_header(const uchar *head)
 {
   return head[0] == 254
       && head[1] == 1

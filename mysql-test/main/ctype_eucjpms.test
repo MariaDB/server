@@ -1,6 +1,4 @@
 # remove this include in 10.6 version, 
-# if MDEV-27871 will be fix
---source include/no_view_protocol.inc
 
 -- source include/have_eucjpms.inc
 
@@ -621,6 +619,13 @@ let $coll_pad='eucjpms_bin';
 SET NAMES eucjpms;
 SET @seq=_eucjpms 0x8FA1A1;
 --source include/ctype_ident_sys.inc
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_eucjpms'' collate eucjpms_japanese_nopad_ci, _eucjpms 0x0001050001) as c1;
+select strcmp(_eucjpms'' collate eucjpms_nopad_bin, _eucjpms 0x0001050001) as c1;
 
 --echo #
 --echo # End of 10.5 tests

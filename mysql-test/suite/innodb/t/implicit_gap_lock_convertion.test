@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 CREATE TABLE t(a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
 
@@ -18,4 +17,3 @@ INSERT INTO t VALUES (15);
 
 --disconnect con1
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

@@ -13,7 +13,7 @@ CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
 TRUNCATE TABLE t1;
 SHOW TABLE STATUS;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	Compressed	#	#	#	#	#	#	1	#	#	NULL	latin1_swedish_ci	NULL	key_block_size=4		0	N
+t1	InnoDB	#	Compressed	#	#	#	#	#	#	1	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL	key_block_size=4		0	N
 DROP TABLE t1;
 #
 # MDEV-17859 Operating system errors in file operations

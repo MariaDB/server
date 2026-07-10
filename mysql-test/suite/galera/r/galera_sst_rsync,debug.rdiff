@@ -1,5 +1,5 @@
 --- galera_sst_rsync.result
-+++ galera_sst_rsync.reject
++++ galera_sst_rsync,debug.reject
 @@ -516,3 +516,187 @@
  1
  DROP TABLE t1;

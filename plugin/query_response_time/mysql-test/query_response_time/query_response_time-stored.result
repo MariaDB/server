@@ -5,14 +5,14 @@ SET SESSION query_response_time_exec_time_debug=t;
 INSERT INTO t VALUES(1);
 SET SESSION query_response_time_exec_time_debug=100000;
 DELETE FROM t;
-END^
+END|
 SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=1;
 Warnings:
 Warning	1292	Truncated incorrect query_response_time_range_base value: '1'
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -41,7 +41,7 @@ Variable_name	Value
 query_response_time_range_base	2
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000001	45	      0.000000
+      0.000001	44	      0.000000
       0.000003	0	      0.000000
       0.000007	0	      0.000000
       0.000015	0	      0.000000
@@ -57,7 +57,7 @@ TIME	COUNT	TOTAL
       0.015625	0	      0.000000
       0.031250	0	      0.000000
       0.062500	0	      0.000000
-      0.125000	44	      4.400000
+      0.125000	22	      2.200000
       0.250000	0	      0.000000
       0.500000	10	      3.550000
       1.000000	1	      0.500000
@@ -89,8 +89,8 @@ SET SESSION query_response_time_exec_time_debug=default;
 SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=2;
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -119,7 +119,7 @@ Variable_name	Value
 query_response_time_range_base	2
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000001	45	      0.000000
+      0.000001	44	      0.000000
       0.000003	0	      0.000000
       0.000007	0	      0.000000
       0.000015	0	      0.000000
@@ -135,7 +135,7 @@ TIME	COUNT	TOTAL
       0.015625	0	      0.000000
       0.031250	0	      0.000000
       0.062500	0	      0.000000
-      0.125000	44	      4.400000
+      0.125000	22	      2.200000
       0.250000	0	      0.000000
       0.500000	10	      3.550000
       1.000000	1	      0.500000
@@ -167,8 +167,8 @@ SET SESSION query_response_time_exec_time_debug=default;
 SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=10;
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -197,13 +197,13 @@ Variable_name	Value
 query_response_time_range_base	10
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000001	45	      0.000000
+      0.000001	44	      0.000000
       0.000010	0	      0.000000
       0.000100	0	      0.000000
       0.001000	0	      0.000000
       0.010000	0	      0.000000
       0.100000	0	      0.000000
-      1.000000	55	      8.450000
+      1.000000	33	      6.250000
      10.000000	11	     25.700000
     100.000000	0	      0.000000
    1000.000000	0	      0.000000
@@ -215,8 +215,8 @@ SET SESSION query_response_time_exec_time_debug=default;
 SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=7;
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -245,13 +245,13 @@ Variable_name	Value
 query_response_time_range_base	7
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000001	45	      0.000000
+      0.000001	44	      0.000000
       0.000008	0	      0.000000
       0.000059	0	      0.000000
       0.000416	0	      0.000000
       0.002915	0	      0.000000
       0.020408	0	      0.000000
-      0.142857	44	      4.400000
+      0.142857	22	      2.200000
       1.000000	11	      4.050000
       7.000000	11	     25.700000
      49.000000	0	      0.000000
@@ -266,8 +266,8 @@ SET SESSION query_response_time_exec_time_debug=default;
 SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=156;
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -296,9 +296,9 @@ Variable_name	Value
 query_response_time_range_base	156
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000041	45	      0.000000
+      0.000041	44	      0.000000
       0.006410	0	      0.000000
-      1.000000	55	      8.450000
+      1.000000	33	      6.250000
     156.000000	11	     25.700000
   24336.000000	0	      0.000000
 3796416.000000	0	      0.000000
@@ -307,8 +307,8 @@ SET SESSION query_response_time_exec_time_debug=default;
 SET SESSION query_response_time_exec_time_debug=100000;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=1000;
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -337,9 +337,9 @@ Variable_name	Value
 query_response_time_range_base	1000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000001	45	      0.000000
+      0.000001	44	      0.000000
       0.001000	0	      0.000000
-      1.000000	55	      8.450000
+      1.000000	33	      6.250000
    1000.000000	11	     25.700000
 1000000.000000	0	      0.000000
 TOO LONG	0	TOO LONG
@@ -349,8 +349,8 @@ SET GLOBAL QUERY_RESPONSE_TIME_STATS=0;
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=1001;
 Warnings:
 Warning	1292	Truncated incorrect query_response_time_range_base value: '1001'
-SET GLOBAL query_response_time_flush=1;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=1;
+FLUSH QUERY_RESPONSE_TIME;
 CALL test_f(310000);
 CALL test_f(320000);
 CALL test_f(330000);
@@ -379,9 +379,9 @@ Variable_name	Value
 query_response_time_range_base	1000
 SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
 TIME	COUNT	TOTAL
-      0.000001	45	      0.000000
+      0.000001	44	      0.000000
       0.001000	0	      0.000000
-      1.000000	55	      8.450000
+      1.000000	33	      6.250000
    1000.000000	11	     25.700000
 1000000.000000	0	      0.000000
 TOO LONG	0	TOO LONG

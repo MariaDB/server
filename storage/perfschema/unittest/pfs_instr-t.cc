@@ -216,7 +216,7 @@ void test_no_instances()
   ok(file == NULL, "no file");
   ok(global_file_container.m_lost == 4, "lost 4");
 
-  char long_file_name[10000];
+  char long_file_name[5000];
   int size= sizeof(long_file_name);
   memset(long_file_name, 'X', size);
 

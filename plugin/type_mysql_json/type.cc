@@ -37,6 +37,15 @@ public:
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *,
                           const Record_addr &, const Type_all_attributes &,
                           TABLE_SHARE *) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                        const override
+  {
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "MYSQL_JSON");
+    return true;
+  }
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *def,
                                               const Field *field) const override;
@@ -69,14 +78,14 @@ public:
                  &my_charset_utf8mb4_bin)
   {}
 
-  String *val_str(String *val_buffer, String *val_str);
-  const Type_handler *type_handler() const { return &type_handler_mysql_json; }
+  String *val_str(String *val_buffer, String *val_str) override;
+  const Type_handler *type_handler() const override { return &type_handler_mysql_json; }
   bool parse_mysql(String *dest, const char *data, size_t length) const;
-  bool send(Protocol *protocol) { return Field::send(protocol); }
-  void sql_type(String &s) const
-  { s.set_ascii(STRING_WITH_LEN("json /* MySQL 5.7 */")); }
+  bool send(Protocol *protocol) override { return Field::send(protocol); }
+  void sql_type(String &s) const override
+  { s.set_ascii(STRING_WITH_LEN("mysql_json /* JSON from MySQL 5.7 */")); }
   /* this will make ALTER TABLE to consider it different from built-in field */
-  Compression_method *compression_method() const { return (Compression_method*)1; }
+  Compression_method *compression_method() const override { return (Compression_method*)1; }
 };
 
 Field *Type_handler_mysql_json::make_conversion_table_field(MEM_ROOT *root,

@@ -85,6 +85,8 @@
   authentication protocol is not known in advance, and the client plugin
   needs to read one packet more to determine if the authentication is finished
   or not.
+
+  Server plugins should not return this value.
 */
 #define CR_OK_HANDSHAKE_COMPLETE -2
 
@@ -96,6 +98,7 @@ typedef struct st_plugin_vio_info
 #ifdef _WIN32
   HANDLE handle;  /**< it's set, if the protocol is PIPE or MEMORY */
 #endif
+  int tls;
 } MYSQL_PLUGIN_VIO_INFO;
 
 /**

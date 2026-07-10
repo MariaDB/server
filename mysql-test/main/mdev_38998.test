@@ -1,0 +1,26 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-38998: Assertion failure in diagnostics area upon INSERT/UPDATE IGNORE and check with ER_DATA_OUT_OF_RANGE
+--echo #
+
+CREATE TABLE t1 (f INT, CHECK(COT(f)));
+
+--echo # Test INSERT IGNORE
+INSERT IGNORE INTO t1 VALUES (0);
+
+
+--echo # Test several values with INSERT IGNORE
+TRUNCATE TABLE t1;
+INSERT IGNORE INTO t1 VALUES (0), (1);
+
+SELECT * FROM t1;
+
+--echo # Test UPDATE IGNORE
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+UPDATE IGNORE t1 SET f=0;
+
+SELECT * FROM t1;
+
+DROP TABLE t1;

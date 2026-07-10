@@ -1,0 +1,20 @@
+--- ./main/innodb_ext_key.result
++++ ./main/innodb_ext_key.reject
+@@ -244,7 +244,7 @@
+ Variable_name	Value
+ Handler_read_first	0
+ Handler_read_key	21
+-Handler_read_last	1
++Handler_read_last	0
+ Handler_read_next	0
+ Handler_read_prev	0
+ Handler_read_retry	0
+@@ -266,7 +266,7 @@
+ Variable_name	Value
+ Handler_read_first	0
+ Handler_read_key	6
+-Handler_read_last	1
++Handler_read_last	0
+ Handler_read_next	0
+ Handler_read_prev	0
+ Handler_read_retry	0

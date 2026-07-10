@@ -35,14 +35,11 @@ insert into t1 values
 (126 , 6, 1, NULL),
 (127 , 6, 1, NULL);
 
-#enable after fix MDEV-27871
---disable_view_protocol
 --sorted_result
-select pk, a, b, avg(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, b, avg(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as avg
 from t1;
 
 --sorted_result
-select pk, a, c, avg(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, c, avg(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as avg
 from t1;
---enable_view_protocol
 drop table t1;

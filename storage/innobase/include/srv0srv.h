@@ -111,36 +111,6 @@ struct srv_stats_t
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
 
-	/** Number of rows read. */
-	ulint_ctr_n_t		n_rows_read;
-
-	/** Number of rows updated */
-	ulint_ctr_n_t		n_rows_updated;
-
-	/** Number of rows deleted */
-	ulint_ctr_n_t		n_rows_deleted;
-
-	/** Number of rows inserted */
-	ulint_ctr_n_t		n_rows_inserted;
-
-	/** Number of system rows read. */
-	ulint_ctr_n_t		n_system_rows_read;
-
-	/** Number of system rows updated */
-	ulint_ctr_n_t		n_system_rows_updated;
-
-	/** Number of system rows deleted */
-	ulint_ctr_n_t		n_system_rows_deleted;
-
-	/** Number of system rows inserted */
-	ulint_ctr_n_t		n_system_rows_inserted;
-
-	/** Number of times secondary index lookup triggered cluster lookup */
-	ulint_ctr_n_t		n_sec_rec_cluster_reads;
-
-	/** Number of times prefix optimization avoided triggering cluster lookup */
-	ulint_ctr_n_t		n_sec_rec_cluster_reads_avoided;
-
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_n_t		n_key_requests;
 
@@ -150,10 +120,6 @@ struct srv_stats_t
 	/** Number of temporary tablespace blocks decrypted */
 	ulint_ctr_n_t		n_temp_blocks_decrypted;
 };
-
-/** We are prepared for a situation that we have this many threads waiting for
-a transactional lock inside InnoDB. srv_start() sets the value. */
-extern ulint srv_max_n_threads;
 
 extern const char*	srv_main_thread_op_info;
 
@@ -184,7 +150,7 @@ extern mysql_mutex_t srv_monitor_file_mutex;
 extern FILE*	srv_monitor_file;
 /** Mutex for locking srv_misc_tmpfile */
 extern mysql_mutex_t srv_misc_tmpfile_mutex;
-/* Temporary file for miscellanous diagnostic output */
+/* Temporary file for miscellaneous diagnostic output */
 extern FILE*	srv_misc_tmpfile;
 
 /* Server parameters which are read from the initfile */
@@ -195,9 +161,9 @@ extern char*	srv_data_home;
 recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
 extern my_bool	srv_read_only_mode;
-/** Set if InnoDB operates in read-only mode or innodb-force-recovery
-is greater than SRV_FORCE_NO_IBUF_MERGE. */
-extern my_bool	high_level_read_only;
+/** Set if innodb_read_only is set or innodb_force_recovery
+is SRV_FORCE_NO_UNDO_LOG_SCAN or greater. */
+extern bool high_level_read_only;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 extern my_bool	srv_file_per_table;
@@ -212,6 +178,12 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
+
+#ifdef __linux__
+/* This enum is defined which linux native io method to use */
+extern ulong	srv_linux_aio_method;
+#endif
+
 extern my_bool	srv_numa_interleave;
 
 /* Use atomic writes i.e disable doublewrite buffer */
@@ -240,18 +212,11 @@ extern unsigned long long	srv_max_undo_log_size;
 extern uint	srv_n_fil_crypt_threads;
 extern uint	srv_n_fil_crypt_threads_started;
 
-/** Rate at which UNDO records should be purged. */
-extern ulong	srv_purge_rseg_truncate_frequency;
-
 /** Enable or Disable Truncate of UNDO tablespace. */
 extern my_bool	srv_undo_log_truncate;
 
-/* Optimize prefix index queries to skip cluster index lookup when possible */
-/* Enables or disables this prefix optimization.  Disabled by default. */
-extern my_bool	srv_prefix_index_cluster_optimization;
-
 /** Default size of UNDO tablespace (10MiB for innodb_page_size=16k) */
-constexpr ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
+constexpr uint32_t SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
   UNIV_PAGE_SIZE_DEF;
 
 extern char*	srv_log_group_home_dir;
@@ -264,20 +229,6 @@ extern uint	srv_flush_log_at_timeout;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
-/** Requested size in bytes */
-extern ulint		srv_buf_pool_size;
-/** Requested buffer pool chunk size */
-extern size_t		srv_buf_pool_chunk_unit;
-/** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-extern ulong	srv_LRU_scan_depth;
-/** Whether or not to flush neighbors of a block */
-extern ulong	srv_flush_neighbors;
-/** Previously requested size */
-extern ulint	srv_buf_pool_old_size;
-/** Current size as scaling factor for the other components */
-extern ulint	srv_buf_pool_base_size;
-/** Current size in bytes */
-extern ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 extern ulong	srv_buf_pool_dump_pct;
 #ifdef UNIV_DEBUG
@@ -294,25 +245,13 @@ extern ulong	srv_read_ahead_threshold;
 extern uint	srv_n_read_io_threads;
 extern uint	srv_n_write_io_threads;
 
-/* Defragmentation, Origianlly facebook default value is 100, but it's too high */
-#define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
-extern my_bool	srv_defragment;
-extern uint	srv_defragment_n_pages;
-extern uint	srv_defragment_stats_accuracy;
-extern uint	srv_defragment_fill_factor_n_recs;
-extern double	srv_defragment_fill_factor;
-extern uint	srv_defragment_frequency;
-extern ulonglong	srv_defragment_interval;
-
-extern uint	srv_change_buffer_max_size;
-
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
 
 /* We use this dummy default value at startup for max_io_capacity.
 The real value is set based on the value of io_capacity. */
-#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(~0UL)
-#define SRV_MAX_IO_CAPACITY_LIMIT		(~0UL)
+#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(UINT32_MAX)
+#define SRV_MAX_IO_CAPACITY_LIMIT		(UINT32_MAX)
 extern ulong    srv_max_io_capacity;
 
 /* The "innodb_stats_method" setting, decides how InnoDB is going
@@ -330,7 +269,7 @@ extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
 
-/** innodb_fast_shutdown=1 skips purge and change buffer merge.
+/** innodb_fast_shutdown=1 skips purge.
 innodb_fast_shutdown=2 effectively crashes the server (no log checkpoint).
 innodb_fast_shutdown=3 is a clean shutdown that skips the rollback
 of active transaction (to be done on restart). */
@@ -338,19 +277,19 @@ extern uint	srv_fast_shutdown;
 
 extern ibool	srv_innodb_status;
 
-extern unsigned long long	srv_stats_transient_sample_pages;
+extern uint32_t			srv_stats_transient_sample_pages;
 extern my_bool			srv_stats_persistent;
-extern unsigned long long	srv_stats_persistent_sample_pages;
+extern uint32_t			srv_stats_persistent_sample_pages;
 extern my_bool			srv_stats_auto_recalc;
 extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
-extern my_bool	srv_use_doublewrite_buf;
 extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
 
+extern my_bool	innodb_alter_copy_bulk;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
@@ -395,7 +334,6 @@ extern bool	srv_monitor_active;
 extern ulong	srv_n_spin_wait_rounds;
 extern uint	srv_spin_wait_delay;
 
-extern ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 extern ulong	srv_available_undo_logs;
 /** Iterations of the loop bounded by 'srv_active' label. */
@@ -451,6 +389,7 @@ extern ulong srv_buf_dump_status_frequency;
 
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;
+extern mysql_pfs_key_t	page_encrypt_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	thread_pool_thread_key;
 
@@ -548,10 +487,6 @@ Frees the data structures created in srv_init(). */
 void
 srv_free(void);
 
-/** Wake up the purge if there is work to do. */
-void
-srv_wake_purge_thread_if_not_active();
-
 /******************************************************************//**
 Outputs to a file the output of the InnoDB Monitor.
 @return FALSE if not all information printed
@@ -592,16 +527,6 @@ srv_que_task_enqueue_low(
 /*=====================*/
 	que_thr_t*	thr);	/*!< in: query thread */
 
-/**
-Flag which is set, whenever innodb_purge_threads changes.
-It is read and reset in srv_do_purge().
-
-Thus it is Atomic_counter<int>, not bool, since unprotected
-reads are used. We just need an atomic with relaxed memory
-order, to please Thread Sanitizer.
-*/
-extern Atomic_counter<int> srv_purge_thread_count_changed;
-
 #ifdef UNIV_DEBUG
 /** @return whether purge or master task is active */
 bool srv_any_background_activity();
@@ -619,9 +544,13 @@ void srv_master_callback(void*);
 
 
 /**
-Complete the shutdown tasks such as background DROP TABLE,
-and optionally change buffer merge (on innodb_fast_shutdown=0). */
-void srv_shutdown(bool ibuf_merge);
+ Fetches and executes tasks from the purge work queue,
+ until this queue is empty.
+ This is main part of purge worker task, but also
+ executed in coordinator.
+ @note needs current_thd to be set beforehand.
+*/
+void srv_purge_worker_task_low();
 
 } /* extern "C" */
 
@@ -638,22 +567,18 @@ void srv_init_purge_tasks();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
-#ifdef BTR_CUR_HASH_ADAPT
-	ulint innodb_ahi_hit;
-	ulint innodb_ahi_miss;
-#endif /* BTR_CUR_HASH_ADAPT */
+	innodb_async_io_stats_t async_read_stats;
+	innodb_async_io_stats_t async_write_stats;
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
-	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
+	char  innodb_buffer_pool_resize_status[65];/*!< Buf pool resize status */
 	my_bool innodb_buffer_pool_load_incomplete;/*!< Buf pool load incomplete */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
-	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellanous pages */
+	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellaneous pages */
 #ifdef UNIV_DEBUG
 	ulint innodb_buffer_pool_pages_latched;	/*!< Latched pages */
 #endif /* UNIV_DEBUG */
-	/** buf_pool.stat.n_page_gets (a sharded counter) */
-	ulint innodb_buffer_pool_read_requests;
 	ulint innodb_checkpoint_age;
 	ulint innodb_checkpoint_max_age;
 	ulint innodb_data_pending_reads;	/*!< Pending reads */
@@ -664,11 +589,11 @@ struct export_var_t{
 	ulint innodb_data_reads;		/*!< I/O read requests */
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
-	ulint innodb_deadlocks;
 	ulint innodb_history_list_length;
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
 	lsn_t innodb_lsn_last_checkpoint;
+	lsn_t innodb_lsn_archived;
 	trx_id_t innodb_max_trx_id;
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint innodb_mem_adaptive_hash;
@@ -678,33 +603,20 @@ struct export_var_t{
 	lsn_t innodb_os_log_written;
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
-	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time */
+	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time
+						/ 1000 */
 	uint64_t innodb_row_lock_time_avg;	/*!< srv_n_lock_wait_time
 						     / srv_n_lock_wait_count */
 	uint64_t innodb_row_lock_time_max;	/*!< srv_n_lock_max_wait_time */
-	ulint innodb_rows_read;			/*!< srv_n_rows_read */
-	ulint innodb_rows_inserted;		/*!< srv_n_rows_inserted */
-	ulint innodb_rows_updated;		/*!< srv_n_rows_updated */
-	ulint innodb_rows_deleted;		/*!< srv_n_rows_deleted */
-	ulint innodb_system_rows_read; /*!< srv_n_system_rows_read */
-	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
-	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
-	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
-	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;
-	ulint innodb_defragment_compression_failures; /*!< Number of
-						defragment re-compression
-						failures */
-
-	ulint innodb_defragment_failures;	/*!< Number of defragment
-						failures*/
-	ulint innodb_defragment_count;		/*!< Number of defragment
-						operations*/
 
 	/** Number of instant ALTER TABLE operations that affect columns */
-	ulong innodb_instant_alter_column;
+	Atomic_counter<ulint> innodb_instant_alter_column;
+
+	/* Number of InnoDB bulk operations */
+	Atomic_counter<ulint> innodb_bulk_operations;
 
 	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
 	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
@@ -741,9 +653,6 @@ struct export_var_t{
 
 	/* Number of temporary tablespace pages decrypted */
 	ib_int64_t innodb_n_temp_blocks_decrypted;
-
-	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
 
 	ulint innodb_encryption_rotation_pages_read_from_cache;
 	ulint innodb_encryption_rotation_pages_read_from_disk;

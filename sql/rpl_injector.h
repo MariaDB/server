@@ -146,7 +146,6 @@ public:
       };
 
       transaction() : m_thd(NULL) { }
-      transaction(transaction const&);
       ~transaction();
 
       /* Clear transaction, i.e., make calls to 'good()' return false. */

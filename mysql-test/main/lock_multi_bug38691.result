@@ -6,7 +6,7 @@ connection default;
 DROP TABLE IF EXISTS t1,t2,t3;
 CREATE TABLE t1 (
 a int(11) unsigned default NULL,
-b varchar(255) default NULL,
+b varchar(250) default NULL,
 UNIQUE KEY a (a),
 KEY b (b)
 );

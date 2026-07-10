@@ -4,17 +4,18 @@
 --source include/have_debug_sync.inc
 --source include/no_valgrind_without_big.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Cannot reset all values for monitor counter");
+--enable_query_log
+
+SET GLOBAL innodb_monitor_reset_all=all;
+--disable_warnings
+SET GLOBAL innodb_monitor_reset_all=default;
+--enable_warnings
 let $innodb_metrics_select=
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
-
-# DISCARD TABLESPACE needs file-per-table
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
-
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
 
 CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT, c3 TEXT)
 ENGINE=InnoDB STATS_PERSISTENT=0;
@@ -158,6 +159,7 @@ let $ID= `SELECT @id := CONNECTION_ID()`;
 --error ER_QUERY_INTERRUPTED
 KILL QUERY @id;
 
+SET GLOBAL innodb_max_purge_lag_wait=0;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2d_created WAIT_FOR kill_done';
 --send
 CREATE INDEX c2d ON t1(c2);
@@ -209,13 +211,13 @@ SHOW CREATE TABLE t1;
 
 connection default;
 SET @merge_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 connection con1;
 
@@ -254,13 +256,13 @@ INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_FIELDS sf
 ON si.index_id = sf.index_id WHERE si.name = '?c2e';
 
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 
 SELECT
@@ -297,16 +299,16 @@ ALTER TABLE t1 COMMENT 'testing if c2e will be dropped';
 eval $innodb_metrics_select;
 
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 
 connection con1;
@@ -343,16 +345,16 @@ eval $innodb_metrics_select;
 connection default;
 
 SET @merge_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 
 SELECT
@@ -369,6 +371,8 @@ SELECT
 connection con1;
 SELECT COUNT(c22f) FROM t1;
 CHECK TABLE t1;
+# Avoid a strange DEBUG_SYNC timeout on c3p5_created.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 
 # Create a column prefix index.
 --error ER_DUP_ENTRY
@@ -503,19 +507,37 @@ SET DEBUG_SYNC = 'now SIGNAL inserted';
 
 connection con1;
 reap;
-disconnect con1;
 
 connection default;
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-36281 DML aborts during online virtual index
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL,
+		f3 INT NOT NULL, f4 INT AS (f3) VIRTUAL,
+		f5 INT AS (f1) VIRTUAL, INDEX(f4))ENGINE=InnoDB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 2, 3);
+SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL dml_start WAIT_FOR dml_finish';
+send ALTER TABLE t1 ADD INDEX v1(f5, f2, f4), ADD INDEX v2(f3, f5);
+
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+UPDATE t1 SET f3= f3 + 1;
+set DEBUG_SYNC="now SIGNAL dml_finish";
+
+disconnect con1;
+connection default;
+reap;
+CHECK TABLE t1 EXTENDED;
+SELECT f5, f2, f4 FROM t1 USE INDEX(v1);
+SELECT f3, f5 FROM t1 USE INDEX(v2);
+DROP TABLE t1;
+
 SET DEBUG_SYNC = 'RESET';
 
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

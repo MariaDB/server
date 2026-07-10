@@ -47,7 +47,7 @@ ALTER TABLE t1 ENGINE=InnoDB;
 drop table t1;
 
 drop database test;
-create database test;
+create database test character set utf8mb4;
 use test;
 
 --enable_query_log

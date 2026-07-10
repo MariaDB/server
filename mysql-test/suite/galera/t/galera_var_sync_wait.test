@@ -10,7 +10,6 @@
 --echo #
 # galera_2nodes.cnf sets wsrep_sync_wait to 7
 SELECT @@global.wsrep_sync_wait;
-SELECT @@global.wsrep_causal_reads;
 
 --let $wsrep_sync_wait_orig = `SELECT @@wsrep_sync_wait`
 

@@ -20,13 +20,13 @@
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
+#include <my_global.h>
+#include <cmath>
 
 #include "m_ctype.h"                            /* my_charset_bin */
 #include <my_sys.h>              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
+#include "sql_const.h"
 #include "sql_list.h"
 
 class String;
@@ -53,48 +53,6 @@ inline uint32 copy_and_convert(char *to, size_t to_length, CHARSET_INFO *to_cs,
   return my_convert(to, (uint)to_length, to_cs, from, (uint)from_length,
                     from_cs, errors);
 }
-
-
-class String_copy_status: protected MY_STRCOPY_STATUS
-{
-public:
-  const char *source_end_pos() const
-  { return m_source_end_pos; }
-  const char *well_formed_error_pos() const
-  { return m_well_formed_error_pos; }
-};
-
-
-class Well_formed_prefix_status: public String_copy_status
-{
-public:
-  Well_formed_prefix_status(CHARSET_INFO *cs,
-                            const char *str, const char *end, size_t nchars)
-  { cs->well_formed_char_length(str, end, nchars, this); }
-};
-
-
-class Well_formed_prefix: public Well_formed_prefix_status
-{
-  const char *m_str; // The beginning of the string
-public:
-  Well_formed_prefix(CHARSET_INFO *cs, const char *str, const char *end,
-                     size_t nchars)
-   :Well_formed_prefix_status(cs, str, end, nchars), m_str(str)
-  { }
-  Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length,
-                     size_t nchars)
-   :Well_formed_prefix_status(cs, str, str + length, nchars), m_str(str)
-  { }
-  Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
-   :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
-  { }
-  Well_formed_prefix(CHARSET_INFO *cs, LEX_CSTRING str, size_t nchars)
-   :Well_formed_prefix_status(cs, str.str, str.str + str.length, nchars),
-    m_str(str.str)
-  { }
-  size_t length() const { return m_source_end_pos - m_str; }
-};
 
 
 class String_copier: public String_copy_status,
@@ -320,7 +278,7 @@ public:
   }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
-    contructors need the size of memory for STR to be at least LEN+1 (to make
+    constructors need the size of memory for STR to be at least LEN+1 (to make
     room for zero termination).
   */
   Binary_string(const char *str, size_t len)
@@ -374,37 +332,6 @@ public:
            !memcmp(ptr(), other->ptr(), length());
   }
 
-  /*
-    PMG 2004.11.12
-    This is a method that works the same as perl's "chop". It simply
-    drops the last character of a string. This is useful in the case
-    of the federated storage handler where I'm building a unknown
-    number, list of values and fields to be used in a sql insert
-    statement to be run on the remote server, and have a comma after each.
-    When the list is complete, I "chop" off the trailing comma
-
-    ex.
-      String stringobj;
-      stringobj.append("VALUES ('foo', 'fi', 'fo',");
-      stringobj.chop();
-      stringobj.append(")");
-
-    In this case, the value of string was:
-
-    VALUES ('foo', 'fi', 'fo',
-    VALUES ('foo', 'fi', 'fo'
-    VALUES ('foo', 'fi', 'fo')
-  */
-  inline void chop()
-  {
-    if (str_length)
-    {
-      str_length--;
-      Ptr[str_length]= '\0';
-      DBUG_ASSERT(strlen(Ptr) == str_length);
-    }
-  }
-
   // Returns offset to substring or -1
   int strstr(const Binary_string &search, uint32 offset=0) const;
   int strstr(const char *search, uint32 search_length, uint32 offset=0) const;
@@ -434,6 +361,12 @@ public:
     int4store(Ptr + str_length, n);
     str_length += 4;
   }
+  void q_append_int64(const longlong n)
+  {
+    ASSERT_LENGTH(8);
+    int8store(Ptr + str_length, n);
+    str_length += 8;
+  }
   void q_append(double d)
   {
     ASSERT_LENGTH(8);
@@ -445,6 +378,19 @@ public:
     ASSERT_LENGTH(8);
     float8store(Ptr + str_length, *d);
     str_length += 8;
+  }
+  /*
+    Append a wide character.
+    The caller must have allocated at least cs->mbmaxlen bytes.
+  */
+  int q_append_wc(my_wc_t wc, CHARSET_INFO *cs)
+  {
+    int mblen;
+    if ((mblen= cs->cset->wc_mb(cs, wc,
+                                (uchar *) end(),
+                                (uchar *) end() + cs->mbmaxlen)) > 0)
+      str_length+= (uint32) mblen;
+    return mblen;
   }
   void q_append(const char *data, size_t data_len)
   {
@@ -504,11 +450,17 @@ public:
     str_length+= (uint32) (end-buff);
   }
 
+  void qs_append_int64(longlong i);
+
   /* Mark variable thread specific it it's not allocated already */
   inline void set_thread_specific()
   {
     if (!alloced)
       thread_specific= 1;
+  }
+  bool get_thread_specific() const
+  {
+    return thread_specific;
   }
   bool is_alloced() const { return alloced; }
   inline uint32 alloced_length() const { return Alloced_length;}
@@ -572,7 +524,7 @@ public:
     LEX_CSTRING tmp= {Ptr, str_length};
     return tmp;
   }
-  inline LEX_CSTRING *get_value(LEX_CSTRING *res)
+  inline LEX_CSTRING *get_value(LEX_CSTRING *res) const
   {
     res->str=    Ptr;
     res->length= str_length;
@@ -715,14 +667,14 @@ public:
     if (unlikely(!Ptr))
       return (char*) "";
     /*
-      Here we assume that any buffer used to initalize String has
+      Here we assume that any buffer used to initialize String has
       an end \0 or have at least an accessable character at end.
       This is to handle the case of String("Hello",5) and
       String("hello",5) efficiently.
 
       We have two options here. To test for !Alloced_length or !alloced.
       Using "Alloced_length" is slightly safer so that we do not read
-      from potentially unintialized memory (normally not dangerous but
+      from potentially uninitialized memory (normally not dangerous but
       may give warnings in valgrind), but "alloced" is safer as there
       are less change to get memory loss from code that is using
       String((char*), length) or String.set((char*), length) and does
@@ -742,7 +694,7 @@ public:
   }
   /*
     One should use c_ptr() instead for most cases. This will be deleted soon,
-    kept for compatiblity.
+    kept for compatibility.
   */
   inline char *c_ptr_quick()
   {
@@ -752,7 +704,7 @@ public:
     This is to be used only in the case when one cannot use c_ptr().
     The cases are:
     - When one initializes String with an external buffer and length and
-      buffer[length] could be uninitalized when c_ptr() is called.
+      buffer[length] could be uninitialized when c_ptr() is called.
     - When valgrind gives warnings about uninitialized memory with c_ptr().
   */
   inline char *c_ptr_safe()
@@ -886,7 +838,7 @@ public:
   { }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
-    contructors need the size of memory for STR to be at least LEN+1 (to make
+    constructors need the size of memory for STR to be at least LEN+1 (to make
     room for zero termination).
   */
   String(const char *str, size_t len, CHARSET_INFO *cs)
@@ -896,6 +848,8 @@ public:
    :Charset(cs), Binary_string(str, len)
   { }
   String(const String &str) = default;
+  String(String &&str) noexcept
+   :Charset(std::move(str)), Binary_string(std::move(str)){}
 
   void set(String &str,size_t offset,size_t arg_length)
   {
@@ -926,7 +880,11 @@ public:
   bool set(ulong num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
   bool set(longlong num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
-  bool set_real(double num,uint decimals, CHARSET_INFO *cs);
+  bool set_real_with_type(double num, uint decimals, CHARSET_INFO *cs, my_gcvt_arg_type);
+  bool set_real(double num,uint decimals, CHARSET_INFO *cs)
+  { return set_real_with_type(num,decimals,cs,MY_GCVT_ARG_DOUBLE); }
+  bool set_real(float num,uint decimals, CHARSET_INFO *cs)
+  { return set_real_with_type(num,decimals,cs,MY_GCVT_ARG_FLOAT); }
   bool set_fcvt(double num, uint decimals)
   {
     set_charset(&my_charset_latin1);
@@ -1017,6 +975,24 @@ public:
     set_charset(tocs);
     return false;
   }
+  bool copy_casedn(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    size_t nbytes= str.length * cs->casedn_multiply();
+    DBUG_ASSERT(nbytes + 1 <= UINT_MAX32);
+    if (alloc(nbytes))
+      return true;
+    str_length= (uint32) cs->casedn_z(str.str, str.length, Ptr, nbytes + 1);
+    return false;
+  }
+  bool copy_caseup(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    size_t nbytes= str.length * cs->caseup_multiply();
+    DBUG_ASSERT(nbytes + 1 <= UINT_MAX32);
+    if (alloc(nbytes))
+      return true;
+    str_length= (uint32) cs->caseup_z(str.str, str.length, Ptr, nbytes + 1);
+    return false;
+  }
   // Append without character set conversion
   bool append(const String &s)
   {
@@ -1024,7 +1000,7 @@ public:
   }
   inline bool append(char chr)
   {
-    return Binary_string::append_char(chr);
+    return append(&chr, 1);
   }
   bool append_hex(const char *src, uint32 srclen)
   {
@@ -1052,13 +1028,6 @@ public:
   }
 
   // Append with optional character set conversion from ASCII (e.g. to UCS2)
-  bool append(const LEX_STRING *ls)
-  {
-    DBUG_ASSERT(ls->length < UINT_MAX32 &&
-                ((ls->length == 0 && !ls->str) ||
-                 ls->length == strlen(ls->str)));
-    return append(ls->str, (uint32) ls->length);
-  }
   bool append(const LEX_CSTRING *ls)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32 &&
@@ -1082,8 +1051,6 @@ public:
       (quot && append(quot));
   }
   bool append(const char *s, size_t size);
-  bool append_with_prefill(const char *s, uint32 arg_length,
-			   uint32 full_length, char fill_char);
   bool append_parenthesized(long nr, int radix= 10);
 
   // Append with optional character set conversion from cs to charset()
@@ -1091,6 +1058,31 @@ public:
   bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
   {
     return append(s.str, s.length, cs);
+  }
+
+  // Append a wide character
+  bool append_wc(my_wc_t wc)
+  {
+    if (reserve(mbmaxlen()))
+      return true;
+    int mblen= q_append_wc(wc, charset());
+    if (mblen > 0)
+      return false;
+    else if (mblen == MY_CS_ILUNI && wc != '?')
+      return q_append_wc('?', charset()) <= 0;
+    return true;
+  }
+
+  // Append a number with zero prefilling
+  bool append_zerofill(uint num, uint width)
+  {
+    static const char zeros[15]= "00000000000000";
+    char intbuff[15];
+    uint length= (uint) (int10_to_str(num, intbuff, 10) - intbuff);
+    if (length < width &&
+        append(zeros, width - length, &my_charset_latin1))
+      return true;
+    return append(intbuff, length, &my_charset_latin1);
   }
 
   /*
@@ -1124,6 +1116,15 @@ public:
     return false;
   }
 
+  inline void chop()
+  {
+    if (str_length)
+    {
+      str_length--;
+      str_length= well_formed_length();
+    }
+  }
+
   void strip_sp();
   friend String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
   friend class Field;
@@ -1150,6 +1151,43 @@ public:
       print(to);
     else
       print_with_conversion(to, cs);
+  }
+
+  static my_wc_t escaped_wc_for_single_quote(my_wc_t ch)
+  {
+    switch (ch) {
+    case '\\':   return '\\';
+    case '\0':   return '0';
+    case '\'':   return '\'';
+    case '\b':   return 'b';
+    case '\t':   return 't';
+    case '\n':   return 'n';
+    case '\r':   return 'r';
+    case '\032': return 'Z';
+    }
+    return 0;
+  }
+
+  // Append for single quote using mb_wc/wc_mb Unicode conversion
+  bool append_for_single_quote_using_mb_wc(const char *str, size_t length,
+                                           CHARSET_INFO *cs);
+
+  // Append for single quote with optional mb_wc/wc_mb conversion
+  bool append_for_single_quote_opt_convert(const char *str,
+                                           size_t length,
+                                           CHARSET_INFO *cs)
+  {
+    return charset() == &my_charset_bin || cs == &my_charset_bin  ||
+           my_charset_same(charset(), cs) ?
+           append_for_single_quote(str, length) :
+           append_for_single_quote_using_mb_wc(str, length, cs);
+  }
+
+  bool append_for_single_quote_opt_convert(const String &str)
+  {
+    return append_for_single_quote_opt_convert(str.ptr(),
+                                               str.length(),
+                                               str.charset());
   }
 
   bool append_for_single_quote(const char *st, size_t len);

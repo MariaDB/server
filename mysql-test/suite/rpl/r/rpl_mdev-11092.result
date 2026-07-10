@@ -1,11 +1,12 @@
 include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occured on the master. .*");
+call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occurred on the master. .*");
 call mtr.add_suppression("Write to binary log failed: Multi-row statements required more than .max_binlog_stmt_cache_size.* ");
 call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size.* ");
 call mtr.add_suppression("Incident event write to the binary log file failed");
 call mtr.add_suppression("handlerton rollback failed");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 "*********** Annotate Event write failure **************"
 SET GLOBAL max_binlog_cache_size = 4096;
 SET GLOBAL binlog_cache_size = 4096;
@@ -223,4 +224,5 @@ connection master;
 "******** Clean Up **********"
 SET GLOBAL debug_dbug = '';
 DROP TABLE tm,ti;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 include/rpl_end.inc

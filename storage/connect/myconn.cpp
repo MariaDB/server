@@ -480,6 +480,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   const char *pipe = NULL;
   //uint      cto = 10, nrt = 20;
   my_bool     my_true= 1;
+  my_bool     my_false= 0;
 
   m_DB = mysql_init(NULL);
 
@@ -528,8 +529,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     mysql_options(m_DB, MYSQL_SET_CHARSET_NAME, csname);
 
   // Don't know what this one do but FEDERATED does it
-  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                  (char*)&my_true);
+  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+  mysql_options(m_DB, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
 		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {
@@ -598,7 +599,7 @@ int MYSQLC::KillQuery(ulong id)
   {
   char kill[20];
 
-  sprintf(kill, "KILL QUERY %u", (unsigned int) id);
+  snprintf(kill, sizeof(kill), "KILL QUERY %u", (unsigned int) id);
 //return (m_DB) ? mysql_query(m_DB, kill) : 1;
   return (m_DB) ? mysql_real_query(m_DB, kill, strlen(kill)) : 1;
   } // end of KillQuery
@@ -721,9 +722,10 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
 
 //if (mysql_query(m_DB, query) != 0) {
   if (mysql_real_query(m_DB, query, strlen(query))) {
-    char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
+    size_t msg_size = 512 + strlen(query);
+    char *msg = (char*)PlugSubAlloc(g, NULL, msg_size);
 
-    sprintf(msg, "(%d) %s [%s]", mysql_errno(m_DB),
+    snprintf(msg, msg_size, "(%d) %s [%s]", mysql_errno(m_DB),
                                  mysql_error(m_DB), query);
     strncpy(g->Message, msg, sizeof(g->Message) - 1);
     g->Message[sizeof(g->Message) - 1] = 0;
@@ -740,9 +742,10 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
       m_Res = mysql_store_result(m_DB);
 
     if (!m_Res) {
-      char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
+      size_t msg_size = 512 + strlen(query);
+      char *msg = (char*)PlugSubAlloc(g, NULL, msg_size);
 
-      sprintf(msg, "mysql_store_result failed: %s", mysql_error(m_DB));
+      snprintf(msg, msg_size, "mysql_store_result failed: %s", mysql_error(m_DB));
       strncpy(g->Message, msg, sizeof(g->Message) - 1);
       g->Message[sizeof(g->Message) - 1] = 0;
       rc = RC_FX;
@@ -759,7 +762,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
   } else {
 //  m_Rows = (int)mysql_affected_rows(m_DB);
     m_Rows = (int)m_DB->affected_rows;
-    snprintf(g->Message, sizeof(g->Message), "Affected rows: %d\n", m_Rows);
+    snprintf(g->Message, sizeof(g->Message), "Affected rows: %d", m_Rows);
     rc = RC_NF;
   } // endif field count
 
@@ -777,9 +780,10 @@ int MYSQLC::GetTableSize(PGLOBAL g __attribute__((unused)), PSZ query)
   {
   if (mysql_real_query(m_DB, query, strlen(query))) {
 #if defined(_DEBUG)
-    char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
+    size_t msg_size = 512 + strlen(query);
+    char *msg = (char*)PlugSubAlloc(g, NULL, msg_size);
 
-    sprintf(msg, "(%d) %s [%s]", mysql_errno(m_DB),
+    snprintf(msg, msg_size, "(%d) %s [%s]", mysql_errno(m_DB),
                                  mysql_error(m_DB), query);
     strncpy(g->Message, msg, sizeof(g->Message) - 1);
     g->Message[sizeof(g->Message) - 1] = 0;

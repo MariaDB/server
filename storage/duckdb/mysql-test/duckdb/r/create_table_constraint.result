@@ -1,0 +1,47 @@
+# 1) Prepare
+
+# 2) Create table
+
+CREATE TABLE test_table (
+id INT PRIMARY KEY,
+name VARCHAR(32),
+index idx_id(name),
+unique index uk_name(name),
+unique index uk_id(id),
+unique index uk_id_name(id,name)
+) engine=duckdb;
+------------------------------------------------------------------------
+## ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ Print test_table begin ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ ##
+# ① Print columns of test_table ##
+run_in_duckdb("SELECT column_name, column_index, data_type, numeric_precision FROM duckdb_columns() WHERE schema_name = 'create_table_constraint' AND table_name = 'test_table'")
+column_name	column_index	data_type	numeric_precision	
+VARCHAR	INTEGER	VARCHAR	INTEGER	
+[ Rows: 2]
+id	1	INTEGER	32
+name	2	VARCHAR	NULL
+
+
+# ② Print CONSTRAINTs of test_table ##
+run_in_duckdb("SELECT table_name, constraint_type, constraint_text FROM duckdb_constraints() WHERE schema_name = 'create_table_constraint' AND table_name = 'test_table'")
+table_name	constraint_type	constraint_text	
+VARCHAR	VARCHAR	VARCHAR	
+[ Rows: 1]
+test_table	NOT NULL	NOT NULL
+
+
+# ③ Print INDEXs of test_table ##
+run_in_duckdb("SELECT index_name, comment, tags, is_unique, is_primary, expressions FROM duckdb_indexes()  WHERE schema_name = 'create_table_constraint' AND table_name = 'test_table'")
+index_name	comment	tags	is_unique	is_primary	expressions	
+VARCHAR	VARCHAR	MAP(VARCHAR, VARCHAR)	BOOLEAN	BOOLEAN	VARCHAR	
+[ Rows: 0]
+
+
+# ④ Print SEQUENCE of test_table ##
+run_in_duckdb("SELECT sequence_name, min_value, increment_by, last_value FROM duckdb_sequences() WHERE schema_name='create_table_constraint' AND sequence_name LIKE 'seq_test_table%'")
+sequence_name	min_value	increment_by	last_value	
+VARCHAR	BIGINT	BIGINT	BIGINT	
+[ Rows: 0]
+
+
+## ↑↑↑↑↑↑↑↑↑↑↑↑↑↑ Print table test_table end ↑↑↑↑↑↑↑↑↑↑↑↑↑↑ ##
+------------------------------------------------------------------------

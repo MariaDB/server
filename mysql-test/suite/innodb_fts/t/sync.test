@@ -115,7 +115,7 @@ CREATE TABLE t1 (
 
 INSERT INTO t1(title) VALUES('database');
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 SET debug_dbug = '+d,fts_instrument_sync_debug,fts_write_node_crash';
 

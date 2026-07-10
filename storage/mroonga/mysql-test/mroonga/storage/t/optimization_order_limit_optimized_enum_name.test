@@ -20,7 +20,7 @@
 DROP TABLE IF EXISTS memos;
 --enable_warnings
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 SET NAMES utf8;
 CREATE TABLE memos (

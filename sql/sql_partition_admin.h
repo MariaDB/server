@@ -32,12 +32,12 @@ public:
   {}
 
   /* Override SQLCOM_*, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  virtual enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 
@@ -129,7 +129,7 @@ public:
 
   ~Sql_cmd_alter_table_exchange_partition() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
 private:
   bool exchange_partition(THD *thd, TABLE_LIST *, Alter_info *);
@@ -151,10 +151,10 @@ public:
 
   ~Sql_cmd_alter_table_analyze_partition() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
   /* Override SQLCOM_ANALYZE, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
@@ -176,10 +176,10 @@ public:
 
   ~Sql_cmd_alter_table_check_partition() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
   /* Override SQLCOM_CHECK, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
@@ -201,10 +201,10 @@ public:
 
   ~Sql_cmd_alter_table_optimize_partition() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
   /* Override SQLCOM_OPTIMIZE, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
@@ -226,10 +226,10 @@ public:
 
   ~Sql_cmd_alter_table_repair_partition() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
   /* Override SQLCOM_REPAIR, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }
@@ -249,10 +249,10 @@ public:
 
   virtual ~Sql_cmd_alter_table_truncate_partition() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
   /* Override SQLCOM_TRUNCATE, since it is an ALTER command */
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ALTER_TABLE;
   }

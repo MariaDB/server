@@ -776,7 +776,7 @@ eval create table t1 (id int unsigned not null auto_increment, code tinyint unsi
 
 BEGIN;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-SELECT @@tx_isolation,@@global.tx_isolation;
+SELECT @@transaction_isolation,@@global.transaction_isolation;
 insert into t1 (code, name) values (1, 'Tim'), (1, 'Monty'), (2, 'David');
 select id, code, name from t1 order by id;
 COMMIT;
@@ -902,7 +902,7 @@ DROP TABLE t1,t2,t3;
 
 eval CREATE TABLE t1 (a int not null primary key, b int not null, unique (b)) engine=$engine_type;
 INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
-# We need the a < 1000 test here to quard against the halloween problems
+# We need the a < 1000 test here to guard against the halloween problems
 UPDATE t1 set a=a+100 where b between 2 and 3 and a < 1000;
 SELECT * from t1;
 drop table t1;
@@ -1035,7 +1035,7 @@ drop table t1;
 if ($test_foreign_keys)
 {
 #
-# Test dictionary handling with spaceand quoting
+# Test dictionary handling with space and quoting
 #
 
 eval CREATE TABLE t1 (`id 1` INT NOT NULL, PRIMARY KEY (`id 1`)) ENGINE=$engine_type;

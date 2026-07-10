@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,13 +32,6 @@ const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
 	0, 0, 0, 0, 0, 0,
 	0x80, 0, 0, 0, 0, 0, 0
 };
-
-/* At the database startup we store the default-charset collation number of
-this MySQL installation to this global variable. If we have < 4.1.2 format
-column definitions, or records in the insert buffer, we use this
-charset-collation code for them. */
-
-ulint	data_mysql_default_charset_coll;
 
 /*********************************************************************//**
 Determine how many bytes the first n characters of the given string occupy.

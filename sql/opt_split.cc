@@ -43,7 +43,7 @@
 
   The execution of the transformed query (Q1R) follows these steps:
     1. For each row of t1 where t1.b < const a temporary table
-       containing all rows of of t2 with t2.a = t1.a is created
+       containing all rows of t2 with t2.a = t1.a is created
     2. If there are any rows in the temporary table aggregation
        is performed for them
     3. The result of the aggregation is joined with t1.
@@ -83,7 +83,7 @@
   are evaluated then the optimizer should consider pushing t.a = t1.a,
   t.b = t2.b and (t.a = t1.a AND t.b = t2.b) to choose the best condition
   for splitting. Apparently here last condition is the best one because
-  it provides the miximum possible number of partitions.
+  it provides the minimum possible number of partitions.
 
   If we dropped the index on t3(a,b) and created the index on t3(a) instead
   then we would have two options for splitting: to push t.a = t1.a or to
@@ -155,12 +155,12 @@
   subsets the operation can applied to each subset independently. In this case
   all rows are first partitioned into the groups each of which contains all the
   rows from the partitions belonging the same subset and then each group
-  is subpartitioned into groups in the the post join operation.
+  is subpartitioned into groups in the post join operation.
 
   The set of all rows belonging to the union of several partitions is called
   here superpartition. If a grouping operation is defined by the list
   e_1,...,e_n then any set S = {e_i1,...,e_ik} can be used to devide all rows
-  into superpartions such that for any two rows r1, r2  the following holds:
+  into superpartitions such that for any two rows r1, r2  the following holds:
   e_ij(r1) = e_ij(r2) for each e_ij from S. We use the splitting technique
   only if S consists of references to colums  of the joined tables.
   For example if the GROUP BY list looks like this a, g(b), c we can consider
@@ -228,7 +228,9 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
+#include "opt_hints.h"
 #include "opt_trace.h"
+#include "optimizer_defaults.h"
 
 /* Info on a splitting field */
 struct SplM_field_info
@@ -272,7 +274,7 @@ class SplM_opt_info : public Sql_alloc
 public:
   /* The join for the select specifying T */
   JOIN *join;
-  /* The map of tables from 'join' whose columns can be used for partitioning */  
+  /* The map of tables from 'join' whose columns can be used for partitioning */
   table_map tables_usable_for_splitting;
   /* Info about the fields of the joined tables usable for splitting */
   SplM_field_info *spl_fields;
@@ -286,11 +288,12 @@ public:
   List<SplM_plan_info> plan_cache;
   /* Cost of best execution plan for join when nothing is pushed */
   double unsplit_cost;
+  /* Split operation cost (result form spl_postjoin_oper_cost()) */
+  double unsplit_oper_cost;
   /* Cardinality of T when nothing is pushed */
   double unsplit_card;
-  /* Lastly evaluated execution plan for 'join' with pushed equalities */
-  SplM_plan_info *last_plan;
-  double last_refills;
+  /* True when SPLIT_MATERIALIZED hint present and forces this split. */
+  bool hint_forced_split{false};
 
   SplM_plan_info *find_plan(TABLE *table, uint key, uint parts);
 };
@@ -298,8 +301,8 @@ public:
 
 void TABLE::set_spl_opt_info(SplM_opt_info *spl_info)
 {
-  if (spl_info)
-    spl_info->join->spl_opt_info= spl_info;
+  DBUG_ASSERT(spl_info);
+  spl_info->join->spl_opt_info= spl_info;
   spl_opt_info= spl_info;
 }
 
@@ -319,6 +322,40 @@ double TABLE::get_materialization_cost()
 }
 
 
+/**
+  Returns true if split materialization is permitted for the
+  derived table passed in argument 'derived'.
+
+  @param thd     The connection state for the current thread.
+  @param derived The candidate derived table for split materialization.
+  @param hint    [OUT] One of the values from the hint_state enumeration
+                 found in opt_hints.h
+  @return true   if split materialization allowed, either by hint
+                 or by optimizer option.  The hint takes precedence.
+ */
+
+static bool is_split_materialized_allowed(THD *thd,
+                                          const TABLE_LIST *derived,
+                                          hint_state *hint)
+{
+  if (!derived)
+  {
+    *hint= hint_state::DISABLED;  // there is no derived table to hint on
+    return false;
+  }
+
+  *hint= hint_table_state(thd,
+                          derived,
+                          SPLIT_MATERIALIZED_HINT_ENUM);
+
+  const bool opt_flag= optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_MATERIALIZED);
+  const bool allow_split= (*hint == hint_state::ENABLED ||
+                           (*hint == hint_state::NOT_PRESENT && opt_flag));
+
+  return allow_split;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
@@ -329,7 +366,8 @@ struct SplM_field_ext_info: public SplM_field_info
 
 /**
   @brief
-    Check whether this join is one for potentially splittable materialized table
+    Check whether this join is one for potentially splittable materialized
+    table
 
   @details
     The function checks whether this join is for select that specifies
@@ -338,7 +376,8 @@ struct SplM_field_ext_info: public SplM_field_info
     of the TABLE structure for T.
 
     The function returns a positive answer if the following holds:
-    1. the optimizer switch 'split_materialized' is set 'on'
+    1. The is_split_materialized_allowed() function indicates that split
+       materialization is permitted for the derived table.
     2. the select owning this join specifies a materialized derived/view/cte T
     3. this is the only select in the specification of T
     4. condition pushdown is not prohibited into T
@@ -354,7 +393,8 @@ struct SplM_field_ext_info: public SplM_field_info
     9. There are defined some keys usable for ref access of fields from C
        with available statistics.
     10. The select doesn't use WITH ROLLUP (This limitation can probably be
-       lifted)
+        lifted)
+    11. The select doesn't have ORDER BY with LIMIT
 
   @retval
     true   if the answer is positive
@@ -366,8 +406,10 @@ bool JOIN::check_for_splittable_materialized()
   ORDER *partition_list= 0;
   st_select_lex_unit *unit= select_lex->master_unit();
   TABLE_LIST *derived= unit->derived;
-  if (!(optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_MATERIALIZED)) ||  // !(1)
-      !(derived && derived->is_materialized_derived()) ||             // !(2)
+
+  hint_state hint;
+  if (!is_split_materialized_allowed(thd, derived, &hint) ||          // !(1)
+      !derived->is_materialized_derived() ||                          // !(2)
       (unit->first_select()->next_select()) ||                        // !(3)
       (derived->prohibit_cond_pushdown) ||                            // !(4)
       (derived->is_recursive_with_table()) ||                         // !(5)
@@ -386,6 +428,9 @@ bool JOIN::check_for_splittable_materialized()
       select_lex->window_specs.head()->partition_list->first;
   }
   if (!partition_list)
+    return false;
+
+  if (select_lex->order_list.elements > 0 && !unit->lim.is_unlimited()) //!(11)
     return false;
 
   Json_writer_object trace_wrapper(thd);
@@ -509,9 +554,7 @@ bool JOIN::check_for_splittable_materialized()
     the collected info on potential splittability of T
   */
   SplM_opt_info *spl_opt_info= new (thd->mem_root) SplM_opt_info();
-  SplM_field_info *spl_field=
-    (SplM_field_info *) (thd->calloc(sizeof(SplM_field_info) *
-                                            spl_field_cnt));
+  SplM_field_info *spl_field= thd->calloc<SplM_field_info>(spl_field_cnt);
 
   if (!(spl_opt_info && spl_field)) // consider T as not good for splitting
     return false;
@@ -520,6 +563,7 @@ bool JOIN::check_for_splittable_materialized()
   spl_opt_info->tables_usable_for_splitting= 0;
   spl_opt_info->spl_field_cnt= spl_field_cnt;
   spl_opt_info->spl_fields= spl_field;
+  spl_opt_info->hint_forced_split= (hint == hint_state::ENABLED);
 
   {
     Json_writer_array trace_range(thd, "split_candidates");
@@ -602,20 +646,30 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     condition of the select that specifies this table.
   */
   THD *thd= in_use;
-  Item *left_item= spl_field->producing_item->build_clone(thd);
-  Item *right_item= key_field->val->build_clone(thd);
-  Item_func_eq *eq_item= 0;
+  Item *left_item= spl_field->producing_item->deep_copy_with_checks(thd);
+  Item *right_item= key_field->val->deep_copy_with_checks(thd);
+  Item_bool_func *eq_item= 0;
   if (left_item && right_item)
   {
     right_item->walk(&Item::set_fields_as_dependent_processor,
-                     false, join->select_lex);
+                     join->select_lex, 0);
     right_item->update_used_tables();
-    eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
+    /*
+      We've just pushed right_item down into the child select. It may only
+      have references to outside.
+    */
+    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
+
+    //  Item_func::EQUAL_FUNC is null-safe, others can use Item_func_eq()
+    if (key_field->cond->type() == Item::FUNC_ITEM &&
+        ((Item_func*)key_field->cond)->functype() == Item_func::EQUAL_FUNC)
+      eq_item= new (thd->mem_root) Item_func_equal(thd, left_item, right_item);
+    else
+      eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)
     return;
-  KEY_FIELD *added_key_field=
-    (KEY_FIELD *) thd->alloc(sizeof(KEY_FIELD));
+  KEY_FIELD *added_key_field= thd->alloc<KEY_FIELD>(1);
   if (!added_key_field ||
       spl_opt_info->added_key_fields.push_back(added_key_field,thd->mem_root))
     return;
@@ -625,14 +679,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   added_key_field->level= 0;
   added_key_field->optimize= KEY_OPTIMIZE_EQ;
   added_key_field->eq_func= true;
-
-  Item *real= key_field->val->real_item();
-  if ((real->type() == Item::FIELD_ITEM) &&
-        ((Item_field*)real)->field->maybe_null())
-    added_key_field->null_rejecting= true;
-  else
-    added_key_field->null_rejecting= false;
-
+  added_key_field->null_rejecting= key_field->null_rejecting;
   added_key_field->cond_guard= NULL;
   added_key_field->sj_pred_no= UINT_MAX;
   return;
@@ -651,7 +698,7 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   possible_keys.intersect(field->table->keys_usable_for_splitting);
   tab->keys.merge(possible_keys);
 
-  Item_func_eq *eq_item= (Item_func_eq *) (added_key_field->cond);
+  Item_args *eq_item= (Item_args *) (added_key_field->cond);
   keyuse_ext.table= field->table;
   keyuse_ext.val= eq_item->arguments()[1];
   keyuse_ext.key= key;
@@ -665,15 +712,17 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   keyuse_ext.sj_pred_no= added_key_field->sj_pred_no;
   keyuse_ext.validity_ref= 0;
   keyuse_ext.needed_in_prefix= added_key_field->val->used_tables() &
-			       ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
+                              ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
   keyuse_ext.validity_var= false;
   return ext_keyuses->push(keyuse_ext);
 }
 
 
 static int
-sort_ext_keyuse(KEYUSE_EXT *a, KEYUSE_EXT *b)
+sort_ext_keyuse(const void *a_, const void *b_)
 {
+  const KEYUSE_EXT *a= static_cast<const KEYUSE_EXT *>(a_);
+  const KEYUSE_EXT *b= static_cast<const KEYUSE_EXT *>(b_);
   if (a->table->tablenr != b->table->tablenr)
     return (int) (a->table->tablenr - b->table->tablenr);
   if (a->key != b->key)
@@ -724,20 +773,28 @@ add_ext_keyuses_for_splitting_field(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
 /*
   @brief
     Cost of the post join operation used in specification of splittable table
+    This does not include the cost of creating the temporary table as this
+    operation can be executed many times for the same temporary table.
 */
 
 static
 double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 {
   double cost;
-  cost=  get_tmp_table_write_cost(thd, join_record_count,rec_len) *
-         join_record_count;   // cost to fill tmp table
-  cost+= get_tmp_table_lookup_cost(thd, join_record_count,rec_len) *
-         join_record_count;   // cost to perform post join operation used here
-  cost+= get_tmp_table_lookup_cost(thd, join_record_count, rec_len) +
-         (join_record_count == 0 ? 0 :
-          join_record_count * log2 (join_record_count)) *
-         SORT_INDEX_CMP_COST;             // cost to perform  sorting
+  TMPTABLE_COSTS tmp_cost= get_tmp_table_costs(thd, join_record_count,
+                                               rec_len, 0, 1);
+  /* cost to fill tmp table */
+  cost= tmp_cost.write * join_record_count;
+  /* cost to perform post join operation used here */
+  cost+= tmp_cost.lookup * join_record_count;
+  /* cost to preform sorting */
+  /* QQQ
+     We should use cost_of_filesort() for computing sort.
+     Do we always preform sorting ? If not, this should be done conditionally
+  */
+  cost+= ((join_record_count == 0 ? 0 :
+           join_record_count * log2 (join_record_count)) *
+          SORT_INDEX_CMP_COST);
   return cost;
 }
 
@@ -769,7 +826,6 @@ void JOIN::add_keyuses_for_splitting()
   size_t idx;
   KEYUSE_EXT *keyuse_ext;
   KEYUSE_EXT keyuse_ext_end;
-  double oper_cost;
   uint rec_len;
   uint added_keyuse_count;
   TABLE *table= select_lex->master_unit()->derived->table;
@@ -792,14 +848,20 @@ void JOIN::add_keyuses_for_splitting()
   if (ext_keyuses_for_splitting->push(keyuse_ext_end))
     goto err;
   // psergey-todo: trace anything here?
-  spl_opt_info->unsplit_card= join_record_count;
+  /*
+    Use the number of rows that was computed by
+    TABLE_LIST::fetch_number_of_rows():
+  */
+  spl_opt_info->unsplit_card=
+    rows2double(select_lex->master_unit()->derived->table->stat_records());
 
   rec_len= table->s->rec_buff_length;
 
-  oper_cost= spl_postjoin_oper_cost(thd, join_record_count, rec_len);
-
-  spl_opt_info->unsplit_cost= best_positions[table_count-1].read_time +
-                              oper_cost;
+  spl_opt_info->unsplit_oper_cost= spl_postjoin_oper_cost(thd,
+                                                          join_record_count,
+                                                          rec_len);
+  spl_opt_info->unsplit_cost= (best_positions[table_count-1].read_time +
+                               spl_opt_info->unsplit_oper_cost);
 
   if (!(save_qep= new Join_plan_state(table_count + 1)))
     goto err;
@@ -828,7 +890,7 @@ void JOIN::add_keyuses_for_splitting()
     added_keyuse->validity_ref= &keyuse_ext->validity_var;
   }
 
-  if (sort_and_filter_keyuse(thd, &keyuse, true))
+  if (sort_and_filter_keyuse(this, &keyuse, true, true))
     goto err;
   optimize_keyuse(this, &keyuse);
 
@@ -963,6 +1025,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   uint best_key= 0;
   uint best_key_parts= 0;
   table_map best_param_tables= 0L;
+  bool chosen, already_printed;
   Json_writer_object trace_obj(thd, "choose_best_splitting");
   Json_writer_array  trace_arr(thd, "considered_keys");
   /*
@@ -985,7 +1048,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       table_map needed_in_prefix= 0;
       do
       {
-        if (keyuse_ext->needed_in_prefix & remaining_tables)
+        if (keyuse_ext->needed_in_prefix &
+            (remaining_tables | this->join->sjm_lookup_tables))
 	{
           keyuse_ext++;
           continue;
@@ -1032,13 +1096,32 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     while (keyuse_ext->table == table);
   }
   trace_arr.end();
+  chosen= 0;
 
-  spl_opt_info->last_plan= 0;
   double refills= DBL_MAX;
   table_map excluded_tables= remaining_tables | this->join->sjm_lookup_tables;
   if (best_table)
   {
     *spl_pd_boundary= this->table->map;
+    /*
+      Compute "refills" - how many times we'll need to refill the split-
+      materialized temp. table. Split-materialized table has references to
+      preceding table(s). Suppose the join prefix is (t1, t2, t3) and
+      split-materialized refers to table t2:
+
+        t1  t2  t3  <split_materialized>
+            ^             |
+            +------------ +
+
+      If we do not use join buffer for table t3, then we'll need to refill
+      the split-materialized table partial_join_cardinality({t1, t2}) times.
+      (this assumes that fanout of table t3 is greater than 1, which is
+      typically true).
+      If table t3 uses join buffer, then every time we get a record combination
+      of {t1.row,t2.row,t3.row} the t2.row may be different and so we will need
+      to refill <split_materialized> every time, that is,
+      partial_join_cardinality(t1,t3,t3) times.
+    */
     if (!best_param_tables)
       refills= 1;
     else
@@ -1077,7 +1160,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       table_map all_table_map= (((table_map) 1) << join->table_count) - 1;
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, excluded_tables, true);
-      choose_plan(join, all_table_map & ~join->const_table_map);
+      choose_plan(join, all_table_map & ~join->const_table_map, 0);
 
       wrapper.end();
       /*
@@ -1090,9 +1173,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       key_map spl_keys= table->keys_usable_for_splitting;
       if (!(first_non_const_pos->key &&
             spl_keys.is_set(first_non_const_pos->key->key)) ||
-          !(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) ||
-	  !(spl_plan->best_positions=
-	     (POSITION *) thd->alloc(sizeof(POSITION) * join->table_count)) ||
+          !(spl_plan= thd->alloc<SplM_plan_info>(1)) ||
+	  !(spl_plan->best_positions= thd->alloc<POSITION>(join->table_count)) ||
 	  spl_opt_info->plan_cache.push_back(spl_plan))
       {
         reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
@@ -1110,64 +1192,80 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
                             spl_opt_info->unsplit_card : 1); 
 
       uint rec_len= table->s->rec_buff_length;
-
       double split_card= spl_opt_info->unsplit_card * spl_plan->split_sel;
-      double oper_cost= split_card *
-                        spl_postjoin_oper_cost(thd, split_card, rec_len);
-      spl_plan->cost= join->best_positions[join->table_count-1].read_time +
-                      + oper_cost;
+      double oper_cost= (split_card *
+                         spl_postjoin_oper_cost(thd, split_card, rec_len));
+      spl_plan->cost= (join->best_positions[join->table_count-1].read_time +
+                       oper_cost);
 
+      chosen= ((refills * spl_plan->cost + COST_EPS <
+                spl_opt_info->unsplit_cost) || spl_opt_info->hint_forced_split);
+
+      if (unlikely(thd->trace_started()))
+      {
+        //psergey-merge:Json_writer_object wrapper(thd);
+        Json_writer_object find_trace(thd, "split_materialized");
+        find_trace.
+          add("table", best_table->alias.c_ptr()).
+          add("key", best_table->key_info[best_key].name).
+          add("org_cost",join->best_positions[join->table_count-1].read_time).
+          add("postjoin_cost", oper_cost).
+          add("one_splitting_cost", spl_plan->cost).
+          add("unsplit_postjoin_cost", spl_opt_info->unsplit_oper_cost).
+          add("unsplit_cost", spl_opt_info->unsplit_cost).
+          add("rows", split_card).
+          add("refills", refills).
+          add("total_splitting_cost", refills * spl_plan->cost).
+          add("chosen", chosen);
+
+        if (spl_opt_info->hint_forced_split)
+          find_trace.add("forced_by_hint", true);
+      }
       memcpy((char *) spl_plan->best_positions,
              (char *) join->best_positions,
              sizeof(POSITION) * join->table_count);
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, excluded_tables, false);
+      already_printed= 1;
     }
     else
-      trace_obj.add("cached_plan_found", 1);
-
-    if (spl_plan)
     {
-      if (unlikely(thd->trace_started()))
-      {
-        trace_obj.
-          add("lead_table", spl_plan->table->alias.ptr()).
-          add("index",      spl_plan->table->key_info[spl_plan->key].name).
-          add("parts",      spl_plan->parts).
-          add("split_sel",  spl_plan->split_sel).
-          add("cost",       spl_plan->cost).
-          add("unsplit_cost", spl_opt_info->unsplit_cost).
-          add("records",    (ha_rows) (records * spl_plan->split_sel));
-      }
+      trace_obj.add("cached_plan_found", 1);
+      if (spl_opt_info->hint_forced_split)
+        trace_obj.add("forced_by_hint", true);
 
-      if (refills * spl_plan->cost < spl_opt_info->unsplit_cost - 0.01)
-      {
-        /*
-          The best plan that employs splitting is cheaper than
-          the plan without splitting
-	*/
-        spl_opt_info->last_plan= spl_plan;
-        spl_opt_info->last_refills= refills;
-        trace_obj.add("chosen", true);
-      }
-      else
-        trace_obj.add("chosen", false);
+      chosen= ((refills * spl_plan->cost + COST_EPS <
+                spl_opt_info->unsplit_cost) || spl_opt_info->hint_forced_split);
+      already_printed= 0;
     }
   }
 
   /* Set the cost of the preferred materialization for this partial join */
-  records= (ha_rows)spl_opt_info->unsplit_card;
-  spl_plan= spl_opt_info->last_plan;
-  if (spl_plan)
+  if (chosen)
   {
-    startup_cost= spl_opt_info->last_refills * spl_plan->cost;
-    records= (ha_rows) (records * spl_plan->split_sel);
+    /*
+      The best plan that employs splitting is cheaper than
+      the plan without splitting
+    */
+    startup_cost= refills * spl_plan->cost;
+    records= (ha_rows) (spl_opt_info->unsplit_card * spl_plan->split_sel);
+    if (unlikely(thd->trace_started()) && ! already_printed)
+    {
+      Json_writer_object trace(thd, "split_materialized");
+      trace.
+        add("one_splitting_cost", spl_plan->cost).
+        add("total_splitting_cost", startup_cost).
+        add("rows", records);
+    }
   }
   else
   {
-    startup_cost= spl_opt_info->unsplit_cost;
-    *spl_pd_boundary= 0;
+    /* Restore original values */
+    startup_cost=      spl_opt_info->unsplit_cost;
+    records= (ha_rows) spl_opt_info->unsplit_card;
+    spl_plan= 0;
   }
+
   return spl_plan;
 }
 
@@ -1236,7 +1334,7 @@ bool JOIN::inject_best_splitting_cond(table_map excluded_tables)
     Test if equality is injected for split optimization
 
   @param
-    eq_item   equality to to test
+    eq_item   equality to test
 
   @retval
     true    eq_item is equality injected for split optimization
@@ -1334,6 +1432,7 @@ bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
   table_map all_tables= (table_map(1) << table_count) - 1;
+  table_map prev_sjm_lookup_tables= 0;
   for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];
@@ -1342,7 +1441,7 @@ bool JOIN::fix_all_splittings_in_plan()
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
       table_map excluded_tables= (all_tables & ~prev_tables) |
-                                 sjm_lookup_tables;
+                                 prev_sjm_lookup_tables;
                                    ;
       if (spl_plan)
       {
@@ -1360,6 +1459,8 @@ bool JOIN::fix_all_splittings_in_plan()
           return true;
     }
     prev_tables|= tab->table->map;
+    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE)
+        prev_sjm_lookup_tables|= tab->table->map;
   }
   return false;
 }

@@ -41,12 +41,12 @@ static void movelink(HASH_LINK *array,uint pos,uint next_link,uint newlink);
 static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length);
 
-my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
-                                size_t length)
+my_hash_value_type my_hash_sort(CHARSET_INFO *cs,
+                                const uchar *key, size_t length)
 {
-  ulong nr1= 1, nr2= 4;
-  my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
-  return (my_hash_value_type) nr1;
+  my_hasher_st hasher= my_hasher_mysql5x();
+  my_ci_hash_sort(&hasher, cs, (uchar*) key, length);
+  return (my_hash_value_type) hasher.m_nr1;
 }
 
 /**
@@ -62,7 +62,7 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
 
   @param[in]     psi_key      The key to register instrumented memory
   @param[in,out] hash         The hash that is initialized
-  @param[in]     growth_size  size incrememnt for the underlying dynarray
+  @param[in]     growth_size  size increment for the underlying dynarray
   @param[in]     charset      The character set information
   @param[in]     size         The hash size
   @param[in]     key_offest   The key offset for the hash
@@ -378,9 +378,8 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
   size_t rec_keylength;
   uchar *rec_key;
   rec_key= (uchar*) my_hash_key(hash, pos->data, &rec_keylength, 1);
-  return (length != rec_keylength) ||
-	  my_strnncoll(hash->charset, (uchar*) rec_key, rec_keylength,
-		       (uchar*) key, rec_keylength);
+  return my_strnncoll(hash->charset, (uchar*) rec_key, rec_keylength,
+		       (uchar*) key, length);
 }
 
 
@@ -763,7 +762,7 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
 }
 
 
-uchar *my_hash_element(HASH *hash, size_t idx)
+uchar *my_hash_element(const HASH *hash, size_t idx)
 {
   if (idx < hash->records)
     return dynamic_element(&hash->array,idx,HASH_LINK*)->data;
@@ -886,8 +885,8 @@ my_bool my_hash_check(HASH *hash)
 
 #define RECORDS 1000
 
-uchar *test_get_key(uchar *data, size_t *length,
-                    my_bool not_used __attribute__((unused)))
+const uchar *test_get_key(const void *data, size_t *length,
+                          my_bool not_used __attribute__((unused)))
 {
   *length= 2;
   return data;
@@ -903,8 +902,8 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
   DBUG_PUSH("d:t:O,/tmp/test_hash.trace");
 
   printf("my_hash_init\n");
-  if (my_hash_init2(PSI_INSTRUMENT_ME, &hash_test, 100, &my_charset_bin, 20,
-                    0, 0, (my_hash_get_key) test_get_key, 0, 0, HASH_UNIQUE))
+  if (my_hash_init2(PSI_INSTRUMENT_ME, &hash_test, 100, &my_charset_bin, 20, 0,
+                    0, test_get_key, 0, 0, HASH_UNIQUE))
   {
     fprintf(stderr, "hash init failed\n");
     exit(1);

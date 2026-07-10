@@ -1,0 +1,61 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+# MDEV-20822 INET6 crashes in combination with RBR extended metadata
+#
+# Using DEFAULT_CHARSET format
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = NO_LOG;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES('0.0.0.0');
+# Columns(BINARY(4))
+DROP TABLE t1;
+RESET MASTER;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = MINIMAL;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES('0.0.0.0');
+# Columns(BINARY(4))
+DROP TABLE t1;
+RESET MASTER;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES('0.0.0.0');
+# Columns(`a` BINARY(4))
+DROP TABLE t1;
+RESET MASTER;
+# Using COLUMN_CHARSET format
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = NO_LOG;
+CREATE TABLE t1 (a INET4, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER SET utf8);
+INSERT INTO t1 VALUES('0.0.0.0','','');
+# Columns(BINARY(4),
+#         BINARY(16),
+#         BINARY(48))
+DROP TABLE t1;
+RESET MASTER;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = MINIMAL;
+CREATE TABLE t1 (a INET4, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER SET utf8);
+INSERT INTO t1 VALUES('0.0.0.0','','');
+# Columns(BINARY(4),
+#         CHAR(16) CHARSET latin1 COLLATE latin1_swedish_ci,
+#         CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
+DROP TABLE t1;
+RESET MASTER;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+CREATE TABLE t1 (a INET4, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER SET utf8);
+INSERT INTO t1 VALUES('0.0.0.0','','');
+# Columns(`a` BINARY(4),
+#         `b` CHAR(16) CHARSET latin1 COLLATE latin1_swedish_ci,
+#         `c` CHAR(16) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci)
+DROP TABLE t1;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = DEFAULT;
+#
+# End of 10.10 tests
+#

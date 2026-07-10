@@ -1,0 +1,2 @@
+call mtr.add_suppression('new_mode=TEST_WARNING1');
+FOUND 1 /new_mode=TEST_WARNING1/ in mysqld.1.err

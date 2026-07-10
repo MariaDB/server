@@ -119,6 +119,12 @@ public:
 		return(m_auto_extend_last_file);
 	}
 
+	/** @return auto shrink */
+	bool can_auto_shrink() const
+	{
+		return m_auto_shrink;
+	}
+
 	/** Set the last file size.
 	@param[in]	size	the size to set */
 	void set_last_file_size(uint32_t size)
@@ -144,6 +150,16 @@ public:
 	}
 
 	/**
+	@return user specified tablespace size */
+	uint32_t get_min_size() const
+	{
+	  uint32_t full_size= 0;
+	  for (uint32_t i= 0; i < m_files.size(); i++)
+	    full_size+= m_files.at(i).m_user_param_size;
+	  return full_size;
+	}
+
+	/**
 	@return next increment size */
 	uint32_t get_increment() const;
 
@@ -158,6 +174,11 @@ public:
 		ulint*	sum_new_sizes)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** @return whether shrinking failed during
+	previous attempt of system tablespace shrinking */
+	bool is_shrink_fail() noexcept { return m_auto_shrink_fail; }
+
+	void set_shrink_fail() noexcept { m_auto_shrink_fail= true; }
 private:
 	/** Check the tablespace header for this tablespace.
 	@return DB_SUCCESS or error code */
@@ -251,6 +272,14 @@ private:
 
 	/** if false, then sanity checks are still pending */
 	bool		m_sanity_checks_done;
+
+	/** Shrink the system tablespace if the value is
+	enabled */
+	bool		m_auto_shrink;
+
+	/** Set to true only when InnoDB system tablespace
+	shrink fails during startup */
+	bool		m_auto_shrink_fail;
 };
 
 /* GLOBAL OBJECTS */

@@ -33,10 +33,10 @@ Created 10/10/1995 Heikki Tuuri
 struct dict_table_t;
 
 /** Open the configured number of dedicated undo tablespaces.
-@param[in]	create_new_db	whether the database is being initialized
+@param[in]      create_new_undo whether the undo tablespaces has to be created
+@param[in,out]  mtr             mini-transaction
 @return DB_SUCCESS or error code */
-dberr_t
-srv_undo_tablespaces_init(bool create_new_db);
+dberr_t srv_undo_tablespaces_init(bool create_new_undo, mtr_t *mtr);
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
@@ -52,6 +52,12 @@ void innodb_preshutdown();
 /** Shut down InnoDB. */
 void innodb_shutdown();
 
+/** Stop memory presure thread and free file descriptors */
+#ifdef __linux__
+void buf_mem_pressure_shutdown() noexcept;
+#else
+inline void buf_mem_pressure_shutdown() noexcept {}
+#endif
 /*************************************************************//**
 Copy the file path component of the physical file to parameter. It will
 copy up to and including the terminating path separator.
@@ -87,9 +93,6 @@ srv_get_encryption_data_filename(
 	dict_table_t*	table,
 	char*		filename,
 	ulint		max_len);
-
-/** Log sequence number at shutdown */
-extern	lsn_t	srv_shutdown_lsn;
 
 /** TRUE if the server is being started */
 extern	bool	srv_is_being_started;

@@ -110,7 +110,7 @@ SELECT @@identity from t2;
 
 --echo '#--------------------FN_DYNVARS_035_03-------------------------#'
 ###################################################################
-#    Verifying identity value by using commit in connectio # 01   #     
+#   Verifying identity value by using commit in connection # 01   #
 ###################################################################
 
 connection test_con1;

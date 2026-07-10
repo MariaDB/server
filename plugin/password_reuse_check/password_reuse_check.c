@@ -51,7 +51,7 @@ static char *store_str(char *to, const MYSQL_CONST_LEX_STRING *from)
 /**
   Convert string of 512 bits (64 bytes) to hex representation
 
-  @param to              pointer to the result puffer
+  @param to              pointer to the result buffer
                          (should be at least 64*2 bytes)
   @param str             pointer to 512 bits (64 bytes string)
 */
@@ -95,7 +95,7 @@ static int create_table(MYSQL *mysql)
         // 512/8 = 64
         STRING_WITH_LEN("CREATE TABLE mysql." HISTORY_DB_NAME
                         " ( hash binary(64),"
-                        " time timestamp default current_timestamp,"
+                        " time timestamp not null default current_timestamp,"
                         " primary key (hash), index tm (time) )"
                         " ENGINE=Aria")))
   {
@@ -191,7 +191,7 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
   buff[key_len]= 0; // safety
   memset(hash, 0, sizeof(hash));
   my_sha512(hash, buff, key_len);
-  // safety: rewrite password with zerows
+  // safety: rewrite password with zeros
   memset(buff, 0, password->length);
   if (mysql_real_connect_local(mysql) == NULL)
     goto sql_error;

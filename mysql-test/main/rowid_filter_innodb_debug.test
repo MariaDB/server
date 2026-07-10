@@ -1,7 +1,9 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
 
 set default_storage_engine=innodb;
 --source include/rowid_filter_debug_kill.inc
 set default_storage_engine=default;
+
 

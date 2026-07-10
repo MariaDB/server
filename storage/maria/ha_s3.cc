@@ -78,7 +78,7 @@
 #define DEFAULT_AWS_HOST_NAME "s3.amazonaws.com"
 
 static PAGECACHE s3_pagecache;
-static ulong s3_block_size, s3_protocol_version;
+static ulong s3_block_size, s3_protocol_version, s3_provider;
 static ulong s3_pagecache_division_limit, s3_pagecache_age_threshold;
 static ulong s3_pagecache_file_hash_size;
 static ulonglong s3_pagecache_buffer_size;
@@ -86,6 +86,8 @@ static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
 static char *s3_host_name;
 static int s3_port;
 static my_bool s3_use_http;
+static my_bool s3_ssl_no_verify;
+static my_bool s3_no_content_type;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
 static my_bool s3_debug= 0, s3_slave_ignore_updates= 0;
 static my_bool s3_replicate_alter_as_create_select= 0;
@@ -121,6 +123,29 @@ static void update_secret_key(MYSQL_THD thd,
   }
 }
 
+static void update_s3_debug(MYSQL_THD thd,
+                            struct st_mysql_sys_var *var
+                            __attribute__((unused)),
+                            void *var_ptr __attribute__((unused)),
+                            const void *save)
+{
+  char new_state= *(char *) save;
+  if (s3_debug != new_state)
+  {
+    s3_debug= new_state;
+    if (s3_hton)                                // If library is initalized
+    {
+      ms3_debug(new_state);
+      if (!new_state)
+      {
+        /* Ensure that all logging is written to log */
+        fflush(stderr);
+      }
+    }
+  }
+}
+
+
 /* Define system variables for S3 */
 
 static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
@@ -129,9 +154,9 @@ static MYSQL_SYSVAR_ULONG(block_size, s3_block_size,
        4*1024*1024, 65536, 16*1024*1024, 8192);
 
 static MYSQL_SYSVAR_BOOL(debug, s3_debug,
-       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       PLUGIN_VAR_RQCMDARG,
       "Generates trace file from libmarias3 on stderr for debugging",
-       0, 0, 0);
+       0, update_s3_debug, 0);
 
 static MYSQL_SYSVAR_BOOL(slave_ignore_updates, s3_slave_ignore_updates,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -147,7 +172,10 @@ static MYSQL_SYSVAR_BOOL(replicate_alter_as_create_select,
 static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          PLUGIN_VAR_RQCMDARG,
                          "Protocol used to communication with S3. One of "
-                         "\"Auto\", \"Amazon\" or \"Original\".",
+                         "\"Auto\", \"Legacy\", \"Original\", \"Amazon\", "
+                         "\"Path\" or \"Domain\". "
+                         "Note: \"Legacy\", \"Original\" and \"Amazon\" are "
+                         "deprecated",
                          NULL, NULL, 0, &s3_protocol_typelib);
 
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
@@ -155,14 +183,14 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        "This characterizes the number of hits a hot block has to be untouched "
        "until it is considered aged enough to be downgraded to a warm block. "
        "This specifies the percentage ratio of that number of hits to the "
-       "total number of blocks in the page cache.", 0, 0,
+       "total number of blocks in the page cache", 0, 0,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, s3_pagecache_buffer_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "The size of the buffer used for index blocks for S3 tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
+       "multiple writes) to as much as you can afford", 0, 0,
         128*1024*1024, 1024*1024*32, ~(ulonglong) 0, 8192);
 
 static MYSQL_SYSVAR_ULONG(pagecache_division_limit,
@@ -177,7 +205,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size,
        "Number of hash buckets for open files.  If you have a lot "
        "of S3 files open you should increase this for faster flush of "
        "changes. A good value is probably 1/10 of number of possible open "
-       "S3 files.", 0,0, 512, 32, 16384, 1);
+       "S3 files", 0,0, 512, 32, 16384, 1);
 
 static MYSQL_SYSVAR_STR(bucket, s3_bucket,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -196,6 +224,10 @@ static MYSQL_SYSVAR_BOOL(use_http, s3_use_http,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "If true, force use of HTTP protocol",
        NULL /*check*/, NULL /*update*/, 0 /*default*/);
+static MYSQL_SYSVAR_BOOL(ssl_no_verify, s3_ssl_no_verify,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "If true, SSL certificate verification for the S3 endpoint is disabled",
+       NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,
       "AWS access key",
@@ -208,6 +240,15 @@ static MYSQL_SYSVAR_STR(region, s3_region,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "AWS region",
        0, 0, "");
+static MYSQL_SYSVAR_BOOL(no_content_type, s3_no_content_type,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "If true, disables the Content-Type header, required for some providers",
+      NULL, NULL, 0);
+static MYSQL_SYSVAR_ENUM(provider, s3_provider,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Enable S3 provider specific compatibility tweaks "
+                         "\"Default\", \"Amazon\", or \"Huawei\"",
+                         NULL, NULL, 0, &s3_provider_typelib);
 
 ha_create_table_option s3_table_option_list[]=
 {
@@ -238,6 +279,7 @@ ha_s3::ha_s3(handlerton *hton, TABLE_SHARE *table_arg)
   /* Remove things that S3 doesn't support */
   int_table_flags&= ~(HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                       HA_CAN_EXPORT);
+  int_table_flags|= HA_NO_ONLINE_ALTER;
   can_enable_indexes= 0;
 }
 
@@ -293,6 +335,9 @@ static my_bool s3_info_init(S3_INFO *info)
   lex_string_set(&info->host_name,  s3_host_name);
   info->port= s3_port;
   info->use_http= s3_use_http;
+  info->ssl_no_verify= s3_ssl_no_verify;
+  info->no_content_type = s3_no_content_type;
+  info->provider= s3_provider;
   lex_string_set(&info->access_key, s3_access_key);
   lex_string_set(&info->secret_key, s3_secret_key);
   lex_string_set(&info->region,     s3_region);
@@ -458,9 +503,9 @@ int ha_s3::rename_table(const char *from, const char *to)
         The table is renamed to a temporary table. This only happens
         in the case of an ALTER PARTITION failure and there will be soon
         a delete issued for the temporary table. The only thing we can do
-        is to remove the from table. We will get an extra errors for the
-        uppcoming but we will ignore this minor problem for now as this
-        is an unlikely event and the extra warnings are just annoying,
+        is to remove the "from" table. We will get extra errors for this
+        but we will ignore this minor problem for now as this
+        is an unlikely event and extra warnings are just annoying,
         not critical.
       */
       error= aria_delete_from_s3(s3_client, from_s3_info.bucket.str,
@@ -549,6 +594,7 @@ int ha_s3::create(const char *name, TABLE *table_arg,
     s3_deinit(s3_client);
     if (error)
       maria_delete_table_files(name, 1, 0);
+  }
   else
 #endif /* MOVE_TABLE_TO_S3 */
   {
@@ -636,7 +682,8 @@ int ha_s3::open(const char *name, int mode, uint open_flags)
         Table is in S3. We have to modify the pagecache callbacks for the
         data file, index file and for bitmap handling.
       */
-      file->s->pagecache= &s3_pagecache;
+      file->s->pagecache= file->s->kfile.pagecache= file->dfile.pagecache=
+        &s3_pagecache;
       file->dfile.big_block_size= file->s->kfile.big_block_size=
         file->s->bitmap.file.big_block_size= file->s->base.s3_block_size;
       file->s->kfile.head_blocks= file->s->base.keystart / file->s->block_size;
@@ -822,11 +869,11 @@ static int s3_discover_table_existence(handlerton *hton, const char *db,
 /**
   Return a list of all S3 tables in a database
 
-  Partitoned tables are not shown
+  Partitioned tables are not shown
 */
 
 static int s3_discover_table_names(handlerton *hton __attribute__((unused)),
-                                   LEX_CSTRING *db,
+                                   const LEX_CSTRING *db,
                                    MY_DIR *dir __attribute__((unused)),
                                    handlerton::discovered_list *result)
 {
@@ -883,7 +930,7 @@ int ha_s3::discover_check_version()
   s3_info.tabledef_version= table->s->tabledef_version;
   /*
     We have to change the database and table as the table may part of a
-    partitoned table. In this case we want to check the frm file for the
+    partitioned table. In this case we want to check the frm file for the
     partitioned table, not the part table.
   */
   s3_info.base_table= table->s->table_name;
@@ -1026,7 +1073,7 @@ static int ha_s3_init(void *p)
   s3_hton->tablefile_extensions= no_exts;
   s3_hton->commit= 0;
   s3_hton->rollback= 0;
-  s3_hton->checkpoint_state= 0;
+  s3_hton->disable_internal_writes= 0;
   s3_hton->flush_logs= 0;
   s3_hton->show_status= 0;
   s3_hton->prepare_for_backup= 0;
@@ -1048,7 +1095,7 @@ static int ha_s3_init(void *p)
   s3_pagecache.big_block_free= s3_free;
   s3_init_library();
   if (s3_debug)
-    ms3_debug();
+    ms3_debug(1);
 
   struct s3_func s3f_real =
   {
@@ -1093,12 +1140,15 @@ static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(host_name),
   MYSQL_SYSVAR(port),
   MYSQL_SYSVAR(use_http),
+  MYSQL_SYSVAR(ssl_no_verify),
   MYSQL_SYSVAR(bucket),
   MYSQL_SYSVAR(access_key),
   MYSQL_SYSVAR(secret_key),
   MYSQL_SYSVAR(region),
   MYSQL_SYSVAR(slave_ignore_updates),
   MYSQL_SYSVAR(replicate_alter_as_create_select),
+  MYSQL_SYSVAR(no_content_type),
+  MYSQL_SYSVAR(provider),
   NULL
 };
 

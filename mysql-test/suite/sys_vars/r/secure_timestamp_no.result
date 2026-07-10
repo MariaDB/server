@@ -13,7 +13,7 @@ set timestamp=default;
 ### SUPER
 create user foo@127.0.0.1;
 grant super on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'SUPER';
 SUPER
@@ -25,7 +25,7 @@ set timestamp=default;
 ### BINLOG REPLAY
 create user foo@127.0.0.1;
 grant binlog replay on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'BINLOG REPLAY';
 BINLOG REPLAY
@@ -36,7 +36,7 @@ drop user foo@127.0.0.1;
 set timestamp=default;
 ### non-privileged user
 create user foo@127.0.0.1;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'non-privileged';
 non-privileged
@@ -51,7 +51,7 @@ set timestamp=1234567890.101112;
 select @@timestamp, now(6);
 @@timestamp	now(6)
 1234567890.101112	2009-02-13 23:31:30.101112
-create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6));
+create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6)) charset=latin1;
 insert t1 (b) values ('replicated');
 connection slave;
 create trigger t1rbr before insert on t1 for each row set new.a=now(6);

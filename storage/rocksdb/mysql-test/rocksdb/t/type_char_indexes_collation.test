@@ -45,8 +45,10 @@ explain select hex(c2) from t IGNORE INDEX (sk1) order by c2;
 --let $file1=$MYSQLTEST_VARDIR/tmp/filesort_order
 --let $file2=$MYSQLTEST_VARDIR/tmp/sk_order
 --disable_query_log
+--disable_cursor_protocol
 --eval select hex(weight_string(c1)) INTO OUTFILE '$file1' from t order by c1
 --eval select hex(weight_string(c1)) INTO OUTFILE '$file2' from t IGNORE INDEX (sk1) order by c1
+--enable_cursor_protocol
 --enable_query_log
 
 --diff_files $file1 $file2
@@ -54,8 +56,10 @@ explain select hex(c2) from t IGNORE INDEX (sk1) order by c2;
 --remove_file $file2
 
 --disable_query_log
+--disable_cursor_protocol
 --eval select hex(weight_string(c2)) INTO OUTFILE '$file1' from t order by c2
 --eval select hex(weight_string(c2)) INTO OUTFILE '$file2' from t IGNORE INDEX (sk1) order by c2
+--enable_cursor_protocol
 --enable_query_log
 
 --diff_files $file1 $file2

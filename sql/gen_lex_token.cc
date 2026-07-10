@@ -122,7 +122,6 @@ void compute_tokens()
     String terminal tokens, used in sql_yacc.yy
   */
   set_token(NEG, "~");
-  set_token(TABLE_REF_PRIORITY, "TABLE_REF_PRIORITY");
 
   /*
     Tokens hard coded in sql_lex.cc
@@ -166,10 +165,7 @@ void compute_tokens()
   /*
     Unused tokens
   */
-  set_token(LOCATOR_SYM, "LOCATOR");
-  set_token(SERVER_OPTIONS, "SERVER_OPTIONS");
-  set_token(UDF_RETURNS_SYM, "UDF_RETURNS");
-
+  set_token(LOCATOR_SYM, "LOCATOR"); /* SQL-2003-N */
   /*
     See symbols[] in sql/lex.h
   */

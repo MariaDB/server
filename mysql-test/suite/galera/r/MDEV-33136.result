@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+connect node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_1a;
+RENAME TABLE t1 TO tmp, tmp TO t1;
+SET SESSION wsrep_retry_autocommit = 0;
+SET DEBUG_SYNC = 'dict_stats_mdl_acquired SIGNAL may_toi WAIT_FOR bf_abort';
+INSERT INTO t1 VALUES (1);
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR may_toi';
+TRUNCATE TABLE t1;
+connection node_1a;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_2;
+disconnect node_1;

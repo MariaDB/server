@@ -96,10 +96,10 @@ Kaolin
 Tata
 Tatiana
 #disallowed fields in order by
-select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
+select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) as result from t1;
 ERROR HY000: Numeric datatype is required for percentile_cont function
-select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
-score	percentile_disc(0.5)  within group(order by name) over (partition by score)
+select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) as result from t1;
+score	result
 3.0000	Chun
 3.0000	Chun
 4.0000	Tata
@@ -391,7 +391,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2, t1;
 # UNSIGNED INT variants
 CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating BIGINT UNSIGNED);
@@ -408,7 +408,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT name, pc, HEX(pc) FROM t2 ORDER BY name, pc;
 name	pc	HEX(pc)
 Lady of the Flies	9223372036854775810	8000000000000002
@@ -432,7 +432,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2, t1;
 # DECIMAL variants
 CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating DECIMAL(30,2));
@@ -449,7 +449,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `name` char(30) DEFAULT NULL,
   `pc` decimal(30,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2 ORDER BY name, pc;
 name	pc
 Lady of the Flies	20000000000.00

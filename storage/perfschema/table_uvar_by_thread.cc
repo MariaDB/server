@@ -46,7 +46,7 @@ public:
     : m_unsafe_thd(unsafe_thd)
   {}
 
-  virtual bool operator()(THD *thd)
+  bool operator()(THD *thd) override
   {
     if (thd != m_unsafe_thd)
       return false;

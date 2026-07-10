@@ -1,0 +1,26 @@
+# Can't test with embedded server that doesn't support grants
+-- source include/not_embedded.inc
+call mtr.add_suppression("Event Scheduler will not function when starting with --skip-grant-tables");
+
+--echo #
+--echo # MDEV-29827 Misleading error messages about event scheduler when using --skip-grant-tables 
+--echo #
+
+# Verify that if server is started with
+# --event-scheduler=ON --skip-grant-tables, we get an error
+# with a distinct explanation that the latter disables the former.
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Event Scheduler will not function when starting with --skip-grant-tables;
+source include/search_pattern_in_file.inc;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+CREATE EVENT test ON SCHEDULE AT CURRENT_TIMESTAMP DO DO NULL;
+
+# Although --event-scheduler=ON was specified (see -master.opt), it should
+# have been changed to 'DISABLED' at startup.
+select (@@global.event_scheduler='DISABLED') as expect_1;
+
+# Verify that we cannot (re)enable event scheduler
+--error ER_OPTION_PREVENTS_STATEMENT
+set global event_scheduler=1;

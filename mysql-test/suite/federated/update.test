@@ -1,0 +1,34 @@
+source include/federated.inc;
+source have_federatedx.inc;
+
+--echo #
+--echo # MDEV-32984 Update federated table and column privileges
+--echo #
+connection slave;
+create database db1;
+create user my@localhost identified by '1qaz2wsx';
+create table db1.t1 (
+  f1 int auto_increment primary key,
+  f2 varchar(50),
+  f3 varchar(50),
+  unique (f2)
+);
+grant insert, select (f1, f2, f3), update (f3) on db1.t1 to my@localhost;
+
+connection master;
+evalp create table tt1 engine=federated connection='mysql://my:1qaz2wsx@localhost:$SLAVE_MYPORT/db1/t1';
+insert into tt1 (f2,f3) values ('test','123');
+select * from tt1;
+update tt1 set f3='123456' where f2='test';
+
+drop table tt1;
+
+connection slave;
+drop database db1;
+disable_warnings;
+drop user my@localhost;
+enable_warnings;
+
+source include/federated_cleanup.inc;
+
+

@@ -1,15 +1,12 @@
 # Can't run with embedded server
--- source include/not_embedded.inc
--- source include/no_view_protocol.inc
+--source include/not_embedded.inc
+--source include/no_view_protocol.inc
 
 # Disable concurrent inserts to avoid test failures when reading
 # data from concurrent connections (insert might return before
 # the data is actually in the table).
 set @old_concurrent_insert= @@global.concurrent_insert;
 set @@global.concurrent_insert= 0;
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 # Test of the xml output of the 'mysql' and 'mysqldump' clients -- makes
 # sure that basic encoding issues are handled properly

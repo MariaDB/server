@@ -1,3 +1,8 @@
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
+{
+   --skip Test temporarily disabled for ps-protocol and cursor-protocol
+}
+
 let $prior_set_lwt = `select concat('set @prior_lock_wait_timeout = @@',
   '$engine', '_lock_wait_timeout;')`;
 let $prior_set_dld = `select concat('set @prior_deadlock_detect = @@',

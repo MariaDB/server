@@ -34,7 +34,6 @@
 #include "pfs_host.h"
 #include "pfs_user.h"
 #include "pfs_events_statements.h"
-#include "pfs_atomic.h"
 #include "pfs_buffer_container.h"
 #include "pfs_builtin_memory.h"
 #include "m_string.h"
@@ -64,7 +63,7 @@ int init_events_statements_history_long(size_t events_statements_history_long_si
 {
   events_statements_history_long_size= events_statements_history_long_sizing;
   events_statements_history_long_full= false;
-  PFS_atomic::store_u32(&events_statements_history_long_index.m_u32, 0);
+  events_statements_history_long_index.m_u32.store(0);
 
   if (events_statements_history_long_size == 0)
     return 0;
@@ -213,7 +212,7 @@ void insert_events_statements_history_long(PFS_events_statements *statement)
 
   assert(events_statements_history_long_array != NULL);
 
-  uint index= PFS_atomic::add_u32(&events_statements_history_long_index.m_u32, 1);
+  uint index= events_statements_history_long_index.m_u32.fetch_add(1);
 
   index= index % events_statements_history_long_size;
   if (index == 0)
@@ -258,7 +257,7 @@ void reset_events_statements_history(void)
 /** Reset table EVENTS_STATEMENTS_HISTORY_LONG data. */
 void reset_events_statements_history_long(void)
 {
-  PFS_atomic::store_u32(&events_statements_history_long_index.m_u32, 0);
+  events_statements_history_long_index.m_u32.store(0);
   events_statements_history_long_full= false;
 
   PFS_events_statements *pfs= events_statements_history_long_array;

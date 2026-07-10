@@ -1,10 +1,31 @@
 # These should be moved, see https://jira.mariadb.org/browse/MDEV-21653
-arch-dependent-file-in-usr-share usr/share/mysql/mysql-test/lib/My/SafeProcess/my_safe_process
-arch-dependent-file-in-usr-share usr/share/mysql/mysql-test/lib/My/SafeProcess/wsrep_check_version
-arch-dependent-file-in-usr-share [usr/share/mysql/mysql-test/lib/My/SafeProcess/my_safe_process]
-arch-dependent-file-in-usr-share [usr/share/mysql/mysql-test/lib/My/SafeProcess/wsrep_check_version]
+arch-dependent-file-in-usr-share [usr/share/mariadb/mariadb-test/lib/My/SafeProcess/my_safe_process]
+arch-dependent-file-in-usr-share [usr/share/mariadb/mariadb-test/lib/My/SafeProcess/wsrep_check_version]
 # Mainly for support for *BSD family. Not right way to do but this is test package and not for production
-incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/lib/process-purecov-annotations.pl]
-incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/lib/v1/mysql-test-run.pl]
-incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/mysql-stress-test.pl]
-incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/mysql-test-run.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mariadb-test/lib/process-purecov-annotations.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mariadb-test/lib/v1/mysql-test-run.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mariadb-test/mariadb-stress-test.pl]
+incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mariadb-test/mariadb-test-run.pl]
+
+# These libraries are ok not have any other dependencies than itself and MariaDB server
+shared-library-lacks-prerequisites [usr/lib/mysql/plugin/auth_0x0100.so]
+shared-library-lacks-prerequisites [usr/lib/mysql/plugin/debug_key_management.so]
+shared-library-lacks-prerequisites [usr/lib/mysql/plugin/test_sql_service.so]
+
+# These are from stop word list
+spelling-error-in-binary noone no one [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary noone no one [usr/bin/mariadb-test-embedded]
+spelling-error-in-binary thats that's [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary thats that's [usr/bin/mariadb-test-embedded]
+spelling-error-in-binary theres there's [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary theres there's [usr/bin/mariadb-test-embedded]
+spelling-error-in-binary userA users [usr/lib/mysql/plugin/qa_auth_interface.so]
+spelling-error-in-binary yuR your [usr/bin/mariadb-client-test-embedded]
+spelling-error-in-binary yuR your [usr/bin/mariadb-test-embedded]
+
+# Location for this is usr/share/mysql/mariadb-test/mysql-test-run
+# so it's not missing it just in unusual location
+spare-manual-page [usr/share/man/man1/mysql-test-run.pl.1.gz]
+
+# README non common place but good to be there
+package-contains-documentation-outside-usr-share-doc [usr/share/mysql/mariadb-test/README]

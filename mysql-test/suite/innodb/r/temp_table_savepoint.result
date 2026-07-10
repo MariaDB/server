@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create procedure populate_tables()
 begin
 declare n int default 20;
@@ -240,3 +241,4 @@ count(*)
 drop prepare stm;
 drop prepare stm_1;
 drop prepare stm_2;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

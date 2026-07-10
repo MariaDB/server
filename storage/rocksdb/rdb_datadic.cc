@@ -15,10 +15,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation  // gcc: Class implementation
-#endif
-
 /* For use of 'PRIu64': */
 #define __STDC_FORMAT_MACROS
 
@@ -62,11 +58,10 @@ void get_mem_comparable_space(const CHARSET_INFO *cs,
 /*
   MariaDB's replacement for FB/MySQL Field::check_field_name_match :
 */
-inline bool field_check_field_name_match(Field *field, const char *name)
+inline bool field_check_field_name_match(Field *field, std::string *str)
 {
-  return (0 == my_strcasecmp(system_charset_info,
-                             field->field_name.str,
-                             name));
+  // Lex_ident_column::streq() expects str[length]=='\0', hence c_str().
+  return field->field_name.streq(Lex_cstring(str->c_str(), str->length()));
 }
 
 
@@ -548,7 +543,7 @@ uint Rdb_key_def::setup(const TABLE *const tbl,
           the offset of the TTL key part here.
         */
         if (!m_ttl_column.empty() &&
-            field_check_field_name_match(field, m_ttl_column.c_str())) {
+            field_check_field_name_match(field, &m_ttl_column)) {
           DBUG_ASSERT(field->real_type() == MYSQL_TYPE_LONGLONG);
           DBUG_ASSERT(field->key_type() == HA_KEYTYPE_ULONGLONG);
           DBUG_ASSERT(!field->real_maybe_null());
@@ -669,7 +664,7 @@ uint Rdb_key_def::extract_ttl_col(const TABLE *const table_arg,
   if (skip_checks) {
     for (uint i = 0; i < table_arg->s->fields; i++) {
       Field *const field = table_arg->field[i];
-      if (field_check_field_name_match(field, ttl_col_str.c_str())) {
+      if (field_check_field_name_match(field, &ttl_col_str)) {
         *ttl_column = ttl_col_str;
         *ttl_field_index = i;
       }
@@ -682,7 +677,7 @@ uint Rdb_key_def::extract_ttl_col(const TABLE *const table_arg,
     bool found = false;
     for (uint i = 0; i < table_arg->s->fields; i++) {
       Field *const field = table_arg->field[i];
-      if (field_check_field_name_match(field, ttl_col_str.c_str()) &&
+      if (field_check_field_name_match(field, &ttl_col_str) &&
           field->real_type() == MYSQL_TYPE_LONGLONG &&
           field->key_type() == HA_KEYTYPE_ULONGLONG &&
           !field->real_maybe_null()) {
@@ -1633,7 +1628,7 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
   Rdb_string_reader reader(packed_key);
   Rdb_string_reader unp_reader = Rdb_string_reader::read_or_empty(unpack_info);
 
-  // There is no checksuming data after unpack_info for primary keys, because
+  // There is no checksumming data after unpack_info for primary keys, because
   // the layout there is different. The checksum is verified in
   // ha_rocksdb::convert_record_from_storage_format instead.
   DBUG_ASSERT_IMP(!(m_index_type == INDEX_TYPE_SECONDARY),
@@ -2207,7 +2202,7 @@ void Rdb_key_def::pack_legacy_variable_format(
     flag is set to N.
 
   For N=9, the following input values encode to the specified
-  outout (where 'X' indicates a byte of the original input):
+  output (where 'X' indicates a byte of the original input):
   - 0 bytes  is encoded as 0 0 0 0 0 0 0 0 0
   - 1 byte   is encoded as X 0 0 0 0 0 0 0 1
   - 2 bytes  is encoded as X X 0 0 0 0 0 0 2
@@ -2267,7 +2262,8 @@ void Rdb_key_def::pack_with_varchar_encoding(
                                   : uint2korr(field->ptr);
   size_t xfrm_len = charset->strnxfrm(
       buf, fpi->m_max_image_len, field_var->char_length(),
-      field_var->ptr + field_var->length_bytes, value_length, 0);
+      field_var->ptr + field_var->length_bytes,
+      value_length, 0).m_result_length;
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
   if (fpi->m_use_legacy_varbinary_format) {
@@ -2382,7 +2378,8 @@ void Rdb_key_def::pack_with_varchar_space_pad(
       value_length);
   const size_t xfrm_len = charset->strnxfrm(
       buf, fpi->m_max_image_len, field_var->char_length(),
-      field_var->ptr + field_var->length_bytes, trimmed_len, 0);
+      field_var->ptr + field_var->length_bytes,
+      trimmed_len, 0).m_result_length;
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
   uchar *const buf_end = buf + xfrm_len;
@@ -2713,7 +2710,7 @@ int Rdb_key_def::unpack_binary_or_utf8_varchar_space_pad(
 */
 
 void Rdb_key_def::make_unpack_unknown(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   pack_ctx->writer->write(field->ptr, field->pack_length());
 }
@@ -2727,9 +2724,9 @@ void Rdb_key_def::make_unpack_unknown(
 */
 
 void Rdb_key_def::dummy_make_unpack_info(
-    const Rdb_collation_codec *codec MY_ATTRIBUTE((__unused__)),
-    const Field *field MY_ATTRIBUTE((__unused__)),
-    Rdb_pack_field_context *pack_ctx MY_ATTRIBUTE((__unused__))) {
+    const Rdb_collation_codec *,
+    const Field *,
+    Rdb_pack_field_context *) {
   // Do nothing
 }
 
@@ -2762,7 +2759,7 @@ int Rdb_key_def::unpack_unknown(Rdb_field_packing *const fpi,
 */
 
 void Rdb_key_def::make_unpack_unknown_varchar(
-    const Rdb_collation_codec *const codec MY_ATTRIBUTE((__unused__)),
+    const Rdb_collation_codec *,
     const Field *const field, Rdb_pack_field_context *const pack_ctx) {
   const auto f = static_cast<const Field_varstring *>(field);
   uint len = f->length_bytes == 1 ? (uint)*f->ptr : uint2korr(f->ptr);
@@ -3074,7 +3071,8 @@ static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
       std::array<uchar, 20> space;
 
       const size_t space_len = cs->strnxfrm(
-          space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
+          space.data(), sizeof(space), 1, space_mb,
+          space_mb_len, 0).m_result_length;
       Rdb_charset_space_info *const info = new Rdb_charset_space_info;
       info->space_xfrm_len = space_len;
       info->space_mb_len = space_mb_len;
@@ -3380,6 +3378,11 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
         m_skip_func = Rdb_key_def::skip_variable_space_pad;
         m_pack_func = Rdb_key_def::pack_with_varchar_space_pad;
         m_make_unpack_info_func = Rdb_key_def::dummy_make_unpack_info;
+#if __has_feature(memory_sanitizer)
+        // dummy_make_unpack_info doesn't use arguments but MSAN expects
+        // them to be initialized.
+        m_charset_codec = nullptr;
+#endif
         m_segment_size = get_segment_size_from_collation(cs);
         m_max_image_len =
             (max_image_len_before_chunks / (m_segment_size - 1) + 1) *
@@ -3453,6 +3456,15 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
                                       : Rdb_key_def::make_unpack_unknown;
         m_unpack_func = is_varchar ? Rdb_key_def::unpack_unknown_varchar
                                    : Rdb_key_def::unpack_unknown;
+#if __has_feature(memory_sanitizer)
+       // Rdb_key_def::make_unpack_info_unknown and
+       // Rdb_key_def::make_unpack_unknown_varchar when called
+       // via m_make_unpack_info_func do not make use of the m_charset_codec
+       // provided as an argument. MemorySanitizer doesn't make the logical
+       // there is no risk in m_charset_codec being uninitialized. Therefore we
+       // initialize to make MemorySanitizer satisified.
+       m_charset_codec = nullptr;
+#endif
       } else {
         // Same as above: we don't know how to restore the value from its
         // mem-comparable form.
@@ -3803,7 +3815,7 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
   char eng_type_buf[NAME_CHAR_LEN+1];
   LEX_CSTRING eng_type_str = {eng_type_buf, 0}; 
   enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(),
-                                     &eng_type_str, nullptr, nullptr);
+                                     &eng_type_str, nullptr);
   if (type == TABLE_TYPE_UNKNOWN) {
     // NO_LINT_DEBUG
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",
@@ -4163,7 +4175,7 @@ bool Rdb_ddl_manager::init(Rdb_dict_manager *const dict_arg,
 
   /*
     If validate_tables is greater than 0 run the validation.  Only fail the
-    initialzation if the setting is 1.  If the setting is 2 we continue.
+    initialization if the setting is 1.  If the setting is 2 we continue.
   */
   if (validate_tables > 0) {
     std::string msg;

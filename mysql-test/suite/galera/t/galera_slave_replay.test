@@ -6,6 +6,7 @@
 # or rollback and replay (depending on the nature of lock conflict).
 #
 
+--source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/have_debug.inc
@@ -13,9 +14,9 @@
 --source include/galera_have_debug_sync.inc
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
-
 --connection node_2a
---source include/galera_cluster.inc
+
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 
 #
 # node 3 is native MariaDB server operating as async replication master
@@ -30,12 +31,11 @@ RESET MASTER;
 #
 --let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
 
-
 #
 # nodes 1 and 2 form a galera cluster, node 2 operates as slave for native MariaDB master in node 3
 #
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -85,7 +85,7 @@ SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 INSERT INTO test.t1 VALUES (2, 'b');
 
 #
-# send the update from master, this will succeed here, beceuase of async replication.
+# send the update from master, this will succeed here, because of async replication.
 # async replication will apply this in node 2 and pause before commit phase,
 --connection node_3
 --error 0
@@ -132,7 +132,7 @@ SELECT *  FROM t1;
 SET DEBUG_SYNC = "RESET";
 
 #********************************************************************************
-#	test phase 2
+#       test phase 2
 #********************************************************************************
 
 --echo #
@@ -188,10 +188,20 @@ set session wsrep_sync_wait=0;
 
 STOP SLAVE;
 RESET SLAVE;
+# RESET SLAVE does not clear gtid_slave_pos. node_3 resets its binlog
+# (RESET MASTER) below, so without clearing the slave position here node_2
+# would skip the next run's events (e.g. with --repeat) and time out waiting
+# for the replicated table.
+SET GLOBAL gtid_slave_pos = "";
 SET DEBUG_SYNC = "RESET";
 
 DROP TABLE t1;
 
 --connection node_3
 DROP TABLE t1;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
+
+--connection node_1
+--disconnect node_2a
+--disconnect node_3

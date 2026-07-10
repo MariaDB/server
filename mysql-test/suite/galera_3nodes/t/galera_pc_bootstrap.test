@@ -5,7 +5,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-call mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\).*");
+call mtr.add_suppression("WSREP: gcs/src/gcs_core\\.cpp:core_handle_uuid_msg\\(\\)");
 
 #
 # Create connection node_3 and save auto increment variables.
@@ -17,7 +17,6 @@ call mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\)
 --let $node_1 = node_1
 --let $node_2 = node_2
 --let $node_3 = node_3
-
 --source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_1

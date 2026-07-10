@@ -1,0 +1,193 @@
+#
+# MDEV-32282
+#
+# A node remains in paused state after two interleaving FTWRLs,
+# and the following CREATE TABLE fails with
+#
+#  ER_UNKNOWN_COM_ERROR (1047): Aborting TOI: Replication paused on
+#  node for FTWRL/BACKUP STAGE.
+#
+# node_1                                         node_1_a
+# ----------------------------------------------------------------------
+# FTWRL
+# UNLOCK TABLES wait after resume_and_resync()
+#                                                FTWRL wait after desync_and_pause()
+# continue
+#                                                continue
+#                                                UNLOCK TABLES
+#                                                CREATE TABLE fails
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+# Connection to control sync points
+--connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait=0;
+
+--echo #
+--echo # Case 1: FTWRL
+--echo #
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+FLUSH TABLES WITH READ LOCK;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+SET SESSION debug_sync = "wsrep_unlock_global_read_lock_after_resume_and_resync SIGNAL unlock_ready WAIT_FOR unlock_continue";
+--send UNLOCK TABLES
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR unlock_ready";
+
+--connect node_1_a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1_a
+SET SESSION debug_sync = "wsrep_global_read_lock_block_commit_after_pause SIGNAL lock_ready WAIT_FOR lock_continue";
+--send FLUSH TABLES WITH READ LOCK
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR lock_ready";
+SET debug_sync = "now SIGNAL unlock_continue";
+
+--connection node_1
+--reap
+
+--connection node_1_ctrl
+SET debug_sync = "now SIGNAL lock_continue";
+
+--connection node_1_a
+--reap
+
+UNLOCK TABLES;
+--let $wait_condition = SELECT VARIABLE_VALUE = "Synced" FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = "wsrep_local_state_comment"
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+--connection node_1_ctrl
+SET debug_sync = "RESET";
+
+--echo #
+--echo # Case 2: BACKUP STAGE
+--echo #
+# Although BACKUP STAGE was not involved in MDEV-32282, add a testcase
+# as it uses similar mechanism to pause and desync the node.
+#
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+SET SESSION debug_sync = "wsrep_backup_stage_after_resume_and_resync SIGNAL resume_and_resync_ready WAIT_FOR resume_and_resync_continue";
+--send BACKUP STAGE END
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR resume_and_resync_ready";
+
+--connection node_1_a
+BACKUP STAGE START;
+SET SESSION debug_sync = "wsrep_backup_stage_after_desync_and_pause SIGNAL desync_and_pause_ready WAIT_FOR desync_and_pause_continue";
+--send BACKUP STAGE BLOCK_DDL
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR desync_and_pause_ready";
+SET debug_sync = "now SIGNAL resume_and_resync_continue";
+
+--connection node_1
+--reap
+
+--connection node_1_ctrl
+SET debug_sync = "now SIGNAL desync_and_pause_continue";
+
+--connection node_1_a
+--reap
+BACKUP STAGE END;
+--let $wait_condition = SELECT VARIABLE_VALUE = "Synced" FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = "wsrep_local_state_comment"
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+
+--connection node_1_ctrl
+SET debug_sync = "RESET";
+
+--echo #
+--echo # Case 3: FTWRL first, BACKUP STAGE second
+--echo #
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=0;
+FLUSH TABLES WITH READ LOCK;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+SET SESSION debug_sync = "wsrep_unlock_global_read_lock_after_resume_and_resync SIGNAL unlock_ready WAIT_FOR unlock_continue";
+--send UNLOCK TABLES
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR unlock_ready";
+
+--connection node_1_a
+BACKUP STAGE START;
+SET SESSION debug_sync = "wsrep_backup_stage_after_desync_and_pause SIGNAL desync_and_pause_ready WAIT_FOR desync_and_pause_continue";
+--send BACKUP STAGE BLOCK_DDL
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR desync_and_pause_ready";
+SET debug_sync = "now SIGNAL unlock_continue";
+
+--connection node_1
+--reap
+
+--connection node_1_ctrl
+SET debug_sync = "now SIGNAL desync_and_pause_continue";
+
+--connection node_1_a
+--reap
+BACKUP STAGE END;
+--let $wait_condition = SELECT VARIABLE_VALUE = "Synced" FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = "wsrep_local_state_comment"
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+
+--connection node_1_ctrl
+SET debug_sync = "RESET";
+
+--echo #
+--echo # Case 4: BACKUP STAGE first, then FTWRL
+--echo #
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+SET SESSION debug_sync = "wsrep_backup_stage_after_resume_and_resync SIGNAL resume_and_resync_ready WAIT_FOR resume_and_resync_continue";
+--send BACKUP STAGE END
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR resume_and_resync_ready";
+--connection node_1_a
+SET SESSION debug_sync = "wsrep_global_read_lock_block_commit_after_pause SIGNAL lock_ready WAIT_FOR lock_continue";
+--send FLUSH TABLES WITH READ LOCK
+
+--connection node_1_ctrl
+SET debug_sync = "now WAIT_FOR lock_ready";
+SET debug_sync = "now SIGNAL resume_and_resync_continue";
+
+--connection node_1
+--reap
+
+--connection node_1_ctrl
+SET debug_sync = "now SIGNAL lock_continue";
+
+--connection node_1_a
+--reap
+
+UNLOCK TABLES;
+--let $wait_condition = SELECT VARIABLE_VALUE = "Synced" FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = "wsrep_local_state_comment"
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t1;
+--connection node_1_ctrl
+SET debug_sync = "RESET";

@@ -1,0 +1,822 @@
+#
+# Testing --edit=remove and !include
+#
+[mysqld]
+invalid=true
+alter_algorithm=invalid
+key_buffer_size=20M
+!include MYSQLTEST_VARDIR/tmp/tmp2.cnf
+[mysqld]
+default_regex_flags=invalid
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp2.cnf
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+3 issue/issues fixed
+[mysqld]
+key_buffer_size=20M
+!include MYSQLTEST_VARDIR/tmp/tmp2.cnf
+#
+# Testing --update --edit=last with !include
+#
+[mysqld]
+invalid=true
+alter_algorithm=invalid
+key_buffer_size=20M
+invalid_option
+!include MYSQLTEST_VARDIR/tmp/tmp2.cnf
+log-bin
+# Include file start
+
+[mysqld]
+log-bin=1
+log_error_verbosity   = 3
+Note: aria_pagecache_buffer_size=20M added to [mariadbd] group
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp2.cnf
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+8 issue/issues fixed
+# Changed files
+[mariadbd]
+key_buffer_size=20M
+#key_buffer_size=64K   # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+
+[mysqld-5.7]
+invalid=true
+alter_algorithm=invalid
+key_buffer_size=20M
+invalid_option
+
+[mysqld]
+!include MYSQLTEST_VARDIR/tmp/tmp2.cnf
+log-bin
+# Include file start
+
+[mysqld]
+log-bin=1
+
+[mysqld-5.7]
+log_error_verbosity   = 3
+# Verify no more changes
+Note: aria_pagecache_buffer_size=20M added to [mariadbd] group
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+No issues found
+#
+# Testing --edit=comment
+#
+[mysqld]
+port=38
+invalid=true
+alter_algorithm=invalid
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+2 issue/issues fixed
+[mysqld]
+port=38
+#invalid=true
+#alter_algorithm=invalid
+#
+# Testing --edit=inline --from=mariadb
+#
+[mysqld]
+invalid=true
+invalid_option
+skip-grant-tables
+skip-name-resolve=0
+skip-networking
+skip-show-database
+skip-slave-start
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+5 issue/issues fixed
+# Changed file
+[mysqld-5.7]
+invalid=true
+invalid_option
+
+[mysqld]
+skip-grant-tables
+skip-name-resolve=0
+skip-networking
+skip-show-database
+skip-slave-start
+
+[mariadbd]
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=impossible2
+
+[mariadbd]
+port=33
+
+[mysqld]
+key_buffer_size=20M
+#
+# Testing --edit=last --from=mariadb
+#
+[mysqld]
+invalid=true
+invalid_option
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+5 issue/issues fixed
+# Changed file
+
+[mariadbd]
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+port=33
+
+[mysqld]
+key_buffer_size=20M
+
+[mysqld-5.7]
+invalid=true
+invalid_option
+
+[options-not-recognized-by-mariadbd]
+alter_algorithm=invalid
+alter_algorithm=impossible
+alter_algorithm=impossible2
+#
+# Testing --edit=last --from=mysql
+# This will fail and changes will be reverted
+#
+[mysqld]
+invalid=true
+invalid_option
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+
+# Original unchanged file
+[mysqld]
+invalid=true
+invalid_option
+
+[mariadbd]
+alter_algorithm=invalid
+
+[other]
+a=b
+
+[mariadbd]
+port=30
+alter_algorithm=impossible
+
+[other]
+c=d
+
+[mariadbd]
+port=32
+alter_algorithm=impossible2
+port=33
+
+[mysqld]
+key_buffer_size=20M
+#
+# Testing mariadbd section additions with --from-mariadb
+#
+[mariadbd]
+invalid1=true
+join_buffer_size=5K
+invalid2=true
+
+[mysqld]
+key_buffer_size=20M
+alter_algorithm=invalid
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+3 issue/issues fixed
+[mariadbd]
+join_buffer_size=5K
+
+[mysqld]
+key_buffer_size=20M
+
+[unknown]
+alter_algorithm=invalid
+
+[options-not-recognized-by-mariadbd]
+invalid1=true
+invalid2=true
+#
+# Testing key_buffer_size in mysqld section with --from=mysql
+#
+[mysqld]
+key_buffer_size=20M
+Note: aria_pagecache_buffer_size=20M added to [mariadbd] group
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+4 issue/issues fixed
+[mariadbd]
+key_buffer_size=20M
+#key_buffer_size=64K   # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+
+[mysqld-5.7]
+key_buffer_size=20M
+#
+# Testing key_buffer_size in mysqld section with --from=mysql --no-myisam
+#
+[mysqld]
+key_buffer_size=20M
+Note: 'aria_pagecache_buffer_size=20M' added to [mariadbd] group
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+3 issue/issues fixed
+[mariadbd]
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+
+[mysqld-5.7]
+key_buffer_size=20M
+#
+# Testing key_buffer_size in mariadbd section
+#
+[mariadbd]
+key_buffer_size=20M
+No issues found
+[mariadbd]
+key_buffer_size=20M
+#
+# Testing --no-myisam --edit=last
+#
+[mysqld]
+key_buffer_size=20M
+Note: 'aria_pagecache_buffer_size=20M' added to [mariadbd] group
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+3 issue/issues fixed
+[mariadbd]
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+
+[mysqld-5.7]
+key_buffer_size=20M
+#
+# Testing --add-skip-start-slave
+#
+[mysqld]
+default_week_format=1
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+1 issue/issues fixed
+[mysqld]
+default_week_format=1
+
+[mariadbd]
+skip_slave_start
+#
+# Testing --add-skip-slave-start with skip_start_slave already present
+#
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+No issues found
+[mariadbd]
+skip_slave_start
+#
+# Testing audit_log part 1
+#
+[mysqld]
+plugin_load=audit_log
+audit_log-a=5
+audit_log-disabled
+audit_log=on
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 2: Please replace audit_log with the server_audit plugin
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+5 issue/issues fixed
+[mariadbd]
+skip_slave_start
+
+[mysqld-5.7]
+plugin_load=audit_log
+audit_log-a=5
+audit_log-disabled
+audit_log=on
+#
+# Testing audit_log part 2
+#
+[mysqld]
+audit_log=ON
+audit_log_file=name
+Warning: Please replace audit_log with the server_audit plugin
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+3 issue/issues fixed
+[mariadbd]
+skip_slave_start
+
+[mysqld-5.7]
+audit_log=ON
+audit_log_file=name
+#
+# Testing audit_log part 3
+#
+[mysqld]
+audit_log-disabled
+Warning: Please replace audit_log with the server_audit plugin
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+2 issue/issues fixed
+[mariadbd]
+skip_slave_start
+
+[mysqld-5.7]
+audit_log-disabled
+#
+# Testing comments
+#
+[mysqld]
+character_set_server  = utf8mb4             # It's a new world
+collation_server      = utf8mb4_0900_ai_ci
+log_error_verbosity   = 3
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+2 issue/issues fixed
+[mysqld]
+character_set_server  = utf8mb4             # It's a new world
+collation_server      = utf8mb4_0900_ai_ci
+
+[mariadbd]
+skip_slave_start
+
+[mysqld-5.7]
+log_error_verbosity   = 3
+#
+# Testing --fix-all
+#
+[mysqld]
+innodb_data_file_path=/var/mysql/test2
+key_buffer_size=20M
+Note: 'aria_pagecache_buffer_size=20M' added to [mariadbd] group
+Note: Added MySQL default character sets and collation to [mariadbd] to be able to replicate to MySQL
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+17 issue/issues fixed
+[mysqld]
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+skip_slave_start
+# The following options enable MariaDB to replicate to MySQL
+encrypt_binlog=0
+log_bin_compress=0
+# Not required, but recommended for cross_replication
+binlog_format=row
+# Character set to be able to replicate new tables to MySQL 8.0
+character_set_server=utf8mb4
+collation_server=utf8mb4_0900_ai_ci
+
+[mysqld-5.7]
+key_buffer_size=20M
+# The following options enable MySQL to replicate to MariaDB
+loose-binlog_row_value_options=""
+loose-binlog_transaction_compression=0
+# Not required, but recommended for cross_replication
+binlog_format=row
+#
+# Testing --fix-all --update-paths
+#
+[mysqld]
+innodb_data_file_path=/var/mysql/test2
+key_buffer_size=20M
+Note: 'aria_pagecache_buffer_size=20M' added to [mariadbd] group
+Note: Added MySQL default character sets and collation to [mariadbd] to be able to replicate to MySQL
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+19 issue/issues fixed
+[mariadbd]
+innodb_data_file_path=/var/mariadb/test2
+key_buffer_size=64K    # Recommended value if no MyISAM tables
+aria_pagecache_buffer_size=20M
+skip_slave_start
+# The following options enable MariaDB to replicate to MySQL
+encrypt_binlog=0
+log_bin_compress=0
+# Not required, but recommended for cross_replication
+binlog_format=row
+# Character set to be able to replicate new tables to MySQL 8.0
+character_set_server=utf8mb4
+collation_server=utf8mb4_0900_ai_ci
+
+[mysqld-5.7]
+innodb_data_file_path=/var/mysql/test2
+key_buffer_size=20M
+# The following options enable MySQL to replicate to MariaDB
+loose-binlog_row_value_options=""
+loose-binlog_transaction_compression=0
+# Not required, but recommended for cross_replication
+binlog_format=row
+#
+# Testing path copying, without error-group and silent
+#
+[mysqld]
+innodb_data_file_path=/var/mysql/test
+port=38
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 2: 'innodb_data_file_path=/var/mysql/test' would be replaced with 'innodb_data_file_path=/var/mariadb/test'
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 4: Invalid option dummy
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 5: 'log-error=/var/mysql/test2' would be replaced with 'log-error=/var/mariadb/test2'
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 10: 'innodb_data_file_path=/var/mysql/test2' would be replaced with 'innodb_data_file_path=/var/mariadb/test2'
+2 line/lines would be copied to [mariadbd] group
+5 line/lines would be copied to [mysqld-5.7] group
+11 issue/issues found
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+# Changed file
+[mysqld]
+port=38
+
+[mysqld-8.0]
+port=39
+dummy2=2
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+innodb_data_file_path=/var/mariadb/test
+log-error=/var/mariadb/test2
+port=39
+innodb_data_file_path=/var/mariadb/test2
+
+[mysqld-5.7]
+innodb_data_file_path=/var/mysql/test
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+#
+# Testing innodb_stats_sample_pages
+#
+[mysqld]
+innodb_stats_sample_pages=1
+### File [name hidden]
+[mariadbd]
+innodb_stats_transient_sample_pages=1
+
+[mysqld-5.7]
+innodb_stats_sample_pages=1
+
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 2: 'innodb_stats_sample_pages=1' would be replaced with 'innodb_stats_transient_sample_pages=1'
+1 issue/issues found
+#
+# Testing innodb_log_files_in_group
+#
+[mysqld]
+innodb_log_files_in_group=4
+innodb_log_file_size=2G
+# Checking file
+In MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 2: Invalid option innodb_log_files_in_group
+1 issue/issues found
+# Updating file
+Note: 'innodb_log_file_size=8G' added to [mariadbd] group based on innodb_log_file_size * innodb_log_files_in_group
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+2 issue/issues fixed
+# Changed file
+[mysqld]
+innodb_log_file_size=2G
+
+[mariadbd]
+innodb_log_file_size=8G
+
+[mysqld-5.7]
+innodb_log_files_in_group=4
+# Checking if file is ok now
+No issues found
+#
+# Test not existing character set
+#
+[mysqld]
+character_set_server=xxx
+#
+# Testing --add-XXX-replication-compatibility
+#
+[mysqld]
+port=38
+character-set-server=utf8mb4
+# MySQL -> MariaDB compatibility
+### File MYSQLTEST_VARDIR/tmp/tmp1.cnf:
+[mysqld]
+port=38
+character-set-server=utf8mb4
+
+[mysqld-5.7]
+# The following options enable MySQL to replicate to MariaDB
+loose-binlog_row_value_options=""
+loose-binlog_transaction_compression=0
+# Not required, but recommended for cross_replication
+binlog_format=row
+
+# MariaDB -> MySQL compatibility
+### File MYSQLTEST_VARDIR/tmp/tmp1.cnf:
+[mysqld]
+port=38
+character-set-server=utf8mb4
+
+[mariadbd]
+# The following options enable MariaDB to replicate to MySQL
+encrypt_binlog=0
+log_bin_compress=0
+# Not required, but recommended for cross_replication
+binlog_format=row
+
+#
+# Testing --add-client-server-group
+#
+[mysqld]
+port=38
+port=39
+socket="/tmp/mysql.sock"
+character-set-server=utf8mb4
+
+[server]
+port=50
+
+[mysql-8.0]
+port=99
+socket="/tmp/mysql8.sock"
+# --add-client-server-group
+### File MYSQLTEST_VARDIR/tmp/tmp1.cnf:
+[mysqld]
+port=38
+port=39
+character-set-server=utf8mb4
+
+[server]
+port=50
+
+[mysql-8.0]
+port=99
+socket="/tmp/mysql8.sock"
+
+[mariadbd]
+socket="/tmp/mariadb.sock"
+
+[mysqld-5.7]
+socket="/tmp/mysql.sock"
+
+[client-server]
+port=50
+socket="/tmp/mariadb.sock"
+
+# Test 2 with update and without --update-paths
+[mysqld]
+port=38
+port=39
+socket="/tmp/mysql.sock"
+innodb_log_file_size=2G
+
+[mysql-8.0]
+port=99
+socket="/tmp/mysql8.sock"
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+2 issue/issues fixed
+# Changed file
+[mysqld]
+port=38
+port=39
+socket="/tmp/mysql.sock"
+innodb_log_file_size=2G
+
+[mysql-8.0]
+port=99
+socket="/tmp/mysql8.sock"
+
+[client-server]
+port=39
+socket=/tmp/mysql.sock
+#
+# Testing copy-mysqld-groups
+#
+[mysqld-8.0]
+socket="/tmp/mysql.sock"
+# Testing with --copy-mysqld-groups=0
+No issues found
+# Testing with --copy-mysqld-groups=1
+1 line/lines would be copied to [mariadbd] group
+1 issue/issues found
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+1 issue/issues fixed
+[mysqld-8.0]
+socket="/tmp/mysql.sock"
+
+[mariadbd]
+socket="/tmp/mysql.sock"
+#
+# Testing path changing and different generated sections
+#
+[mysqld]
+log-error       = /var/log/mysql/mysqld.log
+dummy=1;
+default-storage-engine=innodb
+socket=/var/lib/mysql/mysql.sock
+datadir=/var/lib/mysql
+
+[server]
+dummy=2;
+socket=dummy;
+
+[mysqld-8.0]
+default-storage-engine=misam
+port=36
+qqq= hello
+
+[mysqld]
+innodb_data_file_path=/var/mysql/test
+port=38
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+
+[mysqld-8.0]
+port=39
+dummy2=3
+innodb_data_file_path=/var/mysql/test2
+# Output from --print --edit=last --update-paths
+### File [name hidden]
+[mysqld]
+default-storage-engine=innodb
+
+[server]
+socket=dummy;
+
+[mysqld-8.0]
+default-storage-engine=misam
+port=36
+qqq= hello
+
+[mysqld]
+port=38
+
+[mysqld-8.0]
+port=39
+dummy2=3
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+log-error       = /var/log/mariadb/mysqld.log
+socket=/var/lib/mariadb/mysql.sock
+datadir=/var/lib/mariadb
+default-storage-engine=misam
+port=36
+innodb_data_file_path=/var/mariadb/test
+log-error=/var/mariadb/test2
+port=39
+innodb_data_file_path=/var/mariadb/test2
+
+[mysqld-5.7]
+log-error       = /var/log/mysql/mysqld.log
+dummy=1;
+socket=/var/lib/mysql/mysql.sock
+datadir=/var/lib/mysql
+dummy=2;
+innodb_data_file_path=/var/mysql/test
+dummy=/var/mysql/test
+log-error=/var/mysql/test2
+
+#
+# Test that second update of file with 'last' will no do anything
+#
+Updated files:
+MYSQLTEST_VARDIR/tmp/tmp1.cnf
+17 issue/issues fixed
+No issues found
+No issues found
+"Next command should not change anything"
+No issues found
+[mysqld]
+default-storage-engine=innodb
+
+[server]
+socket=dummy;
+
+[mysqld-8.0]
+default-storage-engine=misam
+port=36
+qqq= hello
+
+[mysqld]
+port=38
+
+[mysqld-8.0]
+port=39
+dummy2=3
+innodb_data_file_path=/var/mysql/test2
+
+[mariadbd]
+log-error       = /var/log/mariadb/mysqld.log
+socket=/var/lib/mariadb/mysql.sock
+datadir=/var/lib/mariadb
+default-storage-engine=misam
+port=36
+innodb_data_file_path=/var/mariadb/test
+log-error=/var/mariadb/test2
+port=39
+innodb_data_file_path=/var/mariadb/test2
+
+[mysqld-5.7]
+log-error       = /var/log/mysql/mysqld.log
+dummy=1;
+socket=/var/lib/mysql/mysql.sock
+datadir=/var/lib/mysql
+dummy=2;
+innodb_data_file_path=/var/mysql/test
+dummy=/var/mysql/test
+log-error=/var/mysql/test2

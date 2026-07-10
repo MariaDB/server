@@ -35,7 +35,7 @@ The following suites are included:
       run: perl ./suite/engines/rr_trx/run_stress_tx_rr.pl --engine=<engine> [--duration=<nn>]
                                                           [--threads=<nn>] [--try] [--help] 
 
-   This test is can be run against any transactional engine. However scripts need to be modified in order
+   This test can be run against any transactional engine. However scripts need to be modified in order
    to support such engines (current scripts support only InnoDB).
    In order to add support for a new engine, you will need to modify scripts as follows:
    1) cd to INSTALL_DIR/mysql-test/suite/engines/rr_trx

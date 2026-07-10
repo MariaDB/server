@@ -35,8 +35,6 @@ if ($row_format != 'COMPRESSED')
 
 if ($row_format == 'COMPRESSED')
 {
-  SET GLOBAL innodb_file_per_table=1;
-
   eval CREATE TABLE t1(
 	class	INT,
 	id	INT,
@@ -175,11 +173,5 @@ CHECK TABLE t1;
 SELECT CHAR_LENGTH(b) FROM t1 WHERE a=4975;
 
 DROP TABLE t1;
-
-# Restore global variables
-if ($row_format == 'COMPRESSED')
-{
-  SET GLOBAL innodb_file_per_table=default;
-}
 
 DROP PROCEDURE populate_t1;

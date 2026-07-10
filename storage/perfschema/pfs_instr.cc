@@ -253,19 +253,19 @@ void cleanup_instruments(void)
 
 C_MODE_START
 /** Get hash table key for instrumented files. */
-static uchar *filename_hash_get_key(const uchar *entry, size_t *length,
-                                    my_bool)
+static const uchar *filename_hash_get_key(const void *entry, size_t *length,
+                                          my_bool)
 {
   const PFS_file * const *typed_entry;
   const PFS_file *file;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_file* const *> (entry);
+  typed_entry= static_cast<const PFS_file* const *> (entry);
   assert(typed_entry != NULL);
   file= *typed_entry;
   assert(file != NULL);
   *length= file->m_filename_length;
   result= file->m_filename;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 
@@ -434,7 +434,7 @@ void destroy_cond(PFS_cond *pfs)
 
 PFS_thread* PFS_thread::get_current_thread()
 {
-  return static_cast<PFS_thread*>(my_get_thread_local(THR_PFS));
+  return THR_PFS;
 }
 
 void PFS_thread::reset_session_connect_attrs()
@@ -527,7 +527,7 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
   if (pfs != NULL)
   {
     pfs->m_thread_internal_id=
-      PFS_atomic::add_u64(&thread_internal_id_counter.m_u64, 1);
+      thread_internal_id_counter.m_u64.fetch_add(1);
     pfs->m_parent_thread_internal_id= 0;
     pfs->m_processlist_id= static_cast<ulong>(processlist_id);
     pfs->m_thread_os_id= my_thread_os_id();

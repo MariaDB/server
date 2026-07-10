@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,9 +33,6 @@ Created 11/5/1995 Heikki Tuuri
 struct trx_t;
 struct fil_space_t;
 
-/** Flush this many pages in buf_LRU_get_free_block() */
-extern size_t innodb_lru_flush_size;
-
 /*#######################################################################
 These are low-level functions
 #########################################################################*/
@@ -58,9 +55,16 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 @return true if found and freed */
 bool buf_LRU_scan_and_free_block(ulint limit= ULINT_UNDEFINED);
 
-/** @return a buffer block from the buf_pool.free list
-@retval	NULL	if the free list is empty */
-buf_block_t* buf_LRU_get_free_only();
+/** How to acquire a block */
+enum buf_LRU_get {
+  /** The caller is not holding buf_pool.mutex */
+  have_no_mutex= 0,
+  /** The caller is holding buf_pool.mutex */
+  have_mutex,
+  /** The caller is not holding buf_pool.mutex and is OK if a block
+  cannot be allocated. */
+  have_no_mutex_soft
+};
 
 /** Get a block from the buf_pool.free list.
 If the list is empty, blocks will be moved from the end of buf_pool.LRU
@@ -71,31 +75,31 @@ block to read in a page. Note that we only ever get a block from
 the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
-  * get a block from the buf_pool.free list, success:done
+  * get a block from the buf_pool.free list
   * if buf_pool.try_LRU_scan is set
     * scan LRU up to 100 pages to free a clean block
     * success:retry the free list
-  * flush up to innodb_lru_flush_size LRU blocks to data files
-    (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
-    * on buf_page_write_complete() the blocks will put on buf_pool.free list
-    * success: retry the free list
+  * invoke buf_pool.page_cleaner_wakeup(true) and wait its completion
 * subsequent iterations: same as iteration 0 except:
-  * scan whole LRU list
-  * scan LRU list even if buf_pool.try_LRU_scan is not set
+  * scan the entire LRU list
 
-@param have_mutex  whether buf_pool.mutex is already being held
-@return the free control block, in state BUF_BLOCK_MEMORY */
-buf_block_t* buf_LRU_get_free_block(bool have_mutex)
+@param get  how to allocate the block
+@return the free control block, in state BUF_BLOCK_MEMORY
+@retval nullptr if get==have_no_mutex_soft and memory was not available */
+buf_block_t* buf_LRU_get_free_block(buf_LRU_get get)
 	MY_ATTRIBUTE((malloc,warn_unused_result));
+
+#define buf_block_alloc() buf_LRU_get_free_block(have_no_mutex)
 
 /** @return whether the unzip_LRU list should be used for evicting a victim
 instead of the general LRU list */
 bool buf_LRU_evict_from_unzip_LRU();
 
-/** Puts a block back to the free list.
-@param[in]	block	block; not containing a file page */
-void
-buf_LRU_block_free_non_file_page(buf_block_t* block);
+/** Free a buffer block which does not contain a file page,
+while holding buf_pool.mutex.
+@param block   block to be put to buf_pool.free */
+void buf_LRU_block_free_non_file_page(buf_block_t *block);
+
 /******************************************************************//**
 Adds a block to the LRU list. Please make sure that the page_size is
 already set when invoking the function, so that we can get correct
@@ -108,6 +112,16 @@ buf_LRU_add_block(
 				blocks in the LRU list, else put to the
 				start; if the LRU list is very short, added to
 				the start regardless of this parameter */
+
+/** Move a block to the start of the buf_pool.LRU list.
+@param bpage  buffer pool page */
+void buf_page_make_young(buf_page_t *bpage);
+/** Flag a page accessed in buf_pool and move it to the start of buf_pool.LRU
+if it is too old.
+@param bpage  buffer pool page
+@return whether this is not the first access */
+bool buf_page_make_young_if_needed(buf_page_t *bpage);
+
 /******************************************************************//**
 Adds a block to the LRU list of decompressed zip pages. */
 void
@@ -116,6 +130,10 @@ buf_unzip_LRU_add_block(
 	buf_block_t*	block,	/*!< in: control block */
 	ibool		old);	/*!< in: TRUE if should be put to the end
 				of the list, else put to the start */
+
+/** Evict the temporary tablespace pages above the given threshold
+@param threshold  Above this page to be removed from LRU list */
+void buf_LRU_truncate_temp(uint32_t threshold);
 
 /** Update buf_pool.LRU_old_ratio.
 @param[in]	old_pct		Reserve this percentage of

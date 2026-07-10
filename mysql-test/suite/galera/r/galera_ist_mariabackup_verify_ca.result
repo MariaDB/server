@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+CREATE TABLE t1 (f1 INT PRIMARY KEY);
+connection node_2;
+# Verify that graceful shutdown succeeds...
+connection node_1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+connection node_2;
+# Start node_2 again...
+SELECT * FROM t1;
+f1
+1
+2
+3
+connection node_1;
+include/assert_grep.inc [mariabackup IST completed on joiner]
+DROP TABLE t1;

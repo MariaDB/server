@@ -18,9 +18,7 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
-   For more information, documentation, support, enhancement engineering,
-   see http://openquery.com/graph or contact graph@openquery.com
+   v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell.
    ======================================================================
 */
 
@@ -35,16 +33,8 @@
 
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #define MYSQL_SERVER 1                          // to have THD
-/* For the moment, include code to deal with integer latches.
- * I have wrapped it with this #ifdef to make it easier to find and remove in the future.
- */
-#define RETAIN_INT_LATCH_COMPATIBILITY          // for the time being, recognise integer latches to simplify upgrade.
 
 #include <mysql/plugin.h>
 #include <mysql_version.h>
@@ -66,17 +56,6 @@
 #define DBUG_PRINT(x,y)
 #endif
 
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-/* In normal operation, no new tables using an integer latch can be created,
- * but they can still be used if they already exist, to allow for upgrades.
- *
- * However to ensure the legacy function is properly tested, we add a
- * server variable "oggraph_allow_create_integer_latch" which if set to TRUE
- * allows new engine tables to be created with integer latches.
- */
-
-static my_bool g_allow_create_integer_latch = FALSE;
-#endif
 
 using namespace open_query;
 
@@ -152,9 +131,9 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
 "         )                                              "
 
 #define append_opt(NAME,VAL)                              \
-  if (share->option_struct->VAL)                          \
+  if (share->option_struct_table->VAL)                    \
   {                                                       \
-    const char *val= share->option_struct->VAL;           \
+    const char *val= share->option_struct_table->VAL;     \
     sql.append(STRING_WITH_LEN(" " NAME "='"));           \
     sql.append_for_single_quote(val, strlen(val));        \
     sql.append('\'');                                     \
@@ -174,7 +153,7 @@ int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
     share->init_from_sql_statement_string(thd, true, sql.ptr(), sql.length());
 }
 
-int oqgraph_close_connection(handlerton *hton, THD *thd);
+int oqgraph_close_connection(THD *thd);
 
 static int oqgraph_init(void *p)
 {
@@ -305,22 +284,11 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
     bool isLatchColumn = strcmp(skel[i].colname, "latch")==0;
     bool isStringLatch = true;
 
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-    if (g_allow_create_integer_latch && isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
-    {
-      DBUG_PRINT( "oq-debug", ("Allowing integer latch anyway!"));
-      isStringLatch = false;
-      /* Make a warning */
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-            ER_WARN_DEPRECATED_SYNTAX, ER(ER_WARN_DEPRECATED_SYNTAX),
-            "latch SMALLINT UNSIGNED NULL", "'latch VARCHAR(32) NULL'");
-    } else
-#endif
     if (isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
     {
       DBUG_PRINT( "oq-debug", ("Allowing integer no more!"));
       badColumn = true;
-      push_warning_printf( current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Integer latch is not supported for new tables.", i);
+      push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Integer latch is not supported for new tables.");
     } else
     /* Check Column Type */
     if ((*field)->type() != skel[i].coltype) {
@@ -410,7 +378,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 ** OQGRAPH tables
 *****************************************************************************/
 
-int oqgraph_close_connection(handlerton *hton, THD *thd)
+int oqgraph_close_connection(THD *thd)
 {
   DBUG_PRINT( "oq-debug", ("thd: 0x%lx; oqgraph_close_connection.", (long) thd));
   // close_thread_tables(thd); // maybe this?
@@ -492,7 +460,7 @@ bool ha_oqgraph::validate_oqgraph_table_options()
   // after which we could change things to call this method from create() and the ALTER TABLE handling code instead.
   // It may still be sensible to call this from open() anyway, in case someone somewhere upgrades from a broken table definition...
 
-  ha_table_option_struct *options = table->s->option_struct;
+  ha_table_option_struct *options = option_struct;
   // Catch cases where table was not constructed properly
   // Note - need to return -1 so our error text gets reported
   if (!options) {
@@ -554,18 +522,13 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   // Before doing anything, make sure we have DATA_TABLE, ORIGID and DESTID not empty
   if (!validate_oqgraph_table_options()) { DBUG_RETURN(-1); }
 
-  ha_table_option_struct *options= table->s->option_struct;
-
+  ha_table_option_struct *options= option_struct;
 
   error_message.length(0);
   origid= destid= weight= 0;
 
-  // Here we're abusing init_tmp_table_share() which is normally only works for thread-local shares.
   THD* thd = current_thd;
-  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
-  // because of that, we need to reinitialize the memroot (to reset MY_THREAD_SPECIFIC flag)
-  DBUG_ASSERT(share->mem_root.used == NULL); // it's still empty
-  init_sql_alloc(PSI_INSTRUMENT_ME, &share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "", false);
 
   // What I think this code is doing:
   // * Our OQGRAPH table is `database_blah/name`
@@ -923,11 +886,6 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   String latchFieldValue;
   if (!field[0]->is_null())
   {
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-    if (field[0]->type() == MYSQL_TYPE_SHORT) {
-      latch= (int) field[0]->val_int();
-    } else
-#endif
     {
       field[0]->val_str(&latchFieldValue, &latchFieldValue);
       if (!parse_latch_string_to_legacy_int(latchFieldValue, latch)) {
@@ -1026,12 +984,6 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
     if (field[0]->type() == MYSQL_TYPE_VARCHAR) {
       field[0]->store(row.latchStringValue, row.latchStringValueLen, &my_charset_latin1);
     }
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-    else if (field[0]->type() == MYSQL_TYPE_SHORT) {
-      field[0]->store((longlong) row.latch, 0);
-    }
-#endif
-
   }
 
   if (row.orig_indicator)
@@ -1262,19 +1214,6 @@ ha_rows ha_oqgraph::records_in_range(uint inx,
 
       // what if someone did something dumb, like mismatching the latches?
 
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-      else if (key->key_part[0].field->type() == MYSQL_TYPE_SHORT) {
-        // If not null, and zero ...
-        // Note, the following code relies on the fact that the three bytes
-        // at beginning of min_key just happen to be the null indicator and the
-        // 16-bit value of the latch ...
-        // this will fall through if the user alter-tabled to not null
-        if (key->key_part[0].null_bit && !min_key->key[0] &&
-          !min_key->key[1] && !min_key->key[2]) {
-          latch = oqgraph::NO_SEARCH;
-        }
-      }
-#endif
       if (latch != oqgraph::NO_SEARCH) {
         // Invalid key type...
         // Don't assert, in case the user used alter table on us
@@ -1326,8 +1265,7 @@ void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
 
 
 static const char oqgraph_description[]=
-  "Open Query Graph Computation Engine "
-  "(http://openquery.com/graph)";
+  "Open Query Graph Computation Engine";
 
 struct st_mysql_storage_engine oqgraph_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
@@ -1342,11 +1280,7 @@ static const char *oqgraph_status_verbose_debug =
 #endif
 
 static const char *oqgraph_status_latch_compat_mode =
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-  "Legacy tables with integer latches are supported.";
-#else
   "Legacy tables with integer latches are not supported.";
-#endif
 
 static struct st_mysql_show_var oqgraph_status[]=
 {
@@ -1357,16 +1291,8 @@ static struct st_mysql_show_var oqgraph_status[]=
   { 0, 0, SHOW_UNDEF }
 };
 
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-static MYSQL_SYSVAR_BOOL( allow_create_integer_latch, g_allow_create_integer_latch, PLUGIN_VAR_RQCMDARG,
-                        "Allow creation of integer latches so the upgrade logic can be tested. Not for normal use.",
-                        NULL, NULL, FALSE);
-#endif
 
 static struct st_mysql_sys_var* oqgraph_sysvars[]= {
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-  MYSQL_SYSVAR(allow_create_integer_latch),
-#endif
   0
 };
 

@@ -11,6 +11,7 @@ set @@global.query_cache_size=1024*1024;
 
 --enable_connect_log
 
+--disable_cursor_protocol
 create table t1 (pk int primary key, c char(8)) engine=RocksDB;
 insert into t1 values (1,'new'),(2,'new');
 
@@ -22,7 +23,7 @@ update t1 set c = 'updated';
 #select * from t1;
 
 --connection default
-flush status;
+flush global status;
 show status like 'Qcache_hits';
 show global status like 'Qcache_hits';
 select * from t1;
@@ -35,6 +36,7 @@ show status like 'Qcache_not_cached';
 show global status like 'Qcache_hits';
 
 drop table t1;
+--enable_cursor_protocol
 
 #
 # Cleanup

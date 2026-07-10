@@ -16,6 +16,7 @@ drop table if exists `Ｔ９`;
 # Test LTRIM() function with Japanese characters in utf8 encoding
 #
 
+SET character_set_collations='utf8mb3=utf8mb3_general_ci';
 SET NAMES utf8;
 SET character_set_database = utf8;
 

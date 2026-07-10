@@ -29,6 +29,14 @@ class THD;
 class my_decimal;
 class sp_condition_value;
 
+/* Types of LOG warnings, used by note_verbosity */
+
+#define NOTE_VERBOSITY_NORMAL             (1U << 0)
+/* Show warnings about keys parts that cannot be used */
+#define NOTE_VERBOSITY_UNUSABLE_KEYS      (1U << 1)
+/* Show warnings in explain for key parts that cannot be used */
+#define NOTE_VERBOSITY_EXPLAIN            (1U << 2)
+
 ///////////////////////////////////////////////////////////////////////////
 
 class Sql_state
@@ -159,7 +167,7 @@ protected:
   /** Severity (error, warning, note) of this condition. */
   enum_warning_level m_level;
 
-  void assign_defaults(const Sql_state_errno *value);
+  void assign_defaults(THD *thd, const Sql_state_errno *value);
 
 public:
   /**
@@ -193,7 +201,7 @@ public:
 
 /*
   class Sql_user_condition_identity.
-  Instances of this class uniquely idetify user defined conditions (EXCEPTION).
+  Instances of this class uniquely identify user defined conditions (EXCEPTION).
 
     SET sql_mode=ORACLE;
     CREATE PROCEDURE p1
@@ -395,7 +403,7 @@ private:
 
   /**
     Default constructor.
-    This constructor is usefull when allocating arrays.
+    This constructor is useful when allocating arrays.
     Note that the init() method should be called to complete the Sql_condition.
   */
   Sql_condition()
@@ -593,6 +601,16 @@ private:
     message.
   */
   bool has_sql_condition(const char *message_str, size_t message_length) const;
+
+  /**
+    Checks if Warning_info contains SQL-condition with the given error id
+
+    @param sql_errno SQL-condition error number
+
+    @return true if the Warning_info contains an SQL-condition with the given
+    error id.
+  */
+  bool has_sql_condition(uint sql_errno) const;
 
   /**
     Reset the warning information. Clear all warnings,
@@ -857,6 +875,14 @@ public:
     len= err_conv(err_buffer, (uint) sizeof(err_buffer), str, (uint) len, cs);
     return {err_buffer, len};
   }
+  LEX_CSTRING set_strq(const char *str, size_t len, CHARSET_INFO *cs) const
+  {
+    DBUG_ASSERT(len < UINT_MAX32);
+    len= err_conv(err_buffer+1, (uint) sizeof(err_buffer)-2, str, (uint) len, cs);
+    err_buffer[0]= err_buffer[len+1]= '\'';
+    err_buffer[len+2]= 0;
+    return {err_buffer, len+2};
+  }
   LEX_CSTRING set_mysql_time(const MYSQL_TIME *ltime) const
   {
     int length= my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
@@ -880,6 +906,7 @@ public:
 
 class ErrConvString : public ErrConv
 {
+protected:
   const char *str;
   size_t len;
   CHARSET_INFO *cs;
@@ -893,6 +920,16 @@ public:
   LEX_CSTRING lex_cstring() const override
   {
     return set_str(str, len, cs);
+  }
+};
+
+class ErrConvStringQ : public ErrConvString
+{
+public:
+  using ErrConvString::ErrConvString;
+  LEX_CSTRING lex_cstring() const override
+  {
+    return set_strq(str, len, cs);
   }
 };
 
@@ -1060,6 +1097,11 @@ public:
     return m_affected_rows;
   }
 
+  void set_message(const char *msg)
+  {
+    strmake_buf(m_message, msg);
+  }
+
   ulonglong last_insert_id() const
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
@@ -1070,6 +1112,11 @@ public:
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
                 m_status == DA_EOF ||m_status == DA_EOF_BULK );
+    return m_statement_warn_count;
+  }
+
+  uint unsafe_statement_warn_count() const
+  {
     return m_statement_warn_count;
   }
 
@@ -1134,6 +1181,9 @@ public:
 
   bool has_sql_condition(const char *message_str, size_t message_length) const
   { return get_warning_info()->has_sql_condition(message_str, message_length); }
+
+  bool has_sql_condition(uint sql_errno) const
+  { return get_warning_info()->has_sql_condition(sql_errno); }
 
   void reset_for_next_command()
   { get_warning_info()->reset_for_next_command(); }
@@ -1282,7 +1332,11 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);
 
 void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
-                         uint code, const char *format, ...);
+                         uint code, const char *format, ...)
+                         ATTRIBUTE_FORMAT(printf, 4, 5);
+
+void push_warning_vprintf(THD *thd, Sql_condition::enum_warning_level level,
+                          uint code, const char *format, va_list args);
 
 bool mysqld_show_warnings(THD *thd, ulong levels_to_show);
 

@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS t1 ;
 # READ_ONLY does nothing to SUPER users
 # so we use a non-SUPER one:
 CREATE USER test@localhost;
-GRANT CREATE, SELECT, DROP ON *.* TO test@localhost;
+GRANT CREATE TEMPORARY TABLES, SELECT, DROP ON *.* TO test@localhost;
 connect  con1,localhost,test,,test;
 connection default;
 SET GLOBAL READ_ONLY=1;
@@ -31,7 +31,7 @@ SET GLOBAL READ_ONLY=1;
 connection con1;
 SELECT @@GLOBAL.READ_ONLY;
 @@GLOBAL.READ_ONLY
-1
+ON
 COMMIT;
 connection default;
 SET GLOBAL READ_ONLY=0;
@@ -45,7 +45,7 @@ SET GLOBAL READ_ONLY=1;
 connection con1;
 SELECT @@GLOBAL.READ_ONLY;
 @@GLOBAL.READ_ONLY
-1
+ON
 COMMIT;
 SELECT * FROM t1;
 a

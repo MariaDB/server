@@ -1,0 +1,81 @@
+--source include/galera_cluster.inc
+--source include/have_aria.inc
+
+#
+# MDEV-29775 : Assertion `0' failed in void Protocol::end_statement() when adding data to the MyISAM table after setting wsrep_mode=replicate_myisam
+#
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+CREATE TABLE t (f0 CHAR(0)) ENGINE=MyISAM;
+INSERT INTO t VALUES();
+SELECT * FROM t;
+--connection node_2
+SELECT * FROM t;
+DROP TABLE t;
+
+--connection node_1
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+SET GLOBAL wsrep_forced_binlog_format=ROW;
+CREATE TABLE t (f0 CHAR(0)) ENGINE=MyISAM;
+INSERT INTO t VALUES();
+SELECT * FROM t;
+--connection node_2
+SELECT * FROM t;
+DROP TABLE t;
+
+--connection node_1
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
+CREATE TABLE t (f0 CHAR(0)) ENGINE=Aria;
+INSERT INTO t VALUES();
+SELECT * FROM t;
+--connection node_2
+SELECT * FROM t;
+DROP TABLE t;
+
+--connection node_1
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
+SET GLOBAL wsrep_forced_binlog_format=ROW;
+CREATE TABLE t (f0 CHAR(0)) ENGINE=Aria;
+INSERT INTO t VALUES();
+SELECT * FROM t;
+--connection node_2
+SELECT * FROM t;
+DROP TABLE t;
+
+--connection node_1
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_forced_binlog_format=MIXED;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
+
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_forced_binlog_format=MIXED;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
+
+SET GLOBAL wsrep_mode=DEFAULT;
+SET GLOBAL wsrep_forced_binlog_format=MIXED;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_mode = REPLICATE_ARIA;
+
+SET GLOBAL wsrep_mode=DEFAULT;
+SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_mode = REPLICATE_ARIA;
+
+SET GLOBAL wsrep_forced_binlog_format=DEFAULT;
+SET GLOBAL wsrep_mode=DEFAULT;
+SET GLOBAL wsrep_forced_binlog_format=MIXED;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
+SET GLOBAL wsrep_forced_binlog_format=STATEMENT;
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
+
+SET GLOBAL wsrep_forced_binlog_format=DEFAULT;
+SET GLOBAL wsrep_mode=DEFAULT;

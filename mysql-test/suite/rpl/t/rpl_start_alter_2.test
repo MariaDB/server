@@ -8,9 +8,11 @@
 --source include/have_debug.inc
 --source include/master-slave.inc
 --connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
 set global binlog_alter_two_phase = ON;
 set binlog_alter_two_phase = ON;
+
 --connection slave
 --let $gtid_strict_mode= `select @@gtid_strict_mode`
 --let $slave_parallel_threads= `select @@slave_parallel_threads`

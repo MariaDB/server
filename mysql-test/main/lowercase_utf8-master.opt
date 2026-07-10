@@ -1,4 +1,4 @@
---lower-case-table-names=1 --character-set-server=utf8
+--lower-case-table-names=1 --character-set-server=utf8 --collation-server=utf8_general_ci
 
 
 

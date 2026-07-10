@@ -1,4 +1,6 @@
 '#--------------------FN_DYNVARS_011_01-------------------------#'
+SET @global_collation_connection = @@global.collation_connection;
+SET @session_collation_connection = @@session.collation_connection;
 SET @global_character_set_connection = @@global.character_set_connection;
 SET @session_character_set_connection = @@session.character_set_connection;
 SET @session_character_set_client = @@session.character_set_client;
@@ -50,8 +52,8 @@ SELECT * FROM t1;
 b
 ЁЂЃЄ
 TRUNCATE TABLE t1;
-SET @@global.character_set_connection = @global_character_set_connection;
-SET @@session.character_set_connection = @session_character_set_connection;
+SET @@global.collation_connection = @global_collation_connection;
+SET @@session.collation_connection = @session_collation_connection;
 SET @@session.character_set_client = @session_character_set_client;
 SET @@session.character_set_results = @session_character_set_results;
 DROP TABLE t1;

@@ -9,3 +9,4 @@ FROM keywords;
 snippet
 <div class="snippet"><span class="keyword">Mroonga</span> is the Groonga based storage engine.</div>
 <div class="snippet">Mroonga is the <span class="keyword">Groonga</span> based storage engine.</div>
+DROP TABLE keywords;

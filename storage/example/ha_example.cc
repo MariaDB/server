@@ -38,7 +38,7 @@
   build by doing the following during your build process:<br> ./configure
   --with-example-storage-engine
 
-  Once this is done, MySQL will let you create tables with:<br>
+  Once this is done, MariaDB will let you create tables with:<br>
   CREATE TABLE <table name> (...) ENGINE=EXAMPLE;
 
   The example storage engine is set up to use table locks. It
@@ -51,9 +51,9 @@
   of this file.
 
   @note
-  When you create an EXAMPLE table, the MySQL Server creates a table .frm
+  When you create an EXAMPLE table, the MariaDB Server creates a table .frm
   (format) file in the database directory, using the table name as the file
-  name as is customary with MySQL. No other files are created. To get an idea
+  name as is customary with MariaDB. No other files are created. To get an idea
   of what occurs, here is an example select that would do a scan of an entire
   table:
 
@@ -86,17 +86,9 @@
   ha_example::open() would also have been necessary. Calls to
   ha_example::extra() are hints as to what will be occuring to the request.
 
-  A Longer Example can be found called the "Skeleton Engine" which can be 
-  found on TangentOrg. It has both an engine and a full build environment
-  for building a pluggable storage engine.
-
   Happy coding!<br>
     -Brian
 */
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
 
 #include <my_global.h>
 #include <mysql/plugin.h>
@@ -333,13 +325,11 @@ int ha_example::open(const char *name, int mode, uint test_if_locked)
   thr_lock_data_init(&share->lock,&lock,NULL);
 
 #ifndef DBUG_OFF
-  ha_table_option_struct *options= table->s->option_struct;
-
-  DBUG_ASSERT(options);
+  DBUG_ASSERT(option_struct);
   DBUG_PRINT("info", ("strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "\
-                      "boolparam: %u",
-                      (options->strparam ? options->strparam : "<NULL>"),
-                      options->ullparam, options->enumparam, options->boolparam));
+                      "boolparam: %u", option_struct->strparam,
+                      option_struct->ullparam, option_struct->enumparam,
+                      option_struct->boolparam));
 #endif
 
   DBUG_RETURN(0);
@@ -384,8 +374,6 @@ int ha_example::close(void)
   @endcode
 
   See ha_tina.cc for an example of extracting all of the data as strings.
-  ha_berekly.cc has an example of how to store it intact by "packing" it
-  for ha_berkeley's own native storage type.
 
   See the note for update_row() on auto_increments and timestamps. This
   case also applies to write_row().
@@ -771,7 +759,7 @@ int ha_example::external_lock(THD *thd, int lock_type)
   Before adding the lock into the table lock handler (see thr_lock.c),
   mysqld calls store lock with the requested locks. Store lock can now
   modify a write lock to a read lock (or some other lock), ignore the
-  lock (if we don't want to use MySQL table locks at all), or add locks
+  lock (if we don't want to use MariaDB table locks at all), or add locks
   for many tables (like we do when we are using a MERGE handler).
 
   Berkeley DB, for example, changes all WRITE locks to TL_WRITE_ALLOW_WRITE
@@ -781,7 +769,7 @@ int ha_example::external_lock(THD *thd, int lock_type)
   When releasing locks, store_lock() is also called. In this case one
   usually doesn't have to do anything.
 
-  In some exceptional cases MySQL may send a request for a TL_IGNORE;
+  In some exceptional cases MariaDB may send a request for a TL_IGNORE;
   This means that we are requesting the same lock as last time and this
   should also be ignored. (This may happen when someone does a flush
   table when we have opened a part of the tables, in which case mysqld
@@ -886,17 +874,16 @@ int ha_example::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
 #ifndef DBUG_OFF
-  ha_table_option_struct *options= table_arg->s->option_struct;
   DBUG_ENTER("ha_example::create");
   /*
     This example shows how to support custom engine specific table and field
     options.
   */
-  DBUG_ASSERT(options);
+  DBUG_ASSERT(option_struct);
   DBUG_PRINT("info", ("strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "\
-                      "boolparam: %u",
-                      (options->strparam ? options->strparam : "<NULL>"),
-                      options->ullparam, options->enumparam, options->boolparam));
+                      "boolparam: %u", option_struct->strparam,
+                      option_struct->ullparam, option_struct->enumparam,
+                      option_struct->boolparam));
   for (Field **field= table_arg->s->field; *field; field++)
   {
     ha_field_option_struct *field_options= (*field)->option_struct;
@@ -941,7 +928,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
       options can be accessed from this function to be compared.
     */
     ha_table_option_struct *param_new= info->option_struct;
-    ha_table_option_struct *param_old= table->s->option_struct;
+    ha_table_option_struct *param_old= option_struct;
 
     /*
       check important parameters:
@@ -980,7 +967,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
       if (f_new)
       {
         push_warning_printf(ha_thd(), Sql_condition::WARN_LEVEL_NOTE,
-                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %`s COMPLEX '%s' -> '%s'",
+                            ER_UNKNOWN_ERROR, "EXAMPLE DEBUG: Field %sQ COMPLEX '%s' -> '%s'",
                             table->s->field[i]->field_name.str,
                             f_old->complex_param_to_parse_it_in_engine,
                             f_new->complex_param_to_parse_it_in_engine);
@@ -1006,17 +993,13 @@ const char *enum_var_names[]=
   "e1", "e2", NullS
 };
 
-TYPELIB enum_var_typelib=
-{
-  array_elements(enum_var_names) - 1, "enum_var_typelib",
-  enum_var_names, NULL
-};
+TYPELIB enum_var_typelib= CREATE_TYPELIB_FOR(enum_var_names);
 
 static MYSQL_SYSVAR_ENUM(
   enum_var,                       // name
   srv_enum_var,                   // varname
   PLUGIN_VAR_RQCMDARG,            // opt
-  "Sample ENUM system variable.", // comment
+  "Sample ENUM system variable",  // comment
   NULL,                           // check
   NULL,                           // update
   0,                              // def
@@ -1078,13 +1061,13 @@ static struct st_mysql_sys_var* example_system_variables[]= {
 // this is an example of SHOW_SIMPLE_FUNC and of my_snprintf() service
 // If this function would return an array, one should use SHOW_FUNC
 static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
-                             char *buf)
+                             void *buf, system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   var->value= buf; // it's of SHOW_VAR_FUNC_BUFF_SIZE bytes
-  my_snprintf(buf, SHOW_VAR_FUNC_BUFF_SIZE,
+  my_snprintf((char*) buf, SHOW_VAR_FUNC_BUFF_SIZE,
               "enum_var is %lu, ulong_var is %lu, int_var is %d, "
-              "double_var is %f, %.6b", // %b is a MySQL extension
+              "double_var is %f, %.6sB", // %sB is a MariaDB extension
               srv_enum_var, srv_ulong_var, THDVAR(thd, int_var),
               srv_double_var, "really");
   return 0;

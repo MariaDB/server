@@ -48,6 +48,7 @@ Note	1255	Slave already has been stopped
 RESET MASTER;
 SET @@global.gtid_slave_pos="";
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE ti (a INT) ENGINE=innodb;
 CREATE SEQUENCE s2 ENGINE=innodb;
@@ -83,6 +84,61 @@ SELECT @@global.gtid_binlog_state, @@global.gtid_slave_pos as "all through 101 h
 0-1-101	0-1-101
 connection slave;
 include/stop_slave.inc
+set @saved_mode= @@global.slave_parallel_mode;
+set @@global.slave_parallel_mode = conservative;
+include/start_slave.inc
+connection master;
+INSERT INTO ti SET a=2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+lock table ti write;
+SET GLOBAL debug_dbug= "+d,halt_past_mark_start_commit";
+connection master;
+INSERT INTO ti SET a=35570;
+ALTER SEQUENCE s2 restart with 1;
+include/save_master_gtid.inc
+connection slave;
+unlock tables;
+SET debug_sync = "now SIGNAL past_mark_continue";
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @@global.slave_parallel_mode = @saved_mode;
+SET @@global.debug_dbug = @@GLOBAL.debug_dbug;
+include/start_slave.inc
+connection slave;
+flush tables with read lock;
+connection master;
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+include/save_master_gtid.inc
+connection slave;
+unlock tables;
+include/sync_with_master_gtid.inc
+connection slave;
+flush tables with read lock;
+connection master;
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+include/save_master_gtid.inc
+connection slave;
+unlock tables;
+include/sync_with_master_gtid.inc
+connection slave;
+BEGIN /* slave local Trx */;
+select count(*) from s3;
+count(*)
+1
+connection master;
+CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
+SELECT NEXT VALUE FOR s3 into @tmpvar;
+include/save_master_gtid.inc
+connection slave;
+connection slave;
+rollback /* Trx */;
+include/sync_with_master_gtid.inc
+connection slave;
+include/stop_slave.inc
 SET debug_sync = RESET;
 SET @@global.slave_parallel_threads= 0;
 SET @@global.slave_parallel_mode= optimistic;
@@ -90,7 +146,20 @@ SET @@global.debug_dbug = "";
 SET @@global.gtid_strict_mode=0;
 include/start_slave.inc
 connection master;
-DROP SEQUENCE s2;
+BEGIN;
+INSERT INTO ti SET a=32593;
+CREATE SEQUENCE s4;
+DROP SEQUENCE s2,s3,s4;
 DROP TABLE ti;
 connection slave;
+connection master;
+CREATE SEQUENCE s;
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+1
+flush binary logs;
+DROP SEQUENCE s;
+DROP SEQUENCE s;
+connection slave;
+connection master;
 include/rpl_end.inc

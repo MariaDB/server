@@ -28,24 +28,21 @@
 #undef EXTRA_DEBUG
 #define EXTRA_DEBUG
 
-#ifndef DBUG_OFF
-/* Put a protected barrier after every element when using multi_alloc_root() */
-#define ALLOC_BARRIER
-#endif
+#define ROOT_FLAG_THREAD_SPECIFIC 1
+#define ROOT_FLAG_MPROTECT        2
+#define ROOT_FLAG_READ_ONLY       4
 
 /* data packed in MEM_ROOT -> min_malloc */
 
 /* Don't allocate too small blocks */
 #define ROOT_MIN_BLOCK_SIZE 256
 
-/* bits in MEM_ROOT->flags */
-#define ROOT_FLAG_THREAD_SPECIFIC 1
-#define ROOT_FLAG_MPROTECT        2
-
-#define MALLOC_FLAG(R) MYF((R)->flags & ROOT_FLAG_THREAD_SPECIFIC ? THREAD_SPECIFIC : 0)
+#define MALLOC_FLAG(root) (((root)->flags & ROOT_FLAG_THREAD_SPECIFIC) ? MY_THREAD_SPECIFIC : 0)
 
 #define TRASH_MEM(X) TRASH_FREE(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
+#undef ALIGN_SIZE
+#define ALIGN_SIZE(X) MY_ALIGN(X, 16)
 
 /*
   Alloc memory through either my_malloc or mmap()
@@ -69,8 +66,7 @@ static void *root_alloc(MEM_ROOT *root, size_t size, size_t *alloced_size,
 #endif /* HAVE_MMAP */
 
   return my_malloc(root->psi_key, size,
-		   my_flags | MYF(root->flags & ROOT_FLAG_THREAD_SPECIFIC ?
-				  MY_THREAD_SPECIFIC : 0));
+		   my_flags | MALLOC_FLAG(root));
 }
 
 static void root_free(MEM_ROOT *root, void *ptr, size_t size)
@@ -157,7 +153,10 @@ void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root, size_t block_size,
 
   mem_root->free= mem_root->used= mem_root->pre_alloc= 0;
   mem_root->min_malloc= 32 + REDZONE_SIZE;
-  mem_root->block_size= MY_MAX(block_size, ROOT_MIN_BLOCK_SIZE);
+
+  /* Ensure block size is not to small (we need space for memory accounting */
+  block_size= MY_MAX(block_size, ROOT_MIN_BLOCK_SIZE);
+
   mem_root->flags= 0;
   DBUG_ASSERT(!test_all_bits(mem_root->flags,
                              (MY_THREAD_SPECIFIC | MY_ROOT_USE_MPROTECT)));
@@ -272,12 +271,13 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 {
   size_t get_size, block_size;
   uchar* point;
-  reg1 USED_MEM *next= 0;
-  reg2 USED_MEM **prev;
+  USED_MEM *next= 0;
+  USED_MEM **prev;
   size_t original_length __attribute__((unused)) = length;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  length: %zu", mem_root, length));
   DBUG_ASSERT(alloc_root_inited(mem_root));
+  DBUG_ASSERT((mem_root->flags & ROOT_FLAG_READ_ONLY) == 0);
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
 		  {
@@ -293,9 +293,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     length+= ALIGN_SIZE(sizeof(USED_MEM));
     if (!(next = (USED_MEM*) my_malloc(mem_root->psi_key, length,
 				       MYF(MY_WME | ME_FATAL |
-					   (mem_root->flags &
-                                            ROOT_FLAG_THREAD_SPECIFIC ?
-                                           MY_THREAD_SPECIFIC : 0)))))
+					   MALLOC_FLAG(mem_root)))))
     {
       if (mem_root->error_handler)
 	(*mem_root->error_handler)();
@@ -318,8 +316,8 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 	(*prev)->left < ALLOC_MAX_BLOCK_TO_DROP)
     {
       next= *prev;
-      *prev= next->next;			/* Remove block from list */
-      next->next= mem_root->used;
+      *prev= next->next;			/* Remove block from free list */
+      next->next= mem_root->used;               /* Add to used list */
       mem_root->used= next;
       mem_root->first_block_usage= 0;
     }
@@ -331,6 +329,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     size_t alloced_length;
 
     /* Increase block size over time if there is a lot of mallocs */
+    /* when changing this logic, update root_size() to match      */
     block_size= (MY_ALIGN(mem_root->block_size, ROOT_MIN_BLOCK_SIZE) *
                  (mem_root->block_num >> 2)- MALLOC_OVERHEAD);
     get_size= length + ALIGN_SIZE(sizeof(USED_MEM));
@@ -344,21 +343,27 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
       DBUG_RETURN((void*) 0);                      /* purecov: inspected */
     }
     mem_root->block_num++;
-    next->next= *prev;
+    DBUG_ASSERT(*prev == 0);
+    next->next= 0;
     next->size= alloced_length;
     next->left= alloced_length - ALIGN_SIZE(sizeof(USED_MEM));
-    *prev=next;
+    *prev= next;
     TRASH_MEM(next);
+  }
+  else
+  {
+    /* Reset first_block_usage if we used the first block */
+    if (prev == &mem_root->free)
+      mem_root->first_block_usage= 0;
   }
 
   point= (uchar*) ((char*) next+ (next->size-next->left));
-  /*TODO: next part may be unneded due to mem_root->first_block_usage counter*/
   if ((next->left-= length) < mem_root->min_malloc)
-  {						/* Full block */
-    *prev= next->next;				/* Remove block from list */
+  {
+    /* Full block. Move the block from the free list to the used list */
+    *prev= next->next;
     next->next= mem_root->used;
     mem_root->used= next;
-    mem_root->first_block_usage= 0;
   }
   point+= REDZONE_SIZE;
   TRASH_ALLOC(point, original_length);
@@ -403,7 +408,7 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   {
     length= va_arg(args, uint);
     tot_length+= ALIGN_SIZE(length);
-#ifdef ALLOC_BARRIER
+#ifndef DBUG_OFF
     tot_length+= ALIGN_SIZE(1);
 #endif
   }
@@ -419,7 +424,7 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
     *ptr= res;
     length= va_arg(args, uint);
     res+= ALIGN_SIZE(length);
-#ifdef ALLOC_BARRIER
+#ifndef DBUG_OFF
     TRASH_FREE(res, ALIGN_SIZE(1));
     res+= ALIGN_SIZE(1);
 #endif
@@ -432,10 +437,10 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
 /** Mark all data in blocks free for reusage */
 
-static inline void mark_blocks_free(MEM_ROOT* root)
+static void mark_blocks_free(MEM_ROOT* root)
 {
-  reg1 USED_MEM *next;
-  reg2 USED_MEM **last;
+  USED_MEM *next;
+  USED_MEM **last;
 
   /* iterate through (partially) free blocks, mark them free */
   last= &root->free;
@@ -458,7 +463,6 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   /* Now everything is set; Indicate that nothing is used anymore */
   root->used= 0;
   root->first_block_usage= 0;
-  root->block_num= 4;
 }
 #endif
 
@@ -484,7 +488,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
 
 void free_root(MEM_ROOT *root, myf MyFlags)
 {
-  reg1 USED_MEM *next,*old;
+  USED_MEM *next,*old;
   DBUG_ENTER("free_root");
   DBUG_PRINT("enter",("root: %p  flags: %lu", root, MyFlags));
 
@@ -553,6 +557,83 @@ void set_prealloc_root(MEM_ROOT *root, char *ptr)
   }
 }
 
+/*
+  Move allocated objects from one root to another.
+
+  Notes:
+  We do not increase 'to->block_num' here as the variable isused to
+  increase block sizes in case of many allocations. This is special
+  case where this is not needed to take into account
+*/
+
+void move_root(MEM_ROOT *to, MEM_ROOT *from)
+{
+  USED_MEM *block, *next;
+  for (block= from->used; block ; block= next)
+  {
+    next= block->next;
+    block->next= to->used;
+    to->used= block;
+  }
+  from->used= 0;
+}
+
+/*
+  Prepare MEM_ROOT to a later truncation. Everything allocated after
+  that point can be freed while keeping earlier allocations intact.
+
+  For this to work we cannot allow new allocations in partially filled blocks,
+  so remove all non-empty blocks from the memroot. For simplicity, let's
+  also remove all used blocks.
+*/
+void root_make_savepoint(MEM_ROOT *root, MEM_ROOT_SAVEPOINT *sv)
+{
+  USED_MEM **prev= &root->free, *block= *prev;
+  for ( ; block; prev= &block->next, block= *prev)
+    if (block->left < block->size - ALIGN_SIZE(sizeof(USED_MEM)))
+      break;
+  sv->root= root;
+  sv->free= block;
+  sv->used= root->used;
+  sv->first_block_usage= root->first_block_usage;
+  *prev= 0;
+  root->used= 0;
+}
+
+/*
+  Restore MEM_ROOT to the state before the savepoint was made.
+
+  Restore old free and used lists.
+  Mark all new (after savepoint) used and partially used blocks free
+  and put them into the free list.
+*/
+void root_free_to_savepoint(const MEM_ROOT_SAVEPOINT *sv)
+{
+  MEM_ROOT *root= sv->root;
+  USED_MEM **prev= &root->free, *block= *prev;
+
+  /* iterate through (partially) free blocks, mark them free */
+  for ( ; block; prev= &block->next, block= *prev)
+  {
+    block->left= block->size - ALIGN_SIZE(sizeof(USED_MEM));
+    TRASH_MEM(block);
+  }
+
+  /* Combine the free and the used list */
+  *prev= block=root->used;
+
+  /* now go through the used blocks and mark them free */
+  for ( ; block; prev= &block->next, block= *prev)
+  {
+    block->left= block->size - ALIGN_SIZE(sizeof(USED_MEM));
+    TRASH_MEM(block);
+  }
+
+  /* restore free and used lists from savepoint */
+  *prev= sv->free;
+  root->used= sv->used;
+  root->first_block_usage= prev == &root->free ? sv->first_block_usage : 0;
+}
 
 /**
    Change protection for all blocks in the mem root
@@ -561,7 +642,7 @@ void set_prealloc_root(MEM_ROOT *root, char *ptr)
 #if defined(HAVE_MMAP) && defined(HAVE_MPROTECT) && defined(MAP_ANONYMOUS)
 void protect_root(MEM_ROOT *root, int prot)
 {
-  reg1 USED_MEM *next,*old;
+  USED_MEM *next,*old;
   DBUG_ENTER("protect_root");
   DBUG_PRINT("enter",("root: %p  prot: %d", root, prot));
 
@@ -621,5 +702,18 @@ LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str)
   else
     res.str= (const char *)"";
   res.length= str.length;
+  return res;
+}
+
+
+LEX_STRING lex_string_casedn_root(MEM_ROOT *root, CHARSET_INFO *cs,
+                                  const char *str, size_t length)
+{
+  size_t nbytes= length * cs->cset->casedn_multiply(cs);
+  LEX_STRING res= {NULL, 0};
+  if (!(res.str= alloc_root(root, nbytes + 1)))
+    return res;
+  res.length= cs->cset->casedn(cs, str, length, res.str, nbytes);
+  res.str[res.length]= '\0';
   return res;
 }

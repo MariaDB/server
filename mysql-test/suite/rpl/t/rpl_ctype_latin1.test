@@ -14,7 +14,7 @@
 
 #
 # The below tests uses a sequence of bytes 0xD191,
-# which in a utf8 console looks like ё (CYRILIC SMALL LETTER YO).
+# which in a utf8 console looks like ё (CYRILLIC SMALL LETTER YO).
 # Don't be mislead. This sequence is used in latin1 context and
 # represents a sequence of two characters:
 # U+00D1 CAPITAL LATIN LETTER N WITH TILDE (_latin1 0xD1)

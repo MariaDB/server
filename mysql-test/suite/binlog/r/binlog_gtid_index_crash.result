@@ -1,0 +1,28 @@
+*** Test that binlog GTID index is recovered after a crash.
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+Ok
+1
+Ok
+1
+Ok
+1
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	3
+Binlog_gtid_index_miss	0
+*** Crash the server, check that GTID index can be used after restart.
+SET debug_dbug="d,crash_shutdown";
+shutdown;
+ERROR HY000: Lost connection to server during query
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+Ok
+1
+Ok
+1
+Ok
+1
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+Variable_name	Value
+Binlog_gtid_index_hit	3
+Binlog_gtid_index_miss	0
+DROP TABLE t1;

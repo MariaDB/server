@@ -3,7 +3,7 @@ Table	Create Table
 seq_1_to_15_step_2	CREATE TABLE `seq_1_to_15_step_2` (
   `seq` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`seq`)
-) ENGINE=SEQUENCE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select count(seq),sum(seq),1 from seq_1_to_15_step_2;
 count(seq)	sum(seq)	1
 8	64	1
@@ -86,7 +86,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	NULL	PRIMARY	8	NULL	8	Using index; Using join buffer (flat, BNL join)
 explain select count(*) from seq_1_to_15_step_2 where seq > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	seq_1_to_15_step_2	index	PRIMARY	PRIMARY	8	NULL	8	Using where; Using index
+1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	8	Using where; Using index
 explain select count(*) from seq_1_to_15_step_2 group by mod(seq,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq_1_to_15_step_2	index	NULL	PRIMARY	8	NULL	8	Using index; Using temporary; Using filesort

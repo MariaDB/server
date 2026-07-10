@@ -1,0 +1,31 @@
+--source include/have_partition.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+ 
+create table t (a int, key(a)) partition by range (a) (
+  partition p0 values less than (10),
+  partition p1 values less than (100)
+);
+ 
+insert into t values (5),(50);
+ 
+--sync_slave_with_master
+# Simulate rows ending up in wrong partitions, to make REPAIR have
+# something to do.
+# The bug was that the repair was reported as ERROR in the error log on the
+# slave (it should be WARNING like in the interactive session on the master).
+flush tables;
+--let $datadir= `select @@datadir`
+--move_file $datadir/test/t#P#p0.MYD $datadir/test/tmp
+--move_file $datadir/test/t#P#p1.MYD $datadir/test/t#P#p0.MYD
+--move_file $datadir/test/tmp $datadir/test/t#P#p1.MYD
+ 
+--connection master
+repair table t;
+--sync_slave_with_master
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression('[[]Warning[]] Moved 1 misplaced rows');
+
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

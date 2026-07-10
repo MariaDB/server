@@ -25,10 +25,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
-/** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
-system clustered index when there is no primary key. */
-extern const char innobase_index_reserve_name[];
-
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
@@ -48,8 +44,19 @@ struct ha_table_option_struct
 						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
-	uint		encryption;		/*!<  DEFAULT, ON, OFF */
+	uint		adaptive_hash_index;	/*!< DEFAULT, ON, OFF */
+	uint		encryption;		/*!< DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
+};
+
+struct ha_index_option_struct
+{
+	uint		adaptive_hash_index;	/*!< DEFAULT, ON, OFF */
+	ulonglong	complete_fields;
+	ulonglong	bytes_from_incomplete_field;
+	/** DEFAULT (0), YES (1), NO (2)
+	DEFAULT means no fixed recommendation for this AHI parameter. */
+	uint		for_equal_hash_point_to_last_record;
 };
 
 /** The class defining a handle to an Innodb table */
@@ -69,8 +76,6 @@ public:
 
         const char* table_type() const override;
 
-	const char* index_type(uint key_number) override;
-
 	Table_flags table_flags() const override;
 
 	ulong index_flags(uint idx, uint part, bool all_parts) const override;
@@ -83,7 +88,7 @@ public:
 
 	const key_map* keys_to_use_for_scanning() override;
 
-	void column_bitmaps_signal() override;
+	void column_bitmaps_signal(bool mark_for_update) override;
 
 	/** Opens dictionary table object using table name. For partition, we need to
 	try alternative lower/upper case names to support moving data files across
@@ -101,14 +106,17 @@ public:
 
 	int open(const char *name, int mode, uint test_if_locked) override;
 
+	/** Fetch or recalculate InnoDB table statistics */
+	dberr_t statistics_init(dict_table_t *table, bool recalc);
+
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;
 
-	double scan_time() override;
-
-	double read_time(uint index, uint ranges, ha_rows rows) override;
-
+#ifdef NOT_USED
+	IO_AND_CPU_COST scan_time() override;
+        double rnd_pos_time(ha_rows rows) override;
+#endif
 	int write_row(const uchar * buf) override;
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;
@@ -207,8 +215,8 @@ public:
 	int delete_table(const char *name) override;
 
 	int rename_table(const char* from, const char* to) override;
-	inline int defragment_table();
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
+	int check_for_upgrade(HA_CHECK_OPT* check_opt) override;
 
 	inline void reload_statistics();
 
@@ -218,12 +226,12 @@ public:
                                  List<FOREIGN_KEY_INFO> *f_key_list) override;
 
 	int get_parent_foreign_key_list(
-		THD*			thd,
+		THD*		thd,
 		List<FOREIGN_KEY_INFO>*	f_key_list) override;
 
 	bool can_switch_engines() override;
 
-	uint referenced_by_foreign_key() override;
+	bool referenced_by_foreign_key() const noexcept override;
 
 	void free_foreign_key_create_info(char* str) override { my_free(str); }
 
@@ -383,6 +391,7 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
+                ha_rows                 limit,
 		Cost_estimate*		cost) override;
 
 	/** Initialize multi range read and get information.
@@ -438,6 +447,12 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+	/** Check consistency between .frm indexes and InnoDB indexes
+	Set HA_DUPLICATE_KEY_NOT_IN_ORDER if multiple unique index
+	are not in the correct order.
+	@param ib_table InnoDB table definition
+	@retval true if not errors were found */
+	bool check_index_consistency(const dict_table_t* ib_table) noexcept;
 protected:
 	bool
 	can_convert_string(const Field_string* field,
@@ -458,8 +473,13 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-	/** @return whether the table is read-only */
-	bool is_read_only(bool altering_to_supported= false) const;
+	/** Check the transaction is valid.
+        @param altering_to_supported  whether an ALTER TABLE is being run
+        to something else than ROW_FORMAT=COMPRESSED
+        @retval 0 if the transaction is valid for the current operation
+        @retval HA_ERR_TABLE_READONLY  if the table is read-only
+        @retval HA_ERR_ROLLBACK        if the transaction has been aborted */
+	int is_valid_trx(bool altering_to_supported= false) const noexcept;
 
 	inline void update_thd(THD* thd);
 	void update_thd();
@@ -505,10 +525,10 @@ protected:
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
 
-	/** Flags that specificy the handler instance (table) capability. */
+	/** Flags that specify the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 
-	/** Index into the server's primkary keye meta-data table->key_info{} */
+	/** Index into the server's primary key meta-data table->key_info{} */
 	uint			m_primary_key;
 
 	/** this is set to 1 when we are starting a table scan but have
@@ -521,6 +541,10 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+	/** If true, disable the Rowid Filter. It is disabled when
+	the engine is intialized for making rnd_pos() calls */
+	bool                    m_disable_rowid_filter;
 };
 
 
@@ -531,37 +555,6 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #ifndef INNODB_COMPATIBILITY_HOOKS
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
-
-extern "C" {
-
-/** Check if a user thread is running a non-transactional update
-@param thd user thread
-@retval 0 the user thread is not running a non-transactional update
-@retval 1 the user thread is running a non-transactional update */
-int thd_non_transactional_update(const MYSQL_THD thd);
-
-/** Get the user thread's binary logging format
-@param thd user thread
-@return Value to be used as index into the binlog_format_names array */
-int thd_binlog_format(const MYSQL_THD thd);
-
-/** Check if binary logging is filtered for thread's current db.
-@param thd Thread handle
-@retval 1 the query is not filtered, 0 otherwise. */
-bool thd_binlog_filter_ok(const MYSQL_THD thd);
-
-/** Check if the query may generate row changes which may end up in the binary.
-@param thd Thread handle
-@retval 1 the query may generate row changes, 0 otherwise.
-*/
-bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
-
-/** Is strict sql_mode set.
-@param thd Thread object
-@return True if sql_mode has strict mode (all or trans), false otherwise. */
-bool thd_is_strict_mode(const MYSQL_THD thd);
-
-} /* extern "C" */
 
 /** Get the file name and position of the MySQL binlog corresponding to the
  * current commit.
@@ -625,8 +618,6 @@ public:
 		THD*		thd,
 		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
-		char*		table_name,
-		char*		remote_path,
 		bool		file_per_table,
 		trx_t*		trx = NULL);
 
@@ -641,9 +632,9 @@ public:
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
-	int create_table(bool create_fk = true);
+	int create_table(bool create_fk = true, bool strict= true);
 
-  static void create_table_update_dict(dict_table_t* table, THD* thd,
+  static void create_table_update_dict(dict_table_t* table, trx_t* trx,
                                        const HA_CREATE_INFO& info,
                                        const TABLE& t);
 
@@ -701,6 +692,8 @@ public:
 	ulint flags2() const
 	{ return(m_flags2); }
 
+	bool creating_stub() const { return UNIV_UNLIKELY(m_creating_stub); }
+
 	/** Get trx. */
 	trx_t* trx() const
 	{ return(m_trx); }
@@ -738,13 +731,13 @@ private:
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
-	/** Table name */
-	char*		m_table_name;
+	/** Table name: {database}/{tablename} */
+	char		m_table_name[FN_REFLEN];
 	/** Table */
 	dict_table_t*	m_table;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
-	char*		m_remote_path;
+	char		m_remote_path[FN_REFLEN]; // Absolute path of the table
 
 	/** Local copy of srv_file_per_table. */
 	bool		m_innodb_file_per_table;
@@ -767,6 +760,9 @@ private:
 
 	/** Table flags2 */
 	ulint		m_flags2;
+
+	/** Whether we are creating a stub table for importing. */
+	const bool	m_creating_stub;
 };
 
 /**
@@ -788,7 +784,7 @@ enum fts_doc_id_index_enum {
 };
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column.
 @return the status of the FTS_DOC_ID index */
 fts_doc_id_index_enum
@@ -801,7 +797,7 @@ innobase_fts_check_doc_id_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column in MySQL create index definition.
 @return FTS_EXIST_DOC_ID_INDEX if there exists the FTS_DOC_ID index,
 FTS_INCORRECT_DOC_ID_INDEX if the FTS_DOC_ID index is of wrong format */
@@ -812,14 +808,14 @@ innobase_fts_check_doc_id_index_in_def(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
-Copy table flags from MySQL's TABLE_SHARE into an InnoDB table object.
+Copy table flags from MariaDB TABLE into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
 but are frequently used inside InnoDB so we keep their copies into the
-InnoDB table object. */
-void
-innobase_copy_frm_flags_from_table_share(
-	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
-	const TABLE_SHARE*	table_share);	/*!< in: table share */
+InnoDB table object.
+@param innodb_table  InnoDB table
+@param table         MariaDB table handle */
+void innobase_copy_frm_flags_from_table(dict_table_t *innodb_table,
+                                        const TABLE *table) noexcept;
 
 /** Set up base columns for virtual column
 @param[in]	table	the InnoDB table
@@ -879,15 +875,13 @@ innodb_rec_per_key(
 @param[in]	ib_table	InnoDB dict_table_t
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
-				add index call
-@param[in]	locked		true if innobase_share_mutex is held */
+				add index call */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
 	dict_vcol_templ_t*	s_templ,
-	const dict_add_v_col_t*	add_v,
-	bool			locked);
+	const dict_add_v_col_t*	add_v = nullptr);
 
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template
@@ -909,6 +903,12 @@ unsigned
 innodb_col_no(const Field* field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Get the maximum integer value of a numeric column.
+@param field   column definition
+@return maximum allowed integer value */
+ulonglong innobase_get_int_col_max_value(const Field *field)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and
 if needed to sql-layer. */
@@ -927,11 +927,23 @@ ib_push_frm_error(
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
 
-/** This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
+/** Adjust the persistent statistics after rebuilding ALTER TABLE.
+Remove statistics for dropped indexes, add statistics for created indexes
+and rename statistics for renamed indexes.
+@param table InnoDB table that was rebuilt by ALTER TABLE
+@param trx   user transaction
+@param copy       caller is from COPY algorithm */
+void alter_stats_rebuild(dict_table_t *table, trx_t *trx,
+			 bool copy=false) noexcept;
 
-@param[in] hton InnoDB handlerton
-@param[in] xid X/Open XA transaction identification
+/** Find an auto-generated foreign key constraint identifier.
+@param table   InnoDB table
+@return the next number to assign to a constraint */
+ulint dict_table_get_foreign_id(const dict_table_t &table) noexcept;
 
-@return 0 or error number */
-int innobase_rollback_by_xid(handlerton* hton, XID* xid);
+/** Generate a foreign key constraint name for an anonymous constraint.
+@param id_nr    sequence to allocate identifiers from
+@param name     table name
+@param foreign  foreign key */
+void dict_create_add_foreign_id(ulint *id_nr, const char *name,
+                                dict_foreign_t *foreign) noexcept;

@@ -15,6 +15,7 @@ RESET MASTER;
 RESET SLAVE;
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE t1 (a int primary key, b text) ENGINE=InnoDB;
 --let $a0 = 25
@@ -62,7 +63,7 @@ SET GLOBAL slave_parallel_mode='optimistic';
 # Observe the following START SLAVE resumes OK.
 #
 # Auxiliary third trx3 on master is just for triggering the actual stop
-# (whihc is a legacy UNTIL's property).
+# (which is a legacy UNTIL's property).
 # trx0 is to produce a specific value of the last executed binlog file:pos
 # to emulate the bug condition.
 #
@@ -263,14 +264,35 @@ BEGIN;
 START SLAVE IO_THREAD;
 --source include/wait_for_slave_io_to_start.inc
 
-# The following test sets the stop coordinate is set to inside the first event
+# The following test sets the stop coordinate to inside the first event
 # of a relay log that holds events of a transaction started in an earlier log.
 # Peek the stop position in the middle of trx1, not even on a event boundary.
 --let $pos_until=255
 --let $file_rl=slave-relay-bin.000003
 --let $binlog_file=$file_rl
 
---let $pos_xid=508
+# Wait for the IO thread to write the trx1 to the relaylog before querying it.
+# (wait_for_slave_param.inc isn't flexible enough, so do it manually.)
+--let $continue= 1
+--let $count=600
+while ($continue)
+{
+  --let $cur_file= query_get_value(SHOW SLAVE STATUS, 'Master_Log_File', 1)
+  --let $cur_pos= query_get_value(SHOW SLAVE STATUS, 'Read_Master_Log_Pos', 1)
+  --let $continue= `SELECT '$cur_file' = '$fil_1' AND $cur_pos < $pos_trx1`
+  if ($continue)
+  {
+    --dec $count
+    if (!$count)
+    {
+      --echo **** ERROR: timeout waiting for Read_Master_Log_Pos($cur_pos) >= $pos_trx1 (file='$cur_file') ****"
+      --die Timeout waiting for IO thread to write master events to the relaylog
+    }
+    --sleep 0.1
+  }
+}
+
+--let $pos_xid=510
 --let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_xid LIMIT 1, Info, 1)
 
 if (`SELECT "$info" NOT LIKE "COMMIT /* xid=% */" OR $pos_xid < $pos_until`)
@@ -347,7 +369,7 @@ START SLAVE IO_THREAD;
 
 # Set position inside the transaction though the value
 # specified is beyond that relay log file.
-# The coordianate may point to in a different event in future changes
+# The coordinate may point to in a different event in future changes
 # but should not move away from inside this big group of events.
 # So we don't test which event in the transaction it points to.
 --let $pos_until= 4500
@@ -405,11 +427,11 @@ START SLAVE IO_THREAD;
 --connection slave
 # The relay-log coordinate is not at an event boundary and
 # also may change across the server version.
-# The test makes its best to check its coherance.
+# The test makes its best to check its coherence.
 --let $pos_until= 3130
 --let $file_rl= slave-relay-bin.000018
 
---let $pos_gtid = 2987
+--let $pos_gtid = 2989
 --let $info= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_gtid LIMIT 1, Info, 1)
 
 if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
@@ -417,7 +439,7 @@ if (`SELECT "$info" != "BEGIN GTID 0-1-23"`)
   --echo *** Unexpected offset. Refine it to point to the correct GTID!
   --die
 }
---let $pos_event = 3120
+--let $pos_event = 3122
 --let $type= query_get_value(SHOW RELAYLOG EVENTS IN '$file_rl' FROM $pos_event LIMIT 1, Event_type, 1)
 if (`SELECT "$type" != "Delete_rows_v1"`)
 {

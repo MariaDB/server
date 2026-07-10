@@ -40,6 +40,7 @@ extern const char *soundex_map;
 
 extern USED_MEM* my_once_root_block;
 extern uint	 my_once_extra;
+extern size_t    my_once_allocated;
 
 extern struct st_my_file_info my_file_info_default[MY_NFILE];
 

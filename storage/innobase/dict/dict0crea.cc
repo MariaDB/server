@@ -24,6 +24,7 @@ Database object creation
 Created 1/8/1996 Heikki Tuuri
 *******************************************************/
 
+#define MYSQL_SERVER
 #include "dict0crea.h"
 #include "btr0pcur.h"
 #ifdef BTR_CUR_HASH_ADAPT
@@ -45,6 +46,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0priv.h"
 #include "srv0start.h"
 #include "log.h"
+#include "sql_class.h"
 
 /*****************************************************************//**
 Based on a table object, this function builds the entry to be inserted
@@ -173,7 +175,6 @@ dict_create_sys_columns_tuple(
 	const dict_col_t*	column;
 	dfield_t*		dfield;
 	byte*			ptr;
-	const char*		col_name;
 	ulint			num_base = 0;
 	ulint			v_col_no = ULINT_UNDEFINED;
 
@@ -225,13 +226,11 @@ dict_create_sys_columns_tuple(
 	/* 4: NAME ---------------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_COLUMNS__NAME);
 
-        if (i >= table->n_def) {
-		col_name = dict_table_get_v_col_name(table, i - table->n_def);
-	} else {
-		col_name = dict_table_get_col_name(table, i);
-	}
+	Lex_ident_column col_name= i >= table->n_def ?
+		dict_table_get_v_col_name(table, i - table->n_def) :
+		dict_table_get_col_name(table, i);
 
-	dfield_set_data(dfield, col_name, strlen(col_name));
+	dfield_set_data(dfield, col_name.str, col_name.length);
 
 	/* 5: MTYPE --------------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_COLUMNS__MTYPE);
@@ -349,21 +348,19 @@ dict_build_table_def_step(
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
 	ut_ad(table->space_id == UINT32_MAX);
-	dict_hdr_get_new_id(&table->id, nullptr, nullptr);
+	dict_hdr_get_new_id(thr_get_trx(thr), &table->id, nullptr,
+			    DICT_TF2_FLAG_IS_SET(table,
+						 DICT_TF2_USE_FILE_PER_TABLE)
+			    ? &table->space_id : nullptr);
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
-	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			DICT_TF2_FLAG_UNSET(table,
-					    DICT_TF2_FTS_AUX_HEX_NAME););
 
 	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE)) {
 		/* This table will need a new tablespace. */
 
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
-		/* Get a new tablespace ID */
-		dict_hdr_get_new_id(NULL, NULL, &table->space_id);
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
@@ -668,7 +665,7 @@ dict_build_index_def_step(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	dict_hdr_get_new_id(NULL, &index->id, NULL);
+	dict_hdr_get_new_id(trx, NULL, &index->id, NULL);
 
 	node->page_no = FIL_NULL;
 	row = dict_create_sys_indexes_tuple(index, node->heap);
@@ -700,7 +697,7 @@ dict_build_index_def(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	dict_hdr_get_new_id(NULL, &index->id, NULL);
+	dict_hdr_get_new_id(trx, NULL, &index->id, NULL);
 
 	/* Note that the index was created by this transaction. */
 	index->trx_id = trx->id;
@@ -728,12 +725,9 @@ dict_build_field_def_step(
 Creates an index tree for the index.
 @return DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-dict_create_index_tree_step(
-/*========================*/
-	ind_node_t*	node)	/*!< in: index create node */
+dberr_t dict_create_index_tree_step(ind_node_t *node, trx_t *trx)
 {
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	btr_pcur_t	pcur;
 	dict_index_t*	index;
 	dtuple_t*	search_tuple;
@@ -814,9 +808,9 @@ dberr_t
 dict_create_index_tree_in_mem(
 /*==========================*/
 	dict_index_t*	index,	/*!< in/out: index */
-	const trx_t*	trx)	/*!< in: InnoDB transaction handle */
+	trx_t*		trx)	/*!< in: InnoDB transaction handle */
 {
-	mtr_t		mtr;
+	mtr_t mtr{trx};
 
 	ut_ad(dict_sys.locked());
 	ut_ad(!(index->type & DICT_FTS));
@@ -904,7 +898,8 @@ rec_corrupted:
       static_assert(FIL_NULL == 0xffffffff, "compatibility");
       static_assert(DICT_FLD__SYS_INDEXES__PAGE_NO ==
                     DICT_FLD__SYS_INDEXES__SPACE + 1, "compatibility");
-      mtr->memset(btr_pcur_get_block(pcur), page_offset(p + 4), 4, 0xff);
+      mtr->memset(btr_pcur_get_block(pcur), p + 4 - btr_pcur_get_page(pcur),
+                  4, 0xff);
       btr_free_if_exists(s, root_page_no, mach_read_from_8(rec + 8), mtr);
     }
     s->release();
@@ -1252,7 +1247,7 @@ dict_create_index_step(
 
 	if (node->state == INDEX_CREATE_INDEX_TREE) {
 
-		err = dict_create_index_tree_step(node);
+		err = dict_create_index_tree_step(node, trx);
 
 		DBUG_EXECUTE_IF("ib_dict_create_index_tree_fail",
 				err = DB_OUT_OF_MEMORY;);
@@ -1285,7 +1280,7 @@ dict_create_index_step(
 			}
 
 #ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!node->index->search_info->ref_count);
+			ut_ad(!node->index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 			dict_index_remove_from_cache(table, node->index);
 			node->index = NULL;
@@ -1313,7 +1308,7 @@ function_exit:
 	return(thr);
 }
 
-bool dict_sys_t::load_sys_tables()
+bool dict_sys_t::load_sys_tables() noexcept
 {
   ut_ad(!srv_any_background_activity());
   bool mismatch= false;
@@ -1356,12 +1351,14 @@ bool dict_sys_t::load_sys_tables()
   return mismatch;
 }
 
-dberr_t dict_sys_t::create_or_check_sys_tables()
+dberr_t dict_sys_t::create_or_check_sys_tables() noexcept
 {
+  ut_ad(!srv_read_only_mode || recv_sys.rpo);
+
   if (sys_tables_exist())
     return DB_SUCCESS;
 
-  if (srv_read_only_mode || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
+  if (recv_sys.rpo || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
     return DB_READ_ONLY;
 
   if (load_sys_tables())
@@ -1424,7 +1421,7 @@ err_exit:
                       ut_strerr(error));
       trx->rollback();
       row_mysql_unlock_data_dictionary(trx);
-      trx->free();
+      trx->clear_and_free();
       srv_file_per_table= srv_file_per_table_backup;
       return error;
     }
@@ -1461,9 +1458,31 @@ err_exit:
     }
   }
 
+  DBUG_EXECUTE_IF("create_sys_tablespaces",
+                  {
+                    error= que_eval_sql(
+                      nullptr, "PROCEDURE CREATE_DUMMY_1() IS\n"
+                      "BEGIN\n"
+                      "CREATE TABLE\n"
+                      "SYS_TABLESPACES(DUMMY_ID BIGINT, POS INT);\n"
+                      "CREATE UNIQUE CLUSTERED INDEX DUMMY_IND"
+                      " ON SYS_TABLESPACES(DUMMY_ID, POS);\n"
+                      "CREATE TABLE\n"
+                      "SYS_METADATA(DUMMY_ID_1 BIGINT, POS INT);\n"
+                      "CREATE UNIQUE CLUSTERED INDEX DUMMY_IND_1"
+                      " ON SYS_METADATA(DUMMY_ID_1, POS);\n"
+                      "DELETE FROM SYS_TABLES WHERE NAME= 'SYS_METADATA';"
+                      "END;\n", trx);
+                    if (error)
+                    {
+                      tablename = "DUMMY";
+                      goto err_exit;
+                    }
+                  });
+
   trx->commit();
   row_mysql_unlock_data_dictionary(trx);
-  trx->free();
+  trx->clear_and_free();
   srv_file_per_table= srv_file_per_table_backup;
 
   lock(SRW_LOCK_CALL);
@@ -1601,104 +1620,6 @@ dict_create_add_foreign_field_to_dictionary(
 }
 
 /********************************************************************//**
-Construct foreign key constraint defintion from data dictionary information.
-*/
-static
-char*
-dict_foreign_def_get(
-/*=================*/
-	dict_foreign_t*	foreign,/*!< in: foreign */
-	trx_t*		trx)	/*!< in: trx */
-{
-	char* fk_def = (char *)mem_heap_alloc(foreign->heap, 4*1024);
-	const char* tbname;
-	char tablebuf[MAX_TABLE_NAME_LEN + 1] = "";
-	unsigned i;
-	char* bufend;
-
-	tbname = dict_remove_db_name(foreign->id);
-	bufend = innobase_convert_name(tablebuf, MAX_TABLE_NAME_LEN,
-				tbname, strlen(tbname), trx->mysql_thd);
-	tablebuf[bufend - tablebuf] = '\0';
-
-	sprintf(fk_def,
-		(char *)"CONSTRAINT %s FOREIGN KEY (", (char *)tablebuf);
-
-	for(i = 0; i < foreign->n_fields; i++) {
-		char	buf[MAX_TABLE_NAME_LEN + 1] = "";
-		innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
-				foreign->foreign_col_names[i],
-				strlen(foreign->foreign_col_names[i]),
-				trx->mysql_thd);
-		strcat(fk_def, buf);
-		if (i < static_cast<unsigned>(foreign->n_fields-1)) {
-			strcat(fk_def, (char *)",");
-		}
-	}
-
-	strcat(fk_def,(char *)") REFERENCES ");
-
-	bufend = innobase_convert_name(tablebuf, MAX_TABLE_NAME_LEN,
-	        	        foreign->referenced_table_name,
-			        strlen(foreign->referenced_table_name),
-			        trx->mysql_thd);
-	tablebuf[bufend - tablebuf] = '\0';
-
-	strcat(fk_def, tablebuf);
-	strcat(fk_def, " (");
-
-	for(i = 0; i < foreign->n_fields; i++) {
-		char	buf[MAX_TABLE_NAME_LEN + 1] = "";
-		bufend = innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
-				foreign->referenced_col_names[i],
-				strlen(foreign->referenced_col_names[i]),
-				trx->mysql_thd);
-		buf[bufend - buf] = '\0';
-		strcat(fk_def, buf);
-		if (i < (uint)foreign->n_fields-1) {
-			strcat(fk_def, (char *)",");
-		}
-	}
-	strcat(fk_def, (char *)")");
-
-	return fk_def;
-}
-
-/********************************************************************//**
-Convert foreign key column names from data dictionary to SQL-layer.
-*/
-static
-void
-dict_foreign_def_get_fields(
-/*========================*/
-	dict_foreign_t*	foreign,/*!< in: foreign */
-	trx_t*		trx,	/*!< in: trx */
-	char**		field,  /*!< out: foreign column */
-	char**		field2, /*!< out: referenced column */
-	ulint		col_no) /*!< in: column number */
-{
-	char* bufend;
-	char* fieldbuf = (char *)mem_heap_alloc(foreign->heap, MAX_TABLE_NAME_LEN+1);
-	char* fieldbuf2 = (char *)mem_heap_alloc(foreign->heap, MAX_TABLE_NAME_LEN+1);
-
-	bufend = innobase_convert_name(fieldbuf, MAX_TABLE_NAME_LEN,
-			foreign->foreign_col_names[col_no],
-			strlen(foreign->foreign_col_names[col_no]),
-			trx->mysql_thd);
-
-	fieldbuf[bufend - fieldbuf] = '\0';
-
-	bufend = innobase_convert_name(fieldbuf2, MAX_TABLE_NAME_LEN,
-			foreign->referenced_col_names[col_no],
-			strlen(foreign->referenced_col_names[col_no]),
-			trx->mysql_thd);
-
-	fieldbuf2[bufend - fieldbuf2] = '\0';
-	*field = fieldbuf;
-	*field2 = fieldbuf2;
-}
-
-/********************************************************************//**
 Add a foreign key definition to the data dictionary tables.
 @return error code or DB_SUCCESS */
 dberr_t
@@ -1739,29 +1660,8 @@ dict_create_add_foreign_to_dictionary(
 				      , name, foreign->id, trx);
 
 	if (error != DB_SUCCESS) {
-
-		if (error == DB_DUPLICATE_KEY) {
-			char	buf[MAX_TABLE_NAME_LEN + 1] = "";
-			char	tablename[MAX_TABLE_NAME_LEN + 1] = "";
-			char*	fk_def;
-
-			innobase_convert_name(tablename, MAX_TABLE_NAME_LEN,
-				name, strlen(name), trx->mysql_thd);
-
-			innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
-				foreign->id, strlen(foreign->id), trx->mysql_thd);
-
-			fk_def = dict_foreign_def_get((dict_foreign_t*)foreign, trx);
-
-			ib_push_warning(trx, error,
-				"Create or Alter table %s with foreign key constraint"
-				" failed. Foreign key constraint %s"
-				" already exists on data dictionary."
-				" Foreign key constraint names need to be unique in database."
-				" Error in foreign key definition: %s.",
-				tablename, buf, fk_def);
-		}
-
+err_exit:
+		innodb_fk_error(trx, error, name, *foreign);
 		DBUG_RETURN(error);
 	}
 
@@ -1770,27 +1670,7 @@ dict_create_add_foreign_to_dictionary(
 			i, name, foreign, trx);
 
 		if (error != DB_SUCCESS) {
-			char	buf[MAX_TABLE_NAME_LEN + 1] = "";
-			char	tablename[MAX_TABLE_NAME_LEN + 1] = "";
-			char*	field=NULL;
-			char*	field2=NULL;
-			char*	fk_def;
-
-			innobase_convert_name(tablename, MAX_TABLE_NAME_LEN,
-				name, strlen(name), trx->mysql_thd);
-			innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
-				foreign->id, strlen(foreign->id), trx->mysql_thd);
-			fk_def = dict_foreign_def_get((dict_foreign_t*)foreign, trx);
-			dict_foreign_def_get_fields((dict_foreign_t*)foreign, trx, &field, &field2, i);
-
-			ib_push_warning(trx, error,
-				"Create or Alter table %s with foreign key constraint"
-				" failed. Error adding foreign  key constraint name %s"
-				" fields %s or %s to the dictionary."
-				" Error in foreign key definition: %s.",
-				tablename, buf, i+1, fk_def);
-
-			DBUG_RETURN(error);
+			goto err_exit;
 		}
 	}
 
@@ -1817,7 +1697,7 @@ dict_foreign_base_for_stored(
 		for (ulint j = 0; j < s_col.num_base; j++) {
 			if (strcmp(col_name, dict_table_get_col_name(
 						table,
-						s_col.base_col[j]->ind)) == 0) {
+						s_col.base_col[j]->ind).str) == 0) {
 				return(true);
 			}
 		}
@@ -1851,8 +1731,8 @@ dict_foreigns_has_s_base_col(
 		foreign = *it;
 		ulint	type = foreign->type;
 
-		type &= ~(DICT_FOREIGN_ON_DELETE_NO_ACTION
-			  | DICT_FOREIGN_ON_UPDATE_NO_ACTION);
+		type &= ~(foreign->DELETE_NO_ACTION
+			  | foreign->UPDATE_NO_ACTION);
 
 		if (type == 0) {
 			continue;
@@ -1897,9 +1777,12 @@ dict_create_add_foreigns_to_dictionary(
     return DB_ERROR;
   }
 
+  bool strict_mode = trx->mysql_thd->is_strict_mode();
   for (auto fk : local_fk_set)
-    if (dberr_t error=
-        dict_create_add_foreign_to_dictionary(table->name.m_name, fk, trx))
+    if (strict_mode && !fk->check_fk_constraint_valid())
+      return DB_CANNOT_ADD_CONSTRAINT;
+    else if (dberr_t error= dict_create_add_foreign_to_dictionary
+             (table->name.m_name, fk, trx))
       return error;
 
   return DB_SUCCESS;

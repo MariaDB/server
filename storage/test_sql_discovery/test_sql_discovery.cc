@@ -48,7 +48,7 @@ public:
   {
     thr_lock_init(&lock);
   }
-  ~TSD_share()
+  ~TSD_share() override
   {
     thr_lock_delete(&lock);
   }
@@ -64,17 +64,17 @@ private:
 public:
   ha_tsd(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg) { }
-  ulonglong table_flags() const
+  ulonglong table_flags() const override
   { // NO_TRANSACTIONS and everything that affects CREATE TABLE
     return HA_NO_TRANSACTIONS | HA_CAN_GEOMETRY | HA_NULL_IN_KEY |
            HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY | HA_CAN_RTREEKEYS |
            HA_CAN_FULLTEXT;
   }
 
-  ulong index_flags(uint inx, uint part, bool all_parts) const { return 0; }
+  ulong index_flags(uint inx, uint part, bool all_parts) const override { return 0; }
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type)
+                             enum thr_lock_type lock_type) override
   {
     if (lock_type != TL_IGNORE && lock.type == TL_UNLOCK)
       lock.type = lock_type;
@@ -82,17 +82,17 @@ public:
     return to;
   }
 
-  int rnd_init(bool scan) { return 0; }
-  int rnd_next(unsigned char *buf) { return HA_ERR_END_OF_FILE; }
-  void position(const uchar *record) { }
-  int rnd_pos(uchar *buf, uchar *pos) { return HA_ERR_END_OF_FILE; }
-  int info(uint flag) { return 0; }
-  uint max_supported_keys() const { return 16; }
+  int rnd_init(bool scan) override { return 0; }
+  int rnd_next(unsigned char *buf) override { return HA_ERR_END_OF_FILE; }
+  void position(const uchar *record) override { }
+  int rnd_pos(uchar *buf, uchar *pos) override { return HA_ERR_END_OF_FILE; }
+  int info(uint flag) override { return 0; }
+  uint max_supported_keys() const override { return 16; }
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info) { return HA_ERR_WRONG_COMMAND; }
+             HA_CREATE_INFO *create_info) override { return HA_ERR_WRONG_COMMAND; }
 
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
 };
 
 TSD_share *ha_tsd::get_share()

@@ -37,11 +37,15 @@ simple headers.
 /* Forward declarations */
 class THD;
 class Field;
+struct dict_table_t;
+struct dict_foreign_t;
+struct table_name_t;
+struct mem_block_info_t;
+typedef struct mem_block_info_t mem_heap_t;
 
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_PFS
-#undef MYSQL_STORE_FTS_DOC_ID
 
 /*******************************************************************//**
 Formats the raw data in "data" (in InnoDB on-disk format) that is of
@@ -83,7 +87,7 @@ innobase_invalidate_query_cache(
 void
 innobase_quote_identifier(
 	FILE*		file,
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id);
 
 /** Quote an standard SQL identifier like tablespace, index or column name.
@@ -93,7 +97,7 @@ Return the string as an std:string object.
 @return a std::string with id properly quoted. */
 std::string
 innobase_quote_identifier(
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id);
 
 /*****************************************************************//**
@@ -108,26 +112,13 @@ innobase_convert_name(
 	ulint		idlen,	/*!< in: length of id, in bytes */
 	THD*		thd);	/*!< in: MySQL connection thread, or NULL */
 
-/******************************************************************//**
-Returns true if the transaction this thread is processing has edited
-non-transactional tables. Used by the deadlock detector when deciding
-which transaction to rollback in case of a deadlock - we try to avoid
-rolling back transactions that have edited non-transactional tables.
-@return true if non-transactional tables have been edited */
-ibool
-thd_has_edited_nontrans_tables(
-/*===========================*/
-	THD*	thd);	/*!< in: thread handle */
-
 /*************************************************************//**
 Prints info of a THD object (== user session thread) to the given file. */
 void
 innobase_mysql_print_thd(
 /*=====================*/
 	FILE*	f,		/*!< in: output stream */
-	THD*	thd,		/*!< in: pointer to a MySQL THD object */
-	uint	max_query_len);	/*!< in: max query length to print, or 0 to
-				   use the default max length */
+	THD*	thd);		/*!< in: pointer to a MySQL THD object */
 
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
 the 'mtype' of InnoDB. InnoDB differentiates between MySQL's old <= 4.1
@@ -138,15 +129,6 @@ at least ENUM and SET, and unsigned integer types are 'unsigned types'
 @return DATA_BINARY, DATA_VARCHAR, ... */
 uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
-
-/******************************************************************//**
-Compares NUL-terminated UTF-8 strings case insensitively.
-@return 0 if a=b, <0 if a<b, >1 if a>b */
-int
-innobase_strcasecmp(
-/*================*/
-	const char*	a,	/*!< in: first string to compare */
-	const char*	b);	/*!< in: second string to compare */
 
 /** Strip dir name from a full path name and return only the file name
 @param[in]	path_name	full path name
@@ -175,20 +157,15 @@ innobase_convert_from_id(
 	const char*	from,	/*!< in: identifier to convert */
 	ulint		len);	/*!< in: length of 'to', in bytes;
 				should be at least 3 * strlen(to) + 1 */
-/******************************************************************//**
-Makes all characters in a NUL-terminated UTF-8 string lower case. */
-void
-innobase_casedn_str(
-/*================*/
-	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
-ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
-                             unsigned char* str, ulint str_length,
-                             ulint buf_length);
+size_t wsrep_normalize_string(int mysql_type,
+			      uint charset_number,
+			      const unsigned char* str,
+			      unsigned char* out_str,
+			      ulint str_length,
+			      ulint buf_length);
 #endif /* WITH_WSREP */
-
-extern "C" struct charset_info_st *thd_charset(THD *thd);
 
 /** Get high resolution timestamp for the current query start time.
 The timestamp is not anchored to any specific point in time,
@@ -198,6 +175,15 @@ but can be used for comparison.
 */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd);
 
+/** Obtain the InnoDB transaction of a MariaDB thread handle.
+@param thd   current_thd
+@return InnoDB transaction */
+trx_t *thd_to_trx(const THD *thd) noexcept;
+
+/** Detach and free a transaction.
+@param trx transaction
+@return the trx->mysql_thd */
+THD *free_thd_trx(trx_t *trx) noexcept;
 
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
@@ -239,32 +225,6 @@ thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_lock_wait_timeout */
-
-/******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*	p1,		/*!< in: key */
-	const void*	p2);		/*!< in: node */
-
-/******************************************************************//**
-Returns true if transaction should be flagged as read-only.
-@return true if the thd is marked as read-only */
-bool
-thd_trx_is_read_only(
-/*=================*/
-	THD*	thd);	/*!< in/out: thread handle */
-
-/******************************************************************//**
-Check if the transaction is an auto-commit transaction. TRUE also
-implies that it is a SELECT (read-only) transaction.
-@return true if the transaction is an auto commit read-only transaction. */
-ibool
-thd_trx_is_auto_commit(
-/*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
 
 /*****************************************************************//**
 A wrapper function of innobase_convert_name(), convert a table name
@@ -373,80 +333,42 @@ Converts an identifier from my_charset_filename to UTF-8 charset. */
 uint
 innobase_convert_to_system_charset(
 /*===============================*/
-	char*           to,		/* out: converted identifier */
-	const char*     from,		/* in: identifier to convert */
-	ulint           len,		/* in: length of 'to', in bytes */
-	uint*		errors);	/* out: error return */
-/**********************************************************************
-Check if the length of the identifier exceeds the maximum allowed.
-The input to this function is an identifier in charset my_charset_filename.
-return true when length of identifier is too long. */
-my_bool
-innobase_check_identifier_length(
-/*=============================*/
-	const char*	id);	/* in: identifier to check.  it must belong
-				to charset my_charset_filename */
-
-/**********************************************************************
-Converts an identifier from my_charset_filename to UTF-8 charset. */
-uint
-innobase_convert_to_system_charset(
-/*===============================*/
 	char*		to,		/* out: converted identifier */
 	const char*	from,		/* in: identifier to convert */
 	ulint		len,		/* in: length of 'to', in bytes */
 	uint*		errors);	/* out: error return */
 
-/**********************************************************************
-Converts an identifier from my_charset_filename to UTF-8 charset. */
-uint
-innobase_convert_to_filename_charset(
-/*=================================*/
-	char*		to,	/* out: converted identifier */
-	const char*	from,	/* in: identifier to convert */
-	ulint		len);	/* in: length of 'to', in bytes */
+/** Convert a schema or table name to InnoDB (and file system) format.
+@param cs   source character set
+@param name name encoded in cs
+@param buf  output buffer (MAX_TABLE_NAME_LEN + 1 bytes)
+@return the converted string (within buf) */
+LEX_CSTRING innodb_convert_name(CHARSET_INFO *cs, LEX_CSTRING name, char *buf)
+  noexcept;
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_push_warning(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...);
+/** Report that a table cannot be decrypted.
+@param thd    connection context
+@param table  table that cannot be decrypted
+@retval DB_DECRYPTION_FAILED (always) */
+ATTRIBUTE_COLD
+dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table);
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_push_warning(
-	void*		ithd,	/*!< in: thd */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...);
+/** Report a foreign key error.
+@param error    error to report
+@param name     table name
+@param foreign  constraint */
+ATTRIBUTE_COLD
+void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
+                     const dict_foreign_t& foreign);
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_foreign_warn(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*table_name,
-	const char	*format,/*!< in: warning message */
-	...);
-
-/*****************************************************************//**
-Normalizes a table name string. A normalized name consists of the
-database name catenated to '/' and table name. An example:
-test/mytable. On Windows normalization puts both the database name and the
-table name always to lower case if "set_lower_case" is set to TRUE. */
-void
-normalize_table_name_c_low(
-/*=======================*/
-	char*		norm_name,	/*!< out: normalized name as a
-					null-terminated string */
-	const char*	name,		/*!< in: table name string */
-	bool		set_lower_case); /*!< in: true if we want to set
-					name to lower case */
+/** Normalizes a table name string.
+A normalized name consists of the database name catenated to '/'
+and table name. For example: test/mytable.
+@param norm_name        Normalized name, null-terminated.
+@param norm_name_size   size of the norm_name buffer
+@param name             Name to normalize */
+size_t normalize_table_name(char *norm_name, size_t norm_name_size,
+                            const char *name) noexcept;
 
 /** Create a MYSQL_THD for a background thread and mark it as such.
 @param name thread info for SHOW PROCESSLIST
@@ -457,19 +379,26 @@ MYSQL_THD innobase_create_background_thd(const char* name);
 @param[in]	thd	MYSQL_THD to destroy */
 void destroy_background_thd(MYSQL_THD thd);
 
-/** Close opened tables, free memory, delete items for a MYSQL_THD.
-@param[in]	thd	MYSQL_THD to reset */
-void
-innobase_reset_background_thd(MYSQL_THD);
+/** Open a table based on a database and table name.
+@param db     schema name
+@param name   table name within the schema
+@param table  table
+@param heap   memory heap for allocating a converted name
+@return InnoDB format table name with database and table name,
+allocated from heap */
+char *dict_table_lookup(LEX_CSTRING db, LEX_CSTRING name,
+                        dict_table_t **table, mem_heap_t *heap) noexcept;
 
 #ifdef WITH_WSREP
-/** Append table-level exclusive key.
+/** Append table-level exclusive/shared key.
 @param thd   MySQL thread handle
 @param table table
+@param exclusive Exclusive not shared certification key.
 @retval false on success
 @retval true on failure */
 struct dict_table_t;
-bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table);
+bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &table,
+                            bool exclusive);
 #endif /* WITH_WSREP */
 
 #endif /* !UNIV_INNOCHECKSUM */

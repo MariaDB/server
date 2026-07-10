@@ -16,8 +16,8 @@
 
 /*
   Radixsort for pointers to fixed length strings.
-  A very quick sort for not to long (< 20 char) strings.
-  Neads a extra buffers of number_of_elements pointers but is
+  A very quick sort for not too long (< 20 char) strings.
+  Needs extra buffers of number_of_elements pointers but is
   2-3 times faster than quicksort
 */
 
@@ -26,7 +26,7 @@
 
 	/* Radixsort */
 
-my_bool radixsort_is_appliccable(uint n_items, size_t size_of_element)
+my_bool radixsort_is_applicable(uint n_items, size_t size_of_element)
 {
   return size_of_element <= 20 && n_items >= 1000 && n_items < 100000;
 }

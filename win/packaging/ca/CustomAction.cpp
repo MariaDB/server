@@ -341,7 +341,7 @@ static bool IsPortInUse(unsigned short port)
 
   /*
    Prefer IPv6 socket to IPv4, since we'll use IPv6 dual socket,
-   which coveres both IP versions.
+   which covers both IP versions.
   */
   for (a = ai; a; a = a->ai_next)
   {

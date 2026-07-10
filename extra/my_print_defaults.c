@@ -21,13 +21,14 @@
 **
 **  Written by Monty
 */
-
+#define VER "1.7"
 #include <my_global.h>
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_getopt.h>
 #include <my_default.h>
 #include <mysql_version.h>
+#include <welcome_copyright_notice.h>
 
 #define load_default_groups mysqld_groups
 #include <mysqld_default_groups.h>
@@ -48,7 +49,9 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log", (char**) &default_dbug_option,
    (char**) &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"mysqld", 0, "Read the same set of groups that the mysqld binary does.",
+  {"mysqld", 0, "Read the same set of groups that the mariadbd (previously known as mysqld) binary does.",
+   &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"mariadbd", 0, "Read the same set of groups that the mariadbd binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-defaults", 'n', "Return an empty string (useful for scripts).",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -68,16 +71,10 @@ static void cleanup_and_exit(int exit_code)
   exit(exit_code);
 }
 
-static void version()
-{
-  printf("%s  Ver 1.7 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
-}
-
-
 static void usage() __attribute__ ((noreturn));
 static void usage()
 {
-  version();
+  print_version();
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");
   puts("Displays the options from option groups of option files, which is useful to see which options a particular tool will use");
   printf("Usage: %s [OPTIONS] [groups]\n", my_progname);
@@ -104,7 +101,7 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
       verbose++;
       break;
     case 'V':
-      version();
+      print_version();
       /* fall through */
     case '#':
       DBUG_PUSH(argument ? argument : default_dbug_option);
@@ -119,7 +116,7 @@ static int get_options(int *argc,char ***argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    cleanup_and_exit(ho_error);
 
   return 0;
 }
@@ -163,7 +160,8 @@ int main(int argc, char **argv)
   load_default_groups=(char**) my_malloc(PSI_NOT_INSTRUMENTED,
                                          nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)
-    exit(1);
+    cleanup_and_exit(1);
+
   if (opt_mysqld)
   {
     for (; mysqld_groups[i]; i++)
@@ -173,6 +171,7 @@ int main(int argc, char **argv)
   if ((error= load_defaults(config_file, (const char **) load_default_groups,
 			   &count, &arguments)))
   {
+    my_free(load_default_groups);
     my_end(0);
     if (error == 4)
       return 0;

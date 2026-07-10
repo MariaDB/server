@@ -1,0 +1,183 @@
+include/master-slave.inc
+[connection master]
+connection master;
+call mtr.add_suppression("Got an error writing communication packets");
+call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Could not read packet:.* vio_errno: 1158");
+call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
+set @save_semi_sync_master_enabled= @@global.rpl_semi_sync_master_enabled;
+set @save_semi_sync_wp= @@global.rpl_semi_sync_master_wait_point;
+set @save_bgc_count= @@global.binlog_commit_wait_count;
+set @save_bgc_usec= @@global.binlog_commit_wait_usec;
+set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set @old_master_wait_no_slave= @@global.rpl_semi_sync_master_wait_no_slave;
+set @save_debug_dbug= @@global.debug_dbug;
+set @@global.binlog_commit_wait_count=3;
+set @@global.binlog_commit_wait_usec=10000000;
+set @@global.debug_dbug="+d,testing_cond_var_per_thd";
+set @@global.rpl_semi_sync_master_enabled= 1;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+# Ensure semi-sync is on
+connection slave;
+set @save_semi_sync_slave_enabled= @@global.rpl_semi_sync_master_enabled;
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled=1;
+include/start_slave.inc
+connection master;
+# Create three transactions to binlog group commit together
+connection master;
+create table t1 (a int);
+connection server_1;
+create table t2 (a int);
+connection default;
+create table t3 (a int);
+connection master;
+connection server_1;
+connection default;
+include/assert_grep.inc [Check that there is no 'Thread awaiting semi-sync ACK was awoken before its ACK' warning in error log.]
+connection slave;
+#
+# Cleanup
+connection master;
+set @@global.binlog_commit_wait_count=@save_bgc_count;
+set @@global.binlog_commit_wait_usec=@save_bgc_usec;
+set @@global.debug_dbug=@save_debug_dbug;
+drop table t1, t2, t3;
+connection slave;
+#
+# MDEV-34122
+# If semi-sync is switched off then on while a transaction is
+# in-between binlogging and waiting for an ACK, ensure that the
+# transaction skips the wait altogether (otherwise it would time-out).
+# Note that prior to MDEV-34122, there was a debug assertion that would
+# trigger if the transaction tried to wait but could not receive an ACK
+# signal.
+#
+# MDEV-34122.a: Test wait_point = AFTER_SYNC
+# Here, debug_sync is used to pause the leader thread between reporting
+# the binlogging to semi-sync, and starting the wait for ACK; and during
+# this pause, semi-sync is manually switched off and on.
+connection master;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
+set @@global.rpl_semi_sync_master_wait_no_slave= 1;
+set @@global.debug_dbug="+d,semisync_log_skip_trx_wait";
+# Waiting for semi-sync to turn on..
+connection slave;
+connection master;
+create table t (a int) engine=innodb;
+connection slave;
+# Wait no slave is on, so we don't need to slave on to wait for the
+# ACK, and this way we guarantee the ACK doesn't come, so we can verify
+# the informational message is displayed
+connection slave;
+include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
+connection server_1;
+start transaction;
+insert into t values (0);
+set debug_sync= "commit_after_release_LOCK_log SIGNAL trx_binlogged WAIT_FOR continue_commit";
+commit;
+connection master;
+set debug_sync= "now WAIT_FOR trx_binlogged";
+# Switching semi-sync off/on
+set @@global.rpl_semi_sync_master_enabled= 0;
+set @@global.rpl_semi_sync_master_enabled= 1;
+# Resuming transaction to await ACK
+set debug_sync= "now SIGNAL continue_commit";
+connection server_1;
+include/assert_grep.inc [Ensure error log shows that transaction is skipping its semi-sync wait]
+# Cleanup
+connection slave;
+include/start_slave.inc
+connection master;
+drop table t;
+connection slave;
+#
+# MDEV-34122.b: Test wait_point = AFTER_COMMIT
+# Here, use a transaction with a non-transactional statement to write to
+# the binlog directly, and turn off/on semi-sync before committing the
+# transaction.
+connection master;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+# Waiting for semi-sync to turn on..
+connection slave;
+connection master;
+create table tn (a int) engine=Aria;
+start transaction;
+insert into tn values (NULL);
+set @@global.rpl_semi_sync_master_enabled= 0;
+set @@global.rpl_semi_sync_master_enabled= 1;
+commit;
+# Cleanup
+connection master;
+drop table tn;
+set @@global.debug_dbug=@save_debug_dbug;
+#
+# MDEV-36934
+# The server could indefinitely hang due to a memory leak which tried to
+# pthread signal on a destroyed condition variable. In effect, no
+# connections could commit transactions because there would be a thread
+# stuck on a never-returning call to pthread_cond_signal() while
+# holding Repl_semi_sync_master::LOCK_log.
+connection master;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+set @@global.rpl_semi_sync_master_wait_no_slave= 0;
+# Ensure servers are in proper state
+connection master;
+connection slave;
+# Test case initial set-up
+connection master;
+create table t_36934 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Pause the user transaction before inserting into Active_tranx
+connect user_con,localhost,root,,;
+SET debug_sync= 'semisync_at_write_tranx_in_binlog SIGNAL at_write_tranx_in_binlog WAIT_FOR resume_write_tranx_in_binlog';
+insert into t_36934 values (1);
+connection server_1;
+set debug_sync="now wait_for at_write_tranx_in_binlog";
+# Disconnect the slave (note that the binlog dump thread won't yet be
+# notified of a binlog update from the last transaction, so the slave
+# should neither receiver nor ACK the transaction).
+connection slave;
+include/stop_slave.inc
+# Waiting for master to realize the slave has disconnected..
+connection server_1;
+# ..done
+# Resuming transaction (it will exit commit_trx early without waiting)
+set debug_sync="now signal resume_write_tranx_in_binlog";
+connection user_con;
+disconnect user_con;
+# Force delete the user thread (FLUSH THREADS ensures the thread won't
+# stay in the thread cache)
+connection master;
+FLUSH THREADS;
+# BUG: Re-connect slave. MDEV-36934 reports that the master would hang
+# when the slave would re-connect and try to ACK the last transaction
+# who's thread has been deleted
+connection slave;
+include/start_slave.inc
+# Try to commit another transaction (prior to MDEV-36934 fixes, this
+# would hang indefinitely)
+connection master;
+set debug_sync="RESET";
+insert into t_36934 values (2);
+connection server_1;
+# Waiting 30s for last query to complete..
+connection master;
+# ..done
+# Cleanup
+connection master;
+set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
+set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
+set @@global.debug_dbug=@save_debug_dbug;
+set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
+set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
+drop table t_36934;
+connection slave;
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semi_sync_slave_enabled;
+include/start_slave.inc
+include/rpl_end.inc

@@ -109,7 +109,7 @@ Warnings:
 Warning	1265	Data truncated for column 'f1' at row 0
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 BLOB )
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -122,7 +122,7 @@ CALL sp1( 34 );
 34
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 INT )
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -135,7 +135,7 @@ CALL sp1( 34 );
 34
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 DECIMAL(256, 30) )
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -176,10 +176,10 @@ RETURN f1;
 END//
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sproc_1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sproc_1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	func_1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	func_1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 UPDATE t1_aux SET f1 = NULL;
 SELECT f1,f1,f1,f1 INTO @v1_tab,@v1_proc,@v2_proc,@v1_func FROM t1_aux;
 UPDATE t1_aux SET f1 = 1.7976931348623157493578e+308;
@@ -1416,7 +1416,7 @@ Warnings:
 Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 SET("value1", "value1") )
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -1433,7 +1433,7 @@ Note	1291	Column 'f1' has duplicated value 'value1' in SET
 Warning	1265	Data truncated for column 'f1' at row 0
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 ENUM("value1", "value1") )
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -1449,7 +1449,7 @@ Warnings:
 Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 TEXT ) LANGUAGE SQL SELECT f1;
 CALL sp1( 'abc' );
@@ -1457,7 +1457,7 @@ f1
 abc
 SHOW PROCEDURE STATUS LIKE 'sp1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 text ) deterministic SELECT f1;
 CALL sp1( 'abc' );
@@ -1465,7 +1465,7 @@ f1
 abc
 SHOW PROCEDURE STATUS LIKE 'sp1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 TEXT ) NOT DETERMINISTIC SELECT f1;
 CALL sp1( 'abc' );
@@ -1473,7 +1473,7 @@ f1
 abc
 SHOW PROCEDURE STATUS LIKE 'sp1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 TEXT ) SQL SECURITY DEFINER SELECT f1;
 CALL sp1( 'abc' );
@@ -1481,7 +1481,7 @@ f1
 abc
 SHOW PROCEDURE STATUS LIKE 'sp1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 TEXT ) SQL SECURITY INVOKER SELECT f1;
 CALL sp1( 'abc' );
@@ -1489,7 +1489,7 @@ f1
 abc
 SHOW PROCEDURE STATUS LIKE 'sp1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( f1 TEXT ) COMMENT 'this is simple' SELECT f1;
 CALL sp1( 'abc' );
@@ -1497,7 +1497,7 @@ f1
 abc
 SHOW PROCEDURE STATUS LIKE 'sp1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	DEFINER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp1_thisisaveryverylongname234872934_thisisaveryverylongname234872934;
 ERROR 42000: Identifier name 'sp1_thisisaveryverylongname234872934_thisisaveryverylongname234872934' is too long
 DROP PROCEDURE sp1_thisisaveryverylongname234872934_thisisaveryverylongnameabcde;
@@ -1528,7 +1528,7 @@ fn1( ' world')
 hello world
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -1541,7 +1541,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 DECIMAL(63, 61) ) RETURNS DECIMAL(63, 61)
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -1563,7 +1563,7 @@ fn1( 1.3326e+8 )
 134260000.000000000000000000000000000000
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 ENUM("value1", "value1") ) RETURNS DECIMAL(63, 30)
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -1577,7 +1577,7 @@ fn1( "value1" )
 1.000000000000000000000000000000
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SET("value1", "value1") ) RETURNS DECIMAL(63, 30)
 LANGUAGE SQL NOT DETERMINISTIC SQL SECURITY INVOKER COMMENT 'this is simple'
@@ -1591,7 +1591,7 @@ fn1( "value1, value1" )
 1.000000000000000000000000000000
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT LANGUAGE SQL
 BEGIN
@@ -1603,7 +1603,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT DETERMINISTIC
 BEGIN
@@ -1615,7 +1615,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT NOT DETERMINISTIC
 BEGIN
@@ -1627,7 +1627,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT SQL SECURITY DEFINER
 BEGIN
@@ -1639,7 +1639,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT SQL SECURITY INVOKER
 BEGIN
@@ -1651,7 +1651,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1( f1 SMALLINT ) RETURNS SMALLINT COMMENT 'this is simple'
 BEGIN
@@ -1663,7 +1663,7 @@ fn1( 126 )
 127
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER	this is simple	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION fn1;
 
 Testcase 4.1.3:
@@ -1689,7 +1689,7 @@ CREATE FUNCTION fn1 (s char(20)) returns char(50)
 return concat('hello, ', s, '!');
 show CREATE FUNCTION fn1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn1		CREATE DEFINER=`root`@`localhost` FUNCTION `fn1`(s char(20)) RETURNS char(50) CHARSET latin1 COLLATE latin1_swedish_ci
+fn1		CREATE DEFINER=`root`@`localhost` FUNCTION `fn1`(s char(20)) RETURNS char(50) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 return concat('hello, ', s, '!')	latin1	<modified>	<created>
 DROP FUNCTION fn1;
 
@@ -1701,7 +1701,7 @@ CREATE PROCEDURE sp5()
 SELECT * from t1;
 SHOW PROCEDURE status like 'sp5';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp5	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp5	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp5;
 
 Testcase 4.1.6:
@@ -1715,7 +1715,7 @@ return @b;
 END//
 SHOW FUNCTION STATUS LIKE 'fn5';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn5	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn5	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION fn5;
 
 Testcase 4.1.7:
@@ -1771,48 +1771,48 @@ Testcase 4.1.9:
 drop procedure
 --------------------------------------------------------------------------------
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 DROP PROCEDURE IF EXISTS sp9;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 CREATE PROCEDURE sp9()SELECT * from t1;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified			latin1	latin1_swedish_ci	latin1_swedish_ci	SELECT * from t1	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
+db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1	NONE	CURRENT_SCHEMA
 DROP PROCEDURE sp9;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 CREATE PROCEDURE sp9()SELECT * from t1;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified			latin1	latin1_swedish_ci	latin1_swedish_ci	SELECT * from t1	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
+db_storedproc	sp9	PROCEDURE	sp9	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from t1	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1	NONE	CURRENT_SCHEMA
 DROP PROCEDURE IF EXISTS sp9;
 SELECT * from mysql.proc where specific_name='sp9';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 
 Testcase 4.1.10:
 ----------------
 DROP FUNCTION
 --------------------------------------------------------------------------------
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 DROP FUNCTION IF EXISTS fn10;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 CREATE FUNCTION fn10() returns int return 100;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified			latin1	latin1_swedish_ci	latin1_swedish_ci	return 100	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
+db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	return 100	NONE	CURRENT_SCHEMA
 DROP FUNCTION fn10;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 CREATE FUNCTION fn10() returns int return 100;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified			latin1	latin1_swedish_ci	latin1_swedish_ci	return 100	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
+db_storedproc	fn10	FUNCTION	fn10	SQL	CONTAINS_SQL	NO	DEFINER		int(11)	return 100	root@localhost	created	modified			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	return 100	NONE	CURRENT_SCHEMA
 DROP FUNCTION IF EXISTS fn10;
 SELECT * from mysql.proc where specific_name='fn10' and type='function';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 
 Testcase 4.1.11:
 ----------------
@@ -1943,10 +1943,6 @@ SELECT * from t1 where f2 = f1' at line 1
 CREATE PROCEDURE function()
 SELECT * from t1 where f2=f1;
 DROP PROCEDURE function;
-CREATE PROCEDURE accessible()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible()
-SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE add()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'add()
@@ -2088,9 +2084,11 @@ SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'cursor()
 SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE database()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database()
-SELECT * from t1 where f2=f1' at line 1
+SELECT 1;
+CALL database();
+1
+1
+DROP PROCEDURE database;
 CREATE PROCEDURE databases()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'databases()
@@ -2350,6 +2348,12 @@ CREATE PROCEDURE join()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'join()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE json_table()
+SELECT 1;
+CALL json_table();
+1
+1
+DROP PROCEDURE json_table;
 CREATE PROCEDURE key()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key()
@@ -2426,10 +2430,6 @@ CREATE PROCEDURE low_priority()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'low_priority()
 SELECT * from t1 where f2=f1' at line 1
-CREATE PROCEDURE master_ssl_verify_server_cert()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'master_ssl_verify_server_cert()
-SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE match()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'match()
@@ -2470,6 +2470,12 @@ CREATE PROCEDURE natural()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'natural()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE nested()
+SELECT 1;
+CALL nested();
+1
+1
+DROP PROCEDURE nested;
 CREATE PROCEDURE not()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'not()
@@ -2509,6 +2515,12 @@ CREATE PROCEDURE order()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'order()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE ordinality()
+SELECT 1;
+CALL ordinality;
+1
+1
+DROP PROCEDURE ordinality;
 CREATE PROCEDURE out()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'out()
@@ -2521,6 +2533,12 @@ CREATE PROCEDURE outfile()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'outfile()
 SELECT * from t1 where f2=f1' at line 1
+CREATE PROCEDURE path()
+SELECT 1;
+CALL path();
+1
+1
+DROP PROCEDURE path;
 CREATE PROCEDURE precision()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'precision()
@@ -2602,9 +2620,11 @@ SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'rlike()
 SELECT * from t1 where f2=f1' at line 1
 CREATE PROCEDURE schema()
-SELECT * from t1 where f2=f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema()
-SELECT * from t1 where f2=f1' at line 1
+SELECT 1;
+CALL schema();
+1
+1
+DROP PROCEDURE schema;
 CREATE PROCEDURE schemas()
 SELECT * from t1 where f2=f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schemas()
@@ -3100,10 +3120,6 @@ DROP FUNCTION timestamp;
 CREATE FUNCTION year(f1 year) returns year
 return f1;
 DROP FUNCTION year;
-CREATE FUNCTION year(3)(f1 year(3)) returns year(3)
-return f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '3)(f1 year(3)) returns year(3)
-return f1' at line 1
 CREATE FUNCTION year(4)(f1 year(4)) returns year(4)
 return f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '4)(f1 year(4)) returns year(4)
@@ -3377,13 +3393,6 @@ DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1(f1 year ) returns year
 return f1;
 DROP FUNCTION IF EXISTS fn1;
-CREATE FUNCTION fn1(f1 year(f1 3) ) returns year(3)
-return f1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'f1 3) ) returns year(3)
-return f1' at line 1
-DROP FUNCTION IF EXISTS fn1;
-Warnings:
-Note	1305	FUNCTION db_storedproc.fn1 does not exist
 CREATE FUNCTION fn1(f1 year(f1 4) ) returns year(4)
 return f1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'f1 4) ) returns year(4)
@@ -3865,7 +3874,7 @@ SELECT count(*) into cnt from t2;
 set @count = cnt;
 SELECT @count;
 END//
-ERROR 42S22: Unknown column 'cnt' in 'field list'
+ERROR 42S22: Unknown column 'cnt' in 'SET'
 CALL sp1( 10 );
 DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1( cnt int(20) )
@@ -3912,13 +3921,6 @@ Testcase ....:
 
 --------------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-accessible:BEGIN
-SELECT @x;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 add:BEGIN
@@ -4204,9 +4206,6 @@ CREATE PROCEDURE sp1()
 database:BEGIN
 SELECT @x;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 databases:BEGIN
@@ -4737,6 +4736,11 @@ SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
+json_table:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
 key:BEGIN
 SELECT @x;
 END//
@@ -4888,13 +4892,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-master_ssl_verify_server_cert:BEGIN
-SELECT @x;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'master_ssl_verify_server_cert:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 match:BEGIN
@@ -4977,6 +4974,11 @@ SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
+nested:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
 not:BEGIN
 SELECT @x;
 END//
@@ -5057,6 +5059,11 @@ SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
+ordinality:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
 out:BEGIN
 SELECT @x;
 END//
@@ -5080,6 +5087,11 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT @x;
 END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
+CREATE PROCEDURE sp1()
+path:BEGIN
+SELECT @x;
+END//
+DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1()
 precision:BEGIN
 SELECT @x;
@@ -5253,9 +5265,6 @@ CREATE PROCEDURE sp1()
 schema:BEGIN
 SELECT @x;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema:BEGIN
-SELECT @x;
-END' at line 2
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 schemas:BEGIN
@@ -7480,19 +7489,6 @@ x	y	z
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
-declare x, y, z year(3) default 2005;
-SELECT x, y, z;
-END//
-Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-CALL sp1();
-x	y	z
-2005	2005	2005
-Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1( )
-BEGIN
 declare x, y, z year(4) default 2005;
 SELECT x, y, z;
 END//
@@ -7555,12 +7551,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT f2 into x from t2 limit 1;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-BEGIN
-declare accessible char;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -7811,8 +7801,6 @@ CREATE PROCEDURE sp1()
 BEGIN
 declare database char;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -8278,6 +8266,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
+declare json_table char;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
+BEGIN
 declare key char;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key char;
@@ -8409,12 +8402,6 @@ END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'low_priority char;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-BEGIN
-declare master_ssl_verify_server_cert char;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'master_ssl_verify_server_cert char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
@@ -8488,6 +8475,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
+declare nested char;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
+BEGIN
 declare not char;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'not char;
@@ -8556,6 +8548,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
+declare ordinality char;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1()
+BEGIN
 declare out char;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'out char;
@@ -8575,6 +8572,11 @@ END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'outfile char;
 END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
+CREATE PROCEDURE sp1()
+BEGIN
+declare path char;
+END//
+DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1()
 BEGIN
 declare precision char;
@@ -8745,11 +8747,7 @@ CREATE PROCEDURE sp1()
 BEGIN
 declare schema char;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema char;
-END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1()
 BEGIN
 declare schemas char;
@@ -9333,13 +9331,6 @@ ERROR HY000: Unknown data type: 'char1'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
-CREATE PROCEDURE sp1( )
-BEGIN
-declare accessible condition for sqlstate '02000';
-declare exit handler for add set @var2 = 1;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible condition for sqlstate '02000';
-declare exit handler for add set @...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -9704,11 +9695,7 @@ BEGIN
 declare database condition for sqlstate '02000';
 declare exit handler for database set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database condition for sqlstate '02000';
-declare exit handler for database se...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
 declare databases condition for sqlstate '02000';
@@ -10372,6 +10359,12 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare json_table condition for sqlstate '02000';
+declare exit handler for json_table set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1( )
+BEGIN
 declare key condition for sqlstate '02000';
 declare exit handler for key set @var2 = 1;
 END//
@@ -10562,16 +10555,6 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
-declare master_ssl_verify_server_cert condition for sqlstate '02000';
-declare exit handler for int set @var2 = 1;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'master_ssl_verify_server_cert condition for sqlstate '02000';
-declare exit ha...' at line 3
-DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
-CREATE PROCEDURE sp1( )
-BEGIN
 declare match condition for sqlstate '02000';
 declare exit handler for match set @var2 = 1;
 END//
@@ -10672,6 +10655,12 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare nested condition for sqlstate '02000';
+declare exit handler for nested set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1( )
+BEGIN
 declare not condition for sqlstate '02000';
 declare exit handler for not set @var2 = 1;
 END//
@@ -10768,6 +10757,12 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare ordinality condition for sqlstate '02000';
+declare exit handler for ordinality set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1( )
+BEGIN
 declare out condition for sqlstate '02000';
 declare exit handler for out set @var2 = 1;
 END//
@@ -10796,6 +10791,12 @@ declare exit handler for outfile set ...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
+CREATE PROCEDURE sp1( )
+BEGIN
+declare path condition for sqlstate '02000';
+declare exit handler for path set @var2 = 1;
+END//
+DROP PROCEDURE sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
 declare precision condition for sqlstate '02000';
@@ -11021,11 +11022,7 @@ BEGIN
 declare schema condition for sqlstate '02000';
 declare exit handler for schema set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema condition for sqlstate '02000';
-declare exit handler for schema set @v...' at line 3
 DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
 declare schemas condition for sqlstate '02000';
@@ -11647,18 +11644,6 @@ insert into t values (1);
 set @x = 3;
 END//
 ERROR HY000: Unknown data type: 'handler'
-DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
-CREATE PROCEDURE sp1( )
-BEGIN
-declare accessible handler for sqlstate '02000' set @var2 = 1;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'accessible handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
-DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
 declare add handler for sqlstate '02000' set @var2 = 1;
@@ -11974,8 +11959,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare database handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'database handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -12571,6 +12555,11 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare json_table handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
+CREATE PROCEDURE sp1( )
+BEGIN
 declare key handler for sqlstate '02000' set @var2 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key handler for sqlstate '02000' set @var2 = 1;
@@ -12742,15 +12731,6 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
-declare master_ssl_verify_server_cert handler for sqlstate '02000' set @var2 = 1;
-END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'master_ssl_verify_server_cert handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
-DROP PROCEDURE IF EXISTS sp1;
-Warnings:
-Note	1305	PROCEDURE db_storedproc.sp1 does not exist
-CREATE PROCEDURE sp1( )
-BEGIN
 declare match handler for sqlstate '02000' set @var2 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'match handler for sqlstate '02000' set @var2 = 1;
@@ -12839,6 +12819,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
+CREATE PROCEDURE sp1( )
+BEGIN
+declare nested handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
 CREATE PROCEDURE sp1( )
 BEGIN
 declare not handler for sqlstate '02000' set @var2 = 1;
@@ -12930,6 +12915,11 @@ Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
 CREATE PROCEDURE sp1( )
 BEGIN
+declare ordinality handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
+CREATE PROCEDURE sp1( )
+BEGIN
 declare out handler for sqlstate '02000' set @var2 = 1;
 END//
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'out handler for sqlstate '02000' set @var2 = 1;
@@ -12955,6 +12945,11 @@ END' at line 3
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
+CREATE PROCEDURE sp1( )
+BEGIN
+declare path handler for sqlstate '02000' set @var2 = 1;
+END//
+ERROR HY000: Unknown data type: 'handler'
 CREATE PROCEDURE sp1( )
 BEGIN
 declare precision handler for sqlstate '02000' set @var2 = 1;
@@ -13164,8 +13159,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare schema handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'schema handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -14272,13 +14266,6 @@ DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1()
 BEGIN
 declare x year;
-SELECT f1 into x from t2 limit 1;
-END//
-CALL sp1();
-DROP PROCEDURE IF EXISTS sp1;
-CREATE PROCEDURE sp1()
-BEGIN
-declare x year(3);
 SELECT f1 into x from t2 limit 1;
 END//
 CALL sp1();
@@ -15509,7 +15496,7 @@ END;
 END loop label1;
 END//
 CALL sp4();
-ERROR 42S22: Unknown column 'idummy2' in 'field list'
+ERROR 42S22: Unknown column 'idummy2' in 'SELECT'
 DROP PROCEDURE sp4;
 
 Testcase 4.3.5:
@@ -16113,15 +16100,15 @@ insert into t43 values('abcde', 'a!@#$%^&*(');
 CREATE PROCEDURE d1.sp4()
 SELECT * from d1.t43;
 SELECT * from mysql.proc where specific_name = 'sp4';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-d1	sp4	PROCEDURE	sp4	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from d1.t43	root@localhost	modified	created			latin1	latin1_swedish_ci	latin1_swedish_ci	SELECT * from d1.t43	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
+d1	sp4	PROCEDURE	sp4	SQL	CONTAINS_SQL	NO	DEFINER			SELECT * from d1.t43	root@localhost	modified	created			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from d1.t43	NONE	CURRENT_SCHEMA
 USE db_storedproc;
 DROP DATABASE d1;
 CREATE DATABASE d1;
 USE d1;
 create table t44(a char(5), b char(10));
 SELECT * from mysql.proc where specific_name = 'sp4';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 USE db_storedproc;
 DROP DATABASE d1;
 
@@ -16163,8 +16150,8 @@ CREATE PROCEDURE sp8 ( n char(20) ) sql security DEFINER comment 'initial'
 USE d2;
 alter procedure d1.sp8 sql security DEFINER comment 'updated';
 SELECT * from mysql.proc where specific_name='sp8' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
-d1	sp8	PROCEDURE	sp8	SQL	CONTAINS_SQL	NO	DEFINER	 n char(20) 		SELECT * from t1 where t1.f1 = n	root@localhost	modified	created		updated	latin1	latin1_swedish_ci	latin1_swedish_ci	SELECT * from t1 where t1.f1 = n	NONE
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
+d1	sp8	PROCEDURE	sp8	SQL	CONTAINS_SQL	NO	DEFINER	 n char(20) 		SELECT * from t1 where t1.f1 = n	root@localhost	modified	created		updated	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	SELECT * from t1 where t1.f1 = n	NONE	CURRENT_SCHEMA
 
 Testcase 4.4.9:
 --------------------------------------------------------------------------------
@@ -16180,16 +16167,16 @@ END//
 USE d2;
 alter function d1.fn2 sql security DEFINER comment 'updated';
 SELECT * from mysql.proc where specific_name='fn2' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 d1	fn2	FUNCTION	fn2	SQL	CONTAINS_SQL	NO	DEFINER	n int	int(11)	BEGIN
 declare a int;
 set a = 0.9 * n;
 return a;
-END	root@localhost	modified	created		updated	latin1	latin1_swedish_ci	latin1_swedish_ci	BEGIN
+END	root@localhost	modified	created		updated	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	BEGIN
 declare a int;
 set a = 0.9 * n;
 return a;
-END	NONE
+END	NONE	CURRENT_SCHEMA
 
 Testcase 4.4.10:
 --------------------------------------------------------------------------------
@@ -16199,7 +16186,7 @@ SELECT * from t1 where t1.f1 = n;
 USE d2;
 DROP PROCEDURE d1.sp9;
 SELECT * from mysql.proc where specific_name='sp9' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 
 Testcase 4.4.11:
 --------------------------------------------------------------------------------
@@ -16213,7 +16200,7 @@ END//
 USE d2;
 DROP FUNCTION d1.fn3;
 SELECT * from mysql.proc where specific_name='fn3' and db='d1';
-db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate	path
 USE db_storedproc;
 DROP DATABASE d1;
 DROP DATABASE d2;
@@ -17193,8 +17180,7 @@ set f1 = f1;
 return f1;
 END//
 SELECT fn104('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0?\0\0\0\0\0\0?\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0@\0\0\0\0\0\0@');
-fn104('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0?\0\0\0\0\0\0?\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0@\0\0\0\0\0\0@')
-                ?      ?       @       @      @      @
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP FUNCTION IF EXISTS fn105;
 CREATE FUNCTION fn105( f1 point) returns point
 BEGIN
@@ -18328,8 +18314,7 @@ set f1 = f1;
 SELECT f1;
 END//
 CALL sp104('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0?\0\0\0\0\0\0?\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0@\0\0\0\0\0\0@');
-f1
-                ?      ?       @       @      @      @
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP PROCEDURE IF EXISTS sp105;
 CREATE PROCEDURE sp105( f1 point)
 BEGIN
@@ -21653,7 +21638,7 @@ BEGIN
 declare a datetime;
 set a = '2005-03-14 01:01:02';
 insert into temp_table values(a);
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set @@sql_mode = 'traditional';
 CALL sp2 ();
 SELECT * from temp_table;
@@ -21691,7 +21676,7 @@ declare b int unsigned;
 set a = -5;
 set b = 5;
 SELECT not 1 between a and b;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set @@sql_mode='';
 CALL sp3();
 not 1 between a and b
@@ -21736,7 +21721,7 @@ set a = 0;
 set b = 1;
 set c = b/a;
 show warnings;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set @@sql_mode='';
 CALL sp4();
 Level	Code	Message
@@ -21779,7 +21764,7 @@ sp6a		CREATE DEFINER=`root`@`localhost` PROCEDURE `sp6a`(i1 longtext, out i2 med
 BEGIN
 set @x=i1;
 set @y=@x;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show CREATE PROCEDURE sp6b;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 sp6b		CREATE DEFINER=`root`@`localhost` PROCEDURE `sp6b`(out i1 longtext, out i2 mediumint , out i3 longblob, out i4 year, out i5 real)
@@ -21787,7 +21772,7 @@ sp6b		CREATE DEFINER=`root`@`localhost` PROCEDURE `sp6b`(out i1 longtext, out i2
 BEGIN
 set @x=i1;
 set @y=@x;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show CREATE PROCEDURE sp6c;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 sp6c		CREATE DEFINER=`root`@`localhost` PROCEDURE `sp6c`(inout i1 longtext, inout  i2 mediumint , inout i3 longblob, inout  i4 year, inout  i5 real)
@@ -21795,16 +21780,16 @@ sp6c		CREATE DEFINER=`root`@`localhost` PROCEDURE `sp6c`(inout i1 longtext, inou
 BEGIN
 set @x=i1;
 set @y=@x;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE status like 'sp6a';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp6a	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp6a	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE status like 'sp6b';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp6b	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp6b	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE status like 'sp6c';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp6c	PROCEDURE	root@localhost	<modified>	<created>	DEFINER	this is a comment	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp6c	PROCEDURE	root@localhost	<modified>	<created>	DEFINER	this is a comment	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp6a;
 DROP PROCEDURE sp6b;
 DROP PROCEDURE sp6c;
@@ -21819,7 +21804,7 @@ set @y=@x;
 END//
 SHOW PROCEDURE status like 'sp6';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp6	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp6	PROCEDURE	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp6;
 
 Testcase 4.8.3:
@@ -21845,7 +21830,7 @@ return 0;
 END//
 show  function status like 'sp6';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp6	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp6	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION sp6;
 
 Testcase 4.8.5:
@@ -21894,7 +21879,7 @@ return i1;
 END//
 SHOW FUNCTION STATUS LIKE 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION fn1;
 
 Testcase 4.8.11:
@@ -21963,7 +21948,7 @@ alter procedure sp6 sql security invoker;
 alter procedure sp6 comment  'this is a new comment';
 SHOW PROCEDURE status like 'sp6';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	sp6	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is a new comment	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	sp6	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is a new comment	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp6;
 
 Testcase 4.8.18:
@@ -21980,7 +21965,7 @@ fn1		CREATE DEFINER=`root`@`localhost` FUNCTION `fn1`(x int) RETURNS int(11)
     SQL SECURITY INVOKER
 BEGIN
 return x;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION fn1;
 
 Testcase 4.8.19:
@@ -21994,7 +21979,7 @@ alter function fn1 sql security invoker;
 alter function fn1 comment 'this is a function 3242#@%$#@';
 show  function status like 'fn1';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is a function 3242#@%$#@	latin1	latin1_swedish_ci	latin1_swedish_ci
+db_storedproc	fn1	FUNCTION	root@localhost	<modified>	<created>	INVOKER	this is a function 3242#@%$#@	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP FUNCTION fn1;
 
 Testcase 4.8.20:
@@ -22013,7 +21998,7 @@ sp6		CREATE DEFINER=`root`@`localhost` PROCEDURE `sp6`(i1 int , i2 int)
 BEGIN
 set @x=i1;
 set @y=@x;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp6;
 
 Testcase 4.8.21:

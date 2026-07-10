@@ -9,7 +9,7 @@ tag TEXT COMMENT 'It references to tags.name, type "tags"'
 ) DEFAULT CHARSET=utf8;
 SHOW FULL COLUMNS FROM bugs LIKE 'tag';
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-tag	text	utf8mb3_general_ci	YES		NULL		select,insert,update,references	It references to tags.name, type "tags"
+tag	text	utf8mb3_uca1400_ai_ci	YES		NULL		select,insert,update,references	It references to tags.name, type "tags"
 INSERT INTO bugs (id, tag) VALUES (1, "Linux");
 INSERT INTO bugs (id, tag) VALUES (2, "MySQL");
 INSERT INTO bugs (id, tag) VALUES (3, "groonga");

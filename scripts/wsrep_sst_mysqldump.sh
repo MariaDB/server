@@ -3,7 +3,7 @@
 set -ue
 
 # Copyright (C) 2009-2015 Codership Oy
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,25 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for mysqldump-based state snapshot tansfer
+# This is a reference script for mariadb-dump-based state snapshot transfer.
 
 . $(dirname "$0")/wsrep_sst_common
+
+CLIENT_DIR="$SCRIPTS_DIR/../client"
+
+if [ -x "$CLIENT_DIR/mariadb" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
+else
+    MYSQL_CLIENT=$(commandex 'mariadb')
+fi
+
+if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
+else
+    MYSQLDUMP=$(commandex 'mariadb-dump')
+fi
+
+wait_previous_sst
 
 EINVAL=22
 
@@ -35,22 +51,32 @@ if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED" && \
    [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
 then
     wsrep_log_error \
-    "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT' matches source address."
+        "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT'" \
+        "matches source address."
     exit $EINVAL
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep -q -E 'Distrib 10\.[1-9]'; then
+if ! $MYSQL_CLIENT --version | grep -q -E '(Distrib 10\.[1-9])|( from 1[1-9]\.)'; then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL
 fi
 
 AUTH=""
-usrst=0
 if [ -n "$WSREP_SST_OPT_USER" ]; then
     AUTH="-u$WSREP_SST_OPT_USER"
-    usrst=1
+fi
+
+# Both donor and joiner must have the same wsrep_sst_auth
+# configuration and different (and thus automatically generated)
+# authentication credentials can't be used for this type of SST.
+# In this case the SST will fail if joiner does not provide
+# correct authentication.
+REMOTE_AUTH="$AUTH"
+if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+   REMOTE_AUTH="-u$WSREP_SST_OPT_REMOTE_USER"
+   [ -z "$AUTH" ] && AUTH="$REMOTE_AUTH"
 fi
 
 # Refs https://github.com/codership/mysql-wsrep/issues/141
@@ -62,9 +88,14 @@ fi
 # whereas (at least on Linux) unprivileged user can't see process environment
 # that he does not own. So while it may be not secure in the NSA sense of the
 # word, it is arguably more secure than passing password on the command line.
-if [ -n "$WSREP_SST_OPT_PSWD" ]; then
+if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+    export MYSQL_PWD="$WSREP_SST_OPT_REMOTE_PSWD"
+elif [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+    # Empty password, used for testing, debugging etc.
+    unset MYSQL_PWD
+elif [ -n "$WSREP_SST_OPT_PSWD" ]; then
     export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
-elif [ $usrst -eq 1 ]; then
+elif [ -n "$WSREP_SST_OPT_USER" ]; then
     # Empty password, used for testing, debugging etc.
     unset MYSQL_PWD
 fi
@@ -85,12 +116,13 @@ PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-SET @stmt = IF (@cond = '1', 'CREATE TABLE IF NOT EXISTS slow_log ( start_time timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), user_host mediumtext NOT NULL, query_time time(6) NOT NULL, lock_time time(6) NOT NULL, rows_sent int(11) NOT NULL, rows_examined int(11) NOT NULL, db varchar(512) NOT NULL, last_insert_id int(11) NOT NULL, insert_id int(11) NOT NULL, server_id int(10) unsigned NOT NULL, sql_text mediumtext NOT NULL, thread_id bigint(21) unsigned NOT NULL) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT=\"Slow log\"', 'SET @dummy = 0');
+SET @stmt = IF (@cond = '1', 'CREATE TABLE IF NOT EXISTS slow_log ( start_time timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), user_host mediumtext NOT NULL, query_time time(6) NOT NULL, lock_time time(6) NOT NULL, rows_sent bigint(20) UNSIGNED NOT NULL, rows_examined bigint(20) UNSIGNED NOT NULL, db varchar(512) NOT NULL, last_insert_id int(11) NOT NULL, insert_id int(11) NOT NULL, server_id int(10) unsigned NOT NULL, sql_text mediumtext NOT NULL, thread_id bigint(21) unsigned NOT NULL) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT=\"Slow log\"', 'SET @dummy = 0');
 
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DROP PREPARE stmt;"
 
+STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
 SET_WSREP_GTID_DOMAIN_ID=""
@@ -104,7 +136,7 @@ if [ -n "$WSREP_SST_OPT_GTID_DOMAIN_ID" ]; then
 fi
 
 MYSQL="$MYSQL_CLIENT$WSREP_SST_OPT_CONF_UNQUOTED "\
-"$AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
+"$REMOTE_AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.
@@ -150,13 +182,13 @@ then
     # reason is that dump contains ALTER TABLE for log tables, and
     # this causes an error if logging is enabled
     GENERAL_LOG_OPT=$($MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@GENERAL_LOG")
-    SLOW_LOG_OPT=$($MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@SLOW_QUERY_LOG")
+    SLOW_LOG_OPT=$($MYSQL --skip-column-names -e "$STOP_WSREP SELECT @@LOG_SLOW_QUERY")
 
-    LOG_OFF="SET GLOBAL GENERAL_LOG=OFF; SET GLOBAL SLOW_QUERY_LOG=OFF;"
+    LOG_OFF="SET GLOBAL GENERAL_LOG=OFF; SET GLOBAL LOG_SLOW_QUERY=OFF;"
 
     # commands to restore log settings
     RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"
-    RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
+    RESTORE_SLOW_QUERY_LOG="SET GLOBAL LOG_SLOW_QUERY=$SLOW_LOG_OPT;"
 
     (echo "$STOP_WSREP" && echo "$LOG_OFF" && echo "$RESET_MASTER" && \
      echo "$SET_GTID_BINLOG_STATE" && echo "$SQL_LOG_BIN_OFF" && \
@@ -168,6 +200,12 @@ else
     wsrep_log_info "Bypassing state dump."
     echo "$SET_START_POSITION" | $MYSQL || exit $?
 fi
+
+if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+    simulate_long_sst
+fi
+
+echo "done $STATE"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"
 exit 0

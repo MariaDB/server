@@ -1,0 +1,70 @@
+#
+# This .cnf file creates a setup with 2 standard MariaDB servers, followed by a 2-node Galera cluster
+#
+
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+
+[mysqld]
+loose-innodb
+log-bin=mysqld-bin
+log-slave-updates
+binlog-format=row
+innodb-autoinc-lock-mode=2
+default-storage-engine=innodb
+# enforce read-committed characteristics across the cluster
+# wsrep-causal-reads=ON
+wsrep-sync-wait=15
+
+[mysqld.1]
+wsrep-on=1
+server-id=1
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_cluster_address=gcomm://
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.1.#galera_port'
+wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
+wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
+
+[mysqld.2]
+wsrep-on=1
+server-id=2
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+wsrep_node_address='127.0.0.1:@mysqld.2.#galera_port'
+wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
+wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
+
+[mysqld.3]
+wsrep-on=OFF
+server-id=3
+gtid_domain_id=3
+
+[mysqld.4]
+wsrep-on=OFF
+server-id=4
+gtid_domain_id=4
+
+
+[sst]
+sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
+
+[ENV]
+NODE_MYPORT_1= @mysqld.1.port
+NODE_MYSOCK_1= @mysqld.1.socket
+
+NODE_MYPORT_2= @mysqld.2.port
+NODE_MYSOCK_2= @mysqld.2.socket
+
+NODE_MYPORT_3= @mysqld.3.port
+NODE_MYSOCK_3= @mysqld.3.socket
+
+NODE_MYPORT_4= @mysqld.4.port
+NODE_MYSOCK_4= @mysqld.4.socket

@@ -1,4 +1,3 @@
-SET GLOBAL innodb_file_per_table = ON;
 create table t1 (a varchar(255)) engine=innodb encrypted=yes;
 create table t2 (a varchar(255)) engine=innodb;
 show warnings;

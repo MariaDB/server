@@ -168,11 +168,11 @@ SELECT @@updatable_views_with_limit;
 @@updatable_views_with_limit
 YES
 SELECT local.updatable_views_with_limit;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.updatable_views_with_limit;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT updatable_views_with_limit = @@session.updatable_views_with_limit;
-ERROR 42S22: Unknown column 'updatable_views_with_limit' in 'field list'
+ERROR 42S22: Unknown column 'updatable_views_with_limit' in 'SELECT'
 SET @@global.updatable_views_with_limit = @start_global_value;
 SELECT @@global.updatable_views_with_limit;
 @@global.updatable_views_with_limit

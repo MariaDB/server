@@ -8,9 +8,9 @@
 #
 # This test should be declared in debian/tests/control with the
 # following restrictions:
-#
-# needs-root (to be able to log into the database)
-# allow-stderr
+# - allow-stderr (set -x always outputs to stderr)
+# - needs-root (to be able to log into the database)
+# - isolation-container (to be able to start service)
 #
 # This test:
 #
@@ -27,7 +27,7 @@ set -ex
 # Start the daemon if it was not running. For example in Docker testing
 # environments there might not be any systemd et al and the service needs to
 # be started manually.
-if ! which systemctl
+if ! command -v systemctl
 then
   if ! /etc/init.d/mariadb status
   then
@@ -45,35 +45,39 @@ else
   systemctl restart mariadb
 fi
 
-mariadb <<EOT
+mysql <<EOT
 CREATE DATABASE testdatabase;
 CREATE USER 'testuser'@'localhost' identified by 'testpassword';
 GRANT ALL ON testdatabase.* TO 'testuser'@'localhost';
 EOT
 
-mariadb testdatabase <<EOT
+mysql testdatabase <<EOT
 CREATE TABLE foo (bar INTEGER);
 INSERT INTO foo (bar) VALUES (41);
 EOT
 
-result=$(echo 'SELECT bar+1 FROM foo;'|mariadb --batch --skip-column-names --user=testuser --password=testpassword testdatabase)
-if [ "$result" != "42" ]; then
-       echo "Unexpected result" >&2
-       exit 1
+result=$(echo 'SELECT bar+1 FROM foo;'|mysql --batch --skip-column-names --user=testuser --password=testpassword testdatabase)
+if [ "$result" != "42" ]
+then
+  echo "Unexpected result" >&2
+  exit 1
 fi
 
-mariadb --user=testuser --password=testpassword testdatabase <<EOT
+mysql --user=testuser --password=testpassword testdatabase <<EOT
 DROP TABLE foo;
 EOT
 
-mariadb <<EOT
+mysql <<EOT
 DROP DATABASE testdatabase;
 DROP USER 'testuser'@'localhost';
 EOT
 
-# List based on what is advertised at
-# https://mariadb.com/kb/en/innodb-page-compression/#configuring-the-innodb-page-compression-algorithm
-# but disabled  with '#' the options that are not available in this binary build
+# This will never fail but exists purely for debugging purposes in case a later
+# step would fail
+mariadb <<EOT
+SHOW GLOBAL STATUS WHERE Variable_name LIKE 'Innodb_have_%';
+EOT
+
 mariadb <<EOT
 SET GLOBAL innodb_compression_algorithm=lz4;
 SET GLOBAL innodb_compression_algorithm=lzo;
@@ -88,7 +92,7 @@ EOT
 plugin=mariadb-plugin-rocksdb
 if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
    [ "$(dpkg-architecture -qDEB_HOST_ARCH_ENDIAN)" = little ]
-  then
+then
   dpkg-query -W $plugin
 
   LOG=/var/lib/mysql/#rocksdb/LOG
@@ -101,7 +105,8 @@ if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
   grep -F " supported:" $LOG
 
   # Check that the expected compression methods are supported
-  for a in LZ4 Snappy Zlib ZSTD; do
+  for a in LZ4 Snappy Zlib ZSTD
+  do
     if ! grep -qE "k$a(Compression)? supported: 1" $LOG
     then
       # Fail with explicit error message
@@ -110,5 +115,9 @@ if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
     fi
   done
 else
-  ! dpkg-query -W $plugin
+  if dpkg-query -W $plugin
+  then
+    echo "Error: Plugin $plugin was found even though it should not exist on a 32-bit and little-endian system"
+    exit 1
+  fi
 fi

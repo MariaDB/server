@@ -1,0 +1,121 @@
+--echo # Test for function trunc()
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # Simple test
+--echo #
+
+select trunc('2025-07-27 12:01:02.123');
+select trunc('2025-07-27 12:01:02.123','YY');
+select trunc('2025-07-27 12:01:02.123','MM');
+select trunc('2025-07-27 12:01:02.123','DD');
+
+select trunc('hello');
+select trunc(1);
+
+--echo #
+--echo # The returned data type is DATETIME (the closest to Oracle's DATE)
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  trunc('2025-07-27 12:01:02','YYYY') AS c0,
+  trunc('2025-07-27 12:01:02.1','YYYY') AS c1,
+  trunc('2025-07-27 12:01:02.12','YYYY') AS c2,
+  trunc('2025-07-27 12:01:02.123','YYYY') AS c3,
+  trunc('2025-07-27 12:01:02.1234','YYYY') AS c4,
+  trunc('2025-07-27 12:01:02.12345','YYYY') AS c5,
+  trunc('2025-07-27 12:01:02.123456','YYYY') AS c6,
+  trunc('2025-07-27 12:01:02.1234567','YYYY') AS c7;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo # Ensure that trunc table name and column can still be used
+
+create table trunc (trunc int);
+insert into trunc (trunc) values (1);
+select trunc from trunc;
+drop table trunc;
+
+--echo #
+--echo # Test all format variations
+--echo #
+
+CREATE TABLE t1(c2 datetime, c3 date, c4 timestamp);
+INSERT INTO t1 VALUES ('2021-11-12 00:23:12', '2021-11-12', '2021-11-12 00:23:12');
+INSERT INTO t1 VALUES ('0000-09-02 00:00:00', '0000-09-02', '1980-09-02 00:00:00');
+INSERT INTO t1 VALUES ('9999-09-02', '9999-09-02', '1980-09-02');
+
+create table t2 (format varchar(5)) engine=aria;
+insert into t2 values ('DD'),('DDD'),('J'),('MM'),('MON'),('MONTH'),('RM'),('SYEAR'),('SYYYY'),('Y'),('YEAR'),('YY'),('YYY'),('YYYY'), ('ZZZ');
+
+SELECT format,trunc(c2,format),trunc(c3,format),trunc(c4,format) from t2 straight_join t1;
+
+--echo #
+--echo # Test wrong usage
+--echo #
+
+select trunc('2021-11-12 00:23:12','');
+select trunc('2021-11-12 00:23:12','ZZZZ');
+select trunc('','DD');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select trunc();
+select trunc(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select trunc(1,2,3);
+
+drop table t1,t2;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select trunc('2021-11-12 00:23:12', POINT(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select trunc('2021-11-12 00:23:12', ROW(1,1));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select trunc(POINT(1,1), 'YYYY');
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select trunc(ROW(1,1), 'YYYY');
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select trunc(POINT(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select trunc(ROW(1,1));
+
+--echo #
+--echo # Testing non-ASCII input in the format
+--echo #
+
+SELECT trunc('2021-11-12 00:23:12','ŸŸŸŸ');
+
+
+--echo #
+--echo # Fractional digits outside of the supported limit of 6 digits
+--echo # are always truncated even if TIME_ROUND_FRACTIONAL is set.
+--echo #
+
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SELECT trunc('2001-12-31 23:59:59.9999999','YYYY') AS c1;
+SELECT trunc('2001-12-31 23:59:59.9999999','MM') AS c1;
+SELECT trunc('2001-12-31 23:59:59.9999999','DD') AS c1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # TIME argument is converted to DATE using CURRENT_DATE
+--echo #
+
+SET timestamp=unix_timestamp('2001-12-31 10:00:00');
+SELECT trunc(time'24:00:00','YYYY');
+SELECT trunc(time'24:00:00','MM');
+SELECT trunc(time'24:00:00','DD');
+SET timestamp=DEFAULT;
+
+
+--echo #
+--echo # MDEV-37414 SIGSEGV in Binary_string::c_ptr | Item_func_trunc::get_date
+--echo #
+
+SELECT trunc(time'24:00:00',NULL);
+SET SQL_MODE=EMPTY_STRING_IS_NULL;
+SELECT trunc(time'24:00:00','');
+SET SQL_MODE=DEFAULT;

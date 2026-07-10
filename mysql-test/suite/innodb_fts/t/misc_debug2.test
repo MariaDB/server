@@ -3,12 +3,15 @@
 --source include/not_embedded.inc
 call mtr.add_suppression("InnoDB: Table '.*' tablespace is set as discarded.");
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("\\[Warning\\] option 'innodb-ft-min-token-size': unsigned value 0 adjusted to 1");
 
 CREATE TABLE mdev21563(f1 VARCHAR(100), FULLTEXT idx(f1))ENGINE=InnoDB;
 set debug_dbug="+d,fts_instrument_sync_request";
 INSERT INTO mdev21563 VALUES('This is a test');
 ALTER TABLE mdev21563 DISCARD TABLESPACE;
+--let $restart_parameters=--innodb_ft_min_token_size=0
 --source include/restart_mysqld.inc
+SELECT @@global.innodb_ft_min_token_size;
 DROP TABLE mdev21563;
 
 --echo #
@@ -21,6 +24,7 @@ set debug_dbug="+d,fts_instrument_sync_request";
 INSERT INTO t1 VALUES('test');
 set debug_dbug=@save_dbug;
 INSERT INTO t1 VALUES('This is a fts issue');
+let $restart_parameters=;
 --source include/restart_mysqld.inc
 set debug_dbug="+d,fts_instrument_sync_request";
 UPDATE t1 SET f1="mariadb";

@@ -120,7 +120,7 @@ drop table t1;
 --echo # BACKUP STAGE performs implicit commits
 --echo #
 --disable_view_protocol
-create table t1(a int) engine=InnoDB;
+create table t1(a int) stats_persistent=0, engine=InnoDB;
 begin;
 insert into t1 values(1);
 select lock_mode from information_schema.metadata_lock_info where thread_id>0;
@@ -221,8 +221,9 @@ drop table t1;
 --echo # OTOH we most probably allow them under FTWRL as well
 --echo #
 --disable_view_protocol
-CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t1 (col1 INT)stats_persistent=0, ENGINE = InnoDB;
 insert into t1 values (1);
+--source ../suite/innodb/include/wait_all_purged.inc
 backup stage start;
 backup stage block_commit;
 begin;
@@ -300,21 +301,21 @@ HANDLER t1_myisam CLOSE;
 BACKUP STAGE END;
 drop table t1_innodb,t1_myisam;
 
---echo # Show the fate and impact of some SET GLOBAL tx_read_only = 1/0
+--echo # Show the fate and impact of some SET GLOBAL transaction_read_only = 1/0
 --echo # sliding through the sequence.
 
 BACKUP STAGE START;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE FLUSH;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE BLOCK_DDL;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE BLOCK_COMMIT;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE END;
 
 --echo # Show the fate and impact of some SET SESSION sql_log_bin = 0/1

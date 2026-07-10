@@ -122,7 +122,8 @@ void my_make_scrambled_password_323(char *to, const char *password,
 {
   ulong hash_res[2];
   hash_password(hash_res, password, (uint) pass_len);
-  sprintf(to, "%08lx%08lx", hash_res[0], hash_res[1]);
+  snprintf(to, SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1,
+           "%08lx%08lx", hash_res[0], hash_res[1]);
 }
 
 
@@ -270,7 +271,8 @@ void get_salt_from_password_323(ulong *res, const char *password)
 
 void make_password_from_salt_323(char *to, const ulong *salt)
 {
-  sprintf(to,"%08lx%08lx", salt[0], salt[1]);
+  snprintf(to, SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1,
+           "%08lx%08lx", salt[0], salt[1]);
 }
 
 
@@ -296,13 +298,13 @@ void make_password_from_salt_323(char *to, const ulong *salt)
     buf+len*2
 */
 
-char *octet2hex(char *to, const char *str, size_t len)
+char *octet2hex(char *to, const uchar *str, size_t len)
 {
-  const char *str_end= str + len; 
+  const uchar *str_end= str + len;
   for (; str != str_end; ++str)
   {
-    *to++= _dig_vec_upper[((uchar) *str) >> 4];
-    *to++= _dig_vec_upper[((uchar) *str) & 0x0F];
+    *to++= _dig_vec_upper[*str >> 4];
+    *to++= _dig_vec_upper[*str & 0x0F];
   }
   *to= '\0';
   return to;
@@ -399,7 +401,7 @@ void my_make_scrambled_password(char *to, const char *password,
 
   /* convert hash_stage2 to hex string */
   *to++= PVERSION41_CHAR;
-  octet2hex(to, (const char*) hash_stage2, MY_SHA1_HASH_SIZE);
+  octet2hex(to, hash_stage2, MY_SHA1_HASH_SIZE);
 }
   
 
@@ -519,6 +521,6 @@ void get_salt_from_password(uint8 *hash_stage2, const char *password)
 void make_password_from_salt(char *to, const uint8 *hash_stage2)
 {
   *to++= PVERSION41_CHAR;
-  octet2hex(to, (const char*) hash_stage2, MY_SHA1_HASH_SIZE);
+  octet2hex(to, hash_stage2, MY_SHA1_HASH_SIZE);
 }
 

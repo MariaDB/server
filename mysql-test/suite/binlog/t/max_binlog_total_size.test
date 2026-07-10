@@ -1,0 +1,94 @@
+--source include/have_log_bin.inc
+select @@global.max_binlog_total_size;
+select @@global.max_binlog_size;
+
+# Note that this test is only using MyISAM tables.
+# The reason for this is that we do not want to have engine
+# checkpoints in the binary log as it would change the number of
+# bytes in the log, which could cause random rotations.
+
+--echo #
+--echo # MDEV-31404 Implement binlog_space_limit
+--echo #
+
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+source include/show_binary_logs.inc;
+show status like "binlog_disk_use";
+set @@global.slave_connections_needed_for_purge= 0;
+--echo # binary.000001 should be deleted now
+source include/show_binary_logs.inc;
+show status like "binlog_disk_use";
+
+CREATE TABLE `t1` (
+  `v1` int(11) DEFAULT NULL,
+  `v2` varchar(8000) DEFAULT NULL,
+  KEY `v1` (`v1`)
+)  engine=myisam;
+INSERT INTO t1 VALUES (0,repeat("a",3000));
+show status like "binlog_disk_use";
+--echo # First binary should be binary.000004
+source include/show_binary_logs.inc;
+
+INSERT INTO t1 VALUES (2,repeat("b",10));
+--echo # First binary should be binary.000004
+# The reson why we have logs 00004 and 00005 at this point is that we first
+# do a rotate and then try to purge. However as there are still existing
+# xid's pointing to the 00004, we cannot yet purge 000004.
+# After rotate a checkpoint record will be written to 00005 which
+# will release pointers to 00004. On next binary log write or flush
+# the purge will be retried and succeed.
+
+source include/show_binary_logs.inc;
+
+FLUSH LOGS;
+--echo # First binary should be binary.000005
+source include/show_binary_logs.inc;
+
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+source include/show_binary_logs.inc;
+show status like "binlog_disk_use";
+
+PURGE BINARY LOGS TO 'binary.000009';
+--echo # First binary should be binary.000009
+source include/show_binary_logs.inc;
+
+INSERT INTO t1 VALUES (3,repeat("c",4000));
+--echo # First binary should be binary.000010
+source include/show_binary_logs.inc;
+
+INSERT INTO t1 VALUES (4,repeat("d",3000));
+--echo # First binary should be binary.000011
+source include/show_binary_logs.inc;
+
+RESET MASTER;
+source include/show_binary_logs.inc;
+show status like "binlog_disk_use";
+
+INSERT INTO t1 VALUES (5,"e");
+FLUSH LOGS;
+INSERT INTO t1 VALUES (6,repeat("f",3000));
+source include/show_binary_logs.inc;
+show status like "binlog_disk_use";
+
+INSERT INTO t1 VALUES (7,repeat("g",3000));
+--echo # binary.000001 should be deleted now
+source include/show_binary_logs.inc;
+show status like "binlog_disk_use";
+
+FLUSH LOGS;
+FLUSH LOGS;
+--echo # binary.000002 should be deleted now
+show binary logs;
+show status like "binlog_disk_use";
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+set @@global.slave_connections_needed_for_purge= default;
+# End of 11.4 tests

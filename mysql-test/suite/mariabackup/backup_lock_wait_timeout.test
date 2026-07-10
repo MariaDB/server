@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 CREATE TABLE t(i INT) ENGINE INNODB;
 
@@ -25,4 +24,3 @@ COMMIT;
 
 DROP TABLE t;
 rmdir $targetdir;
---source include/wait_until_count_sessions.inc

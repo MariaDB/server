@@ -75,10 +75,10 @@ public:
   inline static double get_search_cost(ulonglong tree_elems,
                                        double compare_factor)
   {
-    return log((double) tree_elems) / (compare_factor * M_LN2);
+    return log((double) tree_elems) * compare_factor / M_LN2;
   }  
 
-  static double get_use_cost(uint *buffer, size_t nkeys, uint key_size,
+  static double get_use_cost(THD *thd, uint *buffer, size_t nkeys, uint key_size,
                              size_t max_in_memory_size, double compare_factor,
                              bool intersect_fl, bool *in_memory);
   inline static int get_cost_calc_buff_size(size_t nkeys, uint key_size,
@@ -98,13 +98,13 @@ public:
   uint get_size() const { return size; }
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
 
-  friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
-  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
+  friend int unique_write_to_file(void* key, element_count count, void *unique);
+  friend int unique_write_to_ptrs(void* key, element_count count, void *unique);
 
-  friend int unique_write_to_file_with_count(uchar* key, element_count count,
-                                             Unique *unique);
-  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count, 
-				            Unique *unique);
+  friend int unique_write_to_file_with_count(void *key, element_count count,
+                                             void *unique);
+  friend int unique_intersect_write_to_ptrs(void *key, element_count count,
+                                            void *unique);
 };
 
 #endif /* UNIQUE_INCLUDED */

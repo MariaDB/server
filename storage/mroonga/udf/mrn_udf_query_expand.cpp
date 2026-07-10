@@ -17,6 +17,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
 #include <mrn_path_mapper.hpp>
@@ -74,10 +75,19 @@ MRN_API my_bool mroonga_query_expand_init(UDF_INIT *init,
   MRN_DBUG_ENTER_FUNCTION();
 
   init->ptr = NULL;
+
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "mroonga_query_expand(): Mroonga isn't initialized");
+    goto error;
+  }
+
   if (args->arg_count != 4) {
-    sprintf(message,
-            "mroonga_query_expand(): wrong number of arguments: %u for 4",
-            args->arg_count);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "mroonga_query_expand(): wrong number of arguments: %u for 4",
+             args->arg_count);
     goto error;
   }
   if (args->arg_type[0] != STRING_RESULT) {
@@ -234,8 +244,8 @@ MRN_API char *mroonga_query_expand(UDF_INIT *init,
                                    UDF_ARGS *args,
                                    char *result,
                                    unsigned long *length,
-                                   char *is_null,
-                                   char *error)
+                                   uchar *is_null,
+                                   uchar *error)
 {
   MRN_DBUG_ENTER_FUNCTION();
 

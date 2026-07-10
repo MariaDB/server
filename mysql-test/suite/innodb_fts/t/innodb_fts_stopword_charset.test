@@ -17,7 +17,7 @@ SET NAMES utf8;
 CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200)
-        ) ENGINE=InnoDB;
+        ) ENGINE=InnoDB CHARSET=latin1;
 
 --disable_warnings
 INSERT IGNORE INTO articles (title) VALUES
@@ -33,7 +33,7 @@ SELECT * FROM articles WHERE MATCH (title)
         AGAINST ('lòve' IN NATURAL LANGUAGE MODE);
 
 # Define a user stopword table and set to it
-CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB;
+CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB CHARSET=latin1;
 INSERT INTO user_stopword VALUES('lòve');
 SET GLOBAL innodb_ft_server_stopword_table = 'test/user_stopword';
 
@@ -295,7 +295,7 @@ DROP TABLE user_stopword;
 CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200)
-        ) ENGINE=InnoDB;
+        ) ENGINE=InnoDB CHARSET=latin1;
 
 --disable_warnings
 INSERT IGNORE INTO articles (title) VALUES
@@ -311,7 +311,7 @@ SELECT * FROM articles WHERE MATCH (title)
         AGAINST ('lòve' IN NATURAL LANGUAGE MODE);
 
 # Define a user stopword table and set to it
-CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB;
+CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB CHARSET=latin1;
 INSERT INTO user_stopword VALUES('lòve');
 SET GLOBAL innodb_ft_server_stopword_table = 'test/user_stopword';
 
@@ -348,12 +348,12 @@ SELECT * FROM articles WHERE MATCH (title)
 DROP TABLE articles;
 DROP TABLE user_stopword;
 
--- echo # Test 9 : drop user stopwrod table,test shutdown to check if it works
+-- echo # Test 9 : drop user stopword table,test shutdown to check if it works
 # Create FTS table with default charset latin1_swedish_ci
 CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200)
-        ) ENGINE=InnoDB;
+        ) ENGINE=InnoDB CHARSET=latin1;
 
 --disable_warnings
 INSERT IGNORE INTO articles (title) VALUES
@@ -369,7 +369,7 @@ SELECT * FROM articles WHERE MATCH (title)
         AGAINST ('lòve' IN NATURAL LANGUAGE MODE);
 
 # Define a user stopword table and set to it
-CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB;
+CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB CHARSET=latin1;
 INSERT INTO user_stopword VALUES('lòve');
 SET GLOBAL innodb_ft_server_stopword_table = 'test/user_stopword';
 

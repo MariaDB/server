@@ -88,5 +88,19 @@ c1
 3
 20
 connection master;
+insert t1 values /*! (100);insert t1 values */ (200) //
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'insert t1 values */ (200)' at line 1
+select * from t1;
+c1
+62
+3
+20
+connection slave;
+select * from t1;
+c1
+62
+3
+20
+connection master;
 DROP TABLE t1;
 include/rpl_end.inc

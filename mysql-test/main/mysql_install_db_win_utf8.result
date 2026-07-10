@@ -1,3 +1,4 @@
+use mysql;
 Running bootstrap
 Creating my.ini file
 Removing default user
@@ -12,3 +13,4 @@ DATADIR/
 # Kill the server
 connection default;
 # restart
+use test;

@@ -1,4 +1,5 @@
-/* Copyright 2018-2023 Codership Oy <info@codership.com>
+/* Copyright 2018-2025 Codership Oy <info@codership.com>
+   Copyright 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +22,7 @@
 #include "sql_class.h"
 #include "debug_sync.h"
 #include "log.h"
+#include "wsrep_schema.h" // WSREP_SCHEMA, WSREP_STREAMING_TABLE
 
 extern "C" my_bool wsrep_on(const THD *thd)
 {
@@ -82,11 +84,12 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
     case SQLCOM_REVOKE:
       return "REVOKE";
     case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-        return "SET PASSWORD";
+      return "SET OPTION";
       /* fallthrough */
     default:
+    {
       return (thd->query() ? thd->query() : "NULL");
+    }
   }
   return "NULL";
 }
@@ -116,7 +119,7 @@ extern "C" void wsrep_thd_self_abort(THD *thd)
 
 extern "C" const char* wsrep_get_sr_table_name()
 {
-  return wsrep_sr_table_name_full;
+  return WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 }
 
 extern "C" my_bool wsrep_get_debug()
@@ -183,42 +186,33 @@ extern "C" my_bool wsrep_thd_is_BF(const THD *thd, my_bool sync)
 
 extern "C" my_bool wsrep_thd_is_SR(const THD *thd)
 {
-  return thd && thd->wsrep_cs().transaction().is_streaming();
+  return thd && thd->wsrep_cs().transaction().is_streaming() &&
+    thd->wsrep_cs().transaction().state() == wsrep::transaction::s_executing;
 }
 
-extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
+extern "C" void wsrep_handle_SR_rollback(THD *bf_thd __attribute__((unused)),
                                          THD *victim_thd)
 {
+  /*
+    We should always be in victim_thd context, either client session is
+    rolling back or rollbacker thread should be in control.
+  */
   DBUG_ASSERT(victim_thd);
+  DBUG_ASSERT(current_thd == victim_thd);
   DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
-  if (!victim_thd || !wsrep_on(bf_thd)) return;
 
-  WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
+  /* Defensive measure to avoid crash in production. */
+  if (!victim_thd) return;
+
+  WSREP_DEBUG("Handle SR rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),
               wsrep_thd_transaction_state_str(victim_thd));
 
-  /* Note: do not store/reset globals before wsrep_bf_abort() call
-     to avoid losing BF thd context. */
-  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
-  if (!(bf_thd && bf_thd != victim_thd))
-  {
-    DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
-  }
-  if (bf_thd)
-  {
-    wsrep_bf_abort(bf_thd, victim_thd);
-  }
-  else
-  {
-    wsrep_thd_self_abort(victim_thd);
-  }
-  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-  if (bf_thd)
-  {
-    wsrep_store_threadvars(bf_thd);
-  }
+  DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
+
+  wsrep_thd_self_abort(victim_thd);
 }
 
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
@@ -234,6 +228,11 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
+    WSREP_DEBUG("wsrep_thd_bf_abort thread %ld sending "
+                "KILL_QUERY_HARD to %ld ret=%d signal %d",
+                bf_thd->thread_id,
+                victim_thd->thread_id,
+                ret, signal);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY_HARD);
   } else {
@@ -249,26 +248,47 @@ extern "C" my_bool wsrep_thd_skip_locking(const THD *thd)
 
 extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 {
-  if (wsrep_thd_is_BF(left, false) &&
-      wsrep_thd_is_BF(right, false) &&
-      wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
-    WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(left),
-                (long long)wsrep_thd_trx_seqno(right));
-    return TRUE;
-  }
-  WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-              (long long)wsrep_thd_trx_seqno(left),
-              (long long)wsrep_thd_trx_seqno(right));
-  return FALSE;
+  my_bool before= (wsrep_thd_is_BF(left, false) &&
+                   wsrep_thd_is_BF(right, false) &&
+                   wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right));
+
+  WSREP_DEBUG("wsrep_thd_order_before: %s thread=%llu seqno=%llu query=%s "
+              "%s %s thread=%llu, seqno=%llu query=%s",
+              (wsrep_thd_is_BF(left, false) ? "BF" : "def"),
+              thd_get_thread_id(left),
+              wsrep_thd_trx_seqno(left),
+              wsrep_thd_query(left),
+              (before ? " TRUE " : " FALSE "),
+              (wsrep_thd_is_BF(right, false) ? "BF" : "def"),
+              thd_get_thread_id(right),
+              wsrep_thd_trx_seqno(right),
+              wsrep_thd_query(right));
+
+  return before;
 }
 
+/** Check if wsrep transaction is aborting state.
+
+Calling function should make sure that wsrep transaction state
+can't change during this function.
+
+This function is called from
+wsrep_abort_thd where we hold THD::LOCK_thd_data
+wsrep_handle_mdl_conflict we hold THD::LOCK_thd_data
+wsrep_assert_no_bf_bf_wait we hold lock_sys.latch
+innobase_kill_query we hold THD::LOCK_thd_data (THD::awake_no_mutex)
+
+@param thd         thread handle
+
+@return true       if wsrep transaction is aborting
+@return false      if not
+
+*/
 extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
-
   const wsrep::client_state& cs(thd->wsrep_cs());
   const enum wsrep::transaction::state tx_state(cs.transaction().state());
+
   switch (tx_state)
   {
     case wsrep::transaction::s_must_abort:
@@ -277,10 +297,26 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
     case wsrep::transaction::s_aborting:
       return true;
     default:
-      return false;
+      break;
   }
 
   return false;
+}
+
+/** Check if a wsrep applier is rolling back a transaction locally.
+
+This function is used for notifying InnoDB routines that this thread
+is rolling back a wsrep transaction locally.
+
+@param thd         thread handle
+
+@return true       if wsrep applier is rolling back a transaction locally
+@return false      otherwise
+
+*/
+extern "C" my_bool wsrep_thd_in_rollback(const THD *thd)
+{
+  return thd->wsrep_applier_is_in_rollback();
 }
 
 static inline enum wsrep::key::type
@@ -395,17 +431,9 @@ extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
   }
 }
 
-extern "C" int wsrep_thd_append_table_key(MYSQL_THD thd,
-                                    const char* db,
-                                    const char* table,
-                                    enum Wsrep_service_key_type key_type)
+extern "C" uint32 wsrep_get_domain_id()
 {
-  wsrep_key_arr_t key_arr = {0, 0};
-  int ret = wsrep_prepare_keys_for_isolation(thd, db, table, NULL, &key_arr);
-  ret = ret || wsrep_thd_append_key(thd, key_arr.keys,
-                                    (int)key_arr.keys_len, key_type);
-  wsrep_keys_free(&key_arr);
-  return ret;
+  return wsrep_gtid_domain_id;
 }
 
 extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
@@ -413,4 +441,3 @@ extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
   return (wsrep_thd_is_local(thd) &&
 	  thd->wsrep_cs().transaction().active());
 }
-

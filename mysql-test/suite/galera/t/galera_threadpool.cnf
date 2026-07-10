@@ -1,0 +1,15 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep-node-name="node1"
+log_bin=binlog
+log_slave_updates=ON
+wsrep_sst_method=rsync
+thread_handling = pool-of-threads
+
+[mysqld.2]
+wsrep-node-name="node2"
+log_bin=binlog
+log_slave_updates=ON
+wsrep_sst_method=rsync
+thread_handling = pool-of-threads

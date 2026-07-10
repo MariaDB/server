@@ -1,0 +1,7 @@
+CHANGE MASTER TO
+master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+# restart: --skip-slave-start
+FOUND 1 /\[Note\] .*skip-slave-start.*/ in mysqld.1.err
+SELECT Slave_SQL_Running, Slave_IO_Running FROM INFORMATION_SCHEMA.SLAVE_STATUS;
+Slave_SQL_Running	Slave_IO_Running
+No	No

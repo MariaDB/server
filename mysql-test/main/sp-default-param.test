@@ -1,0 +1,391 @@
+--echo # Start of 11.8 tests
+
+--echo #
+--echo # MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+--echo #
+
+--echo #
+--echo # Basic default parameter test for procedures
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(par1 INT, par2 INT DEFAULT 1)
+BEGIN
+  SELECT par1, par2 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+CALL p1(2,3);
+CALL p1(2);
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p1(2,3,4);
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p1();
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Basic default parameter test for functions
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(par1 INT, par2 INT DEFAULT 1) RETURNS INT
+  RETURN par1 + par2;
+$$
+DELIMITER ;$$
+SELECT f1(2,3) FROM DUAL;
+SELECT f1(2) FROM DUAL;
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT f1(2,3,4) FROM DUAL;
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT f1() FROM DUAL;
+
+DROP FUNCTION f1;
+
+--echo #
+--echo # Test various data types
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+
+CREATE DATABASE d1;
+USE d1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+
+USE test;
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(par1 INT DEFAULT 1,
+                                par2 VARCHAR(10) DEFAULT 'abc',
+                                par3 DATE DEFAULT '2010-01-01',
+                                par4 DECIMAL(10,2) DEFAULT 1.23,
+                                par5 DOUBLE DEFAULT 1.23,
+                                par6 FLOAT DEFAULT 1.23,
+                                par7 CHAR DEFAULT 'a',
+                                par8 BINARY DEFAULT 'a',
+                                par9 BLOB DEFAULT 'a',
+                                par10 TEXT DEFAULT 'a',
+                                par11 ENUM('a','b') DEFAULT 'a',
+                                par12 SET('a','b') DEFAULT 'a',
+                                par13 TIMESTAMP DEFAULT '2010-01-01 00:00:00',
+                                par14 DATETIME DEFAULT '2010-01-01 00:00:00',
+                                par15 TIME DEFAULT '00:00:00',
+                                par16 YEAR DEFAULT 2010,
+                                par17 BOOLEAN DEFAULT TRUE,
+                                par18 TYPE OF t1.a DEFAULT 10,
+                                par19 TYPE OF d1.t1.a DEFAULT 10,
+                                par20 ROW TYPE OF t1 DEFAULT ROW(1, 'cde'),
+                                par21 ROW TYPE OF d1.t1 DEFAULT ROW(1, 'cde'))
+BEGIN
+  SELECT par1, par2, par3, par4, par5, par6, par7, par8, par9,
+         par10, par11, par12, par13, par14, par15, par16, par17, par18,
+         par19, par20.b, par21.b
+  FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1();
+
+# PARAMETER_DEFAULT Column test for various data types
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE d1;
+
+--echo #
+--echo # Default parameters in package's routines
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE p1
+  PROCEDURE p1(par1 INT,
+               par2 INT DEFAULT 2);
+  FUNCTION f1(par1 INT,
+              par2 INT DEFAULT 2) RETURNS INT;
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY p1
+  PROCEDURE p1(par1 INT,
+               par2 INT DEFAULT 2)
+  BEGIN
+    SELECT par1, par2 FROM DUAL;
+  END;
+  FUNCTION f1(par1 INT,
+              par2 INT DEFAULT 2) RETURNS INT
+  BEGIN
+    RETURN par1 + par2;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1.p1(1,4);
+CALL p1.p1(1);
+SELECT p1.f1(1,4) FROM DUAL;
+SELECT p1.f1(1) FROM DUAL;
+
+DROP PACKAGE p1;
+
+--echo #
+--echo # MDEV-35925 OUT and INOUT parameters shouldn't expect a default value
+--echo #
+
+# An IN param with default followed by an OUT param
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE sp1(IN p1 INT DEFAULT 0, OUT p2 INT)
+BEGIN
+  SET p2 = p2 + 1;
+END;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE sp1(IN p1 INT DEFAULT 0, IN OUT p2 INT)
+BEGIN
+  SET p2 = p2 + 1;
+END;
+$$
+DELIMITER ;$$
+
+--echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t values (1);
+
+--echo # Procedure with default parameters
+
+DELIMITER //;
+
+# No parameter default & constant default parameters
+CREATE OR REPLACE PROCEDURE p1(a INT,
+                               b INTEGER DEFAULT 9999,
+                               c INT DEFAULT NULL) DETERMINISTIC
+BEGIN
+  SELECT b;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p2(a INT DEFAULT 99,
+                               b VARCHAR(5) DEFAULT 'maria',
+                               c VARCHAR(10) DEFAULT CONCAT(b, 'db'))
+BEGIN
+  SELECT b;
+END;
+//
+
+# Default parameter as an epxression and function
+CREATE OR REPLACE PROCEDURE p3(a INT DEFAULT 1,
+                               b INT DEFAULT (a+1),
+                               c INT DEFAULT POW(2,b),
+                               d INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')))
+BEGIN
+  SELECT a, b, c FROM DUAL;
+END;
+//
+
+# Subquery as default value
+CREATE OR REPLACE PROCEDURE p4(x INT DEFAULT (SELECT a from t))
+BEGIN
+  SELECT x FROM DUAL;
+END;
+//
+
+# another stored function as a default parameter
+CREATE OR REPLACE FUNCTION func(a INT DEFAULT 123) RETURNS INT
+BEGIN
+  RETURN a;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p5(x INT DEFAULT func())
+BEGIN
+  SELECT x FROM DUAL;
+END;
+//
+
+# date-time functions as default params
+CREATE OR REPLACE PROCEDURE p6(a TIMESTAMP DEFAULT NOW(), b DATE DEFAULT CURDATE())
+BEGIN
+  SELECT a, b;
+END;
+//
+
+# sql_mode specific functions as default params
+CREATE OR REPLACE PROCEDURE p7(a VARCHAR(5) DEFAULT 'maria',
+                               b VARCHAR(10) DEFAULT CONCAT(a, NULL, 'db'))
+BEGIN
+  SELECT b from dual;
+END;
+//
+
+DELIMITER ;//
+
+--echo # Constant default parameters
+query_vertical SHOW CREATE PROCEDURE p1;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
+query_vertical SHOW CREATE PROCEDURE p2;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p2';
+
+--echo # Default parameter as an epxression and function
+CALL p3();
+query_vertical SHOW CREATE PROCEDURE p3;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p3';
+
+--echo # Subquery as default value
+query_vertical SHOW CREATE PROCEDURE p4;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p4';
+
+--echo # another stored function as a default parameter
+query_vertical SHOW CREATE PROCEDURE p5;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p5';
+
+--echo # date-time functions as default params
+query_vertical SHOW CREATE PROCEDURE p6;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p6';
+
+--echo # sql_mode specific functions as default params
+query_vertical SHOW CREATE PROCEDURE p7;
+
+--echo # sql_mode=DEFAULT
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p7';
+
+--echo # sql_mode=ORACLE
+SET sql_mode=ORACLE;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p7';
+SET sql_mode=DEFAULT;
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;
+DROP PROCEDURE p5;
+DROP PROCEDURE p6;
+DROP PROCEDURE p7;
+DROP FUNCTION func;
+
+--echo # Functions with defualt parameters
+
+DELIMITER //;
+
+CREATE OR REPLACE FUNCTION f1(a INT, b INT DEFAULT 9999, c INT DEFAULT NULL) RETURNS INT
+BEGIN
+    RETURN b;
+END;
+//
+
+# Default parameter as an expression
+CREATE OR REPLACE FUNCTION f2(a INT DEFAULT 99, b INT DEFAULT (a+1)) RETURNS INT
+BEGIN
+    RETURN b;
+END;
+//
+
+# Default param as function
+CREATE OR REPLACE FUNCTION f3(a INT DEFAULT 8,
+                              b INT DEFAULT LOG2(a),
+                              c VARCHAR(5) DEFAULT (IF(LOG2(a)=3,'yes','no'))) RETURNS INT
+BEGIN
+  RETURN b;
+END;
+//
+
+# Subquery as function's default parameter
+CREATE OR REPLACE FUNCTION f4(x INT DEFAULT (SELECT a FROM t)) RETURNS INT
+BEGIN
+  RETURN x;
+END;
+//
+
+# date-time functions as default params
+CREATE OR REPLACE FUNCTION f5(a TIMESTAMP DEFAULT NOW(), b DATE DEFAULT CURDATE()) RETURNS DATE
+BEGIN
+  RETURN b;
+END;
+//
+
+# sql_mode specific functions as default params
+CREATE OR REPLACE FUNCTION f6(a VARCHAR(5) DEFAULT 'maria',
+                              b VARCHAR(10) DEFAULT CONCAT(a, NULL, 'db')) RETURNS VARCHAR(10)
+BEGIN
+  RETURN b;
+END;
+//
+
+DELIMITER ;//
+
+--echo # Constant Default parameter
+query_vertical SHOW CREATE FUNCTION f1;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f1';
+
+--echo # Default parameter as an expression
+query_vertical SHOW CREATE FUNCTION f2;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f2';
+
+--echo # Default parameter as a function
+query_vertical SHOW CREATE FUNCTION f3;
+SELECT f3();
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f3';
+
+--echo # Subquery as function's default parameter
+query_vertical SHOW CREATE FUNCTION f4;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f4';
+
+--echo # date-time functions as default params
+query_vertical SHOW CREATE FUNCTION f5;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f5';
+
+--echo # sql_mode specific functions as default params
+query_vertical SHOW CREATE FUNCTION f6;
+
+--echo # sql_mode=DEFAULT
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f6';
+
+--echo # sql_mode=ORACLE
+SET sql_mode=ORACLE;
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f6';
+SET sql_mode=DEFAULT;
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP FUNCTION f4;
+DROP FUNCTION f5;
+DROP FUNCTION f6;
+DROP TABLE t;
+
+--echo # Test to verify consistent printing of default values
+--echo # This test checks that a column's default value and a parameter's default
+--echo # value are printed in the same way.
+
+CREATE TABLE t (a1 INT,
+                a2 INT DEFAULT NULL,
+                a3 INT NOT NULL,
+                a4 VARCHAR(10) NOT NULL,
+                b INT DEFAULT 1,
+                c INT DEFAULT (b+1),
+                d INT DEFAULT POW(2,b),
+                e VARCHAR(10) DEFAULT 'maria',
+                f VARCHAR(10) DEFAULT CONCAT(e,'db'));
+
+DELIMITER //;
+CREATE PROCEDURE proc(a1 INT,
+                      a2 INT DEFAULT NULL,
+                      b INT DEFAULT 1,
+                      c INT DEFAULT (b+1),
+                      d INT DEFAULT POW(2,b),
+                      e VARCHAR(10) DEFAULT 'maria',
+                      f VARCHAR(10) DEFAULT CONCAT(e,'db'))
+BEGIN
+  SELECT d FROM DUAL;
+END;
+//
+DELIMITER ;//
+
+SELECT COLUMN_NAME, COLUMN_DEFAULT, (COLUMN_DEFAULT IS NULL) AS `IS_NULL` FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't';
+SELECT PARAMETER_NAME, PARAMETER_DEFAULT, (PARAMETER_DEFAULT IS NULL) AS `IS_NULL` FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+
+DROP TABLE t;
+DROP PROCEDURE proc;
+
+--echo # End of 12.2 tests

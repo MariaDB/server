@@ -1,22 +1,3 @@
-set old_alter_table=0;
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
-create table bug53592(a int) engine=innodb row_format=compact;
-alter table bug53592 add column b text charset utf8;
-alter table bug53592 add column c blob not null;
-create index bug53592_b on bug53592(b(81));
-create unique index bug53592_c on bug53592(c(1));
-set statement sql_mode = '' for
-replace into bug53592 values (),();
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-check table bug53592;
-Table	Op	Msg_type	Msg_text
-test.bug53592	check	status	OK
-drop table bug53592;
-set old_alter_table=1;
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 create table bug53592(a int) engine=innodb row_format=compact;
 alter table bug53592 add column b text charset utf8;
 alter table bug53592 add column c blob not null;

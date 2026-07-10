@@ -29,7 +29,7 @@ t1	CREATE TABLE `t1` (
   `time` date NOT NULL,
   `id2` bigint(20) NOT NULL,
   PRIMARY KEY (`id`,`time`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
  PARTITION BY RANGE (to_days(`time`))
 (PARTITION `p10` VALUES LESS THAN (734708) ENGINE = InnoDB,
  PARTITION `p20` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -42,6 +42,8 @@ SET @old_innodb_file_per_table = @@global.innodb_file_per_table;
 SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
 SET @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 connect con1,localhost,root,,;
 CREATE TABLE t1 (id INT NOT NULL
 PRIMARY KEY,
@@ -58,10 +60,12 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `user_num` char(10) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci KEY_BLOCK_SIZE=4
  PARTITION BY HASH (`id`)
 PARTITIONS 1
 SET GLOBAL innodb_file_per_table = OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 disconnect con1;
 connect con2,localhost,root,,;
 LOCK TABLE t1 WRITE;
@@ -96,7 +100,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `user_num` char(10) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci KEY_BLOCK_SIZE=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci KEY_BLOCK_SIZE=4
  PARTITION BY HASH (`id`)
 PARTITIONS 3
 DROP TABLE t1;
@@ -104,6 +108,8 @@ disconnect con2;
 connection default;
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SET @save_detect= @@GLOBAL.innodb_deadlock_detect;
 SET @save_report= @@GLOBAL.innodb_deadlock_report;
 SET GLOBAL innodb_deadlock_detect=ON;

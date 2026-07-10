@@ -76,7 +76,7 @@ int mi_delete(MI_INFO *info,const uchar *record)
     if (mi_is_key_active(info->s->state.key_map, i))
     {
       info->s->keyinfo[i].version++;
-      if (info->s->keyinfo[i].flag & HA_FULLTEXT )
+      if (info->s->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT )
       {
         if (_mi_ft_del(info,i, old_key,record,info->lastpos))
           goto err;
@@ -169,11 +169,10 @@ static int _mi_ck_real_delete(register MI_INFO *info, MI_KEYDEF *keyinfo,
     error= -1;
     goto err;
   }
-  if ((error=d_search(info,keyinfo,
-                      (keyinfo->flag & HA_FULLTEXT ?
-                       SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT :
-                       SEARCH_SAME),
-                       key,key_length,old_root,root_buff)) >0)
+  if ((error= d_search(info,keyinfo, keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
+                        SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT :
+                        SEARCH_SAME,
+                        key, key_length, old_root, root_buff)) > 0)
   {
     if (error == 2)
     {
@@ -235,7 +234,7 @@ static int d_search(register MI_INFO *info, register MI_KEYDEF *keyinfo,
   }
   nod_flag=mi_test_if_nod(anc_buff);
 
-  if (!flag && keyinfo->flag & HA_FULLTEXT)
+  if (!flag && keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     uint off;
     int  subkeys;

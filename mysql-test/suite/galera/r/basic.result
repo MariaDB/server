@@ -1,5 +1,11 @@
 connection node_2;
 connection node_1;
+select @@slave_connections_needed_for_purge;
+@@slave_connections_needed_for_purge
+0
+select VARIABLE_NAME, GLOBAL_VALUE, GLOBAL_VALUE_ORIGIN from information_schema.system_variables where variable_name="slave_connections_needed_for_purge";
+VARIABLE_NAME	GLOBAL_VALUE	GLOBAL_VALUE_ORIGIN
+SLAVE_CONNECTIONS_NEEDED_FOR_PURGE	0	AUTO
 USE test;
 CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5);

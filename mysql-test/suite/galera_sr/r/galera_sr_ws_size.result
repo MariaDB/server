@@ -30,7 +30,7 @@ COUNT(*) = 100
 DROP TABLE t1;
 DROP TABLE ten;
 connection node_1;
-call mtr.add_suppression('WSREP: transaction size limit.*');
-call mtr.add_suppression('WSREP: rbr write fail.*');
-call mtr.add_suppression('WSREP: Maximum writeset size exceeded by.*');
-call mtr.add_suppression('WSREP: transaction size exceeded.*');
+call mtr.add_suppression('WSREP: transaction size limit');
+call mtr.add_suppression('WSREP: rbr write fail');
+call mtr.add_suppression('WSREP: Maximum writeset size exceeded by ');
+call mtr.add_suppression('WSREP: transaction size exceeded');

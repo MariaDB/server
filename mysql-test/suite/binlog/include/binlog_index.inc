@@ -98,7 +98,7 @@ reset master;
 --echo # crash_purge_before_update_index
 flush logs;
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_before_update_index";
 --source include/wait_for_binlog_checkpoint.inc
 --error 2013
@@ -119,7 +119,7 @@ SELECT @index;
 --echo # crash_purge_non_critical_after_update_index
 flush logs;
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_non_critical_after_update_index";
 --source include/wait_for_binlog_checkpoint.inc
 --error 2013
@@ -143,7 +143,7 @@ SELECT @index;
 --echo # crash_purge_critical_after_update_index
 flush logs;
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_purge_critical_after_update_index";
 --source include/wait_for_binlog_checkpoint.inc
 --error 2013
@@ -167,7 +167,7 @@ file_exists $MYSQLD_DATADIR/master-bin.000008;
 SELECT @index;
 
 --echo # crash_create_non_critical_before_update_index
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_create_non_critical_before_update_index";
 --error 2013
 flush logs;
@@ -185,7 +185,7 @@ file_exists $MYSQLD_DATADIR/master-bin.000009;
 SELECT @index;
 
 --echo # crash_create_critical_before_update_index
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_create_critical_before_update_index";
 --error 2013
 flush logs;
@@ -205,7 +205,7 @@ file_exists $MYSQLD_DATADIR/master-bin.000011;
 SELECT @index;
 
 --echo # crash_create_after_update_index
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug_dbug="+d,crash_create_after_update_index";
 --error 2013
 flush logs;

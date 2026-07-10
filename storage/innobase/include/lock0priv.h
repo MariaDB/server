@@ -259,7 +259,7 @@ updated but the lock prevents insert of a user record to the end of
 the page.
 	Next key locks will prevent the phantom problem where new rows
 could appear to SELECT result sets after the select operation has been
-performed. Prevention of phantoms ensures the serilizability of
+performed. Prevention of phantoms ensures the serializability of
 transactions.
 	What should we check if an insert of a new record is wanted?
 Only the lock on the next record on the same page, because also the
@@ -269,7 +269,7 @@ is implicitly an s-lock, too, and the insert should be prevented.
 What if our transaction owns an x-lock to the next record, but there is
 a waiting s-lock request on the next record? If this s-lock was placed
 by a read cursor moving in the ascending order in the index, we cannot
-do the insert immediately, because when we finally commit our transaction,
+do the insert immediately, because when we override finally commit our transaction,
 the read cursor should see also the new inserted record. So we should
 move the read cursor backward from the next record for it to pass over
 the new inserted record. This move backward may be too cumbersome to
@@ -474,9 +474,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
 	ut_ad(!lock->is_table());
 #ifdef SUX_LOCK_GENERIC
-	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*lock));
 #else
 	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*lock)
 	      || (xtest() && !lock->trx->mutex_is_locked()));
 #endif
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
@@ -495,14 +497,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	return(bit);
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return next lock, NULL if none exists */
 UNIV_INLINE
-lock_t*
-lock_rec_get_next_on_page(
-/*======================*/
-	lock_t*		lock);		/*!< in: a record lock */
+lock_t *lock_rec_get_next_on_page(const lock_t *lock);
 
 /*********************************************************************//**
 Gets the next explicit lock request on a record.

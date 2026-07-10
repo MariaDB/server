@@ -16,7 +16,7 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 --remove_file $SEARCH_FILE
 
 #Shutdown the server
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
@@ -25,12 +25,12 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 --error 1
 --exec $MYSQLD_CMD --lower_case_table_names=0 > $SEARCH_FILE  2>&1
 
-#Search for the error messege in the server error log.
+#Search for the error message in the server error log.
 let SEARCH_PATTERN= \[ERROR\] The server option \'lower_case_table_names\' is configured to use case sensitive table names;
 --source include/search_pattern_in_file.inc
 
 #Restart the server
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 
 #Cleanup

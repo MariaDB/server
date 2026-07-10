@@ -28,7 +28,7 @@
 SET @session_sql_big_selects = @@SESSION.sql_big_selects;
 SET @session_max_join_size = @@SESSION.max_join_size;
 SET @global_max_join_size = @@GLOBAL.max_join_size;
-SET MAX_JOIN_SIZE=9;
+SET MAX_JOIN_SIZE=21;
 
 #
 # Create tables
@@ -115,8 +115,6 @@ disconnect con_int2;
 #
 # Cleanup
 #
-
-
 SET @@SESSION.sql_big_selects = @session_sql_big_selects;
 SET @@SESSION.max_join_size = @session_max_join_size;
 SET @@GLOBAL.max_join_size = @global_max_join_size;

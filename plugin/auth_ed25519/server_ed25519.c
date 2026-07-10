@@ -64,7 +64,7 @@ static int compute_password_digest(const char *pw, size_t pwlen,
                                    char *d, size_t *dlen)
 {
   unsigned char pk[CRYPTO_PUBLICKEYBYTES];
-  if (*dlen < PASSWORD_LEN || pwlen == 0)
+  if (*dlen < PASSWORD_LEN)
     return 1;
   *dlen= PASSWORD_LEN;
   crypto_sign_keypair(pk, (unsigned char*)pw, pwlen);
@@ -135,7 +135,7 @@ maria_declare_plugin_end;
 MYSQL_PLUGIN_EXPORT
 char *ed25519_password(UDF_INIT *initid __attribute__((unused)),
                        UDF_ARGS *args, char *result, unsigned long *length,
-                       char *is_null, char *error __attribute__((unused)))
+                       unsigned char *is_null, unsigned char *error __attribute__((unused)))
 {
   unsigned char pk[CRYPTO_PUBLICKEYBYTES];
 

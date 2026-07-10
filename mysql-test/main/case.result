@@ -1,67 +1,66 @@
-drop table if exists t1, t2;
-select CASE "b" when "a" then 1 when "b" then 2 END;
-CASE "b" when "a" then 1 when "b" then 2 END
+select CASE "b" when "a" then 1 when "b" then 2 END as exp;
+exp
 2
-select CASE "c" when "a" then 1 when "b" then 2 END;
-CASE "c" when "a" then 1 when "b" then 2 END
+select CASE "c" when "a" then 1 when "b" then 2 END as exp;
+exp
 NULL
-select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END;
-CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END
+select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END as exp;
+exp
 3
-select CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END;
-CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END
+select CASE BINARY "b" when "a" then 1 when "B" then 2 WHEN "b" then "ok" END as exp;
+exp
 ok
-select CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END;
-CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END
+select CASE "b" when "a" then 1 when binary "B" then 2 WHEN "b" then "ok" END as exp;
+exp
 ok
-select CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end;
-CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end
+select CASE concat("a","b") when concat("ab","") then "a" when "b" then "b" end as exp;
+exp
 a
-select CASE when 1=0 then "true" else "false" END;
-CASE when 1=0 then "true" else "false" END
+select CASE when 1=0 then "true" else "false" END as exp;
+exp
 false
-select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
-CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END
+select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END as exp;
+exp
 one
-explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
+explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END as exp;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select case 1 when 1 then 'one' when 2 then 'two' else 'more' end AS `CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END`
-select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END;
-CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END
+Note	1003	select case 1 when 1 then 'one' when 2 then 'two' else 'more' end AS `exp`
+select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END as exp;
+exp
 two
-select (CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0;
-(CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0
+select (CASE "two" when "one" then "1" WHEN "two" then "2" END) | 0 as exp;
+exp
 2
-select (CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0;
-(CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0
+select (CASE "two" when "one" then 1.00 WHEN "two" then 2.00 END) +0.0 as exp;
+exp
 2.00
-select case 1/0 when "a" then "true" else "false" END;
-case 1/0 when "a" then "true" else "false" END
+select case 1/0 when "a" then "true" else "false" END as exp;
+exp
 false
 Warnings:
 Warning	1365	Division by 0
-select case 1/0 when "a" then "true" END;
-case 1/0 when "a" then "true" END
+select case 1/0 when "a" then "true" END as exp;
+exp
 NULL
 Warnings:
 Warning	1365	Division by 0
-select (case 1/0 when "a" then "true" END) | 0;
-(case 1/0 when "a" then "true" END) | 0
+select (case 1/0 when "a" then "true" END) | 0 as exp;
+exp
 NULL
 Warnings:
 Warning	1365	Division by 0
-select (case 1/0 when "a" then "true" END) + 0.0;
-(case 1/0 when "a" then "true" END) + 0.0
+select (case 1/0 when "a" then "true" END) + 0.0 as exp;
+exp
 NULL
 Warnings:
 Warning	1365	Division by 0
-select case when 1>0 then "TRUE" else "FALSE" END;
-case when 1>0 then "TRUE" else "FALSE" END
+select case when 1>0 then "TRUE" else "FALSE" END as exp;
+exp
 TRUE
-select case when 1<0 then "TRUE" else "FALSE" END;
-case when 1<0 then "TRUE" else "FALSE" END
+select case when 1<0 then "TRUE" else "FALSE" END as exp;
+exp
 FALSE
 create table t1 (a int);
 insert into t1 values(1),(2),(3),(4);
@@ -109,17 +108,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_danish_ci DEFAULT NULL,
   `c2` varchar(1) CHARACTER SET latin1 COLLATE latin1_danish_ci DEFAULT NULL,
-  `c3` varchar(1) NOT NULL,
-  `c4` varchar(1) NOT NULL,
-  `c5` varchar(4) NOT NULL,
-  `c6` varchar(4) NOT NULL,
+  `c3` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `c4` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `c5` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `c6` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `c7` decimal(2,1) NOT NULL,
   `c8` decimal(2,1) NOT NULL,
   `c9` decimal(2,1) DEFAULT NULL,
   `c10` double NOT NULL,
   `c11` double NOT NULL,
-  `c12` varchar(5) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c12` varchar(5) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT CASE 
 WHEN 1 
@@ -133,12 +132,12 @@ WHEN _latin1'a' COLLATE latin1_swedish_ci THEN 2
 END;
 ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_danish_ci,EXPLICIT), (latin1_swedish_ci,EXPLICIT) for operation 'case'
 SELECT 
-CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END,
-CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END,
-CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END,
-CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END
+CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END as e1,
+CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END as e2,
+CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END as e3,
+CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END as e4
 ;
-CASE _latin1'a' COLLATE latin1_general_ci  WHEN _latin1'A' THEN '1' ELSE 2 END	CASE _latin1'a' COLLATE latin1_bin         WHEN _latin1'A' THEN '1' ELSE 2 END	CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_swedish_ci THEN '1' ELSE 2 END	CASE _latin1'a' WHEN _latin1'A' COLLATE latin1_bin        THEN '1' ELSE 2 END
+e1	e2	e3	e4
 1	2	1	2
 CREATE TABLE t1 SELECT COALESCE(_latin1'a',_latin2'a');
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'coalesce'
@@ -159,14 +158,14 @@ Note	1003	select coalesce(1) AS `COALESCE(1)`,coalesce(1.0) AS `COALESCE(1.0)`,c
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(1)` int(1) NOT NULL,
+  `COALESCE(1)` int(2) NOT NULL,
   `COALESCE(1.0)` decimal(2,1) NOT NULL,
-  `COALESCE('a')` varchar(1) NOT NULL,
+  `COALESCE('a')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `COALESCE(1,1.0)` decimal(2,1) NOT NULL,
-  `COALESCE(1,'1')` varchar(1) NOT NULL,
-  `COALESCE(1.1,'1')` varchar(4) NOT NULL,
-  `COALESCE('a' COLLATE latin1_bin,'b')` varchar(1) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `COALESCE(1,'1')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `COALESCE(1.1,'1')` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `COALESCE('a' COLLATE latin1_bin,'b')` varchar(1) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 SELECT IFNULL('a' COLLATE latin1_swedish_ci, 'b' COLLATE latin1_bin);
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,EXPLICIT) and (latin1_bin,EXPLICIT) for operation 'ifnull'
@@ -296,7 +295,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '5' and case `test`.`t1`.`a` when 1 then 1 else 0 end
 DROP TABLE t1;
-CREATE TABLE t1 (a ENUM('a','b','100'));
+CREATE TABLE t1 (a ENUM('a','b','100')) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('b'),('100');
 SELECT * FROM t1 WHERE a='a';
 a
@@ -403,8 +402,8 @@ DROP TABLE t1;
 #
 # End of 10.1 test
 #
-select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end;
-case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end
+select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end as exp;
+exp
 ok
 Warnings:
 Warning	1292	Truncated incorrect time value: 'foo'
@@ -434,8 +433,8 @@ Warning	1292	Truncated incorrect time value: 'foo'
 Warning	1292	Truncated incorrect time value: 'foo'
 Warning	1292	Truncated incorrect time value: 'foo'
 drop table t1;
-select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end;
-case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end
+select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end as exp;
+exp
 ok
 #
 # End of 10.2 test
@@ -572,6 +571,156 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where case `test`.`t1`.`a` when `test`.`t1`.`b` then 1 end = 1 and case when `test`.`t1`.`a` then `test`.`t1`.`b` else 1 end = 3
 DROP TABLE t1;
-#
 # End of 10.3 test
 #
+# MDEV-25415 CASE function handles NULL inconsistently
+#
+select case 'X' when null then 1 when 'X' then 2 else 3 end;
+case 'X' when null then 1 when 'X' then 2 else 3 end
+2
+select case 'X' when 1/1 then 1 when 'X' then 2 else 3 end;
+case 'X' when 1/1 then 1 when 'X' then 2 else 3 end
+2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'X'
+select case 'X' when 1/0 then 1 when 'X' then 2 else 3 end;
+case 'X' when 1/0 then 1 when 'X' then 2 else 3 end
+2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'X'
+Warning	1365	Division by 0
+#
+# MDEV-23278: Incorrect Calculation with AVG() Function
+#
+create table avg_calc_test (
+id int(11) not null auto_increment,
+name varchar(255) default null,
+primary key (id)
+) auto_increment=1 default charset=latin1;
+insert into avg_calc_test (name) values ('orange'), ('blue'), ('black'), ('orange'), ('black');
+select * from (
+select
+avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+from avg_calc_test
+) t;
+metric_val
+2.0000
+create table t1 as
+select
+avg(case when name = 'orange' then 3 when name = 'blue' then 2 when name = 'black' then 1 else 0 end) as metric_val
+from avg_calc_test;
+select * from t1;
+metric_val
+2.0000
+create or replace table t1 as
+select
+avg(least(1,2)) as metric_val
+from avg_calc_test;
+select * from t1;
+metric_val
+1.0000
+create or replace table t1 as
+select avg(coalesce(1,2)) as metric_val from avg_calc_test;
+select * from t1;
+metric_val
+1.0000
+drop table avg_calc_test, t1;
+# End of 10.11 test
+#
+# MDEV-36716 A case expression with ROW arguments in THEN crashes
+#
+SELECT CASE WHEN TRUE THEN ROW(1,2) ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types row and row for operation 'case'
+SELECT CASE WHEN TRUE THEN ROW(1,2) ELSE NULL END;
+ERROR HY000: Illegal parameter data types row and null for operation 'case'
+SELECT CASE WHEN TRUE THEN NULL ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types null and row for operation 'case'
+SELECT CASE WHEN TRUE THEN ROW(2,1) END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN ROW(1,2) THEN 0 WHEN ROW(2,1) THEN 1 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN ROW(1,2) THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN NULL THEN 0 WHEN ROW(1,2) THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN ROW(1,2) THEN 0 WHEN NULL THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN ROW(1,2) ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types row and row for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN ROW(1,2) ELSE NULL END;
+ERROR HY000: Illegal parameter data types row and null for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN NULL ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types null and row for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN ROW(2,1) END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE ROW(1,2) WHEN ROW(1,2) THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'CASE WHEN'
+SELECT CASE NULL WHEN ROW(1,2) THEN 0 END;
+ERROR 21000: Operand should contain 1 column(s)
+SELECT CASE ROW(1,2) WHEN NULL THEN 0 END;
+ERROR 21000: Operand should contain 2 column(s)
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/ROW(1,2), /*else*/ROW(2,1));
+ERROR HY000: Illegal parameter data types row and row for operation 'decode'
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/ROW(1,2), /*else*/NULL);
+ERROR HY000: Illegal parameter data types row and null for operation 'decode'
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/NULL, /*else*/ROW(2,1));
+ERROR HY000: Illegal parameter data types null and row for operation 'decode'
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/ROW(2,1));
+ERROR HY000: Illegal parameter data type row for operation 'decode'
+SELECT oracle_schema.DECODE(/*predicant*/ROW(1,2), /*when1*/ROW(1,2), /*then1*/0);
+ERROR HY000: Illegal parameter data type row for operation 'CASE WHEN'
+SELECT oracle_schema.DECODE(/*predicant*/NULL,     /*when1*/ROW(1,2), /*then1*/0);
+ERROR 21000: Operand should contain 1 column(s)
+SELECT oracle_schema.DECODE(/*predicant*/ROW(1,2), /*when1*/NULL,     /*then1*/0);
+ERROR 21000: Operand should contain 2 column(s)
+SELECT IF(0, ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'if'
+SELECT IF(0, NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'if'
+SELECT IF(0, ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'if'
+SELECT NVL2('0', ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'nvl2'
+SELECT NVL2('0', NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT NVL2('0', ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT NVL2(NULL, ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'nvl2'
+SELECT NVL2(NULL, NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT NVL2(NULL, ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT COALESCE(ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'coalesce'
+SELECT COALESCE(ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT COALESCE(ROW(1,2),NULL);
+ERROR HY000: Illegal parameter data types row and null for operation 'coalesce'
+SELECT COALESCE(NULL,ROW(1,2));
+ERROR HY000: Illegal parameter data types null and row for operation 'coalesce'
+SELECT IFNULL(ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'ifnull'
+SELECT IFNULL(NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data types null and row for operation 'ifnull'
+SELECT IFNULL(ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data types row and null for operation 'ifnull'
+SELECT NULLIF(ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'nullif'
+SELECT NULLIF(NULL, ROW(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT NULLIF(ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'nullif'
+# End of 12.0 tests
+#
+# MDEV-37534: Assertion `a == &type_handler_row || a == &type_handler_null` failed on `CREATE TABLE ... ROW()`
+#
+CREATE TABLE t (c INT CHECK(c=CASE c WHEN ROW(1, 1) THEN c=0 END IN (c)=1));
+ERROR HY000: Illegal parameter data types int and row for operation 'case..when'
+select CASE 1 WHEN ROW(1, 2) THEN 0 END from dual;
+ERROR HY000: Illegal parameter data types int and row for operation 'case..when'
+select CASE WHEN NULLIF(1, ROW(1,1)) THEN 0 ELSE 1 END from dual;
+ERROR HY000: Illegal parameter data types int and row for operation 'nullif'
+select NULLIF(1, ROW(1,2));
+ERROR HY000: Illegal parameter data types int and row for operation 'nullif'
+# End of 12.3 tests

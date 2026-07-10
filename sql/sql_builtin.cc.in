@@ -31,8 +31,8 @@ extern
 #endif
 builtin_maria_plugin 
   @mysql_mandatory_plugins@ @mysql_optional_plugins@
-  builtin_maria_binlog_plugin,
- builtin_maria_mysql_password_plugin;
+  builtin_maria_binlog_plugin, builtin_maria_mhnsw_plugin,
+  builtin_maria_mysql_password_plugin;
 
 struct st_maria_plugin *mysql_optional_plugins[]=
 {
@@ -42,5 +42,6 @@ struct st_maria_plugin *mysql_optional_plugins[]=
 struct st_maria_plugin *mysql_mandatory_plugins[]=
 {
   builtin_maria_binlog_plugin, builtin_maria_mysql_password_plugin,
+  builtin_maria_mhnsw_plugin,
   @mysql_mandatory_plugins@ 0
 };

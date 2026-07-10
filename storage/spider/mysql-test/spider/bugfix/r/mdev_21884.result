@@ -38,6 +38,11 @@ PARTITION pt1 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r2",
     priority "1000"',
 PARTITION pt2 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", priority "1000001"'
   )
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tb_l (
 a INT,
 b CHAR(1),

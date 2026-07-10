@@ -1,0 +1,41 @@
+SELECT Master_SSL_Verify_Server_Cert FROM information_schema.slave_status LIMIT 1;
+Master_SSL_Verify_Server_Cert
+SELECT `Master_SSL_Verify_Server_Cert` FROM information_schema.slave_status LIMIT 1;
+Master_SSL_Verify_Server_Cert
+CREATE DATABASE db_is_slave_status;
+USE db_is_slave_status;
+CREATE TABLE t1 (
+Master_SSL_Verify_Server_Cert INT
+);
+INSERT INTO t1 VALUES (123);
+SELECT Master_SSL_Verify_Server_Cert FROM t1;
+Master_SSL_Verify_Server_Cert
+123
+DROP TABLE t1;
+CREATE PROCEDURE master_ssl_verify_server_cert()
+BEGIN
+SELECT 1;
+END//
+DROP PROCEDURE IF EXISTS master_ssl_verify_server_cert;
+CREATE FUNCTION master_ssl_verify_server_cert()
+RETURNS INT
+RETURN 1;
+DROP FUNCTION IF EXISTS master_ssl_verify_server_cert;
+CREATE PROCEDURE sp()
+master_ssl_verify_server_cert:BEGIN
+SELECT 1;
+END//
+DROP PROCEDURE IF EXISTS sp;
+CREATE PROCEDURE sp()
+BEGIN
+DECLARE master_ssl_verify_server_cert CHAR;
+END//
+DROP PROCEDURE IF EXISTS sp;
+CREATE PROCEDURE sp()
+BEGIN
+DECLARE master_ssl_verify_server_cert CONDITION FOR SQLSTATE '02000';
+DECLARE EXIT HANDLER FOR master_ssl_verify_server_cert SET @var2 = 1;
+END//
+DROP PROCEDURE IF EXISTS sp;
+DROP DATABASE IF EXISTS db_is_slave_status;
+# End of rpl_is_slave_status.test

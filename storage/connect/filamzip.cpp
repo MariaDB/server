@@ -169,7 +169,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		rc = GetLastError();
 
 		if (rc != ERROR_FILE_NOT_FOUND) {
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+			FormatMessage(FORMAT_MESSAGE_FLAGS,
 				NULL, GetLastError(), 0, (LPTSTR)&filename, sizeof(filename), NULL);
 			snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), filename);
 			return true;

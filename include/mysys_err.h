@@ -73,7 +73,10 @@ extern const char *globerrs[];  /* my_error_messages is here */
 #define EE_PERM_LOCK_MEMORY     37
 #define EE_MEMCNTL              38
 #define EE_DUPLICATE_CHARSET    39
-#define EE_ERROR_LAST           39 /* Copy last error nr */
+#define EE_NAME_DEPRECATED      40
+#define EE_LOCAL_TMP_SPACE_FULL 41
+#define EE_GLOBAL_TMP_SPACE_FULL 42
+#define EE_ERROR_LAST           42 /* Copy last error nr */
 
 /* Add error numbers before EE_ERROR_LAST and change it accordingly. */
 

@@ -167,7 +167,7 @@ deinit_event_thread(THD *thd)
       thd  The THD of the thread. Has to be allocated by the caller.
 
   NOTES
-    1. The host of the thead is my_localhost
+    1. The host of the thread is my_localhost
     2. thd->net is initted with NULL - no communication.
 */
 
@@ -219,14 +219,13 @@ pre_init_event_thread(THD* thd)
 pthread_handler_t
 event_scheduler_thread(void *arg)
 {
-  /* needs to be first for thread_stack */
   THD *thd= (THD *) ((struct scheduler_param *) arg)->thd;
   Event_scheduler *scheduler= ((struct scheduler_param *) arg)->scheduler;
   bool res;
-
-  thd->thread_stack= (char *)&thd;              // remember where our stack is
+  thd->reset_stack();
 
   mysql_thread_set_psi_id(thd->thread_id);
+  my_thread_set_name("event_scheduler");
 
   res= post_init_event_thread(thd);
 
@@ -263,6 +262,7 @@ event_worker_thread(void *arg)
   thd= event->thd;
 
   mysql_thread_set_psi_id(thd->thread_id);
+  my_thread_set_name("event_worker");
 
   Event_worker_thread worker_thread;
   worker_thread.run(thd, event);
@@ -285,8 +285,6 @@ event_worker_thread(void *arg)
 void
 Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 {
-  /* needs to be first for thread_stack */
-  char my_stack;
   Event_job_data job_data;
   bool res;
 
@@ -302,7 +300,6 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
                                               thd->charset(), NULL);
 #endif
 
-  thd->thread_stack= &my_stack;                // remember where our stack is
   res= post_init_event_thread(thd);
 
   DBUG_ENTER("Event_worker_thread::run");
@@ -324,10 +321,9 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 
   print_warnings(thd, &job_data);
 
-  if (res)
-    sql_print_information("Event Scheduler: "
-                          "[%s].[%s.%s] event execution failed.",
-                          job_data.definer.str,
+  if (res && global_system_variables.log_warnings > 2)
+    sql_print_information("Event Scheduler: [%s].[%s.%s] event execution "
+                          "failed.", job_data.definer.str,
                           job_data.dbname.str, job_data.name.str);
 end:
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
@@ -476,8 +472,9 @@ Event_scheduler::run(THD *thd)
   int res= FALSE;
   DBUG_ENTER("Event_scheduler::run");
 
-  sql_print_information("Event Scheduler: scheduler thread started with id %lu",
-                        (ulong) thd->thread_id);
+  if (global_system_variables.log_warnings)
+    sql_print_information("Event Scheduler: scheduler thread started with "
+                          "id %llu", (ulonglong) thd->thread_id);
   /*
     Recalculate the values in the queue because there could have been stops
     in executions of the scheduler and some times could have passed by.
@@ -491,9 +488,8 @@ Event_scheduler::run(THD *thd)
     /* Gets a minimized version */
     if (queue->get_top_for_execution_if_time(thd, &event_name))
     {
-      sql_print_information("Event Scheduler: "
-                            "Serious error during getting next "
-                            "event to execute. Stopping");
+      sql_print_error("Event Scheduler: Serious error during getting next "
+                      "event to execute. Stopping");
       break;
     }
 
@@ -665,14 +661,16 @@ Event_scheduler::stop()
     DBUG_PRINT("info", ("Scheduler thread has id %lu",
                         (ulong) scheduler_thd->thread_id));
     /* This will wake up the thread if it waits on Queue's conditional */
-    sql_print_information("Event Scheduler: Killing the scheduler thread, "
-                          "thread id %lu",
-                          (ulong) scheduler_thd->thread_id);
+    if (global_system_variables.log_warnings)
+      sql_print_information("Event Scheduler: Killing the scheduler thread, "
+                            "thread id %llu",
+                            (ulonglong) scheduler_thd->thread_id);
     scheduler_thd->awake(KILL_CONNECTION);
 
     /* thd could be 0x0, when shutting down */
-    sql_print_information("Event Scheduler: "
-                          "Waiting for the scheduler thread to reply");
+    if (global_system_variables.log_warnings > 1)
+      sql_print_information("Event Scheduler: "
+                            "Waiting for the scheduler thread to reply");
 
     /*
       Wait only 2 seconds, as there is a small chance the thread missed the
@@ -683,7 +681,8 @@ Event_scheduler::stop()
     COND_STATE_WAIT(thd, &top_time, &stage_waiting_for_scheduler_to_stop);
   } while (state == STOPPING);
   DBUG_PRINT("info", ("Scheduler thread has cleaned up. Set state to INIT"));
-  sql_print_information("Event Scheduler: Stopped");
+  if (global_system_variables.log_warnings)
+    sql_print_information("Event Scheduler: Stopped");
 end:
   UNLOCK_DATA();
   DBUG_RETURN(FALSE);

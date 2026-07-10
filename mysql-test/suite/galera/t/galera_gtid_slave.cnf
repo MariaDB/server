@@ -4,13 +4,16 @@
 log-bin=mysqld-bin
 log-slave-updates
 binlog-format=ROW
+
 [mysqld.1]
 gtid-domain-id=1
 wsrep_gtid_mode=1
 wsrep_gtid_domain_id=1
+
 [mysqld.2]
 gtid-domain-id=1
 wsrep_gtid_mode=1
 wsrep_gtid_domain_id=1
+
 [mysqld.3]
 gtid-domain-id=2

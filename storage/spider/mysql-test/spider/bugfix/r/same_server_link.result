@@ -20,6 +20,8 @@ CREATE TABLE tbl_a (
 pkey int NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_b (
 pkey int NOT NULL,
 PRIMARY KEY (pkey)

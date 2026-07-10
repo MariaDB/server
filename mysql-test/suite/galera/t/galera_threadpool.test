@@ -1,0 +1,66 @@
+#
+# Tests for threadpool support
+#
+--source include/galera_cluster.inc
+
+--let $node_1 = node_1
+--let $node_2 = node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+#
+# start connections in node 2, and execute some SQL statements
+# leave also open transactions in the node
+#
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_2c, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_2d, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_2e, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_2a
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY, f2 char) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0,'a');
+INSERT INTO t1 VALUES (1,'a');
+
+--connection node_2b
+SELECT * FROM t1;
+
+--connection node_2c
+INSERT INTO t1 VALUES (2,'c');
+
+--connection node_2d
+BEGIN;
+SELECT * FROM t1;
+
+--connection node_2e
+BEGIN;
+UPDATE t1 SET f2='e' WHERE f1=0;
+
+#
+# Shut down node 2, all open connections should be closed
+#
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# And restart the node
+--connection node_2
+let $restart_noprint=2;
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+
+DROP TABLE t1;
+
+#
+# Restore auto increment variables.
+#
+--source ../galera/include/auto_increment_offset_restore.inc

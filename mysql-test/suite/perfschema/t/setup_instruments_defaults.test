@@ -69,7 +69,7 @@ SELECT * FROM performance_schema.setup_instruments
 WHERE name like "%wait/io/table/sql/handler%";
 
 # Write file to make mysql-test-run.pl wait for the server to stop
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Restart the server
 --echo #
@@ -79,7 +79,7 @@ WHERE name like "%wait/io/table/sql/handler%";
 
 --echo # Restart server with wait/io/table/sql/handler disabled
 
---exec echo "restart:--loose-performance-schema-instrument=%wait/io/table/sql/%=off" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--loose-performance-schema-instrument=%wait/io/table/sql/%=off"  $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Turn on reconnect
 --echo # Enable reconnect

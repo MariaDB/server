@@ -98,7 +98,9 @@ BEGIN
     DECLARE v_table VARCHAR(64);
     DECLARE v_views_created INT DEFAULT 0;
     DECLARE v_table_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY') DEFAULT '';
-    DECLARE v_temp_table TEXT;
+
+    DECLARE db_doesnt_exist CONDITION FOR SQLSTATE '42000';
+    DECLARE db_name_exists CONDITION FOR SQLSTATE 'HY000';
 
     DECLARE c_table_names CURSOR FOR 
         SELECT TABLE_NAME 
@@ -142,37 +144,25 @@ BEGIN
         IF v_done THEN
             LEAVE c_table_names;
         END IF;
-
-    -- Check does temporary table shadows the base table. If it is so, terminate.
+    -- Check the table type, don't support temporary since cannot create the view
         CALL sys.table_exists(in_db_name, v_table, v_table_exists);
-        IF (v_table_exists = 'TEMPORARY') THEN
-            SET v_temp_table =
-            CONCAT(
-                'Table',
-                 sys.quote_identifier(in_db_name),
-                 '.',
-                 sys.quote_identifier(v_table),
-                 'shadows base table. View cannot be created! Terminating!');
-             SIGNAL SQLSTATE 'HY000'
-                 SET MESSAGE_TEXT = v_temp_table;
-             LEAVE c_table_names;
+        IF (v_table_exists <> 'TEMPORARY') THEN
+            SET @create_view_stmt = CONCAT(
+                'CREATE SQL SECURITY INVOKER VIEW ',
+                sys.quote_identifier(in_synonym),
+                '.',
+                sys.quote_identifier(v_table),
+                ' AS SELECT * FROM ',
+                sys.quote_identifier(in_db_name),
+                '.',
+                sys.quote_identifier(v_table)
+            );
+            PREPARE create_view_stmt FROM @create_view_stmt;
+            EXECUTE create_view_stmt;
+            DEALLOCATE PREPARE create_view_stmt;
+
+            SET v_views_created = v_views_created + 1;
         END IF;
-
-        SET @create_view_stmt = CONCAT(
-            'CREATE SQL SECURITY INVOKER VIEW ',
-            sys.quote_identifier(in_synonym),
-            '.',
-            sys.quote_identifier(v_table),
-            ' AS SELECT * FROM ',
-            sys.quote_identifier(in_db_name),
-            '.',
-            sys.quote_identifier(v_table)
-        );
-        PREPARE create_view_stmt FROM @create_view_stmt;
-        EXECUTE create_view_stmt;
-        DEALLOCATE PREPARE create_view_stmt;
-
-        SET v_views_created = v_views_created + 1;
     END LOOP;
     CLOSE c_table_names;
 

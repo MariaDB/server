@@ -6,8 +6,6 @@ INSERT INTO t1 VALUES ("one"),("two"),("three"),("four"),("five");
 SHOW VARIABLES LIKE 'secure_file_priv';
 Variable_name	Value
 secure_file_priv	
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 c1
 one
 two

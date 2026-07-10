@@ -7,7 +7,6 @@ SET SESSION sql_log_bin= 0;
 --let $TEST_ENGINE_TYPE= $SLAVE1_1_ENGINE_TYPE
 --source have_partition.inc
 --source have_trigger.inc
---source ../include/init_slave1_1.inc
 --source have_engine.inc
 --let $SLAVE1_1_SLAVE_STATUS=`SHOW SLAVE STATUS`
 if (!$SLAVE1_1_SLAVE_STATUS)
@@ -16,10 +15,11 @@ if (!$SLAVE1_1_SLAVE_STATUS)
     MASTER_HOST = '127.0.0.1',
     MASTER_USER = 'root',
     MASTER_PASSWORD = '',
-    MASTER_PORT = $MASTER_1_MYPORT
+    MASTER_PORT = $MASTER_1_MYPORT,
+    MASTER_SSL_VERIFY_SERVER_CERT=0
   ;
 }
-START SLAVE;
+--source include/start_slave.inc
 --connection master_1
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 --connection slave1_1

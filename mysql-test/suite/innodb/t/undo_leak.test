@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+let $restart_parameters=--debug_dbug=d,undo_segment_leak;
+--source include/restart_mysqld.inc
+SET GLOBAL INNODB_FILE_PER_TABLE=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+UPDATE t1 SET f1 = f1 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f2 = f2 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f1 = f2 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f2 = f1 + 1 WHERE f1 > 1000;
+DELETE FROM t1;
+DROP TABLE t1;
+set GLOBAL innodb_fast_shutdown=0;
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;

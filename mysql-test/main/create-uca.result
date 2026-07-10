@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT 12 COMMENT 'column1',
   `c2` int(11) DEFAULT NULL COMMENT 'column2',
   `c3` int(11) NOT NULL COMMENT 'column3',
-  `c4` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'a',
+  `c4` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL DEFAULT 'a',
   `c5` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT 'b',
   `c6` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_bin
@@ -24,8 +24,8 @@ t2	CREATE TABLE `t2` (
   `c1` int(11) DEFAULT 12 COMMENT 'column1',
   `c2` int(11) DEFAULT NULL COMMENT 'column2',
   `c3` int(11) NOT NULL COMMENT 'column3',
-  `c4` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'a',
+  `c4` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL DEFAULT 'a',
   `c5` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT 'b',
   `c6` varchar(255) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;

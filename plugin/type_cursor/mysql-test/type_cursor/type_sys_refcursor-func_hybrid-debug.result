@@ -1,0 +1,657 @@
+CREATE FUNCTION f1cs1() RETURNS SYS_REFCURSOR
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+OPEN c0 FOR SELECT 1;
+RETURN c0;
+END;
+$$
+#
+#  MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Hybrid functions
+#
+#
+# SET var=COALESCE()
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 SYS_REFCURSOR;
+DECLARE c2 SYS_REFCURSOR;
+SELECT 'p1-0' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+OPEN c2 FOR SELECT 1;
+SELECT 'p1-1' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0= COALESCE(c1, c2);
+SELECT 'p1-2' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c2= NULL;
+SELECT 'p1-3' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+SET c0= NULL;
+SELECT 'p1-4' AS stage, c0, c1, c2, CURSOR_REF_COUNT(c0) AS cnt_c0, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p1;
+stage	c0	c1	c2	cnt_c0	cnt_0
+p1-0	NULL	NULL	NULL	NULL	NULL
+stage	c0	c1	c2	cnt_c0	cnt_0
+p1-1	NULL	NULL	0	NULL	1
+stage	c0	c1	c2	cnt_c0	cnt_0
+p1-2	0	NULL	0	2	2
+stage	c0	c1	c2	cnt_c0	cnt_0
+p1-3	0	NULL	NULL	1	1
+stage	c0	c1	c2	cnt_c0	cnt_0
+p1-4	NULL	NULL	NULL	NULL	0
+DROP PROCEDURE p1;
+#
+# SET var=CASE
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1(task VARCHAR(32)) AS
+c0 SYS_REFCURSOR;
+c1 SYS_REFCURSOR;
+c2 SYS_REFCURSOR;
+v INT;
+BEGIN
+IF task LIKE '%open_c0%' THEN
+OPEN c0 FOR SELECT 1;
+END IF;
+SELECT 'p1-1' AS stage, c0, c1, c2, CURSOR_REF_COUNT(0) AS cnt_0, CURSOR_REF_COUNT(1) AS cnt_1;
+OPEN c1 FOR SELECT 11 FROM DUAL;
+SELECT 'p1-2' AS stage, c0, c1, c2, CURSOR_REF_COUNT(0) AS cnt_0, CURSOR_REF_COUNT(1) AS cnt_1;
+c2:= CASE WHEN c0 IS NULL THEN c1 ELSE c0 END;
+SELECT 'p1-3' AS stage, c0, c1, c2, CURSOR_REF_COUNT(0) AS cnt_0, CURSOR_REF_COUNT(1) AS cnt_1;
+FETCH c2 INTO v;
+SELECT v;
+END;
+/
+CREATE PROCEDURE p2(task VARCHAR(32)) AS
+BEGIN
+SELECT 'p2-0' AS stage, CURSOR_REF_COUNT(0) AS cnt_0;
+CALL p1(task);
+SELECT 'p2-1' AS stage, CURSOR_REF_COUNT(0) AS cnt_0;
+END;
+/
+CALL p2('');
+stage	cnt_0
+p2-0	NULL
+stage	c0	c1	c2	cnt_0	cnt_1
+p1-1	NULL	NULL	NULL	NULL	NULL
+stage	c0	c1	c2	cnt_0	cnt_1
+p1-2	NULL	0	NULL	1	NULL
+stage	c0	c1	c2	cnt_0	cnt_1
+p1-3	NULL	0	0	2	NULL
+v
+11
+stage	cnt_0
+p2-1	0
+CALL p2('open_c0');
+stage	cnt_0
+p2-0	NULL
+stage	c0	c1	c2	cnt_0	cnt_1
+p1-1	0	NULL	NULL	1	NULL
+stage	c0	c1	c2	cnt_0	cnt_1
+p1-2	0	1	NULL	1	1
+stage	c0	c1	c2	cnt_0	cnt_1
+p1-3	0	1	0	2	1
+v
+1
+stage	cnt_0
+p2-1	0
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET sql_mode=DEFAULT;
+#
+# COALESCE in select list
+#
+SELECT
+COALESCE(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5;
+cl_f1	cnt_0	cnt_1
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `cl_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1` from `test`.`seq_1_to_5`
+EXECUTE IMMEDIATE 'SELECT
+COALESCE(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5';
+cl_f1	cnt_0	cnt_1
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `cl_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1` from `test`.`seq_1_to_5`
+SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5`
+EXECUTE IMMEDIATE 'SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5';
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5`
+#
+# COALESCE in WHERE
+#
+SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1	cnt_0	cnt_1	cnt_2
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5` where coalesce(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3` from `test`.`seq_1_to_5` where coalesce(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL AND
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3	cnt_4
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+EXPLAIN EXTENDED SELECT
+COALESCE(f1cs1(),f1cs1()) AS c_f1_0,
+COALESCE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL AND
+COALESCE(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,coalesce(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3`,cursor_ref_count(4) AS `cnt_4` from `test`.`seq_1_to_5` where coalesce(`f1cs1`(),`f1cs1`()) is not null and coalesce(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1()) IS NOT NULL;
+cnt_0	cnt_1
+0	NULL
+0	NULL
+0	NULL
+0	NULL
+0	NULL
+EXPLAIN EXTENDED SELECT
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5
+WHERE
+COALESCE(f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1` from `test`.`seq_1_to_5` where coalesce(`f1cs1`()) is not null
+#
+# IFNULL in select list
+#
+SELECT
+IFNULL(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5;
+cl_f1	cnt_0	cnt_1
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `cl_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1` from `test`.`seq_1_to_5`
+EXECUTE IMMEDIATE 'SELECT
+IFNULL(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5';
+cl_f1	cnt_0	cnt_1
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+0	1	NULL
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS cl_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1
+FROM seq_1_to_5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `cl_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1` from `test`.`seq_1_to_5`
+SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5`
+EXECUTE IMMEDIATE 'SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5';
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+0	1	1	1	NULL
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5`
+#
+# IFNULL in WHERE
+#
+SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5
+WHERE
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1	cnt_0	cnt_1	cnt_2
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5
+WHERE
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5` where ifnull(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3
+FROM seq_1_to_5
+WHERE
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+0	1	1	1	NULL	NULL
+EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3
+FROM seq_1_to_5
+WHERE
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3` from `test`.`seq_1_to_5` where ifnull(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL AND
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3	cnt_4
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+EXPLAIN EXTENDED SELECT
+IFNULL(f1cs1(),f1cs1()) AS c_f1_0,
+IFNULL(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL AND
+IFNULL(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,ifnull(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3`,cursor_ref_count(4) AS `cnt_4` from `test`.`seq_1_to_5` where ifnull(`f1cs1`(),`f1cs1`()) is not null and ifnull(`f1cs1`(),`f1cs1`()) is not null
+#
+# LAST_VALUE in select list
+#
+SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+c_f1	cnt_0	cnt_1	cnt_2
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+0	1	NULL	NULL
+EXPLAIN EXTENDED SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2
+FROM seq_1_to_5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select last_value(`f1cs1`(),`f1cs1`()) AS `c_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2` from `test`.`seq_1_to_5`
+SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3	cnt_4
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+0	1	1	1	NULL	NULL	NULL
+EXPLAIN EXTENDED SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using index
+Warnings:
+Note	1003	select last_value(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,last_value(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3`,cursor_ref_count(4) AS `cnt_4` from `test`.`seq_1_to_5`
+#
+# LAST_VALUE in WHERE
+#
+SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1	cnt_0	cnt_1	cnt_2	cnt_3	cnt_4
+1	1	1	NULL	NULL	NULL
+1	1	1	NULL	NULL	NULL
+1	1	1	NULL	NULL	NULL
+1	1	1	NULL	NULL	NULL
+1	1	1	NULL	NULL	NULL
+EXPLAIN EXTENDED SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4
+FROM seq_1_to_5
+WHERE
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select last_value(`f1cs1`(),`f1cs1`()) AS `c_f1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3`,cursor_ref_count(4) AS `cnt_4` from `test`.`seq_1_to_5` where last_value(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4,
+CURSOR_REF_COUNT(5) AS cnt_5,
+CURSOR_REF_COUNT(6) AS cnt_6
+FROM seq_1_to_5
+WHERE
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3	cnt_4	cnt_5	cnt_6
+1	2	1	1	1	NULL	NULL	NULL	NULL
+1	2	1	1	1	NULL	NULL	NULL	NULL
+1	2	1	1	1	NULL	NULL	NULL	NULL
+1	2	1	1	1	NULL	NULL	NULL	NULL
+1	2	1	1	1	NULL	NULL	NULL	NULL
+EXPLAIN EXTENDED SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4,
+CURSOR_REF_COUNT(5) AS cnt_5,
+CURSOR_REF_COUNT(6) AS cnt_6
+FROM seq_1_to_5
+WHERE
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select last_value(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,last_value(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3`,cursor_ref_count(4) AS `cnt_4`,cursor_ref_count(5) AS `cnt_5`,cursor_ref_count(6) AS `cnt_6` from `test`.`seq_1_to_5` where last_value(`f1cs1`(),`f1cs1`()) is not null
+SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4,
+CURSOR_REF_COUNT(5) AS cnt_5,
+CURSOR_REF_COUNT(6) AS cnt_6,
+CURSOR_REF_COUNT(7) AS cnt_7,
+CURSOR_REF_COUNT(8) AS cnt_8
+FROM seq_1_to_5
+WHERE
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL AND
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+c_f1_0	c_f1_1	cnt_0	cnt_1	cnt_2	cnt_3	cnt_4	cnt_5	cnt_6	cnt_7	cnt_8
+2	3	1	1	1	1	NULL	NULL	NULL	NULL	NULL
+2	3	1	1	1	1	NULL	NULL	NULL	NULL	NULL
+2	3	1	1	1	1	NULL	NULL	NULL	NULL	NULL
+2	3	1	1	1	1	NULL	NULL	NULL	NULL	NULL
+2	3	1	1	1	1	NULL	NULL	NULL	NULL	NULL
+EXPLAIN EXTENDED SELECT
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_0,
+LAST_VALUE(f1cs1(),f1cs1()) AS c_f1_1,
+CURSOR_REF_COUNT(0) AS cnt_0,
+CURSOR_REF_COUNT(1) AS cnt_1,
+CURSOR_REF_COUNT(2) AS cnt_2,
+CURSOR_REF_COUNT(3) AS cnt_3,
+CURSOR_REF_COUNT(4) AS cnt_4,
+CURSOR_REF_COUNT(5) AS cnt_5,
+CURSOR_REF_COUNT(6) AS cnt_6,
+CURSOR_REF_COUNT(7) AS cnt_7,
+CURSOR_REF_COUNT(8) AS cnt_8
+FROM seq_1_to_5
+WHERE
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL AND
+LAST_VALUE(f1cs1(),f1cs1()) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	seq_1_to_5	index	NULL	PRIMARY	8	NULL	5	100.00	Using where; Using index
+Warnings:
+Note	1003	select last_value(`f1cs1`(),`f1cs1`()) AS `c_f1_0`,last_value(`f1cs1`(),`f1cs1`()) AS `c_f1_1`,cursor_ref_count(0) AS `cnt_0`,cursor_ref_count(1) AS `cnt_1`,cursor_ref_count(2) AS `cnt_2`,cursor_ref_count(3) AS `cnt_3`,cursor_ref_count(4) AS `cnt_4`,cursor_ref_count(5) AS `cnt_5`,cursor_ref_count(6) AS `cnt_6`,cursor_ref_count(7) AS `cnt_7`,cursor_ref_count(8) AS `cnt_8` from `test`.`seq_1_to_5` where last_value(`f1cs1`(),`f1cs1`()) is not null and last_value(`f1cs1`(),`f1cs1`()) is not null
+DROP FUNCTION f1cs1;

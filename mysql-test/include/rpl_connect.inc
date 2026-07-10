@@ -5,7 +5,7 @@
 # This script is normally used internally by rpl_init.inc and
 # master-slave.inc, but it can also be used in test cases that need to
 # create more connections or re-create connections after disconnect.
-#
+# Default ports SERVER_MYPORT_[1,2] are set by rpl_init.inc.
 #
 # ==== Usage ====
 #

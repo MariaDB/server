@@ -96,7 +96,7 @@ static ST_FIELD_INFO qc_info_fields[]=
   Column("GROUP_CONCAT_MAX_LENGTH",SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
   Column("CHARACTER_SET_CLIENT",  CSName(),                           NOT_NULL),
   Column("CHARACTER_SET_RESULT",  CSName(),                           NOT_NULL),
-  Column("COLLATION",             CSName(),                           NOT_NULL),
+  Column("COLLATION",             CLName(),                           NOT_NULL),
   Column("TIMEZONE",              Varchar(50),                        NOT_NULL),
   Column("DEFAULT_WEEK_FORMAT",   SLong(),                            NOT_NULL),
   Column("DIV_PRECISION_INCREMENT",SLong(),                           NOT_NULL),
@@ -214,7 +214,7 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     sql_mode_string_representation(thd, flags.sql_mode, &sql_mode_str);
     table->field[COLUMN_SQL_MODE]->store(sql_mode_str.str, sql_mode_str.length, scs);
 
-    table->field[COLUMN_LC_TIME_NAMES]->store(flags.lc_time_names->name,strlen(flags.lc_time_names->name), scs);
+    table->field[COLUMN_LC_TIME_NAMES]->store(flags.lc_time_names->name, scs);
 
     table->field[COLUMN_CLIENT_LONG_FLAG]->store(flags.client_long_flag, 0);
     table->field[COLUMN_CLIENT_PROTOCOL_41]->store(flags.client_protocol_41, 0);

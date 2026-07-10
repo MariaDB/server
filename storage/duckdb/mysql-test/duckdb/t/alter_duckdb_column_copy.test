@@ -1,0 +1,7 @@
+--echo #################
+--echo # TEST FOR COPY #
+--echo #################
+--let $algorithm = COPY
+--let $copy_ddl = 1
+--source ../include/alter_duckdb_column.inc
+

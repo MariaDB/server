@@ -15,17 +15,14 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
+#define VER "1.0"
 #include <my_global.h>
 #include <m_string.h>
 #include <mysql.h>
 #include <my_getopt.h>
 #include <my_dir.h>
 #include <mysql_version.h>
-
-#define SHOW_VERSION "1.0.0"
-#define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \
-                        my_progname, SHOW_VERSION, MYSQL_SERVER_VERSION);    \
-                      } while(0)
+#include <welcome_copyright_notice.h>
 
 /* Global variables. */
 static uint my_end_arg= 0;
@@ -418,7 +415,7 @@ exit:
 
 static void usage(void)
 {
-  PRINT_VERSION;
+  print_version();
   puts("Copyright (c) 2011, 2015, Oracle and/or its affiliates. "
        "All rights reserved.\n");
   puts("Enable or disable plugins.");
@@ -504,7 +501,7 @@ get_one_option(const struct my_option *opt,
     opt_verbose++;
     break;
   case 'V':
-    PRINT_VERSION;
+    print_version();
     exit(0);
     break;
   case '?':
@@ -686,7 +683,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
-      if (safe_strcpy(line + line_len - 1, sizeof(line), FN_SOEXT))
+      if (safe_strcpy_truncated(line + line_len - 1, sizeof line, FN_SOEXT))
       {
         reason= "Plugin name too long.";
         fclose(file_ptr);
@@ -738,8 +735,8 @@ static int check_options(int argc, char **argv, char *operation)
 {
   int i= 0;                    /* loop counter */
   int num_found= 0;            /* number of options found (shortcut loop) */
-  char config_file[FN_REFLEN]; /* configuration file name */
-  char plugin_name[FN_REFLEN]; /* plugin name */
+  char config_file[FN_REFLEN+1]; /* configuration file name */
+  char plugin_name[FN_REFLEN+1]; /* plugin name */
 
   /* Form prefix strings for the options. */
   const char *basedir_prefix = "--basedir=";
@@ -749,7 +746,7 @@ static int check_options(int argc, char **argv, char *operation)
   const char *plugin_dir_prefix = "--plugin_dir=";
   size_t plugin_dir_len= strlen(plugin_dir_prefix);
 
-  strcpy(plugin_name, "");
+  *plugin_name= '\0';
   for (i = 0; i < argc && num_found < 5; i++)
   {
 
@@ -787,8 +784,8 @@ static int check_options(int argc, char **argv, char *operation)
     /* read the plugin config file and check for match against argument */
     else
     {
-      if (safe_strcpy(plugin_name, sizeof(plugin_name), argv[i]) ||
-          safe_strcpy(config_file, sizeof(config_file), argv[i]) ||
+      if (safe_strcpy_truncated(plugin_name, sizeof(plugin_name)-1, argv[i]) ||
+          safe_strcpy_truncated(config_file, sizeof(config_file)-1, argv[i]) ||
           safe_strcat(config_file, sizeof(config_file), ".ini"))
       {
         fprintf(stderr, "ERROR: argument is too long.\n");

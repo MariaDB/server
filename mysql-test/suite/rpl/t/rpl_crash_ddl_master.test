@@ -1,0 +1,86 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (1, 0, 0), (2, 3, 1), (3, 2, 5), (4, 10, 7), (5, 6, 5);
+# The GTID sequence number 99 makes the ALTER below get the sequence number
+# 100 that triggers the rpl_parallel_delay_gtid_0_x_100_write
+# dbug injection below.
+SET SESSION gtid_seq_no= 99;
+INSERT INTO t2 SELECT * FROM t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=8;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode= optimistic;
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+
+--connection master
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+# Crash the master in DDL so that the binlogging happens during DDL recovery.
+# There was a bug that the GTID was binlogged without the 'ddl' marker.
+SET @debug_crash_counter= 1;
+SET SESSION debug_dbug= '+d,ddl_log_alter_after_log';
+--error 2006,2013
+ALTER TABLE t1 ORDER BY b;
+
+--source include/wait_until_disconnected.inc
+--connection master1
+--source include/wait_until_disconnected.inc
+--connection server_1
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+
+--connection master
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--let $rpl_server_number= 1
+--source include/rpl_reconnect.inc
+
+INSERT INTO t2 VALUES (10, 10, 10);
+UPDATE t2 SET c=c+1 WHERE a=4;
+UPDATE t2 SET c=20 WHERE a=1;
+# This just to terminate the gco on the slave, give an opportunity to
+# trigger an assertion "!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id".
+ALTER TABLE t2 ORDER BY b;
+--source include/save_master_gtid.inc
+
+--connection slave
+# Delay the binlogging of GTID for the DDL on the slave.
+# There was a bug that, when the GTID was incorrectly not marked as DDL and
+# following DML could run in parallel, that the DDL would
+# wakeup_subsequent_commits too early and allow later DML to commit out-of-order.
+# This would then cause assertion due to out-of-order GCO management.
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,rpl_parallel_delay_gtid_0_x_100_write';
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug= @old_dbug;
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL slave_parallel_mode= @old_mode;
+SET GLOBAL gtid_strict_mode= @old_strict;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1, t2;
+--source include/rpl_end.inc

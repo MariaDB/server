@@ -1,0 +1,9 @@
+Package: mariadb-plugin-duckdb
+Architecture: amd64 arm64
+Depends: mariadb-server (= ${server:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: MariaDB DuckDB storage engine
+ The MariaDB DuckDB storage engine embeds DuckDB as a pluggable storage
+ engine, enabling fast analytical (OLAP) query processing directly
+ inside MariaDB.

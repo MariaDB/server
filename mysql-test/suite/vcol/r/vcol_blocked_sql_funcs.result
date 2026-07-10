@@ -1,4 +1,13 @@
 SET @@session.default_storage_engine = 'MyISAM';
+# AES_ENCRYPT() without the mode (4th argument)
+create or replace table t1 (b blob as (aes_encrypt('abc', 'bcd')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_encrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (b blob as (aes_encrypt('abc', 'bcd','def')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_encrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (b blob as (aes_decrypt('abc', 'bcd')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_decrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create or replace table t1 (b blob as (aes_decrypt('abc', 'bcd','def')) PERSISTENT);
+ERROR HY000: Function or expression 'aes_decrypt()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # RAND()
 create or replace table t1 (b double as (rand()));
 create or replace table t1 (b double as (rand()) PERSISTENT);
@@ -29,14 +38,14 @@ create or replace table t1 (a datetime as (curtime()) PERSISTENT);
 ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # LOCALTIME(), LOCALTIME
 create or replace table t1 (a datetime, b varchar(10) as (localtime()) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 create or replace table t1 (a datetime, b varchar(10) as (localtime) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'curtime()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # LOCALTIMESTAMP, LOCALTIMESTAMP()(v4.0.6)
 create or replace table t1 (a datetime, b varchar(10) as (localtimestamp()) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'localtimestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 create or replace table t1 (a datetime, b varchar(10) as (localtimestamp) PERSISTENT);
-ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'localtimestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # NOW()
 create or replace table t1 (a datetime, b varchar(10) as (now()) PERSISTENT);
 ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
@@ -110,7 +119,7 @@ create or replace table t1 (a varchar(32) as (schema()) PERSISTENT);
 ERROR HY000: Function or expression 'database()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # SESSION_USER()
 create or replace table t1 (a varchar(32) as (session_user()) PERSISTENT);
-ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+ERROR HY000: Function or expression 'session_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # SLEEP()
 create or replace table t1 (a int, b int as (sleep(a)));
 ERROR HY000: Function or expression 'sleep()' cannot be used in the GENERATED ALWAYS AS clause of `b`
@@ -241,7 +250,7 @@ drop function sub1;
 # Long expression
 create or replace table t1 (a int, b varchar(300) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')));
 drop table t1;
-create or replace table t1 (a int, b varchar(16384) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')));
+create or replace table t1 (a int, b varchar(16384) as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'))) charset=latin1;
 ERROR HY000: Expression in the GENERATED ALWAYS AS clause is too big
 #
 # Constant expression

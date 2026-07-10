@@ -201,7 +201,7 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
   int_key->flag= 0;                             /* Always return full key */
   int_key->keyinfo= info->s->keyinfo + keynr;
 
-  is_ft= int_key->keyinfo->flag & HA_FULLTEXT;
+  is_ft= int_key->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT;
   for (keyseg= int_key->keyinfo->seg ; keyseg->type ;keyseg++)
   {
     enum ha_base_keytype type=(enum ha_base_keytype) keyseg->type;
@@ -284,9 +284,7 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
     {						/* Numerical column */
       if (type == HA_KEYTYPE_FLOAT)
       {
-	float nr;
-	float4get(nr,pos);
-	if (isnan(nr))
+	if (isnan(get_float(pos)))
 	{
 	  /* Replace NAN with zero */
 	  bzero(key,length);
@@ -375,7 +373,7 @@ MARIA_KEY *_ma_pack_key(register MARIA_HA *info, MARIA_KEY *int_key,
   /* only key prefixes are supported */
   DBUG_ASSERT(((keypart_map+1) & keypart_map) == 0);
 
-  is_ft= int_key->keyinfo->flag & HA_FULLTEXT;
+  is_ft= int_key->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT;
   for (keyseg=int_key->keyinfo->seg ; keyseg->type && keypart_map;
        old+= keyseg->length, keyseg++)
   {
@@ -678,22 +676,44 @@ int _ma_read_key_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
     CHECK_OUT_OF_RANGE to indicate that we don't have any active row.
 */
 
-check_result_t ma_check_index_cond(register MARIA_HA *info, uint keynr,
-                                   uchar *record)
+check_result_t ma_check_index_cond_real(register MARIA_HA *info, uint keynr,
+                                        uchar *record)
 {
   check_result_t res= CHECK_POS;
+  DBUG_ASSERT(info->index_cond_func || info->rowid_filter_func);
+
+  if (_ma_put_key_in_record(info, keynr, FALSE, record))
+  {
+    /* Impossible case; Can only happen if bug in code */
+    _ma_print_error(info, HA_ERR_CRASHED, 0);
+    info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */
+    my_errno= HA_ERR_CRASHED;
+    return CHECK_ERROR;
+  }
+
   if (info->index_cond_func)
   {
-    if (_ma_put_key_in_record(info, keynr, FALSE, record))
+    if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
+        CHECK_OUT_OF_RANGE)
     {
-      /* Impossible case; Can only happen if bug in code */
-      _ma_print_error(info, HA_ERR_CRASHED, 0);
+      /* We got beyond the end of scanned range */
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */
-      my_errno= HA_ERR_CRASHED;
-      res= CHECK_ERROR;
+      my_errno= HA_ERR_END_OF_FILE;
+      return res;
     }
-    else if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
-             CHECK_OUT_OF_RANGE)
+    /*
+      If we got an error, out-of-range condition, or ICP condition computed to
+      FALSE - we don't need to check the Rowid Filter.
+    */
+    if (res != CHECK_POS)
+      return res;
+  }
+
+  /* Check the Rowid Filter, if present */
+  if (info->rowid_filter_func)
+  {
+    if ((res= info->rowid_filter_func(info->rowid_filter_func_arg)) ==
+        CHECK_OUT_OF_RANGE)
     {
       /* We got beyond the end of scanned range */
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */

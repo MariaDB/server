@@ -21,10 +21,10 @@
 namespace dena {
 
 struct database_i;
-typedef std::auto_ptr<volatile database_i> database_ptr;
+typedef std::unique_ptr<volatile database_i> database_ptr;
 
 struct dbcontext_i;
-typedef std::auto_ptr<dbcontext_i> dbcontext_ptr;
+typedef std::unique_ptr<dbcontext_i> dbcontext_ptr;
 
 struct database_i {
   virtual ~database_i() = default;
@@ -101,7 +101,7 @@ struct cmd_exec_args {
   uint32_t limit;
   uint32_t skip;
   string_ref mod_op;
-  const string_ref *uvals; /* size must be pst->retfieelds.size() */
+  const string_ref *uvals; /* size must be pst->retfields.size() */
   const record_filter *filters;
   int invalues_keypart;
   const string_ref *invalues;

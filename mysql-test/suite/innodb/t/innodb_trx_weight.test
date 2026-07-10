@@ -6,6 +6,10 @@
 # be heavier than ones that had not.
 #
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 -- source include/have_innodb.inc
 
 SET default_storage_engine=InnoDB;

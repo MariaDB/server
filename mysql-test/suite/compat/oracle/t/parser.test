@@ -665,7 +665,7 @@ SELECT CAST(1 AS BEGIN);
 
 # SYSDATE is not deterministic. Let's use LIKE and equality.
 # The main point here is only to check that SYSDATE
-# gets parsed without parentheses. The actial value is not important.
+# gets parsed without parentheses. The actual value is not important.
 SELECT sysdate LIKE '____-__-__ __:__:__';
 SELECT sysdate = sysdate();
 SELECT sysdate = sysdate(0);

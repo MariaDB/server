@@ -1,0 +1,48 @@
+--- ../src/storage/spider/mysql-test/spider/r/direct_aggregate.result	2024-06-21 13:50:21.433397029 +1000
++++ ../src/storage/spider/mysql-test/spider/r/direct_aggregate.reject	2025-10-22 17:42:04.239865208 +1100
+@@ -54,31 +54,31 @@
+ 5
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	0
++Spider_direct_aggregate	1
+ SELECT MAX(a) FROM ta_l;
+ MAX(a)
+ 5
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	0
++Spider_direct_aggregate	1
+ SELECT MIN(a) FROM ta_l;
+ MIN(a)
+ 1
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	0
++Spider_direct_aggregate	1
+ SELECT MAX(a) FROM ta_l WHERE a < 5;
+ MAX(a)
+ 4
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	0
++Spider_direct_aggregate	1
+ SELECT MIN(a) FROM ta_l WHERE a > 1;
+ MIN(a)
+ 2
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	0
++Spider_direct_aggregate	1
+ SET spider_direct_aggregate=0;
+ SELECT COUNT(*) FROM ta_l;
+ COUNT(*)
+@@ -97,7 +97,7 @@
+ 2
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	0
++Spider_direct_aggregate	1
+ SET spider_direct_aggregate=1;
+ 
+ deinit

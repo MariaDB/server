@@ -28,7 +28,7 @@ set default_storage_engine=innodb;
 
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t1(a char(8), b char(8), filler char(100), primary key(a));
+create table t1(a char(8), b char(8), filler char(100), primary key(a)) charset=latin1;
 show create table t1;
 
 insert into t1 select 
@@ -37,7 +37,7 @@ insert into t1 select
   'filler'
 from t0 A, t0 B, t0 C;
 
-create table t2 (a char(8));
+create table t2 (a char(8)) charset=latin1;
 insert into t2 values ('a-1010=A'), ('a-1030=A'), ('a-1020=A');
 
 --echo This should use join buffer:
@@ -115,7 +115,7 @@ insert into t2 values (11,33), (11,22), (11,11);
 explain select * from t1, t2 where t1.a=t2.a and t1.b=t2.b;
 select * from t1, t2 where t1.a=t2.a and t1.b=t2.b;
 
-# Check a real resultset for comaprison:
+# Check a real resultset for comparison:
 set join_cache_level=0;
 select * from t1, t2 where t1.a=t2.a and t1.b=t2.b;
 set join_cache_level=6;
@@ -147,7 +147,7 @@ create table t1 (
   kp1 char(32) not null,
   col1 varchar(32),
   key (kp1)
-) engine=innodb;
+) engine=innodb charset=latin1;
 
 insert into t1
 select

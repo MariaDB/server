@@ -1,0 +1,30 @@
+--echo #
+--echo # Test joining a spider table with a non-spider table
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--enable_prepare_warnings
+set spider_same_server_link=1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t1 (c int);
+create table t2 (d int);
+insert into t2 values (1), (2);
+create table t3 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+insert into t3 values (2), (3);
+select c from t3 join t2 on c = d;
+drop table t1, t2, t3;
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test spider_join_with_non_spider
+--echo #

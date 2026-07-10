@@ -1,0 +1,15 @@
+--source ../include/have_duckdb.inc
+
+SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
+SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");
+
+SET GLOBAL duckdb_appender_allocator_flush_threshold = 1048576;
+SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
+SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");
+
+SET GLOBAL duckdb_appender_allocator_flush_threshold = 1048576 * 1024;
+SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
+SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");
+
+SET GLOBAL duckdb_appender_allocator_flush_threshold = default;
+--source ../include/cleanup_duckdb.inc

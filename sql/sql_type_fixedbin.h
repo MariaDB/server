@@ -136,6 +136,21 @@ public:
       return Fbt_null(item, false).is_null();
     }
 
+    /*
+      Check at fix_fields() time if any of the items can return a nullable
+      value on conversion to Fbt.
+    */
+    static bool fix_fields_maybe_null_on_conversion_to_fbt(Item **items,
+                                                           uint count)
+    {
+      for (uint i= 0; i < count; i++)
+      {
+        if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+          return true;
+      }
+      return false;
+    }
+
   public:
 
     Fbt(Item *item, bool *error, bool warn= true)
@@ -163,6 +178,10 @@ public:
       to->length((uint32) FbtImpl::to_string(const_cast<char*>(to->ptr()),
                                              FbtImpl::max_char_length()+1));
       return false;
+    }
+    bool to_bool() const
+    {
+      return !this->only_zero_bytes(m_buffer, FbtImpl::binary_length());
     }
     int cmp(const Binary_string &other) const
     {
@@ -238,6 +257,10 @@ public:
     {
       return singleton();
     }
+    bool val_bool() override
+    {
+      return m_value.to_bool();
+    }
     longlong val_int() override
     {
       return 0;
@@ -267,22 +290,24 @@ public:
     void print(String *str, enum_query_type query_type) override
     {
       StringBuffer<FbtImpl::max_char_length()+64> tmp;
-      tmp.append(singleton()->name().lex_cstring());
-      my_caseup_str(&my_charset_latin1, tmp.c_ptr());
-      str->append(tmp);
+      str->append(singleton()->name().lex_cstring());
       str->append('\'');
       m_value.to_string(&tmp);
       str->append(tmp);
       str->append('\'');
     }
-    Item *get_copy(THD *thd) override
-    { return get_item_copy<Item_literal_fbt>(thd, this); }
 
     // Non-overriding methods
     void set_value(const Fbt &value)
     {
       m_value= value;
     }
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_literal_fbt>(thd, this); }
+    Item *deep_copy(THD *thd) const override
+    { return shallow_copy_with_checks(thd); }
   };
 
   class Field_fbt: public Field
@@ -567,7 +592,7 @@ public:
       return do_field_string;
     }
 
-    static void do_field_fbt_native_to_binary(Copy_field *copy)
+    static void do_field_fbt_native_to_binary(const Copy_field *copy)
     {
       NativeBuffer<FbtImpl::binary_length()+1> res;
       copy->from_field->val_native(&res);
@@ -622,8 +647,9 @@ public:
         return NULL;
       return new (thd->mem_root) Item_literal_fbt(thd, tmp);
     }
-    bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                  const Item *item) const override
+    Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
+                                                     const Item *item)
+                                                     const override
     {
       /*
         Mixing of two different non-traditional types is currently prevented.
@@ -633,23 +659,23 @@ public:
                   is_traditional_scalar_type() ||
                   item->type_handler()->type_collection() ==
                   type_handler()->type_collection());
-      return true;
+      return Data_type_compatibility::OK;
     }
     /**
       Test if Field can use range optimizer for a standard comparison operation:
         <=, <, =, <=>, >, >=
       Note, this method does not cover spatial operations.
     */
-    bool can_optimize_range(const Item_bool_func *cond,
-                            const Item *item,
-                            bool is_eq_func) const override
+    Data_type_compatibility can_optimize_range(const Item_bool_func *cond,
+                                               const Item *item,
+                                               bool is_eq_func) const override
     {
       // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
                   item->type_handler()->type_collection() ==
                   type_handler()->type_collection());
-      return true;
+      return Data_type_compatibility::OK;
     }
     void hash_not_null(Hasher *hasher) override
     {
@@ -660,7 +686,8 @@ public:
                          scalar_comparison_op op, Item *value) override
     {
       DBUG_ENTER("Field_fbt::get_mm_leaf");
-      if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+      if (can_optimize_scalar_range(prm, key_part, cond, op, value) !=
+          Data_type_compatibility::OK)
         DBUG_RETURN(0);
       int err= value->save_in_field_no_warnings(this, 1);
       if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
@@ -673,15 +700,17 @@ public:
       }
       DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
     }
-    bool can_optimize_hash_join(const Item_bool_func *cond,
-                                        const Item *item) const override
+    Data_type_compatibility can_optimize_hash_join(const Item_bool_func *cond,
+                                                   const Item *item)
+                                                   const override
     {
       return can_optimize_keypart_ref(cond, item);
     }
-    bool can_optimize_group_min_max(const Item_bool_func *cond,
+    Data_type_compatibility can_optimize_group_min_max(
+                                    const Item_bool_func *cond,
                                     const Item *const_item) const override
     {
-      return true;
+      return Data_type_compatibility::OK;
     }
 
     uint row_pack_length() const override { return pack_length(); }
@@ -693,10 +722,10 @@ public:
                                            FbtImpl::binary_length(), &my_charset_bin);
     }
 
-    uchar *pack(uchar *to, const uchar *from, uint max_length) override
+    uchar *pack(uchar *to, const uchar *from) const override
     {
       DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
-      return FbtImpl::pack(to, from, max_length);
+      return FbtImpl::pack(to, from);
     }
 
     const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
@@ -705,14 +734,15 @@ public:
       return FbtImpl::unpack(to, from, from_end, param_data);
     }
 
-    uint max_packed_col_length(uint max_length) override
+    uint max_packed_col_length(uint max_length) const override
     {
       return StringPack::max_packed_col_length(max_length);
     }
 
-    uint packed_col_length(const uchar *fbt_ptr, uint length) override
+    uint packed_col_length() const override
     {
-      return StringPack::packed_col_length(fbt_ptr, length);
+      return StringPack(&my_charset_bin, pack_length()).
+               packed_col_length(ptr);
     }
 
     uint size_of() const override { return sizeof(*this); }
@@ -744,9 +774,9 @@ public:
       Fbt_null tmp(arg);
       return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
     }
-    int compare(cmp_item *ci) override
+    int compare(const cmp_item *ci) const override
     {
-      cmp_item_fbt *tmp= static_cast<cmp_item_fbt*>(ci);
+      const cmp_item_fbt *tmp= static_cast<const cmp_item_fbt*>(ci);
       DBUG_ASSERT(!m_null_value);
       DBUG_ASSERT(!tmp->m_null_value);
       return m_native.cmp(tmp->m_native);
@@ -760,13 +790,13 @@ public:
   class in_fbt :public in_vector
   {
     Fbt m_value;
-    static int cmp_fbt(void *cmp_arg, Fbt *a, Fbt *b)
+    static int cmp_fbt(void *cmp_arg, const void *a, const void *b)
     {
-      return a->cmp(*b);
+      return static_cast<const Fbt*>(a)->cmp(*static_cast<const Fbt*>(b));
     }
   public:
     in_fbt(THD *thd, uint elements)
-     :in_vector(thd, elements, sizeof(Fbt), (qsort2_cmp) cmp_fbt, 0),
+     :in_vector(thd, elements, sizeof(Fbt), cmp_fbt, 0),
       m_value(Fbt::zero())
     { }
     const Type_handler *type_handler() const override
@@ -778,10 +808,12 @@ public:
       Fbt *buff= &((Fbt *) base)[pos];
       Fbt_null value(item);
       if (value.is_null())
+      {
         *buff= Fbt::zero();
-      else
-        *buff= value;
-      return FALSE;
+        return true;
+      }
+      *buff= value;
+      return false;
     }
     uchar *get_value(Item *item) override
     {
@@ -848,8 +880,12 @@ public:
     {
       return Item::save_in_field(field, no_conversions);
     }
-    Item *get_copy(THD *thd) override
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
     { return get_item_copy<Item_copy_fbt>(thd, this); }
+    Item *deep_copy(THD *thd) const override
+    { return shallow_copy_with_checks(thd); }
   };
 
   class Item_char_typecast_func_handler_fbt_to_binary:
@@ -877,48 +913,15 @@ public:
     }
   };
 
-  class Item_typecast_fbt: public Item_func
+  class Item_fbt_func: public Item_func
   {
   public:
-    Item_typecast_fbt(THD *thd, Item *a) :Item_func(thd, a) {}
-
+    using Item_func::Item_func;
     const Type_handler *type_handler() const override
     { return singleton(); }
-
-    enum Functype functype() const override { return CHAR_TYPECAST_FUNC; }
-    bool eq(const Item *item, bool binary_cmp) const override
-    {
-      if (this == item)
-        return true;
-      if (item->type() != FUNC_ITEM ||
-          functype() != ((Item_func*)item)->functype())
-        return false;
-      if (type_handler() != item->type_handler())
-        return false;
-      Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
-      return args[0]->eq(cast->args[0], binary_cmp);
-    }
-    LEX_CSTRING func_name_cstring() const override
-    {
-      static Name name= singleton()->name();
-      size_t len= 9+name.length()+1;
-      char *buf= (char*)current_thd->alloc(len);
-      strmov(strmov(buf, "cast_as_"), name.ptr());
-      return { buf, len };
-    }
-    void print(String *str, enum_query_type query_type) override
-    {
-      str->append(STRING_WITH_LEN("cast("));
-      args[0]->print(str, query_type);
-      str->append(STRING_WITH_LEN(" as "));
-      str->append(singleton()->name().lex_cstring());
-      str->append(')');
-    }
     bool fix_length_and_dec(THD *thd) override
     {
       Type_std_attributes::operator=(Type_std_attributes_fbt());
-      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(args[0]))
-        set_maybe_null();
       return false;
     }
     String *val_str(String *to) override
@@ -944,12 +947,59 @@ public:
       set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
       return false;
     }
+  };
+
+  class Item_typecast_fbt: public Item_fbt_func
+  {
+  public:
+    Item_typecast_fbt(THD *thd, Item *a) :Item_fbt_func(thd, a) {}
+
+    Item_func::Functype functype() const override
+    { return Item_func::CHAR_TYPECAST_FUNC; }
+    bool eq(const Item *item, const Item::Eq_config &config) const override
+    {
+      if (this == item)
+        return true;
+      if (item->type() != Item_fbt_func::FUNC_ITEM ||
+          functype() != ((Item_func*)item)->functype())
+        return false;
+      if (Item_fbt_func::type_handler() != item->type_handler())
+        return false;
+      Item_typecast_fbt *cast= (Item_typecast_fbt*) item;
+      return Item_fbt_func::args[0]->eq(cast->args[0], config);
+    }
+    LEX_CSTRING func_name_cstring() const override
+    {
+      static Name name= singleton()->name();
+      size_t len= 9+name.length()+1;
+      char *buf= current_thd->alloc(len);
+      strmov(strmov(buf, "cast_as_"), name.ptr());
+      return { buf, len };
+    }
+    void print(String *str, enum_query_type query_type) override
+    {
+      str->append(STRING_WITH_LEN("cast("));
+      Item_fbt_func::args[0]->print(str, query_type);
+      str->append(STRING_WITH_LEN(" as "));
+      str->append(singleton()->name().lex_cstring());
+      str->append(')');
+    }
+    bool fix_length_and_dec(THD *thd) override
+    {
+      Item_fbt_func::fix_length_and_dec(thd);
+      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(
+                 Item_fbt_func::args[0]))
+        Item_fbt_func::set_maybe_null();
+      return false;
+    }
     bool val_native(THD *thd, Native *to) override
     {
-      Fbt_null tmp(args[0]);
-      return null_value= tmp.is_null() || tmp.to_native(to);
+      Fbt_null tmp(Item_fbt_func::args[0]);
+      return Item_fbt_func::null_value= tmp.is_null() || tmp.to_native(to);
     }
-    Item *get_copy(THD *thd) override
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
   };
 
@@ -959,9 +1009,7 @@ public:
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, singleton()) { }
-    Item *get_copy(THD *thd)
-    { return get_item_copy<Item_cache_fbt>(thd, this); }
-    bool cache_value()
+    bool cache_value() override
     {
       if (!example)
         return false;
@@ -971,59 +1019,65 @@ public:
                                                    &m_value, type_handler());
       return true;
     }
-    String* val_str(String *to)
+    String* val_str(String *to) override
     {
       if (!has_value())
         return NULL;
       Fbt_null tmp(m_value.ptr(), m_value.length());
       return tmp.is_null() || tmp.to_string(to) ? NULL : to;
     }
-    my_decimal *val_decimal(my_decimal *to)
+    my_decimal *val_decimal(my_decimal *to) override
     {
       if (!has_value())
         return NULL;
       my_decimal_set_zero(to);
       return to;
     }
-    longlong val_int()
+    longlong val_int() override
     {
       if (!has_value())
         return 0;
       return 0;
     }
-    double val_real()
+    double val_real() override
     {
       if (!has_value())
         return 0;
       return 0;
     }
-    longlong val_datetime_packed(THD *thd)
-    {
-      DBUG_ASSERT(0);
-      if (!has_value())
-        return 0;
-      return 0;
-    }
-    longlong val_time_packed(THD *thd)
+    longlong val_datetime_packed(THD *) override
     {
       DBUG_ASSERT(0);
       if (!has_value())
         return 0;
       return 0;
     }
-    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+    longlong val_time_packed(THD *) override
+    {
+      DBUG_ASSERT(0);
+      if (!has_value())
+        return 0;
+      return 0;
+    }
+    bool get_date(THD *, MYSQL_TIME *ltime, date_mode_t) override
     {
       if (!has_value())
         return true;
       set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
       return false;
     }
-    bool val_native(THD *thd, Native *to)
+    bool val_native(THD *, Native *to) override
     {
       if (!has_value())
         return true;
       return to->copy(m_value.ptr(), m_value.length());
     }
+
+  protected:
+    Item *shallow_copy(THD *thd) const override
+    { return get_item_copy<Item_cache_fbt>(thd, this); }
+    Item *deep_copy(THD *thd) const override
+    { return shallow_copy_with_checks(thd); }
   };
 
   /* =[ methods ]=============================================== */
@@ -1064,6 +1118,9 @@ public:
   {
     return FbtImpl::default_value();
   }
+
+  uint get_column_attributes() const override { return ATTR_NONE; }
+
   ulong KEY_pack_flags(uint column_nr) const override
   {
     return FbtImpl::KEY_pack_flags(column_nr);
@@ -1104,6 +1161,11 @@ public:
     return FbtImpl::max_char_length();
   }
 
+  const Type_handler *type_handler_for_implicit_upgrade() const override
+  {
+    return TypeCollectionImpl::singleton()->
+             type_handler_for_implicit_upgrade(this);
+  }
   const Type_handler *type_handler_for_comparison() const override
   {
     return this;
@@ -1130,6 +1192,7 @@ public:
 
   bool is_scalar_type() const override { return true; }
   bool is_val_native_ready() const override { return true; }
+  bool can_return_bool() const override { return true; }
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
   bool can_return_real() const override { return false; }
@@ -1180,9 +1243,14 @@ public:
     const Record_addr tmp(NULL, Bit_addr(true));
     return new (table->in_use->mem_root) Field_fbt(&empty_clex_str, tmp);
   }
-  // Fix attributes after the parser
-  bool Column_definition_fix_attributes(Column_definition *c) const override
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *c,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                        const override
   {
+    if (Type_handler::Column_definition_set_attributes(thd, c, attr, type))
+      return true;
     c->length= FbtImpl::max_char_length();
     return false;
   }
@@ -1334,7 +1402,7 @@ public:
     NativeBuffer<FbtImpl::binary_length()+1> tmp;
     item->val_native(current_thd, &tmp);
   }
-  bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override
+  void Item_save_in_value(THD *thd, Item *item, st_value *value) const override
   {
     value->m_type= DYN_COL_STRING;
     String *str= item->val_str(&value->m_string);
@@ -1351,12 +1419,12 @@ public:
         thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
                                       name().ptr(), ErrConvString(str).ptr());
         value->m_type= DYN_COL_NULL;
-        return true;
+        return;
       }
       // "item" returned a non-NULL value, and it was a valid FBT
       value->m_string.set(str->ptr(), str->length(), str->charset());
     }
-    return check_null(item, value);
+    set_null_if_needed(item, value);
   }
   void Item_param_setup_conversion(THD *thd, Item_param *param) const override
   {
@@ -1528,6 +1596,16 @@ public:
     Fbt_null na(a), nb(b);
     return !na.is_null() && !nb.is_null() && !na.cmp(nb);
   }
+  bool Item_bool_rowready_func2_fix_length_and_dec(THD *thd,
+                                 Item_bool_rowready_func2 *func) const override
+  {
+    if (Type_handler::Item_bool_rowready_func2_fix_length_and_dec(thd, func))
+      return true;
+    if (!func->maybe_null() &&
+        Fbt::fix_fields_maybe_null_on_conversion_to_fbt(func->arguments(), 2))
+      func->set_maybe_null();
+    return false;
+  }
   bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *h,
                                        Type_all_attributes *attr,
@@ -1542,17 +1620,40 @@ public:
       - either by the most generic way in Item_func::fix_fields()
       - or by Item_func_xxx::fix_length_and_dec() before the call of
         Item_hybrid_func_fix_attributes()
-      IFNULL() is special. It does not need to test args[0].
+      IFNULL and COALESCE are special-
+      If the first non-null arg can be safely converted to result type,
+      the result is guaranteed to be NOT NULL
     */
-    uint first= dynamic_cast<Item_func_ifnull*>(attr) ? 1 : 0;
-    for (uint i= first; i < nitems; i++)
+    bool not_null_on_conversion= false;
+    if (dynamic_cast<Item_func_ifnull*>(attr) ||
+        dynamic_cast<Item_func_coalesce*>(attr))
     {
-      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+      for (uint i= 0; i< nitems; i++)
       {
-        attr->set_type_maybe_null(true);
-        break;
+        if (!items[i]->maybe_null() &&
+            !Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+        {
+          not_null_on_conversion= true;
+          break;
+        }
       }
     }
+    else
+    {
+      not_null_on_conversion= true;
+      for (uint i= 0; i < nitems; i++)
+      {
+        if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+        {
+          not_null_on_conversion= false;
+          break;
+        }
+      }
+    }
+    if (not_null_on_conversion)
+      attr->set_type_maybe_null(false);
+    else
+      attr->set_type_maybe_null(true);
     return false;
   }
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
@@ -1709,6 +1810,9 @@ public:
 
   bool Item_func_between_fix_length_and_dec(Item_func_between *func) const override
   {
+    if (!func->maybe_null() &&
+        Fbt::fix_fields_maybe_null_on_conversion_to_fbt(func->arguments(), 3))
+      func->set_maybe_null();
     return false;
   }
   longlong Item_func_between_val_int(Item_func_between *func) const override
@@ -1731,6 +1835,10 @@ public:
                                                     Item_func_in *func)
                                                     const override
   {
+    if (!func->maybe_null() &&
+        Fbt::fix_fields_maybe_null_on_conversion_to_fbt(func->arguments(),
+                                                        func->argument_count()))
+      func->set_maybe_null();
     if (func->compatible_types_scalar_bisection_possible())
     {
       return func->value_list_convert_const_to_int(thd) ||
@@ -1831,10 +1939,26 @@ public:
     return Item_func_or_sum_illegal_param(item);
   }
 
+  Item_literal *create_boolean_false_item(THD *thd) const override
+  {
+    return new (thd->mem_root) Item_literal_fbt(thd);
+  }
+
   static Type_handler_fbt *singleton()
   {
     static Type_handler_fbt th;
     return &th;
+  }
+  bool is_supertype(const Type_std_attributes &dst_std_attr,
+                    const Type_extra_attributes &dst_extra_attr,
+                    const Type_handler *src_th,
+                    const Type_std_attributes &src_std_attr,
+                    const Type_extra_attributes &src_extra_attr) const override
+  {
+    if (this != src_th)
+      return false;
+    DBUG_ASSERT(dst_std_attr.max_length == src_std_attr.max_length);
+    return true;
   }
 };
 
@@ -1903,6 +2027,12 @@ public:
                                            const override
   {
     return NULL;
+  }
+
+  const Type_handler *type_handler_for_implicit_upgrade(
+                                               const Type_handler *from) const
+  {
+    return from;
   }
 
   static Type_collection_fbt *singleton()

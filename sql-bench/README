@@ -50,7 +50,7 @@ run-all-tests		Use this to run all tests. When all tests are run,
 compare-results		Generates a comparison table from different RUN files.
 server-cfg		Contains the limits and functions for all supported
 			SQL servers.  If you want to add a new server, this
-			should be the only file that neads to be changed.
+			should be the only file that needs to be changed.
 
 
 Most of the tests should use portable SQL to make it possible to

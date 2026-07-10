@@ -20,7 +20,7 @@ CALL mtr.add_suppression("Can't open and lock time zone table");
 CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");
 CALL mtr.add_suppression("Native table .* has the wrong structure");
-CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");
+CALL mtr.add_suppression("Table 'mysql\\.gtid_slave_pos' doesn't exist");
 --disable_query_log
 --eval SET GLOBAL wsrep_sst_method = '$wsrep_sst_method_orig';
 --eval SET GLOBAL wsrep_sst_receive_address = '$wsrep_sst_receive_address_orig';

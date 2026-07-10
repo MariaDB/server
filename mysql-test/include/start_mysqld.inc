@@ -21,7 +21,7 @@ if ($restart_bindir)
 
 if ($restart_parameters)
 {
-  --exec echo "$restart_cmd: $restart_parameters" > $_expect_file_name
+  --write_line "$restart_cmd: $restart_parameters" $_expect_file_name
   if (!$restart_noprint)
   {
     --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -34,7 +34,7 @@ if ($restart_parameters)
 }
 if (!$restart_parameters)
 {
-  --exec echo "$restart_cmd" > $_expect_file_name
+  --write_line "$restart_cmd" $_expect_file_name
   if ($restart_noprint < 2)
   {
     --exec echo "# $restart_cmd"

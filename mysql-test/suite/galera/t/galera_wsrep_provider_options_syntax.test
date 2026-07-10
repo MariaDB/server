@@ -3,10 +3,11 @@
 #
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+
 --let LOGF=$MYSQLTEST_VARDIR/log/mysqld.1.err
 --disable_info
-call mtr.add_suppression("WSREP\: Unknown parameter 'gmcasts\.segment'");
-call mtr.add_suppression("WSREP\: Set options returned 7");
+call mtr.add_suppression("WSREP: Unknown parameter 'gmcasts\\.segment'");
+call mtr.add_suppression("WSREP: Set options returned 7");
 --error ER_WRONG_ARGUMENTS  
 SET GLOBAL wsrep_provider_options="gmcasts.segment=1";
 # Search for unhandled exception message.

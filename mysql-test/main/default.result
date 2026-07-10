@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set sql_mode="";
 CREATE TABLE t1 (a varchar(30) binary NOT NULL DEFAULT ' ',
 b varchar(1) binary NOT NULL DEFAULT ' ',
@@ -371,7 +372,7 @@ create or replace table t1 (param_list blob DEFAULT "" NOT NULL);
 drop table t1;
 create table t1 (a int);
 insert into t1 values(-1);
-alter table t1 add b int default 1, add c int default -1, add d int default (1+1), add e timestamp;
+alter table t1 add b int default 1, add c int default -1, add d int default (1+1), add e timestamp not null default now();
 select a,b,c,d,e from t1;
 a	b	c	d	e
 -1	1	-1	2	2001-01-01 10:20:30
@@ -388,7 +389,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT 1,
   `c` int(11) DEFAULT -1,
   `d` int(11) DEFAULT (1 + 1),
-  `e` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `e` timestamp NOT NULL DEFAULT current_timestamp(),
   `f` int(11) DEFAULT (1 + 1 + 1),
   `g` int(11) NOT NULL DEFAULT (1 + 1 + 1 + 1),
   `h` int(11) DEFAULT (2 + 2 + 2 + 2)
@@ -401,7 +402,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT 1,
   `c` int(11) DEFAULT -1,
   `d` int(11) DEFAULT (1 + 1),
-  `e` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `e` timestamp NOT NULL DEFAULT current_timestamp(),
   `f` int(11) DEFAULT (1 + 1 + 1),
   `g` int(11) NOT NULL DEFAULT (1 + 1 + 1 + 1),
   `h` int(11) DEFAULT (2 + 2 + 2 + 2)
@@ -436,7 +437,7 @@ ERROR 01000: Expression for field `a` is referring to uninitialized field `b`
 show create table t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 #
-# Refering to other columns
+# Referring to other columns
 #
 create or replace table t1 (a int default 1, b int default a);
 create or replace table t1 (a int default 1, b int as (a));
@@ -1067,7 +1068,7 @@ CREATE TABLE t1 (a TIMESTAMP DEFAULT COALESCE(CURRENT_TIMESTAMP));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT coalesce(current_timestamp())
+  `a` timestamp NULL DEFAULT coalesce(current_timestamp())
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DATE DEFAULT COALESCE(CURRENT_DATE));
@@ -1091,8 +1092,8 @@ b TIMESTAMP DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp(),
-  `b` timestamp NOT NULL DEFAULT coalesce(current_timestamp(6))
+  `a` timestamp NULL DEFAULT current_timestamp(),
+  `b` timestamp NULL DEFAULT coalesce(current_timestamp(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ();
 SELECT CURRENT_TIMESTAMP(6);
@@ -1525,8 +1526,8 @@ CREATE TABLE t1 (a TIMESTAMP DEFAULT NOW(), b TIMESTAMP DEFAULT UTC_TIMESTAMP())
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp(),
-  `b` timestamp NOT NULL DEFAULT utc_timestamp()
+  `a` timestamp NULL DEFAULT current_timestamp(),
+  `b` timestamp NULL DEFAULT utc_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ();
 SELECT * FROM t1;
@@ -1538,9 +1539,9 @@ CREATE TABLE t1 (a TIMESTAMP(6) DEFAULT SYSDATE(6), s INT, b TIMESTAMP(6) DEFAUL
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(6) NOT NULL DEFAULT sysdate(6),
+  `a` timestamp(6) NULL DEFAULT sysdate(6),
   `s` int(11) DEFAULT NULL,
-  `b` timestamp(6) NOT NULL DEFAULT sysdate(6)
+  `b` timestamp(6) NULL DEFAULT sysdate(6)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (DEFAULT(a), SLEEP(0.1), DEFAULT(b));
 SELECT b>a FROM t1;
@@ -1553,7 +1554,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` timestamp NOT NULL DEFAULT from_unixtime(`a`)
+  `b` timestamp NULL DEFAULT from_unixtime(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (1447430881, DEFAULT);
 SELECT * FROM t1;
@@ -1565,8 +1566,8 @@ CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP DEFAULT CONVERT_TZ(a, '-10:00', '+10:0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `b` timestamp NOT NULL DEFAULT convert_tz(`a`,'-10:00','+10:00')
+  `a` timestamp NULL DEFAULT NULL,
+  `b` timestamp NULL DEFAULT convert_tz(`a`,'-10:00','+10:00')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', DEFAULT);
 SELECT * FROM t1;
@@ -2230,7 +2231,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT `a`,
-  `c` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT convert(`a` using utf8mb3),
+  `c` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT convert(`a` using utf8mb3),
   `d` varbinary(10) DEFAULT (cast(`a` as char charset binary))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (a) VALUES ('a');
@@ -2610,7 +2611,7 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (a,b,l) VALUES (10000,2,'no_NO'),(10000,2,'ru_RU'),(10000,2,'ar_BH');
 SELECT * FROM t1;
 a	b	l	c
-10000	2	no_NO	10.000,00
+10000	2	no_NO	10 000,00
 10000	2	ru_RU	10 000,00
 10000	2	ar_BH	10,000.00
 DROP TABLE t1;
@@ -2969,7 +2970,7 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (a) VALUES ('test');
 SELECT * FROM t1;
 a	b	c
-test	2	5
+test	2	7
 DROP TABLE t1;
 #
 # String result metadata functions
@@ -3121,7 +3122,7 @@ create table t3 as select max(a), max(b), max(c) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT 5 CHECK (`a` > 10),
+  `a` int(11) DEFAULT 5,
   `b` int(11) DEFAULT (5 + 5),
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
@@ -3218,7 +3219,7 @@ a	b
 6	7
 drop table t1;
 #
-# DEVAULT & PS adoption
+# DEFAULT & PS adoption
 #
 CREATE TABLE t1 (a INT DEFAULT 10, b INT DEFAULT NULL);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?,?)' USING IGNORE, IGNORE;
@@ -3432,9 +3433,7 @@ DEFAULT(a)	CASE a WHEN 0 THEN 1 ELSE 2 END
 NULL	2
 DROP TABLE t;
 DROP VIEW v;
-#
 # End of 10.2 test
-#
 #
 # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
 # record, which can cause crashes when accessing already released
@@ -3450,9 +3449,7 @@ length(DEFAULT(h))
 25
 INSERT INTO t1 () VALUES ();
 drop table t1;
-#
 # End of 10.3 test
-#
 #
 # MDEV-26423: MariaDB server crash in Create_tmp_table::finalize
 #
@@ -3483,6 +3480,15 @@ column_name	column_default	has_default	is_nullable
 a	NULL	1	YES
 drop view v1;
 drop table t1;
-#
 # End of 10.4 test
 #
+# MDEV-37320 ASAN errors in Field::is_null / Item_param::assign_default
+#
+create table t1 (f01 timestamp, f03 timestamp);
+insert into t1 () values ();
+create trigger tr before insert on t1 for each row set @a=1;
+prepare stmt from "update t1 set f03 = ?";
+execute stmt using default;
+drop table t1;
+# End of 10.6 test
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -1,0 +1,17 @@
+source include/galera_cluster.inc;
+source include/have_innodb.inc;
+
+--echo #
+--echo # MDEV-38374 nonsense code in wsrep_store_key_val_for_row()
+--echo #
+
+create table t1 (
+    id int auto_increment primary key,
+    blob_data longblob not null,
+    unique key idx_blob_prefix (blob_data(3072))
+) engine=innodb;
+insert into t1 (blob_data) values ('a');
+update t1 set blob_data = repeat('x', 4000) where id = 1;
+drop table t1;
+
+--echo # End of 10.6 tests

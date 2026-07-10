@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #define BACKUP_WSREP_H
 
 /***********************************************************************
-Store Galera checkpoint info in the 'xtrabackup_galera_info' file, if that
+Store Galera checkpoint info in the MB_GALERA_INFO file, if that
 information is present in the trx system header. Otherwise, do nothing. */
 void
 xb_write_galera_info(bool incremental_prepare);

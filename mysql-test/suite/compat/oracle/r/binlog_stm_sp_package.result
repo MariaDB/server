@@ -50,7 +50,7 @@ PROCEDURE p1;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
 PROCEDURE p1 AS
 BEGIN
@@ -59,7 +59,7 @@ END;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 DROP PACKAGE p1;
 #
 # Creating a package with a different DEFINER, with SQL SECURITY INVOKER
@@ -69,7 +69,7 @@ PROCEDURE p1;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
 PROCEDURE p1 AS
 BEGIN
@@ -78,7 +78,7 @@ END;
 END;
 $$
 Warnings:
-Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+Note	1446	The user specified as a definer ('xxx'@'localhost') does not exist
 DROP PACKAGE p1;
 #
 # Creating a new package in a remote database

@@ -25,6 +25,7 @@ SET(MYSQLSERVICES_SOURCES
   my_crypt_service.c
   my_md5_service.c
   my_print_error_service.c
+  print_check_msg_service.c
   my_sha1_service.c
   my_sha2_service.c
   my_snprintf_service.c
@@ -34,6 +35,7 @@ SET(MYSQLSERVICES_SOURCES
   thd_error_context_service.c
   thd_rnd_service.c
   thd_specifics_service.c
+  thd_service.c
   thd_timezone_service.c
   thd_wait_service.c
   wsrep_service.c

@@ -97,7 +97,8 @@ typedef struct st_mi_state_info
 #define MI_STATE_KEY_SIZE       8U
 #define MI_STATE_KEYBLOCK_SIZE  8U
 #define MI_STATE_KEYSEG_SIZE    4U
-#define MI_STATE_EXTRA_SIZE ((MI_MAX_KEY+MI_MAX_KEY_BLOCK_SIZE)*MI_STATE_KEY_SIZE + MI_MAX_KEY*HA_MAX_KEY_SEG*MI_STATE_KEYSEG_SIZE)
+#define MI_STATE_EXTRA_SIZE(K,P) (((K)+MI_MAX_KEY_BLOCK_SIZE)*MI_STATE_KEY_SIZE + (P)*MI_STATE_KEYSEG_SIZE)
+
 #define MI_KEYDEF_SIZE          (2+ 5*2)
 #define MI_UNIQUEDEF_SIZE       (2+1+1)
 #define HA_KEYSEG_SIZE          (6+ 2*2 + 4*2)
@@ -206,7 +207,8 @@ typedef struct st_mi_isam_share
   uint32 ftkeys;                        /* Number of full-text keys + 1 */
   File	kfile;				/* Shared keyfile */
   File	data_file;			/* Shared data file */
-  int	mode;				/* mode of file on open */
+  int	index_mode;			/* mode on index file on open */
+  int	data_mode;			/* mode of data file on open */
   uint	reopen;				/* How many times reopened */
   uint	w_locks,r_locks,tot_locks;	/* Number of read/write locks */
   uint	blocksize;			/* blocksize of keyfile */
@@ -304,10 +306,10 @@ struct st_myisam_info
   /* If info->buff has to be reread for rnext */
   my_bool buff_used;
   my_bool create_unique_index_by_sort;
+  my_bool has_cond_pushdown;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
   rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
-  rowid_filter_is_active_func_t rowid_filter_is_active_func;  /* is activefunction */
   void *rowid_filter_func_arg;             /* parameter for the func */
   THR_LOCK_DATA lock;
   uchar *rtree_recursion_state;         /* For RTREE */
@@ -731,7 +733,7 @@ void mi_update_status(void *param);
 void mi_restore_status(void *param);
 void mi_copy_status(void *to, void *from);
 my_bool mi_check_status(void *param);
-void mi_fix_status(MI_INFO *org_table, MI_INFO *new_table);
+void mi_fix_status(void *org_table, void *new_table);
 extern MI_INFO *test_if_reopen(char *filename);
 my_bool check_table_is_closed(const char *name, const char *where);
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share);
@@ -742,19 +744,29 @@ my_bool mi_dynmap_file(MI_INFO *info, my_off_t size);
 int mi_munmap_file(MI_INFO *info);
 void mi_remap_file(MI_INFO *info, my_off_t size);
 
-check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record);
+check_result_t mi_check_index_tuple_real(MI_INFO *info, uint keynr,
+                                         uchar *record);
+static inline check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr,
+                                                  uchar *record)
+{
+  if (!info->has_cond_pushdown && ! info->rowid_filter_func)
+    return CHECK_POS;
+  return mi_check_index_tuple_real(info, keynr, record);
+}
 
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
-void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);
-void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...);
-void mi_check_print_info(HA_CHECK *param, const char *fmt, ...);
+void mi_check_print_error(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+void mi_check_print_info(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 pthread_handler_t thr_find_all_keys(void *arg);
 extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t check_func,
                                    void *func_arg);
 extern void mi_set_rowid_filter_func(MI_INFO *info,
                                      rowid_filter_func_t check_func,
-                                     rowid_filter_is_active_func_t is_active_func,
                                      void *func_arg);
 int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
                  ulonglong *dirty_part_map);

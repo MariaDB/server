@@ -17,12 +17,9 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 LENGTH(@@global.gtid_binlog_state) > 1
 1
 connection node_1;
-gtid_binlog_state_equal
-0
-connection node_2;
-SELECT COUNT(*) AS EXPECT_0 FROM t1;
-EXPECT_0
-0
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
 gtid_binlog_state_equal
 0
 #cleanup
@@ -31,16 +28,19 @@ DROP TABLE t1;
 connection node_1;
 connection node_2;
 connection node_3;
-RESET MASTER;
 connection node_1;
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL WSREP_ON=OFF;
+include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 connection node_2;
 SET GLOBAL WSREP_ON=OFF;
+include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 connection node_3;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;

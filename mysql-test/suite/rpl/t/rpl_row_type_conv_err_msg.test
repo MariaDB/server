@@ -42,7 +42,7 @@
 #
 
 --source include/have_binlog_format_row.inc
-# Inorder to grep a specific error pattern in error log a fresh error log
+# In order to grep a specific error pattern in error log a fresh error log
 # needs to be generated.
 --source include/force_restart.inc
 --source include/master-slave.inc
@@ -279,7 +279,7 @@ DROP TABLE t1;
 --echo ####################################################################
 --connection master
 SET SQL_LOG_BIN=0;
-CREATE TABLE t1 (c1 CHAR(1));
+CREATE TABLE t1 (c1 CHAR(1)) CHARACTER SET latin1;
 SET SQL_LOG_BIN=1;
 
 --connection slave
@@ -319,11 +319,11 @@ DROP TABLE t1;
 --echo ####################################################################
 --connection master
 SET SQL_LOG_BIN=0;
-CREATE TABLE t1 (c1 CHAR(1));
+CREATE TABLE t1 (c1 CHAR(1)) CHARACTER SET latin1;
 SET SQL_LOG_BIN=1;
 
 --connection slave
-CREATE TABLE t1 (c1 TEXT);
+CREATE TABLE t1 (c1 TEXT) CHARACTER SET latin1;
 
 --connection master
 INSERT INTO t1 VALUES ('a');

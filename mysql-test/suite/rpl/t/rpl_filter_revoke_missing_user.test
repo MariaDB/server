@@ -1,20 +1,20 @@
 #
 # Purpose:
 #   This test ensures that a binlogged Query_log_event which failed on the
-# primary server does not break replication if it is ignored by Grant_tables
-# on the replica. The bug reported by MDEV-28530 shows this with
-# REVOKE ALL PRIVILEGES.. using a non-existent user. The primary will binlog
-# the REVOKE command with an error code, and the replica will think the command
+# master server does not break replication if it is ignored by Grant_tables
+# on the slave. The bug reported by MDEV-28530 shows this with
+# REVOKE ALL PRIVILEGES.. using a non-existent user. The master will binlog
+# the REVOKE command with an error code, and the slave will think the command
 # executed with success because the replication filter will ignore the command
-# while accessing the Grant_tables classes. When the replica performs an error
+# while accessing the Grant_tables classes. When the slave performs an error
 # check, it sees the difference between the error codes, and replication
 # breaks.
 #
 # Methodology:
-#   Using a replica configured with replicate_wild_ignore_table="schema.%",
-# on the primary, execute REVOKE ALL PRVILEGES using a non-existent user and
+#   Using a slave configured with replicate_wild_ignore_table="schema.%",
+# on the master, execute REVOKE ALL PRVILEGES using a non-existent user and
 # DROP USER using a list of users where not all users exist, and ensure that
-# the replica acknowledges and ignores the events without erroring.
+# the slave acknowledges and ignores the events without erroring.
 #
 # References:
 #   MDEV-28530: Revoking privileges from a non-existing user on a master breaks
@@ -25,7 +25,7 @@ source include/master-slave.inc;
 source include/have_binlog_format_statement.inc;
 
 --echo #
---echo # Set replica to ignore system tables
+--echo # Set slave to ignore system tables
 connection slave;
 let $old_filter= query_get_value(SHOW SLAVE STATUS, Replicate_Wild_Ignore_Table, 1);
 source include/stop_slave.inc;
@@ -49,7 +49,7 @@ DROP USER 'testuser'@'localhost', 'nonexistentuser'@'%';
 
 
 --echo #
---echo # Ensure the events exist in the primary's binary log
+--echo # Ensure the events exist in the master's binary log
 --let $MYSQLD_DATADIR= `select @@datadir`
 --let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
 FLUSH BINARY LOGS;
@@ -73,7 +73,7 @@ FLUSH BINARY LOGS;
 
 
 --echo #
---echo # Ensure that the replica receives the event without error
+--echo # Ensure that the slave receives the event without error
 connection slave;
 --sync_with_master
 let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);

@@ -1,3 +1,4 @@
+# restart
 UPDATE performance_schema.setup_instruments SET enabled = 'NO', timed = 'YES';
 UPDATE performance_schema.setup_instruments SET enabled = 'YES'
 WHERE name in ('wait/io/table/sql/handler',
@@ -76,7 +77,7 @@ prepare dump_waits_history_long from
     from performance_schema.events_waits_history_long
     where event_name = \'wait/lock/metadata/sql/mdl\';";
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 flush tables;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (id INT PRIMARY KEY, b CHAR(100) DEFAULT 'initial value');

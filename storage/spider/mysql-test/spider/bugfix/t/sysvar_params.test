@@ -1,0 +1,137 @@
+--echo
+--echo Testing spider sysvar and table params / options, including default values and overriding mechanisms
+--echo
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+# For tests covering overriding mechanism between params and options,
+# including a mix of different levels (partition vs table), see
+# spider/features.engine_defined_attributes.
+SET @old_spider_read_only_mode = @@session.spider_read_only_mode;
+set spider_same_server_link=on;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+--echo # Cases where table params/options are not set
+# when the user does not set var nor the table param/option, the default
+# value (0 in this case) takes effect.
+set session spider_read_only_mode = default;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+--disable_ps_protocol
+/* 1 */ insert into t1 values (42);
+--enable_ps_protocol
+drop table t1, t2;
+
+# when the user sets var but not the table param/option, the var
+# should be take effect.
+set session spider_read_only_mode = 1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+
+--error 12518
+/* 2 */ insert into t1 values (42);
+drop table t1, t2;
+
+# When the user sets a sysvar to -1, it falls back to default
+set session spider_read_only_mode = -1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+--disable_ps_protocol
+/* 3 */ insert into t1 values (42);
+--enable_ps_protocol
+drop table t1, t2;
+
+--echo # Cases where table params are set
+# when the user does not set the var, but sets the table param, the
+# table param takes effect
+SET session spider_read_only_mode = default;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "srv",TABLE "t2"';
+--error 12518
+/* 4 */ insert into t1 values (42);
+drop table t1, t2;
+
+# when the user sets both var and table param, the table param takes
+# precedence
+set session spider_read_only_mode = 1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "0", WRAPPER "mysql", srv "srv",TABLE "t2"';
+--disable_ps_protocol
+/* 5 */ insert into t1 values (42);
+--enable_ps_protocol
+drop table t1, t2;
+
+# when the user sets the var to -1 and sets the table param, the
+# table param takes effect
+SET session spider_read_only_mode = -1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider COMMENT='read_only_mode "1", WRAPPER "mysql", srv "srv",TABLE "t2"';
+--error 12518
+/* 6 */ insert into t1 values (42);
+drop table t1, t2;
+
+--echo # Cases where table options are set
+# when the user does not set the var, but sets the table option, the
+# table option should take effect
+SET session spider_read_only_mode = default;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider REMOTE_SERVER=srv REMOTE_TABLE=t2 READ_ONLY=1 WRAPPER=mysql;
+--error 12518
+/* 7 */ insert into t1 values (42);
+drop table t1, t2;
+
+# when the user sets both var and table option, the table option
+# should take precedence
+set session spider_read_only_mode = 1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider READ_ONLY=0 REMOTE_SERVER=srv REMOTE_TABLE=t2 WRAPPER=mysql;
+/* 8 */ insert into t1 values (42);
+drop table t1, t2;
+
+# when the user sets the var to -1 and sets the table option, the
+# table option takes effect
+SET session spider_read_only_mode = -1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider READ_ONLY=1 REMOTE_SERVER=srv REMOTE_TABLE=t2 WRAPPER=mysql;
+--error 12518
+/* 9 */ insert into t1 values (42);
+drop table t1, t2;
+
+# the default table option falls back to sysvar
+SET session spider_read_only_mode = 0;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider READ_ONLY=default REMOTE_SERVER=srv REMOTE_TABLE=t2 WRAPPER=mysql;
+/* 10 */ insert into t1 values (42);
+drop table t1, t2;
+
+# the default table option falls back to sysvar
+SET session spider_read_only_mode = 1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider READ_ONLY=default REMOTE_SERVER=srv REMOTE_TABLE=t2 WRAPPER=mysql;
+--error 12518
+/* 11 */ insert into t1 values (42);
+drop table t1, t2;
+
+# the default table option falls back to sysvar
+SET session spider_read_only_mode = -1;
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider READ_ONLY=default REMOTE_SERVER=srv REMOTE_TABLE=t2 WRAPPER=mysql;
+/* 12 */ insert into t1 values (42);
+drop table t1, t2;
+
+drop server srv;
+
+SET session spider_read_only_mode = @old_spider_read_only_mode;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # End of test sysvar_params
+--echo #

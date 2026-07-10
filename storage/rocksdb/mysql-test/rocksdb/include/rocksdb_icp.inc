@@ -49,7 +49,7 @@ insert into t3 select a,a/10,a,a from t1;
 explain
 select * from t3 where kp1=3 and kp2 like '%foo%';
 
---replace_column 9 #
+--source include/explain-no-costs.inc
 explain format=json
 select * from t3 where kp1 between 2 and 4 and mod(kp1,3)=0 and kp2 like '%foo%';
 

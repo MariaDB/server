@@ -7,6 +7,9 @@
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 call mtr.add_suppression("Can't find record in 't1'");
 call mtr.add_suppression("Can't find record in 't2'");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 --connection server_1
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
@@ -272,7 +275,7 @@ eval SELECT IF($retry1=$retry2, "Ok, no retry",
 SET @old_format= @@GLOBAL.binlog_format;
 # Use MIXED format; we cannot binlog ROW events on slave in STATEMENT format.
 SET GLOBAL binlog_format= MIXED;
-SET @old_isolation= @@GLOBAL.tx_isolation;
+SET @old_isolation= @@GLOBAL.transaction_isolation;
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 # Reset the worker threads to make the new settings take effect.
 SET GLOBAL slave_parallel_threads=0;
@@ -317,7 +320,7 @@ SELECT * FROM t2 ORDER BY a;
 
 --source include/stop_slave.inc
 SET GLOBAL binlog_format= @old_format;
-SET GLOBAL tx_isolation= @old_isolation;
+SET GLOBAL transaction_isolation= @old_isolation;
 --source include/start_slave.inc
 
 
@@ -508,6 +511,7 @@ DELETE FROM t2;
 
 # The 1st of the following two trx:s a blocker on slave
 --connection server_2
+SET @org_log_warnings=@@GLOBAL.LOG_WARNINGS;
 set global log_warnings=2;
 BEGIN;
 INSERT INTO t1 SET a=1;
@@ -529,7 +533,7 @@ BEGIN;
 COMMIT;
 
 # First make sure DELETE raced indeed to get stuck at retrying stage
-# where it runs "realistically" now. There is nomore optimistic error
+# where it runs "realistically" now. There is no more optimistic error
 # in the errorlog, which is downgraded to the warning level (when
 # --log-warnings > 1), see above suppression.
 --connection server_2
@@ -555,7 +559,7 @@ DELETE FROM t2;
 #
 --connection server_2
 --source include/stop_slave.inc
-set global log_warnings=default;
+set global log_warnings=@org_log_warnings;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc

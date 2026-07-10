@@ -20,6 +20,8 @@ if(connect(SOCK, $paddr))
   $ENV{'S3_REGION'} = "";
   $ENV{'S3_PROTOCOL_VERSION'} = "Auto";
   $ENV{'S3_USE_HTTP'} = "ON";
+  $ENV{'S3_SSL_NO_VERIFY'} = "OFF";
+  $ENV{'S3_PROVIDER'} = "Default";
 }
 else
 {
@@ -62,6 +64,17 @@ else
   {
     $ENV{'S3_USE_HTTP'} = "OFF";
   }
+
+  if (!$ENV{'S3_SSL_NO_VERIFY'})
+  {
+    $ENV{'S3_SSL_NO_VERIFY'} = "OFF";
+  }
+
+  if (!$ENV{'S3_PROVIDER'})
+  {
+    $ENV{'S3_PROVIDER'} = "Default";
+  }
+
 }
 bless { };
 

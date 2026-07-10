@@ -1,5 +1,10 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection master;
 FLUSH LOGS;
 CREATE TABLE t1(c1 INT);
 connection slave;

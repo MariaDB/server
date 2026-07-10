@@ -8,7 +8,7 @@
 create table t (a int);
 insert into t values (1),(5),(2),(3),(4);
 
---evalp create table tf (a int, key(a desc)) connection 'mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated
+--evalp create table tf (a int, key(a desc)) connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated
 --sorted_result
 select * from tf;
 --sorted_result

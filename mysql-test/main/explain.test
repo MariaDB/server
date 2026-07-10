@@ -48,7 +48,9 @@ set names latin1;
 #
 # Bug#15463: EXPLAIN SELECT..INTO hangs the client (QB, command line)
 #
+--disable_cursor_protocol
 select 3 into @v1;
+--enable_cursor_protocol
 explain select 3 into @v1;
 
 #
@@ -154,7 +156,9 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (f1 INT not null);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 # EXPLAIN EXTENDED (with subselect). used to crash. should give NOTICE.
@@ -254,7 +258,7 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1(f1 VARCHAR(6) NOT NULL,
-FULLTEXT KEY(f1),UNIQUE(f1));
+FULLTEXT KEY `fulltext` (f1), UNIQUE `unique` (f1));
 INSERT INTO t1 VALUES ('test');
 
 EXPLAIN SELECT 1 FROM t1
@@ -279,6 +283,7 @@ PREPARE stmt FROM
  WHERE t1.f1 GROUP BY t1.f1))';
 
 EXECUTE stmt;
+INSERT into t1 values('test1'),('test2'),('test3'),('test4'),('test5');
 EXECUTE stmt;
 
 DEALLOCATE PREPARE stmt;
@@ -372,3 +377,26 @@ drop table t1;
 explain
 VALUES ( (VALUES (2))) UNION VALUES ( (SELECT 3));
 --enable_ps_protocol
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+EXPLAIN SELECT * FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6);
+EXPLAIN DELETE t2 FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6);
+prepare stmt from "EXPLAIN DELETE t2 FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6)";
+execute stmt;
+execute stmt;
+
+# Cleanup
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

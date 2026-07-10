@@ -363,7 +363,7 @@ tablockman_getlock(TABLOCKMAN *lm, TABLE_LOCK_OWNER *lo,
             We don't really need tmp->waiting_for, as tmp->waiting_for_loid
             is enough.  waiting_for is just a local cache to avoid calling
             loid_to_tlo().
-            But it's essensial that tmp->waiting_for pointer can ONLY
+            But it's essential that tmp->waiting_for pointer can ONLY
             be dereferenced if find_by_loid() above returns a non-null
             pointer, because a TABLE_LOCK_OWNER object that it points to
             may've been freed when we come here after a signal.

@@ -1,0 +1,100 @@
+#
+# Test a case where a vote happens in JOINED state after SST on a writeset
+# that should be skipped. I.e. JOINED node should continue operation.
+#
+
+--source galera_vote_joined_begin.inc
+#
+# At this point state snapshot has been copied, node 1 is operational and
+# we have about 10 seconds while everything we do will go into the replication
+# queue on node 4 which it will have to apply on top of the snapshot.
+#
+
+# Increase replication queue on node_4
+--connection node_1
+CALL p1(130);
+
+#
+# Create a writeset that node 4 won't be able to apply by making node 3
+# inconsisitent
+#
+--connection node_3
+--let $node_3_server_id= `SELECT @@server_id`
+--let $node_3_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$node_3_server_id.expect
+--let $node_3_pid_file= `SELECT @@pid_file`
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+
+# This should cause nodes #1 and #2 to initiate a vote and kick node #3
+# out of the cluster, node #4 should recover the vote when fails to apply
+# the event and continue
+INSERT INTO t2 VALUES (DEFAULT);
+SET SESSION wsrep_on = OFF;
+
+# make sure nodes 1,2 progress far enough for commit cut update
+--connection node_1
+CALL p1(130);
+
+--let $members = 3
+--echo Waiting for server 3 to leave the cluster
+--connection node_1
+--source include/wsrep_wait_membership.inc
+--connection node_2
+--source include/wsrep_wait_membership.inc
+--connection node_4
+# need to wait for extra SST delay on joiner
+--sleep $MTR_SST_JOINER_DELAY
+--sleep $MTR_SST_JOINER_DELAY
+--enable_reconnect
+--let $wait_timeout = 60
+--source include/wsrep_wait_membership.inc
+
+--connection node_3
+--echo Server 3 left the cluster, killing it...
+# Kill the connected server
+--exec echo "wait" > $node_3_expect_file_name
+--let KILL_NODE_PIDFILE = $node_3_pid_file
+--perl
+        my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+        my $mysqld_pid = `cat $pid_filename`;
+        chomp($mysqld_pid);
+        system("kill -9 $mysqld_pid");
+        exit(0);
+EOF
+--echo Killed server 3.
+--source include/wait_until_disconnected.inc
+--echo Restarting server 3...
+--exec echo "restart:$start_mysqld_params" > $node_3_expect_file_name
+
+--echo Waiting for server 3 to rejoin the cluster
+--connection node_1
+--let $members = 3
+--source include/wsrep_wait_membership.inc
+
+--connection node_3
+--echo sleeping for $MTR_SST_JOINER_DELAY
+# need to wait for extra SST delay on joiner
+--sleep $MTR_SST_JOINER_DELAY
+--sleep $MTR_SST_JOINER_DELAY
+--echo Waiting ready
+--enable_reconnect
+--source include/galera_wait_ready.inc
+--echo Server 3 restarted.
+
+--source galera_vote_joined_end.inc
+
+--connection node_1
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
+
+--connection node_2
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
+
+--connection node_3
+CALL mtr.add_suppression("Vote 0 \\(success\\) on .+ is inconsistent with group");
+
+--connection node_4
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");

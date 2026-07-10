@@ -14,7 +14,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INSTALL_MYSQL_TEST("." ".")
+INSTALL_MYSQL_TEST("." "")
+
+IF (NOT CMAKE_REAL_SOURCE_DIR)
+  get_filename_component(CMAKE_REAL_SOURCE_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
+  get_filename_component(CMAKE_REAL_BINARY_DIR "${CMAKE_BINARY_DIR}" REALPATH)
+ENDIF()
 
 IF(NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   # Enable running mtr from build directory

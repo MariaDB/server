@@ -1,0 +1,5 @@
+--source include/have_debug.inc
+
+SET @debug_ref_cursor=TRUE;
+
+--source sp-ref_cursor-fetch-cursor-rowtype-into-cursor-rowtype-bad.test

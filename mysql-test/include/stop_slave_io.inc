@@ -34,8 +34,17 @@ if (!$rpl_debug)
   --disable_query_log
 }
 
-
+let $_enable_warnings=0;
+if ($rpl_allow_error) {
+  if ($ENABLED_WARNINGS) {
+    let $_enable_warnings=1;
+    disable_warnings;
+  }
+}
 STOP SLAVE IO_THREAD;
+if ($_enable_warnings) {
+  enable_warnings;
+}
 --source include/wait_for_slave_io_to_stop.inc
 
 

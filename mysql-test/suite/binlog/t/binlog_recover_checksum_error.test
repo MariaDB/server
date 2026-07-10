@@ -16,7 +16,7 @@ call mtr.add_suppression("Error in Log_event::read_log_event");
 
 # Proof of no crash follows.
 # There's no need for actual bin-loggable queries to the server
---let $restart_parameters=  --master_verify_checksum=ON --debug_dbug="+d,corrupt_read_log_event_char"
+--let $restart_parameters=  --master_verify_checksum=ON --debug_dbug=+d,corrupt_read_log_event_char
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 --let $restart_parameters=

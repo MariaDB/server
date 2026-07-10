@@ -150,28 +150,28 @@ TESTF_bug11763507()
 0
 SHOW FUNCTION STATUS LIKE  'testf_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS WHERE NAME='testf_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS LIKE  'TESTF_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW FUNCTION STATUS WHERE NAME='TESTF_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION testf_bug11763507;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 testf_bug11763507		CREATE DEFINER=`root`@`localhost` FUNCTION `testf_bug11763507`() RETURNS int(11)
 BEGIN
 RETURN 0;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION TESTF_bug11763507;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 TESTF_bug11763507		CREATE DEFINER=`root`@`localhost` FUNCTION `TESTF_bug11763507`() RETURNS int(11)
 BEGIN
 RETURN 0;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL testp_bug11763507();
 PROCEDURE testp_bug11763507
 PROCEDURE testp_bug11763507
@@ -180,28 +180,28 @@ PROCEDURE testp_bug11763507
 PROCEDURE testp_bug11763507
 SHOW PROCEDURE STATUS LIKE  'testp_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE STATUS WHERE NAME='testp_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE STATUS LIKE  'TESTP_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW PROCEDURE STATUS WHERE NAME='TESTP_bug11763507';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE testp_bug11763507;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 testp_bug11763507		CREATE DEFINER=`root`@`localhost` PROCEDURE `testp_bug11763507`()
 BEGIN
 SELECT "PROCEDURE testp_bug11763507";
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE TESTP_bug11763507;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 TESTP_bug11763507		CREATE DEFINER=`root`@`localhost` PROCEDURE `TESTP_bug11763507`()
 BEGIN
 SELECT "PROCEDURE testp_bug11763507";
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name LIKE 'testf_bug11763507';
 specific_name
 testf_bug11763507
@@ -341,7 +341,7 @@ create procedure p1() select * from _t1;
 show create procedure p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 p1		CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
-select * from _t1	latin1	latin1_swedish_ci	latin1_swedish_ci
+select * from _t1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select routine_definition from information_schema.routines where routine_schema=database() and specific_name='p1';
 routine_definition
 select * from _t1
@@ -362,4 +362,64 @@ KILL  (('x' IN ( SELECT 1)) MOD 44);
 ERROR HY000: Unknown thread id: 0
 #
 # End of 10.4 tests
+#
+#
+#  MDEV-24935: Server crashes in Field_iterator_natural_join::next or Field_iterator_table_ref::set_field_iterator upon 2nd execution of SP
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT, c INT);
+CREATE TABLE t3 (d INT);
+CREATE PROCEDURE sp() SELECT * FROM t1 JOIN t2 JOIN t3 USING (x);
+CALL sp;
+ERROR 42S22: Unknown column 'x' in 'FROM'
+CALL sp;
+ERROR 42S22: Unknown column 'x' in 'FROM'
+# Clean up
+DROP PROCEDURE sp;
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (c1 INT,c2 INT);
+CREATE TABLE t2 (c INT,c2 INT);
+CREATE PROCEDURE p2 (OUT i INT,OUT o INT) READS SQL DATA DELETE a2,a3 FROM t1 AS a1 JOIN t2 AS a2 NATURAL JOIN t2 AS a3;
+CALL p2 (@c,@a);
+ERROR 23000: Column 'c2' in FROM is ambiguous
+CALL p2 (@a,@c);
+ERROR 23000: Column 'c2' in FROM is ambiguous
+# Clean up
+DROP PROCEDURE p2;
+DROP TABLE t1, t2;
+#
+# MDEV-34501: SIGSEGV in pfs_start_mutex_wait_v1, __strlen_avx2, or __strlen_evex from safe_mutex_lock on CREATE DEFINER when using skip-grant-tables
+#
+# This test is a duplicate of the one located in the file skip_grants.test
+# and placed here to check the same test case against embedded-server
+CREATE DEFINER=a PROCEDURE p() SELECT 1;
+CREATE DEFINER=a FUNCTION f() RETURNS INT RETURN 100;
+DROP PROCEDURE p;
+DROP FUNCTION f;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-36876 Crash during the Item_subselect::init - outer_select is NULL
+#
+# Vectors are not allowed for SOME/ANY
+select row(1, 2) = some(select row(1, 2));
+ERROR 21000: Operand should contain 1 column(s)
+# Fine
+select 1 = some(select 1) = all(select 1);
+1 = some(select 1) = all(select 1)
+1
+# Comparison between vector and scalar
+select row(1, 2) = some(select 1) = all(select 1);
+ERROR 21000: Operand should contain 2 column(s)
+# Same
+create table t1 (dt datetime(6) default row(1, 2) = some(select 1) = all(select 1));
+ERROR 21000: Operand should contain 1 column(s)
+create procedure test_proc (id varchar(255))
+begin
+declare dt datetime(6) default row(1, 2) = some(select 1) = all(select 1);
+end$$
+drop procedure test_proc;
+#
+# End of 11.8 tests
 #

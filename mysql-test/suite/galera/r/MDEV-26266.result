@@ -1,0 +1,23 @@
+connection node_2;
+connection node_1;
+SET SESSION query_prealloc_size=8192;
+SET max_session_mem_used=50000;
+CREATE TABLE t1 (c1 INT NOT NULL) ENGINE=InnoDB ;
+UPDATE t1 SET c1='1';
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=50000 option so it cannot execute this statement
+SET wsrep_trx_fragment_size=1;
+SET SESSION AUTOCOMMIT=0;
+INSERT INTO t1 VALUES (1);
+SET @inserted_value=REPEAT ('z', 257);
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB ;
+SELECT * FROM t1 WHERE c1='two';
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=50000 option so it cannot execute this statement
+UPDATE t1 SET c1='2';
+INSERT INTO t2 VALUES (2);
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=50000 option so it cannot execute this statement
+INSERT INTO t2 VALUES (3);
+INSERT INTO t2 VALUES (4);
+INSERT INTO t2 VALUES (5);
+CREATE VIEW v1 AS SELECT c1 FROM t1 WHERE c1 IN (SELECT a FROM t2) GROUP BY c1;
+DROP VIEW v1;
+DROP TABLE t1,t2;

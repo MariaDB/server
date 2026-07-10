@@ -74,7 +74,7 @@ DESC `Ｔ８`;
 DESC `Ｔ９`;
 
 #
-# Test problem with enum values after the colum with  NOT NULL restriction
+# Test problem with enum values after the column with  NOT NULL restriction
 #
 
 ALTER TABLE `Ｔ１` ADD `Ｃ２` CHAR(1) NOT NULL FIRST;

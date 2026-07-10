@@ -18,6 +18,7 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) = 1 FROM t1;
 
 CREATE USER foo@localhost;
+GRANT ALL ON test.* to foo@localhost;
 
 --echo # Open connection to node 2 using 'foo' user.
 --let $port_2= \$NODE_MYPORT_2
@@ -47,4 +48,3 @@ DROP TABLE t2;
 SET GLOBAL read_only=FALSE;
 DROP TABLE t1;
 DROP USER foo@localhost;
-

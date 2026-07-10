@@ -1,0 +1,124 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-17226 Column Data in Truncated on UNION to the length of the first value if using REPLACE
+#
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+col1 VARCHAR (2),
+col2 VARCHAR (2),
+PRIMARY KEY (id)
+);
+CREATE TABLE t2 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+col1 VARCHAR (1),
+col2 VARCHAR (2),
+PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ("a", "ba");
+INSERT INTO t2 (col1, col2) VALUES ("a", "ba");
+SELECT 'a' UNION ALL SELECT REPLACE('a', col1, col2) FROM t1;
+a
+a
+ba
+SELECT 'a' UNION ALL SELECT REPLACE('a', col1, col2) FROM t2;
+a
+a
+ba
+SELECT REPLACE('z', col1, col2) FROM t1 UNION ALL SELECT REPLACE('a', col1, col2) FROM t1;
+REPLACE('z', col1, col2)
+z
+ba
+SELECT REPLACE('z', col1, col2) FROM t2 UNION ALL SELECT REPLACE('a', col1, col2) FROM t2;
+REPLACE('z', col1, col2)
+z
+ba
+DROP TABLE t1, t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+col1 VARCHAR (2),
+col2 VARCHAR (2),
+PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', 'ba');
+SELECT REPLACE('a', col1, col2) FROM t1;
+REPLACE('a', col1, col2)
+ba
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('a', col1, col2) FROM t1;
+SELECT * FROM t2;
+a
+a
+ba
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+col1 VARCHAR (1),
+col2 VARCHAR (10),
+PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', '0123456789');
+SELECT REPLACE('aa', col1, col2) FROM t1;
+REPLACE('aa', col1, col2)
+01234567890123456789
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('aa', col1, col2) FROM t1;
+SELECT * FROM t2;
+a
+a
+01234567890123456789
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+col1 VARCHAR (1),
+col2 VARCHAR (20),
+PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', 'aaaaaaaaaabbbbbbbbbb');
+SELECT REPLACE('aa', col1, col2) FROM t1;
+REPLACE('aa', col1, col2)
+aaaaaaaaaabbbbbbbbbbaaaaaaaaaabbbbbbbbbb
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('aa', col1, col2) FROM t1;
+SELECT * FROM t2;
+a
+a
+aaaaaaaaaabbbbbbbbbbaaaaaaaaaabbbbbbbbbb
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(40) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+col1 VARCHAR (1),
+col2 VARCHAR (30),
+PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', 'aaaaaaaaaabbbbbbbbbbcccccccccc');
+SELECT REPLACE('aaa', col1, col2) FROM t1;
+REPLACE('aaa', col1, col2)
+aaaaaaaaaabbbbbbbbbbccccccccccaaaaaaaaaabbbbbbbbbbccccccccccaaaaaaaaaabbbbbbbbbbcccccccccc
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('aaa', col1, col2) FROM t1;
+SELECT * FROM t2;
+a
+a
+aaaaaaaaaabbbbbbbbbbccccccccccaaaaaaaaaabbbbbbbbbbccccccccccaaaaaaaaaabbbbbbbbbbcccccccccc
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(90) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2;
+#
+# End of 10.5 tests
+#

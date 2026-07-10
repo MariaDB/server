@@ -1,0 +1,8 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_trx_fragment_size = 1
+loose-wsrep-features-8 = 1
+
+[mysqld.2]
+loose-wsrep-features-8=1

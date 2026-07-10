@@ -17,7 +17,7 @@
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -78,17 +78,21 @@ DROP TABLE t1;
 
 STOP SLAVE;
 RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
 
 --echo #cleanup
 --connection node_1
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 set global wsrep_on=ON;
 
 --connection node_2
 set global wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 set global wsrep_on=ON;
 
 --connection node_3
+--source include/kill_binlog_dump_threads.inc
 reset master;

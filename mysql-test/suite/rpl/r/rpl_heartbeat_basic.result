@@ -7,6 +7,7 @@ include/stop_slave.inc
 RESET SLAVE;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 
@@ -14,12 +15,12 @@ connection slave;
 *** Default value ***
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root';
 slave_net_timeout/slave_heartbeat_timeout=2.0000
-RESET SLAVE;
+include/reset_slave.inc
 
 *** Reset slave affect ***
 SET @@global.slave_net_timeout=30;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=5;
-RESET SLAVE;
+include/reset_slave.inc
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
 Slave_heartbeat_period	15.000
@@ -31,7 +32,7 @@ SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
 Slave_heartbeat_period	25.000
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
-RESET SLAVE;
+include/reset_slave.inc
 
 *** Warning if updated slave_net_timeout < slave_heartbeat_timeout ***
 SET @@global.slave_net_timeout=FLOOR(SLAVE_HEARTBEAT_TIMEOUT)-1;
@@ -145,7 +146,7 @@ SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
 Slave_heartbeat_period	0.001
 RESET SLAVE;
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.0009;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.00049;
 Warnings:
 Warning	1703	The requested value for the heartbeat period is less than 1 millisecond. The value is reset to 0, meaning that heartbeating will effectively be disabled
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
@@ -154,21 +155,21 @@ Slave_heartbeat_period	0.000
 RESET SLAVE;
 
 *** Max slave_heartbeat_timeout ***
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=4294967;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=4294967.295;
 Warnings:
 Warning	1704	The requested value for the heartbeat period exceeds the value of `slave_net_timeout' seconds. A sensible value for the period should be less than the timeout
 SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
 Variable_name	Value
-Slave_heartbeat_period	4294967.000
+Slave_heartbeat_period	4294967.295
 RESET SLAVE;
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=4294968;
-ERROR HY000: The requested value for the heartbeat period is either negative or exceeds the maximum allowed (4294967 seconds)
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=4294967.296;
+ERROR HY000: The requested value for the heartbeat period is either negative or exceeds the maximum allowed (4294967.295 seconds)
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=8589935;
-ERROR HY000: The requested value for the heartbeat period is either negative or exceeds the maximum allowed (4294967 seconds)
+ERROR HY000: The requested value for the heartbeat period is either negative or exceeds the maximum allowed (4294967.295 seconds)
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=4294967296;
-ERROR HY000: The requested value for the heartbeat period is either negative or exceeds the maximum allowed (4294967 seconds)
+ERROR HY000: The requested value for the heartbeat period is either negative or exceeds the maximum allowed (4294967.295 seconds)
 RESET SLAVE;
 
 *** Misc incorrect values ***
@@ -180,6 +181,18 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD='';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '''' at line 1
+RESET SLAVE;
+
+*** MDEV-38454: MASTER_HEARTBEAT_PERIOD should accept + sign ***
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=+60;
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	60.000
+RESET SLAVE;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=60;
+SHOW GLOBAL STATUS LIKE 'slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	60.000
 RESET SLAVE;
 
 *** Running slave ***
@@ -223,11 +236,15 @@ INSERT INTO t1 VALUES (1, 'on slave', NULL);
 connection master;
 INSERT INTO t1 VALUES (1, 'on master', NULL);
 connection slave;
+set sql_log_bin= 0;
 call mtr.add_suppression("Slave SQL.*Duplicate entry .1. for key .PRIMARY.. on query.* error.* 1062");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
+set sql_log_bin= 1;
 Heartbeat events are received while sql thread stopped (1 means 'yes'): 1
-include/stop_slave.inc
+include/stop_slave_io.inc
+set sql_log_bin= 0;
 DROP TABLE t1;
+set sql_log_bin= 1;
 
 *** Master send to slave ***
 connection master;
@@ -240,7 +257,9 @@ END|
 Warnings:
 Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 connection slave;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-2. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=5;
 include/start_slave.inc
 connection master;
@@ -256,10 +275,13 @@ connection slave;
 
 *** Flush logs on slave ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+set sql_log_bin= 0;
 DROP TABLE t1;
+set sql_log_bin= 1;
 connection master;
 DROP TABLE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.5;
@@ -271,7 +293,7 @@ connection master;
 SET @@global.slave_compressed_protocol=1;
 connection slave;
 include/stop_slave.inc
-RESET SLAVE;
+include/reset_slave.inc
 SET @@global.slave_compressed_protocol=1;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
@@ -283,18 +305,21 @@ SET @@global.slave_compressed_protocol=0;
 *** Reset master ***
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
+connection master;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+connection slave;
 include/start_slave.inc
 connection master;
-RESET MASTER;
 connection slave;
 Heartbeat events are received after reset of master (1 means 'yes'): 1
 
 *** Reload master ***
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
 include/start_slave.inc
 Heartbeat event received

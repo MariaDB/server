@@ -1,0 +1,268 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+INSERT INTO t2 VALUES (0, REPEAT("x", 2048));
+INSERT INTO t2 SELECT a+1, b FROM t2;
+INSERT INTO t2 SELECT a+2, b FROM t2;
+INSERT INTO t2 SELECT a+4, b FROM t2;
+INSERT INTO t2 SELECT a+8, b FROM t2;
+
+--let $binlog_name= binlog-000001.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+
+# Flush couple logs so we are sure the first file is on disk.
+# Corrupt one bit in the first data page of the first file to test that crc32
+# mismatch is caught.
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression("InnoDB: Page corruption in binlog tablespace file page number 1");
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+--let $file= binlog-000000.ibb
+--let $datadir= `SELECT @@datadir`
+--let BINLOG_FILE= $datadir/$file
+perl;
+my $pos= 16384 + 50;  # Early byte in page 1 (page 0 is file header).
+open F, '+<', $ENV{BINLOG_FILE} or die $!;
+sysseek F, $pos, 0 or die $!;
+my $x;
+sysread F, $x, 1 or die $!;
+$x= chr(ord($x) ^ (1 <<3));
+sysseek F, $pos, 0 or die $!;
+syswrite F, $x, 1 or die $!;
+EOF
+
+--error ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
+eval SHOW BINLOG EVENTS IN '$file' LIMIT 1;
+
+
+--source include/reset_master.inc
+--let $binlog_name= binlog-000001.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+
+INSERT INTO t1 VALUES (100);
+INSERT INTO t2 VALUES (100, 'xyzzy');
+
+DROP TABLE t1, t2;
+
+# Test purge by size
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
+
+SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge= 1;
+--error ER_LOG_IN_USE
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+SHOW WARNINGS;
+SET GLOBAL slave_connections_needed_for_purge= 0;
+--error ER_LOG_IN_USE
+PURGE BINARY LOGS TO 'binlog-000001.ibb';
+SHOW WARNINGS;
+SET @old_max_total= @@GLOBAL.max_binlog_total_size;
+SET GLOBAL max_binlog_total_size= 4*@@GLOBAL.max_binlog_size;
+SET SESSION binlog_format= ROW;
+--let $num_trx= 1500
+--echo *** Do $num_trx transactions ...
+--disable_query_log
+--let $i= 0
+while ($i < $num_trx) {
+  eval INSERT INTO t1 VALUES ($i+100000, REPEAT("x", 2048));
+  inc $i;
+}
+--enable_query_log
+# The precise point at which we move to the next binlog file depends on the
+# exact size of binlogged transactions, which might change as server code is
+# developed, and then this test will fail with a different set of binlog files
+# appearing in SHOW BINARY LOGS.
+#
+# In this case, just check that the general structure of the present binlogs
+# is similar, and then update the $binlog_name waited for and the .result file.
+--let $binlog_name= binlog-000010.ibb
+--let $binlog_size= 262144
+--let $wait_notfound= 1
+--source include/wait_for_engine_binlog.inc
+--let $binlog_name= binlog-000014.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+
+--echo *** Test purge by date.
+SET GLOBAL max_binlog_total_size= 0;
+SET @old_expire= @@GLOBAL.binlog_expire_logs_seconds;
+SET GLOBAL binlog_expire_logs_seconds= 1;
+--sleep 2
+--let $num_insert= `SELECT floor(256*1.5*1024/2100)`
+--echo *** Do $num_insert inserts ...
+--disable_query_log
+BEGIN;
+--let $i= 0
+while ($i < $num_insert) {
+  eval INSERT INTO t1 VALUES ($i+200000, REPEAT("x", 2048));
+  inc $i;
+}
+COMMIT;
+--enable_query_log
+--let $binlog_name= binlog-000012.ibb
+--let $binlog_size= 262144
+--let $wait_notfound= 1
+--source include/wait_for_engine_binlog.inc
+# SHOW BINARY LOGS here will not be stable.
+# We can wait for the log before the --sleep 2 to expire.
+# But the next log might also expire, if there is a random delay sufficiently
+# long before the automatic purge runs.
+#SHOW BINARY LOGS;
+
+SET GLOBAL binlog_expire_logs_seconds= 0;
+
+--let $num_trx= 1000
+--echo *** Do $num_trx transactions ...
+--disable_query_log
+--let $i= 0
+while ($i < $num_trx) {
+  eval INSERT INTO t1 VALUES ($i+300000, REPEAT("x", 2048));
+  inc $i;
+}
+--enable_query_log
+
+--let $binlog_name= binlog-000025.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+--sleep 1
+SET @now= NOW();
+--sleep 1
+--let $num_insert= `SELECT floor(256*1.0*1024/2100)`
+--echo *** Do $num_insert inserts ...
+--disable_query_log
+BEGIN;
+--let $i= 0
+while ($i < $num_insert) {
+  eval INSERT INTO t1 VALUES ($i+400000, REPEAT("x", 2048));
+  inc $i;
+}
+COMMIT;
+--enable_query_log
+# We need to wait for 26 to be pre-allocated here, so we know that 24 has been
+# fully written to disk. Otherwise 24 may still be in the buffer pool, and the
+# file date can be older than @now and then the PURGE ... BEFORE @now below
+# fails.
+--let $binlog_name= binlog-000026.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+PURGE BINARY LOGS BEFORE @now;
+--let $binlog_name= binlog-000023.ibb
+--let $binlog_size= 262144
+--let $wait_notfound= 1
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+
+--echo *** Test PURGE BINARY LOGS TO
+--let $current= query_get_value(SHOW BINARY LOGS, Log_name, 3)
+--error ER_LOG_IN_USE
+eval PURGE BINARY LOGS TO '$current';
+SHOW WARNINGS;
+SHOW BINARY LOGS;
+--let $num_insert= `SELECT floor(256*3.5*1024/2100)`
+--echo *** Do $num_insert inserts ...
+--disable_query_log
+BEGIN;
+--let $i= 0
+while ($i < $num_insert) {
+  eval INSERT INTO t1 VALUES ($i+500000, REPEAT("x", 2048));
+  inc $i;
+}
+COMMIT;
+--enable_query_log
+--let $binlog_name= binlog-000030.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+eval PURGE BINARY LOGS TO '$current';
+--let $binlog_name= binlog-000025.ibb
+--let $binlog_size= 262144
+--let $wait_notfound= 1
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+
+
+--error ER_UNKNOWN_TARGET_BINLOG
+PURGE BINARY LOGS TO 'binlog-999999.ibb';
+SHOW WARNINGS;
+
+--echo *** Test purging logs when setting the maximum size.
+SET GLOBAL max_binlog_total_size= ceil(1.5*@@GLOBAL.max_binlog_size);
+SHOW BINARY LOGS;
+
+SET SESSION binlog_format= MIXED;
+DROP TABLE t1;
+
+SET GLOBAL max_binlog_total_size= @old_max_total;
+SET GLOBAL binlog_expire_logs_seconds= @old_expire;
+
+
+--echo *** Test FLUSH BINARY LOGS DELETE_DOMAIN_ID.
+
+# Test that deleting only non-existing domain succeeds with a warning.
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101);
+
+SET SESSION gtid_domain_id= 1;
+SET SESSION gtid_seq_no= 1000;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 2), (3, 0), (4, 5), (5, 0), (6, 3), (7, 4), (8, 8);
+SET SESSION gtid_domain_id= 2;
+SET SESSION gtid_seq_no= 100;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (10, 0), (11, 0), (12, 0);
+SELECT @@GLOBAL.gtid_binlog_state;
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
+SELECT @@GLOBAL.gtid_binlog_state;
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000032.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+PURGE BINARY LOGS TO 'binlog-000031.ibb';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(101, 2);
+SELECT @@GLOBAL.gtid_binlog_state;
+
+# Test that deletion of domains in the state got persisted to disk.
+--let $binlog_name= binlog-000033.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+--source include/restart_mysqld.inc
+SELECT @@GLOBAL.gtid_binlog_state;
+
+
+# Test dynamically changing the max binlog size.
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+--let $binlog_size= 1048576
+eval SET GLOBAL max_binlog_size= $binlog_size;
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000034.ibb
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+SET GLOBAL max_binlog_size= @old_max_size;
+
+
+DROP TABLE t1;
+
+# No need to restore @@GLOBAL.slave_connections_needed_for_purge, as we
+# restarted the server.

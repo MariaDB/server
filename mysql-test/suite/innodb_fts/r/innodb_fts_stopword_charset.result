@@ -12,7 +12,7 @@ SET NAMES utf8;
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
@@ -24,7 +24,7 @@ id	title
 2	LOVE
 3	lòve
 4	LÒVE
-CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB;
+CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB CHARSET=latin1;
 INSERT INTO user_stopword VALUES('lòve');
 SET GLOBAL innodb_ft_server_stopword_table = 'test/user_stopword';
 DROP INDEX ft_idx ON articles;
@@ -232,7 +232,7 @@ DROP TABLE user_stopword;
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
@@ -244,7 +244,7 @@ id	title
 2	LOVE
 3	lòve
 4	LÒVE
-CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB;
+CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB CHARSET=latin1;
 INSERT INTO user_stopword VALUES('lòve');
 SET GLOBAL innodb_ft_server_stopword_table = 'test/user_stopword';
 DROP INDEX ft_idx ON articles;
@@ -269,11 +269,11 @@ AGAINST ('love' IN NATURAL LANGUAGE MODE);
 id	title
 DROP TABLE articles;
 DROP TABLE user_stopword;
-# Test 9 : drop user stopwrod table,test shutdown to check if it works
+# Test 9 : drop user stopword table,test shutdown to check if it works
 CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
@@ -285,7 +285,7 @@ id	title
 2	LOVE
 3	lòve
 4	LÒVE
-CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB;
+CREATE TABLE user_stopword(value varchar(30)) ENGINE = InnoDB CHARSET=latin1;
 INSERT INTO user_stopword VALUES('lòve');
 SET GLOBAL innodb_ft_server_stopword_table = 'test/user_stopword';
 DROP INDEX ft_idx ON articles;

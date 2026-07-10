@@ -1,5 +1,5 @@
---- analyze_table.result	2013-01-22 22:05:05.246633000 +0400
-+++ analyze_table.reject	2013-01-23 02:50:11.912102699 +0400
+--- analyze_table.result
++++ analyze_table.reject
 @@ -5,25 +5,25 @@
  INSERT INTO t1 (a,b) VALUES (3,'c');
  ANALYZE TABLE t1;

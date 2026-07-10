@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-/* qsort that sends one extra argument to the compare subrutine */
+/* qsort that sends one extra argument to the compare subroutine */
 
 #define QSORT_EXTRA_CMP_ARGUMENT
 #include "mf_qsort.c"

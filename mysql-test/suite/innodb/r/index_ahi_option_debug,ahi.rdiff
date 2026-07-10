@@ -1,0 +1,86 @@
+--- index_ahi_option_debug.result
++++ index_ahi_option_debug,ahi.reject
+@@ -4,7 +4,7 @@
+ # Test InnoDB index-level adaptive_hash_index options (debug)
+ #
+ SET @start_global_value= @@global.innodb_adaptive_hash_index;
+-SET @combination_value= 'OFF';
++SET @combination_value= 'ON';
+ SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+ CREATE TABLE t1_ahi_default (
+ id INT PRIMARY KEY,
+@@ -17,10 +17,10 @@
+ SET GLOBAL innodb_monitor_enable= module_adaptive_hash;
+ CALL run_and_check_idx(240, 1, 't1_ahi_default');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_ahi_default');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_ahi_default');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -32,7 +32,7 @@
+ # No AHI used in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_ahi_no');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_ahi_no');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -41,10 +41,10 @@
+ RENAME TABLE t1 TO t1_ahi_yes;
+ CALL run_and_check_idx(240, 1, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_ahi_yes');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -55,10 +55,10 @@
+ ALTER TABLE t1_ahi_yes ADD INDEX idx_8 (col3, col2, col1) complete_fields=4 bytes_from_incomplete_field=1  /* bytes_from_incomplete_field=1 is inapplicable since complete_fields=4 covers all unique fields (col3 + col2 + col1 + id), will get reset to 0 in innodb_ahi_enable() */;
+ CALL run_and_check_idx(240, 4, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_4)
++# Used AHI in SELECT (idx_4)
+ CALL run_and_check_idx(240, 5, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_5)
++# Used AHI in SELECT (idx_5)
+ CALL run_and_check_idx(240, 6, 't1_ahi_yes');
+ result_msg
+ # No AHI used in SELECT (idx_6)
+@@ -67,7 +67,7 @@
+ # No AHI used in SELECT (idx_7)
+ CALL run_and_check_idx(240, 8, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_8)
++# Used AHI in SELECT (idx_8)
+ DROP TABLE t1_ahi_yes;
+ SET GLOBAL DEBUG_DBUG=@orig_debug;
+ #
+@@ -81,7 +81,7 @@
+ INSERT INTO t1_ahi_default_2 SELECT seq, seq FROM seq_0_to_255;
+ CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ connect con1, localhost, root;
+ CALL run_and_check_idx(-1, 1, 't1_ahi_default_2');;
+ connection default;
+@@ -100,7 +100,7 @@
+ SET GLOBAL innodb_adaptive_hash_index= @combination_value;
+ CALL run_and_check_idx(240, 1, 't1_ahi_default_2');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ KILL con1_id;
+ connection con1;
+ Got one of the listed errors

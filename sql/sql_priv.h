@@ -27,71 +27,6 @@
 #ifndef SQL_PRIV_INCLUDED
 #define SQL_PRIV_INCLUDED
 
-#ifndef MYSQL_CLIENT
-
-/*
-  Generates a warning that a feature is deprecated. After a specified
-  version asserts that the feature is removed.
-
-  Using it as
-
-  WARN_DEPRECATED(thd, 6,2, "BAD", "'GOOD'");
-
-  Will result in a warning
- 
-  "The syntax 'BAD' is deprecated and will be removed in MySQL 6.2. Please
-   use 'GOOD' instead"
-
-   Note that in macro arguments BAD is not quoted, while 'GOOD' is.
-   Note that the version is TWO numbers, separated with a comma
-   (two macro arguments, that is)
-*/
-#define WARN_DEPRECATED(Thd,VerHi,VerLo,Old,New)                            \
-  do {                                                                      \
-    compile_time_assert(MYSQL_VERSION_ID < VerHi * 10000 + VerLo * 100);    \
-    if (((THD *) Thd) != NULL)                                              \
-      push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
-                         ER_WARN_DEPRECATED_SYNTAX,                          \
-                         ER_THD(((THD *) Thd), ER_WARN_DEPRECATED_SYNTAX), \
-                         (Old), (New));                                      \
-    else                                                                    \
-      sql_print_warning("The syntax '%s' is deprecated and will be removed " \
-                        "in a future release. Please use %s instead.",      \
-                        (Old), (New));                                      \
-  } while(0)
-
-
-/*
-  Generates a warning that a feature is deprecated and there is no replacement.
-
-  Using it as
-
-  WARN_DEPRECATED_NO_REPLACEMENT(thd, "BAD");
-
-  Will result in a warning
- 
-  "'BAD' is deprecated and will be removed in a future release."
-
-   Note that in macro arguments BAD is not quoted.
-*/
-
-#define WARN_DEPRECATED_NO_REPLACEMENT(Thd,Old)                             \
-  do {                                                                      \
-    THD *thd_= ((THD*) Thd);                                                \
-    if (thd_ != NULL)                                                       \
-      push_warning_printf(thd_, Sql_condition::WARN_LEVEL_WARN,             \
-                         ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,          \
-                         ER_THD(thd_, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT), \
-                         (Old));                                            \
-    else                                                                    \
-      sql_print_warning("'%s' is deprecated and will be removed "           \
-                        "in a future release.", (Old));                     \
-  } while(0)
-
-/*************************************************************************/
-
-#endif
-
 /*
    This is included in the server and in the client.
    Options for select set by the yacc parser (stored in lex->options).
@@ -147,8 +82,7 @@
 #define OPTION_RELAXED_UNIQUE_CHECKS    (1ULL << 27) // THD, user, binlog
 #define OPTION_IF_EXISTS                (1ULL << 28) // binlog
 #define OPTION_SCHEMA_TABLE             (1ULL << 29) // SELECT, intern
-/** Flag set if setup_tables already done */
-#define OPTION_SETUP_TABLES_DONE        (1ULL << 30) // intern
+#define OPTION_INSERT_HISTORY           (1ULL << 30)
 /** If not set then the thread will ignore all warnings with level notes. */
 #define OPTION_SQL_NOTES                (1ULL << 31) // THD, user
 /**
@@ -187,6 +121,8 @@
 #define OPTION_BIN_COMMIT_OFF           (1ULL << 43)
 /* The following is used to detect a conflict with DISTINCT */
 #define SELECT_ALL              (1ULL << 44)    // SELECT, user, parser
+/** Flag set if setup_tables already done */
+#define OPTION_SETUP_TABLES_DONE        (1ULL << 45) // intern
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 
@@ -199,12 +135,12 @@
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION    (1ULL << 2)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT     (1ULL << 3)
 #define OPTIMIZER_SWITCH_INDEX_MERGE_SORT_INTERSECT (1ULL << 4)
-#define deprecated_ENGINE_CONDITION_PUSHDOWN       (1ULL << 5)
-#define OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN       (1ULL << 6)
-#define OPTIMIZER_SWITCH_DERIVED_MERGE             (1ULL << 7)
-#define OPTIMIZER_SWITCH_DERIVED_WITH_KEYS         (1ULL << 8)
-#define OPTIMIZER_SWITCH_FIRSTMATCH                (1ULL << 9)
-#define OPTIMIZER_SWITCH_LOOSE_SCAN                (1ULL << 10)
+#define OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN       (1ULL << 5)
+#define OPTIMIZER_SWITCH_DERIVED_MERGE             (1ULL << 6)
+#define OPTIMIZER_SWITCH_DERIVED_WITH_KEYS         (1ULL << 7)
+#define OPTIMIZER_SWITCH_FIRSTMATCH                (1ULL << 8)
+#define OPTIMIZER_SWITCH_LOOSE_SCAN                (1ULL << 9)
+#define OPTIMIZER_SWITCH_DUPSWEEDOUT               (1ULL << 10)
 #define OPTIMIZER_SWITCH_MATERIALIZATION           (1ULL << 11)
 #define OPTIMIZER_SWITCH_IN_TO_EXISTS              (1ULL << 12)
 #define OPTIMIZER_SWITCH_SEMIJOIN                  (1ULL << 13)
@@ -238,38 +174,57 @@
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
 #define OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN       (1ULL << 35)
 #define OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY     (1ULL << 36)
+#define OPTIMIZER_SWITCH_CSET_NARROWING            (1ULL << 37)
+#define OPTIMIZER_SWITCH_SARGABLE_CASEFOLD         (1ULL << 38)
+#define OPTIMIZER_SWITCH_REORDER_OUTER_JOINS       (1ULL << 39)
 
-#define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
-                                    OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
-                                    OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION | \
-                                    OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT | \
-                                    OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN | \
-                                    OPTIMIZER_SWITCH_DERIVED_MERGE | \
-                                    OPTIMIZER_SWITCH_DERIVED_WITH_KEYS | \
-                                    OPTIMIZER_SWITCH_TABLE_ELIMINATION | \
-                                    OPTIMIZER_SWITCH_EXTENDED_KEYS | \
-                                    OPTIMIZER_SWITCH_IN_TO_EXISTS | \
-                                    OPTIMIZER_SWITCH_MATERIALIZATION | \
-                                    OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE|\
-                                    OPTIMIZER_SWITCH_PARTIAL_MATCH_TABLE_SCAN|\
-                                    OPTIMIZER_SWITCH_OUTER_JOIN_WITH_CACHE | \
-                                    OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE | \
-                                    OPTIMIZER_SWITCH_JOIN_CACHE_INCREMENTAL | \
-                                    OPTIMIZER_SWITCH_JOIN_CACHE_HASHED | \
-                                    OPTIMIZER_SWITCH_JOIN_CACHE_BKA | \
-                                    OPTIMIZER_SWITCH_SUBQUERY_CACHE | \
-                                    OPTIMIZER_SWITCH_SEMIJOIN | \
-                                    OPTIMIZER_SWITCH_FIRSTMATCH | \
-                                    OPTIMIZER_SWITCH_LOOSE_SCAN | \
-                                    OPTIMIZER_SWITCH_EXISTS_TO_IN | \
-                                    OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
-                                    OPTIMIZER_SWITCH_SPLIT_MATERIALIZED | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY | \
-                                    OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
-                                    OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
 
+/*
+  Tests that need to be updated after changing OPTIMIZER_SWITCH_DEFAULT:
+
+  ./mysql-test-run --force --mem
+      main.mysqld--help \
+      main.mysqltest_tracking_info \
+      sys_vars.optimizer_switch_basic \
+      sysschema.optimizer_switch
+*/
+#define OPTIMIZER_SWITCH_DEFAULT (OPTIMIZER_SWITCH_INDEX_MERGE | \
+                                  OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
+                                  OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION | \
+                                  OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT | \
+                                  OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN | \
+                                  OPTIMIZER_SWITCH_DERIVED_MERGE | \
+                                  OPTIMIZER_SWITCH_DERIVED_WITH_KEYS | \
+                                  OPTIMIZER_SWITCH_TABLE_ELIMINATION | \
+                                  OPTIMIZER_SWITCH_EXTENDED_KEYS | \
+                                  OPTIMIZER_SWITCH_IN_TO_EXISTS | \
+                                  OPTIMIZER_SWITCH_MATERIALIZATION | \
+                                  OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE|\
+                                  OPTIMIZER_SWITCH_PARTIAL_MATCH_TABLE_SCAN|\
+                                  OPTIMIZER_SWITCH_OUTER_JOIN_WITH_CACHE | \
+                                  OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE | \
+                                  OPTIMIZER_SWITCH_JOIN_CACHE_INCREMENTAL | \
+                                  OPTIMIZER_SWITCH_JOIN_CACHE_HASHED | \
+                                  OPTIMIZER_SWITCH_JOIN_CACHE_BKA | \
+                                  OPTIMIZER_SWITCH_SUBQUERY_CACHE | \
+                                  OPTIMIZER_SWITCH_SEMIJOIN | \
+                                  OPTIMIZER_SWITCH_FIRSTMATCH | \
+                                  OPTIMIZER_SWITCH_LOOSE_SCAN | \
+                                  OPTIMIZER_SWITCH_DUPSWEEDOUT | \
+                                  OPTIMIZER_SWITCH_EXISTS_TO_IN | \
+                                  OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
+                                  OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
+                                  OPTIMIZER_SWITCH_SPLIT_MATERIALIZED | \
+                                  OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY |\
+                                  OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
+                                  OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
+                                  OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE |\
+                                  OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY |\
+                                  OPTIMIZER_SWITCH_CSET_NARROWING  |\
+                                  OPTIMIZER_SWITCH_SARGABLE_CASEFOLD)
+
+#define OPTIMIZER_ADJ_DEFAULT (OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF | \
+                               OPTIMIZER_ADJ_FIX_CARD_MULT)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should
@@ -316,11 +271,14 @@
 
 
 /*
-  Uncachable causes:
+  Uncacheable causes:
 */
 /* This subquery has fields from outer query (put by user) */
 #define UNCACHEABLE_DEPENDENT_GENERATED   1
-/* This subquery contains functions with random result */
+/*
+  This subquery contains functions with random result.
+  Something that is uncacheable is by default unmergeable.
+*/
 #define UNCACHEABLE_RAND        2
 /* This subquery contains functions with side effect */
 #define UNCACHEABLE_SIDEEFFECT	4

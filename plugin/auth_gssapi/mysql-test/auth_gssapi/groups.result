@@ -1,6 +1,3 @@
-INSTALL SONAME 'auth_gssapi';
-Warnings:
-Note	1105	SSPI: using principal name 'localhost', mech 'Negotiate'
 CREATE USER 'nosuchgroup' IDENTIFIED WITH gssapi AS 'GROUP:nosuchgroup';
 connect(localhost,nosuchuser,,test,MASTER_MYPORT,MASTER_MYSOCK);
 connect  con1,localhost,nosuchuser,,;
@@ -41,4 +38,3 @@ connect  con1,localhost,me_sid,,;
 disconnect con1;
 connection default;
 DROP USER me_sid;
-UNINSTALL SONAME 'auth_gssapi';

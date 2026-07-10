@@ -10,7 +10,7 @@ INSERT INTO t2 VALUES(0);
 # Without fix, an error is reported.
 INSERT IGNORE INTO t2 VALUES(1);
 Warnings:
-Warning	1452	Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
+Warning	1452	Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 UPDATE IGNORE t2 SET fld2=20 WHERE fld2=0;
 UPDATE IGNORE t1 SET fld1=20 WHERE fld1=0;
 # Test for multi update.
@@ -18,15 +18,15 @@ UPDATE IGNORE t1, t2 SET t2.fld2= t2.fld2 + 3;
 UPDATE IGNORE t1, t2 SET t1.fld1= t1.fld1 + 3;
 # Reports an error since IGNORE is not used.
 INSERT INTO t2 VALUES(1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 UPDATE t2 SET fld2=20 WHERE fld2=0;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 UPDATE t1 SET fld1=20 WHERE fld1=0;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 UPDATE t1, t2 SET t2.fld2= t2.fld2 + 3;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 UPDATE t1, t2 SET t1.fld1= t1.fld1 + 3;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`fld2`) REFERENCES `t1` (`fld1`))
 DROP TABLE t2, t1;
 #
 # BUG#22037930: INSERT IGNORE FAILS TO IGNORE FOREIGN
@@ -49,9 +49,14 @@ DROP TABLE t2, t1;
 #
 CREATE TEMPORARY TABLE v0 ( v1 TEXT ( 15 ) CHAR SET BINARY NOT NULL NOT NULL UNIQUE CHECK ( v1 ) ) REPLACE SELECT NULL AS v3 , 74 AS v2 ;
 ERROR HY000: Field 'v1' doesn't have a default value
+SET @@sql_mode='';
 CREATE TEMPORARY TABLE t1 (i TEXT(15) NOT NULL DEFAULT '' UNIQUE CHECK (i)) engine=innodb
 REPLACE SELECT NULL AS a;
 ERROR 23000: CONSTRAINT `t1.i` failed for `test`.`t1`
+SET @@sql_mode=DEFAULT;
+CREATE TEMPORARY TABLE t1 (i TEXT(15) NOT NULL DEFAULT '' UNIQUE CHECK (i)) engine=innodb
+REPLACE SELECT NULL AS a;
+ERROR 22007: Truncated incorrect BOOLEAN value: ''
 #
 # End of 10.5 tests
 #

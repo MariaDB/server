@@ -958,6 +958,20 @@ while (`SELECT HEX(@commands) != HEX('')`)
     # due to BUG#13692513.
     --connection server_1
     --source include/show_binlog_events.inc
+    connection master;
+    let $master_tt_xx_count=`select count(*) from tt_xx_1`;
+    let $master_nt_xx_count=`select count(*) from nt_xx_1`;
+    sync_slave_with_master;
+    let $slave_tt_xx_count=`select count(*) from tt_xx_1`;
+    let $slave_nt_xx_count=`select count(*) from nt_xx_1`;
+    if ($slave_tt_xx_count != $master_tt_xx_count)
+    {
+      --echo # Error: Data mismatch in tt_xx_1:  Master: $master_tt_xx_count rows  Slave: $slave_tt_xx_count rows
+    }
+    if ($slave_nt_xx_count != $master_nt_xx_count)
+    {
+      --echo # Error: Data mismatch in nt_xx_1:  Master: $master_nt_xx_count rows  Slave: $slave_nt_xx_count rows
+    }
     --connection master
     --echo -e-e-e-e-e-e-e-e-e-e-e- >> $commands << -e-e-e-e-e-e-e-e-e-e-e-
     --echo
@@ -1038,6 +1052,8 @@ while (`SELECT HEX(@commands) != HEX('')`)
       }
       --dec $n
     }
+    truncate table tt_xx_1;
+    truncate table nt_xx_1;
     --enable_warnings 
 
     let $pos_trans_command= query_get_value("SHOW MASTER STATUS", Position, 1);

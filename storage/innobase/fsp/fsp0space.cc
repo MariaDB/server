@@ -28,6 +28,7 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 #include "fsp0fsp.h"
 #include "os0file.h"
 #include "my_sys.h"
+#include "lex_ident.h"
 
 /** Check if two tablespaces have common data file names.
 @param other_space	Tablespace to check against this.
@@ -112,6 +113,7 @@ Tablespace::open_or_create(bool is_temp)
 		/* We can close the handle now and open the tablespace
 		the proper way. */
 		it->close();
+		mysql_mutex_lock(&fil_system.mutex);
 
 		if (it == begin()) {
 			/* First data file. */
@@ -130,18 +132,9 @@ Tablespace::open_or_create(bool is_temp)
 				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
 			}
 
-			mysql_mutex_lock(&fil_system.mutex);
 			space = fil_space_t::create(
-				m_space_id, fsp_flags,
-				is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				NULL);
-			if (!space) {
-				mysql_mutex_unlock(&fil_system.mutex);
-				return DB_ERROR;
-			}
-		} else {
-			mysql_mutex_lock(&fil_system.mutex);
+				uint32_t(m_space_id), fsp_flags,
+				false, nullptr);
 		}
 		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
 			   false, true);
@@ -156,9 +149,10 @@ Tablespace::open_or_create(bool is_temp)
 bool
 Tablespace::find(const char* filename) const
 {
+	const Lex_ident_column filename_ident = Lex_cstring_strlen(filename);
 	for (const_iterator it = begin(); it != end(); ++it) {
 
-		if (innobase_strcasecmp(filename, it->m_filename) == 0) {
+		if (filename_ident.streq(Lex_cstring_strlen(it->m_filename))) {
 			return(true);
 		}
 	}

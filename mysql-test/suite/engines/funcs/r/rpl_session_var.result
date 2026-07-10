@@ -1,5 +1,16 @@
 include/master-slave.inc
 [connection master]
+select @@rpl_semi_sync_master_enabled;
+@@rpl_semi_sync_master_enabled
+0
+connection slave;
+select @@rpl_semi_sync_slave_enabled;
+@@rpl_semi_sync_slave_enabled
+0
+show status like "rpl_semi_sync_slave_status";
+Variable_name	Value
+Rpl_semi_sync_slave_status	OFF
+connection master;
 drop table if exists t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'

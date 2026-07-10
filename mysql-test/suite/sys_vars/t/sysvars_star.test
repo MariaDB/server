@@ -15,7 +15,7 @@ set global low_priority_updates=1;
 install soname 'sql_errlog';
 
 vertical_results;
-replace_regex /\/.*\//var\//;
+replace_regex /(C:)?\/.*\//var\//;
 select * from information_schema.system_variables
   where variable_name in (
     'completion_type',                #session!=global, origin=compile-time
@@ -32,12 +32,10 @@ create user foo@localhost;
 connect foo,localhost,foo;
 select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
 connection default;
-replace_regex /\/.*\//var\//;
+replace_regex /(C:)?\/.*\//var\//;
 select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
 disconnect foo;
 drop user foo@localhost;
 set global low_priority_updates=default;
 disable_warnings;
 uninstall soname 'sql_errlog';
-let $count_sessions= 1;
-source include/wait_until_count_sessions.inc;

@@ -109,7 +109,7 @@ SELECT @@slave_transaction_retries = @@global.slave_transaction_retries;
 SET slave_transaction_retries = 2048;
 ERROR HY000: Variable 'slave_transaction_retries' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT slave_transaction_retries;
-ERROR 42S22: Unknown column 'slave_transaction_retries' in 'field list'
+ERROR 42S22: Unknown column 'slave_transaction_retries' in 'SELECT'
 SELECT @@slave_transaction_retries;
 @@slave_transaction_retries
 3600

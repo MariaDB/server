@@ -24,7 +24,6 @@
 #include <errno.h>
 
 static const char *VER= "1.1";
-static char *progname;
 static my_bool verbose;
 
 void usage(void);
@@ -50,7 +49,7 @@ get_one_option(const struct my_option *opt,
 {
   switch(opt->id) {
   case 'V':
-    printf("%s version %s by Jani Tolonen\n", progname, VER);
+    printf("%s version %s by Jani Tolonen\n", my_progname, VER);
     exit(0);
   case 'I':
   case '?':
@@ -65,7 +64,7 @@ int main(int argc, char *argv[])
 {
   int pid= 0, t= 0, sig= 0;
 
-  progname= argv[0];
+  MY_INIT(argv[0]);
 
   if (handle_options(&argc, &argv, my_long_options, get_one_option))
     exit(-1);
@@ -96,8 +95,8 @@ int main(int argc, char *argv[])
 
 void usage(void)
 {
-  printf("%s version %s by Jani Tolonen\n\n", progname, VER);
-  printf("usage: %s [options] #pid #time\n\n", progname);
+  printf("%s version %s by Jani Tolonen\n\n", my_progname, VER);
+  printf("usage: %s [options] #pid #time\n\n", my_progname);
   printf("Description: Waits for a program, which program id is #pid, to\n");
   printf("terminate within #time seconds. If the program terminates within\n");
   printf("this time, or if the #pid no longer exists, value 0 is returned.\n");

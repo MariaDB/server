@@ -1,6 +1,6 @@
 --source include/windows.inc
 --source include/check_utf8_cli.inc
-
+use mysql;
 # Create database  in tmp directory using mysql_install_db.exe,
 # and start server from this directory.
 let $ddir= $MYSQLTEST_VARDIR/tmp/датадир;
@@ -32,4 +32,5 @@ rmdir $ddir;
 
 connection default;
 --source include/start_mysqld.inc
+use test;
 

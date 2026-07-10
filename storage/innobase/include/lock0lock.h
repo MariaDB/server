@@ -52,6 +52,20 @@ namespace Deadlock
   enum report { REPORT_OFF, REPORT_BASIC, REPORT_FULL };
 }
 
+/** Conflicting lock info */
+struct conflicting_lock_info {
+  /** Conflicting lock */
+  const lock_t *conflicting;
+  /** If some lock was bypassed, points to the lock after which bypassing
+  lock must be inserted into linked list of locks for the certain cell of
+  record locks hash table. */
+  lock_t *insert_after;
+  /** First bypassed lock */
+  ut_d(const lock_t *bypassed;)
+};
+
+extern const conflicting_lock_info null_c_lock_info;
+
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
 @return heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
@@ -185,13 +199,6 @@ lock_update_split_left(
 void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
                             const page_id_t right);
 
-/** Update the locks when a page is split and merged to two pages,
-in defragmentation. */
-void lock_update_split_and_merge(
-	const buf_block_t* left_block,	/*!< in: left page to which merged */
-	const rec_t* orig_pred,		/*!< in: original predecessor of
-					supremum on the left page before merge*/
-	const buf_block_t* right_block);/*!< in: right page from which merged */
 /*************************************************************//**
 Resets the original locks on heir and replaces them with gap type locks
 inherited from rec. */
@@ -438,6 +445,13 @@ dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait= false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Lock the child tables of a table.
+@param table    parent table
+@param trx      transaction
+@return error code */
+dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /** Exclusively lock the data dictionary tables.
 @param trx  dictionary transaction
 @return error code
@@ -453,7 +467,7 @@ lock_rec_unlock(
 /*============*/
 	trx_t*			trx,	/*!< in/out: transaction that has
 					set a record lock */
-	const page_id_t		id,	/*!< in: page containing rec */
+	const buf_block_t&	block,	/*!< in: page containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
 
@@ -710,27 +724,19 @@ public:
 #endif
 
   private:
-    /** @return the hash value before any ELEMENTS_PER_LATCH padding */
-    static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
-
     /** @return the index of an array element */
-    static ulint calc_hash(ulint fold, ulint n_cells)
+    static ulint calc_hash(ulint fold, ulint n_cells) noexcept
     {
-      return pad(hash(fold, n_cells));
+      return pad(fold % n_cells);
     }
   };
 
 private:
   bool m_initialised;
 
-  /** mutex proteting the locks */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
-#ifdef UNIV_DEBUG
-  /** The owner of exclusive latch (0 if none); protected by latch */
-  std::atomic<pthread_t> writer{0};
-  /** Number of shared latches */
-  std::atomic<ulint> readers{0};
-#endif
+  /** mutex protecting the locks */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
 #ifdef SUX_LOCK_GENERIC
 protected:
   /** mutex for hash_latch::wait() */
@@ -786,73 +792,46 @@ public:
   ATTRIBUTE_NOINLINE void rd_unlock();
 #else
   /** Acquire exclusive lock_sys.latch */
-  void wr_lock()
+  void wr_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
-    ut_ad(!is_writer());
     latch.wr_lock();
-    ut_ad(!writer.exchange(pthread_self(),
-                           std::memory_order_relaxed));
   }
   /** Release exclusive lock_sys.latch */
-  void wr_unlock()
-  {
-    ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
-          pthread_self());
-    latch.wr_unlock();
-  }
+  void wr_unlock() noexcept { latch.wr_unlock(); }
   /** Acquire shared lock_sys.latch */
-  void rd_lock()
+  void rd_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
-    ut_ad(!is_writer());
     latch.rd_lock();
-    ut_ad(!writer.load(std::memory_order_relaxed));
-    ut_d(readers.fetch_add(1, std::memory_order_relaxed));
   }
   /** Release shared lock_sys.latch */
-  void rd_unlock()
-  {
-    ut_ad(!is_writer());
-    ut_ad(readers.fetch_sub(1, std::memory_order_relaxed));
-    latch.rd_unlock();
-  }
+  void rd_unlock() noexcept { latch.rd_unlock(); }
 #endif
   /** Try to acquire exclusive lock_sys.latch
   @return whether the latch was acquired */
-  bool wr_lock_try()
-  {
-    ut_ad(!is_writer());
-    if (!latch.wr_lock_try()) return false;
-    ut_ad(!writer.exchange(pthread_self(),
-                           std::memory_order_relaxed));
-    return true;
-  }
+  bool wr_lock_try() noexcept { return latch.wr_lock_try(); }
   /** Try to acquire shared lock_sys.latch
   @return whether the latch was acquired */
-  bool rd_lock_try()
-  {
-    ut_ad(!is_writer());
-    if (!latch.rd_lock_try()) return false;
-    ut_ad(!writer.load(std::memory_order_relaxed));
-    ut_d(readers.fetch_add(1, std::memory_order_relaxed));
-    return true;
-  }
+  bool rd_lock_try() noexcept { return latch.rd_lock_try(); }
 
   /** Assert that wr_lock() has been invoked by this thread */
-  void assert_locked() const { ut_ad(is_writer()); }
+  void assert_locked() const { ut_ad(latch.have_wr()); }
   /** Assert that wr_lock() has not been invoked by this thread */
-  void assert_unlocked() const { ut_ad(!is_writer()); }
+  void assert_unlocked() const { ut_ad(!latch.have_wr()); }
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is the lock_sys.latch writer */
-  bool is_writer() const
-  {
-# ifdef SUX_LOCK_GENERIC
-    return writer.load(std::memory_order_relaxed) == pthread_self();
-# else
-    return writer.load(std::memory_order_relaxed) == pthread_self() ||
-      (xtest() && !latch.is_locked_or_waiting());
-# endif
+  bool is_writer() const { return latch.have_wr(); }
+  /** @return whether the current thread is holding lock_sys.latch */
+  bool is_holder() const { return latch.have_any(); }
+  /** Returns whether a cell of hash table where the lock is stored is latched.
+  @param lock the lock which cell is checked
+  @return whether the lock's cell is latched */
+  bool is_cell_locked(const lock_t &lock) {
+    return hash_table::latch(
+               hash_get(lock.type_mode)
+                   .cell_get(lock.un_member.rec_lock.page_id.fold()))
+        ->is_locked();
   }
   /** Assert that a lock shard is exclusively latched (by some thread) */
   void assert_locked(const lock_t &lock) const;
@@ -897,9 +876,7 @@ public:
   @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
   @retval DB_LOCK_WAIT  if the lock was canceled */
   template<bool check_victim>
-  static dberr_t cancel(trx_t *trx, lock_t *lock);
-  /** Cancel a waiting lock request (if any) when killing a transaction */
-  static void cancel(trx_t *trx);
+  dberr_t cancel(trx_t *trx, lock_t *lock) noexcept;
 
   /** Note that a record lock wait started */
   inline void wait_start();
@@ -954,7 +931,7 @@ public:
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
 
   /** Cancel possible lock waiting for a transaction */
-  static void cancel_lock_wait_for_trx(trx_t *trx);
+  inline void cancel_lock_wait_for_trx(trx_t *trx) noexcept;
 #ifdef WITH_WSREP
   /** Cancel lock waiting for a wsrep BF abort. */
   static void cancel_lock_wait_for_wsrep_bf_abort(trx_t *trx);
@@ -967,14 +944,14 @@ extern lock_sys_t lock_sys;
 /** @return the index of an array element */
 inline ulint lock_sys_t::hash_table::calc_hash(ulint fold) const
 {
-  ut_ad(lock_sys.is_writer() || lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   return calc_hash(fold, n_cells);
 }
 
 /** Get a hash table cell. */
 inline hash_cell_t *lock_sys_t::hash_table::cell_get(ulint fold) const
 {
-  ut_ad(lock_sys.is_writer() || lock_sys.readers);
+  ut_ad(lock_sys.is_holder());
   return &array[calc_hash(fold)];
 }
 
@@ -1181,33 +1158,14 @@ struct TMTrxGuard
 #endif
 };
 
-/*********************************************************************//**
-Creates a new record lock and inserts it to the lock queue. Does NOT check
-for deadlocks or lock compatibility!
-@return created lock */
-UNIV_INLINE
-lock_t*
-lock_rec_create(
-/*============*/
-	lock_t*			c_lock,	/*!< conflicting lock */
-	unsigned		type_mode,/*!< in: lock mode and wait flag */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	trx_t*			trx,	/*!< in,out: transaction */
-	bool			caller_owns_trx_mutex);
-					/*!< in: true if caller owns
-					trx mutex */
-
 /** Remove a record lock request, waiting or granted, on a discarded page
-@param hash     hash table
-@param in_lock  lock object */
-void lock_rec_discard(lock_sys_t::hash_table &lock_hash, lock_t *in_lock);
+@param in_lock  lock object
+@param cell     hash table cell containing in_lock */
+void lock_rec_discard(lock_t *in_lock, hash_cell_t &cell) noexcept;
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
-@param[in]	c_lock		conflicting lock, or NULL
+@param		c_lock_info	conflicting lock info
 @param[in]	type_mode	lock mode and wait flag
 @param[in]	page_id		index page number
 @param[in]	page		R-tree index page, or NULL
@@ -1217,8 +1175,8 @@ without checking for deadlocks or conflicts.
 @param[in]	holds_trx_mutex	whether the caller holds trx->mutex
 @return created lock */
 lock_t*
-lock_rec_create_low(
-	lock_t*		c_lock,
+lock_rec_create(
+	const conflicting_lock_info   &c_lock_info,
 	unsigned	type_mode,
 	const page_id_t	page_id,
 	const page_t*	page,
@@ -1229,7 +1187,7 @@ lock_rec_create_low(
 
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.
-@param[in]	c_lock		conflicting lock
+@param		c_lock_info	conflicting lock info
 @param[in]	type_mode	the requested lock mode (LOCK_S or LOCK_X)
 				possibly ORed with LOCK_GAP or
 				LOCK_REC_NOT_GAP, ORed with
@@ -1247,7 +1205,7 @@ Check for deadlocks.
 @retval	DB_DEADLOCK		if this transaction was chosen as the victim */
 dberr_t
 lock_rec_enqueue_waiting(
-	lock_t*			c_lock,
+	const conflicting_lock_info &c_lock_info,
 	unsigned		type_mode,
 	const page_id_t		id,
 	const page_t*		page,

@@ -1,0 +1,73 @@
+include/reset_master.inc
+*** Test mariabackup concurrent with RESET MASTER and FLUSH BINARY LOGS.
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 SELECT a+1 FROM t1;
+INSERT INTO t1 SELECT a+2 FROM t1;
+INSERT INTO t1 SELECT a+4 FROM t1;
+INSERT INTO t1 SELECT a+8 FROM t1;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+16 FROM t1;
+INSERT INTO t1 SELECT a+32 FROM t1;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+64 FROM t1;
+INSERT INTO t1 SELECT a+128 FROM t1;
+SET @old_needed= @@GLOBAL.slave_connections_needed_for_purge;
+SET GLOBAL slave_connections_needed_for_purge=0;
+connect con$i,localhost,root,,;
+BEGIN NOT ATOMIC
+SELECT SLEEP(0.9);
+FLUSH BINARY LOGS;
+END //
+connection default;
+connection con1;
+SLEEP(0.9)
+0
+disconnect con1;
+connection default;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+256 FROM t1;
+connect con$i,localhost,root,,;
+BEGIN NOT ATOMIC
+SELECT SLEEP(1.1);
+PURGE BINARY LOGS TO 'binlog-000003.ibb';
+END //
+connection default;
+connection con2;
+SLEEP(1.1)
+0
+disconnect con2;
+connection default;
+RESET MASTER;
+INSERT INTO t1 SELECT a+512 FROM t1 WHERE a <= 256;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+768 FROM t1 WHERE a <= 256;
+FLUSH BINARY LOGS;
+connect con$i,localhost,root,,;
+BEGIN NOT ATOMIC
+SELECT SLEEP(0.1);
+RESET MASTER;
+END //
+connection default;
+connection con3;
+SLEEP(0.1)
+0
+disconnect con3;
+connection default;
+INSERT INTO t1 SELECT a+1024 FROM t1 WHERE a <= 256;
+FLUSH BINARY LOGS;
+INSERT INTO t1 SELECT a+1280 FROM t1 WHERE a <= 256;
+FLUSH BINARY LOGS;
+connect con$i,localhost,root,,;
+BEGIN NOT ATOMIC
+SELECT SLEEP(1.1);
+RESET MASTER;
+END //
+connection default;
+connection con4;
+SLEEP(1.1)
+0
+disconnect con4;
+connection default;
+DROP TABLE t1;
+SET GLOBAL slave_connections_needed_for_purge= @old_needed;

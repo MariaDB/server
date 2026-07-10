@@ -26,11 +26,9 @@ namespace feedback {
 ulong debug_startup_interval, debug_first_interval, debug_interval;
 #endif
 
-char server_uid_buf[SERVER_UID_SIZE+1]; ///< server uid will be written here
-
 /* backing store for system variables */
-static char *server_uid= server_uid_buf, *url, *http_proxy;
-char *user_info;
+static char *url, *http_proxy;
+char *user_info, *server_uid_ptr= server_uid;
 ulong send_timeout, send_retry_wait;
 
 /**
@@ -68,7 +66,7 @@ ST_SCHEMA_TABLE *i_s_feedback; ///< table descriptor for our I_S table
 static ST_FIELD_INFO feedback_fields[] =
 {
   Show::Column("VARIABLE_NAME",  Show::Varchar(255),  NOT_NULL),
-  Show::Column("VARIABLE_VALUE", Show::Varchar(1024), NOT_NULL),
+  Show::Column("VARIABLE_VALUE", Show::Varchar(4096), NOT_NULL),
   Show::CEnd()
 };
 
@@ -253,9 +251,6 @@ static int init(void *p)
   PSI_register(cond);
   PSI_register(thread);
 
-  if (calculate_server_uid(server_uid_buf))
-    return 1;
-
   prepare_linux_info();
 
 #ifndef DBUG_OFF
@@ -339,6 +334,10 @@ static int free(void *p)
     shutdown_plugin= true;
     mysql_cond_signal(&sleep_condition);
     mysql_mutex_unlock(&sleep_mutex);
+
+    for (uint i= 0; i < url_count; i++)
+      urls[i]->abort();
+
     pthread_join(sender_thread, NULL);
 
     mysql_mutex_destroy(&sleep_mutex);
@@ -357,25 +356,25 @@ static int free(void *p)
 #define DEFAULT_PROTO "http://"
 #endif
 
-static MYSQL_SYSVAR_STR(server_uid, server_uid,
+static MYSQL_SYSVAR_STR(server_uid, server_uid_ptr,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
-       "Automatically calculated server unique id hash.", NULL, NULL, 0);
+       "Automatically calculated server unique id hash", NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(user_info, user_info,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "User specified string that will be included in the feedback report.",
+       "User specified string that will be included in the feedback report",
        NULL, NULL, "");
 static MYSQL_SYSVAR_STR(url, url, PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Space separated URLs to send the feedback report to.", NULL, NULL,
+       "Space separated URLs to send the feedback report to", NULL, NULL,
        DEFAULT_PROTO "feedback.mariadb.org/rest/v1/post");
 static MYSQL_SYSVAR_ULONG(send_timeout, send_timeout, PLUGIN_VAR_RQCMDARG,
-       "Timeout (in seconds) for the sending the report.",
+       "Timeout (in seconds) for the sending the report",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_ULONG(send_retry_wait, send_retry_wait, PLUGIN_VAR_RQCMDARG,
-       "Wait this many seconds before retrying a failed send.",
+       "Wait this many seconds before retrying a failed send",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_STR(http_proxy, http_proxy,
                         PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Proxy server host:port.", NULL, NULL,0);
+       "Proxy server host:port", NULL, NULL,0);
 
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_ULONG(debug_startup_interval, debug_startup_interval,

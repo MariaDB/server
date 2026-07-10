@@ -177,7 +177,7 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 			if (server->port) {
 				char buf[16];
 
-				sprintf(buf, "%ld", server->port);
+				snprintf(buf, sizeof(buf), "%ld", server->port);
 				strcat(strcat(Url, ":"), buf);
 			} // endif port
 
@@ -289,7 +289,7 @@ PTDB JDBCDEF::GetTable(PGLOBAL g, MODE m)
 /*  containing the entire result of the executed query. This can be an */
 /*  issue for big tables and memory error can occur. An alternative is */
 /*  to use streaming (reading one row at a time) but to specify this,  */
-/*  a fech size of the integer min value must be send to the driver.   */
+/*  a fetch size of the integer min value must be send to the driver.  */
 /***********************************************************************/
 int JDBCPARM::CheckSize(int rows)
 {

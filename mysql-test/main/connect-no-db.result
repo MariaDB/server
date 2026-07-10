@@ -1,0 +1,9 @@
+#
+# MDEV-34226 On startup: UBSAN: applying zero offset to null pointer in my_copy_fix_mb from strings/ctype-mb.c and other locations
+#
+connect  con1,localhost,root,,"*NO-ONE*";
+SELECT database();
+database()
+NULL
+disconnect con1;
+connection default;

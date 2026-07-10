@@ -23,7 +23,6 @@
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_load.h"
-#include "sql_load.h"
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_base.h"          // fill_record_n_invoke_before_triggers
 #include <my_dir.h>
@@ -107,23 +106,39 @@ public:
 class Wsrep_load_data_split
 {
 public:
-  Wsrep_load_data_split(THD *thd)
+  Wsrep_load_data_split(THD *thd, TABLE *table)
     : m_thd(thd)
-    , m_load_data_splitting(wsrep_load_data_splitting)
+    , m_load_data_splitting(false)
     , m_fragment_unit(thd->wsrep_trx().streaming_context().fragment_unit())
     , m_fragment_size(thd->wsrep_trx().streaming_context().fragment_size())
   {
-    if (WSREP(m_thd) && m_load_data_splitting)
+    /*
+      We support load data splitting for InnoDB only as it will use
+      streaming replication (SR).
+    */
+    if (WSREP(thd) && wsrep_load_data_splitting)
     {
-      /* Override streaming settings with backward compatible values for
-         load data splitting */
-      m_thd->wsrep_cs().streaming_params(wsrep::streaming_context::row, 10000);
+      // For partitioned tables find underlying hton
+      handlerton *ht= table->file->partition_ht();
+      if (ht->db_type != DB_TYPE_INNODB)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_NOT_SUPPORTED_YET,
+                            "wsrep_load_data_splitting for other than InnoDB tables");
+      }
+      else
+      {
+        /* Override streaming settings with backward compatible values for
+           load data splitting */
+        m_thd->wsrep_cs().streaming_params(wsrep::streaming_context::row, 10000);
+        m_load_data_splitting= true;
+      }
     }
   }
 
   ~Wsrep_load_data_split()
   {
-    if (WSREP(m_thd) && m_load_data_splitting)
+    if (m_load_data_splitting)
     {
       /* Restore original settings */
       m_thd->wsrep_cs().streaming_params(m_fragment_unit, m_fragment_size);
@@ -176,7 +191,7 @@ class READ_INFO: public Load_data_param
     For example, suppose we have an ujis file with bytes 0x8FA10A, where:
     - 0x8FA1 is an incomplete prefix of a 3-byte character
       (it should be [8F][A1-FE][A1-FE] to make a full 3-byte character)
-    - 0x0A is a line demiliter
+    - 0x0A is a line delimiter
     This file has some broken data, the trailing [A1-FE] is missing.
 
     In this example it works as follows:
@@ -231,7 +246,7 @@ public:
 	    String &field_term,String &line_start,String &line_term,
 	    String &enclosed,int escape,bool get_it_from_net, bool is_fifo);
   ~READ_INFO();
-  int read_field();
+  int read_field(CHARSET_INFO *cs);
   int read_fixed_length(void);
   int next_line(void);
   char unescape(char chr);
@@ -255,6 +270,10 @@ public:
   */
   void skip_data_till_eof()
   {
+#ifndef EMBEDDED_LIBRARY
+    if (mysql_bin_log.is_open())
+      cache.read_function= cache.real_read_function;
+#endif
     while (GET != my_b_EOF)
       ;
   }
@@ -344,6 +363,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   bool is_concurrent;
 #endif
   const char *db= table_list->db.str;		// This is never null
+
   /*
     If path for file is not defined, we will use the current database.
     If this is not set, we will use the directory where the table to be
@@ -354,9 +374,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   bool transactional_table __attribute__((unused));
   DBUG_ENTER("mysql_load");
 
-#ifdef WITH_WSREP
-  Wsrep_load_data_split wsrep_load_data_split(thd);
-#endif /* WITH_WSREP */
   /*
     Bug #34283
     mysqlbinlog leaves tmpfile after termination if binlog contains
@@ -402,9 +419,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                                     thd->lex->first_select_lex()->leaf_tables,
                                     FALSE,
                                     INSERT_ACL | UPDATE_ACL,
-                                    INSERT_ACL | UPDATE_ACL, FALSE))
+                                    INSERT_ACL | UPDATE_ACL, false))
      DBUG_RETURN(-1);
-  if (!table_list->table ||               // do not suport join view
+  if (!table_list->table ||               // do not support join view
       !table_list->single_table_updatable() || // and derived tables
       check_key_in_view(thd, table_list))
   {
@@ -421,6 +438,11 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   {
     DBUG_RETURN(TRUE);
   }
+
+#ifdef WITH_WSREP
+  Wsrep_load_data_split wsrep_load_data_split(thd, table_list->table);
+#endif /* WITH_WSREP */
+
   thd_proc_info(thd, "Executing");
   /*
     Let us emit an error if we are loading data to table which is used
@@ -654,21 +676,17 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
         (!table->triggers ||
          !table->triggers->has_delete_triggers()))
         table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
-    if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+    if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+        !table->s->long_unique_table)
       table->file->ha_start_bulk_insert((ha_rows) 0);
     table->copy_blobs=1;
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
     thd->get_stmt_da()->reset_current_row_for_warning(1);
 
-    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
-    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
-    {
-      create_lookup_handler= true;
-      if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
-        goto err;
-    }
-    table->file->prepare_for_insert(create_lookup_handler);
+    if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
+      DBUG_RETURN(1);
+
     thd_progress_init(thd, 2);
     fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
@@ -689,8 +707,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
 
-    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
-      table_list->table->file->ha_rnd_end();
+    if (unlikely(finalize_replace(table, handle_duplicates, ignore)))
+      DBUG_RETURN(1);
 
     thd_proc_info(thd, "End bulk insert");
     if (likely(!error))
@@ -701,7 +719,15 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       table->file->print_error(my_errno, MYF(0));
       error= 1;
     }
-    table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+    if (!error)
+    {
+      int err= table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+      if (err == HA_ERR_FOUND_DUPP_KEY)
+      {
+	error= 1;
+	my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+      }
+    }
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->next_number_field=0;
   }
@@ -770,10 +796,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     error= -1;				// Error on read
     goto err;
   }
-  sprintf(name, ER_THD(thd, ER_LOAD_INFO),
-          (ulong) info.records, (ulong) info.deleted,
-	  (ulong) (info.records - info.copied),
-          (long) thd->get_stmt_da()->current_statement_warn_count());
+  snprintf(name, sizeof(name), ER_THD(thd, ER_LOAD_INFO),
+           (ulong) info.records, (ulong) info.deleted,
+	   (ulong) (info.records - info.copied),
+           (long) thd->get_stmt_da()->current_statement_warn_count());
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;
@@ -830,14 +856,14 @@ err:
               thd->transaction->stmt.modified_non_trans_table);
   table->file->ha_release_auto_increment();
   table->auto_increment_field_not_null= FALSE;
+  if (thd->tmp_table_binlog_handled)
+    table->mark_as_not_binlogged(); 		// tmp table changes are not in binlog
   thd->abort_on_warning= 0;
   DBUG_RETURN(error);
 }
 
 
 #ifndef EMBEDDED_LIBRARY
-
-/* Not a very useful function; just to avoid duplication of code */
 static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                const char* db_arg,  /* table's database */
                                                const char* table_name_arg,
@@ -848,27 +874,34 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                int errcode)
 {
   char                *load_data_query;
-  my_off_t            fname_start,
-                      fname_end;
-  List<Item>           fv;
+  my_off_t             fname_start, fname_end;
   Item                *item, *val;
   int                  n;
-  const char          *tdb= (thd->db.str != NULL ? thd->db.str : db_arg);
-  const char          *qualify_db= NULL;
-  char                command_buffer[1024];
-  String              query_str(command_buffer, sizeof(command_buffer),
-                              system_charset_info);
+  StringBuffer<1024>   query_str(system_charset_info);
 
-  Load_log_event       lle(thd, ex, tdb, table_name_arg, fv, is_concurrent,
-                           duplicates, ignore, transactional_table);
+  query_str.append(STRING_WITH_LEN("LOAD DATA "));
 
-  /*
-    force in a LOCAL if there was one in the original.
-  */
+  if (is_concurrent)
+    query_str.append(STRING_WITH_LEN("CONCURRENT "));
+
+  fname_start= query_str.length();
+
   if (thd->lex->local_file)
-    lle.set_fname_outside_temp_buf(ex->file_name, strlen(ex->file_name));
+    query_str.append(STRING_WITH_LEN("LOCAL "));
+  query_str.append(STRING_WITH_LEN("INFILE '"));
+  query_str.append_for_single_quote(ex->file_name, strlen(ex->file_name));
+  query_str.append(STRING_WITH_LEN("' "));
 
-  query_str.length(0);
+  if (duplicates == DUP_REPLACE)
+    query_str.append(STRING_WITH_LEN("REPLACE "));
+  else if (ignore)
+    query_str.append(STRING_WITH_LEN("IGNORE "));
+
+  query_str.append(STRING_WITH_LEN("INTO"));
+
+  fname_end= query_str.length();
+
+  query_str.append(STRING_WITH_LEN(" TABLE "));
   if (!thd->db.str || strcmp(db_arg, thd->db.str))
   {
     /*
@@ -876,10 +909,47 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
       prefix table name with database name so that it 
       becomes a FQ name.
      */
-    qualify_db= db_arg;
+    append_identifier(thd, &query_str, db_arg, strlen(db_arg));
+    query_str.append(STRING_WITH_LEN("."));
   }
-  lle.print_query(thd, FALSE, (const char*) ex->cs ? ex->cs->cs_name.str : NULL,
-                  &query_str, &fname_start, &fname_end, qualify_db);
+  append_identifier(thd, &query_str, table_name_arg, strlen(table_name_arg));
+
+  if (ex->cs)
+  {
+    query_str.append(STRING_WITH_LEN(" CHARACTER SET "));
+    query_str.append(ex->cs->cs_name);
+  }
+
+  /* We have to create all optional fields as the default is not empty */
+  query_str.append(STRING_WITH_LEN(" FIELDS TERMINATED BY '"));
+  query_str.append_for_single_quote(ex->field_term);
+  query_str.append(STRING_WITH_LEN("'"));
+  if (ex->opt_enclosed)
+    query_str.append(STRING_WITH_LEN(" OPTIONALLY"));
+  query_str.append(STRING_WITH_LEN(" ENCLOSED BY '"));
+  query_str.append_for_single_quote(ex->enclosed);
+  query_str.append(STRING_WITH_LEN("'"));
+
+  query_str.append(STRING_WITH_LEN(" ESCAPED BY '"));
+  query_str.append_for_single_quote(ex->escaped);
+  query_str.append(STRING_WITH_LEN("'"));
+
+  query_str.append(STRING_WITH_LEN(" LINES TERMINATED BY '"));
+  query_str.append_for_single_quote(ex->line_term);
+  query_str.append(STRING_WITH_LEN("'"));
+  if (ex->line_start->length())
+  {
+    query_str.append(STRING_WITH_LEN(" STARTING BY '"));
+    query_str.append_for_single_quote(ex->line_start);
+    query_str.append(STRING_WITH_LEN("'"));
+  }
+
+  if (ex->skip_lines)
+  {
+    query_str.append(STRING_WITH_LEN(" IGNORE "));
+    query_str.append_ulonglong(ex->skip_lines);
+    query_str.append(STRING_WITH_LEN(" LINES "));
+  }
 
   /*
     prepare fields-list and SET if needed; print_query won't do that for us.
@@ -923,6 +993,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   if (!(load_data_query= (char *)thd->strmake(query_str.ptr(), query_str.length())))
     return TRUE;
 
+  thd->tmp_table_binlog_handled= 1;
   Execute_load_query_log_event
     e(thd, load_data_query, query_str.length(),
       (uint) (fname_start - 1), (uint) fname_end,
@@ -935,7 +1006,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
 #endif
 
 /****************************************************************************
-** Read of rows of fixed size + optional garage + optonal newline
+** Read of rows of fixed size + optional garage + optional newline
 ****************************************************************************/
 
 static int
@@ -947,7 +1018,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   List_iterator_fast<Item> it(fields_vars);
   Item *item;
   TABLE *table= table_list->table;
-  bool err, progress_reports;
+  bool err= false, progress_reports;
   ulonglong counter, time_to_report_progress;
   DBUG_ENTER("read_fixed_length");
 
@@ -956,6 +1027,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   progress_reports= 1;
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
+
+  Write_record write(thd, table, &info, NULL);
 
   while (!read_info.read_fixed_length())
   {
@@ -991,8 +1064,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     read_info.row_end[0]=0;
 #endif
 
-    restore_record(table, s->default_values);
-
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       Load_data_outvar *dst= item->get_load_data_outvar();
@@ -1008,7 +1080,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         uchar save_chr;
         if ((length=(uint) (read_info.row_end - pos)) > fixed_length)
           length= fixed_length;
-        save_chr= pos[length]; pos[length]= '\0'; // Safeguard aganst malloc
+        save_chr= pos[length]; pos[length]= '\0'; // Safeguard against malloc
         dst->load_data_set_value(thd, (const char *) pos, length, &read_info);
         pos[length]= save_chr;
         if ((pos+= length) > read_info.row_end)
@@ -1024,10 +1096,11 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                           thd->get_stmt_da()->current_row_for_warning());
     }
 
+    bool trg_skip_row= false;
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT, &trg_skip_row))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd, ignore_check_option_errors)) {
@@ -1038,7 +1111,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    if (!trg_skip_row)
+      err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1087,6 +1161,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
 
+  Write_record write(thd, table, &info, NULL);
+
   for (;;it.rewind())
   {
     if (thd->killed)
@@ -1105,13 +1181,21 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                             thd->progress.max_counter);
       }
     }
-    restore_record(table, s->default_values);
 
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       uint length;
       uchar *pos;
-      if (read_info.read_field())
+      CHARSET_INFO *cs;
+      /*
+        Avoiding of handling binary data as a text
+      */
+      if(item->charset_for_protocol() == &my_charset_bin)
+        cs= &my_charset_bin;
+      else
+        cs= read_info.charset();
+      if (read_info.read_field(cs))
 	break;
 
       /* If this line is to be skipped we don't want to fill field or var */
@@ -1164,12 +1248,20 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       }
     }
 
+    bool trg_skip_row= false;
     if (unlikely(thd->killed) ||
         unlikely(fill_record_n_invoke_before_triggers(thd, table, set_fields,
                                                       set_values,
                                                       ignore_check_option_errors,
-                                                      TRG_EVENT_INSERT)))
+                                                      TRG_EVENT_INSERT,
+                                                      &trg_skip_row)))
       DBUG_RETURN(1);
+
+    if (trg_skip_row)
+    {
+      read_info.next_line();
+      continue;
+    }
 
     switch (table_list->view_check_option(thd,
                                           ignore_check_option_errors)) {
@@ -1180,7 +1272,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1224,7 +1316,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   DBUG_ENTER("read_xml_field");
   
   no_trans_update_stmt= !table->file->has_transactions_and_rollback();
-  
+
+  Write_record write(thd, table, &info, NULL);
+
   for ( ; ; it.rewind())
   {
     bool err;
@@ -1252,8 +1346,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 #endif
     
-    restore_record(table, s->default_values);
-    
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       /* If this line is to be skipped we don't want to fill field or var */
@@ -1287,11 +1380,18 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 
     DBUG_ASSERT(!item);
 
+    bool trg_skip_row= false;
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT, &trg_skip_row))
       DBUG_RETURN(1);
+
+    if (trg_skip_row)
+    {
+      read_info.next_line();
+      continue;
+    }
 
     switch (table_list->view_check_option(thd,
                                           ignore_check_option_errors)) {
@@ -1302,7 +1402,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= false;
     if (err)
       DBUG_RETURN(1);
@@ -1324,7 +1424,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 char
 READ_INFO::unescape(char chr)
 {
-  /* keep this switch synchornous with the ESCAPE_CHARS macro */
+  /* keep this switch synchronous with the ESCAPE_CHARS macro */
   switch(chr) {
   case 'n': return '\n';
   case 't': return '\t';
@@ -1375,7 +1475,7 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
   uint length= MY_MAX(charset()->mbmaxlen, MY_MAX(m_field_term.length(),
                                                   m_line_term.length())) + 1;
   set_if_bigger(length,line_start.length());
-  stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
+  stack= stack_pos= thd->alloc<int>(length);
 
   DBUG_ASSERT(m_fixed_length < UINT_MAX32);
   if (data.reserve((size_t) m_fixed_length))
@@ -1484,7 +1584,7 @@ inline bool READ_INFO::terminator(const uchar *ptr, uint length)
   must make sure to use escapes properly.
 */
 
-int READ_INFO::read_field()
+int READ_INFO::read_field(CHARSET_INFO *cs)
 {
   int chr,found_enclosed_char;
 
@@ -1520,7 +1620,7 @@ int READ_INFO::read_field()
   for (;;)
   {
     // Make sure we have enough space for the longest multi-byte character.
-    while (data.length() + charset()->mbmaxlen <= data.alloced_length())
+    while (data.length() + cs->mbmaxlen <= data.alloced_length())
     {
       chr = GET;
       if (chr == my_b_EOF)
@@ -1606,7 +1706,7 @@ int READ_INFO::read_field()
 	}
       }
       data.append(chr);
-      if (charset()->use_mb() && read_mbtail(&data))
+      if (cs->use_mb() && read_mbtail(&data))
         goto found_eof;
     }
     /*

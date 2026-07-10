@@ -28,7 +28,7 @@
 #endif
 #include <m_ctype.h>
 
-static int compare_columns(MARIA_COLUMNDEF **a, MARIA_COLUMNDEF **b);
+static int compare_columns(const void *a, const void *b);
 
 
 static ulonglong update_tot_length(ulonglong tot_length, ulonglong max_rows, uint length)
@@ -101,7 +101,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
   DBUG_ASSERT(maria_inited);
 
-  if (flags & HA_CREATE_TMP_TABLE)
+  if ((flags & HA_CREATE_TMP_TABLE) && !(flags & HA_CREATE_GLOBAL_TMP_TABLE))
     common_flag|= MY_THREAD_SPECIFIC;
 
   if (!ci)
@@ -464,15 +464,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     min_key_length= key_length= pointer;
 
     if (keydef->key_alg == HA_KEY_ALG_RTREE)
-      keydef->flag|= HA_RTREE_INDEX;            /* For easier tests */
-
-    if (keydef->flag & HA_SPATIAL)
     {
-#ifdef HAVE_SPATIAL
       /* BAR TODO to support 3D and more dimensions in the future */
       uint sp_segs=SPDIMS*2;
-      keydef->flag=HA_SPATIAL;
-
+      keydef->flag=HA_SPATIAL_legacy;
       if (flags & HA_DONT_TOUCH_DATA)
       {
         /*
@@ -500,14 +495,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       key_length+=SPLEN*sp_segs;
       length++;                              /* At least one length uchar */
       min_key_length++;
-#else
-      my_errno= HA_ERR_UNSUPPORTED;
-      goto err_no_lock;
-#endif /*HAVE_SPATIAL*/
     }
-    else if (keydef->flag & HA_FULLTEXT)
+    else if (keydef->key_alg == HA_KEY_ALG_FULLTEXT)
     {
-      keydef->flag=HA_FULLTEXT | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
+      keydef->flag=HA_FULLTEXT_legacy | HA_PACK_KEY | HA_VAR_LENGTH_KEY;
       options|=HA_OPTION_PACK_KEYS;             /* Using packed keys */
 
       for (j=0, keyseg=keydef->seg ; (int) j < keydef->keysegs ;
@@ -754,7 +745,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   share.state.sortkey=  (ushort) ~0;
   share.state.auto_increment=ci->auto_increment;
   share.options=options;
-  share.base.rec_reflength=pointer;
+  share.base.rec_reflength= ci->rec_reflength= pointer;
   share.base.block_size= maria_block_size;
   share.base.language= (ci->language ? ci->language :
                         default_charset_info->number);
@@ -860,13 +851,16 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   */
   if (ci->index_file_name)
   {
-    char *iext= strrchr(ci->index_file_name, '.');
+    const char *iext= strrchr(ci->index_file_name, '.');
     int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
     if (tmp_table)
     {
       char *path;
-      /* chop off the table name, tempory tables use generated name */
-      if ((path= strrchr(ci->index_file_name, FN_LIBCHAR)))
+      /*
+        chop off the table name, temporary tables use generated name
+        TODO: Following is safe but should be done other way if possible
+      */
+      if ((path= strrchr((char *)ci->index_file_name, FN_LIBCHAR)))
         *path= '\0';
       fn_format(kfilename, name, ci->index_file_name, MARIA_NAME_IEXT,
                 MY_REPLACE_DIR | MY_UNPACK_FILENAME |
@@ -892,7 +886,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   }
   else
   {
-    char *iext= strrchr(name, '.');
+    const char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
     fn_format(kfilename, name, "", MARIA_NAME_IEXT, MY_UNPACK_FILENAME |
               (internal_table ? 0 : MY_RETURN_REAL_PATH) |
@@ -945,14 +939,13 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   DBUG_PRINT("info", ("write key and keyseg definitions"));
   for (i=0 ; i < share.base.keys - uniques; i++)
   {
-    uint sp_segs=(keydefs[i].flag & HA_SPATIAL) ? 2*SPDIMS : 0;
+    uint sp_segs=keydefs[i].key_alg == HA_KEY_ALG_RTREE ? 2*SPDIMS : 0;
 
     if (_ma_keydef_write(file, &keydefs[i]))
       goto err;
     for (j=0 ; j < keydefs[i].keysegs-sp_segs ; j++)
       if (_ma_keyseg_write(file, &keydefs[i].seg[j]))
        goto err;
-#ifdef HAVE_SPATIAL
     for (j=0 ; j < sp_segs ; j++)
     {
       HA_KEYSEG sseg;
@@ -969,7 +962,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       if (_ma_keyseg_write(file, &sseg))
         goto err;
     }
-#endif
   }
   /* Create extra keys for unique definitions */
   offset= real_reclength - uniques*MARIA_UNIQUE_HASH_LENGTH;
@@ -1183,14 +1175,17 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     if (ci->data_file_name)
     {
-      char *dext= strrchr(ci->data_file_name, '.');
+      const char *dext= strrchr(ci->data_file_name, '.');
       int have_dext= dext && !strcmp(dext, MARIA_NAME_DEXT);
 
       if (tmp_table)
       {
         char *path;
-        /* chop off the table name, tempory tables use generated name */
-        if ((path= strrchr(ci->data_file_name, FN_LIBCHAR)))
+        /*
+           chop off the table name, temporary tables use generated name
+          TODO: Following is safe but should be done other way if possible
+        */
+        if ((path= strrchr((char *)ci->data_file_name, FN_LIBCHAR)))
           *path= '\0';
         fn_format(dfilename, name, ci->data_file_name, MARIA_NAME_DEXT,
                   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_APPEND_EXT);
@@ -1227,7 +1222,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 	/* Enlarge files */
   DBUG_PRINT("info", ("enlarge to keystart: %lu",
                       (ulong) share.base.keystart));
-  if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)))
+  if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)) > 0)
     goto err;
 
   if (!internal_table && sync_dir && mysql_file_sync(file, MYF(0)))
@@ -1237,7 +1232,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
 #ifdef USE_RELOC
     if (mysql_file_chsize(key_file_dfile, dfile,
-                          share.base.min_pack_length*ci->reloc_rows,0,MYF(0)))
+                          share.base.min_pack_length*ci->reloc_rows,0,MYF(0))
+        > 0)
       goto err;
 #endif
     if (!internal_table && sync_dir && mysql_file_sync(dfile, MYF(0)))
@@ -1335,9 +1331,11 @@ static inline int sign(long a)
 }
 
 
-static int compare_columns(MARIA_COLUMNDEF **a_ptr, MARIA_COLUMNDEF **b_ptr)
+static int compare_columns(const void *a_ptr_, const void *b_ptr_)
 {
-  MARIA_COLUMNDEF *a= *a_ptr, *b= *b_ptr;
+  const MARIA_COLUMNDEF *const *a_ptr= a_ptr_;
+  const MARIA_COLUMNDEF *const *b_ptr= b_ptr_;
+  const MARIA_COLUMNDEF *a= *a_ptr, *b= *b_ptr;
   enum en_fieldtype a_type, b_type;
 
   a_type= (a->type == FIELD_CHECK) ? FIELD_NORMAL : a->type;

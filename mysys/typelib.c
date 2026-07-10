@@ -265,8 +265,7 @@ TYPELIB *copy_typelib(MEM_ROOT *root, const TYPELIB *from)
 
 
 static const char *on_off_default_names[]= { "off","on","default", 0};
-static TYPELIB on_off_default_typelib= {array_elements(on_off_default_names)-1,
-                                        "", on_off_default_names, 0};
+static TYPELIB on_off_default_typelib= CREATE_TYPELIB_FOR(on_off_default_names);
 
 /**
   Parse a TYPELIB name from the buffer
@@ -294,7 +293,7 @@ static uint parse_name(const TYPELIB *lib, const char **pos, const char *end)
 }
 
 /**
-  Parse and apply a set of flag assingments
+  Parse and apply a set of flag assignments
 
   @param lib               Flag names
   @param default_name      Number of "default" in the typelib

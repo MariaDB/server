@@ -19,8 +19,6 @@
 #include <my_sys.h>
 #include <m_string.h>
 
-#ifdef HAVE_SPATIAL
-
 #include "gcalc_slicescan.h"
 
 
@@ -100,9 +98,10 @@ const char *gcalc_ev_name(int ev)
 }
 
 
-static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postfix)
+static int gcalc_pi_str(char *str, size_t size,
+                        const Gcalc_heap::Info *pi, const char *postfix)
 {
-  return sprintf(str, "%s %d %d | %s %d %d%s",
+  return snprintf(str, size, "%s %d %d | %s %d %d%s",
                      GCALC_SIGN(pi->node.shape.ix[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.ix[0]),pi->node.shape.ix[1],
                      GCALC_SIGN(pi->node.shape.iy[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.iy[0]),pi->node.shape.iy[1],
                      postfix);
@@ -132,7 +131,7 @@ static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
 #endif
     return;
   }
-  n_buf= gcalc_pi_str(buf, pi, "");
+  n_buf= gcalc_pi_str(buf, sizeof(buf), pi, "");
   buf[n_buf]= 0;
   GCALC_DBUG_PRINT(("%s", buf));
 }
@@ -144,18 +143,20 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
   size_t nbuf;
   char buf[1024];
   nbuf= strlen(header);
-  strcpy(buf, header);
+  safe_strcpy(buf, sizeof(buf), header);
   for (; slice; slice= slice->get_next())
   {
     size_t lnbuf= nbuf;
-    lnbuf+= sprintf(buf + lnbuf, "%d\t", slice->thread);
-    lnbuf+= sprintf(buf + lnbuf, "%s\t", gcalc_ev_name(slice->event));
+    lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "%d\t", slice->thread);
+    lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "%s\t",
+                      gcalc_ev_name(slice->event));
 
-    lnbuf+= gcalc_pi_str(buf + lnbuf, slice->pi, "\t");
+    lnbuf+= gcalc_pi_str(buf + lnbuf, sizeof(buf) - lnbuf, slice->pi, "\t");
     if (slice->is_bottom())
-      lnbuf+= sprintf(buf+lnbuf, "bt\t");
+      lnbuf+= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "bt\t");
     else
-      lnbuf+= gcalc_pi_str(buf+lnbuf, slice->next_pi, "\t");
+      lnbuf+= gcalc_pi_str(buf + lnbuf, sizeof(buf) - lnbuf,
+                            slice->next_pi, "\t");
     buf[lnbuf]= 0;
     GCALC_DBUG_PRINT(("%s", buf));
   }
@@ -902,19 +903,36 @@ static Gcalc_heap::Info *new_eq_point(
 }
 
 
-void Gcalc_heap::Info::calc_xy(double *x, double *y) const
+void Gcalc_heap::Info::calc_intersection_xy(double *x, double *y) const
 {
+  GCALC_DBUG_ASSERT(type == nt_intersection);
   double b0_x= node.intersection.p2->node.shape.x - node.intersection.p1->node.shape.x;
   double b0_y= node.intersection.p2->node.shape.y - node.intersection.p1->node.shape.y;
   double b1_x= node.intersection.p4->node.shape.x - node.intersection.p3->node.shape.x;
   double b1_y= node.intersection.p4->node.shape.y - node.intersection.p3->node.shape.y;
   double b0xb1= b0_x * b1_y - b0_y * b1_x;
-  double t= (node.intersection.p3->node.shape.x - node.intersection.p1->node.shape.x) * b1_y - (node.intersection.p3->node.shape.y - node.intersection.p1->node.shape.y) * b1_x;
+  double t=(node.intersection.p3->node.shape.x -
+               node.intersection.p1->node.shape.x) * b1_y -
+            (node.intersection.p3->node.shape.y -
+               node.intersection.p1->node.shape.y) * b1_x;
 
   t/= b0xb1;
 
   *x= node.intersection.p1->node.shape.x + b0_x * t;
   *y= node.intersection.p1->node.shape.y + b0_y * t;
+}
+
+
+void Gcalc_heap::Info::get_xy(double *x, double *y) const
+{
+  if (type == nt_intersection)
+    calc_intersection_xy(x, y);
+  else
+  {
+    GCALC_DBUG_ASSERT(type == nt_shape_node);
+    *x= node.shape.x;
+    *y= node.shape.y;
+  }
 }
 
 
@@ -1925,7 +1943,8 @@ double Gcalc_scan_iterator::get_y() const
     Gcalc_coord2 t_a, t_b;
     Gcalc_coord3 a_tb, b_ta, y_exp;
     calc_t(t_a, t_b, dxa, dya,
-           state.pi->node.intersection.p1, state.pi->node.intersection.p2, state.pi->node.intersection.p3, state.pi->node.intersection.p4);
+           state.pi->node.intersection.p1, state.pi->node.intersection.p2,
+           state.pi->node.intersection.p3, state.pi->node.intersection.p4);
 
 
     gcalc_mul_coord(a_tb, GCALC_COORD_BASE3,
@@ -1971,14 +1990,12 @@ double Gcalc_scan_iterator::get_event_x() const
 double Gcalc_scan_iterator::get_h() const
 {
   double cur_y= get_y();
-  double next_y;
-  if (state.pi->type == Gcalc_heap::nt_intersection)
-  {
-    double x;
-    state.pi->calc_xy(&x, &next_y);
-  }
-  else
-    next_y= state.pi->next ? state.pi->get_next()->node.shape.y : 0.0;
+  double x, next_y;
+
+  GCALC_DBUG_ASSERT(m_cur_pi);
+
+  m_cur_pi->get_xy(&x, &next_y);
+
   return next_y - cur_y;
 }
 
@@ -2010,6 +2027,3 @@ double Gcalc_scan_iterator::get_pure_double(const Gcalc_internal_coord *d,
     res*= -1.0;
   return res;
 }
-
-
-#endif /* HAVE_SPATIAL */

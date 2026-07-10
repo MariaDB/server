@@ -23,10 +23,6 @@
 **	 - type set is out of optimization yet
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_LEX 1
 
 #include "mariadb.h"
@@ -38,32 +34,40 @@
 #define MAX_TREEMEM	  8192
 #define MAX_TREE_ELEMENTS 256
 
-int sortcmp2(void* cmp_arg __attribute__((unused)),
-	     const String *a,const String *b)
+int sortcmp2(void *, const void *a_, const void *b_)
 {
+  const String *a= static_cast<const String*>(a_);
+  const String *b= static_cast<const String*>(b_);
   return sortcmp(a,b,a->charset());
 }
 
-int compare_double2(void* cmp_arg __attribute__((unused)),
-		    const double *s, const double *t)
+int compare_double2(void *, const void *s_, const void *t_)
 {
+  const double *s= static_cast<const double*>(s_);
+  const double *t= static_cast<const double*>(t_);
+
   return compare_double(s,t);
 }
 
-int compare_longlong2(void* cmp_arg __attribute__((unused)),
-		      const longlong *s, const longlong *t)
+int compare_longlong2(void *, const void *s_, const void *t_)
 {
+  const longlong *s= static_cast<const longlong*>(s_);
+  const longlong *t= static_cast<const longlong*>(t_);
   return compare_longlong(s,t);
 }
 
-int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
-		       const ulonglong *s, const ulonglong *t)
+int compare_ulonglong2(void *, const void *s_, const void *t_)
 {
+  const ulonglong *s= static_cast<const ulonglong*>(s_);
+  const ulonglong *t= static_cast<const ulonglong*>(t_);
   return compare_ulonglong(s,t);
 }
 
-int compare_decimal2(int* len, const char *s, const char *t)
+int compare_decimal2(void *_len, const void *s_, const void *t_)
 {
+  int *len= static_cast<int *>(_len);
+  const char *s= static_cast<const char *>(s_);
+  const char *t= static_cast<const char *>(t_);
   return memcmp(s, t, *len);
 }
 
@@ -130,8 +134,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
     pc->max_treemem = MAX_TREEMEM;
   }
 
-  if (!(pc->f_info=
-        (field_info**) thd->alloc(sizeof(field_info*) * field_list.elements)))
+  if (!(pc->f_info= thd->alloc<field_info*>(field_list.elements)))
     goto err;
   pc->f_end = pc->f_info + field_list.elements;
   pc->fields = field_list;
@@ -258,7 +261,9 @@ bool test_if_number(NUM_INFO *info, const char *str, uint str_len)
       info->decimals++;
     if (str == end)
     {
-      info->dval = my_atof(begin);
+      int error;
+      const char *end2= end;
+      info->dval= my_strtod(begin, (char **) &end2, &error);
       DBUG_RETURN(1);
     }
   }
@@ -545,12 +550,12 @@ void field_decimal::add()
   }
 }
 
-
 void field_longlong::add()
 {
   char buff[MAX_FIELD_WIDTH];
-  longlong num = item->val_int();
-  uint length = (uint) (longlong10_to_str(num, buff, -10) - buff);
+  longlong numlong = item->val_int();
+  double num = (double) numlong;
+  uint length = (uint) (longlong10_to_str(numlong, buff, -10) - buff);
   TREE_ELEMENT *element;
 
   if (item->null_value)
@@ -558,12 +563,12 @@ void field_longlong::add()
     nulls++;
     return;
   }
-  if (num == 0)
+  if (num == 0.0)
     empty++;
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
+    if (!(element = tree_insert(&tree, (void*) &numlong, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
       delete_tree(&tree, 0);
@@ -582,7 +587,8 @@ void field_longlong::add()
   if (!found)
   {
     found = 1;
-    min_arg = max_arg = sum = num;
+    min_arg = max_arg = numlong;
+    sum = num;
     sum_sqr = num * num;
     min_length = max_length = length;
   }
@@ -594,10 +600,10 @@ void field_longlong::add()
       min_length = length;
     if (length > max_length)
       max_length = length;
-    if (compare_longlong(&num, &min_arg) < 0)
-      min_arg = num;
-    if (compare_longlong(&num, &max_arg) > 0)
-      max_arg = num;
+    if (compare_longlong(&numlong, &min_arg) < 0)
+      min_arg = numlong;
+    if (compare_longlong(&numlong, &max_arg) > 0)
+      max_arg = numlong;
   }
 } // field_longlong::add
 
@@ -605,8 +611,9 @@ void field_longlong::add()
 void field_ulonglong::add()
 {
   char buff[MAX_FIELD_WIDTH];
-  longlong num = item->val_int();
-  uint length = (uint) (longlong10_to_str(num, buff, 10) - buff);
+  ulonglong numlong = item->val_int();
+  double num= (double) numlong;
+  uint length = (uint) (longlong10_to_str(numlong, buff, 10) - buff);
   TREE_ELEMENT *element;
 
   if (item->null_value)
@@ -619,7 +626,7 @@ void field_ulonglong::add()
 
   if (room_in_tree)
   {
-    if (!(element = tree_insert(&tree, (void*) &num, 0, tree.custom_arg)))
+    if (!(element = tree_insert(&tree, (void*) &numlong, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
       delete_tree(&tree, 0);
@@ -638,7 +645,8 @@ void field_ulonglong::add()
   if (!found)
   {
     found = 1;
-    min_arg = max_arg = sum = num;
+    min_arg = max_arg = numlong;
+    sum = num;
     sum_sqr = num * num;
     min_length = max_length = length;
   }
@@ -650,10 +658,10 @@ void field_ulonglong::add()
       min_length = length;
     if (length > max_length)
       max_length = length;
-    if (compare_ulonglong((ulonglong*) &num, &min_arg) < 0)
-      min_arg = num;
-    if (compare_ulonglong((ulonglong*) &num, &max_arg) > 0)
-      max_arg = num;
+    if (compare_ulonglong(&numlong, &min_arg) < 0)
+      min_arg = numlong;
+    if (compare_ulonglong(&numlong, &max_arg) > 0)
+      max_arg = numlong;
   }
 } // field_ulonglong::add
 
@@ -952,8 +960,10 @@ void field_longlong::get_opt_type(String *answer,
   else if (min_arg >= INT_MIN24 && max_arg <= (min_arg >= 0 ?
 					       UINT_MAX24 : INT_MAX24))
     snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", (int) max_length);
-  else if (min_arg >= INT_MIN32 && max_arg <= (min_arg >= 0 ?
-					       UINT_MAX32 : INT_MAX32))
+  else if (min_arg >= INT_MIN32 &&
+           (ulonglong) max_arg <= (min_arg >= 0 ?
+                                   (ulonglong) UINT_MAX32 :
+                                   (ulonglong) INT_MAX32))
     snprintf(buff, sizeof(buff), "INT(%d)", (int) max_length);
   else
     snprintf(buff, sizeof(buff), "BIGINT(%d)", (int) max_length);
@@ -1072,10 +1082,10 @@ String *field_decimal::std(String *s, ha_rows rows)
 }
 
 
-int collect_string(String *element,
-		   element_count count __attribute__((unused)),
-		   TREE_INFO *info)
+int collect_string(void *element_, element_count, void *info_)
 {
+  String *element= static_cast<String*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   if (info->found)
     info->str->append(',');
   else
@@ -1088,9 +1098,10 @@ int collect_string(String *element,
 } // collect_string
 
 
-int collect_real(double *element, element_count count __attribute__((unused)),
-		 TREE_INFO *info)
+int collect_real(void *element_, element_count, void *info_)
 {
+  double *element= static_cast<double*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),current_thd->charset());
 
@@ -1106,9 +1117,10 @@ int collect_real(double *element, element_count count __attribute__((unused)),
 } // collect_real
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info)
+int collect_decimal(void *element_, element_count count, void *info_)
 {
+  uchar *element= static_cast<uchar*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[DECIMAL_MAX_STR_LENGTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1125,10 +1137,10 @@ int collect_decimal(uchar *element, element_count count,
 }
 
 
-int collect_longlong(longlong *element,
-		     element_count count __attribute__((unused)),
-		     TREE_INFO *info)
+int collect_longlong(void *element_, element_count, void *info_)
 {
+  longlong *element= static_cast<longlong*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1144,10 +1156,10 @@ int collect_longlong(longlong *element,
 } // collect_longlong
 
 
-int collect_ulonglong(ulonglong *element,
-		      element_count count __attribute__((unused)),
-		      TREE_INFO *info)
+int collect_ulonglong(void *element_, element_count, void *info_)
 {
+  ulonglong *element= static_cast<ulonglong*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1180,8 +1192,12 @@ bool analyse::change_columns(THD *thd, List<Item> &field_list)
   func_items[7]= new (mem_root) Item_proc_string(thd, "Avg_value_or_avg_length", 255);
   func_items[8]= new (mem_root) Item_proc_string(thd, "Std", 255);
   func_items[8]->set_maybe_null();
+  /*
+   * TODO MDEV-39586 need to set output_str_length for cursor retrieval
+   * earlier because currently its always 0.
+   */
   func_items[9]= new (mem_root) Item_proc_string(thd, "Optimal_fieldtype",
-                                                  MY_MAX(64,
+                                                  MY_MAX(1024,
                                                          output_str_length));
 
   for (uint i = 0; i < array_elements(func_items); i++)
@@ -1211,7 +1227,7 @@ uint check_ulonglong(const char *str, uint length)
   const char *long_str = "2147483647", *ulonglong_str = "18446744073709551615";
   const uint long_len = 10, ulonglong_len = 20;
 
-  while (*str == '0' && length)
+  while (length && *str == '0')
   {
     str++; length--;
   }

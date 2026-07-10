@@ -9,9 +9,6 @@
 --source include/have_log_bin.inc
 --source include/have_innodb.inc
 
---echo # Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 --disable_query_log
 # This may be triggered on a slow system or one that lacks native AIO.
 call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
@@ -62,7 +59,3 @@ drop table t1;
 connection default;
 disconnect con1;
 disconnect con2;
-
---echo # Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-

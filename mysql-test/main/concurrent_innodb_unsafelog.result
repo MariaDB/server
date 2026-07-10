@@ -1,14 +1,16 @@
 SET @save_timeout = @@GLOBAL.innodb_lock_wait_timeout;
 SET GLOBAL innodb_lock_wait_timeout = 1;
-SET @save_isolation = @@GLOBAL.tx_isolation;
+SET @save_snapshot_isolation = @@GLOBAL.innodb_snapshot_isolation;
+SET GLOBAL innodb_snapshot_isolation = OFF;
+SET @save_isolation = @@GLOBAL.transaction_isolation;
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 connection default;
 SET SQL_MODE="";
-SELECT @@global.tx_isolation;
-@@global.tx_isolation
+SELECT @@global.transaction_isolation;
+@@global.transaction_isolation
 READ-COMMITTED
 # keep_locks == 0
-GRANT USAGE ON test.* TO mysqltest@localhost;
+GRANT ALL ON test.* TO mysqltest@localhost;
 
 **
 ** two UPDATE's running and both changing distinct result sets
@@ -591,7 +593,7 @@ eta	tipo	c
 70	1	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 80	22	jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
 90	11	kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
-** Commit transacton on thread 2.
+** Commit transaction on thread 2.
 commit;
 connection thread1;
 ** Commit transaction on thread 1.
@@ -791,4 +793,5 @@ drop table t1;
 drop user mysqltest@localhost;
 SET SQL_MODE=default;
 SET GLOBAL innodb_lock_wait_timeout = @save_timeout;
-SET GLOBAL tx_isolation = @save_isolation;
+SET GLOBAL transaction_isolation = @save_isolation;
+SET GLOBAL innodb_snapshot_isolation = @save_snapshot_isolation;

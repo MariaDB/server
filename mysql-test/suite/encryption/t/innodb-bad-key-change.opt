@@ -1,2 +1,1 @@
---innodb-purge-rseg-truncate-frequency=1
 --skip-innodb-fast-shutdown

@@ -104,7 +104,7 @@ one should increment the control file version number.
    This LSN serves for the two-checkpoint rule, and also to find the
    checkpoint record when doing a recovery.
 */
-LSN    last_checkpoint_lsn= LSN_IMPOSSIBLE;
+volatile LSN  last_checkpoint_lsn= LSN_IMPOSSIBLE;
 uint32 last_logno=          FILENO_IMPOSSIBLE;
 /**
    The maximum transaction id given to a transaction. It is only updated at
@@ -272,15 +272,15 @@ static int lock_control_file(const char *name, my_bool do_retry)
 
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
                                         my_bool print_error,
-                                        my_bool wait_for_lock)
+                                        my_bool wait_for_lock,
+                                        int open_flags)
 {
   uchar buffer[CF_MAX_SIZE];
-  char name[FN_REFLEN], errmsg_buff[256];
+  char name[FN_REFLEN], errmsg_buff[512];
   const char *errmsg, *lock_failed_errmsg= "Could not get an exclusive lock;"
     " file is probably in use by another process";
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
   my_off_t file_size;
-  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   DBUG_ENTER("ma_control_file_open");
 
@@ -388,8 +388,8 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   if (buffer[CF_VERSION_OFFSET] > CONTROL_FILE_VERSION)
   {
     error= CONTROL_FILE_BAD_VERSION;
-    sprintf(errmsg_buff, "File is from a future aria system: %d. Current version is: %d",
-            (int) buffer[CF_VERSION_OFFSET], CONTROL_FILE_VERSION);
+    snprintf(errmsg_buff, sizeof(errmsg_buff), "File is from a future aria system: %d. Current version is: %d",
+             (int) buffer[CF_VERSION_OFFSET], CONTROL_FILE_VERSION);
     errmsg= errmsg_buff;
     goto err;
   }
@@ -399,10 +399,14 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
 
   if (new_cf_create_time_size < CF_MIN_CREATE_TIME_TOTAL_SIZE ||
       new_cf_changeable_size <  CF_MIN_CHANGEABLE_TOTAL_SIZE ||
-      new_cf_create_time_size + new_cf_changeable_size != file_size)
+      new_cf_create_time_size + new_cf_changeable_size > file_size)
   {
     error= CONTROL_FILE_INCONSISTENT_INFORMATION;
-    errmsg= "Sizes stored in control file are inconsistent";
+    snprintf(errmsg_buff, sizeof(errmsg_buff),
+             "Sizes stored in control file are inconsistent. "
+             "create_time_size: %u  changeable_size: %u  file_size: %llu",
+             new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
+    errmsg= errmsg_buff;
     goto err;
   }
 
@@ -410,9 +414,9 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   if (new_block_size != maria_block_size && maria_block_size)
   {
     error= CONTROL_FILE_WRONG_BLOCKSIZE;
-    sprintf(errmsg_buff,
-            "Block size in control file (%u) is different than given aria_block_size: %u",
-            new_block_size, (uint) maria_block_size);
+    snprintf(errmsg_buff, sizeof(errmsg_buff),
+             "Block size in control file (%u) is different than given aria_block_size: %u",
+             new_block_size, (uint) maria_block_size);
     errmsg= errmsg_buff;
     goto err;
   }
@@ -460,6 +464,15 @@ err:
   DBUG_RETURN(error);
 }
 
+/*
+  The most common way to open the control file when writing tests
+*/
+
+CONTROL_FILE_ERROR ma_control_file_open_or_create()
+{
+  return ma_control_file_open(TRUE, TRUE, TRUE,
+                              control_file_open_flags);
+}
 
 /*
   Write information durably to the control file; stores this information into
@@ -613,6 +626,20 @@ my_bool ma_control_file_inited(void)
   return (control_file_fd >= 0);
 }
 
+
+
+static int check_zerofill(uchar *buffer, ulonglong offset, ulonglong length)
+{
+  uchar *pos= buffer + offset, *end= buffer+length;
+  while (pos < end)
+  {
+    if (*pos++)
+      return 1;
+  }
+  return 0;
+}
+
+
 /**
    Print content of aria_log_control file
 */
@@ -620,6 +647,7 @@ my_bool ma_control_file_inited(void)
 my_bool print_aria_log_control()
 {
   uchar buffer[CF_MAX_SIZE];
+  char errmsg_buff[512];
   char name[FN_REFLEN], uuid_str[MY_UUID_STRING_LENGTH+1];
   const char *errmsg;
   uint new_cf_create_time_size, new_cf_changeable_size;
@@ -630,7 +658,7 @@ my_bool print_aria_log_control()
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   uint recovery_fails;
   File file;
-  DBUG_ENTER("ma_control_file_open");
+  DBUG_ENTER("print_aria_log_control");
 
   if (fn_format(name, CONTROL_FILE_BASE_NAME,
                 maria_data_root, "", MYF(MY_WME)) == NullS)
@@ -696,10 +724,14 @@ my_bool print_aria_log_control()
 
   if (new_cf_create_time_size < CF_MIN_CREATE_TIME_TOTAL_SIZE ||
       new_cf_changeable_size <  CF_MIN_CHANGEABLE_TOTAL_SIZE ||
-      new_cf_create_time_size + new_cf_changeable_size != file_size)
+      new_cf_create_time_size + new_cf_changeable_size > file_size)
   {
     error= CONTROL_FILE_INCONSISTENT_INFORMATION;
-    errmsg= "Sizes stored in control file are inconsistent";
+    snprintf(errmsg_buff, sizeof(errmsg_buff),
+             "Sizes stored in control file are inconsistent. "
+             "create_time_size: %u  changeable_size: %u  file_size: %llu",
+             new_cf_create_time_size, new_cf_changeable_size, (ulonglong) file_size);
+    errmsg= errmsg_buff;
     goto err;
   }
   checkpoint_lsn= lsn_korr(buffer + new_cf_create_time_size +
@@ -723,6 +755,18 @@ my_bool print_aria_log_control()
       (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
     printf("recovery_failures:   %u\n", recovery_fails);
   }
+  if (check_zerofill(buffer, new_cf_create_time_size + new_cf_changeable_size, file_size))
+  {
+    printf("Warning: %s file_size is %llu (should be %llu) and contains unknown data.\n"
+           "It will still work but should be examined.\n",
+           name, (ulonglong) file_size,
+           (ulonglong) (new_cf_create_time_size + new_cf_changeable_size));
+  }
+  else if (new_cf_create_time_size + new_cf_changeable_size < file_size)
+    printf("Note: file_size (%llu) is bigger than the expected file size %llu.\n"
+           "This is unexpected but will not cause any issues.\n",
+           (ulonglong) file_size,
+           (ulonglong) (new_cf_create_time_size + new_cf_changeable_size));
   mysql_file_close(file, MYF(0));
   DBUG_RETURN(0);
 

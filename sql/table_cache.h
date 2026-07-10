@@ -66,7 +66,7 @@ extern ulong tc_size;
 extern uint32 tc_instances;
 
 extern bool tdc_init(void);
-extern void tdc_start_shutdown(void);
+extern void tdc_start_shutdown(bool use_dummy_thd);
 extern void tdc_deinit(void);
 extern ulong tdc_records(void);
 extern void tdc_purge(bool all);
@@ -87,8 +87,8 @@ extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                        bool no_dups= false);
 
 extern uint tc_records(void);
-int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
-                             enum enum_var_type scope);
+int show_tc_active_instances(THD *thd, SHOW_VAR *var, void *buff,
+                             system_status_var *, enum enum_var_type scope);
 extern void tc_purge();
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);

@@ -8,7 +8,7 @@
 #
 # See also:
 # https://wiki.debian.org/Teams/pkg-systemd/Packaging#overriding_options_and_.2Fetc.2Fdefault_handling
-# https://mariadb.com/kb/en/mariadb/systemd/
+# https://mariadb.com/docs/server/server-management/starting-and-stopping-mariadb/systemd
 #
 # Note also that MariaDB systemd does _not_ utilize mysqld_safe.
 

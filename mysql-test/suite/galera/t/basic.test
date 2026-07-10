@@ -1,6 +1,9 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+select @@slave_connections_needed_for_purge;
+select VARIABLE_NAME, GLOBAL_VALUE, GLOBAL_VALUE_ORIGIN from information_schema.system_variables where variable_name="slave_connections_needed_for_purge";
+
 USE test;
 CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5);

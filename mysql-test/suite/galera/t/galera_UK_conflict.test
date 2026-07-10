@@ -1,7 +1,7 @@
 #
 # This test tests the operation of transaction replay with a scenario
 # where two subsequent write sets being applied conflict with local transaction
-# in commit phase. The conflict is "false positive" confict on GAP lock in
+# in commit phase. The conflict is "false positive" conflict on GAP lock in
 # secondary unique index.
 # The first applier will cause BF abort for the local committer, which
 # starts replaying because of positive certification.
@@ -118,7 +118,7 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 SET GLOBAL debug_dbug = NULL;
 SET debug_sync='RESET';
 
-# with fixed version, second applier has reached comit monitor, and we can
+# with fixed version, second applier has reached commit monitor, and we can
 # release it to complete
 --let $galera_sync_point = commit_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc

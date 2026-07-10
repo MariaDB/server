@@ -400,7 +400,7 @@ create table t1(a int, index using btree (a));
 insert into t1 values (1), (2), (3);
 handler t1 open;
 handler t1 read a=(W);
-ERROR 42S22: Unknown column 'W' in 'field list'
+ERROR 42S22: Unknown column 'W' in 'HANDLER ... READ'
 handler t1 read a=(a);
 ERROR HY000: Incorrect arguments to HANDLER ... READ
 drop table t1;
@@ -597,11 +597,11 @@ handler t1 open as t1_alias;
 handler t1_alias read a next;
 ERROR 42000: Key 'a' doesn't exist in table 't1_alias'
 handler t1_alias READ a next where inexistent > 0;
-ERROR 42S22: Unknown column 'inexistent' in 'field list'
+ERROR 42S22: Unknown column 'inexistent' in 'WHERE'
 handler t1_alias read a next;
 ERROR 42000: Key 'a' doesn't exist in table 't1_alias'
 handler t1_alias READ a next where inexistent > 0;
-ERROR 42S22: Unknown column 'inexistent' in 'field list'
+ERROR 42S22: Unknown column 'inexistent' in 'WHERE'
 handler t1_alias close;
 drop table t1;
 create temporary table t1 (a int, b char(1), key a using btree (a), key b using btree (a,b));
@@ -826,7 +826,7 @@ ERROR 42S02: Unknown table 't1' in HANDLER
 handler t1 open;
 repair table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 handler t1 read next;
 ERROR 42S02: Unknown table 't1' in HANDLER
 #
@@ -950,7 +950,7 @@ handler t1 open;
 lock tables t1 write;
 repair table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 unlock tables;
 handler t1 read next;
 ERROR 42S02: Unknown table 't1' in HANDLER
@@ -1216,11 +1216,8 @@ connection default;
 # Reaping 'handler t1 read a next'...
 ERROR 42S02: Table 'test.t1' doesn't exist
 handler t1 close;
-connection con1;
 disconnect con1;
-connection con2;
 disconnect con2;
-connection con3;
 disconnect con3;
 connection default;
 #
@@ -1351,7 +1348,7 @@ set autocommit=default;
 drop table t2, t3;
 # 
 # HANDLER statement and operation-type aware metadata locks.
-# Check that when we clone a ticket for HANDLER we downrade
+# Check that when we clone a ticket for HANDLER we downgrade
 # the lock.
 #
 connect  con1,localhost,root,,;
@@ -1376,7 +1373,6 @@ a	b
 handler t1 close;
 # Cleanup.
 drop table t1;
-connection con1;
 disconnect con1;
 connection default;
 #
@@ -1526,7 +1522,6 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 HANDLER t1 READ id NEXT;
 ERROR 42S02: Table 'test.t1' doesn't exist
 HANDLER t1 CLOSE;
-connection con51355;
 disconnect con51355;
 connection default;
 #
@@ -1539,8 +1534,6 @@ BEGIN
 SELECT 1 FROM t2 INTO @a;
 RETURN 1;
 END|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT f1();
 ERROR 42S02: Table 'test.t2' doesn't exist
 CREATE TABLE t1(a INT);
@@ -1640,7 +1633,7 @@ a	b
 1	10
 insert into t1 values (7,50);
 HANDLER t1 READ b NEXT;
-ERROR HY000: Record has changed since last read in table 't1'
+ERROR HY000: Record has changed since last read in table 't1'; try restarting transaction
 HANDLER t1 READ b FIRST;
 a	b
 1	10
@@ -1648,7 +1641,7 @@ connection con1;
 insert into t1 values (7,50);
 connection default;
 HANDLER t1 READ b NEXT;
-ERROR HY000: Record has changed since last read in table 't1'
+ERROR HY000: Record has changed since last read in table 't1'; try restarting transaction
 HANDLER t1 READ FIRST;
 a	b
 2	20
@@ -1669,7 +1662,7 @@ connection con1;
 delete from t1;
 connection default;
 HANDLER t1 READ NEXT LIMIT 2;
-ERROR HY000: Record has changed since last read in table 't1'
+ERROR HY000: Record has changed since last read in table 't1'; try restarting transaction
 HANDLER t1 CLOSE;
 DROP TABLE t1;
 disconnect con1;

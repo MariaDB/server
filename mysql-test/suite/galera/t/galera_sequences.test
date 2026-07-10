@@ -1,6 +1,9 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_aria.inc
 
+--disable_ps2_protocol
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
 #
@@ -45,6 +48,7 @@ SHOW CREATE SEQUENCE Seq1_1;
 select NEXT VALUE FOR Seq1_1;
 
 --connection node_1
+SHOW CREATE SEQUENCE Seq1_1;
 DROP SEQUENCE Seq1_1;
 
 #
@@ -134,7 +138,33 @@ DROP SEQUENCE t;
 #
 --error ER_NOT_SUPPORTED_YET
 CREATE SEQUENCE t ENGINE=MYISAM;
-CREATE SEQUENCE t INCREMENT BY 1 NOCACHE ENGINE=INNODB;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE t;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t;
+
+--connection node_2
+# Verify that above MyISAM sequence does not replicate
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE t;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t;
+
+--connection node_1
+CREATE SEQUENCE t NOCACHE ENGINE=InnoDB;
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t ENGINE=MyISAM;
+SHOW CREATE SEQUENCE t;
+SHOW CREATE TABLE t;
+
+--connection node_2
+SHOW CREATE SEQUENCE t;
+SHOW CREATE TABLE t;
+
+--connection node_1
+DROP SEQUENCE t;
+# Don't use NOCACHE as it may produce duplicate entries from multiple nodes
+CREATE SEQUENCE t INCREMENT BY 0 CACHE 1 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 
 --connection node_2
@@ -164,15 +194,11 @@ SET SESSION wsrep_sync_wait=0;
 while ($count)
 {
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (1);
 --connection node_2
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (2);
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (2);
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (1);
 --dec $count
 }
@@ -222,15 +248,11 @@ SET SESSION wsrep_sync_wait=0;
 while ($count)
 {
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 --connection node_2
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (21),(22),(23),(24),(25),(26),(27),(28),(29);
 --connection node_1
---error 0,ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(b) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 --dec $count
 }
@@ -291,6 +313,12 @@ SELECT NEXTVAL(t);
 DROP TABLE t1;
 DROP SEQUENCE t;
 
+--connection node_2
+--let $wsrep_sync_wait_orig_2 = `SELECT @@wsrep_sync_wait`
+SET SESSION wsrep_sync_wait=15;
+
+--connection node_1
+
 CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 #
@@ -313,6 +341,38 @@ SELECT NEXTVAL(t);
 SELECT * FROM t1;
 SELECT NEXTVAL(t);
 
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig_2
+--enable_query_log
+
 --connection node_1
 DROP TABLE t1;
 DROP SEQUENCE t;
+
+--echo
+--echo MDEV-33245 SIGSEGV in wsrep_check_sequence | Sql_cmd_alter_sequence::execute
+--echo
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (c VARCHAR) ENGINE=InnoDB;
+--error ER_NOT_SUPPORTED_YET
+ALTER SEQUENCE IF EXISTS t MINVALUE=1;
+
+DROP TABLE t;
+
+--echo
+--echo MDEV-32631:
+--echo
+
+CREATE OR REPLACE TABLE t1(c INT ) ENGINE=ARIA;
+SET SESSION WSREP_OSU_METHOD=RSU;
+--error ER_NOT_SUPPORTED_YET
+INSERT INTO t1 SELECT seq,concat(seq,1) FROM seq_1_to_100;
+SET SESSION WSREP_OSU_METHOD=TOI;
+DROP TABLE t1;
+
+--echo
+--echo End of 10.5 tests

@@ -48,14 +48,30 @@ Warning	1911	Unknown option 'foo'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` int(11) INVISIBLE DEFAULT NULL,
+  `f1` int(11) DEFAULT NULL INVISIBLE,
   `f2` int(11) DEFAULT NULL COMMENT 'a comment',
   `f3` int(11) DEFAULT NULL `foo`='bar',
   `f4` int(11) DEFAULT NULL CHECK (`f4` < 10),
   `f5` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1;
 set sql_mode=default;
-#
 # End of 10.4 tests
 #
+# MDEV-37998 (Column) CHECK constraints can cause CREATE TABLE (SELECT) queries to fail
+#
+create table t1(
+i int not null check(i > 0),
+j int default (i+1),
+primary key(i),
+check (2*i>1)
+);
+create table t2 (select i as a,j from t1);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `j` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+# End of 12.1 tests

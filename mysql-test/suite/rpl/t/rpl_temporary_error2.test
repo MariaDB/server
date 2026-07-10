@@ -1,7 +1,15 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
 
+if ($check_mdev_38624)
+{
+  --source include/check_slave_skip_errors.inc
+}
+
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
 
 --echo *** Provoke a deadlock on the slave, check that transaction retry succeeds. ***
 --connection master
@@ -64,7 +72,14 @@ ROLLBACK;
 --connection slave
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;
---echo * There will be two rows in t2 due to the retry.
+if (!$ignored_db_deadlock)
+{
+  --echo * There will be two rows in t2 due to the retry.
+}
+if ($ignored_db_deadlock)
+{
+  --echo * There will be one row in t2 because the ignored deadlock does not retry.
+}
 SELECT * FROM t2 ORDER BY a;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
 --disable_query_log

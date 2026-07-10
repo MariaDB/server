@@ -322,7 +322,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
   get_key_pack_length(kseg_len,length_pack,kseg);
   key_len_skip=length_pack+kseg_len;
   key_len_left=(int) key_len- (int) key_len_skip;
-  /* If key_len is 0, then lenght_pack is 1, then key_len_left is -1. */
+  /* If key_len is 0, then length_pack is 1, then key_len_left is -1. */
   cmplen=(key_len_left>=0) ? kseg_len : key_len-length_pack;
   DBUG_PRINT("info",("key: '%.*s'",kseg_len,kseg));
 
@@ -1473,7 +1473,7 @@ _mi_calc_var_pack_key_length(MI_KEYDEF *keyinfo,uint nod_flag,uchar *next_key,
   key_length=_mi_keylength(keyinfo,key)+nod_flag;
 
   sort_order=0;
-  if ((keyinfo->flag & HA_FULLTEXT) &&
+  if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT &&
       ((keyseg->type == HA_KEYTYPE_TEXT) ||
        (keyseg->type == HA_KEYTYPE_VARTEXT1) ||
        (keyseg->type == HA_KEYTYPE_VARTEXT2)) &&

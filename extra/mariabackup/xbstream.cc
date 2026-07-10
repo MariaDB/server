@@ -18,6 +18,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
+#define VER "1.0"
 #include <my_global.h>
 #include <my_base.h>
 #include <my_getopt.h>
@@ -26,8 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "xbstream.h"
 #include "datasink.h"
+#include <welcome_copyright_notice.h>
 
-#define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
 
 #define START_FILE_HASH_SIZE 16
@@ -148,14 +149,6 @@ get_options(int *argc, char ***argv)
 
 static
 void
-print_version(void)
-{
-	printf("%s  Ver %s for %s (%s)\n", my_progname, XBSTREAM_VERSION,
-	       SYSTEM_TYPE, MACHINE_TYPE);
-}
-
-static
-void
 usage(void)
 {
 	print_version();
@@ -262,7 +255,7 @@ mode_create(int argc, char **argv)
 		return 1;
 	}
 
-	stream = xb_stream_write_new();
+	stream = xb_stream_write_new(nullptr, nullptr);
 	if (stream == NULL) {
 		msg("%s: xb_stream_write_new() failed.", my_progname);
 		return 1;
@@ -287,7 +280,7 @@ mode_create(int argc, char **argv)
 			goto err;
 		}
 
-		file = xb_stream_write_open(stream, filepath, &mystat, NULL, NULL);
+		file = xb_stream_write_open(stream, filepath, &mystat, false);
 		if (file == NULL) {
 			goto err;
 		}
@@ -314,10 +307,16 @@ err:
 
 static
 file_entry_t *
-file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
+file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen,
+	uchar chunk_flags)
 {
 	file_entry_t	*entry;
 	ds_file_t	*file;
+
+        if (*path == '.' || *path == '/' || strstr(path, "/../")) {
+		msg("%s: invalid filename %s", my_progname, path);
+                return NULL;
+        }
 
 	entry = (file_entry_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(file_entry_t),
 					   MYF(MY_WME | MY_ZEROFILL));
@@ -331,7 +330,8 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
 	}
 	entry->pathlen = pathlen;
 
-	file = ds_open(ctxt->ds_ctxt, path, NULL);
+	file = ds_open(ctxt->ds_ctxt, path, NULL,
+		chunk_flags == XB_STREAM_FLAG_REWRITE);
 
 	if (file == NULL) {
 		msg("%s: failed to create file.", my_progname);
@@ -358,22 +358,23 @@ err:
 }
 
 static
-uchar *
-get_file_entry_key(file_entry_t *entry, size_t *length,
-		   my_bool not_used __attribute__((unused)))
+const uchar *
+get_file_entry_key(const void *entry_, size_t *length, my_bool)
 {
-	*length = entry->pathlen;
-	return (uchar *) entry->path;
+  const file_entry_t *entry= static_cast<const file_entry_t *>(entry_);
+  *length= entry->pathlen;
+  return reinterpret_cast<const uchar *>(entry->path);
 }
 
 static
 void
-file_entry_free(file_entry_t *entry)
+file_entry_free(void *entry_)
 {
-	pthread_mutex_destroy(&entry->mutex);
-	ds_close(entry->file);
-	my_free(entry->path);
-	my_free(entry);
+  file_entry_t *entry= static_cast<file_entry_t *>(entry_);
+  pthread_mutex_destroy(&entry->mutex);
+  ds_close(entry->file);
+  my_free(entry->path);
+  my_free(entry);
 }
 
 static
@@ -412,10 +413,50 @@ extract_worker_thread_func(void *arg)
 							(uchar *) chunk.path,
 							chunk.pathlen);
 
+		if (entry && (chunk.type == XB_CHUNK_TYPE_REMOVE ||
+			chunk.type == XB_CHUNK_TYPE_RENAME)) {
+			msg("%s: rename and remove chunks can not be applied to opened file: %s",
+				my_progname, chunk.path);
+			pthread_mutex_unlock(ctxt->mutex);
+			break;
+		}
+
+		if (chunk.type == XB_CHUNK_TYPE_REMOVE) {
+			if (ds_remove(ctxt->ds_ctxt, chunk.path)) {
+				msg("%s: error on file removing: %s", my_progname, chunk.path);
+				pthread_mutex_unlock(ctxt->mutex);
+				res = XB_STREAM_READ_ERROR;
+				break;
+			}
+			pthread_mutex_unlock(ctxt->mutex);
+			continue;
+		}
+
+		if (chunk.type == XB_CHUNK_TYPE_RENAME) {
+			if (my_hash_search(ctxt->filehash,
+				reinterpret_cast<const uchar *>(chunk.data), chunk.length)) {
+				msg("%s: rename chunks can not be applied to opened file: %s",
+					my_progname, reinterpret_cast<const uchar *>(chunk.data));
+				pthread_mutex_unlock(ctxt->mutex);
+				break;
+			}
+			if (ds_rename(ctxt->ds_ctxt, chunk.path,
+				reinterpret_cast<const char *>(chunk.data))) {
+				msg("%s: error on file renaming: %s to %s", my_progname,
+					reinterpret_cast<const char *>(chunk.data), chunk.path);
+				pthread_mutex_unlock(ctxt->mutex);
+				res = XB_STREAM_READ_ERROR;
+				break;
+			}
+			pthread_mutex_unlock(ctxt->mutex);
+			continue;
+		}
+
 		if (entry == NULL) {
 			entry = file_entry_new(ctxt,
 					       chunk.path,
-					       chunk.pathlen);
+					       chunk.pathlen,
+								 chunk.flags);
 			if (entry == NULL) {
 				pthread_mutex_unlock(ctxt->mutex);
 				break;
@@ -431,6 +472,18 @@ extract_worker_thread_func(void *arg)
 		pthread_mutex_lock(&entry->mutex);
 
 		pthread_mutex_unlock(ctxt->mutex);
+
+		if (chunk.type == XB_CHUNK_TYPE_SEEK) {
+			if (ds_seek_set(entry->file, chunk.offset)) {
+				msg("%s: my_seek() failed.", my_progname);
+				pthread_mutex_unlock(&entry->mutex);
+				res = XB_STREAM_READ_ERROR;
+				break;
+			}
+			entry->offset = chunk.offset;
+			pthread_mutex_unlock(&entry->mutex);
+			continue;
+		}
 
 		res = xb_stream_validate_checksum(&chunk);
 
@@ -493,14 +546,15 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	pthread_mutex_t		mutex;
 	int			ret = 0;
 
-        if (my_hash_init(PSI_NOT_INSTRUMENTED, &filehash, &my_charset_bin,
-                         START_FILE_HASH_SIZE, 0, 0, (my_hash_get_key) get_file_entry_key,
-			  (my_hash_free_key) file_entry_free, MYF(0))) {
-		msg("%s: failed to initialize file hash.", my_progname);
-		return 1;
-	}
+  if (my_hash_init(PSI_NOT_INSTRUMENTED, &filehash, &my_charset_bin,
+                   START_FILE_HASH_SIZE, 0, 0, get_file_entry_key,
+                   file_entry_free, MYF(0)))
+  {
+    msg("%s: failed to initialize file hash.", my_progname);
+    return 1;
+  }
 
-	if (pthread_mutex_init(&mutex, NULL)) {
+  if (pthread_mutex_init(&mutex, NULL)) {
 		msg("%s: failed to initialize mutex.", my_progname);
 		my_hash_free(&filehash);
 		return 1;

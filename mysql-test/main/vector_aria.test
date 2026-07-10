@@ -1,0 +1,34 @@
+--echo #
+--echo # Aria, ALTER TABLE
+--echo #
+create table t (a int primary key, f vector(1) not null) engine=Aria;
+insert into t values (1, 0x30303030),(2, 0x31313131);
+alter table t add vector(f);
+check table t extended;
+drop table t;
+
+--echo #
+--echo # MDEV-35267 Server crashes in _ma_reset_history upon altering on Aria table with vector key under lock
+--echo #
+create table t (v vector(1) not null, vector(v)) engine=aria;
+insert into t values (0x31313131);
+lock table t write;
+alter table t force;
+unlock tables;
+drop table t;
+
+--echo #
+--echo # MDEV-36256 Crash on disconnect when dropped Aria table with vector key under lock
+--echo #
+
+connect con1, localhost, root;
+create or replace table t (v vector (1) not null,vector(v)) engine=aria;
+create or replace table t2 (c int) engine=aria;
+lock tables t write,t2 write;
+insert into t values (0x31313131);
+drop table t;
+drop table t2;
+disconnect con1;
+connection default;
+
+--echo # End of 11.8 tests

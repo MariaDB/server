@@ -1,0 +1,68 @@
+if (`SELECT $SP_PROTOCOL > 0`)
+{
+   --skip Test requires: sp-protocol disabled
+}
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-32837 long unique does not work like unique key when using replace
+--echo #
+
+# This test produces different Handler commands in the SHOW STATUS output
+# with --sp-protocol. So it's here, in this *.test file with --sp-protocol disabled.
+
+--echo #
+--echo # Normal unique key + long unique key
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, UNIQUE KEY `test` (b,c) USING HASH) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1),(2,2,2);
+FLUSH STATUS;
+REPLACE INTO t1 VALUES (3,1,1);
+SHOW STATUS WHERE Variable_name LIKE 'handler%' AND Value>0;
+SELECT * FROM t1 ORDER BY a;
+FLUSH STATUS;
+REPLACE INTO t1 VALUES (3,2,2);
+SHOW STATUS WHERE Variable_name LIKE 'handler%' AND Value>0;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Two long unique keys
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, UNIQUE KEY a (a) USING HASH,UNIQUE KEY `test` (b,c) USING HASH) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1),(2,2,2);
+FLUSH STATUS;
+REPLACE INTO t1 VALUES (3,1,1);
+SHOW STATUS WHERE Variable_name LIKE 'handler%' AND Value>0;
+SELECT * FROM t1 ORDER BY a;
+FLUSH STATUS;
+REPLACE INTO t1 VALUES (3,2,2);
+SHOW STATUS WHERE Variable_name LIKE 'handler%' AND Value>0;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # One long unique key
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, UNIQUE KEY `test` (b,c) USING HASH) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,1),(2,2,2);
+FLUSH STATUS;
+REPLACE INTO t1 VALUES (3,1,1);
+SHOW STATUS WHERE Variable_name LIKE 'handler%' AND Value>0;
+SELECT * FROM t1 ORDER BY a;
+FLUSH STATUS;
+REPLACE INTO t1 VALUES (3,2,2);
+SHOW STATUS WHERE Variable_name LIKE 'handler%' AND Value>0;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

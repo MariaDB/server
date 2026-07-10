@@ -2,6 +2,12 @@ create table t (id int primary key, s date, e date, period for mytime(s,e));
 --echo # CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
 --echo # this is important for correct command-based replication
 show create table t;
+create view v as select * from t;
+select * from information_schema.periods;
+--sorted_result
+select * from information_schema.key_period_usage;
+drop view v;
+
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
                            period for mytime(s,e));
 show create table t;
@@ -99,3 +105,33 @@ create table t2 (s date, e date, period for
                  `abcd123456789012345678901234567890123456789012345678901234567890`
                  (s,e)); 
 drop table t2;
+
+
+--echo # MDEV-32205 Server crashes in get_schema_key_period_usage_record on
+--echo # server without InnoDB
+
+--echo # Make sure innodb id disabled, but there's at least one innodb table
+--disable_warnings
+select "yes" from information_schema.tables where engine="innodb" limit 1;
+select plugin_status from information_schema.all_plugins where plugin_name = "innodb";
+select * from information_schema.periods;
+select * from information_schema.key_period_usage;
+--enable_warnings
+
+--echo # [DUPLICATE] MDEV-32204 Server crashes in
+--echo # get_schema_key_period_usage_record
+
+create table t (a date) engine=myisam;
+create table  t1 (a int) engine=merge union = (t) ;
+
+--sorted_result
+select 1 from information_schema.key_period_usage;
+drop table t1;
+drop table t;
+
+create view v1 as select 1;
+create view v2 as select * from v1;
+drop view v1;
+--sorted_result
+select * from information_schema.key_period_usage;
+drop view v2;

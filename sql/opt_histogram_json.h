@@ -16,6 +16,20 @@
 
 #include "sql_statistics.h"
 
+struct Histogram_bucket
+{
+  // The left endpoint in KeyTupleFormat. The endpoint is inclusive, this
+  // value is in this bucket.
+  std::string start_value;
+
+  // Cumulative fraction: The fraction of table rows that fall into this
+  //  and preceding buckets.
+  double cum_fract;
+
+  // Number of distinct values in the bucket.
+  longlong ndv;
+};
+
 /*
   An equi-height histogram which stores real values for bucket bounds.
 
@@ -64,37 +78,24 @@
   are not mapped to any UTF8 character.
 */
 
-class Histogram_json_hb : public Histogram_base
+class Histogram_json_hb final : public Histogram_base
 {
   size_t size; /* Number of elements in the histogram */
 
   /* Collection-time only: collected histogram in the JSON form. */
   std::string json_text;
 
-  struct Bucket
-  {
-    // The left endpoint in KeyTupleFormat. The endpoint is inclusive, this
-    // value is in this bucket.
-    std::string start_value;
-
-    // Cumulative fraction: The fraction of table rows that fall into this
-    //  and preceding buckets.
-    double cum_fract;
-
-    // Number of distinct values in the bucket.
-    longlong ndv;
-  };
-
-  std::vector<Bucket> buckets;
+  std::vector<Histogram_bucket> buckets;
 
   std::string last_bucket_end_endp;
+  json_engine_t je;
 
 public:
   static constexpr const char* JSON_NAME="histogram_hb";
 
   bool parse(MEM_ROOT *mem_root, const char *db_name, const char *table_name,
-             Field *field, Histogram_type type_arg,
-             const char *hist_data, size_t hist_data_len) override;
+             Field *field, const char *hist_data,
+             size_t hist_data_len) override;
 
   void serialize(Field *field) override;
 
@@ -121,7 +122,6 @@ public:
   {
     return (uint)size;
   }
-
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
 
@@ -129,6 +129,16 @@ public:
                            double avg_sel) override;
   double range_selectivity(Field *field, key_range *min_endp,
                            key_range *max_endp, double avg_sel) override;
+
+  const std::vector<Histogram_bucket>& get_json_histogram() const
+  {
+    return buckets;
+  }
+
+  const std::string& get_last_bucket_end_endp() const
+  {
+    return last_bucket_end_endp;
+  }
 
   void set_json_text(ulonglong sz, const char *json_text_arg,
                      size_t json_text_len)

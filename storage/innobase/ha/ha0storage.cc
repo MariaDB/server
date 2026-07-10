@@ -29,46 +29,6 @@ Created September 22, 2007 Vasil Dimov
 #include "ha0storage.h"
 #include "hash0hash.h"
 #include "mem0mem.h"
-#include "ut0rnd.h"
-
-/*******************************************************************//**
-Retrieves a data from a storage. If it is present, a pointer to the
-stored copy of data is returned, otherwise NULL is returned. */
-static
-const void*
-ha_storage_get(
-/*===========*/
-	ha_storage_t*	storage,	/*!< in: hash storage */
-	const void*	data,		/*!< in: data to check for */
-	ulint		data_len)	/*!< in: data length */
-{
-	ha_storage_node_t*	node;
-	ulint			fold;
-
-	/* avoid repetitive calls to ut_fold_binary() in the HASH_SEARCH
-	macro */
-	fold = ut_fold_binary(static_cast<const byte*>(data), data_len);
-
-#define IS_FOUND	\
-	node->data_len == data_len && memcmp(node->data, data, data_len) == 0
-
-	HASH_SEARCH(
-		next,			/* node->"next" */
-		&storage->hash,		/* the hash table */
-		fold,			/* key */
-		ha_storage_node_t*,	/* type of node->next */
-		node,			/* auxiliary variable */
-		,			/* assertion */
-		IS_FOUND);		/* search criteria */
-
-	if (node == NULL) {
-
-		return(NULL);
-	}
-	/* else */
-
-	return(node->data);
-}
 
 /*******************************************************************//**
 Copies data into the storage and returns a pointer to the copy. If the
@@ -87,54 +47,30 @@ ha_storage_put_memlim(
 	ulint		data_len,	/*!< in: data length */
 	ulint		memlim)		/*!< in: memory limit to obey */
 {
-	void*			raw;
-	ha_storage_node_t*	node;
-	const void*		data_copy;
-	ulint			fold;
+  const uint32_t fold= my_crc32c(0, data, data_len);
+  ha_storage_node_t** after = reinterpret_cast<ha_storage_node_t**>
+    (&storage->hash.cell_get(fold)->node);
+  for (; *after; after= &(*after)->next)
+    if ((*after)->data_len == data_len &&
+        !memcmp((*after)->data, data, data_len))
+      return (*after)->data;
 
-	/* check if data chunk is already present */
-	data_copy = ha_storage_get(storage, data, data_len);
-	if (data_copy != NULL) {
+  /* not present */
 
-		return(data_copy);
-	}
+  /* check if we are allowed to allocate data_len bytes */
+  if (memlim > 0 && ha_storage_get_size(storage) + data_len > memlim)
+    return nullptr;
 
-	/* not present */
-
-	/* check if we are allowed to allocate data_len bytes */
-	if (memlim > 0
-	    && ha_storage_get_size(storage) + data_len > memlim) {
-
-		return(NULL);
-	}
-
-	/* we put the auxiliary node struct and the data itself in one
-	continuous block */
-	raw = mem_heap_alloc(storage->heap,
-			     sizeof(ha_storage_node_t) + data_len);
-
-	node = (ha_storage_node_t*) raw;
-	data_copy = (byte*) raw + sizeof(*node);
-
-	memcpy((byte*) raw + sizeof(*node), data, data_len);
-
-	node->data_len = data_len;
-	node->data = data_copy;
-
-	/* avoid repetitive calls to ut_fold_binary() in the HASH_INSERT
-	macro */
-	fold = ut_fold_binary(static_cast<const byte*>(data), data_len);
-
-	HASH_INSERT(
-		ha_storage_node_t,	/* type used in the hash chain */
-		next,			/* node->"next" */
-		&storage->hash,		/* the hash table */
-		fold,			/* key */
-		node);			/* add this data to the hash */
-
-	/* the output should not be changed because it will spoil the
-	hash table */
-	return(data_copy);
+  /* we put the auxiliary node struct and the data itself in one
+  continuous block */
+  ha_storage_node_t *node= static_cast<ha_storage_node_t*>
+    (mem_heap_alloc(storage->heap, sizeof *node + data_len));
+  node->data_len= data_len;
+  node->data= &node[1];
+  node->next= nullptr;
+  memcpy(const_cast<void*>(node->data), data, data_len);
+  *after= node;
+  return node->data;
 }
 
 #ifdef UNIV_COMPILE_TEST_FUNCS

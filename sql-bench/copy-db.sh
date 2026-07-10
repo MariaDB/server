@@ -62,7 +62,7 @@ sub usage
 $0 version $VER by Monty
 
  Copies tables between two database servers. If the destination table doesn\'t
- exist it\'s autoamticly created.  If the destination table exists, it
+ exist it\'s automatically created. If the destination table exists, it
  should be compatible with the source table.
 
  Because DBI doesn\'t provide full information about the columns in a table,
@@ -276,7 +276,7 @@ sub odbc_to_sql
     return "tinyint" if (!defined($precision));
     return "tinyint($precision)";
   }
-  die "Can't covert type '$type' to a ODBC type\n";
+  die "Can't convert type '$type' to a ODBC type\n";
 }
 
 #

@@ -38,7 +38,7 @@ SHOW TABLES IN test;
 --source include/wait_until_disconnected.inc
 --source include/start_mysqld.inc
 
-CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("WSREP: Failed to execute TOI action");
 CALL mtr.add_suppression("WSREP: TO isolation end failed");
 

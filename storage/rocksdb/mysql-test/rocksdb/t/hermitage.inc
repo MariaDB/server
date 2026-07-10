@@ -111,7 +111,9 @@ commit;
 connection con1;
 update test set value = value + 10;
 connection con2;
+--disable_cursor_protocol
 select variable_value into @a from information_schema.global_status where variable_name='rocksdb_snapshot_conflict_errors';
+--enable_cursor_protocol
 select * from test;
 send delete from test where value = 20;
 connection con1;

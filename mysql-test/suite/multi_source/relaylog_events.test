@@ -12,7 +12,7 @@
 eval change master 'master1' to 
 master_port=$SERVER_MYPORT_1, 
 master_host='127.0.0.1', 
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0;
 
 start slave 'master1';
 set default_master_connection = 'master1';

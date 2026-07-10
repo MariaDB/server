@@ -25,7 +25,6 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "dict0stats.h"
-#include "dyn0buf.h"
 #include "row0sel.h"
 #include "trx0trx.h"
 #include "lock0lock.h"
@@ -33,7 +32,13 @@ Created Jan 06, 2010 Vasil Dimov
 #include <mysql_com.h>
 #include "log.h"
 #include "btr0btr.h"
+#include "btr0sea.h"
 #include "que0que.h"
+#include "scope.h"
+#include "debug_sync.h"
+#ifdef WITH_WSREP
+# include <mysql/service_wsrep.h>
+#endif
 
 #include <algorithm>
 #include <map>
@@ -176,7 +181,7 @@ dict_stats_should_ignore_index(
 struct dict_col_meta_t
 {
   /** column name */
-  const char *name;
+  const LEX_CSTRING name;
   /** main type */
   unsigned mtype;
   /** prtype mask; all these bits have to be set in prtype */
@@ -202,8 +207,8 @@ static const dict_table_schema_t table_stats_schema =
 {
   {C_STRING_WITH_LEN(TABLE_STATS_NAME)}, TABLE_STATS_NAME_PRINT, 6,
   {
-    {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
-    {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
+    {"database_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"table_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 597},
     /*
       Don't check the DATA_UNSIGNED flag in last_update.
       It presents if the server is running in a pure MariaDB installation,
@@ -214,10 +219,12 @@ static const dict_table_schema_t table_stats_schema =
       This is fine not to check DATA_UNSIGNED, because Field_timestampf
       in both MariaDB and MySQL support only non-negative time_t values.
     */
-    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
-    {"n_rows", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-    {"clustered_index_size", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-    {"sum_of_other_index_sizes", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"last_update"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL, 4},
+    {"n_rows"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"clustered_index_size"_LEX_CSTRING, DATA_INT,
+                                         DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"sum_of_other_index_sizes"_LEX_CSTRING, DATA_INT,
+                                         DATA_NOT_NULL | DATA_UNSIGNED, 8},
   }
 };
 
@@ -225,18 +232,18 @@ static const dict_table_schema_t index_stats_schema =
 {
   {C_STRING_WITH_LEN(INDEX_STATS_NAME)}, INDEX_STATS_NAME_PRINT, 8,
   {
-    {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
-    {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
-    {"index_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"database_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"table_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 597},
+    {"index_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 192},
     /*
       Don't check the DATA_UNSIGNED flag in last_update.
       See comments about last_update in table_stats_schema above.
     */
-    {"last_update", DATA_INT, DATA_NOT_NULL, 4},
-    {"stat_name", DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
-    {"stat_value", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-    {"sample_size", DATA_INT, DATA_UNSIGNED, 8},
-    {"stat_description", DATA_VARMYSQL, DATA_NOT_NULL, 1024*3}
+    {"last_update"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL, 4},
+    {"stat_name"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
+    {"stat_value"_LEX_CSTRING, DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"sample_size"_LEX_CSTRING, DATA_INT, DATA_UNSIGNED, 8},
+    {"stat_description"_LEX_CSTRING, DATA_VARMYSQL, DATA_NOT_NULL, 1024*3}
   }
 };
 
@@ -354,7 +361,7 @@ dict_table_schema_check(
 
 	if (!table) {
 		if (opt_bootstrap)
-			return DB_TABLE_NOT_FOUND;
+			return DB_STATS_DO_NOT_EXIST;
 		if (req_schema == &table_stats_schema) {
 			if (innodb_table_stats_not_found_reported) {
 				return DB_STATS_DO_NOT_EXIST;
@@ -372,10 +379,18 @@ dict_table_schema_check(
 
 		snprintf(errstr, errstr_sz, "Table %s not found.",
 			 req_schema->table_name_sql);
-		return DB_TABLE_NOT_FOUND;
+		return DB_STATS_DO_NOT_EXIST;
 	}
 
-	if (!table->is_readable() && !table->space) {
+	if (!table->is_readable()) {
+		/* table is not readable */
+		snprintf(errstr, errstr_sz,
+			 "Table %s is not readable.",
+			 req_schema->table_name_sql);
+		return DB_ERROR;
+	}
+
+	if (!table->space) {
 		/* missing tablespace */
 		snprintf(errstr, errstr_sz,
 			 "Tablespace for table %s is missing.",
@@ -406,7 +421,7 @@ dict_table_schema_check(
 			snprintf(errstr, errstr_sz,
 				    "required column %s"
 				    " not found in table %s.",
-				    req_schema->columns[i].name,
+				    req_schema->columns[i].name.str,
 				    req_schema->table_name_sql);
 
 			return(DB_ERROR);
@@ -417,12 +432,12 @@ dict_table_schema_check(
 
 		/* check length for exact match */
 		if (req_schema->columns[i].len != table->cols[j].len) {
-			sql_print_warning("InnoDB: Table %s has"
-					  " length mismatch in the"
-					  " column name %s."
-					  " Please run mariadb-upgrade",
-					  req_schema->table_name_sql,
-					  req_schema->columns[i].name);
+			snprintf(errstr, errstr_sz,
+				 "Unexpected length of %s.%s. Please run "
+				 "mariadb-upgrade or ALTER TABLE",
+				 req_schema->table_name_sql,
+				 req_schema->columns[i].name.str);
+			return DB_ERROR;
 		}
 
 		/*
@@ -443,7 +458,7 @@ dict_table_schema_check(
 
 		int s = snprintf(errstr, errstr_sz,
 				 "Column %s in table %s is ",
-				 req_schema->columns[i].name,
+				 req_schema->columns[i].name.str,
 				 req_schema->table_name_sql);
 		if (s < 0 || static_cast<size_t>(s) >= errstr_sz) {
 			return DB_ERROR;
@@ -486,11 +501,8 @@ dict_table_schema_check(
 	return DB_SUCCESS;
 }
 
-/*********************************************************************//**
-Checks whether the persistent statistics storage exists and that all
-tables have the proper structure.
-@return true if exists and all tables are ok */
-static bool dict_stats_persistent_storage_check(bool dict_already_locked)
+dict_stats_schema_check
+dict_stats_persistent_storage_check(bool dict_already_locked) noexcept
 {
 	char		errstr[512];
 	dberr_t		ret;
@@ -516,14 +528,14 @@ static bool dict_stats_persistent_storage_check(bool dict_already_locked)
 
 	switch (ret) {
 	case DB_SUCCESS:
-		return true;
+		return SCHEMA_OK;
+	case DB_STATS_DO_NOT_EXIST:
+		return SCHEMA_NOT_EXIST;
 	default:
 		if (!opt_bootstrap) {
-			ib::error() << errstr;
+			sql_print_error("InnoDB: %s", errstr);
 		}
-		/* fall through */
-	case DB_STATS_DO_NOT_EXIST:
-		return false;
+		return SCHEMA_INVALID;
 	}
 }
 
@@ -539,198 +551,24 @@ dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
 {
   ut_ad(dict_sys.locked());
 
-  if (!dict_stats_persistent_storage_check(true))
-  {
-    pars_info_free(pinfo);
-    return DB_STATS_DO_NOT_EXIST;
+  switch (dict_stats_persistent_storage_check(true)) {
+  case SCHEMA_OK:
+    return que_eval_sql(pinfo, sql, trx);
+  case SCHEMA_INVALID:
+  case SCHEMA_NOT_EXIST:
+    break;
   }
 
-  return que_eval_sql(pinfo, sql, trx);
-}
-
-/*********************************************************************//**
-Duplicate a table object and its indexes.
-This function creates a dummy dict_table_t object and initializes the
-following table and index members:
-dict_table_t::id (copied)
-dict_table_t::heap (newly created)
-dict_table_t::name (copied)
-dict_table_t::corrupted (copied)
-dict_table_t::indexes<> (newly created)
-dict_table_t::magic_n
-for each entry in dict_table_t::indexes, the following are initialized:
-(indexes that have DICT_FTS set in index->type are skipped)
-dict_index_t::id (copied)
-dict_index_t::name (copied)
-dict_index_t::table_name (points to the copied table name)
-dict_index_t::table (points to the above semi-initialized object)
-dict_index_t::type (copied)
-dict_index_t::to_be_dropped (copied)
-dict_index_t::online_status (copied)
-dict_index_t::n_uniq (copied)
-dict_index_t::fields[] (newly created, only first n_uniq, only fields[i].name)
-dict_index_t::indexes<> (newly created)
-dict_index_t::stat_n_diff_key_vals[] (only allocated, left uninitialized)
-dict_index_t::stat_n_sample_sizes[] (only allocated, left uninitialized)
-dict_index_t::stat_n_non_null_key_vals[] (only allocated, left uninitialized)
-dict_index_t::magic_n
-The returned object should be freed with dict_stats_table_clone_free()
-when no longer needed.
-@return incomplete table object */
-static
-dict_table_t*
-dict_stats_table_clone_create(
-/*==========================*/
-	const dict_table_t*	table)	/*!< in: table whose stats to copy */
-{
-	size_t		heap_size;
-	dict_index_t*	index;
-
-	/* Estimate the size needed for the table and all of its indexes */
-
-	heap_size = 0;
-	heap_size += sizeof(dict_table_t);
-	heap_size += strlen(table->name.m_name) + 1;
-
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-
-		if (dict_stats_should_ignore_index(index)) {
-			continue;
-		}
-
-		ut_ad(!dict_index_is_ibuf(index));
-
-		ulint	n_uniq = dict_index_get_n_unique(index);
-
-		heap_size += sizeof(dict_index_t);
-		heap_size += strlen(index->name) + 1;
-		heap_size += n_uniq * sizeof(index->fields[0]);
-		for (ulint i = 0; i < n_uniq; i++) {
-			heap_size += strlen(index->fields[i].name) + 1;
-		}
-		heap_size += n_uniq * sizeof(index->stat_n_diff_key_vals[0]);
-		heap_size += n_uniq * sizeof(index->stat_n_sample_sizes[0]);
-		heap_size += n_uniq * sizeof(index->stat_n_non_null_key_vals[0]);
-	}
-
-	/* Allocate the memory and copy the members */
-
-	mem_heap_t*	heap;
-
-	heap = mem_heap_create(heap_size);
-
-	dict_table_t*	t;
-
-	t = (dict_table_t*) mem_heap_zalloc(heap, sizeof(*t));
-
-	t->stats_mutex_init();
-
-	MEM_CHECK_DEFINED(&table->id, sizeof(table->id));
-	t->id = table->id;
-
-	t->heap = heap;
-
-	t->name.m_name = mem_heap_strdup(heap, table->name.m_name);
-	t->mdl_name.m_name = t->name.m_name;
-
-	t->corrupted = table->corrupted;
-
-	UT_LIST_INIT(t->indexes, &dict_index_t::indexes);
-#ifdef BTR_CUR_HASH_ADAPT
-	UT_LIST_INIT(t->freed_indexes, &dict_index_t::indexes);
-#endif /* BTR_CUR_HASH_ADAPT */
-
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-
-		if (dict_stats_should_ignore_index(index)) {
-			continue;
-		}
-
-		ut_ad(!dict_index_is_ibuf(index));
-
-		dict_index_t*	idx;
-
-		idx = (dict_index_t*) mem_heap_zalloc(heap, sizeof(*idx));
-
-		MEM_CHECK_DEFINED(&index->id, sizeof(index->id));
-		idx->id = index->id;
-
-		idx->name = mem_heap_strdup(heap, index->name);
-
-		idx->table = t;
-
-		idx->type = index->type;
-
-		idx->to_be_dropped = 0;
-
-		idx->online_status = ONLINE_INDEX_COMPLETE;
-		idx->set_committed(true);
-
-		idx->n_uniq = index->n_uniq;
-
-		idx->fields = (dict_field_t*) mem_heap_zalloc(
-			heap, idx->n_uniq * sizeof(idx->fields[0]));
-
-		for (ulint i = 0; i < idx->n_uniq; i++) {
-			idx->fields[i].name = mem_heap_strdup(
-				heap, index->fields[i].name);
-		}
-
-		/* hook idx into t->indexes */
-		UT_LIST_ADD_LAST(t->indexes, idx);
-
-		idx->stat_n_diff_key_vals = (ib_uint64_t*) mem_heap_zalloc(
-			heap,
-			idx->n_uniq * sizeof(idx->stat_n_diff_key_vals[0]));
-
-		idx->stat_n_sample_sizes = (ib_uint64_t*) mem_heap_zalloc(
-			heap,
-			idx->n_uniq * sizeof(idx->stat_n_sample_sizes[0]));
-
-		idx->stat_n_non_null_key_vals = (ib_uint64_t*) mem_heap_zalloc(
-			heap,
-			idx->n_uniq * sizeof(idx->stat_n_non_null_key_vals[0]));
-		ut_d(idx->magic_n = DICT_INDEX_MAGIC_N);
-
-		idx->stat_defrag_n_page_split = 0;
-		idx->stat_defrag_n_pages_freed = 0;
-	}
-
-	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
-
-	return(t);
-}
-
-/*********************************************************************//**
-Free the resources occupied by an object returned by
-dict_stats_table_clone_create(). */
-static
-void
-dict_stats_table_clone_free(
-/*========================*/
-	dict_table_t*	t)	/*!< in: dummy table object to free */
-{
-	t->stats_mutex_destroy();
-	mem_heap_free(t->heap);
+  pars_info_free(pinfo);
+  return DB_STATS_DO_NOT_EXIST;
 }
 
 /*********************************************************************//**
 Write all zeros (or 1 where it makes sense) into an index
 statistics members. The resulting stats correspond to an empty index. */
-static
-void
-dict_stats_empty_index(
-/*===================*/
-	dict_index_t*	index,	/*!< in/out: index */
-	bool		empty_defrag_stats)
-				/*!< in: whether to empty defrag stats */
+static void dict_stats_empty_index(dict_index_t *index)
 {
 	ut_ad(!(index->type & DICT_FTS));
-	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(index->table->stats_mutex_is_owner());
 
 	ulint	n_uniq = index->n_uniq;
@@ -743,23 +581,12 @@ dict_stats_empty_index(
 
 	index->stat_index_size = 1;
 	index->stat_n_leaf_pages = 1;
-
-	if (empty_defrag_stats) {
-		dict_stats_empty_defrag_stats(index);
-		dict_stats_empty_defrag_summary(index);
-	}
 }
 
-/*********************************************************************//**
-Write all zeros (or 1 where it makes sense) into a table and its indexes'
-statistics members. The resulting stats correspond to an empty table. */
-static
-void
-dict_stats_empty_table(
-/*===================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	bool		empty_defrag_stats)
-				/*!< in: whether to empty defrag stats */
+/** Write all zeros (or 1 where it makes sense) into a table and its indexes'
+statistics members. The resulting stats correspond to an empty table.
+@param table  table statistics to be emptied */
+void dict_stats_empty_table(dict_table_t *table)
 {
 	/* Initialize table/index level stats is now protected by
 	table level lock_mutex.*/
@@ -770,7 +597,7 @@ dict_stats_empty_table(
 	table->stat_clustered_index_size = 1;
 	/* 1 page for each index, not counting the clustered */
 	table->stat_sum_of_other_index_sizes
-		= UT_LIST_GET_LEN(table->indexes) - 1;
+		= uint32_t(UT_LIST_GET_LEN(table->indexes) - 1);
 	table->stat_modified_counter = 0;
 
 	dict_index_t*	index;
@@ -783,12 +610,10 @@ dict_stats_empty_table(
 			continue;
 		}
 
-		ut_ad(!dict_index_is_ibuf(index));
-
-		dict_stats_empty_index(index, empty_defrag_stats);
+		dict_stats_empty_index(index);
 	}
 
-	table->stat_initialized = TRUE;
+	table->stat = table->stat | dict_table_t::STATS_INITIALIZED;
 	table->stats_mutex_unlock();
 }
 
@@ -829,16 +654,10 @@ dict_stats_assert_initialized(
 /*==========================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_a(table->stat_initialized);
-
 	MEM_CHECK_DEFINED(&table->stats_last_recalc,
 			  sizeof table->stats_last_recalc);
 
-	MEM_CHECK_DEFINED(&table->stat_persistent,
-			  sizeof table->stat_persistent);
-
-	MEM_CHECK_DEFINED(&table->stats_auto_recalc,
-			  sizeof table->stats_auto_recalc);
+	MEM_CHECK_DEFINED(&table->stat, sizeof table->stat);
 
 	MEM_CHECK_DEFINED(&table->stats_sample_pages,
 			  sizeof table->stats_sample_pages);
@@ -863,181 +682,6 @@ dict_stats_assert_initialized(
 			dict_stats_assert_initialized_index(index);
 		}
 	}
-}
-
-#define INDEX_EQ(i1, i2) \
-	((i1) != NULL \
-	 && (i2) != NULL \
-	 && (i1)->id == (i2)->id \
-	 && strcmp((i1)->name, (i2)->name) == 0)
-
-/*********************************************************************//**
-Copy table and index statistics from one table to another, including index
-stats. Extra indexes in src are ignored and extra indexes in dst are
-initialized to correspond to an empty index. */
-static
-void
-dict_stats_copy(
-/*============*/
-	dict_table_t*		dst,	/*!< in/out: destination table */
-	const dict_table_t*	src,	/*!< in: source table */
-	bool reset_ignored_indexes)	/*!< in: if true, set ignored indexes
-                                             to have the same statistics as if
-                                             the table was empty */
-{
-	ut_ad(src->stats_mutex_is_owner());
-	ut_ad(dst->stats_mutex_is_owner());
-
-	dst->stats_last_recalc = src->stats_last_recalc;
-	dst->stat_n_rows = src->stat_n_rows;
-	dst->stat_clustered_index_size = src->stat_clustered_index_size;
-	dst->stat_sum_of_other_index_sizes = src->stat_sum_of_other_index_sizes;
-	dst->stat_modified_counter = src->stat_modified_counter;
-
-	dict_index_t*	dst_idx;
-	dict_index_t*	src_idx;
-
-	for (dst_idx = dict_table_get_first_index(dst),
-	     src_idx = dict_table_get_first_index(src);
-	     dst_idx != NULL;
-	     dst_idx = dict_table_get_next_index(dst_idx),
-	     (src_idx != NULL
-	      && (src_idx = dict_table_get_next_index(src_idx)))) {
-
-		if (dict_stats_should_ignore_index(dst_idx)) {
-			if (reset_ignored_indexes) {
-				/* Reset index statistics for all ignored indexes,
-				unless they are FT indexes (these have no statistics)*/
-				if (dst_idx->type & DICT_FTS) {
-					continue;
-				}
-				dict_stats_empty_index(dst_idx, true);
-			} else {
-				continue;
-			}
-		}
-
-		ut_ad(!dict_index_is_ibuf(dst_idx));
-
-		if (!INDEX_EQ(src_idx, dst_idx)) {
-			for (src_idx = dict_table_get_first_index(src);
-			     src_idx != NULL;
-			     src_idx = dict_table_get_next_index(src_idx)) {
-
-				if (INDEX_EQ(src_idx, dst_idx)) {
-					break;
-				}
-			}
-		}
-
-		if (!INDEX_EQ(src_idx, dst_idx)) {
-			dict_stats_empty_index(dst_idx, true);
-			continue;
-		}
-
-		ulint	n_copy_el;
-
-		if (dst_idx->n_uniq > src_idx->n_uniq) {
-			n_copy_el = src_idx->n_uniq;
-			/* Since src is smaller some elements in dst
-			will remain untouched by the following memmove(),
-			thus we init all of them here. */
-			dict_stats_empty_index(dst_idx, true);
-		} else {
-			n_copy_el = dst_idx->n_uniq;
-		}
-
-		memmove(dst_idx->stat_n_diff_key_vals,
-			src_idx->stat_n_diff_key_vals,
-			n_copy_el * sizeof(dst_idx->stat_n_diff_key_vals[0]));
-
-		memmove(dst_idx->stat_n_sample_sizes,
-			src_idx->stat_n_sample_sizes,
-			n_copy_el * sizeof(dst_idx->stat_n_sample_sizes[0]));
-
-		memmove(dst_idx->stat_n_non_null_key_vals,
-			src_idx->stat_n_non_null_key_vals,
-			n_copy_el * sizeof(dst_idx->stat_n_non_null_key_vals[0]));
-
-		dst_idx->stat_index_size = src_idx->stat_index_size;
-
-		dst_idx->stat_n_leaf_pages = src_idx->stat_n_leaf_pages;
-
-		dst_idx->stat_defrag_modified_counter =
-			src_idx->stat_defrag_modified_counter;
-		dst_idx->stat_defrag_n_pages_freed =
-			src_idx->stat_defrag_n_pages_freed;
-		dst_idx->stat_defrag_n_page_split =
-			src_idx->stat_defrag_n_page_split;
-	}
-
-	dst->stat_initialized = TRUE;
-}
-
-/** Duplicate the stats of a table and its indexes.
-This function creates a dummy dict_table_t object and copies the input
-table's stats into it. The returned table object is not in the dictionary
-cache and cannot be accessed by any other threads. In addition to the
-members copied in dict_stats_table_clone_create() this function initializes
-the following:
-dict_table_t::stat_initialized
-dict_table_t::stat_persistent
-dict_table_t::stat_n_rows
-dict_table_t::stat_clustered_index_size
-dict_table_t::stat_sum_of_other_index_sizes
-dict_table_t::stat_modified_counter
-dict_index_t::stat_n_diff_key_vals[]
-dict_index_t::stat_n_sample_sizes[]
-dict_index_t::stat_n_non_null_key_vals[]
-dict_index_t::stat_index_size
-dict_index_t::stat_n_leaf_pages
-dict_index_t::stat_defrag_modified_counter
-dict_index_t::stat_defrag_n_pages_freed
-dict_index_t::stat_defrag_n_page_split
-The returned object should be freed with dict_stats_snapshot_free()
-when no longer needed.
-@param[in]	table	table whose stats to copy
-@return incomplete table object */
-static
-dict_table_t*
-dict_stats_snapshot_create(
-	dict_table_t*	table)
-{
-	dict_sys.lock(SRW_LOCK_CALL);
-
-	dict_stats_assert_initialized(table);
-
-	dict_table_t*	t;
-
-	t = dict_stats_table_clone_create(table);
-
-	table->stats_mutex_lock();
-	ut_d(t->stats_mutex_lock());
-
-	dict_stats_copy(t, table, false);
-
-	ut_d(t->stats_mutex_unlock());
-	table->stats_mutex_unlock();
-
-	t->stat_persistent = table->stat_persistent;
-	t->stats_auto_recalc = table->stats_auto_recalc;
-	t->stats_sample_pages = table->stats_sample_pages;
-
-	dict_sys.unlock();
-
-	return(t);
-}
-
-/*********************************************************************//**
-Free the resources occupied by an object returned by
-dict_stats_snapshot_create(). */
-static
-void
-dict_stats_snapshot_free(
-/*=====================*/
-	dict_table_t*	t)	/*!< in: dummy table object to free */
-{
-	dict_stats_table_clone_free(t);
 }
 
 /** Statistics for one field of an index. */
@@ -1110,11 +754,10 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
 
   dberr_t err;
   auto offset= index()->page;
-  bool merge= false;
   ulint height= ULINT_UNDEFINED;
 
   while (buf_block_t *block=
-         btr_block_get(*index(), offset, RW_S_LATCH, merge, &mtr, &err))
+         btr_block_get(*index(), offset, RW_S_LATCH, &mtr, &err))
   {
     page_cur.block= block;
 
@@ -1136,8 +779,7 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
       return DB_SUCCESS;
     }
 
-    if (!--height)
-      merge= !index()->is_clust();
+    height--;
 
     page_cur_open_on_rnd_user_rec(&page_cur);
 
@@ -1184,12 +826,12 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	ulint		n_cols;
 	ib_uint64_t*	n_diff;
 	ib_uint64_t*	n_not_null;
-	ibool		stats_null_not_equal;
-	uintmax_t	n_sample_pages=1; /* number of pages to sample */
+	bool		stats_null_not_equal;
+	uint32_t	n_sample_pages=1; /* number of pages to sample */
 	ulint		not_empty_flag	= 0;
 	ulint		total_external_size = 0;
 	uintmax_t	add_on;
-	mtr_t		mtr;
+	mtr_t		mtr{nullptr};
 	mem_heap_t*	heap		= NULL;
 	rec_offs*	offsets_rec	= NULL;
 	rec_offs*	offsets_next_rec = NULL;
@@ -1223,11 +865,11 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	case SRV_STATS_NULLS_UNEQUAL:
 		/* for both SRV_STATS_NULLS_IGNORED and SRV_STATS_NULLS_UNEQUAL
 		case, we will treat NULLs as unequal value */
-		stats_null_not_equal = TRUE;
+		stats_null_not_equal = true;
 		break;
 
 	case SRV_STATS_NULLS_EQUAL:
-		stats_null_not_equal = FALSE;
+		stats_null_not_equal = false;
 		break;
 
 	default:
@@ -1245,7 +887,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 			n_sample_pages = srv_stats_transient_sample_pages;
 		}
 	} else {
-		/* New logaritmic number of pages that are estimated.
+		/* New logarithmic number of pages that are estimated.
 		Number of pages estimated should be between 1 and
 		index->stat_index_size.
 
@@ -1278,19 +920,21 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 		so taking all case2 paths is I, our expression is:
 		n_pages = S < I? min(I,L) : I
-                */
-		if (index->stat_index_size > 1) {
-			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size)
-				? ut_min(index->stat_index_size,
-					 static_cast<ulint>(
-						 log2(double(index->stat_index_size))
-						 * double(srv_stats_transient_sample_pages)))
-				: index->stat_index_size;
+		*/
+		if (uint32_t I = index->stat_index_size) {
+			const uint32_t S{srv_stats_transient_sample_pages};
+			n_sample_pages = S < I
+				? std::min(I,
+					   uint32_t(log2(double(I))
+						    * double(S)))
+				: I;
 		}
 	}
 
 	/* Sanity check */
-	ut_ad(n_sample_pages > 0 && n_sample_pages <= (index->stat_index_size <= 1 ? 1 : index->stat_index_size));
+	ut_ad(n_sample_pages);
+	ut_ad(n_sample_pages <= (index->stat_index_size <= 1
+				 ? 1 : index->stat_index_size));
 
 	/* We sample some pages in the index to get an estimate */
 	btr_cur_t cursor;
@@ -1317,7 +961,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 		rec = page_rec_get_next(cursor.page_cur.rec);
 		const ulint n_core = index->n_core_fields;
 
-		if (rec && !page_rec_is_supremum(rec)) {
+		if (rec && rec != page_get_supremum_rec(page)) {
 			not_empty_flag = 1;
 			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
 						      n_core,
@@ -1329,10 +973,11 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 			}
 		}
 
-		while (!page_rec_is_supremum(rec)) {
+		while (rec != page_get_supremum_rec(page)) {
 			ulint	matched_fields;
 			rec_t*	next_rec = page_rec_get_next(rec);
-			if (!next_rec || page_rec_is_supremum(next_rec)) {
+			if (!next_rec
+			    || next_rec == page_get_supremum_rec(page)) {
 				total_external_size +=
 					btr_rec_get_externally_stored_len(
 						rec, offsets_rec);
@@ -1453,15 +1098,12 @@ Calculates new estimates for index statistics. This function is
 relatively quick and is used to calculate transient statistics that
 are not saved on disk. This was the only way to calculate statistics
 before the Persistent Statistics feature was introduced.
-This function doesn't update the defragmentation related stats.
-Only persistent statistics supports defragmentation stats.
+@param trx    transaction
+@param index  B-tree
 @return error code
 @retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-static
-dberr_t
-dict_stats_update_transient_for_index(
-/*==================================*/
-	dict_index_t*	index)	/*!< in/out: index */
+static dberr_t
+dict_stats_update_transient_for_index(trx_t *trx, dict_index_t* index) noexcept
 {
 	dberr_t err = DB_SUCCESS;
 	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
@@ -1475,18 +1117,15 @@ dict_stats_update_transient_for_index(
 		various means, also via secondary indexes. */
 dummy_empty:
 		index->table->stats_mutex_lock();
-		dict_stats_empty_index(index, false);
+		dict_stats_empty_index(index);
 		index->table->stats_mutex_unlock();
 		return err;
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		goto dummy_empty;
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else if (dict_index_is_online_ddl(index) || !index->is_committed()
+		   || !index->is_btree()
 		   || !index->table->space) {
 		goto dummy_empty;
 	} else {
-		mtr_t	mtr;
+		mtr_t mtr{trx};
 
 		mtr.start();
 		mtr_sx_lock_index(index, &mtr);
@@ -1501,14 +1140,14 @@ invalid:
 		}
 
 		const auto bulk_trx_id = index->table->bulk_trx_id;
-		if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+		if (trx_sys.is_registered(nullptr, bulk_trx_id)) {
 			err= DB_SUCCESS_LOCKED_REC;
 			goto invalid;
 		}
 
 		mtr.x_lock_space(index->table->space);
 
-		ulint dummy, size;
+		uint32_t dummy, size;
 		index->stat_index_size
 			= fseg_n_reserved_pages(*root, PAGE_HEADER
 						+ PAGE_BTR_SEG_LEAF
@@ -1548,24 +1187,12 @@ invalid:
 	return err;
 }
 
-/*********************************************************************//**
-Calculates new estimates for table and index statistics. This function
-is relatively quick and is used to calculate transient statistics that
-are not saved on disk.
-This was the only way to calculate statistics before the
-Persistent Statistics feature was introduced.
-@return error code
-@retval DB_SUCCESS_LOCKED REC if the table under bulk insert operation */
-static
-dberr_t
-dict_stats_update_transient(
-/*========================*/
-	dict_table_t*	table)	/*!< in/out: table */
+dberr_t dict_stats_update_transient(trx_t *trx, dict_table_t *table) noexcept
 {
 	ut_ad(!table->stats_mutex_is_owner());
 
 	dict_index_t*	index;
-	ulint		sum_of_index_sizes	= 0;
+	uint32_t	sum_of_index_sizes	= 0;
 	dberr_t		err = DB_SUCCESS;
 
 	/* Find out the sizes of the indexes and how many different values
@@ -1573,23 +1200,17 @@ dict_stats_update_transient(
 
 	index = dict_table_get_first_index(table);
 
-	if (!table->space) {
-		/* Nothing to do. */
-empty_table:
-		dict_stats_empty_table(table, true);
-		return err;
-	} else if (index == NULL) {
-		/* Table definition is corrupt */
+	if (!index || !table->space) {
+		dict_stats_empty_table(table);
+		return DB_SUCCESS;
+	}
 
-		ib::warn() << "Table " << table->name
-			<< " has no indexes. Cannot calculate statistics.";
-		goto empty_table;
+	if (trx_sys.is_registered(nullptr, table->bulk_trx_id)) {
+		dict_stats_empty_table(table);
+		return DB_SUCCESS_LOCKED_REC;
 	}
 
 	for (; index != NULL; index = dict_table_get_next_index(index)) {
-
-		ut_ad(!dict_index_is_ibuf(index));
-
 		if (!index->is_btree()) {
 			continue;
 		}
@@ -1598,12 +1219,12 @@ empty_table:
 		    || !index->is_readable()
 		    || err == DB_SUCCESS_LOCKED_REC) {
 			index->table->stats_mutex_lock();
-			dict_stats_empty_index(index, false);
+			dict_stats_empty_index(index);
 			index->table->stats_mutex_unlock();
 			continue;
 		}
 
-		err = dict_stats_update_transient_for_index(index);
+		err = dict_stats_update_transient_for_index(trx, index);
 
 		sum_of_index_sizes += index->stat_index_size;
 	}
@@ -1624,7 +1245,7 @@ empty_table:
 
 	table->stat_modified_counter = 0;
 
-	table->stat_initialized = TRUE;
+	table->stat = table->stat | dict_table_t::STATS_INITIALIZED;
 
 	table->stats_mutex_unlock();
 
@@ -1654,9 +1275,7 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
 
   for (ulint height = ULINT_UNDEFINED;; height--)
   {
-    buf_block_t* block=
-      btr_block_get(*index, page, RW_S_LATCH,
-                    !height && !index->is_clust(), mtr, &err);
+    buf_block_t* block= btr_block_get(*index, page, RW_S_LATCH, mtr, &err);
     if (!block)
       break;
 
@@ -1853,14 +1472,12 @@ dict_stats_analyze_index_level(
 		/* If rec and prev_rec are on different pages, then prev_rec
 		must have been copied, because we hold latch only on the page
 		where rec resides. */
-		if (prev_rec != NULL
-		    && page_align(rec) != page_align(prev_rec)) {
+		ut_ad(!prev_rec
+		      || btr_pcur_get_page(&pcur) == page_align(prev_rec)
+		      || prev_rec_is_copied);
 
-			ut_a(prev_rec_is_copied);
-		}
-
-		rec_is_last_on_page =
-			page_rec_is_supremum(page_rec_get_next_const(rec));
+		rec_is_last_on_page = page_rec_get_next_const(rec)
+			== page_get_supremum_rec(btr_pcur_get_page(&pcur));
 
 		/* increment the pages counter at the end of each page */
 		if (rec_is_last_on_page) {
@@ -1877,7 +1494,8 @@ dict_stats_analyze_index_level(
 
 		if (level == 0
 		    && !srv_stats_include_delete_marked
-		    && rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
+		    && rec_get_deleted_flag(
+			    rec, page_is_comp(btr_pcur_get_page(&pcur)))) {
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied
 			    && prev_rec != NULL) {
@@ -2042,34 +1660,23 @@ func_exit:
 	mem_heap_free(heap);
 }
 
-
 /************************************************************//**
 Gets the pointer to the next non delete-marked record on the page.
 If all subsequent records are delete-marked, then this function
 will return the supremum record.
 @return pointer to next non delete-marked record or pointer to supremum */
+template<bool comp>
 static
 const rec_t*
-page_rec_get_next_non_del_marked(
-/*=============================*/
-	const rec_t*	rec)	/*!< in: pointer to record */
+page_rec_get_next_non_del_marked(const page_t *page, const rec_t *rec)
 {
-  const page_t *const page= page_align(rec);
+  ut_ad(!!page_is_comp(page) == comp);
+  ut_ad(page_align(rec) == page);
 
-  if (page_is_comp(page))
-  {
-    for (rec= page_rec_get_next_low(rec, TRUE);
-         rec && rec_get_deleted_flag(rec, TRUE);
-         rec= page_rec_get_next_low(rec, TRUE));
-    return rec ? rec : page + PAGE_NEW_SUPREMUM;
-  }
-  else
-  {
-    for (rec= page_rec_get_next_low(rec, FALSE);
-         rec && rec_get_deleted_flag(rec, FALSE);
-         rec= page_rec_get_next_low(rec, FALSE));
-    return rec ? rec : page + PAGE_OLD_SUPREMUM;
-  }
+  for (rec= page_rec_next_get<comp>(page, rec);
+       rec && rec_get_deleted_flag(rec, comp);
+       rec= page_rec_next_get<comp>(page, rec));
+  return rec ? rec : page + (comp ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM);
 }
 
 /** Scan a page, reading records from left to right and counting the number
@@ -2116,10 +1723,13 @@ dict_stats_scan_page(
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
 	ut_ad(!!n_core == page_is_leaf(page));
-	const rec_t*	(*get_next)(const rec_t*)
+	const rec_t*	(*get_next)(const page_t*, const rec_t*)
 		= !n_core || srv_stats_include_delete_marked
-		? page_rec_get_next_const
-		: page_rec_get_next_non_del_marked;
+		? (page_is_comp(page)
+		   ? page_rec_next_get<true> : page_rec_next_get<false>)
+		: page_is_comp(page)
+		? page_rec_get_next_non_del_marked<true>
+		: page_rec_get_next_non_del_marked<false>;
 
 	const bool	should_count_external_pages = n_external_pages != NULL;
 
@@ -2127,9 +1737,9 @@ dict_stats_scan_page(
 		*n_external_pages = 0;
 	}
 
-	rec = get_next(page_get_infimum_rec(page));
+	rec = get_next(page, page_get_infimum_rec(page));
 
-	if (!rec || page_rec_is_supremum(rec)) {
+	if (!rec || rec == page_get_supremum_rec(page)) {
 		/* the page is empty or contains only delete-marked records */
 		*n_diff = 0;
 		*out_rec = NULL;
@@ -2144,11 +1754,11 @@ dict_stats_scan_page(
 			rec, offsets_rec);
 	}
 
-	next_rec = get_next(rec);
+	next_rec = get_next(page, rec);
 
 	*n_diff = 1;
 
-	while (next_rec && !page_rec_is_supremum(next_rec)) {
+	while (next_rec && next_rec != page_get_supremum_rec(page)) {
 
 		ulint	matched_fields;
 
@@ -2189,7 +1799,7 @@ dict_stats_scan_page(
 				rec, offsets_rec);
 		}
 
-		next_rec = get_next(next_rec);
+		next_rec = get_next(page, next_rec);
 	}
 
 	/* offsets1,offsets2 should have been big enough */
@@ -2203,6 +1813,7 @@ distinct records on the leaf page, when looking at the fist n_prefix
 columns. Also calculate the number of external pages pointed by records
 on the leaf page.
 @param[in]	cur			cursor
+@param[in,out]	mtr			mini-transaction
 @param[in]	n_prefix		look at the first n_prefix columns
 when comparing records
 @param[out]	n_diff			number of distinct records
@@ -2212,6 +1823,7 @@ static
 void
 dict_stats_analyze_index_below_cur(
 	const btr_cur_t*	cur,
+	mtr_t*			mtr,
 	ulint			n_prefix,
 	ib_uint64_t*		n_diff,
 	ib_uint64_t*		n_external_pages)
@@ -2225,8 +1837,8 @@ dict_stats_analyze_index_below_cur(
 	rec_offs*	offsets2;
 	rec_offs*	offsets_rec;
 	ulint		size;
-	mtr_t		mtr;
 
+	const auto sp = mtr->get_savepoint();
 	index = btr_cur_get_index(cur);
 
 	/* Allocate offsets for the record and the node pointer, for
@@ -2251,8 +1863,8 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
-	page = page_align(rec);
-	ut_ad(!page_rec_is_leaf(rec));
+	page = btr_cur_get_page(cur);
+	ut_ad(!page_is_leaf(page));
 
 	offsets_rec = rec_get_offsets(rec, index, offsets1, 0,
 				      ULINT_UNDEFINED, &heap);
@@ -2266,21 +1878,18 @@ dict_stats_analyze_index_below_cur(
 	function without analyzing any leaf pages */
 	*n_external_pages = 0;
 
-	mtr_start(&mtr);
-
 	/* descend to the leaf level on the B-tree */
 	for (;;) {
 		dberr_t err;
 
 		block = buf_page_get_gen(page_id, zip_size,
 					 RW_S_LATCH, NULL, BUF_GET,
-					 &mtr, &err,
-					 !index->is_clust()
-					 && 1 == btr_page_get_level(page));
+					 mtr, &err);
 		if (!block) {
 			goto func_exit;
 		}
 
+		btr_search_drop_page_hash_index(block, index);
 		page = block->page.frame;
 
 		if (page_is_leaf(page)) {
@@ -2301,17 +1910,14 @@ dict_stats_analyze_index_below_cur(
 		ut_a(*n_diff > 0);
 
 		if (*n_diff == 1) {
-			mtr_commit(&mtr);
-
 			/* page has all keys equal and the end of the page
 			was reached by dict_stats_scan_page(), no need to
 			descend to the leaf level */
-			mem_heap_free(heap);
 			/* can't get an estimate for n_external_pages here
 			because we do not dive to the leaf level, assume no
 			external pages (*n_external_pages was assigned to 0
 			above). */
-			return;
+			goto func_exit;
 		}
 		/* else */
 
@@ -2346,7 +1952,7 @@ dict_stats_analyze_index_below_cur(
 #endif
 
 func_exit:
-	mtr_commit(&mtr);
+	mtr->rollback_to_savepoint(sp);
 	mem_heap_free(heap);
 }
 
@@ -2541,7 +2147,7 @@ dict_stats_analyze_index_for_n_prefix(
 		ib_uint64_t	n_external_pages;
 
 		dict_stats_analyze_index_below_cur(btr_pcur_get_btr_cur(&pcur),
-						   n_prefix,
+						   mtr, n_prefix,
 						   &n_diff_on_leaf_page,
 						   &n_external_pages);
 
@@ -2573,8 +2179,8 @@ dict_stats_analyze_index_for_n_prefix(
 struct index_stats_t
 {
   std::vector<index_field_stats_t> stats;
-  ulint index_size;
-  ulint n_leaf_pages;
+  uint32_t index_size;
+  uint32_t n_leaf_pages;
 
   index_stats_t(ulint n_uniq) : index_size(1), n_leaf_pages(1)
   {
@@ -2677,14 +2283,14 @@ members stat_n_diff_key_vals[], stat_n_sample_sizes[], stat_index_size and
 stat_n_leaf_pages. This function can be slow.
 @param[in]	index	index to analyze
 @return index stats */
-static index_stats_t dict_stats_analyze_index(dict_index_t* index)
+static index_stats_t dict_stats_analyze_index(trx_t *trx, dict_index_t* index)
 {
 	bool		level_is_analyzed;
 	ulint		n_uniq;
 	ulint		n_prefix;
 	ib_uint64_t	total_recs;
 	ib_uint64_t	total_pages;
-	mtr_t		mtr;
+	mtr_t		mtr{trx};
 	index_stats_t	result(index->n_uniq);
 	DBUG_ENTER("dict_stats_analyze_index");
 
@@ -2713,7 +2319,7 @@ empty_index:
 
 	uint16_t root_level = btr_page_get_level(root->page.frame);
 	mtr.x_lock_space(index->table->space);
-	ulint dummy, size;
+	uint32_t dummy, size;
 	result.index_size
 		= fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					+ root->page.frame, &size, &mtr)
@@ -2722,7 +2328,7 @@ empty_index:
 	result.n_leaf_pages = size ? size : 1;
 
 	const auto bulk_trx_id = index->table->bulk_trx_id;
-	if (bulk_trx_id && trx_sys.find(nullptr, bulk_trx_id, false)) {
+	if (trx_sys.is_registered(nullptr, bulk_trx_id)) {
 		result.set_bulk_operation();
 		goto empty_index;
 	}
@@ -2983,23 +2589,18 @@ found_level:
 	DBUG_RETURN(result);
 }
 
-/*********************************************************************//**
-Calculates new estimates for table and index statistics. This function
-is relatively slow and is used to calculate persistent statistics that
-will be saved on disk.
-@return DB_SUCCESS or error code
-@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-static
-dberr_t
-dict_stats_update_persistent(
-/*=========================*/
-	dict_table_t*	table)		/*!< in/out: table */
+dberr_t dict_stats_update_persistent(trx_t *trx, dict_table_t *table) noexcept
 {
 	dict_index_t*	index;
 
 	DEBUG_PRINTF("%s(table=%s)\n", __func__, table->name);
 
 	DEBUG_SYNC_C("dict_stats_update_persistent");
+
+	if (trx_sys.is_registered(nullptr, table->bulk_trx_id)) {
+		dict_stats_empty_table(table);
+		return DB_SUCCESS_LOCKED_REC;
+	}
 
 	/* analyze the clustered index first */
 
@@ -3010,20 +2611,19 @@ dict_stats_update_persistent(
 	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */
-		dict_stats_empty_table(table, true);
+		dict_stats_empty_table(table);
 
 		return(DB_CORRUPTION);
 	}
 
-	ut_ad(!dict_index_is_ibuf(index));
 	table->stats_mutex_lock();
-	dict_stats_empty_index(index, false);
+	dict_stats_empty_index(index);
 	table->stats_mutex_unlock();
 
-	index_stats_t stats = dict_stats_analyze_index(index);
+	index_stats_t stats = dict_stats_analyze_index(trx, index);
 
 	if (stats.is_bulk_operation()) {
-		dict_stats_empty_table(table, false);
+		dict_stats_empty_table(table);
 		return DB_SUCCESS_LOCKED_REC;
 	}
 
@@ -3054,19 +2654,19 @@ dict_stats_update_persistent(
 			continue;
 		}
 
-		dict_stats_empty_index(index, false);
+		dict_stats_empty_index(index);
 
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
 		}
 
 		table->stats_mutex_unlock();
-		stats = dict_stats_analyze_index(index);
+		stats = dict_stats_analyze_index(trx, index);
 		table->stats_mutex_lock();
 
 		if (stats.is_bulk_operation()) {
 			table->stats_mutex_unlock();
-			dict_stats_empty_table(table, false);
+			dict_stats_empty_table(table);
 			return DB_SUCCESS_LOCKED_REC;
 		}
 
@@ -3090,13 +2690,26 @@ dict_stats_update_persistent(
 
 	table->stat_modified_counter = 0;
 
-	table->stat_initialized = TRUE;
+	table->stat = table->stat | dict_table_t::STATS_INITIALIZED;
 
 	dict_stats_assert_initialized(table);
 
 	table->stats_mutex_unlock();
 
 	return(DB_SUCCESS);
+}
+
+dberr_t dict_stats_update_persistent_try(trx_t *trx, dict_table_t *table)
+  noexcept
+{
+  if (table->stats_is_persistent() &&
+      dict_stats_persistent_storage_check(false) == SCHEMA_OK)
+  {
+    if (dberr_t err= dict_stats_update_persistent(trx, table))
+      return err;
+    return dict_stats_save(table);
+  }
+  return DB_SUCCESS;
 }
 
 #include "mysql_com.h"
@@ -3177,14 +2790,14 @@ dict_stats_save_index_stat(
 		"END;", trx);
 
 	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
-		if (innodb_index_stats_not_found == false &&
-		    index->stats_error_printed == false) {
+		if (innodb_index_stats_not_found == false
+		    && !index->table->stats_error_printed) {
+			index->table->stats_error_printed = true;
 		ib::error() << "Cannot save index statistics for table "
 			<< index->table->name
 			<< ", index " << index->name
 			<< ", stat name \"" << stat_name << "\": "
 			<< ret;
-			index->stats_error_printed = true;
 		}
 	}
 
@@ -3194,25 +2807,21 @@ dict_stats_save_index_stat(
 /** Report an error if updating table statistics failed because
 .ibd file is missing, table decryption failed or table is corrupted.
 @param[in,out]	table	Table
-@param[in]	defragment	true if statistics is for defragment
 @retval DB_DECRYPTION_FAILED if decryption of the table failed
 @retval DB_TABLESPACE_DELETED if .ibd file is missing
 @retval DB_CORRUPTION if table is marked as corrupted */
-dberr_t
-dict_stats_report_error(dict_table_t* table, bool defragment)
+static dberr_t dict_stats_report_error(dict_table_t* table)
 {
 	dberr_t		err;
 
-	const char*	df = defragment ? " defragment" : "";
-
 	if (!table->space) {
-		ib::warn() << "Cannot save" << df << " statistics for table "
+		ib::warn() << "Cannot save statistics for table "
 			   << table->name
 			   << " because the .ibd file is missing. "
 			   << TROUBLESHOOTING_MSG;
 		err = DB_TABLESPACE_DELETED;
 	} else {
-		ib::warn() << "Cannot save" << df << " statistics for table "
+		ib::warn() << "Cannot save statistics for table "
 			   << table->name
 			   << " because file "
 			   << table->space->chain.start->name
@@ -3222,71 +2831,49 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 		err = table->corrupted ? DB_CORRUPTION : DB_DECRYPTION_FAILED;
 	}
 
-	dict_stats_empty_table(table, defragment);
+	dict_stats_empty_table(table);
 	return err;
 }
 
-/** Save the table's statistics into the persistent statistics storage.
-@param[in]	table_orig	table whose stats to save
-@param[in]	only_for_index	if this is non-NULL, then stats for indexes
-that are not equal to it will not be saved, if NULL, then all indexes' stats
-are saved
+/** Save the persistent statistics of a table or an index.
+@param table            table whose stats to save
+@param only_for_index   the index ID to save statistics for (0=all)
 @return DB_SUCCESS or error code */
-static
-dberr_t
-dict_stats_save(
-	dict_table_t*		table_orig,
-	const index_id_t*	only_for_index)
+dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 {
 	pars_info_t*	pinfo;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
+	THD* const	thd = current_thd;
 
-	if (high_level_read_only) {
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("dict_stats_save_exit_notify",
+	   SCOPE_EXIT([thd] {
+	       debug_sync_set_action(thd,
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"));
+	    });
+	);
+	DBUG_EXECUTE_IF("dict_stats_save_exit_notify_and_wait",
+	   SCOPE_EXIT([] {
+	       debug_sync_set_action(current_thd,
+	       STRING_WITH_LEN("now SIGNAL dict_stats_save_finished"
+			       " WAIT_FOR dict_stats_save_unblock"));
+	    });
+	);
+#endif /* ENABLED_DEBUG_SYNC */
+
+	if (high_level_read_only || recv_sys.rpo) {
 		return DB_READ_ONLY;
 	}
 
-	if (!table_orig->is_readable()) {
-		return (dict_stats_report_error(table_orig));
+	if (!table->is_readable()) {
+		return (dict_stats_report_error(table));
 	}
 
-	THD* thd = current_thd;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (table_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
-							     &mdl_table);
-		dict_sys.unfreeze();
-	}
-	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
-release_and_exit:
-		if (table_stats) {
-			dict_table_close(table_stats, false, thd, mdl_table);
-		}
+	dict_stats stats;
+	if (stats.open(thd)) {
 		return DB_STATS_DO_NOT_EXIST;
 	}
-
-	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (index_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
-							     &mdl_index);
-		dict_sys.unfreeze();
-	}
-	if (!index_stats) {
-		goto release_and_exit;
-	}
-	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-		dict_table_close(index_stats, false, thd, mdl_index);
-		goto release_and_exit;
-	}
-
-	dict_table_t* table = dict_stats_snapshot_create(table_orig);
-
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 	const time_t now = time(NULL);
@@ -3295,9 +2882,9 @@ release_and_exit:
 	trx_start_internal(trx);
 	dberr_t ret = trx->read_only
 		? DB_READ_ONLY
-		: lock_table_for_trx(table_stats, trx, LOCK_X);
+		: lock_table_for_trx(stats.table(), trx, LOCK_X);
 	if (ret == DB_SUCCESS) {
-		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
+		ret = lock_table_for_trx(stats.index(), trx, LOCK_X);
 	}
 	if (ret != DB_SUCCESS) {
 		if (trx->state != TRX_STATE_NOT_STARTED) {
@@ -3343,18 +2930,22 @@ release_and_exit:
 		"END;", trx);
 
 	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
-		ib::error() << "Cannot save table statistics for table "
-			<< table->name << ": " << ret;
+		sql_print_error("InnoDB: Cannot save table statistics for"
+#ifdef EMBEDDED_LIBRARY
+				" table %.*s.%s: %s",
+#else
+				" table %.*sQ.%sQ: %s",
+#endif
+				int(table->name.dblen()), table->name.m_name,
+				table->name.basename(), ut_strerr(ret));
 rollback_and_exit:
 		trx->rollback();
 free_and_exit:
 		trx->dict_operation_lock_mode = false;
 		dict_sys.unlock();
 unlocked_free_and_exit:
-		trx->free();
-		dict_stats_snapshot_free(table);
-		dict_table_close(table_stats, false, thd, mdl_table);
-		dict_table_close(index_stats, false, thd, mdl_index);
+		trx->clear_and_free();
+		stats.close();
 		return ret;
 	}
 
@@ -3388,15 +2979,13 @@ unlocked_free_and_exit:
 
 		index = it->second;
 
-		if (only_for_index != NULL && index->id != *only_for_index) {
+		if (index_id != 0 && index->id != index_id) {
 			continue;
 		}
 
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		for (unsigned i = 0; i < index->n_uniq; i++) {
 
@@ -3458,6 +3047,14 @@ unlocked_free_and_exit:
 	goto free_and_exit;
 }
 
+void dict_stats_empty_table_and_save(dict_table_t *table)
+{
+  dict_stats_empty_table(table);
+  if (table->stats_is_persistent() &&
+      dict_stats_persistent_storage_check(false) == SCHEMA_OK)
+    dict_stats_save(table);
+}
+
 /*********************************************************************//**
 Called for the row that is selected by
 SELECT ... FROM mysql.innodb_table_stats WHERE table='...'
@@ -3501,25 +3098,25 @@ dict_stats_fetch_table_stats_step(
 			break;
 
 		case 1: /* mysql.innodb_table_stats.clustered_index_size */
-
+		{
 			ut_a(dtype_get_mtype(type) == DATA_INT);
 			ut_a(len == 8);
 
 			table->stat_clustered_index_size
-				= (ulint) mach_read_from_8(data);
-
+				= std::max(mach_read_from_4(data + 4), 1U);
 			break;
+		}
 
 		case 2: /* mysql.innodb_table_stats.sum_of_other_index_sizes */
-
+		{
 			ut_a(dtype_get_mtype(type) == DATA_INT);
 			ut_a(len == 8);
 
-			table->stat_sum_of_other_index_sizes
-				= (ulint) mach_read_from_8(data);
-
+			table->stat_sum_of_other_index_sizes = std::max(
+				mach_read_from_4(data + 4),
+				uint32_t(UT_LIST_GET_LEN(table->indexes) - 1));
 			break;
-
+		}
 		default:
 
 			/* someone changed SELECT
@@ -3702,22 +3299,12 @@ dict_stats_fetch_index_stats_step(
 
 	if (stat_name_len == 4 /* strlen("size") */
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
-		index->stat_index_size = (ulint) stat_value;
+		index->stat_index_size = std::max(uint32_t(stat_value), 1U);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_leaf_pages") */
 		   && strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   == 0) {
-		index->stat_n_leaf_pages = (ulint) stat_value;
-		arg->stats_were_modified = true;
-	} else if (stat_name_len == 12 /* strlen("n_page_split") */
-		   && strncasecmp("n_page_split", stat_name, stat_name_len)
-		      == 0) {
-		index->stat_defrag_n_page_split = (ulint) stat_value;
-		arg->stats_were_modified = true;
-	} else if (stat_name_len == 13 /* strlen("n_pages_freed") */
-		   && strncasecmp("n_pages_freed", stat_name, stat_name_len)
-		      == 0) {
-		index->stat_defrag_n_pages_freed = (ulint) stat_value;
+		index->stat_n_leaf_pages = std::max(uint32_t(stat_value), 1U);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len > PFX_LEN /* e.g. stat_name=="n_diff_pfx01" */
 		   && strncasecmp(PFX, stat_name, PFX_LEN) == 0) {
@@ -3787,7 +3374,8 @@ dict_stats_fetch_index_stats_step(
 		index->stat_n_diff_key_vals[n_pfx - 1] = stat_value;
 
 		if (sample_size != UINT64_UNDEFINED) {
-			index->stat_n_sample_sizes[n_pfx - 1] = sample_size;
+			index->stat_n_sample_sizes[n_pfx - 1] =
+				std::max<ib_uint64_t>(sample_size, 1);
 		} else {
 			/* hmm, strange... the user must have UPDATEd the
 			table manually and SET sample_size = NULL */
@@ -3806,19 +3394,11 @@ dict_stats_fetch_index_stats_step(
 	return(TRUE);
 }
 
-/*********************************************************************//**
-Read table's statistics from the persistent statistics storage.
-@return DB_SUCCESS or error code */
-static
-dberr_t
-dict_stats_fetch_from_ps(
-/*=====================*/
-	dict_table_t*	table)	/*!< in/out: table */
+/** Read the stored persistent statistics of a table. */
+dberr_t dict_stats_fetch_from_ps(dict_table_t *table)
 {
 	index_fetch_t	index_fetch_arg;
-	trx_t*		trx;
 	pars_info_t*	pinfo;
-	dberr_t		ret;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
@@ -3826,46 +3406,17 @@ dict_stats_fetch_from_ps(
 	the persistent storage contains incomplete stats (e.g. missing stats
 	for some index) then we would end up with (partially) uninitialized
 	stats. */
-	dict_stats_empty_table(table, true);
+	dict_stats_empty_table(table);
 
-	THD* thd = current_thd;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
-	dict_table_t* table_stats = dict_table_open_on_name(
-		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (table_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
-							     &mdl_table);
-		dict_sys.unfreeze();
-	}
-	if (!table_stats
-	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
-release_and_exit:
-		if (table_stats) {
-			dict_table_close(table_stats, false, thd, mdl_table);
-		}
+	THD* const thd = current_thd;
+	dict_stats stats;
+	if (stats.open(thd)) {
 		return DB_STATS_DO_NOT_EXIST;
 	}
 
-	dict_table_t* index_stats = dict_table_open_on_name(
-		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-	if (index_stats) {
-		dict_sys.freeze(SRW_LOCK_CALL);
-		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
-							     &mdl_index);
-		dict_sys.unfreeze();
-	}
-	if (!index_stats) {
-		goto release_and_exit;
-	}
-	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-		dict_table_close(index_stats, false, thd, mdl_index);
-		goto release_and_exit;
-	}
-
-	trx = trx_create();
-
-	trx_start_internal_read_only(trx);
+#ifdef ENABLED_DEBUG_SYNC
+	DEBUG_SYNC(thd, "dict_stats_mdl_acquired");
+#endif /* ENABLED_DEBUG_SYNC */
 
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
@@ -3887,373 +3438,121 @@ release_and_exit:
 			        "fetch_index_stats_step",
 			        dict_stats_fetch_index_stats_step,
 			        &index_fetch_arg);
-	dict_sys.lock(SRW_LOCK_CALL); /* FIXME: remove this */
-	ret = que_eval_sql(pinfo,
-			   "PROCEDURE FETCH_STATS () IS\n"
-			   "found INT;\n"
-			   "DECLARE FUNCTION fetch_table_stats_step;\n"
-			   "DECLARE FUNCTION fetch_index_stats_step;\n"
-			   "DECLARE CURSOR table_stats_cur IS\n"
-			   "  SELECT\n"
-			   /* if you change the selected fields, be
-			   sure to adjust
-			   dict_stats_fetch_table_stats_step() */
-			   "  n_rows,\n"
-			   "  clustered_index_size,\n"
-			   "  sum_of_other_index_sizes\n"
-			   "  FROM \"" TABLE_STATS_NAME "\"\n"
-			   "  WHERE\n"
-			   "  database_name = :database_name AND\n"
-			   "  table_name = :table_name;\n"
-			   "DECLARE CURSOR index_stats_cur IS\n"
-			   "  SELECT\n"
-			   /* if you change the selected fields, be
-			   sure to adjust
-			   dict_stats_fetch_index_stats_step() */
-			   "  index_name,\n"
-			   "  stat_name,\n"
-			   "  stat_value,\n"
-			   "  sample_size\n"
-			   "  FROM \"" INDEX_STATS_NAME "\"\n"
-			   "  WHERE\n"
-			   "  database_name = :database_name AND\n"
-			   "  table_name = :table_name;\n"
+	dict_sys.lock(SRW_LOCK_CALL);
+	que_t* graph = pars_sql(
+		pinfo,
+		"PROCEDURE FETCH_STATS () IS\n"
+		"found INT;\n"
+		"DECLARE FUNCTION fetch_table_stats_step;\n"
+		"DECLARE FUNCTION fetch_index_stats_step;\n"
+		"DECLARE CURSOR table_stats_cur IS\n"
+		"  SELECT\n"
+		/* if you change the selected fields, be
+		sure to adjust
+		dict_stats_fetch_table_stats_step() */
+		"  n_rows,\n"
+		"  clustered_index_size,\n"
+		"  sum_of_other_index_sizes\n"
+		"  FROM \"" TABLE_STATS_NAME "\"\n"
+		"  WHERE\n"
+		"  database_name = :database_name AND\n"
+		"  table_name = :table_name;\n"
+		"DECLARE CURSOR index_stats_cur IS\n"
+		"  SELECT\n"
+		/* if you change the selected fields, be
+		sure to adjust
+		dict_stats_fetch_index_stats_step() */
+		"  index_name,\n"
+		"  stat_name,\n"
+		"  stat_value,\n"
+		"  sample_size\n"
+		"  FROM \"" INDEX_STATS_NAME "\"\n"
+		"  WHERE\n"
+		"  database_name = :database_name AND\n"
+		"  table_name = :table_name;\n"
 
-			   "BEGIN\n"
+		"BEGIN\n"
 
-			   "OPEN table_stats_cur;\n"
-			   "FETCH table_stats_cur INTO\n"
-			   "  fetch_table_stats_step();\n"
-			   "IF (SQL % NOTFOUND) THEN\n"
-			   "  CLOSE table_stats_cur;\n"
-			   "  RETURN;\n"
-			   "END IF;\n"
-			   "CLOSE table_stats_cur;\n"
+		"OPEN table_stats_cur;\n"
+		"FETCH table_stats_cur INTO\n"
+		"  fetch_table_stats_step();\n"
+		"IF (SQL % NOTFOUND) THEN\n"
+		"  CLOSE table_stats_cur;\n"
+		"  RETURN;\n"
+		"END IF;\n"
+		"CLOSE table_stats_cur;\n"
 
-			   "OPEN index_stats_cur;\n"
-			   "found := 1;\n"
-			   "WHILE found = 1 LOOP\n"
-			   "  FETCH index_stats_cur INTO\n"
-			   "    fetch_index_stats_step();\n"
-			   "  IF (SQL % NOTFOUND) THEN\n"
-			   "    found := 0;\n"
-			   "  END IF;\n"
-			   "END LOOP;\n"
-			   "CLOSE index_stats_cur;\n"
+		"OPEN index_stats_cur;\n"
+		"found := 1;\n"
+		"WHILE found = 1 LOOP\n"
+		"  FETCH index_stats_cur INTO\n"
+		"    fetch_index_stats_step();\n"
+		"  IF (SQL % NOTFOUND) THEN\n"
+		"    found := 0;\n"
+		"  END IF;\n"
+		"END LOOP;\n"
+		"CLOSE index_stats_cur;\n"
 
-			   "END;", trx);
-	/* pinfo is freed by que_eval_sql() */
+		"END;");
 	dict_sys.unlock();
 
-	dict_table_close(table_stats, false, thd, mdl_table);
-	dict_table_close(index_stats, false, thd, mdl_index);
+	trx_t* trx = trx_create();
+	trx->graph = nullptr;
+	graph->trx = trx;
 
+	trx_start_internal_read_only(trx);
+	que_run_threads(que_fork_start_command(graph));
+	que_graph_free(graph);
 	trx_commit_for_mysql(trx);
-
+	dberr_t ret = index_fetch_arg.stats_were_modified
+		? trx->error_state : DB_STATS_DO_NOT_EXIST;
 	trx->free();
-
-	if (!index_fetch_arg.stats_were_modified) {
-		return(DB_STATS_DO_NOT_EXIST);
-	}
-
-	return(ret);
+	stats.close();
+	return ret;
 }
 
-/*********************************************************************//**
-Clear defragmentation stats modified counter for all indices in table. */
-static
-void
-dict_stats_empty_defrag_modified_counter(
-	dict_table_t*	table)	/*!< in: table */
+void dict_stats_update_for_index(trx_t *trx, dict_index_t *index) noexcept
 {
-	dict_index_t*	index;
-	ut_a(table);
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-		index->stat_defrag_modified_counter = 0;
-	}
-}
+  dict_table_t *const table= index->table;
+  ut_ad(table->stat_initialized());
 
-/*********************************************************************//**
-Fetches or calculates new estimates for index statistics. */
-void
-dict_stats_update_for_index(
-/*========================*/
-	dict_index_t*	index)	/*!< in/out: index */
-{
-	DBUG_ENTER("dict_stats_update_for_index");
+  if (table->stats_is_persistent())
+    switch (dict_stats_persistent_storage_check(false)) {
+    case SCHEMA_NOT_EXIST:
+      break;
+    case SCHEMA_INVALID:
+      if (table->stats_error_printed)
+        break;
+      table->stats_error_printed= true;
+      sql_print_information("InnoDB: Recalculation of persistent statistics"
+#ifdef EMBEDDED_LIBRARY
+                            " requested for table %.*s.%s index %s but"
+#else
+                            " requested for table %.*sQ.%sQ index %sQ but"
+#endif
+                            " the required persistent statistics storage"
+                            " is corrupted. Using transient stats instead.",
+                            int(table->name.dblen()), table->name.m_name,
+                            table->name.basename(), index->name());
+      break;
+    case SCHEMA_OK:
+      index_stats_t stats{dict_stats_analyze_index(trx, index)};
+      table->stats_mutex_lock();
+      index->stat_index_size = stats.index_size;
+      index->stat_n_leaf_pages = stats.n_leaf_pages;
+      for (size_t i = 0; i < stats.stats.size(); ++i)
+      {
+        index->stat_n_diff_key_vals[i]= stats.stats[i].n_diff_key_vals;
+        index->stat_n_sample_sizes[i]= stats.stats[i].n_sample_sizes;
+        index->stat_n_non_null_key_vals[i]= stats.stats[i].n_non_null_key_vals;
+      }
+      table->stat_sum_of_other_index_sizes+= index->stat_index_size;
+      table->stats_mutex_unlock();
+      dict_stats_save(table, index->id);
+      return;
+    }
 
-	if (dict_stats_is_persistent_enabled(index->table)) {
-
-		if (dict_stats_persistent_storage_check(false)) {
-			index_stats_t stats = dict_stats_analyze_index(index);
-			index->table->stats_mutex_lock();
-			index->stat_index_size = stats.index_size;
-			index->stat_n_leaf_pages = stats.n_leaf_pages;
-			for (size_t i = 0; i < stats.stats.size(); ++i) {
-				index->stat_n_diff_key_vals[i]
-					= stats.stats[i].n_diff_key_vals;
-				index->stat_n_sample_sizes[i]
-					= stats.stats[i].n_sample_sizes;
-				index->stat_n_non_null_key_vals[i]
-					= stats.stats[i].n_non_null_key_vals;
-			}
-			index->table->stat_sum_of_other_index_sizes
-				+= index->stat_index_size;
-			index->table->stats_mutex_unlock();
-
-			dict_stats_save(index->table, &index->id);
-			DBUG_VOID_RETURN;
-		}
-		/* else */
-
-		if (innodb_index_stats_not_found == false &&
-		    index->stats_error_printed == false) {
-			/* Fall back to transient stats since the persistent
-			storage is not present or is corrupted */
-
-		ib::info() << "Recalculation of persistent statistics"
-			" requested for table " << index->table->name
-			<< " index " << index->name
-			<< " but the required"
-			" persistent statistics storage is not present or is"
-			" corrupted. Using transient stats instead.";
-			index->stats_error_printed = false;
-		}
-	}
-
-	dict_stats_update_transient_for_index(index);
-
-	DBUG_VOID_RETURN;
-}
-
-/*********************************************************************//**
-Calculates new estimates for table and index statistics. The statistics
-are used in query optimization.
-@return DB_SUCCESS or error code
-@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-dberr_t
-dict_stats_update(
-/*==============*/
-	dict_table_t*		table,	/*!< in/out: table */
-	dict_stats_upd_option_t	stats_upd_option)
-					/*!< in: whether to (re) calc
-					the stats or to fetch them from
-					the persistent statistics
-					storage */
-{
-	ut_ad(!table->stats_mutex_is_owner());
-
-	if (!table->is_readable()) {
-		return (dict_stats_report_error(table));
-	} else if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
-		/* If we have set a high innodb_force_recovery level, do
-		not calculate statistics, as a badly corrupted index can
-		cause a crash in it. */
-		dict_stats_empty_table(table, false);
-		return(DB_SUCCESS);
-	}
-
-	if (trx_id_t bulk_trx_id = table->bulk_trx_id) {
-		if (trx_sys.find(nullptr, bulk_trx_id, false)) {
-			dict_stats_empty_table(table, false);
-			return DB_SUCCESS_LOCKED_REC;
-		}
-	}
-
-	switch (stats_upd_option) {
-	case DICT_STATS_RECALC_PERSISTENT:
-
-		if (srv_read_only_mode) {
-			goto transient;
-		}
-
-		/* Persistent recalculation requested, called from
-		1) ANALYZE TABLE, or
-		2) the auto recalculation background thread, or
-		3) open table if stats do not exist on disk and auto recalc
-		   is enabled */
-
-		/* InnoDB internal tables (e.g. SYS_TABLES) cannot have
-		persistent stats enabled */
-		ut_a(strchr(table->name.m_name, '/') != NULL);
-
-		/* check if the persistent statistics storage exists
-		before calling the potentially slow function
-		dict_stats_update_persistent(); that is a
-		prerequisite for dict_stats_save() succeeding */
-		if (dict_stats_persistent_storage_check(false)) {
-
-			dberr_t	err;
-
-			err = dict_stats_update_persistent(table);
-
-			if (err != DB_SUCCESS) {
-				return(err);
-			}
-
-			err = dict_stats_save(table, NULL);
-
-			return(err);
-		}
-
-		/* Fall back to transient stats since the persistent
-		storage is not present or is corrupted */
-
-		if (innodb_table_stats_not_found == false &&
-		    table->stats_error_printed == false) {
-		ib::warn() << "Recalculation of persistent statistics"
-			" requested for table "
-			<< table->name
-			<< " but the required persistent"
-			" statistics storage is not present or is corrupted."
-			" Using transient stats instead.";
-			table->stats_error_printed = true;
-		}
-
-		goto transient;
-
-	case DICT_STATS_RECALC_TRANSIENT:
-
-		goto transient;
-
-	case DICT_STATS_EMPTY_TABLE:
-
-		dict_stats_empty_table(table, true);
-
-		/* If table is using persistent stats,
-		then save the stats on disk */
-
-		if (dict_stats_is_persistent_enabled(table)) {
-
-			if (dict_stats_persistent_storage_check(false)) {
-
-				return(dict_stats_save(table, NULL));
-			}
-
-			return(DB_STATS_DO_NOT_EXIST);
-		}
-
-		return(DB_SUCCESS);
-
-	case DICT_STATS_FETCH_ONLY_IF_NOT_IN_MEMORY:
-
-		/* fetch requested, either fetch from persistent statistics
-		storage or use the old method */
-
-		if (table->stat_initialized) {
-			return(DB_SUCCESS);
-		}
-
-		/* InnoDB internal tables (e.g. SYS_TABLES) cannot have
-		persistent stats enabled */
-		ut_a(strchr(table->name.m_name, '/') != NULL);
-
-		if (!dict_stats_persistent_storage_check(false)) {
-			/* persistent statistics storage does not exist
-			or is corrupted, calculate the transient stats */
-
-			if (innodb_table_stats_not_found == false &&
-			    table->stats_error_printed == false &&
-			    !opt_bootstrap) {
-				ib::error() << "Fetch of persistent statistics"
-					" requested for table "
-					<< table->name
-					<< " but the required system tables "
-					<< TABLE_STATS_NAME_PRINT
-					<< " and " << INDEX_STATS_NAME_PRINT
-					<< " are not present or have unexpected"
-					" structure. Using transient stats instead.";
-					table->stats_error_printed = true;
-			}
-
-			goto transient;
-		}
-
-		dict_table_t*	t;
-
-		/* Create a dummy table object with the same name and
-		indexes, suitable for fetching the stats into it. */
-		t = dict_stats_table_clone_create(table);
-
-		dberr_t	err = dict_stats_fetch_from_ps(t);
-
-		t->stats_last_recalc = table->stats_last_recalc;
-		t->stat_modified_counter = 0;
-		dict_stats_empty_defrag_modified_counter(t);
-
-		switch (err) {
-		case DB_SUCCESS:
-
-			table->stats_mutex_lock();
-			/* t is localized to this thread so no need to
-			take stats mutex lock (limiting it to debug only) */
-			ut_d(t->stats_mutex_lock());
-
-			/* Pass reset_ignored_indexes=true as parameter
-			to dict_stats_copy. This will cause statictics
-			for corrupted indexes to be set to empty values */
-			dict_stats_copy(table, t, true);
-
-			dict_stats_assert_initialized(table);
-
-			ut_d(t->stats_mutex_unlock());
-			table->stats_mutex_unlock();
-
-			dict_stats_table_clone_free(t);
-
-			return(DB_SUCCESS);
-		case DB_STATS_DO_NOT_EXIST:
-
-			dict_stats_table_clone_free(t);
-
-			if (srv_read_only_mode) {
-				goto transient;
-			}
-
-			if (dict_stats_auto_recalc_is_enabled(table)) {
-				return(dict_stats_update(
-						table,
-						DICT_STATS_RECALC_PERSISTENT));
-			}
-
-			ib::info() << "Trying to use table " << table->name
-				<< " which has persistent statistics enabled,"
-				" but auto recalculation turned off and the"
-				" statistics do not exist in "
-				TABLE_STATS_NAME_PRINT
-				" and " INDEX_STATS_NAME_PRINT
-				". Please either run \"ANALYZE TABLE "
-				<< table->name << ";\" manually or enable the"
-				" auto recalculation with \"ALTER TABLE "
-				<< table->name << " STATS_AUTO_RECALC=1;\"."
-				" InnoDB will now use transient statistics for "
-				<< table->name << ".";
-
-			goto transient;
-		default:
-
-			dict_stats_table_clone_free(t);
-
-			if (innodb_table_stats_not_found == false &&
-			    table->stats_error_printed == false) {
-				ib::error() << "Error fetching persistent statistics"
-					" for table "
-					<< table->name
-					<< " from " TABLE_STATS_NAME_PRINT " and "
-					INDEX_STATS_NAME_PRINT ": " << err
-					<< ". Using transient stats method instead.";
-			}
-
-			goto transient;
-		}
-	/* no "default:" in order to produce a compilation warning
-	about unhandled enumeration value */
-	}
-
-transient:
-	return dict_stats_update_transient(table);
+  dict_stats_update_transient_for_index(trx, index);
 }
 
 /** Execute DELETE FROM mysql.innodb_table_stats
@@ -4364,8 +3663,9 @@ dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
   dict_fs2utf8(old_name, old_db, sizeof old_db, old_table, sizeof old_table);
   dict_fs2utf8(new_name, new_db, sizeof new_db, new_table, sizeof new_table);
 
-  if (dict_table_t::is_temporary_name(old_name) ||
-      dict_table_t::is_temporary_name(new_name))
+  /* Delete the stats only if renaming the table from old table to
+  intermediate table during COPY algorithm */
+  if (dict_table_t::is_temporary_name(new_name))
   {
     if (dberr_t e= dict_stats_delete_from_table_stats(old_db, old_table, trx))
       return e;
@@ -4403,7 +3703,7 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
                                 const char *old_name, const char *new_name,
                                 trx_t *trx)
 {
-  if (!dict_stats_persistent_storage_check(true))
+  if (dict_stats_persistent_storage_check(true) != SCHEMA_OK)
     return DB_STATS_DO_NOT_EXIST;
   pars_info_t *pinfo= pars_info_create();
 
@@ -4539,7 +3839,7 @@ test_dict_stats_save()
 	index2_stat_n_sample_sizes[2] = TEST_IDX2_N_DIFF3_SAMPLE_SIZE;
 	index2_stat_n_sample_sizes[3] = TEST_IDX2_N_DIFF4_SAMPLE_SIZE;
 
-	ret = dict_stats_save(&table, NULL);
+	ret = dict_stats_save(&table);
 
 	ut_a(ret == DB_SUCCESS);
 

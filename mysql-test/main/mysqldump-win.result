@@ -1,0 +1,9 @@
+# Test mysqldump specific features (pipe connection, with parallel)
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES(1);
+DROP TABLE t1;
+test.t1: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;

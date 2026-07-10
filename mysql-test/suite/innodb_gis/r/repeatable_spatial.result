@@ -1,10 +1,10 @@
 CREATE TABLE tab(c1 int NOT NULL PRIMARY KEY,c2 POINT NOT NULL,
 c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL) 
 ENGINE=InnoDB;
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 INSERT INTO tab(c1,c2,c3,c4,c5) 
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -19,8 +19,8 @@ COUNT(*)
 connect  con1,localhost,root,,;
 connection con1;
 SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 SELECT COUNT(*) FROM tab;
 COUNT(*)
@@ -32,8 +32,8 @@ c1	ST_AsText(c2)	ST_AsText(c3)	ST_AsText(c4)	ST_AsText(c5)
 connect  con2,localhost,root,,;
 connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 READ-COMMITTED
 START TRANSACTION;
 INSERT INTO tab(c1,c2,c3,c4,c5) 
@@ -88,10 +88,10 @@ DROP TABLE tab;
 CREATE TABLE tab(c1 int NOT NULL PRIMARY KEY,c2 POINT NOT NULL,
 c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL) 
 ENGINE=InnoDB;
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 INSERT INTO tab(c1,c2,c3,c4,c5) 
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -106,8 +106,8 @@ COUNT(*)
 connect  con1,localhost,root,,;
 connection con1;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 SELECT COUNT(*) FROM tab;
 COUNT(*)
@@ -119,8 +119,8 @@ c1	ST_AsText(c2)	ST_AsText(c3)	ST_AsText(c4)	ST_AsText(c5)
 connect  con2,localhost,root,,;
 connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 READ-COMMITTED
 START TRANSACTION;
 INSERT INTO tab(c1,c2,c3,c4,c5) 

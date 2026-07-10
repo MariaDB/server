@@ -1,0 +1,85 @@
+#
+# MDEV-26875: Wrong user in SET DEFAULT ROLE error
+#
+create user test_user;
+create role test_role;
+show grants for test_user;
+Grants for test_user@%
+GRANT USAGE ON *.* TO `test_user`@`%`
+set default role test_role for test_user;
+ERROR OP000: User `test_user`@`%` has not been granted role `test_role`
+grant test_role to test_user;
+set default role test_role for test_user;
+show grants for test_user;
+Grants for test_user@%
+GRANT `test_role` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
+SET DEFAULT ROLE `test_role` FOR `test_user`@`%`
+set default role none for test_user;
+#
+# Try to set default role to role(`test_role`).
+--------------------------------------------------------------
+show grants for test_role;
+Grants for test_role
+GRANT USAGE ON *.* TO `test_role`
+create role new_role;
+grant new_role to test_role;
+show grants for test_role;
+Grants for test_role
+GRANT `new_role` TO `test_role`
+GRANT USAGE ON *.* TO `test_role`
+GRANT USAGE ON *.* TO `new_role`
+set default role new_role for test_role;
+ERROR OP000: User `test_role`@`%` has not been granted role `new_role`
+#
+# Test of errors, where hostname cannot be resolved `test_user`
+--------------------------------------------------------------
+grant test_role to test_user@'%';
+set default role test_role for test_user@'%';
+connect con_test_user,127.0.0.1,test_user,,,$MASTER_MYPORT;
+show grants;
+Grants for test_user@%
+GRANT `test_role` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
+GRANT `new_role` TO `test_role`
+GRANT USAGE ON *.* TO `test_role`
+GRANT USAGE ON *.* TO `new_role`
+SET DEFAULT ROLE `test_role` FOR `test_user`@`%`
+select current_role;
+current_role
+test_role
+set role `new_role`;
+ERROR OP000: User `test_user`@`%` has not been granted role `new_role`
+connection default;
+set default role none for test_user;
+disconnect con_test_user;
+connect con_test_user,127.0.0.1,test_user,,,$MASTER_MYPORT;
+select current_role;
+current_role
+NULL
+set role `new_role`;
+ERROR OP000: User `test_user`@`%` has not been granted role `new_role`
+connection default;
+disconnect con_test_user;
+#
+# Test of anonymous user connection
+--------------------------------------------------------------
+grant test_role to ''@localhost;
+connect con1,localhost,'',,,$MASTER_MYPORT;
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+NULL
+SET role test_role;
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+test_role
+SET role new_role;
+ERROR OP000: User ``@`localhost` has not been granted role `new_role`
+set default role test_role for ''@localhost;
+ERROR 42000: You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings
+connection default;
+disconnect con1;
+REVOKE all privileges, grant option from ''@localhost;
+drop role new_role;
+drop role test_role;
+drop user test_user;

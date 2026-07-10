@@ -190,7 +190,7 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DWITH_SSL=system";
     next;
   }
-  if($option =~ /with-ssl$/)
+  if($option =~ /with-ssl$/ || $option =~ /with-ssl=bundled/)
   {
     $cmakeargs = $cmakeargs." -DWITH_SSL=bundled";
     next;

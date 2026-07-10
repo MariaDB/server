@@ -1,0 +1,55 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @save_adaptive=@@GLOBAL.innodb_adaptive_hash_index;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_adaptive_hash_index=ON;
+
+# Table with virtual, fulltext, instant add, instant drop column
+# and purgeable rows
+call mtr.add_suppression("InnoDB: Added system generated FTS_DOC_ID and FTS_DOC_ID_INDEX while importing the tablespace");
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		f2 CHAR(2) not null, fulltext f_idx(f2),
+		f3 INT as (f1) VIRTUAL, INDEX(f3),
+		f4 INT as (f1) STORED, INDEX(f4),
+		f5 INT as (f1) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1, f2) VALUES(1, "on");
+INSERT INTO t1(f1, f2) SELECT seq, "si" FROM seq_2_to_256;
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL;
+ALTER TABLE t1 DROP COLUMN f6;
+ALTER TABLE t1 DROP INDEX f_idx;
+connect(block_purge,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+DELETE FROM t1 WHERE f1 > 1;
+FLUSH TABLE t1 FOR EXPORT;
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+DROP TABLE t1;
+disconnect block_purge;
+
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		f2 CHAR(2) not null,
+		f3 INT as (f1) VIRTUAL, INDEX(f3),
+		f4 INT as (f1) STORED, INDEX(f4),
+		f5 INT as (f1) VIRTUAL)ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--disable_warnings
+ALTER TABLE t1 IMPORT TABLESPACE;
+--enable_warnings
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;

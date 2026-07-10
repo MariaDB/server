@@ -1,0 +1,27 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo *
+--echo * The purpose of this test is to prevent incorrect additions to SHOW
+--echo * SLAVE STATUS, which has happened several times in the past.
+--echo *
+--echo * We must never, _ever_, add extra rows to this output of SHOW SLAVE
+--echo * STATUS, except at the very end, as this breaks backwards compatibility
+--echo * with applications or scripts that parse the output. This also means that
+--echo * we cannot add _any_ new rows in a GA version if a different row was
+--echo * already added in a later MariaDB version, as this would make it impossible
+--echo * to merge the change up while preserving the order of rows.
+--echo *
+
+--connection slave
+--replace_column 1 # 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 11 # 12 # 13 # 14 # 15 # 16 # 17 # 18 # 19 # 20 # 21 # 22 # 23 # 24 # 25 # 26 # 27 # 28 # 29 # 30 # 31 # 32 # 33 # 34 # 35 # 36 # 37 # 38 # 39 # 40 # 41 # 42 # 43 # 44 # 45 # 46 # 47 # 48 # 49 # 50 # 51 # 52 # 53 # 54 # 55 # 56 #
+query_vertical
+SHOW SLAVE STATUS;
+
+--echo *
+--echo * When modifying this test after adding a column to SHOW SLAVE STATUS,
+--echo * _only_ additions at the end are allowed, the column number of existing
+--echo * columns must _not_ change!
+--echo *
+
+--source include/rpl_end.inc

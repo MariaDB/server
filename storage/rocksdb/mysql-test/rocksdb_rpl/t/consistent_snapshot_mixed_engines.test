@@ -54,7 +54,7 @@ connection con1;
 select * from i1;
 select * from r1;
 
-# RocksDB also partipates in transaction
+# RocksDB also participates in transaction
 -- replace_result $uuid uuid
 START TRANSACTION WITH CONSISTENT INNODB SNAPSHOT;
 

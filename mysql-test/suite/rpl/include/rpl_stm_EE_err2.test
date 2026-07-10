@@ -3,7 +3,7 @@
 # Date: 2006-01-11
 # Purpose: Second test case from
 #          rpl_EE_err.test split out
-#          from orginal to make the
+#          from original to make the
 #          first work with both RBR and SBR
 ###################################
 #REQUIREMENT: An INSERT with a faked duplicate entry error on

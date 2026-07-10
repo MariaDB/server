@@ -91,8 +91,7 @@ selector_index_column_df_ratio_between(grn_ctx *ctx,
       df_ratio = (double)n_match_documents / (double)n_documents;
       {
         void *key;
-        int key_size;
-        key_size = grn_table_cursor_get_key(ctx, cursor, &key);
+        grn_table_cursor_get_key(ctx, cursor, &key);
       }
       if (min <= df_ratio && df_ratio <= max) {
         posting.rid = term_id;

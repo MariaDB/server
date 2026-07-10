@@ -4,7 +4,8 @@
 -- source include/have_innodb.inc
 -- source include/have_debug.inc
 
-SET GLOBAL innodb_file_per_table=0;
+SET @save_fpt=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=OFF;
 create table bug56947(a int not null) engine = innodb;
 
 SET @saved_dbug = @@SESSION.debug_dbug;
@@ -15,5 +16,5 @@ alter table bug56947 add unique index (a);
 check table bug56947;
 
 drop table bug56947;
-SET @@global.innodb_file_per_table=DEFAULT;
+SET GLOBAL innodb_file_per_table=@save_fpt;
 SET debug_dbug= @saved_dbug;

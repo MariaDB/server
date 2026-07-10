@@ -19,7 +19,7 @@
 #include "my_json_writer.h"
 #include "sql_statistics.h"
 #include "opt_histogram_json.h"
-
+#include "sql_json_lib.h"
 
 /*
   @brief
@@ -31,7 +31,7 @@
     succeeds.
 */
 
-static bool json_unescape_to_string(const char *val, int val_len, String* out)
+bool json_unescape_to_string(const char *val, int val_len, String* out)
 {
   // Make sure 'out' has some memory allocated.
   if (!out->alloced_length() && out->alloc(128))
@@ -52,53 +52,17 @@ static bool json_unescape_to_string(const char *val, int val_len, String* out)
       out->length(res);
       return false; // Ok
     }
+    if (res == JSON_ERROR_ILLEGAL_SYMBOL)
+      return true; // Invalid character
 
     // We get here if the unescaped string didn't fit into memory.
-    if (out->alloc(out->alloced_length()*2))
-      return true;
-  }
-}
-
-
-/*
-  @brief
-    Escape a JSON string and save it into *out.
-
-  @detail
-    There's no way to tell how much space is needed for the output.
-    Start with a small string and increase its size until json_escape()
-    succeeds.
-*/
-
-static int json_escape_to_string(const String *str, String* out)
-{
-  // Make sure 'out' has some memory allocated.
-  if (!out->alloced_length() && out->alloc(128))
-    return JSON_ERROR_OUT_OF_SPACE;
-
-  while (1)
-  {
-    uchar *buf= (uchar*)out->ptr();
-    out->length(out->alloced_length());
-    const uchar *str_ptr= (const uchar*)str->ptr();
-
-    int res= json_escape(str->charset(),
-                         str_ptr,
-                         str_ptr + str->length(),
-                         &my_charset_utf8mb4_bin,
-                         buf, buf + out->length());
-    if (res >= 0)
+    if (res == JSON_ERROR_OUT_OF_SPACE)
     {
-      out->length(res);
-      return 0; // Ok
+      if (out->alloc(out->alloced_length()*2))
+        return true;
     }
-
-    if (res != JSON_ERROR_OUT_OF_SPACE)
-      return res; // Some conversion error
-
-    // Out of space error. Try with a bigger buffer
-    if (out->alloc(out->alloced_length()*2))
-      return JSON_ERROR_OUT_OF_SPACE;
+    else
+      return true; // unknown error
   }
 }
 
@@ -180,9 +144,8 @@ private:
     char buf[128];
     String str(buf, sizeof(buf), system_charset_info);
     THD *thd= current_thd;
-    timeval tv= {thd->query_start(), 0}; // we do not need microseconds
 
-    Timestamp(tv).to_datetime(thd).to_string(&str, 0);
+    Timestamp(thd->query_start(), 0).to_datetime(thd).to_string(&str, 0);
     writer.add_member("target_histogram_size").add_ull(hist_width);
     writer.add_member("collected_at").add_str(str.ptr());
     writer.add_member("collected_by").add_str(server_version);
@@ -250,7 +213,7 @@ private:
       if (!rc)
       {
         writer.add_member(is_start? "start": "end");
-        writer.add_str(escaped_val.c_ptr_safe());
+        writer.add_escaped_str(escaped_val.ptr(), escaped_val.length());
         return false;
       }
     }
@@ -410,64 +373,6 @@ void Histogram_json_hb::init_for_collection(MEM_ROOT *mem_root,
   size= (size_t)size_arg;
 }
 
-
-/*
-  A syntax sugar interface to json_string_t
-*/
-class Json_string
-{
-  json_string_t str;
-public:
-  explicit Json_string(const char *name)
-  {
-    json_string_set_str(&str, (const uchar*)name,
-                        (const uchar*)name + strlen(name));
-    json_string_set_cs(&str, system_charset_info);
-  }
-  json_string_t *get() { return &str; }
-};
-
-
-/*
-  This [partially] saves the JSON parser state and then can rollback the parser
-  to it.
-
-  The goal of this is to be able to make multiple json_key_matches() calls:
-
-    Json_saved_parser_state save(je);
-    if (json_key_matches(je, KEY_NAME_1)) {
-      ...
-      return;
-    }
-    save.restore_to(je);
-    if (json_key_matches(je, KEY_NAME_2)) {
-      ...
-    }
-
-  This allows one to parse JSON objects where [optional] members come in any
-  order.
-*/
-
-class Json_saved_parser_state
-{
-  const uchar *c_str;
-  my_wc_t c_next;
-  int state;
-public:
-  explicit Json_saved_parser_state(const json_engine_t *je) :
-    c_str(je->s.c_str),
-    c_next(je->s.c_next),
-    state(je->state)
-  {}
-  void restore_to(json_engine_t *je)
-  {
-    je->s.c_str= c_str;
-    je->s.c_next= c_next;
-    je->state= state;
-  }
-};
-
-
 /*
   @brief
     Read a constant from JSON document and save it in *out.
@@ -493,7 +398,7 @@ bool read_bucket_endpoint(json_engine_t *je, Field *field, String *out,
   const char* je_value= (const char*)je->value;
   if (je->value_type == JSON_VALUE_STRING && je->value_escaped)
   {
-    StringBuffer<128> unescape_buf;
+    StringBuffer<128> unescape_buf(field->charset() ? field->charset() : &my_charset_bin);
     if (json_unescape_to_string(je_value, je->value_len, &unescape_buf))
     {
       *err= "Un-escape error";
@@ -549,7 +454,7 @@ bool read_hex_bucket_endpoint(json_engine_t *je, Field *field, String *out,
 
 
 /*
-  @brief  Parse a JSON reprsentation for one histogram bucket
+  @brief  Parse a JSON representation for one histogram bucket
 
   @param je     The JSON parser object
   @param field  Table field we are using histogram (used to convert
@@ -600,10 +505,14 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
   bool have_start= false;
   bool have_size= false;
   bool have_ndv= false;
+  CHARSET_INFO *cs;
+
+  if (!(cs= field->charset()))
+    cs= &my_charset_bin;
 
   double size_d;
   longlong ndv_ll= 0;
-  StringBuffer<128> value_buf;
+  StringBuffer<128> value_buf(cs);
   int rc;
 
   while (!(rc= json_scan_next(je)) && je->state != JST_OBJ_END)
@@ -671,7 +580,7 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
     }
     save1.restore_to(je);
 
-    // Less common endoints:
+    // Less common endpoints:
     Json_string start_hex_str("start_hex");
     if (json_key_matches(je, start_hex_str.get()))
     {
@@ -743,7 +652,6 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
 
 bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
                               const char *table_name, Field *field,
-                              Histogram_type type_arg,
                               const char *hist_data, size_t hist_data_len)
 {
   json_engine_t je;
@@ -752,8 +660,12 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
   double total_size;
   int end_element;
   bool end_assigned;
+
   DBUG_ENTER("Histogram_json_hb::parse");
-  DBUG_ASSERT(type_arg == JSON_HB);
+
+  mem_root_dynamic_array_init(mem_root, PSI_INSTRUMENT_MEM,
+                              &je.stack, sizeof(int), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,
                   (const uchar*)hist_data,
@@ -804,7 +716,9 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, const char *db_name,
     {
       // Some unknown member. Skip it.
       if (json_skip_key(&je))
+      {
         return 1;
+      }
     }
   }
 
@@ -832,7 +746,7 @@ err:
                       ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
                       db_name, table_name,
                       err, (je.s.c_str - (const uchar*)hist_data));
-  sql_print_error(ER_THD(thd, ER_JSON_HISTOGRAM_PARSE_FAILED),
+  sql_print_error(ER_DEFAULT(ER_JSON_HISTOGRAM_PARSE_FAILED),
                   db_name, table_name, err,
                   (je.s.c_str - (const uchar*)hist_data));
 

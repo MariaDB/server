@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `c` longblob DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH,
   UNIQUE KEY `b` (`b`,`c`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO

@@ -26,7 +26,7 @@
 #define BUFFER_LEN 1024
 #define ARCHIVE_ROW_HEADER_SIZE 4
 
-#define SHOW_VERSION "0.1"
+#define VER "0.1"
 
 static void get_options(int *argc,char * * *argv);
 static void print_version(void);
@@ -398,12 +398,6 @@ static void usage(void)
   printf("Usage: %s [OPTIONS] file_to_be_looked_at [file_for_backup]\n", my_progname);
   print_defaults("my", load_default_groups);
   my_print_help(my_long_options);
-}
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, SHOW_VERSION,
-         MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 static void get_options(int *argc, char ***argv)

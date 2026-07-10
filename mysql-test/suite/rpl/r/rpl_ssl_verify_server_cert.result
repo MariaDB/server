@@ -1,0 +1,53 @@
+include/master-slave.inc
+[connection master]
+#
+# Test 1: master_ssl_verify_server_cert=0 should PASS
+# (verification disabled, simulated cert failure should not matter)
+#
+connection slave;
+include/stop_slave.inc
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug = '+d,simulate_ssl_unable_to_get_issuer_cert';
+CHANGE MASTER TO
+master_host='127.0.0.1',
+master_port=MASTER_PORT,
+master_user='root',
+master_ssl=1,
+master_ssl_verify_server_cert=0;
+Master_SSL_Allowed = 'Yes'
+Master_SSL_Verify_Server_Cert = 'No'
+START SLAVE IO_THREAD;
+include/wait_for_slave_param.inc [Slave_IO_Running]
+# IO thread started successfully - verification was correctly disabled
+#
+# Test 2: master_ssl_verify_server_cert=1 should FAIL
+# (verification enabled, simulated cert failure should be caught)
+#
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+CHANGE MASTER TO
+master_host='127.0.0.1',
+master_port=MASTER_PORT,
+master_user='root',
+master_ssl=1,
+master_ssl_verify_server_cert=1;
+Master_SSL_Allowed = 'Yes'
+Master_SSL_Verify_Server_Cert = 'Yes'
+START SLAVE IO_THREAD;
+include/wait_for_slave_param.inc [Last_IO_Errno]
+# IO thread failed as expected - verification correctly caught the failure
+#
+# Cleanup
+#
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+SET GLOBAL debug_dbug = @saved_dbug;
+RESET SLAVE ALL;
+CHANGE MASTER TO
+master_host='127.0.0.1',
+master_port=MASTER_PORT,
+master_user='root',
+master_ssl=1,
+master_ssl_verify_server_cert=0;
+include/rpl_end.inc
+# End of rpl_ssl_verify_server_cert.test

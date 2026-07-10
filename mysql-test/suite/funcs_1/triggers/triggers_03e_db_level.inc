@@ -37,7 +37,9 @@ let $message= Testcase for db level:;
         show grants for test_noprivs@localhost;
 
 # no trigger privilege->create trigger must fail:
-	connect (yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+	connect (yes_privs,localhost,test_yesprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK);
+# next is to check that we connected above
+        connection yes_privs;
 let $message= no trigger privilege on db level for create:;
 --source include/show_msg.inc
 	use priv_db;
@@ -46,8 +48,9 @@ let $message= no trigger privilege on db level for create:;
 		set new.f1 = 'trig 1_1-no';
 
 # user with minimum privs on t1->no trigger executed;
-	connect (no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-	use priv_db;
+	connect (no_privs,localhost,test_noprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK);
+# next is to check that we connected above
+        connection no_privs;
 	insert into t1 (f1) values ('insert-yes');
 	select f1 from t1 order by f1;
 	

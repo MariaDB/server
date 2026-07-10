@@ -1,0 +1,66 @@
+# Verify deadlock between XA-PREPARE and BACKUP on the optimistic slave
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+# The test is not format specific, MIXED is required to optimize testing time
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection master
+CREATE TABLE t (a INT) ENGINE = innodb;
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+SET STATEMENT sql_log_bin= 0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_mode   = 'optimistic';
+
+--connection master
+--echo # MDEV-35110
+SET @@gtid_seq_no=100;
+insert into t set a=1;
+xa start 'x';
+  insert into t set a=2;
+xa end 'x';
+xa prepare 'x';
+
+--connection slave
+SET @@global.debug_dbug="+d,hold_worker_on_schedule";
+start slave;
+SET debug_sync = 'now WAIT_FOR reached_pause';
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--connection slave1
+backup stage start;
+backup stage block_commit;
+
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for backup lock"
+SET debug_sync = 'now SIGNAL continue_worker';
+--source include/wait_condition.inc
+SET debug_sync = RESET;
+
+--connection slave1
+backup stage end;
+
+--connection master
+xa rollback 'x';
+
+--sync_slave_with_master
+
+--echo # Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET @@global.debug_dbug="";
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t;
+
+--source include/rpl_end.inc

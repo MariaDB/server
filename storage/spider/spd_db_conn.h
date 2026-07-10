@@ -24,6 +24,8 @@
 #define SPIDER_DB_KEY_NAME_LEN (sizeof(SPIDER_DB_KEY_NAME_STR) - 1)
 #define SPIDER_DB_SEQUENCE_NAME_STR ""
 #define SPIDER_DB_SEQUENCE_NAME_LEN (sizeof(SPIDER_DB_SEQUENCE_NAME_STR) - 1)
+#define SPIDER_SQL_HEX_STR "0x"
+#define SPIDER_SQL_HEX_LEN (sizeof(SPIDER_SQL_HEX_STR) - 1)
 
 #define SPIDER_DB_TABLE_LOCK_READ_LOCAL         0
 #define SPIDER_DB_TABLE_LOCK_READ               1
@@ -271,8 +273,6 @@
 #define SPIDER_SQL_INDEX_FORCE_LEN (sizeof(SPIDER_SQL_INDEX_FORCE_STR) - 1)
 
 #define SPIDER_SQL_INT_LEN 20
-#define SPIDER_SQL_HANDLER_CID_LEN 6
-#define SPIDER_SQL_HANDLER_CID_FORMAT "t%05u"
 #define SPIDER_UDF_PING_TABLE_PING_ONLY                (1 << 0)
 #define SPIDER_UDF_PING_TABLE_USE_WHERE                (1 << 1)
 #define SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES (1 << 2)
@@ -542,10 +542,6 @@ int spider_db_append_show_index(
 
 void spider_db_free_show_index(
   SPIDER_SHARE *share
-);
-
-void spider_db_append_handler_next(
-  ha_spider *spider
 );
 
 void spider_db_get_row_from_tmp_tbl_rec(
@@ -1142,20 +1138,6 @@ int spider_db_udf_copy_tables(
   ha_spider *spider,
   TABLE *table,
   longlong bulk_insert_rows
-);
-
-int spider_db_open_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-);
-
-
-int spider_db_close_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx,
-  uint tgt_conn_kind
 );
 
 bool spider_db_conn_is_network_error(

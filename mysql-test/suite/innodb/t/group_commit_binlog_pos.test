@@ -97,7 +97,8 @@ SELECT * FROM t1 ORDER BY a;
 # for the end of the second transaction (as can be checked with
 # mysqlbinlog).
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
-let pos=`select $binlog_start_pos + 739`;
+# GTID thread_id increased the event size by 2*(1+4)
+let pos=`select $binlog_start_pos + 739 + 2*(1+4)`;
 --replace_result $pos <pos>
 --exec sed -ne 's/.*\(InnoDB: Last binlog file .* position.*\)/\1/p' $MYSQLD_DATADIR/../../log/mysqld.1.err | tail -1
 

@@ -1,0 +1,73 @@
+#
+# Test a case where a vote happens in JOINED state after SST on a writeset
+# that should be applied.
+#
+
+--source galera_vote_joined_begin.inc
+#
+# At this point state snapshot has been copied, node 1 is operational and
+# we have about 10 seconds while everything we do will go into the replication
+# queue on node 4 which it will have to apply on top of the snapshot.
+#
+
+# Increase replication queue on node_4
+--connection node_1
+CALL p1(130);
+
+# Create a writeset that node 4 won't be able to apply by creating a table
+# that won't be present in the replication stream
+--connection node_1
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+
+--connection node_2
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+
+--connection node_3
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
+SET SESSION wsrep_on = ON;
+
+# This should cause node #4 to initiate a vote and leave the cluster
+INSERT INTO t2 VALUES (DEFAULT);
+
+# make sure nodes 1,2,3 progress far enough for commit cut update
+CALL p1(130);
+
+--echo Waiting for server 4 to leave the cluster
+--let $members = 3
+--source include/wsrep_wait_membership.inc
+--connection node_2
+--source include/wsrep_wait_membership.inc
+--connection node_1
+--source include/wsrep_wait_membership.inc
+
+--connection node_4
+--echo Server 4 left the cluster, killing it...
+# Kill the connected server
+--exec echo "wait" > $node_4_expect_file_name
+--let KILL_NODE_PIDFILE = $node_4_pid_file
+--perl
+        my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+        my $mysqld_pid = `cat $pid_filename`;
+        chomp($mysqld_pid);
+        system("kill -9 $mysqld_pid");
+        exit(0);
+EOF
+--echo Killed server 4...
+--source include/wait_until_disconnected.inc
+--echo Restarting server 4...
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+DROP TABLE t2;
+
+--source galera_vote_joined_end.inc
+
+--connection node_4
+CALL mtr.add_suppression("BF applier thread=.+ failed to open_and_lock_tables for Table ");
+CALL mtr.add_suppression("Event 3 Write_rows_v1 apply failed: 1146");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus");
+CALL mtr.add_suppression("Failed to apply write set: gtid:");

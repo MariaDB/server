@@ -1,4 +1,5 @@
-/* Copyright (C) 2015-2019 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2024 Codership Oy <info@codership.com>
+   Copyright (C) 2025-2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +23,6 @@
 
 #include "mysqld.h"
 #include "wsrep_mysqld.h"
-
 /*
   Forward decls
 */
@@ -32,11 +32,7 @@ struct TABLE;
 struct TABLE_LIST;
 struct st_mysql_lex_string;
 typedef struct st_mysql_lex_string LEX_STRING;
-
-#define WSREP_SCHEMA          "mysql"
-#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
-#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
-#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+class Gtid_log_event;
 
 /** Name of the table in `wsrep_schema_str` used for storing streaming
 replication data. In an InnoDB full format, e.g. "database/tablename". */
@@ -129,7 +125,7 @@ class Wsrep_schema
 
   /**
      Recover streaming transactions from SR table.
-     This method should be called after storage enignes are initialized.
+     This method should be called after storage engines are initialized.
      It will scan SR table and replay found streaming transactions.
 
      @param orig_thd The THD object of the calling thread.
@@ -138,12 +134,55 @@ class Wsrep_schema
   */
   int recover_sr_transactions(THD* orig_thd);
 
+  /**
+     Store GTID-event to mysql.gtid_slave_pos table.
+
+     @param thd  The THD object of the calling thread.
+     @param gtid GTID event from binlog.
+
+     @return Zero on success, non-zero on failure.
+  */
+  int store_gtid_event(THD* thd, const Gtid_log_event *gtid);
+
+  /**
+     Delete all rows on bootstrap from `wsrep_allowlist` variable
+  */
+  void clear_allowlist();
+
+  /**
+     Store allowlist ip on bootstrap from `wsrep_allowlist` variable
+  */
+  void store_allowlist(std::vector<std::string>& ip_allowlist);
+
+  /**
+     Scan white list table against accepted connection. Allow if ip
+     is found in table or if table is empty.
+
+     @param key   Which allowlist column to compare
+     @param value Value to be checked against allowlist
+     
+     @return True if found or empty table, false on not found 
+  */
+  bool allowlist_check(Wsrep_allowlist_key key, const std::string& val);
+
  private:
   /* Non-copyable */
   Wsrep_schema(const Wsrep_schema&);
   Wsrep_schema& operator=(const Wsrep_schema&);
 };
 
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
+
 extern Wsrep_schema* wsrep_schema;
+
+extern LEX_CSTRING WSREP_LEX_SCHEMA;
+extern LEX_CSTRING WSREP_LEX_STREAMING;
+extern LEX_CSTRING WSREP_LEX_CLUSTER;
+extern LEX_CSTRING WSREP_LEX_MEMBERS;
+extern LEX_CSTRING WSREP_LEX_ALLOWLIST;
 
 #endif /* !WSREP_SCHEMA_H */

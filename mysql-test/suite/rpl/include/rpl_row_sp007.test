@@ -1,5 +1,5 @@
 #############################################################################
-# TEST: SP that creates table, starts tranaction inserts. Save point, insert#
+# TEST: SP that creates table, starts transaction inserts. Save point, insert#
 #       rollback to save point and then commits.                            #
 #############################################################################
 # Includes

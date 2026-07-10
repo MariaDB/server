@@ -135,10 +135,10 @@ GRANT EXECUTE, ALTER ROUTINE ON FUNCTION `bug42217_db`.`upgrade_del_func` TO `cr
 USE bug42217_db;
 SHOW CREATE FUNCTION upgrade_del_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-upgrade_del_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET latin1 COLLATE latin1_swedish_ci
+upgrade_del_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 BEGIN
 RETURN "INSIDE upgrade_del_func()";
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT upgrade_del_func();
 upgrade_del_func()
 INSIDE upgrade_del_func()
@@ -147,10 +147,10 @@ connection create_rout_db_slave;
 USE bug42217_db;
 SHOW CREATE FUNCTION upgrade_del_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-upgrade_del_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET latin1 COLLATE latin1_swedish_ci
+upgrade_del_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_del_func`() RETURNS char(30) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 BEGIN
 RETURN "INSIDE upgrade_del_func()";
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT upgrade_del_func();
 upgrade_del_func()
 INSIDE upgrade_del_func()
@@ -176,10 +176,10 @@ INSIDE upgrade_alter_func()
 connection slave;
 SHOW CREATE FUNCTION upgrade_alter_func;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-upgrade_alter_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_alter_func`() RETURNS char(30) CHARSET latin1 COLLATE latin1_swedish_ci
+upgrade_alter_func	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`create_rout_db`@`localhost` FUNCTION `upgrade_alter_func`() RETURNS char(30) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 BEGIN
 RETURN "INSIDE upgrade_alter_func()";
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 "Should no privilege record for upgrade_alter_func in mysql.procs_priv"
 SELECT * FROM mysql.procs_priv;
 Host	Db	User	Routine_name	Routine_type	Grantor	Proc_priv	Timestamp
@@ -211,71 +211,9 @@ connection master;
 DROP TABLE t1;
 DROP PROCEDURE p1;
 connection slave;
-### ii) Test case in which REVOKE partially succeeds
-connection master;
-include/rpl_reset.inc
-connection master;
-CREATE TABLE t1(c1 INT);
-CREATE PROCEDURE p1() SELECT * FROM t1 |
-CREATE USER 'user49119'@'localhost';
-GRANT EXECUTE ON PROCEDURE p1 TO 'user49119'@'localhost';
-##############################################################
-### Showing grants for both users: root and user49119 (master)
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-GRANT EXECUTE ON PROCEDURE `test`.`p1` TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection slave;
-##############################################################
-### Showing grants for both users: root and user49119 (master)
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-GRANT EXECUTE ON PROCEDURE `test`.`p1` TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection master;
-## This statement will make the revoke fail because root has no
-## execute grant. However, it will still revoke the grant for
-## user49119.
-REVOKE EXECUTE ON PROCEDURE p1 FROM 'user49119'@'localhost', 'root'@'localhost';
-ERROR 42000: There is no such grant defined for user 'root' on host 'localhost' on routine 'p1'
-##############################################################
-### Showing grants for both users: root and user49119 (master)
-### after revoke statement failure
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection slave;
-#############################################################
-### Showing grants for both users: root and user49119 (slave)
-### after revoke statement failure (should match 
-SHOW GRANTS FOR 'user49119'@'localhost';
-Grants for user49119@localhost
-GRANT USAGE ON *.* TO `user49119`@`localhost`
-SHOW GRANTS FOR CURRENT_USER;
-Grants for root@localhost
-GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
-##############################################################
-connection master;
-DROP TABLE t1;
-DROP PROCEDURE p1;
-DROP USER 'user49119'@'localhost';
-connection slave;
+#
+# TODO: Re-enable test-case after fixing MDEV-29848
+#
 include/rpl_reset.inc
 connection master;
 grant all on *.* to foo@"1.2.3.4";

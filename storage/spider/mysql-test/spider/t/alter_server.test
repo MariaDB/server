@@ -1,0 +1,27 @@
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+set spider_same_server_link= 1;
+
+# Test long socket length
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+select Socket from mysql.servers where Server_name = "srv";
+create table t2 (c int);
+# triggers a table read into the server object
+alter SERVER srv OPTIONS (DATABASE 'test');
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 values (1), (2), (3);
+select * from t1;
+select * from t2;
+drop table t1, t2;
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log

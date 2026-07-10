@@ -57,6 +57,7 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 uint32 tc_instances;
+static size_t tc_allocated_size;
 static std::atomic<uint32_t> tc_active_instances(1);
 static std::atomic<bool> tc_contention_warning_reported;
 
@@ -150,11 +151,15 @@ struct Table_cache_instance
   static void *operator new[](size_t size)
   { return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE); }
   static void operator delete[](void *ptr) { aligned_free(ptr); }
+  static void mark_memory_freed()
+  {
+    update_malloc_size(-(longlong) tc_allocated_size, 0);
+  }
 
   /**
     Lock table cache mutex and check contention.
 
-    Instance is considered contested if more than 20% of mutex acquisiotions
+    Instance is considered contested if more than 20% of mutex acquisitions
     can't be served immediately. Up to 100 000 probes may be performed to avoid
     instance activation on short sporadic peaks. 100 000 is estimated maximum
     number of queries one instance can serve in one second.
@@ -163,8 +168,8 @@ struct Table_cache_instance
     system, that is expected number of instances is activated within reasonable
     warmup time. It may have to be adjusted for other systems.
 
-    Only TABLE object acquistion is instrumented. We intentionally avoid this
-    overhead on TABLE object release. All other table cache mutex acquistions
+    Only TABLE object acquisition is instrumented. We intentionally avoid this
+    overhead on TABLE object release. All other table cache mutex acquisitions
     are considered out of hot path and are not instrumented either.
   */
   void lock_and_check_contention(uint32_t n_instances, uint32_t instance)
@@ -295,12 +300,14 @@ static void tc_remove_all_unused_tables(TDC_element *element,
   - free resources related to unused objects
 
   @note This is called by 'handle_manager' when one wants to
-        periodicly flush all not used tables.
+        periodically flush all not used tables.
 */
 
-static my_bool tc_purge_callback(TDC_element *element,
-                                 Share_free_tables::List *purge_tables)
+static my_bool tc_purge_callback(void *_element, void *_purge_tables)
 {
+  TDC_element *element= static_cast<TDC_element *>(_element);
+  Share_free_tables::List *purge_tables=
+      static_cast<Share_free_tables::List *>(_purge_tables);
   mysql_mutex_lock(&element->LOCK_table_share);
   tc_remove_all_unused_tables(element, purge_tables);
   mysql_mutex_unlock(&element->LOCK_table_share);
@@ -312,7 +319,7 @@ void tc_purge()
 {
   Share_free_tables::List purge_tables;
 
-  tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &purge_tables);
+  tdc_iterate(0, tc_purge_callback, &purge_tables);
   while (auto table= purge_tables.pop_front())
     intern_close_table(table);
 }
@@ -532,7 +539,7 @@ static void tdc_delete_share_from_hash(TDC_element *element)
 
 
 /**
-  Prepeare table share for use with table definition cache.
+  Prepare table share for use with table definition cache.
 */
 
 static void lf_alloc_constructor(uchar *arg)
@@ -571,19 +578,21 @@ static void lf_alloc_destructor(uchar *arg)
 
 
 static void tdc_hash_initializer(LF_HASH *,
-                                 TDC_element *element, LEX_STRING *key)
+                                 void *_element, const void *_key)
 {
+  TDC_element *element= static_cast<TDC_element *>(_element);
+  const LEX_STRING *key= static_cast<const LEX_STRING *>(_key);
   memcpy(element->m_key, key->str, key->length);
   element->m_key_length= (uint)key->length;
   tdc_assert_clean_share(element);
 }
 
 
-static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
-                           my_bool)
+static const uchar *tdc_hash_key(const void *element_, size_t *length, my_bool)
 {
+  auto element= static_cast<const TDC_element *>(element_);
   *length= element->m_key_length;
-  return (uchar*) element->m_key;
+  return reinterpret_cast<const uchar *>(element->m_key);
 }
 
 
@@ -601,17 +610,18 @@ bool tdc_init(void)
   /* Extra instance is allocated to avoid false sharing */
   if (!(tc= new Table_cache_instance[tc_instances + 1]))
     DBUG_RETURN(true);
+  tc_allocated_size= (tc_instances + 1) * sizeof *tc;
+  update_malloc_size(tc_allocated_size, 0);
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
-  lf_hash_init(&tdc_hash, sizeof(TDC_element) +
-                          sizeof(Share_free_tables) * (tc_instances - 1),
-               LF_HASH_UNIQUE, 0, 0,
-               (my_hash_get_key) tdc_hash_key,
-               &my_charset_bin);
+  lf_hash_init(&tdc_hash,
+               sizeof(TDC_element) +
+                   sizeof(Share_free_tables) * (tc_instances - 1),
+               LF_HASH_UNIQUE, 0, 0, tdc_hash_key, &my_charset_bin);
   tdc_hash.alloc.constructor= lf_alloc_constructor;
   tdc_hash.alloc.destructor= lf_alloc_destructor;
-  tdc_hash.initializer= (lf_hash_initializer) tdc_hash_initializer;
+  tdc_hash.initializer= tdc_hash_initializer;
   DBUG_RETURN(false);
 }
 
@@ -622,7 +632,7 @@ bool tdc_init(void)
   minimal in order to reduce number of references to pluggable engines.
 */
 
-void tdc_start_shutdown(void)
+void tdc_start_shutdown(bool use_dummy_thd)
 {
   DBUG_ENTER("tdc_start_shutdown");
   if (tdc_inited)
@@ -635,8 +645,50 @@ void tdc_start_shutdown(void)
     */
     tdc_size= 0;
     tc_size= 0;
+
+    THD *thd= nullptr;
+    bool reset_back_current_thd= false;
+
+    if (use_dummy_thd && _current_thd() == nullptr)
+    {
+      /*
+        There is no active THD, use the surrogate one to handle memory
+        allocations in Sql_alloc::operator new() that uses current_thd()
+        for getting THD to get access to memory allocation API
+      */
+      thd= new THD(0);
+      DBUG_ASSERT(thd != nullptr);
+
+      thd->store_globals();
+      thd->init();
+      thd->set_query_inner((char*) STRING_WITH_LEN("intern:tdc_start_shutdown"),
+                           default_charset_info);
+
+      reset_back_current_thd= true;
+    }
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
+    /*
+      purge_tables() iterates along opened tables close every one of them.
+      In case tables use triggers it results in destroying sp_head objects
+      for every associated trigger. Destroying an object of the sp_head class
+      leads to deleting sp_instr objects. In case some of SP instruction
+      were previously re-parsed by the reason of changes in tables metadata,
+      the method
+         sp_head::register_instr_mem_root_for_deallocation()
+      is called to add a memory root used for re-parsing to the list of
+      mem_roots to be freed on sp_head destruction. Mem_roots for later
+      destruction are placed on the List that use current_thd() for memory
+      allocation. That is the reason why the dummy THD is created before
+      in case there is no active THD at the moment the function
+      tdc_start_shutdown is invoked.
+    */
     purge_tables();
+
+    if (reset_back_current_thd)
+    {
+      thd->reset_globals();
+      delete thd;
+    }
   }
   DBUG_VOID_RETURN;
 }
@@ -654,7 +706,12 @@ void tdc_deinit(void)
     tdc_inited= false;
     lf_hash_destroy(&tdc_hash);
     mysql_mutex_destroy(&LOCK_unused_shares);
-    delete [] tc;
+    if (tc)
+    {
+      tc->mark_memory_freed();
+      delete [] tc;
+      tc= 0;
+    }
   }
   DBUG_VOID_RETURN;
 }
@@ -886,6 +943,7 @@ retry:
   {
     mysql_mutex_unlock(&element->LOCK_table_share);
     lf_hash_search_unpin(thd->tdc_hash_pins);
+    std::this_thread::yield();
     goto retry;
   }
   lf_hash_search_unpin(thd->tdc_hash_pins);
@@ -1126,18 +1184,19 @@ struct eliminate_duplicates_arg
 };
 
 
-static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
-                                       my_bool not_used __attribute__((unused)))
+static const uchar *eliminate_duplicates_get_key(const void *element,
+                                                 size_t *length, my_bool)
 {
-  LEX_STRING *key= (LEX_STRING *) element;
+  auto key= static_cast<const LEX_STRING *>(element);
   *length= key->length;
-  return (uchar *) key->str;
+  return reinterpret_cast<const uchar *>(key->str);
 }
 
 
-static my_bool eliminate_duplicates(TDC_element *element,
-                                    eliminate_duplicates_arg *arg)
+static my_bool eliminate_duplicates(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  eliminate_duplicates_arg *arg= static_cast<eliminate_duplicates_arg*>(a);
   LEX_STRING *key= (LEX_STRING *) alloc_root(&arg->root, sizeof(LEX_STRING));
 
   if (!key || !(key->str= (char*) memdup_root(&arg->root, element->m_key,
@@ -1183,7 +1242,7 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                  hash_flags);
     no_dups_argument.action= action;
     no_dups_argument.argument= argument;
-    action= (my_hash_walk_action) eliminate_duplicates;
+    action= eliminate_duplicates;
     argument= &no_dups_argument;
   }
 
@@ -1201,8 +1260,8 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
 }
 
 
-int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
-                             enum enum_var_type scope)
+int show_tc_active_instances(THD *thd, SHOW_VAR *var, void *buff,
+                             system_status_var *, enum enum_var_type scope)
 {
   var->type= SHOW_UINT;
   var->value= buff;

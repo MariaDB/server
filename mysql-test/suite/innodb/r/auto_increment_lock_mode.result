@@ -1,0 +1,43 @@
+CREATE TABLE t1(a TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2(a TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3(a TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t4(a TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t5(a TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t6(a SERIAL, b INT) ENGINE=InnoDB;
+CREATE FUNCTION p1() RETURNS INT
+BEGIN
+INSERT INTO t1() VALUES();
+INSERT INTO t2() VALUES();
+INSERT INTO t3() VALUES();
+INSERT INTO t4() VALUES();
+INSERT INTO t5() VALUES();
+RETURN 1;
+END$$
+INSERT INTO t6(b) SELECT p1();
+UPDATE t1,t2,t3,t4,t5 SET t1.a=2,t2.a=2,t3.a=2,t4.a=2,t5.a=2;
+SELECT * FROM t1;
+a
+2
+connect con1,localhost,root,,;
+connect con2,localhost,root,,;
+connect con3,localhost,root,,;
+connection con1;
+INSERT INTO t6(b) SELECT SLEEP(p1());
+connection con2;
+INSERT INTO t6(b) SELECT SLEEP(p1());
+connection con3;
+UPDATE t1,t2,t3,t4,t5 SET t1.a=0,t2.a=0,t3.a=0,t4.a=0,t5.a=0
+WHERE t1.a=2 AND t2.a=2 AND t3.a=2 AND t4.a=2 AND t5.a=2;
+connection default;
+KILL QUERY $ID1;
+KILL QUERY $ID2;
+KILL QUERY $ID3;
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection con3;
+disconnect con3;
+connection default;
+DROP FUNCTION p1;
+DROP TABLE t1,t2,t3,t4,t5,t6;

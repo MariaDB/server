@@ -9,7 +9,7 @@
 # 'no such file or directory' error and never recovered from that!
 #
 # Another time vacuum() filled our system disk with had 6G free
-# while vaccuming a table of 60 M.
+# while vacuuming a table of 60 M.
 #
 # WARNING
 
@@ -84,7 +84,7 @@ run-all-tests --comment="Intel Xeon, 2x550 Mhz, 512M, pg started with -o -F" --u
 
 # When running with --fast we run the following vacuum commands on
 # the database between each major update of the tables:
-# vacuum anlyze table
+# vacuum analyze table
 # vacuum table
 # or
 # vacuum analyze

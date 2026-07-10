@@ -1,6 +1,6 @@
 source include/windows.inc;
 --replace_regex /name '[^']+'/name 'localhost'/
-INSTALL SONAME 'auth_gssapi';
+
 
 
 # Invalid group name
@@ -68,6 +68,3 @@ connect (con1,localhost,me_sid,,);
 disconnect con1;
 connection default;
 DROP USER me_sid;
-
-
-UNINSTALL SONAME 'auth_gssapi';

@@ -47,7 +47,9 @@ void my_time_packed_to_binary(longlong nr, uchar *ptr, uint dec);
 longlong my_time_packed_from_binary(const uchar *ptr, uint dec);
 uint my_time_binary_length(uint dec);
 
-void my_timestamp_to_binary(const struct timeval *tm, uchar *ptr, uint dec);
+void my_timestamp_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec);
+void my_timestamp_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec);
+/* For ColumnStore */
 void my_timestamp_from_binary(struct timeval *tm, const uchar *ptr, uint dec);
 uint my_timestamp_binary_length(uint dec);
 /** End of MySQL routines and macros **/

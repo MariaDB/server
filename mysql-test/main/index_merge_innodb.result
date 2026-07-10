@@ -263,7 +263,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`t_cpac`,`t_vers`,`t_rele`,`t_cust`),
   UNIQUE KEY `IX_4` (`t_cust`,`t_cpac`,`t_vers`,`t_rele`),
   KEY `IX_5` (`t_vers`,`t_rele`,`t_cust`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select t_vers,t_rele,t_cust,filler1 from t1 where t_vers = '7.6';
 t_vers	t_rele	t_cust	filler1
 7.6 	a 	    	
@@ -582,7 +582,7 @@ set @tmp_index_merge_ror_cpk=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
 explain select * from t1 where pk1 < 7500 and key1 = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,key1	key1,PRIMARY	4,4	NULL	ROWS	Using intersect(key1,PRIMARY); Using where
+1	SIMPLE	t1	ref	PRIMARY,key1	key1	4	const	ROWS	Using index condition
 set optimizer_switch=@tmp_index_merge_ror_cpk;
 explain select * from t1 where pktail1ok=1 and key1=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -642,10 +642,10 @@ drop table t1;
 #
 # Bug#50402 Optimizer producing wrong results when using Index Merge on InnoDB
 #
-CREATE TABLE t1 (f1 INT, PRIMARY KEY (f1));
+CREATE TABLE t1 (f1 INT, PRIMARY KEY (f1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (2);
 CREATE TABLE t2 (f1 INT, f2 INT, f3 char(1),
-PRIMARY KEY (f1), KEY (f2), KEY (f3) );
+PRIMARY KEY (f1), KEY (f2), KEY (f3)) CHARSET=latin1;
 INSERT INTO t2 VALUES (1, 1, 'h'), (2, 3, 'h'), (3, 2, ''), (4, 2, '');
 SELECT t1.f1 FROM t1
 WHERE (SELECT COUNT(*) FROM t2 WHERE t2.f3 = 'h' AND t2.f2 = t1.f1) = 0 AND t1.f1 = 2;
@@ -654,7 +654,7 @@ f1
 EXPLAIN SELECT t1.f1 FROM t1
 WHERE (SELECT COUNT(*) FROM t2 WHERE t2.f3 = 'h' AND t2.f2 = t1.f1) = 0 AND t1.f1 = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	
 2	SUBQUERY	t2	index_merge	f2,f3	f3,f2	2,5	NULL	1	Using intersect(f3,f2); Using where; Using index
 DROP TABLE t1,t2;
 # 
@@ -827,13 +827,13 @@ INDEX (b)
 INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
 EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,b	b,PRIMARY	5,3074	NULL	5	Using sort_union(b,PRIMARY); Using where
+1	SIMPLE	t1	ALL	PRIMARY,b	NULL	NULL	NULL	100	Using where
 SELECT * FROM t1 WHERE a='1' OR b < 5;
 a	b	c
+1	1	1
 2	2	2
 3	3	3
 4	4	4
-1	1	1
 DROP TABLE t1;
 SET sort_buffer_size= @save_sort_buffer_size;
 disconnect disable_purge;

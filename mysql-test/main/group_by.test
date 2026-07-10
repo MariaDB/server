@@ -1,12 +1,9 @@
-# Initialise
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
+--source include/have_sequence.inc
 
 #
 # Simple test without tables
 
--- error 1111
+--error ER_INVALID_GROUP_FUNC_USE
 SELECT 1 FROM (SELECT 1) as a  GROUP BY SUM(1);
 
 #
@@ -81,7 +78,7 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES (1,'1970-01-01','1997-10-17 00:00:00',2529,1,21000,11886,'check',0,'F',16200,6);
 
---error 1056
+--error ER_WRONG_GROUP_FIELD
 SELECT COUNT(P.URID),SUM(P.amount),P.method, MIN(PP.recdate+0) > 19980501000000   AS IsNew FROM t1 AS P JOIN t1 as PP WHERE P.URID = PP.URID GROUP BY method,IsNew;
 
 drop table t1;
@@ -284,6 +281,7 @@ drop table t1;
 CREATE TABLE t1 (a char(1));
 INSERT INTO t1 VALUES ('A'),('B'),('A'),('B'),('A'),('B'),(NULL),('a'),('b'),(NULL),('A'),('B'),(NULL);
 flush status;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
@@ -292,11 +290,13 @@ SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like 'Created%tables';
 --enable_ps_protocol
 # Do the same tests with on-disk temporary tables
 set tmp_memory_table_size=0;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
@@ -305,6 +305,7 @@ SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like 'Created%tables';
 --enable_ps_protocol
@@ -720,7 +721,8 @@ drop table t1, t2;
 CREATE TABLE t1 (a tinyint(3), b varchar(255), PRIMARY KEY  (a));
 
 INSERT INTO t1 VALUES (1,'-----'), (6,'Allemagne'), (17,'Autriche'), 
-    (25,'Belgique'), (54,'Danemark'), (62,'Espagne'), (68,'France');
+    (25,'Belgique'), (54,'Danemark'), (62,'Espagne'), (68,'France'),
+    (100,"No land"), (101,"No land");
 
 CREATE TABLE t2 (a tinyint(3), b tinyint(3), PRIMARY KEY  (a), KEY b (b));
 
@@ -818,12 +820,12 @@ SET SQL_MODE = '';
 #
 SET SQL_MODE = 'ONLY_FULL_GROUP_BY';
 create table t1(f1 int, f2 int);
---error 1055
+--error ER_WRONG_FIELD_WITH_GROUP
 select * from t1 group by f1;
---error 1055
+--error ER_WRONG_FIELD_WITH_GROUP
 select * from t1 group by f2;
 select * from t1 group by f1, f2;
---error 1055
+--error ER_WRONG_FIELD_WITH_GROUP
 select t1.f1,t.* from t1, t1 t group by 1;
 drop table t1;
 SET SQL_MODE = '';
@@ -875,49 +877,49 @@ CREATE TABLE t2 SELECT * FROM t1;
 
 SELECT 1 FROM t1 ORDER BY COUNT(*);
 SELECT 1 FROM t1 ORDER BY COUNT(*) + 1;
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT 1 FROM t1 ORDER BY COUNT(*) + a;
 SELECT 1 FROM t1 ORDER BY COUNT(*), 1;
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT 1 FROM t1 ORDER BY COUNT(*), a;
 
 SELECT 1 FROM t1 ORDER BY SUM(a);
 SELECT 1 FROM t1 ORDER BY SUM(a + 1);
 SELECT 1 FROM t1 ORDER BY SUM(a) + 1;
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT 1 FROM t1 ORDER BY SUM(a), b;
 
 --disable_service_connection
 
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT a FROM t1 ORDER BY COUNT(b);
 
 SELECT t1.a FROM t1 ORDER BY (SELECT SUM(t2.a) FROM t2);
 
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1 ORDER BY (SELECT SUM(t2.a), t2.a FROM t2);
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1 ORDER BY (SELECT SUM(t2.a) FROM t2 ORDER BY t2.a);
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1 ORDER BY (SELECT t2.a FROM t2 ORDER BY SUM(t2.b) LIMIT 1);
 
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1
   WHERE t1.a = (SELECT t2.a FROM t2 ORDER BY SUM(t2.b) LIMIT 1);
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1 GROUP BY t1.a
   HAVING t1.a = (SELECT t2.a FROM t2 ORDER BY SUM(t2.a) LIMIT 1);
 
 SELECT t1.a FROM t1 GROUP BY t1.a
   HAVING t1.a IN (SELECT t2.a FROM t2 ORDER BY SUM(t1.b));
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1 GROUP BY t1.a
   HAVING t1.a IN (SELECT t2.a FROM t2 ORDER BY t2.a, SUM(t2.b));
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1 GROUP BY t1.a
   HAVING t1.a > ANY (SELECT t2.a FROM t2 ORDER BY t2.a, SUM(t2.b));
 
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT t1.a FROM t1
   WHERE t1.a = (SELECT t2.a FROM t2 ORDER BY SUM(t1.b));
 
@@ -928,13 +930,13 @@ SELECT 1 FROM t1 GROUP BY t1.a
 SELECT 1 FROM t1 GROUP BY t1.a
   HAVING (SELECT AVG(t1.b + t2.b) FROM t2 ORDER BY SUM(t2.a) LIMIT 1);
 
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT 1 FROM t1 GROUP BY t1.a
   HAVING (SELECT AVG(SUM(t1.b) + 1) FROM t2 ORDER BY t2.a LIMIT 1);
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT 1 FROM t1 GROUP BY t1.a
   HAVING (SELECT AVG(SUM(t1.b) + t2.b) FROM t2 ORDER BY t2.a LIMIT 1);
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 SELECT 1 FROM t1 GROUP BY t1.a
   HAVING (SELECT AVG(t1.b + t2.b) FROM t2 ORDER BY t2.a LIMIT 1);
 
@@ -974,7 +976,7 @@ from t1 as most_outer;
 
 --disable_service_connection
 
---error 1140
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
 select avg (
   (select (
     (select sum(outr.a + innr.a) from t1 as innr limit 1)) as tt
@@ -1168,6 +1170,13 @@ EXPLAIN SELECT a from t2 GROUP BY a;
 SELECT a from t2 GROUP BY a;
 EXPLAIN SELECT b from t2 GROUP BY b;
 SELECT b from t2 GROUP BY b;
+
+# Show that we are using 'range' when there is more NULL rows in the table
+insert into t2 SELECT NULL, NULL from seq_1_to_10;
+EXPLAIN SELECT b from t2 GROUP BY a;
+--echo # Expect: Using index for group-by
+analyze table t2;
+EXPLAIN SELECT b from t2 GROUP BY a;
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -1597,7 +1606,7 @@ CREATE TABLE t1 (
   a int,
   b varchar(1),
   KEY (b,a)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES
   (1,NULL),(0,'a'),(1,NULL),(0,'a'), (1,'a'),(0,'a'),(2,'a'),(1,'a');
 ANALYZE TABLE t1;
@@ -1666,7 +1675,7 @@ DROP TABLE t1, t2;
 # an additional util connection and other statistics data
 --disable_ps2_protocol
 --disable_view_protocol
-
+--disable_cursor_protocol
 FLUSH STATUS; # this test case *must* use Aria temp tables
 
 CREATE TABLE t1 (f1 INT, f2 decimal(20,1), f3 blob);
@@ -1676,6 +1685,7 @@ DROP TABLE t1;
 
 --echo the value below *must* be 1
 show status like 'Created_tmp_disk_tables';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 
@@ -1781,6 +1791,7 @@ DROP TABLE t1;
 --echo #
 
 SET sql_mode='ONLY_FULL_GROUP_BY';
+--sorted_result
 SELECT 1 AS test UNION SELECT 2 AS test ORDER BY test IS NULL ASC;
 SET sql_mode='';
 
@@ -2135,3 +2146,88 @@ drop table t20, t21, t22;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-29351 SIGSEGV when doing forward reference of item in select list
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35238: Wrong results from a tables with a single record and an aggregate
+--echo #
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=myisam;
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+INSERT INTO t1 VALUES (NULL);
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=myisam;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (a int NOT NULL) ENGINE=myisam;
+INSERT INTO t2 VALUES (10);
+
+SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+explain format=json SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+
+DROP TABLE t1,t2;
+
+--echo # End of 10.5 tests
+
+--echo #
+--echo # Test new group_min_max optimization
+--echo #
+
+create table t1 (a int, b int, c int, key(a,b,c));
+insert into t1 select mod(seq,23),mod(seq,13), mod(seq,5) from seq_1_to_10000;
+
+explain select a from t1 where a in (1,2,3) group by a;
+explain select a from t1 where a in (1,2,3) or a = 22 group by a;
+explain select a from t1 where a in (1,2,3) and a < 3 group by a;
+explain select a,b from t1 where (a) in (1,2,3) and b in (5,6,7) group by a,b;
+explain select a,b from t1 where (a,b) in ((1,1),(2,2),(3,3)) group by a,b;
+explain select a,b,c from t1 where (a,b) in ((1,1),(2,2),(3,3)) and c=3 group by a,b,c;
+
+--echo # Will not use index for group-by
+explain select a from t1 where a in (1,2,3) and b>1 group by a;
+explain select a from t1 where a in (1,2,3) and c=1 group by a;
+drop table t1;
+
+--echo # End of 11.4 tests
+
+--echo #
+--echo # MDEV-38709 ASAN heap-buffer-overflow in my_convert_using_func
+--echo #
+CREATE TABLE t1 (a varchar(1024));
+INSERT INTO t1 VALUES
+('LOXRI'),('willing'),('bright'),('behavior'),('RUQIW'),('z'),('RFRYY'),
+('KQFQA'),('b'),('ZKUAX'),('l'),('z'),('t-shirt'),('o'),('o'),('c'),('MOUYN'),
+('v'),('precise'),('QCOHK'),('c'),('any'),('hers'),('e'),('we'),('mood'),
+('AVBWK'),('h'),('frequent'),('AUZDU'),('z'),('sculpture'),('passion'),('n'),
+('b'),('sodium'),('j'),('power'),('y'),('CHJYX'),('YYULQ'),('h'),('HRMPR'),
+('p'),('a'),('r'),('m'),('s'),('different'),('QABLI'),('s'),('p'),('train'),
+('cause'),('MYEFD'),('fierce'),('r'),('l'),('x'),('monthly'),('x'),('t'),
+('RQWBD'),('panic'),('HDRLD'),('m'),('j'),('r'),('convert'),('simple'),('y'),
+('b'),('f'),('flip'),('l'),('desire'),('film');
+ 
+CREATE TABLE t2 (b varchar(1024));
+INSERT INTO t2 VALUES
+('c'),('BPYFY'),('i'),('l'),('n'),('programming'),('r'),('then'),('t'),
+('MVAUI'),('XQGSK'),('i'),('regret'),('m'),('XIDWZ'),('KORLB'),('agree'),
+('relatively'),('frequency'),('certainly');
+ 
+SELECT a, b AS b1, b AS b2 FROM t1 JOIN t2 WHERE a IS NOT NULL GROUP BY a, b1, b2 LIMIT 1000,10;
+ 
+DROP TABLE t1, t2;
+
+--echo # End of 11.8 tests
+
+

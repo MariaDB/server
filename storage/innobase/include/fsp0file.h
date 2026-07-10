@@ -216,10 +216,11 @@ public:
 	tablespace is opened.  This occurs before the fil_space_t is created
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
+	@param first_page   the contents of the first page
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page()
+	dberr_t validate_first_page(const byte *first_page) noexcept
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_filepath.
@@ -317,6 +318,8 @@ public:
 	void set_space_id(uint32_t space_id) { m_space_id= space_id; }
 
 	void set_flags(uint32_t flags) { m_flags = flags; }
+
+	uint32_t param_size() const { return m_user_param_size; }
 private:
 	/** Free the filepath buffer. */
 	void free_filepath();
@@ -358,6 +361,13 @@ private:
 	dberr_t read_first_page(bool read_only_mode)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** Read m_space_id, m_flags from a page frame.
+	@param page	       a copy of the first page of the tablespace
+	@retval DB_SUCCESS     if the page seems to be valid
+	@retval DB_CORRUPTION  if the page looks corrupted
+	@retval DB_UNSUPPORTED if the page is in an unsupported format */
+	dberr_t read_first_page_flags(const byte *page) noexcept;
+
 	/** Free the first page from memory when it is no longer needed. */
 	void free_first_page();
 
@@ -388,11 +398,6 @@ private:
 	else DB_ERROR. */
 	dberr_t find_space_id();
 
-	/** Restore the first page of the tablespace from
-	the double write buffer.
-	@return whether the operation failed */
-	bool restore_from_doublewrite();
-
 	/** Points into m_filepath to the file name with extension */
 	char*			m_filename;
 
@@ -405,6 +410,9 @@ private:
 	/** size in megabytes or pages; converted from megabytes to
 	pages in SysTablespace::normalize_size() */
 	uint32_t		m_size;
+
+	/** Size in pages; Initial parameter size */
+	uint32_t		m_user_param_size;
 
 	/** ordinal position of this datafile in the tablespace */
 	ulint			m_order;

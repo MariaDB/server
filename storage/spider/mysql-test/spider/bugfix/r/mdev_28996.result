@@ -20,6 +20,8 @@ USE auto_test_local;
 CREATE TABLE tbl_a (
 a CHAR(8)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT MAX(BINARY a) FROM tbl_a;
 MAX(BINARY a)
 foo

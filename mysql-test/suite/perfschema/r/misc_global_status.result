@@ -9,7 +9,7 @@ FLUSH PRIVILEGES;
 CREATE TABLE test.t_range(a int, b int, PRIMARY KEY(a));
 INSERT INTO test.t_range values (1, 1), (2,2), (3, 3), (4, 4), (5, 5);
 INSERT INTO test.t_range values (6, 6), (7,7), (8, 8), (9, 9), (10, 10);
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT * from test.t_range where (a >= 3) AND (a <= 5);
 a	b
 3	3

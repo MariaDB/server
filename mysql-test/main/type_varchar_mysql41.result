@@ -1,21 +1,22 @@
 #
 # MDEV-16325 CREATE..SELECT..UNION creates a wrong field type for old varchar
 #
+SET character_set_database=latin1;
 CREATE PROCEDURE p1(col VARCHAR(32))
 BEGIN
-EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_simple AS SELECT col FROM t1old','col',col);
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_simple CHARSET=latin1 AS SELECT col FROM t1old','col',col);
 SHOW CREATE TABLE t2_simple;
 DROP TABLE t2_simple;
-EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vv AS SELECT col FROM t1old UNION SELECT col FROM t1old','col',col);
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vv CHARSET=latin1  AS SELECT col FROM t1old UNION SELECT col FROM t1old','col',col);
 SHOW CREATE TABLE t2_union_vv;
 DROP TABLE t2_union_vv;
-EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vn AS SELECT col FROM t1old UNION SELECT NULL','col',col);
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vn CHARSET=latin1  AS SELECT col FROM t1old UNION SELECT NULL','col',col);
 SHOW CREATE TABLE t2_union_vn;
 DROP TABLE t2_union_vn;
-EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_nv AS SELECT NULL AS col UNION SELECT col FROM t1old','col',col);
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_nv CHARSET=latin1  AS SELECT NULL AS col UNION SELECT col FROM t1old','col',col);
 SHOW CREATE TABLE t2_union_nv;
 DROP TABLE t2_union_nv;
-EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 CHARSET=latin1 AS SELECT
     COALESCE(col),
     COALESCE(col,col),
     COALESCE(col,NULL),
@@ -23,7 +24,7 @@ EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
   FROM t1old', 'col', col);
 SHOW CREATE TABLE t2;
 DROP TABLE t2;
-EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 CHARSET=latin1 AS SELECT
     LEAST(col,col),
     LEAST(col,NULL),
     LEAST(NULL,col)
@@ -111,3 +112,153 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1old;
 DROP PROCEDURE p1;
+SET character_set_database=DEFAULT;
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-33442 REPAIR TABLE corrupts UUIDs
+#
+CREATE PROCEDURE show_table()
+BEGIN
+SHOW CREATE TABLE t1;
+SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+SELECT * FROM t1 ORDER BY a,b;
+END;
+$$
+# Upgrade using REPAIR
+TRUNCATE TABLE t1;
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255)/*old*/ DEFAULT NULL,
+  `b` varchar(255)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a	b
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255)/*old*/ DEFAULT NULL,
+  `b` varchar(255)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a	b
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255)/*old*/ DEFAULT NULL,
+  `b` varchar(255)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a	b
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255) DEFAULT NULL,
+  `b` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255) DEFAULT NULL,
+  `b` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+DROP TABLE t1;
+# Upgrade using ALTER, adding a table COMMENT
+TRUNCATE TABLE t1;
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255)/*old*/ DEFAULT NULL,
+  `b` varchar(255)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a	b
+# ALTER..INPLACE should fail - the old columns need upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255) DEFAULT NULL,
+  `b` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='test11'
+VERSION
+10
+a	b
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255) DEFAULT NULL,
+  `b` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='test12'
+VERSION
+10
+a	b
+DROP TABLE t1;
+# Upgrade using ALTER, adding a column DEFAULT
+TRUNCATE TABLE t1;
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255)/*old*/ DEFAULT NULL,
+  `b` varchar(255)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+9
+a	b
+# ALTER..INPLACE should fail - the old columns need upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a VARBINARY(255) DEFAULT 'a10';
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 MODIFY a VARBINARY(255) DEFAULT 'a11';
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255) DEFAULT x'613131',
+  `b` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 MODIFY a VARBINARY(255) DEFAULT 'a12';
+CALL show_table;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(255) DEFAULT x'613132',
+  `b` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+DROP TABLE t1;
+DROP PROCEDURE show_table;
+#
+# End of 10.11 tests
+#

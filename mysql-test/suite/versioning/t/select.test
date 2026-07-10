@@ -1,10 +1,12 @@
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Need regular protocol but ps-protocol was specified
+   --skip Need regular protocol but ps-protocol and cursor-protocol were specified
 }
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 --source include/default_optimizer_switch.inc
+
+--let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
 
 SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = OFF;
@@ -37,7 +39,9 @@ set @t0= now(6);
 if ($MTR_COMBINATION_TRX_ID)
 {
 --disable_query_log
+--disable_cursor_protocol
   select sys_trx_start from t1 limit 1 into @x0;
+--enable_cursor_protocol
 --enable_query_log
 }
 
@@ -45,12 +49,16 @@ delete from t1 where x = 3;
 delete from t1 where x > 7;
 
 insert into t1(x, y) values(3, 33);
+--disable_cursor_protocol
 select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
+--enable_cursor_protocol
 if ($MTR_COMBINATION_TRX_ID)
 {
 --disable_query_log
   set @x1= @t1;
+--disable_cursor_protocol
   select trt_commit_ts(@x1) into @t1;
+--enable_cursor_protocol
 --enable_query_log
 }
 
@@ -98,11 +106,14 @@ delete from t1;
 delete from t2;
 
 #384
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 #383
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 
@@ -126,12 +137,14 @@ delete from t1;
 insert into t1 values (3);
 delete from t1;
 
+--disable_cursor_protocol
 select row_start into @start1 from t1 for system_time all where x = 1;
 select row_end into @end1 from t1 for system_time all where x = 1;
 select row_start into @start2 from t1 for system_time all where x = 2;
 select row_end into @end2 from t1 for system_time all where x = 2;
 select row_start into @start3 from t1 for system_time all where x = 3;
 select row_end into @end3 from t1 for system_time all where x = 3;
+--enable_cursor_protocol
 
 select x as ASOF_x from t1 for system_time as of @start2;
 select x as ASOF_x from t1 for system_time as of @end2;
@@ -157,8 +170,10 @@ select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
+--disable_view_protocol
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 select * from t1 for system_time all for update;
+--enable_view_protocol
 
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
 select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
@@ -181,13 +196,15 @@ create or replace table t1(x int) with system versioning;
 select * from (t1 as r left join t1 as u using (x)), t1;
 
 # @end should be max
+set @@time_zone="+00:00";
 create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 create trigger read_end after update on t1
   for each row set @end = old.row_end;
 update t1 set a=2;
---replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+--replace_result 18446744073709551615 MAX_RESULT $sys_time_max_replace MAX_RESULT
 select @end;
+set @@time_zone=default;
 
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int) with system versioning;
@@ -218,6 +235,7 @@ create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 insert into t1 values (2);
 insert into t1 values (3);
+--replace_result $sys_time_max SYS_TIME_MAX
 explain extended
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
@@ -262,7 +280,9 @@ create or replace table t1 (
 insert into t1 values (1);
 set @ts= now(6);
 delete from t1;
+--disable_cursor_protocol
 select sys_trx_start from t1 for system_time all into @trx_start;
+--enable_cursor_protocol
 
 --echo ## ensure @trx_start is much lower than unix timestamp
 select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
@@ -314,7 +334,7 @@ select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
 --echo ### Issue #398, NOW is now non-magic
 create or replace table t1 (x int) with system versioning;
 select * from t1 for system_time as of current_timestamp;
---error ER_BAD_FIELD_ERROR
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 select * from t1 for system_time as of now;
 
 --echo ### Issue #405, NATURAL JOIN failure
@@ -372,6 +392,7 @@ select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 insert t2 values (1),(2);
 insert t3 values (1),(2);
 insert t4 values (1),(2);
+--replace_result $sys_time_max SYS_TIME_MAX
 explain extended
 select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 
@@ -390,8 +411,10 @@ eval create or replace table t1 (
 ) with system versioning;
 insert into t1 values (1);
 delete from t1;
+--disable_cursor_protocol
 select row_start from t1 for system_time all into @t1;
 select row_end from t1 for system_time all into @t2;
+--enable_cursor_protocol
 --disable_query_log
 if($MTR_COMBINATION_TRX_ID) {
   set @t1= trt_begin_ts(@t1);
@@ -486,5 +509,15 @@ call verify_trt_dummy(34);
 --disable_prepare_warnings
 
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;
+
+--echo #
+--echo # MDEV-32082 Server crash in find_field_in_table
+--echo #
+create table t0 (c0 int) with system versioning;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select x0 from (
+  select c0 x0 from t0
+) for system_time as of nowasdf deriv;
+drop table t0;
 
 -- source suite/versioning/common_finish.inc

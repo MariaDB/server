@@ -1,3 +1,6 @@
+--source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
+
 set @sav_dpi= @@div_precision_increment;
 set div_precision_increment= 5;
 show variables like 'div_precision_increment';
@@ -183,7 +186,7 @@ SELECT SQL_CALC_FOUND_ROWS a, SUM(b) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1;
 DROP TABLE t1;
 
 #
-# Tests for bug #9681: ROLLUP in subquery for derived table wiht 
+# Tests for bug #9681: ROLLUP in subquery for derived table with
 #                      a group by field declared as NOT NULL
 #
 
@@ -436,13 +439,6 @@ DROP TABLE t1;
 --echo # MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
 --echo #
 
---echo # Note, different MariaDB versions can return different results
---echo # in the two rows (such as "latin1" vs "binary"). This is wrong.
---echo # Both lines should return equal values.
---echo # The point in this test is to make sure it does not crash.
---echo # As this is a minor issue, bad result will be fixed
---echo # in a later version, presumably in 10.4.
-
 CREATE TABLE t (d DATE) ENGINE=MyISAM;
 INSERT INTO t VALUES ('2018-12-12');
 SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
@@ -539,4 +535,15 @@ SELECT NULLIF( CAST( 'foo' AS DATE ), NULL & 'bar' ) AS f FROM t1 GROUP BY f WIT
 --enable_warnings
 DROP TABLE t1;
 
---echo # End of 10.3 Tests
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-34984 rr_from_cache does not update generated columns
+--echo #
+CREATE TABLE t1 (i INT DEFAULT 0, c VARCHAR(2048) GENERATED ALWAYS AS (i));
+INSERT INTO t1 (i) SELECT seq FROM seq_1_to_6000;
+SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP limit 5;
+DROP TABLE t1;
+--echo # End of 10.11 tests
+
+--source include/test_db_charset_restore.inc

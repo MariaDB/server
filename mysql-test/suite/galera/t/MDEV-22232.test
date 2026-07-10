@@ -1,0 +1,66 @@
+#
+# MDEV-22232: CTAS execution crashes during replay.
+#
+# There were multiple problems and two failing scenarios with empty result set
+# and with non-empty result set:
+# - CTAS didn't add shared keys for selected tables
+# - Security context wasn't set on the replayer thread
+# - CTAS was retried after failure - now retry disabled
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1
+
+# Scenario 1
+--echo --- CTAS with empty result set ---
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+
+# Run CTAS until the resulting table gets created,
+# then it gets BF aborted by other DDL.
+SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_run WAIT_FOR bf_abort';
+--send
+  CREATE TABLE t2 SELECT * FROM t1;
+
+# Wait for CTAS to reach the table create point,
+# start executing other DDL and BF abort CTAS.
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR may_run';
+TRUNCATE TABLE t1;
+
+--connection con1
+# CTAS gets BF aborted.
+--error ER_QUERY_INTERRUPTED
+--reap
+
+# Cleanup
+SET DEBUG_SYNC = 'RESET';
+
+
+# Scenario 2
+--echo --- CTAS with non-empty result set ---
+INSERT INTO t1 VALUES (10), (20), (30);
+
+# Run CTAS until the resulting table gets created,
+# then it gets BF aborted by other DDL.
+SET DEBUG_SYNC = 'create_table_select_before_create SIGNAL may_run WAIT_FOR bf_abort';
+--send
+  CREATE TABLE t2 SELECT * FROM t1;
+
+# Wait for CTAS to reach the table create point,
+# start executing other DDL and BF abort CTAS.
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR may_run';
+TRUNCATE TABLE t1;
+
+--connection con1
+# CTAS gets BF aborted.
+--error ER_QUERY_INTERRUPTED
+--reap
+
+# Cleanup
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+--disconnect con1
+--source include/galera_end.inc

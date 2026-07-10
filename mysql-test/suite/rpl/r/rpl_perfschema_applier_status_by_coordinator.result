@@ -50,11 +50,15 @@ include/assert.inc [Value returned by SSS and PS table for Last_Error_Number sho
 Value returned by SSS and PS table for Last_Error_Message is same.
 connection master;
 drop table t;
-reset master;
 connection slave;
 include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
+reset master;
+connection slave;
 reset slave;
 reset master;
+set @@global.gtid_slave_pos= "";
 set @saved_slave_trans_retry_interval= @@GLOBAL.slave_transaction_retry_interval;
 set global slave_transaction_retry_interval=1;
 include/start_slave.inc

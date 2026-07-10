@@ -28,9 +28,6 @@ SET(HEADERS
   mariadb_capi_rename.h
   pack.h
   my_byteorder.h
-  byte_order_generic.h
-  byte_order_generic_x86.h
-  byte_order_generic_x86_64.h
   little_endian.h
   big_endian.h
   mysql_time.h 
@@ -42,6 +39,7 @@ SET(HEADERS
   my_dbug.h 
   m_string.h
   my_sys.h 
+  my_cmp.h
   my_xml.h
   mysql_embed.h
   my_decimal_limits.h

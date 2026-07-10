@@ -86,7 +86,7 @@ int my_copy(const char *from, const char *to, myf MyFlags)
     file_created= 1;
     while ((Count=my_read(from_file, buff, sizeof(buff), MyFlags)) != 0)
     {
-	if (Count == (uint) -1 ||
+	if (Count == MY_FILE_ERROR ||
 	    my_write(to_file,buff,Count,MYF(MyFlags | MY_NABP)))
 	goto err;
     }
@@ -106,7 +106,7 @@ int my_copy(const char *from, const char *to, myf MyFlags)
     /* Copy modes if possible */
 
     if (MyFlags & MY_HOLD_ORIGINAL_MODES && !new_file_stat)
-	DBUG_RETURN(0);			/* File copyed but not stat */
+	DBUG_RETURN(0);			/* File copied but not stat */
     /* Copy modes */
     if (chmod(to, stat_buff.st_mode & 07777))
     {

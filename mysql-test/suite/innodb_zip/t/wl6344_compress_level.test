@@ -1,5 +1,5 @@
 #*******************************************************************
-# This testcase is to test the funcitionality of wl#6344
+# This testcase is to test the functionality of wl#6344
 # When the innodb_compression_level=0 create a table with page size
 # 1K and load data
 # When the innodb_compression_level=9 create a table with page size

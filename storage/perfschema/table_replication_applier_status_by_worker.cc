@@ -58,7 +58,7 @@ table_replication_applier_status_by_worker::m_share=
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status_by_worker("
   "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'Name of replication channel through which the transaction is received.',"
-  "THREAD_ID BIGINT UNSIGNED comment 'Thread_Id as displayed in the performance_schema.threads table for thread with name ''thread/sql/rpl_parallel_thread''. THREAD_ID will be NULL when worker threads are stopped due to error/force stop.',"
+  "THREAD_ID BIGINT UNSIGNED comment 'Thread_Id as displayed in the performance_schema.threads table for thread with name ''thread/sql/rpl_parallel''. THREAD_ID will be NULL when worker threads are stopped due to error/force stop.',"
   "SERVICE_STATE ENUM('ON','OFF') not null comment 'Whether or not the thread is running.',"
   "LAST_SEEN_TRANSACTION CHAR(57) not null comment 'Last GTID executed by worker',"
   "LAST_ERROR_NUMBER INTEGER not null comment 'Last Error that occurred on a particular worker.',"

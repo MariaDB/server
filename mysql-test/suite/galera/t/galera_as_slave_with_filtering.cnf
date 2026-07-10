@@ -1,0 +1,13 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mariadbd.1]
+wsrep-gtid-mode=ON
+log-bin
+log-slave-updates
+loose-galera-slave-filtering=1
+
+[mariadbd.2]
+wsrep-gtid-mode=ON
+log-bin
+log-slave-updates
+loose-galera-slave-filtering=1

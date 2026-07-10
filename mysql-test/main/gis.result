@@ -463,8 +463,8 @@ gc	geometrycollection	YES		NULL
 gm	geometry	YES		NULL	
 fid	int(11)	NO		NULL	
 DROP TABLE t1;
-SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))));
-AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))))
+SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)')))) as exp;
+exp
 POINT(1 4)
 explain extended SELECT AsText(GeometryFromWKB(AsWKB(GeometryFromText('POINT(1 4)'))));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -610,10 +610,10 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `GeomFromWKB(POINT(1,3))` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE `t1` (`object_id` bigint(20) unsigned NOT NULL default '0', `geo`
-geometry NOT NULL default '') ENGINE=MyISAM ;
+geometry NOT NULL) ENGINE=MyISAM ;
 insert into t1 values ('85984',GeomFromText('MULTIPOLYGON(((-115.006363
 36.305435,-114.992394 36.305202,-114.991219 36.305975,-114.991163
 36.306845,-114.989432 36.309452,-114.978275 36.312642,-114.977363
@@ -696,11 +696,11 @@ ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (pointfromtext('point(1,1)'));
 ERROR 23000: Column 'fl' cannot be null
 drop table t1;
-select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000))));
-(asWKT(geomfromwkb((0x000000000140240000000000004024000000000000))))
+select (asWKT(geomfromwkb((0x000000000140240000000000004024000000000000)))) as exp;
+exp
 POINT(10 10)
-select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))));
-(asWKT(geomfromwkb((0x010100000000000000000024400000000000002440))))
+select (asWKT(geomfromwkb((0x010100000000000000000024400000000000002440)))) as exp;
+exp
 POINT(10 10)
 create table t1 (g GEOMETRY);
 select * from t1;
@@ -809,7 +809,7 @@ show create function fn3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 fn3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS point
     DETERMINISTIC
-return GeomFromText("point(1 1)")	latin1	latin1_swedish_ci	latin1_swedish_ci
+return GeomFromText("point(1 1)")	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select astext(fn3());
 astext(fn3())
 POINT(1 1)
@@ -1098,15 +1098,6 @@ col0 INTEGER NOT NULL,
 col1 POINT,
 col2 POINT
 );
-CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
-ERROR HY000: Incorrect arguments to SPATIAL INDEX
-CREATE TABLE t3 (
-col0 INTEGER NOT NULL,
-col1 POINT,
-col2 LINESTRING,
-SPATIAL INDEX i1 (col1, col2)
-);
-ERROR HY000: Incorrect arguments to SPATIAL INDEX
 DROP TABLE t0, t1, t2;
 #
 # BUG#12414917 - ISCLOSED() CRASHES ON 64-BIT BUILDS
@@ -1118,8 +1109,8 @@ ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)))
 # BUG#12537203 - CRASH WHEN SUBSELECTING GLOBAL VARIABLES IN 
 # GEOMETRY FUNCTION ARGUMENTS
 #
-SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
-ERROR HY000: Illegal parameter data type bigint for operation 'geometrycollection'
+SELECT GEOMETRYCOLLECTION((SELECT @@OLD_MODE));
+ERROR HY000: Illegal parameter data type varchar for operation 'geometrycollection'
 #
 # MDEV-4252 geometry query crashes server
 #
@@ -1135,30 +1126,30 @@ NULL
 select envelope(0x0100000000030000000100000000000010);
 envelope(0x0100000000030000000100000000000010)
 NULL
-select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
-geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1)
+select geometryn(0x0100000000070000000100000001030000000200000000000000ffff0000, 1) as exp;
+exp
 NULL
-select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
-geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1)
+select geometryn(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1) as exp;
+exp
 NULL
 #
 # MDEV-4296 Assertion `n_linear_rings > 0' fails in Gis_polygon::centroid_xy
 #
-SELECT Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) )));
-Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) )))
+SELECT Centroid( AsBinary( LineString(Point(0,0), Point(0,0), Point(0,0) ))) as exp;
+exp
 NULL
 #
 # MDEV-4295 Server crashes in get_point on a query with Area, AsBinary, MultiPoint
 #
-SELECT Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2))));
-Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2))))
+SELECT Area(AsBinary(MultiPoint(Point(0,9), Point(0,1), Point(2,2)))) as exp;
+exp
 NULL
 End of 5.1 tests
-select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))'));
-ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))'))
+select ST_AREA(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 31 10, 77 80), POLYGON((0 0,4 7,1 1,0 0)), POINT(20 20))')) as exp;
+exp
 1.5
-select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))'));
-ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))'))
+select ST_LENGTH(ST_GEOMCOLLFROMTEXT(' GEOMETRYCOLLECTION(LINESTRING(100 100, 100 30, 20 30), POINT(3 3), LINESTRING(20 20, 30 20))')) as exp;
+exp
 160
 DROP DATABASE IF EXISTS gis_ogs;
 CREATE DATABASE gis_ogs;
@@ -1369,16 +1360,16 @@ FROM road_segments
 WHERE fid = 102;
 AsText(EndPoint(centerline))
 POINT(44 31)
-SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) as exp 
 FROM named_places 
 WHERE name = 'Goose Island';
-IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
+exp
 1
 # Conformance Item T20 
-SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) as exp 
 FROM named_places 
 WHERE name = 'Goose Island';
-IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
+exp
 1
 # Conformance Item T21 
 SELECT GLength(centerline) 
@@ -1477,11 +1468,10 @@ Area(shores)
 8
 # Conformance Item T37 
 SELECT ST_Equals(boundary, 
-PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) 
+PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1)) as exp 
 FROM named_places 
 WHERE name = 'Goose Island';
-ST_Equals(boundary, 
-PolyFromText('POLYGON( ( 67 13, 67 18, 59 18, 59 13, 67 13) )',1))
+exp
 1
 # Conformance Item T38 
 SELECT ST_Disjoint(centerlines, boundary) 
@@ -1519,11 +1509,11 @@ AND divided_routes.name = 'Route 75';
 Crosses(road_segments.centerline, divided_routes.centerlines)
 1
 # Conformance Item T43 
-SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) 
+SELECT ST_Intersects(road_segments.centerline, divided_routes.centerlines) as exp 
 FROM road_segments, divided_routes 
 WHERE road_segments.fid = 102 
 AND divided_routes.name = 'Route 75';
-ST_Intersects(road_segments.centerline, divided_routes.centerlines)
+exp
 1
 # Conformance Item T44 
 SELECT ST_Contains(forests.boundary, named_places.boundary) 
@@ -1594,21 +1584,15 @@ select st_distance(geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                                             -95.9673057475387 36.1344478941074,
                                             -95.9673063519371 36.134484524621,
                                             -95.9673049102515 36.1343976584193)'),
-geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)')) ;
-st_distance(geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
-                                            -95.9673057475387 36.1344478941074,
-                                            -95.9673063519371 36.134484524621,
-                         
+geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)')) as exp ;
+exp
 0.008148695928146028
 select st_distance(geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)'),
 geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
                            -95.9673057475387 36.1344478941074,
                            -95.9673063519371 36.134484524621,
-                           -95.9673049102515 36.1343976584193) ')) ;
-st_distance(geomfromtext('point(-95.96269500000000000000 36.14181833333330000000)'),
-geomfromtext('LINESTRING(-95.9673005697771 36.13509598461,
-                           -95.9673057475387 36.1344478941074,
-                           -95.9673063519371 36.
+                           -95.9673049102515 36.1343976584193) ')) as exp ;
+exp
 0.008148695928146028
 #
 # MDEV-4310 geometry function equals hangs forever.
@@ -1648,7 +1632,7 @@ DROP TABLE g1;
 #
 # Bug#13013970 MORE CRASHES IN FIELD_BLOB::GET_KEY_IMAGE
 #
-CREATE TABLE g1(a TEXT NOT NULL, KEY(a(255)));
+CREATE TABLE g1(a TEXT NOT NULL, KEY(a(250)));
 INSERT INTO g1 VALUES ('a'),('a');
 SELECT 1 FROM g1 WHERE a >= ANY
 (SELECT 1 FROM g1 WHERE a = geomfromtext('') OR a) ;
@@ -1670,13 +1654,13 @@ ENVELOPE(0x0100000000030000000100000000000010)
 NULL
 #should not crash
 SELECT
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1);
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1)
+GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffff0000, 1) as exp;
+exp
 NULL
 #should not crash
 SELECT
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1);
-GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1)
+GEOMETRYN(0x0100000000070000000100000001030000000200000000000000ffffff0f, 1) as exp;
+exp
 NULL
 #
 # MDEV-3819 missing constraints for spatial column types
@@ -1685,8 +1669,8 @@ create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
 ERROR 22007: Incorrect POINT value: 'POLYGON((1 1,2 2,2 1,1 1))' for column `test`.`t1`.`pt` at row 1
 drop table t1;
-SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
-st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
+SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100)) as exp;
+exp
 GEOMETRYCOLLECTION EMPTY
 CREATE VIEW v1 AS SELECT POINT(1,1) AS p;
 SHOW CREATE VIEW v1;
@@ -1791,7 +1775,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CONTAINS(NULL, NULL)` int(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-7334 valgrind warning "unitialized bytes" in 10.1.
@@ -1824,15 +1808,15 @@ drop table t1;
 select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'));
 ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,0 0)'))
 1
-select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'));
-ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)'))
+select ST_IsRing(ST_LineFromText('LINESTRING(0 0,0 10,10 10,-10 -10, 0 -10, 0 0)')) as exp;
+exp
 0
 #
 # MDEV-7514 GIS: PointOnSurface returns NULL instead of the point.
 #
-SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')));
-ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))')))
-NULL
+SELECT ST_GEOMETRYTYPE(ST_PointOnSurface(ST_PolyFromText('POLYGON((-70.916 42.1002,-70.9468 42.0946,-70.9754 42.0875,-70.9749 42.0879,-70.9759 42.0897,-70.916 42.1002))'))) as exp;
+exp
+POINT
 #
 # MDEV-7529 GIS: ST_Relate returns unexpected results for POINT relations
 #
@@ -1856,7 +1840,7 @@ disjoint
 #
 select ST_IsRing(NULL);
 ST_IsRing(NULL)
--1
+NULL
 #
 # MDEV-8675 Different results of GIS functions on NULL vs NOT NULL columns
 #
@@ -1867,7 +1851,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `w1` int(1) DEFAULT NULL,
   `w2` int(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -1904,7 +1888,7 @@ t1	CREATE TABLE `t1` (
   `a` point DEFAULT NULL,
   `x` double DEFAULT st_x(`a`),
   `y` double DEFAULT st_y(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (Point(1,2));
 SELECT x,y FROM t1;
 x	y
@@ -1916,7 +1900,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` geometry DEFAULT NULL,
   `area` double DEFAULT st_area(`g`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (g) VALUES (GeomFromText('POLYGON((0 0,20 0,20 20,0 20,0 0))'));
 SELECT area FROM t1;
 area
@@ -1928,7 +1912,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` geometry DEFAULT NULL,
   `length` double DEFAULT st_length(`g`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (g) VALUES (GeomFromText('LINESTRING(0 0,20 0,20 20,0 20,0 0)'));
 SELECT length FROM t1;
 length
@@ -1940,7 +1924,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` point DEFAULT NULL,
   `distance` double DEFAULT st_distance(`g`,point(0,0))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (g) VALUES (Point(1,0));
 SELECT distance FROM t1;
 distance
@@ -1952,7 +1936,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
   `g` geometry DEFAULT st_geometryfromtext(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('point(1 1)');
 SELECT AsText(g) FROM t1;
 AsText(g)
@@ -1965,7 +1949,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
   `g` geometry DEFAULT point(`x`,`y`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (x,y) VALUES (10,20);
 SELECT AsText(g) FROM t1;
 AsText(g)
@@ -1977,7 +1961,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_pointn(`a`,2)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(1 1,2 2,3 3)'));
 SELECT AsText(b) FROM t1;
 AsText(b)
@@ -1989,7 +1973,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_startpoint(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(1 1,2 2,3 3)'));
 SELECT AsText(b) FROM t1;
 AsText(b)
@@ -2002,7 +1986,7 @@ t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
   `c` geometry DEFAULT geometrycollection(`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a,b) VALUES (Point(1,1), Point(2,2));
 SELECT AsText(c) FROM t1;
 AsText(c)
@@ -2014,7 +1998,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_geometryfromwkb(st_aswkb(`a`),20)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('POINT(1 1)', 10));
 SELECT AsText(a), SRID(a), AsText(b), SRID(b) FROM t1;
 AsText(a)	SRID(a)	AsText(b)	SRID(b)
@@ -2026,7 +2010,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_boundary(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT AsText(b) FROM t1;
 AsText(b)
@@ -2038,7 +2022,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_buffer(`a`,10)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT GeometryType(b) FROM t1;
 GeometryType(b)
@@ -2050,7 +2034,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_centroid(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT AsText(b) FROM t1;
 AsText(b)
@@ -2062,7 +2046,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_envelope(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(1 1,4 4)'));
 SELECT AsText(b) FROM t1;
 AsText(b)
@@ -2074,7 +2058,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT st_pointonsurface(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT GeometryType(b) FROM t1;
 GeometryType(b)
@@ -2087,7 +2071,7 @@ t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT point(1,1),
   `c` geometry DEFAULT st_union(`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (Point(0,0));
 SELECT AsText(c) FROM t1;
 AsText(c)
@@ -2099,7 +2083,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` varchar(20) DEFAULT st_geometrytype(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (Point(0, 0));
 SELECT b FROM t1;
 b
@@ -2111,7 +2095,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_issimple(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (Point(0, 0));
 SELECT b FROM t1;
 b
@@ -2123,7 +2107,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_isempty(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (Point(0, 0));
 SELECT b FROM t1;
 b
@@ -2135,7 +2119,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_isring(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(0 0,0 1,1 1,1 0,0 0)'));
 SELECT b FROM t1;
 b
@@ -2147,7 +2131,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_isclosed(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(0 0,0 1,1 1,1 0,0 0)'));
 SELECT b FROM t1;
 b
@@ -2159,7 +2143,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_dimension(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (Buffer(Point(1,1),1));
 SELECT b FROM t1;
 b
@@ -2171,7 +2155,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_numgeometries(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (ST_UNION(Point(1,1),Point(0,0)));
 SELECT b FROM t1;
 b
@@ -2183,7 +2167,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_numinteriorrings(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0),(1 1,1 2,2 2,2 1,1 1))'));
 SELECT b FROM t1;
 b
@@ -2195,7 +2179,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT st_numpoints(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (LineString(Point(1,1),Point(0,0)));
 SELECT b FROM t1;
 b
@@ -2207,7 +2191,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` int(11) DEFAULT srid(`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES (GeomFromText('Point(1 1)', 100));
 SELECT b FROM t1;
 b
@@ -2220,7 +2204,7 @@ t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
   `c` int(11) DEFAULT mbrdisjoint(`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
 c
@@ -2233,7 +2217,7 @@ t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
   `c` int(11) DEFAULT st_disjoint(`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
 c
@@ -2246,7 +2230,7 @@ t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
   `c` int(11) DEFAULT st_relate(`a`,`b`,'T*F**FFF*')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
 c
@@ -2315,31 +2299,31 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a VARCHAR(10), b Point)
 
@@ -2347,31 +2331,31 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a TINYTEXT, b Point)
 
@@ -2379,31 +2363,31 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a TEXT, b Point)
 
@@ -2411,31 +2395,31 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a MEDIUMTEXT, b Point)
 
@@ -2443,31 +2427,31 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a LONGTEXT, b Point)
 
@@ -2475,31 +2459,31 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a TINYINT, b Point)
 
@@ -2816,25 +2800,25 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
@@ -2846,25 +2830,25 @@ CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IF(TRUE,a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `IFNULL(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
@@ -2874,14 +2858,14 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `COALESCE(NULL, Point(1,1))` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT NULL UNION SELECT Point(1,1);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `NULL` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -3823,7 +3807,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a VARCHAR(10), b Point)
 
@@ -3831,7 +3815,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a TINYTEXT, b Point)
 
@@ -3839,7 +3823,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a TEXT, b Point)
 
@@ -3847,7 +3831,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a MEDIUMTEXT, b Point)
 
@@ -3855,7 +3839,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a LONGTEXT, b Point)
 
@@ -3863,7 +3847,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a TINYINT, b Point)
 
@@ -3956,7 +3940,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 -------------------------------------
 CREATE TABLE t1 (a SET(0x61), b Point)
 
@@ -3964,13 +3948,13 @@ CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,b)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t1 AS SELECT LEAST(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `LEAST(NULL, Point(1,1))` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -4199,9 +4183,9 @@ ERROR HY000: Illegal parameter data types point and datetime for operation 'addt
 SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
 ERROR HY000: Illegal parameter data types datetime and point for operation 'addtime'
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
-ERROR HY000: Illegal parameter data types point and varchar for operation 'str_to_date'
+ERROR HY000: Illegal parameter data type point for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and point for operation 'str_to_date'
+ERROR HY000: Illegal parameter data type point for operation 'str_to_date'
 #
 # MDEV-12665 Hybrid functions do not preserve geometry type
 #
@@ -4215,14 +4199,14 @@ t1	CREATE TABLE `t1` (
   `p0` point DEFAULT NULL,
   `p1` point DEFAULT NULL,
   `p2` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT LEAST(Point(0,0),Point(0,0)) AS p1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `p1` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 c_geometry GEOMETRY,
@@ -4255,7 +4239,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(NULL, c_multilinestring)` multilinestring DEFAULT NULL,
   `COALESCE(NULL, c_multipolygon)` multipolygon DEFAULT NULL,
   `COALESCE(NULL, c_geometrycollection)` geometrycollection DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 COALESCE(c_geometry, NULL),
@@ -4278,7 +4262,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c_multilinestring, NULL)` multilinestring DEFAULT NULL,
   `COALESCE(c_multipolygon, NULL)` multipolygon DEFAULT NULL,
   `COALESCE(c_geometrycollection, NULL)` geometrycollection DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 COALESCE(c_geometry, c_geometry),
@@ -4301,7 +4285,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(c_multilinestring, c_multilinestring)` multilinestring DEFAULT NULL,
   `COALESCE(c_multipolygon, c_multipolygon)` multipolygon DEFAULT NULL,
   `COALESCE(c_geometrycollection, c_geometrycollection)` geometrycollection DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -4312,7 +4296,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE PROCEDURE p1(name TEXT)
 BEGIN
@@ -4331,56 +4315,56 @@ t2	CREATE TABLE `t2` (
   `a1` geometry DEFAULT NULL,
   `a2` geometry DEFAULT NULL,
   `a3` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('point');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` point DEFAULT NULL,
   `a2` point DEFAULT NULL,
   `a3` point DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('linestring');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` linestring DEFAULT NULL,
   `a2` linestring DEFAULT NULL,
   `a3` linestring DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('polygon');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` polygon DEFAULT NULL,
   `a2` polygon DEFAULT NULL,
   `a3` polygon DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('multipoint');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` multipoint DEFAULT NULL,
   `a2` multipoint DEFAULT NULL,
   `a3` multipoint DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('multilinestring');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` multilinestring DEFAULT NULL,
   `a2` multilinestring DEFAULT NULL,
   `a3` multilinestring DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('multipolygon');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` multipolygon DEFAULT NULL,
   `a2` multipolygon DEFAULT NULL,
   `a3` multipolygon DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL p1('geometrycollection');
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a1` geometrycollection DEFAULT NULL,
   `a2` geometrycollection DEFAULT NULL,
   `a3` geometrycollection DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 #
 # MDEV-12798 Item_param does not preserve exact field type in EXECUTE IMMEDIATE 'CREATE TABLE AS SELECT ?' USING POINT(1,1)
@@ -4390,7 +4374,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `?` point NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 PREPARE stmt FROM 'CREATE OR REPLACE TABLE t1 AS SELECT ?';
 EXECUTE stmt USING POINT(1,1);
@@ -4398,7 +4382,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `?` point NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
@@ -4414,7 +4398,7 @@ ST_NUMPOINTS(POINT(1,1)),
 ST_SRID(POINT(1,1));
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					ST_ISSIMPLE(POINT(1,1))	3	2	1	Y	32896	0	63
-def					ST_ISRING(POINT(1,1))	3	2	2	Y	32896	0	63
+def					ST_ISRING(POINT(1,1))	3	2	1	Y	32896	0	63
 def					ST_ISCLOSED(POINT(1,1))	3	2	2	Y	32896	0	63
 def					ST_DIMENSION(POINT(1,1))	3	10	1	Y	32896	0	63
 def					ST_NUMGEOMETRIES(POINT(1,1))	3	10	0	Y	32896	0	63
@@ -4422,7 +4406,7 @@ def					ST_NUMINTERIORRINGS(POINT(1,1))	3	10	0	Y	32896	0	63
 def					ST_NUMPOINTS(POINT(1,1))	3	10	0	Y	32896	0	63
 def					ST_SRID(POINT(1,1))	3	10	1	Y	32896	0	63
 ST_ISSIMPLE(POINT(1,1))	ST_ISRING(POINT(1,1))	ST_ISCLOSED(POINT(1,1))	ST_DIMENSION(POINT(1,1))	ST_NUMGEOMETRIES(POINT(1,1))	ST_NUMINTERIORRINGS(POINT(1,1))	ST_NUMPOINTS(POINT(1,1))	ST_SRID(POINT(1,1))
-1	-1	-1	0	NULL	NULL	NULL	0
+1	0	-1	0	NULL	NULL	NULL	0
 #
 # MDEV-12803 Improve function parameter data type control
 #
@@ -4455,7 +4439,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` polygon DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT ST_ASTEXT(g) FROM t1;
 ST_ASTEXT(g)
 POLYGON((1 1,1 1,1 1,1 1,1 1))
@@ -4471,7 +4455,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT ST_GEOMETRYTYPE(g) FROM t1;
 ST_GEOMETRYTYPE(g)
 POINT
@@ -4522,7 +4506,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT ST_ASTEXT(g), SRID(g) FROM t1;
 ST_ASTEXT(g)	SRID(g)
 POINT(1 1)	1
@@ -4598,6 +4582,12 @@ SELECT ST_ISSIMPLE(1);
 ERROR HY000: Illegal parameter data type int for operation 'st_issimple'
 SELECT ST_ISSIMPLE('test');
 ERROR HY000: Illegal parameter data type varchar for operation 'st_issimple'
+SELECT ST_ISVALID(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'st_isvalid'
+SELECT ST_ISVALID(1);
+ERROR HY000: Illegal parameter data type int for operation 'st_isvalid'
+SELECT ST_ISVALID('test');
+ERROR HY000: Illegal parameter data type varchar for operation 'st_isvalid'
 SELECT ST_ISRING(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_isring'
 SELECT ST_ISRING(1);
@@ -4892,7 +4882,7 @@ UNCOMPRESSED_LENGTH(POINT(1,1))
 0
 SELECT COERCIBILITY(POINT(1,1));
 COERCIBILITY(POINT(1,1))
-4
+6
 SELECT ASCII(POINT(1,1));
 ASCII(POINT(1,1))
 0
@@ -5021,11 +5011,11 @@ LEAST(POINT(1,1),0x60);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `COALESCE(0x60,POINT(1,1))` longblob DEFAULT NULL,
-  `COALESCE(POINT(1,1),0x60)` longblob DEFAULT NULL,
+  `COALESCE(0x60,POINT(1,1))` longblob NOT NULL,
+  `COALESCE(POINT(1,1),0x60)` longblob NOT NULL,
   `LEAST(0x60,POINT(1,1))` longblob DEFAULT NULL,
   `LEAST(POINT(1,1),0x60)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT 0x60+POINT(1,1);
 ERROR HY000: Illegal parameter data types bigint unsigned and point for operation '+'
@@ -5079,37 +5069,37 @@ ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN(PO
 # MDEV-20009 Add CAST(expr AS pluggable_type)
 #
 SELECT CAST(1 AS GEOMETRY);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometry)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS geometry)'
 SELECT CAST(1 AS GEOMETRYCOLLECTION);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometrycollection)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS geometrycollection)'
 SELECT CAST(1 AS POINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS point)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS point)'
 SELECT CAST(1 AS LINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS linestring)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS linestring)'
 SELECT CAST(1 AS POLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS polygon)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS polygon)'
 SELECT CAST(1 AS MULTIPOINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipoint)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS multipoint)'
 SELECT CAST(1 AS MULTILINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multilinestring)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS multilinestring)'
 SELECT CAST(1 AS MULTIPOLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipolygon)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS multipolygon)'
 SELECT CONVERT(1, GEOMETRY);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometry)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS geometry)'
 SELECT CONVERT(1, GEOMETRYCOLLECTION);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometrycollection)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS geometrycollection)'
 SELECT CONVERT(1, POINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS point)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS point)'
 SELECT CONVERT(1, LINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS linestring)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS linestring)'
 SELECT CONVERT(1, POLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS polygon)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS polygon)'
 SELECT CONVERT(1, MULTIPOINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipoint)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS multipoint)'
 SELECT CONVERT(1, MULTILINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multilinestring)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS multilinestring)'
 SELECT CONVERT(1, MULTIPOLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipolygon)'
+ERROR HY000: Operator does not exist: 'CAST(expr AS multipolygon)'
 #
 # MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
 #
@@ -5335,5 +5325,395 @@ SELECT BIT_XOR(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'bit_xor('
 DROP TABLE t1;
 #
+# MDEV-27666 User variable not parsed as geometry variable in geometry function.
+#
+set @g= point(1, 1);
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+ST_AsWKT(GeometryCollection(Point(44, 6), @g))
+GEOMETRYCOLLECTION(POINT(44 6),POINT(1 1))
+set @g=  "just a string";
+select ST_AsWKT(GeometryCollection(Point(44, 6), @g));
+ERROR HY000: Illegal parameter data type longblob for operation 'geometrycollection'
+SET @g= LineString(Point(0,0), Point(0,1));
+SELECT AsText(PointN(@g, 1));
+AsText(PointN(@g, 1))
+POINT(0 0)
+SELECT AsText(PointN(@g, 2));
+AsText(PointN(@g, 2))
+POINT(0 1)
+SET @g= Point(1, 1);
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` point DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+POINT(1 1)
+DROP TABLE t1;
+SET @g= MultiPoint(Point(1, 1), Point(-1,-1));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` multipoint DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+MULTIPOINT(1 1,-1 -1)
+DROP TABLE t1;
+SET @g= LineString(Point(1, 1), Point(2,2));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` linestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+LINESTRING(1 1,2 2)
+DROP TABLE t1;
+SET @g= MultiLineString(LineString(Point(1, 1), Point(2,2)),
+LineString(Point(-1, -1), Point(-2,-2)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` multilinestring DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+MULTILINESTRING((1 1,2 2),(-1 -1,-2 -2))
+DROP TABLE t1;
+SET @g= Polygon(LineString(Point(0, 0), Point(30, 0), Point(30, 30), Point(0, 0)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+POLYGON((0 0,30 0,30 30,0 0))
+DROP TABLE t1;
+SET @g= MultiPolygon(Polygon(LineString(Point(0, 3), Point(3, 3),
+Point(3, 0), Point(0, 3))));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` multipolygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+MULTIPOLYGON(((0 3,3 3,3 0,0 3)))
+DROP TABLE t1;
+SET @g= GeometryCollection(Point(44, 6), LineString(Point(3, 6), Point(7, 9)));
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` geometrycollection DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+GEOMETRYCOLLECTION(POINT(44 6),LINESTRING(3 6,7 9))
+DROP TABLE t1;
+SET @g= GeometryFromText('POINT(1 1)');
+CREATE TABLE t1 AS SELECT @g AS g;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT AsText(g) FROM t1;
+AsText(g)
+POINT(1 1)
+DROP TABLE t1;
+#
+# MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
+#
+create table t1 (c polygon);
+insert into t1 values
+(PolygonFromText('POLYGON((1 2,1 2))')),
+(PolygonFromText('POLYGON((0 0,1 1,0 0))'));
+select length(group_concat(c, c order by 1,2)) from t1;
+length(group_concat(c, c order by 1,2))
+229
+create table t2 as select group_concat(c, c order by 1,2), concat(c), c from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `group_concat(c, c order by 1,2)` mediumblob DEFAULT NULL,
+  `concat(c)` longblob DEFAULT NULL,
+  `c` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+#
+# MDEV-33987 Server crashes at Item_func_as_wkt::val_str_ascii
+#
+SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
+c1
+NULL
+#
+# Server crash in DTCollation::set_repertoire_from_charset
+#
+CREATE TABLE t (f POINT, KEY(f));
+DELETE FROM t WHERE f NOT IN (NULL,'x');
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t;
+#
+# MDEV-31219 Assertion `fixed' failed in Item_func_hybrid_field_type / Frame_positional_cursor
+#
+CREATE TABLE t (a INT, b POINT);
+INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
+SELECT NTH_VALUE(a,b) OVER () FROM t;
+ERROR HY000: Illegal parameter data types point and bigint for operation '-'
+DROP TABLE t;
+#
+# MDEV-32619 Settng SRID on geometry with ST_*FromWKKB(g, srid)
+#
+SELECT
+ST_SRID(g1),
+ST_SRID(ST_GeomFromWKB(g1, 4326)),
+ST_SRID(ST_GeomFromWKB(g1)),
+ST_AsText(g1),
+ST_SRID(ST_PointFromWKB(g2, 4326)),
+ST_SRID(g2),
+ST_SRID(ST_LineStringFromWKB(g3, 3)),
+ST_SRID(ST_PolygonFromWKB(g4, 4)),
+ST_SRID(ST_MultiPointFromWKB(g5, 5)),
+ST_SRID(ST_MultiLineStringFromWKB(g6, 6)),
+ST_SRID(ST_MultiPolygonFromWKB(g7, 7))
+FROM (
+SELECT
+POINT(1, 2) AS g1,
+POINT(4, 3) AS g2,
+LINESTRING(POINT(4, 3), POINT(4, 4)) AS g3,
+POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3))) AS g4,
+MULTIPOINT(POINT(4, 3)) AS g5,
+MULTILINESTRING(LINESTRING(POINT(4, 3), POINT(4, 4))) AS g6,
+MULTIPOLYGON(POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3)))) AS g7
+) AS t;
+ST_SRID(g1)	ST_SRID(ST_GeomFromWKB(g1, 4326))	ST_SRID(ST_GeomFromWKB(g1))	ST_AsText(g1)	ST_SRID(ST_PointFromWKB(g2, 4326))	ST_SRID(g2)	ST_SRID(ST_LineStringFromWKB(g3, 3))	ST_SRID(ST_PolygonFromWKB(g4, 4))	ST_SRID(ST_MultiPointFromWKB(g5, 5))	ST_SRID(ST_MultiLineStringFromWKB(g6, 6))	ST_SRID(ST_MultiPolygonFromWKB(g7, 7))
+0	4326	0	POINT(1 2)	4326	0	3	4	5	6	7
+#
+# MDEV-35117 Error message "ERROR 1815 (HY000): Internal error: st_distance_sphere' could be improved
+#
+SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # End of 10.5 tests
+#
+# MDEV-35766 ST_PointOnSurface returns NULL with Polygon in some case.
+#
+SELECT ST_ASTEXT(ST_POINTONSURFACE(ST_GeomFromText('POLYGON((-1 0, 1 2, 1 0, -1 0))'))) as T;
+T
+POINT(0.5 1)
+#
+# MDEV-39279 ASAN error on malformed WKB
+#
+SELECT ST_NumPoints(x'000000000102000000');
+ST_NumPoints(x'000000000102000000')
+NULL
+SELECT ST_NumGeometries(x'000000000104000000');
+ST_NumGeometries(x'000000000104000000')
+NULL
+SELECT ST_NumGeometries(x'000000000105000000');
+ST_NumGeometries(x'000000000105000000')
+NULL
+SELECT ST_NumGeometries(x'000000000106000000');
+ST_NumGeometries(x'000000000106000000')
+NULL
+#
+# MDEV-39319 crash with ST_GeomFromGeoJSON(, NULL)
+#
+create table t1 (a int);
+insert t1 values (1),(NULL),(NULL),(2);
+select hex(st_geometryfromtext('point(1 1)', a)) x from t1;
+x
+010000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+020000000101000000000000000000F03F000000000000F03F
+select hex(st_geometryfromwkb(st_aswkb(st_geometryfromtext('point(1 1)')), a)) x from t1;
+x
+010000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+020000000101000000000000000000F03F000000000000F03F
+select hex(st_geometryfromwkb(x'0101000000000000000000f03f000000000000f03f', a)) x from t1;
+x
+010000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+020000000101000000000000000000F03F000000000000F03F
+select hex(st_geomfromgeojson('{"type":"Point","coordinates":[1,1]}', a)) x from t1;
+x
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+select hex(st_geomfromgeojson('{"type":"Point","coordinates":[1,1]}', 1, a)) x from t1;
+x
+010000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+000000000101000000000000000000F03F000000000000F03F
+020000000101000000000000000000F03F000000000000F03F
+drop table t1;
+#
+# MDEV-15479 Empty string is erroneously allowed as a GEOMETRY column value.
+#
+set @orig_sql_mode = @@sql_mode;
+set sql_mode="";
+CREATE TABLE t1 (id INT, a GEOMETRY);
+INSERT INTO t1 VALUES (10,'');
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+set sql_mode="STRICT_ALL_TABLES";
+INSERT INTO t1 VALUES (10,'');
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t1;
+set sql_mode= @orig_sql_mode;
+#
+# MDEV-39481 ASAN error on malformed WKB polygon
+#
+select st_astext(st_geomfromwkb(x'0103000000020000000400000000000000000000000000000000000000000000000000f03f0000000000000000000000000000f03f000000000000f03f0000000000000000000000000000000005000000000000000000e03f000000000000e03f')) 'no asan error here';
+no asan error here
+NULL
+SELECT ST_GeomFromWKB(x'0103000000020000000400000000000000000000000000000000000000000000000000F03F0000000000000000000000000000F03F000000000000F03F0000000000000000000000000000000001000000') IS NOT NULL AS pg;
+pg
+0
+SELECT ST_GeomFromWKB(x'01050000000200000001020000000200000000000000000000000000000000000000000000000000F03F000000000000F03F01020000000100000000000000000000') IS NOT NULL AS ml;
+ml
+0
+SELECT ST_GeomFromWKB(x'01060000000100000001030000000100000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000') IS NOT NULL AS mp;
+mp
+0
+SELECT ST_GeomFromWKB(x'01070000000100000001070000000100000001070000000100000001020000000100000000000000') IS NOT NULL AS gc;
+gc
+0
+#
+# MDEV-39657 ASAN error on malformed WKB point
+#
+SELECT HEX(ST_GeometryN(0x000000000107000000010000000101000000, 1));
+HEX(ST_GeometryN(0x000000000107000000010000000101000000, 1))
+NULL
+# End of 10.6 tests
+#
+# Start of 11.5 tests
+#
+#
+# MDEV-12668 SRID is not preserved in UNION, VIEW, MIN, MAX
+#
+CREATE TABLE t1 (a POINT REF_SYSTEM_ID=0, b POINT REF_SYSTEM_ID=102);
+SELECT a FROM t1 UNION SELECT b FROM t1;
+ERROR HY000: Illegal parameter data types `point ref_system_id=0` and `point ref_system_id=102` for operation 'UNION'
+DROP TABLE t1;
+CREATE TABLE t1 (a POINT REF_SYSTEM_ID=101, b POINT REF_SYSTEM_ID=102);
+SELECT a FROM t1 UNION SELECT b FROM t1;
+ERROR HY000: Illegal parameter data types `point ref_system_id=101` and `point ref_system_id=102` for operation 'UNION'
+DROP TABLE t1;
+CREATE TABLE t1 (a POINT REF_SYSTEM_ID=101, b POINT REF_SYSTEM_ID=101);
+CREATE TABLE t2 AS SELECT a, b FROM t1;
+CREATE VIEW  v2 AS SELECT a, b FROM t1;
+CREATE TABLE t3 AS SELECT a FROM t1 UNION SELECT b FROM t1;
+CREATE VIEW  v3 AS SELECT a FROM t1 UNION SELECT b FROM t1;
+CREATE TABLE t4 AS SELECT COALESCE(a,b) AS a FROM t1;
+CREATE VIEW  v4 AS SELECT COALESCE(a,b) AS a FROM t1;
+CREATE TABLE t5 AS SELECT LEAST(a,b) AS a FROM t1;
+CREATE VIEW  v5 AS SELECT LEAST(a,b) AS a FROM t1;
+CREATE TABLE t6 AS SELECT MIN(a) AS a FROM t1;
+CREATE VIEW  v6 AS SELECT MIN(a) AS a FROM t1;
+CREATE TABLE t7 AS SELECT MIN(a) AS a FROM t1 UNION SELECT b FROM v2;
+CREATE VIEW  v7 AS SELECT MIN(a) AS a FROM t1 UNION SELECT b FROM v2;
+CREATE TABLE t8 AS SELECT (SELECT a FROM t1) AS a;
+CREATE  VIEW v8 AS SELECT (SELECT a FROM t1) AS a;
+CREATE TABLE t9 AS VALUES ((SELECT MAX(a) FROM t1)),(((SELECT MIN(b) FROM t1)));
+CREATE VIEW  v9 AS VALUES ((SELECT MAX(a) FROM t1)),(((SELECT MIN(b) FROM t1)));
+SELECT
+G_TABLE_NAME, G_GEOMETRY_COLUMN, SRID
+FROM
+INFORMATION_SCHEMA.GEOMETRY_COLUMNS
+WHERE
+F_TABLE_SCHEMA='test'
+ORDER
+BY G_TABLE_NAME, G_GEOMETRY_COLUMN;
+G_TABLE_NAME	G_GEOMETRY_COLUMN	SRID
+t1	a	101
+t1	b	101
+t2	a	101
+t2	b	101
+t3	a	101
+t4	a	101
+t5	a	101
+t6	a	101
+t7	a	101
+t8	a	101
+t9	(SELECT MAX(a) FROM t1)	101
+v2	a	101
+v2	b	101
+v3	a	101
+v4	a	101
+v5	a	101
+v6	a	101
+v7	a	101
+v8	a	101
+v9	(select max(`test`.`t1`.`a`) from `test`.`t1`)	101
+DROP TABLE t2,t3,t4,t5,t6,t7,t8,t9;
+DROP VIEW v2,v3,v4,v5,v6,v7,v8,v9;
+DROP TABLE t1;
+#
+# MDEV-34025 Virtual columns do not check assignment cast validity
+#
+CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
+ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t1`.`b`
+CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
+ERROR HY000: Cannot cast 'point' as 'int' in assignment of `test`.`t1`.`b`
+#
+# End of 11.5 tests
+#
+#
+# Start of 11.6 tests
+#
+#
+# MDEV-34276 Tests for ST_isValid
+#
+# Some tests for Point, multipoint, linestring
+SET @g = ST_GEOMFROMTEXT('POINT(0 0)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SELECT ISVALID(@g);
+ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('POINT(15 0)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('MULTIPOINT(15 0, 10 0, 0 0, 11 11)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+SET @g = ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1, 2 2, 2 3)');
+SELECT ST_ISVALID(@g);
+ST_ISVALID(@g)
+1
+# Some tests for Polygons
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((40 40, 20 45, 45 30, 40 40)), ((20 35, 10 30, 10 10, 30 5, 45 20, 20 35), (30 20, 20 15, 20 25, 30 20))')) c;
+c
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))')) c;
+c
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 0 2, 2 2, 1 1, 2 0, 0 0))')) c;
+c
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0, 0 2, 2 2, 2 0, 0 0)),((4 4, 4 5, 5 5, 5 4, 4 4)))')) AS a;
+a
+1
+SELECT ST_ISVALID(ST_GEOMFROMTEXT('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0), (15 15, 15 20, 20 20, 20 15, 15 15))')) as t;
+t
+0
+#
+# End of 11.6 tests
 #

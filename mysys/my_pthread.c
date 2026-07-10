@@ -20,7 +20,6 @@
 #include "mysys_priv.h"
 #include <signal.h>
 #include <m_string.h>
-#include <thr_alarm.h>
 #include <my_pthread.h>
 
 #if (defined(__BSD__) || defined(_BSDI_VERSION))
@@ -234,11 +233,7 @@ void *sigwait_thread(void *set_arg)
       sigaction(i, &sact, (struct sigaction*) 0);
     }
   }
-  /* Ensure that init_thr_alarm() is called */
-  DBUG_ASSERT(thr_client_alarm);
-  sigaddset(set, thr_client_alarm);
   pthread_sigmask(SIG_UNBLOCK,(sigset_t*) set,(sigset_t*) 0);
-  alarm_thread=pthread_self();			/* For thr_alarm */
 
   for (;;)
   {						/* Wait for signals */
@@ -388,7 +383,7 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex)
   int error= pthread_mutex_trylock(mutex);
   if (error == 1)
     return 0;				/* Got lock on mutex */
-  if (error == 0)			/* Someon else is locking mutex */
+  if (error == 0)			/* Someone else is locking mutex */
     return EBUSY;
   if (error == -1)			/* Safety if the lib is fixed */
     error= errno;			/* Probably invalid parameter */

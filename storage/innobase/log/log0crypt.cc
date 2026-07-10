@@ -221,9 +221,9 @@ ATTRIBUTE_COLD bool log_decrypt(byte* buf, lsn_t lsn, ulint size)
 		ut_ad(LOG_CRYPT_HDR_SIZE + dst_size
 		      == 512 - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY);
 
-		uint dst_len;
+		uint dst_len = static_cast<uint>(dst_size);
 		int rc = encryption_crypt(
-			buf + LOG_CRYPT_HDR_SIZE, static_cast<uint>(dst_size),
+			buf + LOG_CRYPT_HDR_SIZE, dst_len,
 			reinterpret_cast<byte*>(dst), &dst_len,
 			const_cast<byte*>(info.crypt_key),
 			MY_AES_BLOCK_SIZE,
@@ -332,10 +332,10 @@ ATTRIBUTE_COLD bool log_crypt_101_read_block(byte* buf, lsn_t start_lsn)
 	}
 found:
 	byte dst[512];
-	uint dst_len;
 	byte aes_ctr_iv[MY_AES_BLOCK_SIZE];
 
 	const uint src_len = 512 - LOG_BLOCK_HDR_SIZE;
+	uint dst_len = src_len;
 
 	ulint log_block_no = log_block_get_hdr_no(buf);
 
@@ -375,11 +375,13 @@ constexpr size_t LOG_CHECKPOINT_CRYPT_NONCE= 36;
 constexpr size_t LOG_CHECKPOINT_CRYPT_MESSAGE= 40;
 
 /** Add the encryption information to the log header buffer.
-@param buf   part of log header buffer */
-void log_crypt_write_header(byte *buf)
+@param buf      part of log header buffer
+@param archive  the expected value of innodb_log_archive */
+void log_crypt_write_header(byte *buf, bool archive) noexcept
 {
   ut_ad(info.key_version);
-  mach_write_to_4(my_assume_aligned<4>(buf), LOG_DEFAULT_ENCRYPTION_KEY);
+  static_assert(LOG_DEFAULT_ENCRYPTION_KEY == 1, "compatibility");
+  mach_write_to_4(my_assume_aligned<4>(buf), !archive);
   mach_write_to_4(my_assume_aligned<4>(buf + 4), info.key_version);
   memcpy_aligned<8>(buf + 8, info.crypt_msg, MY_AES_BLOCK_SIZE);
   static_assert(MY_AES_BLOCK_SIZE == 16, "compatibility");
@@ -388,13 +390,14 @@ void log_crypt_write_header(byte *buf)
 
 /** Read the encryption information from a log header buffer.
 @param buf   part of log header buffer
+@param archive  the expected value of innodb_log_archive
 @return whether the operation was successful */
-bool log_crypt_read_header(const byte *buf)
+bool log_crypt_read_header(const byte *buf, bool archive) noexcept
 {
   MEM_UNDEFINED(&info.checkpoint_no, sizeof info.checkpoint_no);
   MEM_NOACCESS(&info.checkpoint_no, sizeof info.checkpoint_no);
-  if (mach_read_from_4(my_assume_aligned<4>(buf)) !=
-      LOG_DEFAULT_ENCRYPTION_KEY)
+  static_assert(LOG_DEFAULT_ENCRYPTION_KEY == 1, "compatibility");
+  if (mach_read_from_4(my_assume_aligned<4>(buf)) != !archive)
     return false;
   info.key_version= mach_read_from_4(my_assume_aligned<4>(buf + 4));
   memcpy_aligned<8>(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);
@@ -429,7 +432,7 @@ ATTRIBUTE_COLD bool log_crypt_read_checkpoint_buf(const byte* buf)
 
 /** Encrypt or decrypt a temporary file block.
 @param[in]	src		block to encrypt or decrypt
-@param[in]	size		size of the block
+@param[in]	size		length of both src and dst blocks in bytes
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
 @param[in]	encrypt		true=encrypt; false=decrypt
@@ -441,7 +444,7 @@ bool log_tmp_block_encrypt(
 	uint64_t	offs,
 	bool		encrypt)
 {
-	uint dst_len;
+	uint dst_len = static_cast<uint>(size);
 	uint64_t iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
 	iv[0] = offs;
 	memcpy(iv + 1, tmp_iv, sizeof iv - sizeof *iv);
@@ -483,159 +486,219 @@ byte *log_decrypt_buf(const byte *iv, byte *buf, const byte *data, uint len)
 
 #include "mtr0log.h"
 
-/** Encrypt a log snippet
-@param iv    initialization vector
-@param tmp   temporary buffer
-@param buf   buffer to be replaced with encrypted contents
-@param end   pointer past the end of buf
-@return encrypted data bytes that follow */
-static size_t log_encrypt_buf(byte iv[MY_AES_BLOCK_SIZE],
-                              byte *&tmp, byte *buf, const byte *const end)
+/**
+@brief Interface for log_t::FORMAT_ENC_11 encryption and decryption
+
+Each mtr_t::m_log record comprise one or more bytes that determine the
+length of the remaining bytes, which will be encrypted. The encryption
+plugins are assumed to be variants of AES, with
+encryption_ctx_update() operating on fixed-size blocks that are
+integer multiples of MY_AES_BLOCK_SIZE. */
+class log_crypt
 {
-  for (byte *l= buf; l != end; )
+  /** Temporary buffer with data to be encrypted */
+  alignas(MY_AES_BLOCK_SIZE) byte tmp[MY_AES_BLOCK_SIZE * 16];
+  /** Destination for encryption buffer */
+  alignas(MY_AES_BLOCK_SIZE) byte dst[MY_AES_BLOCK_SIZE * 16];
+
+  /** Incompletely filled buffers */
+  st_::span<byte> backlog[MY_AES_BLOCK_SIZE - 1] {};
+
+  /** Sum of backlog.size() */
+  size_t deferred{0};
+  /** First unused backlog entry (0 to MY_AES_BLOCK_SIZE) */
+  size_t back{0};
+
+  /** Write back the encrypted data to the buffers. */
+  void scatter() noexcept
   {
-    const byte b= *l++;
-    size_t rlen= b & 0xf;
-    if (!rlen)
+    byte *d{dst};
+    for (size_t i{0}; i < back; i++)
     {
-      const size_t lenlen= mlog_decode_varint_length(*l);
-      const uint32_t addlen= mlog_decode_varint(l);
-      ut_ad(addlen != MLOG_DECODE_ERROR);
-      rlen= addlen + 15 - lenlen;
-      l+= lenlen;
+      st_::span<byte> &b= backlog[i];
+      memcpy(b.data(), d, b.size());
+      deferred-= b.size();
+      d+= b.size();
     }
-
-    if (b < 0x80)
-    {
-      /* Add the page identifier to the initialization vector. */
-      size_t idlen= mlog_decode_varint_length(*l);
-      ut_ad(idlen <= 5);
-      ut_ad(idlen < rlen);
-      mach_write_to_4(my_assume_aligned<4>(iv + 8), mlog_decode_varint(l));
-      l+= idlen;
-      rlen-= idlen;
-      idlen= mlog_decode_varint_length(*l);
-      ut_ad(idlen <= 5);
-      ut_ad(idlen <= rlen);
-      mach_write_to_4(my_assume_aligned<4>(iv + 12), mlog_decode_varint(l));
-      l+= idlen;
-      rlen-= idlen;
-    }
-
-    uint len;
-
-    if (l + rlen > end)
-    {
-      if (size_t len= end - l)
-      {
-        /* Only WRITE or EXTENDED records may comprise multiple segments. */
-        static_assert((EXTENDED | 0x10) == WRITE, "compatibility");
-        ut_ad((b & 0x60) == EXTENDED);
-        ut_ad(l < end);
-        memcpy(tmp, l, len);
-        tmp+= len;
-        rlen-= len;
-      }
-      return rlen;
-    }
-
-    if (!rlen)
-      continue; /* FREE_PAGE and INIT_PAGE have no payload. */
-
-    len= static_cast<uint>(rlen);
-    ut_a(MY_AES_OK == encryption_crypt(l, len, tmp, &len,
-                                       info.crypt_key, MY_AES_BLOCK_SIZE,
-                                       iv, MY_AES_BLOCK_SIZE,
-                                       ENCRYPTION_FLAG_ENCRYPT |
-                                       ENCRYPTION_FLAG_NOPAD,
-                                       LOG_DEFAULT_ENCRYPTION_KEY,
-                                       info.key_version));
-    ut_ad(len == rlen);
-    memcpy(l, tmp, rlen);
-    l+= rlen;
+    ut_ad(!deferred);
+    back= 0;
   }
 
-  return 0;
+  /** Finish the encryption.
+
+  It is assumed that encryption_ctx_init(ctx, ... ENCRYPTION_FLAG_NOPAD ...)
+  will have been invoked.
+
+  If the total length of the encrypted data of a mini-transaction is
+  not an integer multiple of MY_AES_BLOCK_SIZE, we expect the partial
+  final block (deferred bytes) to be encrypted or decrypted in place,
+  without being expanded in size. */
+  void finish() noexcept
+  {
+    uint d{uint(deferred)};
+    ut_a(!d || MY_AES_OK == encryption_ctx_update(ctx, tmp, d, dst, &d));
+    ut_d(const bool ok{d == deferred});
+    ut_a(MY_AES_OK == encryption_ctx_finish(ctx, dst, &d));
+    ut_ad(ok || d == deferred);
+    scatter();
+  }
+
+public:
+  /** pointer to the encryption context, must be initialized by
+  encryption_ctx_init(ctx, ...) before any use of the constructed object */
+  void *const ctx;
+
+  log_crypt(void *ctx) : ctx(ctx) {}
+
+  ~log_crypt() { finish(); }
+
+  /** Append some more data to be encrypted in place. The data will
+  be encrypted in chunks of MY_AES_BLOCK_SIZE. Some of the encrypted data
+  may be replaced on a subsequent append() or finish().
+
+  It is assumed that encryption_ctx_init(ctx, ...) will have been invoked.
+
+  @param buf   the source and target buffer
+  @param size  size of the data
+  @return buf + size */
+  byte *append(byte *buf, size_t size) noexcept
+  {
+    ut_ad(!deferred == !back);
+    ut_ad(size);
+
+    do
+    {
+      ut_ad(deferred < MY_AES_BLOCK_SIZE);
+      size_t s{std::min(deferred + size, sizeof tmp)};
+      ut_ad(s > deferred);
+      ::memcpy(tmp + deferred, buf, s - deferred);
+
+      if (s < MY_AES_BLOCK_SIZE)
+      {
+        ut_ad(back < array_elements(backlog));
+        deferred+= size;
+        backlog[back++]= {buf, size};
+        return buf + size;
+      }
+
+      s&= ~(MY_AES_BLOCK_SIZE - 1);
+      ut_ad(s > deferred);
+      uint d;
+      ut_a(MY_AES_OK == encryption_ctx_update(ctx, tmp, uint(s), dst, &d));
+      ut_ad(s == d);
+      s-= deferred;
+      ut_ad(size >= s);
+      memcpy(buf, dst + deferred, s);
+      scatter();
+      buf+= s;
+      size-= s;
+    }
+    while (size);
+
+    return buf;
+  }
+};
+
+/** Decrypt a mini-transaction in place.
+@param buf   start of the mini-transaction
+@param end   end of data (followed by sequence byte and the 8-byte nonce) */
+void log_decrypt_mtr(byte *buf, const byte *end) noexcept
+{
+  ut_ad(log_sys.format == log_t::FORMAT_ENC_11);
+
+  uint32_t rlen;
+  log_crypt c(alloca(encryption_ctx_size(LOG_DEFAULT_ENCRYPTION_KEY,
+                                         info.key_version)));
+  {
+    alignas(8) byte iv[MY_AES_BLOCK_SIZE];
+    memcpy(iv, end + 1, 8);
+    memset_aligned<8>(iv + 8, 0, (sizeof iv) - 8);
+    /* Append the initial type,length to the initialization vector. */
+    const byte *start{buf};
+    buf= const_cast<byte*>(mtr_t::parse_length(buf, &rlen));
+    ut_ad(buf < end);
+    ::memcpy(iv + 8, start, buf - start);
+    ut_a(MY_AES_OK ==
+         encryption_ctx_init(c.ctx, info.crypt_key, MY_AES_BLOCK_SIZE,
+                             iv, MY_AES_BLOCK_SIZE,
+                             ENCRYPTION_FLAG_DECRYPT | ENCRYPTION_FLAG_NOPAD,
+                             LOG_DEFAULT_ENCRYPTION_KEY, info.key_version));
+  }
+
+  for (;;)
+  {
+    buf= c.append(buf, rlen);
+    if (buf >= end)
+      break;
+    buf= const_cast<byte*>(mtr_t::parse_length(buf, &rlen));
+    ut_ad(buf < end);
+  }
+
+  ut_ad(buf == end);
 }
 
-/** Encrypt the log */
-ATTRIBUTE_NOINLINE void mtr_t::encrypt()
+ATTRIBUTE_NOINLINE size_t mtr_t::encrypt() noexcept
 {
-  ut_ad(log_sys.format == log_t::FORMAT_ENC_10_8);
-  ut_ad(m_log.size());
+  ut_ad(log_sys.format == log_t::FORMAT_ENC_11);
 
-  alignas(8) byte iv[MY_AES_BLOCK_SIZE];
-
-  m_commit_lsn= log_sys.get_lsn();
-  ut_ad(m_commit_lsn);
-  byte *tmp= static_cast<byte*>(alloca(srv_page_size)), *t= tmp;
-  byte *dst= static_cast<byte*>(alloca(srv_page_size));
-  mach_write_to_8(iv, m_commit_lsn);
-  mtr_buf_t::block_t *start= nullptr;
-  size_t size= 0, start_size= 0;
-  m_crc= 0;
-
-  m_log.for_each_block([&](mtr_buf_t::block_t *b)
   {
-    ut_ad(t - tmp + size <= srv_page_size);
-    byte *buf= b->begin();
-    if (!start)
-    {
-    parse:
-      ut_ad(t == tmp);
-      size= log_encrypt_buf(iv, t, buf, b->end());
-      if (!size)
-      {
-        ut_ad(t == tmp);
-        start_size= 0;
-      }
-      else
-      {
-        start= b;
-        start_size= t - tmp;
-      }
-      m_crc= my_crc32c(m_crc, buf, b->end() - buf - start_size);
-    }
-    else if (size > b->used())
-    {
-      ::memcpy(t, buf, b->used());
-      t+= b->used();
-      size-= b->used();
-    }
-    else
-    {
-      ::memcpy(t, buf, size);
-      t+= size;
-      buf+= size;
-      uint len= static_cast<uint>(t - tmp);
-      ut_a(MY_AES_OK == encryption_crypt(tmp, len, dst, &len,
-                                         info.crypt_key, MY_AES_BLOCK_SIZE,
-                                         iv, MY_AES_BLOCK_SIZE,
-                                         ENCRYPTION_FLAG_ENCRYPT |
-                                         ENCRYPTION_FLAG_NOPAD,
-                                         LOG_DEFAULT_ENCRYPTION_KEY,
-                                         info.key_version));
-      ut_ad(tmp + len == t);
-      m_crc= my_crc32c(m_crc, dst, len);
-      /* Copy the encrypted data back to the log snippets. */
-      ::memcpy(start->end() - start_size, dst, start_size);
-      t= dst + start_size;
-      for (ilist<mtr_buf_t::block_t>::iterator i(start); &*++i != b;)
-      {
-        const size_t l{i->used()};
-        ::memcpy(i->begin(), t, l);
-        t+= l;
-      }
-      ::memcpy(b->begin(), t, size);
-      ut_ad(t + size == dst + len);
-      t= tmp;
-      start= nullptr;
-      goto parse;
-    }
-    return true;
-  });
+    auto i= m_log.begin();
+    ut_ad(i != m_log.end());
+    ut_ad(i->used());
 
-  ut_ad(t == tmp);
-  ut_ad(!start);
-  ut_ad(!size);
+    byte *buf= i->start();
+    const byte *end= buf + i->used();
+    uint32_t rlen;
+    log_crypt c(alloca(encryption_ctx_size(LOG_DEFAULT_ENCRYPTION_KEY,
+                                           info.key_version)));
+    {
+      alignas(8) byte iv[MY_AES_BLOCK_SIZE];
+      m_commit_lsn= log_sys.get_flushed_lsn();
+      ut_ad(m_commit_lsn);
+      mach_write_to_8(iv, m_commit_lsn);
+      memset_aligned<8>(iv + 8, 0, (sizeof iv) - 8);
+      /* Append the initial type,length to the initialization vector. */
+      const byte *start{buf};
+      buf= const_cast<byte*>(mtr_t::parse_length(buf, &rlen));
+      ut_ad(buf < end);
+      ::memcpy(iv + 8, start, buf - start);
+      ut_a(MY_AES_OK ==
+           encryption_ctx_init(c.ctx, info.crypt_key, MY_AES_BLOCK_SIZE,
+                               iv, MY_AES_BLOCK_SIZE,
+                               ENCRYPTION_FLAG_ENCRYPT | ENCRYPTION_FLAG_NOPAD,
+                               LOG_DEFAULT_ENCRYPTION_KEY, info.key_version));
+    }
+
+    for (;;)
+    {
+      while (buf + rlen > end)
+      {
+        if (size_t size= end - buf)
+        {
+          rlen-= uint32_t(size);
+          c.append(buf, size);
+        }
+        ++i;
+        ut_ad(i != m_log.end());
+        buf= i->start();
+        end= buf + i->used();
+      }
+
+      buf= c.append(buf, rlen);
+
+      if (buf >= end)
+      {
+        ut_ad(buf == end);
+        if (++i == m_log.end())
+          break;
+        buf= i->start();
+        end= buf + i->used();
+      }
+
+      buf= const_cast<byte*>(mtr_t::parse_length(buf, &rlen));
+      ut_ad(buf <= end);
+    }
+  }
+
+  return crc32c();
 }

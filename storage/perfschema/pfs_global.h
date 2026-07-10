@@ -24,6 +24,8 @@
 #ifndef PFS_GLOBAL_H
 #define PFS_GLOBAL_H
 
+#include <atomic>
+
 #include "my_compiler.h"
 
 /**
@@ -44,7 +46,7 @@ extern size_t pfs_allocated_memory;
 */
 struct PFS_cacheline_uint32
 {
-  uint32 m_u32;
+  std::atomic<uint32> m_u32;
   char m_full_cache_line[CPU_LEVEL1_DCACHE_LINESIZE - sizeof(uint32)];
 
   PFS_cacheline_uint32()
@@ -58,7 +60,7 @@ struct PFS_cacheline_uint32
 */
 struct PFS_cacheline_uint64
 {
-  uint64 m_u64;
+  std::atomic<uint64> m_u64;
   char m_full_cache_line[CPU_LEVEL1_DCACHE_LINESIZE - sizeof(uint64)];
 
   PFS_cacheline_uint64()
@@ -113,7 +115,7 @@ uint pfs_get_socket_address(char *host,
 /**
   Compute a random index value in an interval.
   @param ptr seed address
-  @param max_size maximun size of the interval
+  @param max_size maximum size of the interval
   @return a random value in [0, max_size-1]
 */
 inline uint randomized_index(const void *ptr, uint max_size)

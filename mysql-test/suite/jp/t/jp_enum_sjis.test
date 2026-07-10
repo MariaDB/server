@@ -76,7 +76,7 @@ DESC `‚s‚W`;
 DESC `‚s‚X`;
 
 #
-# Test problem with enum values after the colum with  NOT NULL restriction
+# Test problem with enum values after the column with  NOT NULL restriction
 #
 
 ALTER TABLE `‚s‚P` ADD `‚b‚Q` CHAR(1) NOT NULL FIRST;

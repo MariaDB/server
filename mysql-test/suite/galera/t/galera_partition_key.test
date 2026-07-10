@@ -1,0 +1,55 @@
+--source include/galera_cluster.inc
+--source include/have_partition.inc
+--source include/log_bin.inc
+
+--connection node_1
+CREATE TABLE `t1` (
+  `id` int(10) unsigned NOT NULL,
+  `other_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`,`other_id`)
+) ENGINE=InnoDB
+ PARTITION BY LIST (`id` MOD 2)
+(PARTITION `p0` VALUES IN (0) ENGINE = InnoDB,
+ PARTITION `p1` VALUES IN (1) ENGINE = InnoDB);
+
+INSERT INTO t1 VALUES (1, 0);
+
+CREATE TABLE t2 LIKE t1;
+
+START TRANSACTION;
+
+INSERT INTO t2(SELECT * FROM t1 WHERE id = 1);
+DELETE FROM t1 WHERE id = 1;
+
+COMMIT;
+
+--connection node_2
+SELECT * from t1;
+SELECT * from t2;
+DROP TABLE t1, t2;
+
+--connection node_1
+CREATE TABLE `t1` (
+  `id` int(10) unsigned NOT NULL,
+  `other_id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB
+ PARTITION BY LIST (`id` MOD 2)
+(PARTITION `p0` VALUES IN (0) ENGINE = InnoDB,
+ PARTITION `p1` VALUES IN (1) ENGINE = InnoDB);
+
+INSERT INTO t1 VALUES (1, 0);
+
+CREATE TABLE t2 LIKE t1;
+
+START TRANSACTION;
+
+INSERT INTO t2(SELECT * FROM t1 WHERE id = 1);
+DELETE FROM t1 WHERE id = 1;
+
+COMMIT;
+
+--connection node_2
+SELECT * from t1;
+SELECT * from t2;
+DROP TABLE t1, t2;

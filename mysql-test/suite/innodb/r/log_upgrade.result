@@ -2,7 +2,7 @@ call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 #
 # MDEV-24412 InnoDB: Upgrade after a crash is not supported
 #
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_upgrade --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_upgrade --innodb-force-recovery=5 --innodb-log-file-size=4m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_upgrade --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_upgrade --skip-innodb-log-archive --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');

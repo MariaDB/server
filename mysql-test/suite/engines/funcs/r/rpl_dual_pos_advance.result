@@ -3,7 +3,7 @@ include/master-slave.inc
 connection slave;
 reset master;
 connection master;
-change master to master_host="127.0.0.1",master_port=SLAVE_PORT,master_user="root";
+change master to master_host="127.0.0.1",master_port=SLAVE_PORT,master_user="root",master_ssl_verify_server_cert=0;
 include/start_slave.inc
 connection slave;
 create table t1 (n int);
@@ -25,4 +25,5 @@ include/stop_slave.inc
 reset slave;
 drop table t1,t4,t5,t6;
 connection slave;
+include/wait_for_slave_to_start.inc
 include/rpl_end.inc

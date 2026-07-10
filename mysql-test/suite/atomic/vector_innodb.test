@@ -1,0 +1,3 @@
+let $skip_vector=1;
+let $extra_fields=, v vector(5) not null default x'e360d63ebe554f3fcdbc523f4522193f5236083d', vector index(v);
+--source alter_table_innodb.test

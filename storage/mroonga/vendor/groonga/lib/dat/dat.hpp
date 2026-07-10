@@ -185,7 +185,7 @@ class Exception : public std::exception {
   virtual int line() const throw() {
     return line_;
   }
-  virtual const char *what() const throw() {
+  const char *what() const throw() override {
     return what_;
   }
 
@@ -206,7 +206,7 @@ class Error : public Exception {
       : Exception(ex) {}
   virtual ~Error() throw() = default;
 
-  virtual ErrorCode code() const throw() {
+  ErrorCode code() const throw() override {
     return T;
   }
 };

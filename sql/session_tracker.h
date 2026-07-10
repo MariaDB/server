@@ -128,6 +128,8 @@ class Session_sysvars_tracker: public State_tracker
     sys_var *m_svar;
     bool *test_load;
     bool m_changed;
+    bool skip_plugin_lock;
+    bool skip_global_lock;
   };
 
   class vars_list
@@ -145,8 +147,9 @@ class Session_sysvars_tracker: public State_tracker
     void init()
     {
       my_hash_init(PSI_INSTRUMENT_ME, &m_registered_sysvars, &my_charset_bin,
-                   0, 0, 0, (my_hash_get_key) sysvars_get_key, my_free,
-                   HASH_UNIQUE | (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0));
+                   0, 0, 0, sysvars_get_key, my_free,
+                   HASH_UNIQUE |
+                       (mysqld_server_initialized ? HASH_THREAD_SPECIFIC : 0));
     }
     void free_hash()
     {
@@ -154,24 +157,19 @@ class Session_sysvars_tracker: public State_tracker
       my_hash_free(&m_registered_sysvars);
     }
 
-    sysvar_node_st *search(const sys_var *svar)
-    {
-      return reinterpret_cast<sysvar_node_st*>(
-               my_hash_search(&m_registered_sysvars,
-                             reinterpret_cast<const uchar*>(&svar),
-                             sizeof(sys_var*)));
-    }
+    sysvar_node_st *search(const sys_var *svar);
+  public:
+    vars_list(): track_all(false) { init(); }
+    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
+    void deinit() { free_hash(); }
 
+    ulong size() { return m_registered_sysvars.records; }
     sysvar_node_st *at(ulong i)
     {
       DBUG_ASSERT(i < m_registered_sysvars.records);
       return reinterpret_cast<sysvar_node_st*>(
                my_hash_element(&m_registered_sysvars, i));
     }
-  public:
-    vars_list(): track_all(false) { init(); }
-    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
-    void deinit() { free_hash(); }
 
     sysvar_node_st *insert_or_search(const sys_var *svar)
     {
@@ -206,18 +204,20 @@ class Session_sysvars_tracker: public State_tracker
   */
   vars_list orig_list;
   bool m_parsed;
+  void maybe_parse_all(THD *thd);
 
 public:
   void init(THD *thd);
   void deinit(THD *thd);
-  bool enable(THD *thd);
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool enable(THD *thd) override;
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
   void mark_as_changed(THD *thd, const sys_var *var);
+  void mark_all_as_changed(THD *thd);
   void deinit() { orig_list.deinit(); }
   /* callback */
-  static uchar *sysvars_get_key(const char *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)));
+  static const uchar *sysvars_get_key(const void *entry, size_t *length,
+                                      my_bool);
 
   friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 };
@@ -237,8 +237,8 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 class Current_schema_tracker: public State_tracker
 {
 public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 };
 
 
@@ -259,8 +259,8 @@ public:
 class Session_state_change_tracker: public State_tracker
 {
 public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 };
 
 
@@ -290,9 +290,9 @@ enum enum_tx_state {
   Transaction access mode
 */
 enum enum_tx_read_flags {
-  TX_READ_INHERIT =   0,  ///< not explicitly set, inherit session.tx_read_only
-  TX_READ_ONLY    =   1,  ///< START TRANSACTION READ ONLY,  or tx_read_only=1
-  TX_READ_WRITE   =   2,  ///< START TRANSACTION READ WRITE, or tx_read_only=0
+  TX_READ_INHERIT =   0,  ///< not explicitly set, inherit session.transaction_read_only
+  TX_READ_ONLY    =   1,  ///< START TRANSACTION READ ONLY,  or transaction_read_only=1
+  TX_READ_WRITE   =   2,  ///< START TRANSACTION READ WRITE, or transaction_read_only=0
 };
 
 
@@ -300,7 +300,7 @@ enum enum_tx_read_flags {
   Transaction isolation level
 */
 enum enum_tx_isol_level {
-  TX_ISOL_INHERIT     = 0, ///< not explicitly set, inherit session.tx_isolation
+  TX_ISOL_INHERIT     = 0, ///< not explicitly set, inherit session.transaction_isolation
   TX_ISOL_UNCOMMITTED = 1,
   TX_ISOL_COMMITTED   = 2,
   TX_ISOL_REPEATABLE  = 3,
@@ -329,7 +329,7 @@ class Transaction_state_tracker : public State_tracker
   enum_tx_state calc_trx_state(THD *thd, thr_lock_type l, bool has_trx);
 public:
 
-  bool enable(THD *thd)
+  bool enable(THD *thd) override
   {
     m_enabled= false;
     tx_changed= TX_CHG_NONE;
@@ -340,8 +340,8 @@ public:
     return State_tracker::enable(thd);
   }
 
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 
   /** Change transaction characteristics */
   void set_read_flags(THD *thd, enum enum_tx_read_flags flags);
@@ -485,6 +485,7 @@ class Session_tracker
   {
   public:
     void mark_as_changed(THD *thd) {}
+    void mark_all_as_changed(THD *thd) {}
     void mark_as_changed(THD *thd, const sys_var *var) {}
   };
 public:

@@ -54,6 +54,23 @@ eval $optimized_query;
 eval explain extended $query;
 eval explain extended $optimized_query;
 
+
+let $query= select * from t1 where a in (1,2,2,2,3,4,5,6,7);
+
+let $optimized_query=
+select * from t1
+where a in
+      (
+        select *
+        from (values (1),(2),(2),(2),(2),(3),(4),(5),(6),(7)) as tvc_0
+      );
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+
 --echo # AND-condition with IN-predicates in WHERE-part
 
 let $query=
@@ -265,7 +282,7 @@ set @@in_predicate_conversion_threshold= 2;
 eval $query;
 eval explain extended $query;
 
---echo # use vectors in IN predeicate
+--echo # use vectors in IN predicate
 
 set @@in_predicate_conversion_threshold= 4;
 
@@ -276,7 +293,7 @@ eval $query;
 eval explain extended $query;
 set @@in_predicate_conversion_threshold= 2;
 
---echo # trasformation works for the one IN predicate and doesn't work for the other
+--echo # transformation works for the one IN predicate and doesn't work for the other
 
 set @@in_predicate_conversion_threshold= 5;
 
@@ -457,3 +474,18 @@ drop table t1;
 set in_predicate_conversion_threshold=default;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-32575 MSAN / Valgrind errors in test_if_cheaper_ordering
+--echo #            upon reaching in_predicate_conversion_threshold
+--echo #
+
+create table t1 (a int, b int, c int, primary key (a, b));
+insert into t1 (a, b) values (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8);
+
+set in_predicate_conversion_threshold = 2;
+select * from t1 where a in (1, 2) and b = 2 order by a, b;
+
+drop table t1;
+
+--echo # End of 11.4 tests

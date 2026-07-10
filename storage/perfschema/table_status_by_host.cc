@@ -116,8 +116,8 @@ int table_status_by_host::rnd_init(bool scan)
     allocate a new context from mem_root and store in TLS. If scan == false,
     then restore from TLS.
   */
-  m_context= (table_status_by_host_context *)current_thd->alloc(sizeof(table_status_by_host_context));
-  new(m_context) table_status_by_host_context(status_version, !scan);
+  m_context= current_thd->alloc<table_status_by_host_context>(1);
+  new (m_context) table_status_by_host_context(status_version, !scan);
   return 0;
 }
 

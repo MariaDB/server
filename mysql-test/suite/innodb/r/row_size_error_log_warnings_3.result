@@ -51,14 +51,13 @@ set global innodb_compression_level=1;
 CREATE TABLE t1(
 f1 INT, f2 CHAR(200), f3 CHAR(200),
 f4 CHAR(200), f5 CHAR(200), f6 CHAR(200),
-f7 CHAR(200), f8 CHAR(200), f9 CHAR(200),
-f10 CHAR(200), PRIMARY KEY(f1, f2(20), f3(20), f4(20))
+f7 CHAR(200), f8 CHAR(200), f9 CHAR(106),
+PRIMARY KEY(f1, f2(20), f3(20), f4(20))
 ) ROW_FORMAT=COMPRESSED, ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, repeat('a', 200), repeat('b', 200),
 repeat('c', 200), repeat('d', 200),
 repeat('d', 200), repeat('e', 200),
-repeat('e', 200), repeat('f', 200),
-repeat('g', 200) FROM seq_1_to_20;
+repeat('f', 200), repeat('g', 106) FROM seq_1_to_20;
 DROP TABLE t1;
 set global innodb_compression_level=default;
 CREATE TABLE t1(f1 char(200), f2 char(200), f3 char(200),
@@ -83,3 +82,11 @@ f29(10), f30(10), f31(10), f32(10),
 f33(10)))
 ENGINE=InnoDB;
 ERROR 42000: Too many key parts specified; max 32 parts allowed
+#
+# MDEV-31161 Assertion failures upon adding a too long key
+#             to table with COMPRESSED row format
+#
+CREATE TABLE t1(pk INT PRIMARY KEY, f1 INT, f2 TEXT)ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 (pk) VALUES (1);
+ALTER TABLE t1 ADD KEY (f1), ADD KEY (f2(1000));
+DROP TABLE t1;

@@ -134,11 +134,11 @@ SELECT @@query_cache_min_res_unit;
 @@query_cache_min_res_unit
 512
 SELECT local.query_cache_min_res_unit;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.query_cache_min_res_unit;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT query_cache_min_res_unit = @@session.query_cache_min_res_unit;
-ERROR 42S22: Unknown column 'query_cache_min_res_unit' in 'field list'
+ERROR 42S22: Unknown column 'query_cache_min_res_unit' in 'SELECT'
 SET @@global.query_cache_min_res_unit = @start_value;
 SELECT @@global.query_cache_min_res_unit;
 @@global.query_cache_min_res_unit

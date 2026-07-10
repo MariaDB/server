@@ -1,0 +1,18 @@
+!include include/default_my.cnf
+
+[mysqld.1]
+log-slave-updates
+loose-innodb
+# Test does a lot of DML during the backup, larger than 10M log is needed for
+# mariabackup to always be able to copy all that it needs.
+loose-innodb_log_file_size=       96M
+
+[mysqld.2]
+log-slave-updates
+loose-innodb
+
+[ENV]
+SERVER_MYPORT_1=		@mysqld.1.port
+SERVER_MYSOCK_1=		@mysqld.1.socket
+SERVER_MYPORT_2=		@mysqld.2.port
+SERVER_MYSOCK_2=		@mysqld.2.socket

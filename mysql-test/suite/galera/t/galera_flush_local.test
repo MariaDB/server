@@ -3,6 +3,7 @@
 # PXC-391
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_query_cache.inc
 
 --disable_warnings
@@ -25,7 +26,6 @@ INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 --connection node_2
 --let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 --connection node_1
-FLUSH LOCAL DES_KEY_FILE;
 FLUSH LOCAL HOSTS;
 FLUSH LOCAL QUERY CACHE;
 FLUSH LOCAL STATUS;
@@ -72,7 +72,6 @@ SELECT COUNT(*) AS EXPECT_10 FROM x1;
 SELECT COUNT(*) AS EXPECT_10000 FROM t2;
 SELECT COUNT(*) AS EXPECT_10 FROM x2;
 
-
 --connection node_1
 DROP TABLE t1, t2, x1, x2;
 CREATE TABLE t1 (f1 INTEGER);
@@ -89,7 +88,6 @@ INSERT INTO x2 (f2) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 --let $wsrep_last_committed_before2 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 --connection node_1
 set wsrep_on=0;
-FLUSH DES_KEY_FILE;
 FLUSH HOSTS;
 FLUSH QUERY CACHE;
 FLUSH STATUS;
@@ -144,4 +142,3 @@ DROP TABLE t1, t2, x1, x2;
 --disable_query_log
 SET GLOBAL wsrep_mode = DEFAULT;
 --enable_query_log
-

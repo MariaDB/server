@@ -22,7 +22,7 @@
 #  server-system-variables.html#option_mysqld_wait_timeouts                   #
 #                                                                             #
 ###############################################################################
-# Due to differnces between linux and windows in the results
+# Due to differences between linux and windows in the results
 
 --source include/not_windows.inc
 --source include/load_sysvars.inc

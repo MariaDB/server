@@ -158,3 +158,60 @@ DROP DATABASE meow;
 
 set local sql_mode=default;
 set global sql_mode=default;
+
+--echo #
+--echo # MDEV-37950: INSERT ... RETURNING exposes columns for which
+--echo # the user lacks SELECT privilege
+--echo #
+CREATE USER regular;
+GRANT INSERT ON *.* TO regular;
+GRANT DELETE ON *.* TO regular;
+
+CREATE DATABASE test1;
+DROP TABLE IF EXISTS test1.t_trigger_test1;
+CREATE TABLE test1.t_trigger_test1 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50),
+  note VARCHAR(100)
+);
+DELIMITER |;
+CREATE TRIGGER test1.trg_before_insert
+BEFORE INSERT ON test1.t_trigger_test1
+FOR EACH ROW
+BEGIN
+  SET NEW.name = CONCAT('BEFORE_', NEW.name);
+END |
+DELIMITER ;|
+
+change_user regular;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO test1.t_trigger_test1 (name) VALUES ('Alice') RETURNING *;
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO test1.t_trigger_test1 (name) VALUES ('Alice') RETURNING id, name, note;
+
+--echo # same for DELETE because delete with "WHERE" still requires to
+--echo # read from the table, which basically means having select privileges
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM test1.t_trigger_test1 WHERE id=1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM test1.t_trigger_test1 WHERE id=1 RETURNING id;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM test1.t_trigger_test1 WHERE id=1 RETURNING *;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM test1.t_trigger_test1 RETURNING *;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM test1.t_trigger_test1 RETURNING id;
+
+DELETE FROM test1.t_trigger_test1;
+
+change_user root;
+DROP TRIGGER test1.trg_before_insert;
+DROP TABLE test1.t_trigger_test1;
+DROP USER regular;
+DROP DATABASE test1;

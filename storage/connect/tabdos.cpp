@@ -186,7 +186,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   } // end of DefineAM
 
 /***********************************************************************/
-/*  Get the full path/name of the optization file.                     */
+/*  Get the full path/name of the optimization file.                   */
 /***********************************************************************/
 bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
   {
@@ -210,7 +210,7 @@ bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
   } // end of GetOptFileName
 
 /***********************************************************************/
-/*  After an optimize error occurred, remove all set optimize values.   */
+/*  After an optimize error occurred, remove all set optimize values.  */
 /***********************************************************************/
 void DOSDEF::RemoveOptValues(PGLOBAL g)
   {
@@ -1619,7 +1619,7 @@ void TDBDOS::ResetBlockFilter(PGLOBAL g)
 /*  RC_OK: if some records in the block can meet filter criteria.      */
 /*  RC_NF: if no record in the block can meet filter criteria.         */
 /*  RC_EF: if no record in the remaining file can meet filter criteria.*/
-/*  In addition, temporarily supress filtering if all the records in   */
+/*  In addition, temporarily suppress filtering if all the records in  */
 /*  the block meet filter criteria.                                    */
 /***********************************************************************/
 int TDBDOS::TestBlock(PGLOBAL g)
@@ -2694,7 +2694,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
             for (; i < Dcm; i++)
               safe_strcat(fmt, sizeof(fmt), "0");
 
-          len = sprintf(Buf, fmt, field - i, Value->GetShortValue());
+          len = snprintf(Buf, field + 1, fmt, field - i, Value->GetShortValue());
           break;
         case TYPE_INT:
           safe_strcpy(fmt, sizeof(fmt), (Ldz) ? "%0*d" : "%*.d");
@@ -2704,7 +2704,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
             for (; i < Dcm; i++)
               safe_strcat(fmt,sizeof(fmt), "0");
 
-          len = sprintf(Buf, fmt, field - i, Value->GetIntValue());
+          len = snprintf(Buf, field + 1, fmt, field - i, Value->GetIntValue());
           break;
         case TYPE_TINY:
           safe_strcpy(fmt, sizeof(fmt), (Ldz) ? "%0*d" : "%*.d");
@@ -2714,7 +2714,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
             for (; i < Dcm; i++)
               safe_strcat(fmt, sizeof(fmt), "0");
 
-          len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
+          len = snprintf(Buf, field + 1, fmt, field - i, Value->GetTinyValue());
           break;
         case TYPE_DOUBLE:
         case TYPE_DECIM:

@@ -18,5 +18,5 @@ show global status like 'performance_schema_%';
 
 # Cleanup
 truncate performance_schema.events_waits_history_long;
-flush status;
+flush global status;
 

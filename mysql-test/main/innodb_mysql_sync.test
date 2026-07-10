@@ -5,18 +5,12 @@
 --source include/have_partition.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
+--source include/no_view_protocol.inc
 
 --echo #
 --echo # Bug 42074 concurrent optimize table and 
 --echo # alter table = Assertion failed: thd->is_error()
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 --echo # Create InnoDB table
 CREATE TABLE t1 (id INT) engine=innodb;
@@ -47,10 +41,6 @@ SET DEBUG_SYNC='RESET';
 --echo #           OPTIMIZE TABLE
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 connect (con1, localhost, root);
 connection default;
 
@@ -79,10 +69,6 @@ SET DEBUG_SYNC= "RESET";
 --echo # Bug#53757 assert in mysql_truncate_by_delete
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
 CREATE TABLE t1(a INT) Engine=InnoDB;
 CREATE TABLE t2(id INT);
 INSERT INTO t1 VALUES (1), (2);
@@ -100,7 +86,6 @@ KILL @id;
 SET DEBUG_SYNC= "now SIGNAL killed";
 DROP TABLE t1, t2;
 disconnect con1;
---source include/wait_until_count_sessions.inc
 SET DEBUG_SYNC= "RESET";
 
 
@@ -108,10 +93,6 @@ SET DEBUG_SYNC= "RESET";
 --echo # Bug#58933 Assertion `thd- >is_error()' fails on shutdown with ongoing
 --echo #           OPTIMIZE TABLE
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1), (2);
@@ -142,11 +123,6 @@ disconnect con1;
 --echo # Bug#42230 during add index, cannot do queries on storage engines
 --echo #           that implement add_index
 --echo #
-
---disable_warnings
-DROP DATABASE IF EXISTS db1;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 connect(con1,localhost,root);
 connect(con2,localhost,root);
@@ -261,10 +237,6 @@ DROP TABLE t1;
 --echo #              IN INNODB
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL) engine=innodb;
 INSERT INTO t1 VALUES (1, 12345), (2, 23456);
 
@@ -283,11 +255,6 @@ disconnect con1;
 --echo #
 --echo # Bug#13417754 ASSERT IN ROW_DROP_DATABASE_FOR_MYSQL DURING DROP SCHEMA
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP DATABASE IF EXISTS db1;
---enable_warnings
 
 CREATE TABLE t1(a int) engine=InnoDB;
 CREATE DATABASE db1;
@@ -336,10 +303,6 @@ disconnect con2;
 
 --echo # Multi thread tests.
 --echo # See alter_table.test for single thread tests.
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1(a INT PRIMARY KEY, b INT) engine=InnoDB;
 INSERT INTO t1 VALUES (1,1), (2,2);
@@ -615,55 +578,13 @@ INSERT INTO t1 VALUES(10, 20);
 ALTER TABLE t1 FORCE;
 ALTER TABLE t1 ENGINE=INNODB;
 
---echo #ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE uses
---echo #table copy when the old_alter_table enabled.
-SET SESSION old_alter_table= TRUE;
-ALTER TABLE t1 FORCE;
-ALTER TABLE t1 ENGINE= INNODB;
-
-SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
---echo #OPTIMIZE TABLE operation using table copy.
---send OPTIMIZE TABLE t1
-
---connection con1
-SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
-INSERT INTO t1 VALUES(10, 20);
-
---connection default
---reap
-SET DEBUG_SYNC= 'RESET';
-SET SESSION old_alter_table= FALSE;
-
---echo #ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
---echo #when ALGORITHM COPY is used.
+--echo # ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
+--echo # when ALGORITHM COPY is used.
 ALTER TABLE t1 FORCE, ALGORITHM= COPY;
 ALTER TABLE t1 ENGINE= INNODB, ALGORITHM= COPY;
 --disable_info
 
 #cleanup
-DROP TABLE t1;
-
---echo #OPTIMIZE TABLE on a table with FULLTEXT index uses
---echo #ALTER TABLE FORCE using COPY algorithm here. This
---echo #test case ensures the COPY table debug sync point is hit.
-
-SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
-
---echo #Setup a table with FULLTEXT index.
---connection default
-CREATE TABLE t1(fld1 CHAR(10), FULLTEXT(fld1), FULLTEXT(fld1)) ENGINE= INNODB;
-INSERT INTO t1 VALUES("String1");
-
---echo #OPTIMIZE TABLE operation.
---send OPTIMIZE TABLE t1
-
---connection con1
-SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
-INSERT INTO t1 VALUES("String2");
-
---connection default
---reap
-SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
 
 --echo #Test which demonstrates that ALTER TABLE, OPTIMIZE PARTITION
@@ -744,8 +665,3 @@ SET DEBUG_SYNC= 'now WAIT_FOR rebuild';
 
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
-
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

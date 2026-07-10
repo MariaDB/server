@@ -163,7 +163,7 @@
 .*/pcre/pcre_exec\.c: noclone.*attribute directive ignored
 
 #
-# Unexplanable (?) stuff
+# Unexplainable (?) stuff
 #
 .*/listener\.cc : .*conversion from 'SOCKET' to 'int'.*
 .*/net_serv\.cc : .*conversion from 'SOCKET' to 'int'.*

@@ -37,42 +37,52 @@
 
   @return a number of bytes written to a buffer *excluding* terminating '\0'
 
-  @post
+  @note
   The syntax of a format string is generally the same:
-  % <flag> <width> <precision> <length modifier> <format>
-  where everything but the format is optional.
+  %[<flag>][<length>][.<precision>][<size modifier>]<format>[<format extension>]
+  where everything but the <format> is optional.
 
-  Three one-character flags are recognized:
+  Two one-character <flags> are recognized:
     '0' has the standard zero-padding semantics;
     '-' is parsed, but silently ignored;
-    '`' (backtick) is only supported for strings (%s) and means that the
-        string will be quoted according to MySQL identifier quoting rules.
 
-  Both <width> and <precision> can be specified as numbers or '*'.
-  If an asterisk is used, an argument of type int is consumed.
+  Both <length> and <precision> are the same as in the standard.
+  They can be specified as integers, or as '*' to consume an int argument.
 
-  <length modifier> can be 'l', 'll', or 'z'.
+  <size modifier> can be 'l', 'll', or 'z'.
 
-  Supported formats are 's' (null pointer is accepted, printed as
-  "(null)"), 'b' (extension, see below), 'c', 'd', 'i', 'u', 'x', 'o',
-  'X', 'p' (works as 0x%x), 'f', 'g', 'M' (extension, see below),
-  'T' (extension, see below).
+  Supported <format>s are 's' (null pointer is accepted, printed as "(null)"),
+  'c', 'd', 'i', 'u', 'x', 'X', 'o', 'p' (works as "0x%x"), 'f', and 'g'.
 
-  Standard syntax for positional arguments $n is supported.
+  The '$n' syntax for positional arguments is supported.
 
-  Extensions:
+  Format extensions:
 
-  Flag '`' (backtick): see above.
+    Format 'sQ'
+      quotes the string with '`' (backtick)s similar to "`%s`",
+      but also "escapes" existing '`'s in the string to '``' as in SQL ''''.
 
-  Format 'b': binary buffer, prints exactly <precision> bytes from the
-  argument, without stopping at '\0'.
+    Format 'sB'
+      treats the argument as a byte sequence. It reads and prints exactly
+      <precision> bytes without terminating on any '\0's in the sequence.
+      The default <precision> when it's unspecified is not defined.
 
-  Format 'M': takes one integer, prints this integer, space, double quote
-  error message, double quote. In other words
-    printf("%M", n) === printf("%d \"%s\"", n, strerror(n))
+    Format 'sT'
+      replaces the end of the printed string with "..." if it was truncated.
 
-  Format 'T': takes string and print it like s but if the strints should be
-  truncated puts "..." at the end.
+    Format 'sS'
+      is a synonym for 's'. It's an escape that avoid
+      consuming the following plain char as one of the above extension suffixes.
+      Example: "Data Class: %sSType"
+
+    Format 'iE'
+      treats the argument as an errno number. It prints this number, a space,
+      then its corresponding error message in double quotes. In other words:
+        printf("%iE", n) === printf("%i \"%sT\"", n, strerror(n))
+      Format 'dE' has no effect. Therefore, to escape '%iE', use '%dE' instead.
+
+    Unrecognized and multiple suffixes are not parsed;
+      for example, both "%sTQ" and "%iQ" will suffix with a literal 'Q'.
 */
 
 #ifdef __cplusplus
@@ -83,10 +93,13 @@ extern "C" {
 #include <stdarg.h>
 #include <stdlib.h>
 #endif
+#include <my_attribute.h>
 
 extern struct my_snprintf_service_st {
-  size_t (*my_snprintf_type)(char*, size_t, const char*, ...);
-  size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list);
+  size_t (*my_snprintf_type)(char*, size_t, const char*, ...)
+    ATTRIBUTE_FORMAT_FPTR(printf, 3, 4);
+  size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list)
+    ATTRIBUTE_FORMAT_FPTR(printf, 3, 0);
 } *my_snprintf_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -96,8 +109,10 @@ extern struct my_snprintf_service_st {
 
 #else
 
-size_t my_snprintf(char* to, size_t n, const char* fmt, ...);
-size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
+size_t my_snprintf(char* to, size_t n, const char* fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 3, 4);
+size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap)
+  ATTRIBUTE_FORMAT(printf, 3, 0);
 
 #endif
 
@@ -107,4 +122,3 @@ size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
 
 #define MYSQL_SERVICE_MY_SNPRINTF_INCLUDED
 #endif
-

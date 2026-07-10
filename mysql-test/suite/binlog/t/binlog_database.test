@@ -1,6 +1,6 @@
 # A wrapper to test that dropping a database is binlogged
 # correctly. We test all three modes in the same file to avoid
-# unecessary server restarts.
+# unnecessary server restarts.
 
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
@@ -8,6 +8,9 @@
 set binlog_format=statement;
 source include/database.test;
 set binlog_format=mixed;
+source include/database.test;
+set binlog_format=mixed;
+SET @@create_tmp_table_binlog_formats="mixed";
 source include/database.test;
 set binlog_format=row;
 source include/database.test;

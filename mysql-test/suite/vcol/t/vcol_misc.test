@@ -181,8 +181,8 @@ drop table t1,t2;
 # Bug mdev-3938: INSERT DELAYED for a table with virtual columns
 #
 
-SET @old_debug= @@global.debug;
-SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug_dbug;
+SET @old_debug= @@global.debug_dbug;
 SET GLOBAL debug_dbug= "+d,write_delay_wakeup";
 CREATE TABLE t1 (a int,
  ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -207,7 +207,9 @@ SELECT COUNT(*) FROM t1;
 INSERT INTO t1 (a,tsv) VALUES (5,DEFAULT);
 INSERT DELAYED INTO t1 (a,tsv) VALUES (6,DEFAULT);
 FLUSH TABLES WITH READ LOCK;
+--disable_view_protocol
 SELECT COUNT(*) FROM t1;
+--enable_view_protocol
 set GLOBAL debug_dbug= @old_debug;
 unlock tables;
 DROP TABLE t1;
@@ -527,4 +529,36 @@ drop table t1;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-31112 vcol circular references lead to stack overflow
+--echo #
+create table t (a int, c int as (a));
+alter table t alter column c drop default;
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+alter table t modify column a int as (c) stored;
+drop table t;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-26891 Segfault in Field::register_field_in_read_map upon INSERT DELAYED with virtual columns
+--echo #
+CREATE TABLE t (
+  id INT AUTO_INCREMENT,
+  a varchar(16) NOT NULL DEFAULT '',
+  b varchar(16) GENERATED ALWAYS AS (a) VIRTUAL,
+  KEY `col_year` (b(8),id)
+) ENGINE=MyISAM;
+
+INSERT DELAYED INTO t (a) VALUES ('foo'),('bar');
+
+# Cleanup
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

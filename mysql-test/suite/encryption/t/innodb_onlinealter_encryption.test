@@ -1,4 +1,5 @@
 -- source include/have_innodb.inc
+-- source include/skip_innodb_log_archive.inc # innodb_encrypt_log
 -- source include/have_file_key_management_plugin.inc
 # test uses restart
 -- source include/not_embedded.inc
@@ -74,8 +75,6 @@ set autocommit=1;
 -- source include/search_pattern_in_file.inc
 
 -- source include/start_mysqld.inc
-
-SET GLOBAL innodb_file_per_table = ON;
 
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;

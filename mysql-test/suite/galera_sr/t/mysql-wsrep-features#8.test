@@ -1,12 +1,12 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
-
+--source include/force_restart.inc
+--disable_ps2_protocol
 #
 # InnoDB FULLTEXT indexes
 #
-
-SET SESSION wsrep_trx_fragment_size = 1;
+--connection node_1
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 
@@ -14,11 +14,14 @@ INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 # Fulltext index creation causes the creation of multiple system tables
 #
 
---connection node_1
 CREATE TABLE t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
 
 --connection node_2
-SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
+--let $wait_condition = SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%'
+--let $wait_condition_on_error_output =
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
 
 #
 # Fulltext insertion causes a flurry of updates on those system tables
@@ -29,12 +32,18 @@ SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE '
 INSERT INTO t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
 
 --connection node_2
-SELECT COUNT(f2) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
+--let $wait_condition = SELECT COUNT(*) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz')
+--source include/wait_condition.inc
+
+SELECT COUNT(f2) AS EXPECT_10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
 
 UPDATE t1 SET f2 = 'abcdefjhk';
 
 --connection node_1
-SELECT COUNT(f2) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
+--let $wait_condition = SELECT COUNT(*) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk')
+--source include/wait_condition.inc
+
+SELECT COUNT(f2) AS EXPECT_10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
 
 --connection node_2
 
@@ -45,19 +54,33 @@ DROP TABLE t1;
 #
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
 CREATE TABLE t1 (f1 VARCHAR(100), FULLTEXT (f1)) ENGINE=InnoDB;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%'
+--source include/wait_condition.inc
+
 # We insert only 1K rows here, because updates without a PK are very slow
 INSERT INTO t1 (f1) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
 
 --connection node_1
-SELECT COUNT(f1) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('foobarbaz');
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('foobarbaz')
+--source include/wait_condition.inc
+
+SELECT COUNT(f1) AS EXPECT_1000 FROM t1 WHERE MATCH(f1) AGAINST ('foobarbaz');
 
 UPDATE t1 SET f1 = 'abcdefjhk';
+SELECT COUNT(f1) AS EXPECT_1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
 
 --connection node_2
-SELECT COUNT(f1) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk')
+--source include/wait_condition.inc
+
+SELECT COUNT(f1) AS EXPECT_1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
 
 DROP TABLE t1;
 DROP TABLE ten;
+--source include/galera_end.inc

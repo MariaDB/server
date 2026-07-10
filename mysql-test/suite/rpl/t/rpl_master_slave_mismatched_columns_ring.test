@@ -1,0 +1,141 @@
+#
+# Test ensures that, in a ring-replication topology, if a table has different
+# column layouts on different servers, replication still works.
+#
+# References:
+#   MDEV-36290: ALTER TABLE with multi-master can cause data loss
+#   MDEV-38117: Replication stops with ERROR when Primary Key is not defined
+#               in Multi Master
+#
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--let $rpl_topology= 1->2->1
+--source include/rpl_init.inc
+
+--echo #
+--echo # Initialize test data
+--connection server_1
+create table t1 ( id int, a int, b int) engine=innodb;
+--source include/rpl_sync.inc
+
+--echo # Change table layouts between servers
+--connection server_1
+set session sql_log_bin=0;
+alter table t1 add column m1col int after a;
+set session sql_log_bin=1;
+--connection server_2
+set session sql_log_bin=0;
+alter table t1 add column m2col int after a;
+set session sql_log_bin=1;
+
+--echo # Populate data on different servers
+--connection server_1
+insert into t1 values(10,10,10,10);
+insert into t1 values(11,11,11,11);
+--connection server_2
+insert into t1 values(20,20,20,20);
+insert into t1 values(21,21,21,21);
+--source include/rpl_sync.inc
+
+--echo # Server_1 should have full data rows for self-inserted rows, and
+--echo # replicated rows should have NULL for its mismatched column..
+--connection server_1
+--let $server_1_rows_with_m1col_values= `select count(*) from t1 where m1col is not null`
+--let $server_1_rows_with_m1col_null= `select count(*) from t1 where m1col is null`
+if ($server_1_rows_with_m1col_values != 2)
+{
+  --connection server_1
+  select * from t1;
+  --echo # ..FAIL : Expected 2 rows with m1col values; found $server_1_rows_with_m1col_values
+  --die
+}
+if ($server_1_rows_with_m1col_null != 2)
+{
+  --connection server_1
+  select * from t1;
+  --echo # ..FAIL : Expected 2 rows with m1col NULL; found $server_1_rows_with_m1col_null
+  --die
+}
+--echo # ..PASS
+
+--echo # Server_2 should have full data rows for self-inserted rows, and
+--echo # replicated rows should have NULL for its mismatched column..
+--connection server_2
+--let $server_2_rows_with_m2col_values= `select count(*) from t1 where m2col is not null`
+--let $server_2_rows_with_m2col_null= `select count(*) from t1 where m2col is null`
+if ($server_2_rows_with_m2col_values != 2)
+{
+  --connection server_2
+  select * from t1;
+  --echo # ..FAIL : Expected 2 rows with m2col values; found $server_2_rows_with_m2col_values
+  --die
+}
+if ($server_2_rows_with_m2col_null != 2)
+{
+  --connection server_2
+  select * from t1;
+  --echo # ..FAIL : Expected 2 rows with m2col NULL; found $server_2_rows_with_m2col_null
+  --die
+}
+--echo # ..PASS
+
+
+--echo #
+--echo # Test that UPDATE can replicate..
+--connection server_1
+update t1 set a=14 where m1col=10;
+--source include/rpl_sync.inc
+
+--connection server_1
+--let $server_1_a_is_14_count= `select count(*) from t1 where a=14`
+if ($server_1_a_is_14_count != 1)
+{
+  --connection server_1
+  select * from t1;
+  --echo # ..FAIL : Expected 1 row with a=14 on server_1; found $server_1_a_is_14_count
+  --die
+}
+
+--let $server_2_a_is_14_count= `select count(*) from t1 where a=14`
+if ($server_1_a_is_14_count != $server_2_a_is_14_count)
+{
+  --connection server_2
+  select * from t1;
+  --echo # ..FAIL : server_1 and server_2 should both have a row with a=14
+  --die
+}
+--echo # ..PASS
+
+
+--echo #
+--echo # Test that DELETE can replicate
+--connection server_1
+delete from t1 where m1col is NULL;
+--source include/rpl_sync.inc
+
+--let $server_1_n_rows= `select count(*) from t1`
+if ($server_1_n_rows != 2)
+{
+  --connection server_1
+  select * from t1;
+  --echo # ..FAIL : Expected 2 rows on server_1; found $server_1_n_rows
+  --die
+}
+
+--let $server_2_n_rows= `select count(*) from t1`
+if ($server_1_n_rows != $server_2_n_rows)
+{
+  --connection server_2
+  select * from t1;
+  --echo # ..FAIL : server_1 and server_2 should both have 2 rows
+  --die
+}
+--echo # ..PASS
+
+
+--echo #
+--echo # Cleanup
+--connection server_1
+drop table t1;
+
+--source include/rpl_end.inc

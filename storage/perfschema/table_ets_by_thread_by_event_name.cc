@@ -99,7 +99,9 @@ table_ets_by_thread_by_event_name::get_row_count(void)
 table_ets_by_thread_by_event_name::table_ets_by_thread_by_event_name()
   : PFS_engine_table(&m_share, &m_pos),
     m_row_exists(false), m_pos(), m_next_pos()
-{}
+{
+  m_normalizer= time_normalizer::get_transaction();
+}
 
 void table_ets_by_thread_by_event_name::reset_position(void)
 {
@@ -109,7 +111,6 @@ void table_ets_by_thread_by_event_name::reset_position(void)
 
 int table_ets_by_thread_by_event_name::rnd_init(bool scan)
 {
-  m_normalizer= time_normalizer::get(transaction_timer);
   return 0;
 }
 

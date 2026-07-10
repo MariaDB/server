@@ -1,6 +1,5 @@
 source include/have_debug_sync.inc;
 source include/not_embedded.inc;
-source include/count_sessions.inc;
 
 --echo #
 --echo # MDEV-20466: SHOW PROCESSLIST truncates query text on \0 bytes
@@ -54,8 +53,5 @@ source include/wait_condition.inc;
 evalp SHOW EXPLAIN FOR $con_id;
 evalp KILL QUERY $con_id;
 disconnect con1;
-source include/wait_until_count_sessions.inc;
 
---echo #
 --echo # End of 10.2 tests
---echo #

@@ -17,6 +17,7 @@ drop table if exists t1, t2;
 CREATE TABLE t1 (a INT,b INT,KEY a (a,b));
 INSERT INTO `t1` VALUES (0,580092),(3000,894076),(4000,805483),(4000,913540),(6000,611137),(8000,171602),(9000,599495),(9000,746305),(10000,272829),(10000,847519),(12000,258869),(12000,929028),(13000,288970),(15000,20971),(15000,105839),(16000,788272),(17000,76914),(18000,827274),(19000,802258),(20000,123677),(20000,587729),(22000,701449),(25000,31565),(25000,230782),(25000,442887),(25000,733139),(25000,851020);
 
+SELECT COUNT(*) from t1 where a IN (10000, 1000000, 3000);
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 
 alter table t1 partition by hash(a) partitions 1;
@@ -941,7 +942,14 @@ drop table t1, t2;
 --echo # Bug#50939: Loose Index Scan unduly relies on engine to remember range 
 --echo # endpoints
 --echo #
+
 CREATE TABLE t1 (
+ a INT,
+ b INT,
+ KEY ( a, b )
+);
+
+CREATE TABLE t1_part (
  a INT,
  b INT,
  KEY ( a, b )
@@ -959,26 +967,38 @@ INSERT INTO t1 SELECT a +  5, b +  5 FROM t1;
 INSERT INTO t1 SELECT a + 10, b + 10 FROM t1;
 INSERT INTO t1 SELECT a + 20, b + 20 FROM t1;
 INSERT INTO t1 SELECT a + 40, b + 40 FROM t1;
+INSERT INTO t1 values(10,0),(10,1),(10,2),(100,0),(100,1);
+select count(*) from t1;
+select count(*) from t1 where a=10;
+select count(*) from t1 where a=100;
 
+INSERT INTO t1_part SELECT * FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
 
-ANALYZE TABLE t1,t2;
+ANALYZE TABLE t1_part,t2;
 
 --echo # plans should be identical
-EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10,100) GROUP BY a;
+EXPLAIN SELECT a, MAX(b) FROM t1_part WHERE a IN (10,100) GROUP BY a;
 EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
 
+# view protocol will cause changed table counters
+--disable_view_protocol
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH status;
-SELECT a, MAX(b) FROM t1 WHERE a IN (10, 100) GROUP BY a;
---echo # Should be no more than 4 reads.
-SHOW status LIKE 'handler_read_key';
+SELECT a, MAX(b) FROM t1_part WHERE a IN (10, 100) GROUP BY a;
+SHOW status LIKE 'handler_read%';
 
 FLUSH status;
 SELECT a, MAX(b) FROM t2 WHERE a IN (10, 100) GROUP BY a;
---echo # Should be no more than 4 reads.
-SHOW status LIKE 'handler_read_key';
+SHOW status LIKE 'handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
+--enable_view_protocol
+insert into t2 select 100,seq from seq_1_to_100;
+EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
+
+DROP TABLE t1,t1_part,t2;
 
 --echo #
 --echo # MDEV-18501 Partition pruning doesn't work for historical queries
@@ -1007,7 +1027,7 @@ insert into t1 values
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
-DROP TABLE t1, t2;
+DROP TABLE t1;
 
 --echo #
 --echo # MDEV-21195 INSERT chooses wrong partition for RANGE partitioning by DECIMAL column

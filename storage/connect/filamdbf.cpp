@@ -437,7 +437,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
     /************************************************************************/
     char buf[64];
 
-    sprintf(buf,
+    snprintf(buf, sizeof(buf),
       "Ver=%02x ncol=%hu nlin=%u lrecl=%hu headlen=%hu date=%02d/%02d/%02d",
       hp->Version, fields, hp->Records, hp->Reclen,
       hp->Headlen, hp->Filedate[0], hp->Filedate[1],
@@ -643,7 +643,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   {
   char c;
   int  rc;
-  int len;
+  int len= 0;
   MODE mode = Tdbp->GetMode();
 
   Buflen = Blksize;

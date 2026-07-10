@@ -52,14 +52,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `w` varbinary(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 select weight_string(repeat('t',66000)) as w;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `w` mediumblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select weight_string(NULL);
 weight_string(NULL)
@@ -69,7 +69,7 @@ weight_string	reverse
 1	2
 select coercibility(weight_string('test'));
 coercibility(weight_string('test'))
-4
+6
 select coercibility(weight_string('test' collate latin1_swedish_ci));
 coercibility(weight_string('test' collate latin1_swedish_ci))
 0
@@ -78,7 +78,7 @@ insert into t1 values ('a'),(null);
 select hex(weight_string(s1)) from t1 order by s1;
 hex(weight_string(s1))
 NULL
-41
+2075
 drop table t1;
 #
 # BUG#11898467 - SERVER CRASHES ON SELECT HEX(WEIGHT_STRING(STR AS [CHAR|BINARY](N))) IF N IS BIG 
@@ -155,9 +155,9 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARBINARY(10) DEFAULT WEI
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) DEFAULT NULL,
+  `a` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `b` varbinary(10) DEFAULT weight_string(`a`,0,10,65)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('a');
 SELECT a, HEX(b) FROM t1;
 a	HEX(b)

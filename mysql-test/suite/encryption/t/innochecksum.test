@@ -7,6 +7,7 @@
 # Require InnoDB
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
+-- source include/skip_innodb_log_archive.inc # depends on innodb_log_archive=OFF checkpoint logic
 -- source include/innodb_page_size_small.inc
 -- source include/innodb_checksum_algorithm.inc
 -- source include/maybe_debug.inc
@@ -26,7 +27,6 @@ call mtr.add_suppression("InnoDB: Crash recovery is broken due to insufficient i
 --enable_query_log
 
 let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 
@@ -300,4 +300,26 @@ if (0 && $have_debug) { # these messages sometimes fail to appear
 --move_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
 
 --source include/start_mysqld.inc
+
+--echo # Trigger AHI and test pages_hashed, pages_old as non zero from sys view
+
+SELECT STRAIGHT_JOIN COUNT(t6a.a)
+FROM t6 AS t6a, t6 AS t6b, t6 AS t6c
+WHERE t6a.a = t6b.a AND t6c.a = t6a.a;
+
+let $no_ps=`SELECT count(*)=0 FROM information_schema.engines WHERE
+      (support = 'YES' OR support = 'DEFAULT') AND
+      engine = 'PERFORMANCE_SCHEMA'`;
+
+if ($no_ps) {
+--echo SELECT SUM(pages_hashed)>0 `1`, SUM(pages_old)>0 `1`
+--echo FROM sys.innodb_buffer_stats_by_table;
+--echo 1	1
+--echo 1	1
+}
+if (!$no_ps) {
+SELECT SUM(pages_hashed)>0 `1`, SUM(pages_old)>0 `1`
+FROM sys.innodb_buffer_stats_by_table;
+}
+
 DROP TABLE t1, t2, t3, t4, t5, t6;

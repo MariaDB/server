@@ -1,7 +1,8 @@
-connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
-connection node_2a;
 connection node_2;
 connection node_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_3;
 RESET MASTER;
@@ -88,8 +89,13 @@ COUNT(*) = 1
 set session wsrep_sync_wait=0;
 STOP SLAVE;
 RESET SLAVE;
+SET GLOBAL gtid_slave_pos = "";
 SET DEBUG_SYNC = "RESET";
 DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
+connection node_1;
+disconnect node_2a;
+disconnect node_3;

@@ -279,8 +279,8 @@ static const struct my_cs_file_section_st
 
 typedef struct my_cs_file_info
 {
-  char   csname[MY_CS_NAME_SIZE];
-  char   name[MY_CS_NAME_SIZE];
+  char   csname[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char   name[MY_CS_COLLATION_NAME_SIZE];
   uchar  ctype[MY_CS_CTYPE_TABLE_SIZE];
   uchar  to_lower[MY_CS_TO_LOWER_TABLE_SIZE];
   uchar  to_upper[MY_CS_TO_UPPER_TABLE_SIZE];
@@ -388,7 +388,8 @@ tailoring_append(MY_XML_PARSER *st,
   if (MY_XML_OK == my_charset_file_tailoring_realloc(i, newlen))
   {
     char *dst= i->tailoring + i->tailoring_length;
-    sprintf(dst, fmt, (int) len, attr);
+    snprintf(dst, i->tailoring_alloced_length - i->tailoring_length,
+             fmt, (int) len, attr);
     i->tailoring_length+= strlen(dst);
     return MY_XML_OK;
   }
@@ -407,7 +408,8 @@ tailoring_append2(MY_XML_PARSER *st,
   if (MY_XML_OK == my_charset_file_tailoring_realloc(i, newlen))
   {
     char *dst= i->tailoring + i->tailoring_length;
-    sprintf(dst, fmt, (int) len1, attr1, (int) len2, attr2);
+    snprintf(dst, i->tailoring_alloced_length - i->tailoring_length,
+             fmt, (int) len1, attr1, (int) len2, attr2);
     i->tailoring_length+= strlen(dst);
     return MY_XML_OK;
   }
@@ -608,11 +610,11 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     i->cs.primary_number= strtol(attr,(char**)NULL,10);
     break;
   case _CS_COLNAME:
-    i->cs.coll_name.str= mstr(i->name,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.coll_name.str= mstr(i->name,attr,len,MY_CS_COLLATION_NAME_SIZE-1);
     i->cs.coll_name.length= strlen(i->cs.coll_name.str);
     break;
   case _CS_CSNAME:
-    i->cs.cs_name.str= mstr(i->csname,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.cs_name.str= mstr(i->csname,attr,len,MY_CS_CHARACTER_SET_NAME_SIZE-1);
     i->cs.cs_name.length= strlen(i->cs.cs_name.str);
     break;
   case _CS_CSDESCRIPT:
@@ -675,7 +677,10 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     /* 1, 2, 3, 4, 5, or primary, secondary, tertiary, quaternary, identical */
     rc= tailoring_append(st, "[strength %.*s]", len, attr);
     if (len && attr[0] >= '1' && attr[0] <= '9')
-      i->cs.levels_for_order= attr[0] - '0';
+    {
+      uint strength= attr[0] - '0';
+      my_ci_set_strength(&i->cs, MY_MIN(strength, MY_UCA_WEIGHT_LEVELS));
+    }
     break;
 
   case _CS_ST_ALTERNATE:
@@ -827,10 +832,11 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
     if (sizeof(loader->error) > 32 + strlen(errstr))
     {
       /* We cannot use my_snprintf() here. See previous comment. */
-      sprintf(loader->error, "at line %d pos %d: %s",
-                my_xml_error_lineno(&p)+1,
-                (int) my_xml_error_pos(&p),
-                my_xml_error_string(&p));
+      snprintf(loader->error, sizeof(loader->error),
+               "at line %d pos %d: %s",
+               my_xml_error_lineno(&p)+1,
+               (int) my_xml_error_pos(&p),
+               my_xml_error_string(&p));
     }
   }
   return rc;
@@ -843,6 +849,8 @@ my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
   const char *strend;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
     return MY_REPERTOIRE_UNICODE30;
+  if (!str) // Avoid UBSAN nullptr-with-offset
+    return MY_REPERTOIRE_ASCII;
   for (strend= str + length; str < strend; str++)
   {
     if (((uchar) *str) > 0x7F)
@@ -868,7 +876,7 @@ static void
 my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
                           CHARSET_INFO *cs, const char *str, ulong length)
 {
-  const char *strend= str + length;
+  const char *strend= str ? str + length : NULL; // Avoid UB nullptr+0
   for (my_string_metadata_init(metadata) ;
        str < strend;
        metadata->char_length++)
@@ -1238,21 +1246,28 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 
   length= length2= MY_MIN(to_length, from_length);
 
-#if defined(__i386__) || defined(__x86_64__)
-  /*
-    Special loop for i386, it allows to refer to a
-    non-aligned memory block as UINT32, which makes
-    it possible to copy four bytes at once. This
-    gives about 10% performance improvement comparing
-    to byte-by-byte loop.
-  */
-  for ( ; length >= 4; length-= 4, from+= 4, to+= 4)
+#if SIZEOF_SIZE_T <= 8
+  for (size_t f; length >= sizeof f;
+       length-= sizeof f, from+= sizeof f, to+= sizeof f)
   {
-    if ((*(uint32*)from) & 0x80808080)
-      break;
-    *((uint32*) to)= *((const uint32*) from);
+    memcpy(&f, from, sizeof f);
+    if (f & (size_t) 0x8080808080808080ULL)
+      goto nonascii;
+    memcpy(to, from, sizeof f);
   }
-#endif /* __i386__ */
+# if SIZEOF_SIZE_T > 4
+  if (length >= 4)
+  {
+    uint32 f;
+    memcpy(&f, from, 4);
+    if (f & 0x80808080U)
+      goto nonascii;
+    memcpy(to, from, 4);
+    length-= 4, to+= 4, from+= 4;
+  }
+# endif
+ nonascii:
+#endif
 
   for (; ; *to++= *from++, length--)
   {
@@ -1382,4 +1397,67 @@ int my_strnncollsp_nchars_generic_8bit(CHARSET_INFO *cs,
   set_if_smaller(len2, nchars);
   DBUG_ASSERT((cs->state & MY_CS_NOPAD) == 0);
   return cs->coll->strnncollsp(cs, str1, len1, str2, len2);
+}
+
+
+uint my_ci_get_id_generic(CHARSET_INFO *cs, my_collation_id_type_t type)
+{
+  return cs->number;
+}
+
+
+LEX_CSTRING my_ci_get_collation_name_generic(CHARSET_INFO *cs,
+                                             my_collation_name_mode_t mode)
+{
+  return cs->coll_name;
+}
+
+
+uint my_casefold_multiply_1(CHARSET_INFO *cs)
+{
+  return 1;
+}
+
+
+uint my_casefold_multiply_2(CHARSET_INFO *cs)
+{
+  return 2;
+}
+
+
+my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other)
+{
+  return FALSE;
+}
+
+
+/*
+  Allocate a memory block for a new charset_info_st together with
+  its name and its comment in a single once_alloc() call.
+  Copy the name and the comment into the new block.
+*/
+struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
+                                    const LEX_CSTRING name,
+                                    LEX_CSTRING *out_name,
+                                    const LEX_CSTRING comment,
+                                    LEX_CSTRING *out_comment)
+{
+  size_t nbytes= sizeof(struct charset_info_st) +
+                 name.length + comment.length + 2;
+  struct charset_info_st *csinfo;
+  char *dst;
+  if (!(csinfo= (struct charset_info_st*) (loader->once_alloc)(nbytes)))
+    return NULL;
+  dst= ((char*) csinfo) + sizeof(struct charset_info_st);
+
+  memcpy(dst, name.str, name.length + 1);
+  out_name->str= dst;
+  out_name->length= name.length;
+  dst+= name.length + 1;
+
+  memcpy(dst, comment.str, comment.length + 1);
+  out_comment->str= dst;
+  out_comment->length= comment.length;
+
+  return csinfo;
 }

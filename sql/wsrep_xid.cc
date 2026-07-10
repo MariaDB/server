@@ -1,4 +1,4 @@
-/* Copyright 2015 Codership Oy <http://www.codership.com>
+/* Copyright 2015-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
 #include <mysql/service_wsrep.h>
 
 #include <algorithm> /* std::sort() */
+#include <string>    /* std::string */
+#include <sstream>   /* std::stringstream */
 /*
  * WSREPXid
  */
@@ -39,6 +41,14 @@
 #define WSREP_XID_GTRID_LEN_V_1_2 (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
 #define WSREP_XID_RPL_GTID_OFFSET (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
 #define WSREP_XID_GTRID_LEN_V_3 (WSREP_XID_RPL_GTID_OFFSET + sizeof(wsrep_server_gtid_t))
+
+void inline wsrep_xid_init(XID *xid)
+{
+  xid->null();
+  xid->gtrid_length= 0;
+  xid->bqual_length= 0;
+  memset(xid->data, 0, sizeof(xid->data));
+}
 
 void wsrep_xid_init(XID* xid, const wsrep::gtid& wsgtid, const wsrep_server_gtid_t& gtid)
 {
@@ -119,11 +129,7 @@ static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
 
   if (hton->set_checkpoint)
   {
-    const unsigned char* uuid= wsrep_xid_uuid(xid);
-    char uuid_str[40]= {0, };
-    wsrep_uuid_print((const wsrep_uuid_t*)uuid, uuid_str, sizeof(uuid_str));
-    WSREP_DEBUG("Set WSREPXid for InnoDB:  %s:%lld",
-                uuid_str, (long long)wsrep_xid_seqno(xid));
+    WSREP_DEBUG("Set WSREPXid for InnoDB:  %s", wsrep_xid_print(xid).c_str());
     hton->set_checkpoint(hton, xid);
   }
   return FALSE;
@@ -150,12 +156,7 @@ static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
   if (hton->get_checkpoint)
   {
     hton->get_checkpoint(hton, xid);
-    wsrep_uuid_t uuid;
-    memcpy(&uuid, wsrep_xid_uuid(xid), sizeof(uuid));
-    char uuid_str[40]= {0, };
-    wsrep_uuid_print(&uuid, uuid_str, sizeof(uuid_str));
-    WSREP_DEBUG("Read WSREPXid from InnoDB:  %s:%lld",
-                uuid_str, (long long)wsrep_xid_seqno(xid));
+    WSREP_DEBUG("Read WSREPXid from InnoDB:  %s", wsrep_xid_print(xid).c_str());
   }
   return FALSE;
 }
@@ -168,8 +169,6 @@ bool wsrep_get_SE_checkpoint(XID& xid)
 
 static bool wsrep_get_SE_checkpoint_common(XID& xid)
 {
-  xid.null();
-
   if (wsrep_get_SE_checkpoint(xid))
   {
     return FALSE;
@@ -193,6 +192,7 @@ template<>
 wsrep::gtid wsrep_get_SE_checkpoint()
 {
   XID xid;
+  wsrep_xid_init(&xid);
 
   if (!wsrep_get_SE_checkpoint_common(xid))
   {
@@ -206,6 +206,7 @@ template<>
 wsrep_server_gtid_t wsrep_get_SE_checkpoint()
 {
   XID xid;
+  wsrep_xid_init(&xid);
   wsrep_server_gtid_t gtid= {0,0,0};
 
   if (!wsrep_get_SE_checkpoint_common(xid))
@@ -251,4 +252,30 @@ struct Wsrep_xid_cmp
 void wsrep_sort_xid_array(XID *array, int len)
 {
   std::sort(array, array + len, Wsrep_xid_cmp());
+}
+
+std::string wsrep_xid_print(const XID *xid)
+{
+  std::stringstream ss;
+  const unsigned char* uuid= wsrep_xid_uuid(xid);
+  char uuid_str[40]= {0, };
+  wsrep_uuid_print((const wsrep_uuid_t*)uuid, uuid_str, sizeof(uuid_str));
+  wsrep_server_gtid_t gtid= {0,0,0};
+  memcpy(&gtid, &xid->data[WSREP_XID_RPL_GTID_OFFSET], sizeof(wsrep_server_gtid_t));
+  ss << uuid_str << ":" << wsrep_xid_seqno(xid) << " " << gtid.domain_id << "-"
+     << gtid.server_id << "-" << gtid.seqno;
+  return ss.str();
+}
+
+bool wsrep_is_xid_gtid_undefined(const XID *xid)
+{
+  wsrep_server_gtid_t gtid= {0,0,0};
+
+  if (wsrep_is_wsrep_xid(xid) &&
+      xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_3)
+  {
+    memcpy(&gtid, &xid->data[WSREP_XID_RPL_GTID_OFFSET], sizeof(wsrep_server_gtid_t));
+  }
+
+  return (gtid.seqno == 0 && gtid.server_id == 0 && gtid.domain_id == 0);
 }

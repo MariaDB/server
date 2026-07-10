@@ -1,0 +1,34 @@
+create table t1 (id int unsigned not null auto_increment primary key, a text, b text) engine=innodb;
+start transaction;
+load data infile 'LOAD_FILE' ignore into table t1 fields terminated by ',' enclosed by '''' (a, b);
+Warnings:
+Warning	1261	Row 3 doesn't contain data for all columns
+commit;
+select count(*) from t1;
+count(*)
+4
+truncate table t1;
+start transaction;
+load data infile 'LOAD_FILE' ignore into table t1 fields terminated by ',' enclosed by '''' (a, b);
+Warnings:
+Warning	1261	Row 3 doesn't contain data for all columns
+rollback;
+select count(*) from t1;
+count(*)
+0
+drop table t1;
+#
+# MDEV-35354 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON upon LOAD DATA REPLACE with unique blob
+#
+create table t1 (id int primary key, a varchar(1024), b int, unique(a,id,b)) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` varchar(1024) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `a` (`a`,`id`,`b`) USING HASH
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+load data infile 'MYSQLTEST_VARDIR/tmp/load.data' replace into table t1 fields terminated by ';';
+drop table t1;

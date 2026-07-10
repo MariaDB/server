@@ -70,7 +70,7 @@ struct st_irem
   uint32 marker;               /* Underrun marker value           */
 };
 
-static int    sf_malloc_count= 0;              /* Number of allocated chunks */
+static uint   sf_malloc_count= 0;              /* Number of allocated chunks */
 
 static void  *sf_min_adress= (void*) (intptr)~0ULL,
              *sf_max_adress= 0;
@@ -362,7 +362,7 @@ int sf_sanity()
 {
   struct st_irem *irem;
   int flag= 0;
-  int count= 0;
+  uint count= 0;
 
   pthread_mutex_lock(&sf_mutex);
   count= sf_malloc_count;
@@ -372,7 +372,7 @@ int sf_sanity()
   if (count || irem)
   {
     warn("Error: Safemalloc link list destroyed");
-    flag= 1;
+    flag++;
   }
   return flag;
 }
@@ -383,10 +383,11 @@ int sf_sanity()
   @param id	Id of thread to report. 0 if all
 */
 
-void sf_report_leaked_memory(my_thread_id id)
+my_bool sf_report_leaked_memory(my_thread_id id)
 {
   size_t total= 0;
   struct st_irem *irem;
+  uint first= 0, chunks= 0;
 
   sf_sanity();
 
@@ -398,16 +399,19 @@ void sf_report_leaked_memory(my_thread_id id)
     {
       my_thread_id tid = irem->thread_id && irem->flags & MY_THREAD_SPECIFIC ?
                          irem->thread_id : 0;
+      if (!first++)
+        fprintf(stderr, "Memory report from safemalloc\n");
       fprintf(stderr, "Warning: %4lu bytes lost at %p, allocated by T@%llu at ",
               (ulong) irem->datasize, (char*) (irem + 1), tid);
       print_stack(irem->frame);
       total+= irem->datasize;
+      chunks++;
     }
   }
   if (total)
-    fprintf(stderr, "Memory lost: %lu bytes in %d chunks\n",
-            (ulong) total, sf_malloc_count);
-  return;
+    fprintf(stderr, "Memory lost: %lu bytes in %u chunks of %u total chunks\n",
+            (ulong) total, chunks, sf_malloc_count);
+  return total != 0;
 }
 
 static void sf_terminate()
@@ -416,6 +420,11 @@ static void sf_terminate()
     sf_report_leaked_memory(0);
 
   pthread_mutex_destroy(&sf_mutex);
+}
+
+my_bool sf_have_memory_leak()
+{
+  return sf_malloc_root != 0;
 }
 
 #endif

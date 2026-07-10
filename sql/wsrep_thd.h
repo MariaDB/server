@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -82,7 +82,7 @@ private:
   mysql_cond_t     COND_wsrep_thd_queue;
 };
 
-int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, void *, system_status_var *,
                           enum enum_var_type scope);
 bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();
@@ -198,6 +198,18 @@ void wsrep_store_threadvars(THD *);
 */
 void wsrep_reset_threadvars(THD *);
 
+static inline enum wsrep::client_error wsrep_current_error(const THD* thd)
+{
+  return thd->wsrep_cs().current_error();
+}
+ 
+static inline enum wsrep::provider::status
+  wsrep_current_error_status(const THD* thd)
+{
+  return thd->wsrep_cs().current_error_status();
+}
+
+
 /**
    Helper functions to override error status
 
@@ -237,25 +249,13 @@ static inline void wsrep_override_error(THD* thd,
                                         wsrep::client_error ce,
                                         enum wsrep::provider::status status)
 {
-    DBUG_ASSERT(ce != wsrep::e_success);
-    switch (ce)
-    {
-    case wsrep::e_error_during_commit:
-      if (status == wsrep::provider::error_size_exceeded)
-        wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
-      else
-        wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, 0, status);
-      break;
-    case wsrep::e_deadlock_error:
-      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-      break;
-    case wsrep::e_interrupted_error:
-      wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
-      break;
-    case wsrep::e_size_exceeded_error:
+  DBUG_ASSERT(ce != wsrep::e_success);
+  switch (ce)
+  {
+  case wsrep::e_error_during_commit:
+    if (status == wsrep::provider::error_size_exceeded)
       wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
-      break;
-    case wsrep::e_append_fragment_error:
+    else
       /* TODO: Figure out better error number */
       if (status)
         wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
@@ -265,17 +265,46 @@ static inline void wsrep_override_error(THD* thd,
       else
         wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
                              "Error while appending streaming replication fragment");
-      break;
-    case wsrep::e_not_supported_error:
-      wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
-      break;
-    case wsrep::e_timeout_error:
-      wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+    break;
+  case wsrep::e_deadlock_error:
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_XA_END:
+    case SQLCOM_XA_PREPARE:
+      wsrep_override_error(thd, ER_XA_RBDEADLOCK);
       break;
     default:
-      wsrep_override_error(thd, ER_UNKNOWN_ERROR);
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
       break;
     }
+    break;
+  case wsrep::e_interrupted_error:
+    wsrep_report_query_interrupted(thd, __FILE__, __LINE__);
+    wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
+    break;
+  case wsrep::e_size_exceeded_error:
+    wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
+    break;
+  case wsrep::e_append_fragment_error:
+    /* TODO: Figure out better error number */
+    if (status)
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
+                           "Error while appending streaming replication fragment"
+                           "(provider status: %s)",
+                           wsrep::provider::to_string(status).c_str());
+    else
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
+                           "Error while appending streaming replication fragment");
+    break;
+  case wsrep::e_not_supported_error:
+    wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
+    break;
+  case wsrep::e_timeout_error:
+    wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+    break;
+  default:
+    wsrep_override_error(thd, ER_UNKNOWN_ERROR);
+  }
 }
 
 /**

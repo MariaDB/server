@@ -1,0 +1,212 @@
+######## mysql-test\suite\sys_vars\t\transaction_isolation_basic.test #########
+#                                                                             #
+# Variable Name: transaction_isolation                                        #
+# Scope: GLOBAL | SESSION                                                     #
+# Access Type: Dynamic                                                        #
+# Data Type: enumeration                                                      #
+# Default Value: REPEATABLE-READ                                              #
+# Valid Values: READ-UNCOMMITTED, READCOMMITTED, REPEATABLE-READ,SERIALIZABLE #
+#                                                                             #
+#                                                                             #
+# Creation Date: 2008-02-07                                                   #
+# Author:  Rizwan                                                             #
+#                                                                             #
+# Description: Test Cases of Dynamic System Variable transaction_isolation    #
+#              that checks the behavior of this variable in the following ways#
+#              * Default Value                                                #
+#              * Valid & Invalid values                                       #
+#              * Scope & Access method                                        #
+#              * Data Integrity                                               #
+#                                                                             #
+# Reference: http://dev.mysql.com/doc/refman/5.1/en/                          #
+#  server-system-variables.html                                               #
+#                                                                             #
+###############################################################################
+
+--source include/load_sysvars.inc
+
+######################################################################## 
+#                    START OF transaction_isolation TESTS              #
+######################################################################## 
+
+
+#########################################################################
+# Saving initial value of transaction_isolation in a temporary variable #
+#########################################################################
+
+SET @global_start_value = @@global.transaction_isolation;
+SELECT @global_start_value;
+
+SET @session_start_value = @@session.transaction_isolation;
+SELECT @session_start_value;
+
+--echo '#--------------------FN_DYNVARS_183_01------------------------#'
+####################################################################
+#           Display the DEFAULT value of transaction_isolation     #
+####################################################################
+
+SET @@global.transaction_isolation = 'READ-UNCOMMITTED';
+SET @@global.transaction_isolation = DEFAULT;
+SELECT @@global.transaction_isolation;
+
+SET @@session.transaction_isolation = DEFAULT;
+SELECT @@session.transaction_isolation;
+
+--echo '#---------------------FN_DYNVARS_183_02-------------------------#'
+######################################################### 
+#      Check if NULL or empty value is accepeted        #
+######################################################### 
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = NULL;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = '';
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.transaction_isolation = NULL;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.transaction_isolation = '';
+
+--echo '#--------------------FN_DYNVARS_183_03------------------------#'
+#####################################################################
+#     Change the value of transaction_isolation to a valid value    #
+#####################################################################
+
+SET @@global.transaction_isolation = 'READ-UNCOMMITTED';
+SELECT @@global.transaction_isolation;
+
+SET @@global.transaction_isolation = 'read-COMMITTED';
+SELECT @@global.transaction_isolation;
+
+SET @@global.transaction_isolation = 'REPEATABLE-READ';
+SELECT @@global.transaction_isolation;
+
+SET @@global.transaction_isolation = 'SERIALIZable';
+SELECT @@global.transaction_isolation;
+
+
+SET @@session.transaction_isolation = 'READ-UNCOMMITTED';
+SELECT @@session.transaction_isolation;
+
+SET @@session.transaction_isolation = 'READ-COMMITTED';
+SELECT @@session.transaction_isolation;
+
+SET @@session.transaction_isolation = 'REPEATABLE-READ';
+SELECT @@session.transaction_isolation;
+
+SET @@session.transaction_isolation = 'serializable';
+SELECT @@session.transaction_isolation;
+
+
+--echo '#--------------------FN_DYNVARS_183_04-------------------------#'
+#######################################################################
+#      Change the value of transaction_isolation to invalid value     #
+#######################################################################
+
+# for global scope
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = -1;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = READUNCOMMITTED;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = 'REPEATABLE';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = OFF;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = ON;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.transaction_isolation = 'NON-SERIALIZABLE';
+
+# for session scope
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@transaction_isolation = -1;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@transaction_isolation = READUNCOMMITTED;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@transaction_isolation = 'REPEATABLE';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@transaction_isolation = 'NONE';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@transaction_isolation = 'ALL';
+
+--echo '#-------------------FN_DYNVARS_183_05----------------------------#'
+######################################################################### 
+#     Check if the value in session Table matches value in variable     #
+#########################################################################
+
+SELECT @@session.transaction_isolation = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='transaction_isolation';
+
+--echo '#----------------------FN_DYNVARS_183_06------------------------#'
+######################################################################### 
+#     Check if the value in GLOBAL Table matches value in variable      #
+#########################################################################
+
+SELECT @@global.transaction_isolation = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='transaction_isolation';
+
+
+--echo '#---------------------FN_DYNVARS_183_07-------------------------#'
+################################################################### 
+#        Check if numbers can be used on variable                 #
+################################################################### 
+
+# test if variable accepts 0,1,2
+SET @@global.transaction_isolation = 0;
+SELECT @@global.transaction_isolation;
+
+SET @@global.transaction_isolation = 1;
+SELECT @@global.transaction_isolation;
+
+SET @@global.transaction_isolation = 2;
+SELECT @@global.transaction_isolation;
+
+SET @@global.transaction_isolation = 3;
+SELECT @@global.transaction_isolation;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.transaction_isolation = 0.4;
+
+--echo '#---------------------FN_DYNVARS_183_08----------------------#'
+################################################################### 
+#      Check if TRUE and FALSE values can be used on variable     #
+################################################################### 
+
+SET @@global.transaction_isolation = TRUE;
+SELECT @@global.transaction_isolation;
+SET @@global.transaction_isolation = FALSE;
+SELECT @@global.transaction_isolation;
+
+--echo '#---------------------FN_DYNVARS_183_09----------------------#'
+###########################################################################
+# Check if transaction_isolation can be accessed with and without @@ sign #
+###########################################################################
+
+SET transaction_isolation = 'REPEATABLE-READ';
+
+#using SET SESSION|GLOBAL syntax
+SET session transaction_isolation = 'REPEATABLE-READ';
+SELECT @@transaction_isolation;
+
+SET global transaction_isolation = 'REPEATABLE-READ';
+SELECT @@global.transaction_isolation;
+
+##############################
+#   Restore initial value    #
+##############################
+
+SET @@global.transaction_isolation = @global_start_value;
+SELECT @@global.transaction_isolation;
+
+SET @@session.transaction_isolation = @session_start_value;
+SELECT @@session.transaction_isolation;
+
+####################################################################
+#           END OF transaction_isolation TESTS                     #
+####################################################################
+

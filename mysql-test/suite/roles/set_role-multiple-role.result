@@ -21,6 +21,7 @@ grant r_crt to test_user@localhost;
 grant r_drp to test_user@localhost;
 grant r_rld to test_user@localhost;
 flush privileges;
+change_user test_user,,;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 show grants;
@@ -141,6 +142,7 @@ test_user@localhost	r_sel
 insert into mysql.random_test_table values (1);
 ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table `mysql`.`random_test_table`
 drop table mysql.random_test_table;
+change_user root,,;
 delete from mysql.user where user like 'r\_%';
 delete from mysql.roles_mapping where Role like 'r\_%';
 flush privileges;

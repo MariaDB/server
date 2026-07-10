@@ -1,0 +1,163 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-create.inc
+--enable_result_log
+--enable_query_log
+
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # IS [NOT] NULL
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  SELECT
+    c0,
+    c0 IS NULL AS nl_0,
+    c0 IS NOT NULL AS nnl_0,
+    c1,
+    c1 IS NULL AS nl_1,
+    c1 IS NOT NULL AS nnl_1,
+    refs(0,3) AS refs
+  FROM seq_1_to_5;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  EXECUTE IMMEDIATE 'SELECT
+    ? AS c0,
+    ? IS NULL AS nl_0,
+    ? IS NOT NULL AS nnl_0,
+    ? AS c1,
+    ? IS NULL AS nl_1,
+    ? IS NOT NULL AS nnl_1,
+    refs(0,3) AS refs
+  FROM seq_1_to_5' USING c0, c0, c0, c1, c1, c1;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  SELECT
+    COALESCE(c0) AS c_c0,
+    COALESCE(c0) IS NULL AS nl_0,
+    COALESCE(c0) IS NOT NULL AS nnl_0,
+    COALESCE(c1) AS c_c1,
+    COALESCE(c1) IS NULL AS nl_1,
+    COALESCE(c1) IS NOT NULL AS nnl_1,
+    refs(0,3) AS refs
+  FROM seq_1_to_5;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  EXECUTE IMMEDIATE 'SELECT
+    COALESCE(?) AS c_c0,
+    COALESCE(?) IS NULL AS nl_0,
+    COALESCE(?) IS NOT NULL AS nnl_0,
+    COALESCE(?) AS c_c1,
+    COALESCE(?) IS NULL AS nl_1,
+    COALESCE(?) IS NOT NULL AS nnl_1,
+    refs(0,3) AS refs
+  FROM seq_1_to_5' USING c0, c0, c0, c1, c1, c1;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE f1c0 SYS_REFCURSOR;
+  OPEN f1c0 FOR SELECT 1;
+  RETURN f1c0;
+END;
+/
+CREATE FUNCTION f2() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE f2c0 SYS_REFCURSOR;
+  RETURN f2c0;
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  SELECT
+    f1() IS NULL AS nl_0,
+    f1() IS NOT NULL AS nnl_0,
+    f2() IS NULL AS nl_1,
+    f2() IS NOT NULL AS nnl_1,
+    refs(0,3) AS refs
+  FROM seq_1_to_5;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  SELECT
+    COALESCE(f1()) IS NULL AS nl_0,
+    COALESCE(f1()) IS NOT NULL AS nnl_0,
+    COALESCE(f2()) IS NULL AS nl_1,
+    COALESCE(f2()) IS NOT NULL AS nnl_1,
+    refs(0,3) AS refs
+  FROM seq_1_to_5;
+END;
+/
+
+DELIMITER ;/
+CALL p1;
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+
+--disable_query_log
+--disable_result_log
+--source type_sys_refcursor-helper_routines-debug-drop.inc
+--enable_result_log
+--enable_query_log

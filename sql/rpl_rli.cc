@@ -44,29 +44,29 @@ rpl_slave_state *rpl_global_gtid_slave_state;
 /* Object used for MASTER_GTID_WAIT(). */
 gtid_waiting rpl_global_gtid_waiting;
 
-const char *const Relay_log_info::state_delaying_string = "Waiting until MASTER_DELAY seconds after master executed event";
-
 Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
-  :Slave_reporting_capability(thread_name),
+  :Relay_log_info_file(), Slave_reporting_capability(thread_name),
    replicate_same_server_id(::replicate_same_server_id),
    info_fd(-1), cur_log_fd(-1), relay_log(&sync_relaylog_period),
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
    save_temporary_tables(0),
    mi(0), inuse_relaylog_list(0), last_inuse_relaylog(0),
    cur_log_old_open_count(0), error_on_rli_init_info(false),
-   group_relay_log_pos(0), event_relay_log_pos(0),
-   group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
+   event_relay_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
+   sql_thread_caught_up(true),
+   last_master_timestamp(0), newest_master_timestamp(0), slave_timestamp(0),
+   slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
-   until_log_pos(0), retried_trans(0), executed_entries(0),
-   last_trans_retry_count(0), sql_delay(0), sql_delay_end(0),
+   until_log_pos(0), is_until_before_gtids(false),
+   retried_trans(0), executed_entries(0),
+   last_trans_retry_count(0), sql_delay_end(0),
    until_relay_log_names_defer(false),
    m_flags(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
-
+  group_relay_log_pos= group_master_log_pos= sql_delay= 0;
   relay_log.is_relay_log= TRUE;
   relay_log_state.init();
 #ifdef HAVE_PSI_INTERFACE
@@ -211,7 +211,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       sql_print_warning("Neither --relay-log nor --relay-log-index were used;"
                         " so replication "
                         "may break when this MariaDB server acts as a "
-                        "replica and has its hostname changed. Please "
+                        "slave and has its hostname changed. Please "
                         "use '--log-basename=#' or '--relay-log=%s' to avoid "
                         "this problem.", ln);
       name_warning_sent= 1;
@@ -246,7 +246,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     {
       mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&data_lock);
-      sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %M", ln, my_errno);
+      sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %iE", ln, my_errno);
       DBUG_RETURN(1);
     }
     mysql_mutex_unlock(log_lock);
@@ -323,75 +323,10 @@ Failed to open the existing relay log info file '%s' (errno %d)",
       }
     }
 
-    int relay_log_pos, master_log_pos, lines;
-    char *first_non_digit;
-
-    /*
-      Starting from MySQL 5.6.x, relay-log.info has a new format.
-      Now, its first line contains the number of lines in the file.
-      By reading this number we can determine which version our master.info
-      comes from. We can't simply count the lines in the file, since
-      versions before 5.6.x could generate files with more lines than
-      needed. If first line doesn't contain a number, or if it
-      contains a number less than LINES_IN_RELAY_LOG_INFO_WITH_DELAY,
-      then the file is treated like a file from pre-5.6.x version.
-      There is no ambiguity when reading an old master.info: before
-      5.6.x, the first line contained the binlog's name, which is
-      either empty or has an extension (contains a '.'), so can't be
-      confused with an integer.
-
-      So we're just reading first line and trying to figure which
-      version is this.
-    */
-
-    /*
-      The first row is temporarily stored in mi->master_log_name, if
-      it is line count and not binlog name (new format) it will be
-      overwritten by the second row later.
-    */
-    if (init_strvar_from_file(group_relay_log_name,
-                              sizeof(group_relay_log_name),
-                              &info_file, ""))
-    {
-      msg="Error reading slave log configuration";
+    if (load_from_file())
       goto err;
-    }
-
-    lines= strtoul(group_relay_log_name, &first_non_digit, 10);
-
-    if (group_relay_log_name[0] != '\0' &&
-        *first_non_digit == '\0' &&
-        lines >= LINES_IN_RELAY_LOG_INFO_WITH_DELAY)
-    {
-      DBUG_PRINT("info", ("relay_log_info file is in new format."));
-      /* Seems to be new format => read relay log name from next line */
-      if (init_strvar_from_file(group_relay_log_name,
-                                sizeof(group_relay_log_name),
-                                &info_file, ""))
-      {
-        msg="Error reading slave log configuration";
-        goto err;
-      }
-    }
-    else
-      DBUG_PRINT("info", ("relay_log_info file is in old format."));
-
-    if (init_intvar_from_file(&relay_log_pos,
-                              &info_file, BIN_LOG_HEADER_SIZE) ||
-        init_strvar_from_file(group_master_log_name,
-                              sizeof(group_master_log_name),
-                              &info_file, "") ||
-        init_intvar_from_file(&master_log_pos, &info_file, 0) ||
-        (lines >= LINES_IN_RELAY_LOG_INFO_WITH_DELAY &&
-         init_intvar_from_file(&sql_delay, &info_file, 0)))
-    {
-      msg="Error reading slave log configuration";
-      goto err;
-    }
-
     strmake_buf(event_relay_log_name,group_relay_log_name);
-    group_relay_log_pos= event_relay_log_pos= relay_log_pos;
-    group_master_log_pos= master_log_pos;
+    event_relay_log_pos= group_relay_log_pos;
 
     if (is_relay_log_recovery && init_recovery(mi, &msg))
       goto err;
@@ -525,13 +460,7 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
   Format_description_log_event *fdev;
   bool found= false;
 
-  /*
-    By default the relay log is in binlog format 3 (4.0).
-    Even if format is 4, this will work enough to read the first event
-    (Format_desc) (remember that format 4 is just lenghtened compared to format
-    3; format 3 is a prefix of format 4).
-  */
-  fdev= new Format_description_log_event(3);
+  fdev= new Format_description_log_event(4);
 
   while (!found)
   {
@@ -546,12 +475,13 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     if (my_b_tell(cur_log) >= start_pos)
       break;
 
-    if (!(ev= Log_event::read_log_event(cur_log, fdev,
+    int read_error;
+    if (!(ev= Log_event::read_log_event(cur_log, &read_error, fdev,
                                         opt_slave_sql_verify_checksum)))
     {
-      DBUG_PRINT("info",("could not read event, cur_log->error=%d",
-                         cur_log->error));
-      if (cur_log->error) /* not EOF */
+      DBUG_PRINT("info",("could not read event, read_error=%d",
+                         read_error));
+      if (read_error) /* not EOF */
       {
         *errmsg= "I/O error reading event at position 4";
         delete fdev;
@@ -665,15 +595,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
     the description_event here, in case, so that there is no memory leak in
     running, say, CHANGE MASTER.
   */
-  delete rli->relay_log.description_event_for_exec;
-  /*
-    By default the relay log is in binlog format 3 (4.0).
-    Even if format is 4, this will work enough to read the first event
-    (Format_desc) (remember that format 4 is just lenghtened compared to format
-    3; format 3 is a prefix of format 4).
-  */
-  rli->relay_log.description_event_for_exec= new
-    Format_description_log_event(3);
+  delete rli->relay_log.description_event_for_sql_thread;
+  rli->relay_log.description_event_for_sql_thread= new Format_description_log_event(4);
 
   mysql_mutex_lock(log_lock);
 
@@ -739,8 +662,8 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
       Format_description_log_event *fdev;
       if (!(fdev= read_relay_log_description_event(rli->cur_log, pos, errmsg)))
         goto err;
-      delete rli->relay_log.description_event_for_exec;
-      rli->relay_log.description_event_for_exec= fdev;
+      delete rli->relay_log.description_event_for_sql_thread;
+      rli->relay_log.description_event_for_sql_thread= fdev;
     }
     my_b_seek(rli->cur_log,(off_t)pos);
     DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%llu rli->event_relay_log_pos=%llu",
@@ -761,7 +684,7 @@ err:
 
   if (need_data_lock)
     mysql_mutex_unlock(&rli->data_lock);
-  if (!rli->relay_log.description_event_for_exec->is_valid() && !*errmsg)
+  if (!rli->relay_log.description_event_for_sql_thread->is_valid() && !*errmsg)
     *errmsg= "Invalid Format_description log event; could be out of memory";
 
   DBUG_PRINT("info", ("Returning %d from init_relay_log_pos", (*errmsg)?1:0));
@@ -951,6 +874,11 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
     DBUG_PRINT("info",("Got signal of master update or timed out"));
     if (error == ETIMEDOUT || error == ETIME)
     {
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Timeout waiting for %s:%llu. Current pos is %s:%llu",
+                      MYF(ME_ERROR_LOG | ME_NOTE),
+                      log_name_tmp, (ulonglong) log_pos,
+                      group_master_log_name, (ulonglong) group_master_log_pos);
       error= -1;
       break;
     }
@@ -971,6 +899,17 @@ improper_arguments: %d  timed_out: %d",
   if (thd->killed || init_abort_pos_wait != abort_pos_wait ||
       !slave_running)
   {
+    const char *cause= 0;
+    if (init_abort_pos_wait != abort_pos_wait)
+      cause= "CHANGE MASTER detected";
+    else if (!slave_running)
+      cause="slave is not running";
+    else
+      cause="connection was killed";
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "master_pos_wait() was aborted because %s",
+                    MYF(ME_ERROR_LOG | ME_NOTE),
+                    cause);
     error= -2;
   }
   DBUG_RETURN( error ? error : event_count );
@@ -1011,7 +950,8 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     {
       if (cmp < 0)
       {
-        strcpy(group_master_log_name, rgi->future_event_master_log_name);
+        safe_strcpy(group_master_log_name, sizeof(group_master_log_name),
+                    rgi->future_event_master_log_name);
         group_master_log_pos= log_pos;
       }
       else if (group_master_log_pos < log_pos)
@@ -1026,9 +966,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       potentially thousands of events are still queued up for worker threads
       waiting for execution.
     */
-    if (rgi->last_master_timestamp &&
-        rgi->last_master_timestamp > last_master_timestamp)
-      last_master_timestamp= rgi->last_master_timestamp;
+    set_if_bigger(last_master_timestamp, rgi->last_master_timestamp);
   }
   else
   {
@@ -1039,6 +977,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     if (log_pos) // not 3.23 binlogs (no log_pos there) and not Stop_log_event
       group_master_log_pos= log_pos;
   }
+  set_if_bigger(slave_timestamp, rgi->last_master_timestamp);
 
   /*
     If the slave does not support transactions and replicates a transaction,
@@ -1281,7 +1220,7 @@ err:
      compare them each time this function is called, we only need to do this
      when current log name changes. If we have UNTIL_MASTER_POS condition we
      need to do this only after Rotate_log_event::do_apply_event() (which is
-     rare, so caching gives real benifit), and if we have UNTIL_RELAY_POS
+     rare, so caching gives real benefit), and if we have UNTIL_RELAY_POS
      condition then we should invalidate cached comarison value after
      inc_group_relay_log_pos() which called for each group of events (so we
      have some benefit if we have something like queries that use
@@ -1559,7 +1498,7 @@ Relay_log_info::update_relay_log_state(rpl_gtid *gtid_list, uint32 count)
   int res= 0;
   while (count)
   {
-    if (relay_log_state.update_nolock(gtid_list, false))
+    if (relay_log_state.update_nolock(gtid_list))
       res= 1;
     ++gtid_list;
     --count;
@@ -1698,7 +1637,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   MY_DIR *dirp;
 
   thd->reset_for_next_command();
-  if (lock_schema_name(thd, MYSQL_SCHEMA_NAME.str))
+  if (lock_schema_name(thd, Lex_ident_db_normalized(MYSQL_SCHEMA_NAME)))
     return 1;
 
   build_table_filename(path, sizeof(path) - 1, MYSQL_SCHEMA_NAME.str, "", "", 0);
@@ -1814,9 +1753,8 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
        ++auto_engines)
   {
     void *hton= plugin_hton(*auto_engines);
-    char buf[FN_REFLEN+1];
+    CharBuffer<FN_REFLEN> buf;
     LEX_CSTRING table_name;
-    char *p;
     rpl_slave_state::gtid_pos_table *entry, **next_ptr;
 
     /* See if this engine is already in the list. */
@@ -1833,13 +1771,12 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
       continue;
 
     /* Add an auto-create entry for this engine at end of list. */
-    p= strmake(buf, rpl_gtid_slave_state_table_name.str, FN_REFLEN);
-    p= strmake(p, "_", FN_REFLEN - (p - buf));
-    p= strmake(p, plugin_name(*auto_engines)->str, FN_REFLEN - (p - buf));
-    table_name.str= buf;
-    table_name.length= p - buf;
-    table_case_convert(const_cast<char*>(table_name.str),
-                       static_cast<uint>(table_name.length));
+    buf.append_opt_casedn(files_charset_info, rpl_gtid_slave_state_table_name,
+                          lower_case_table_names)
+       .append({STRING_WITH_LEN("_")})
+       .append_opt_casedn(files_charset_info, *plugin_name(*auto_engines),
+                          lower_case_table_names);
+    table_name= buf.to_lex_cstring();
     entry= rpl_global_gtid_slave_state->alloc_gtid_pos_table
       (&table_name, hton, rpl_slave_state::GTID_POS_AUTO_CREATE);
     if (!entry)
@@ -2004,7 +1941,7 @@ end:
   if (table)
   {
     ha_commit_trans(thd, FALSE);
-    ha_commit_trans(thd, TRUE);
+    trans_commit(thd);
     close_thread_tables(thd);
     thd->release_transactional_locks();
   }
@@ -2155,6 +2092,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ev_flags_extra= 0;
   gtid_ev_sa_seq_no= 0;
   last_master_timestamp = 0;
+  orig_exec_time= 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
   rpt= NULL;
@@ -2169,7 +2107,8 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
     gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
     reserved_start_alter_thread(0), finish_event_group_called(0), rpt(NULL),
-    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL)
+    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL),
+    is_new_trans(false), assembler(NULL)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
@@ -2180,6 +2119,8 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
 
 rpl_group_info::~rpl_group_info()
 {
+  DBUG_ASSERT(!assembler);
+
   free_annotate_event();
   delete deferred_events;
   mysql_mutex_destroy(&sleep_lock);
@@ -2262,18 +2203,19 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 }
 
 
-void rpl_group_info::cleanup_context(THD *thd, bool error)
+void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owner)
 {
   DBUG_ENTER("rpl_group_info::cleanup_context");
   DBUG_PRINT("enter", ("error: %d", (int) error));
   
   DBUG_ASSERT(this->thd == thd);
   /*
-    1) Instances of Table_map_log_event, if ::do_apply_event() was called on them,
-    may have opened tables, which we cannot be sure have been closed (because
-    maybe the Rows_log_event have not been found or will not be, because slave
-    SQL thread is stopping, or relay log has a missing tail etc). So we close
-    all thread's tables. And so the table mappings have to be cancelled.
+    1) Instances of Table_map_log_event, if ::do_apply_event() was
+    called on them, may have opened tables, which we cannot be sure
+    have been closed (because maybe the Rows_log_event have not been
+    found or will not be, because slave SQL thread is stopping, or
+    relay log has a missing tail etc). So we close all thread's
+    tables. And so the table mappings have to be cancelled.
     2) Rows_log_event::do_apply_event() may even have started statements or
     transactions on them, which we need to rollback in case of error.
     3) If finding a Format_description_log_event after a BEGIN, we also need
@@ -2282,6 +2224,11 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   */
   if (unlikely(error))
   {
+    /*
+      We have to reset the error as otherwise we get an assert in
+      trans_rollback() when it checks if the rollback caused an error.
+    */
+    thd->clear_error();
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
@@ -2317,7 +2264,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       Ensure we always release the domain for others to process, when using
       --gtid-ignore-duplicates.
     */
-    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL && !keep_domain_owner)
       rpl_global_gtid_slave_state->release_domain_owner(this);
   }
 
@@ -2396,7 +2343,17 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
 {
   DBUG_ENTER("rpl_group_info::slave_close_thread_tables(THD *thd)");
   thd->get_stmt_da()->set_overwrite_status(true);
-  thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+#ifdef WITH_WSREP
+  // This can happen e.g. when table_def::compatible_with fails and sets a error
+  // but thd->is_error() is false then. However, we do not want to commit
+  // statement on Galera instead we want to rollback it as later in
+  // apply_write_set we rollback transaction and that can't be done
+  // after wsrep transaction state is s_committed.
+  if (WSREP(thd))
+    (thd->is_error() || thd->is_slave_error) ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
+  else
+#endif
+    thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
   thd->get_stmt_da()->set_overwrite_status(false);
 
   close_thread_tables(thd);
@@ -2486,7 +2443,7 @@ rpl_group_info::mark_start_commit()
   If no GTID is available, then NULL is returned.
 */
 char *
-rpl_group_info::gtid_info()
+rpl_group_info::gtid_info() const
 {
   if (!gtid_sub_id || !current_gtid.seq_no)
     return NULL;
@@ -2520,6 +2477,23 @@ rpl_group_info::unmark_start_commit()
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
+  /*
+    Assert that we have not already wrongly completed this GCO and signalled
+    the next one to start, only to now unmark and make the signal invalid.
+    This is to catch problems like MDEV-34696.
+
+    The error inject rpl_parallel_simulate_temp_err_xid is used to test this
+    precise situation, that we handle it gracefully if it somehow occurs in a
+    release build. So disable the assert in this case.
+  */
+#ifndef DBUG_OFF
+  bool allow_unmark_after_complete= false;
+  DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
+                  allow_unmark_after_complete= true;);
+  DBUG_ASSERT(!gco->next_gco ||
+              gco->next_gco->wait_count > e->count_committing_event_groups ||
+              allow_unmark_after_complete);
+#endif
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
 }
@@ -2581,11 +2555,6 @@ bool rpl_sql_thread_info::cached_charset_compare(char *charset) const
   - Error can happen if writing to file fails or if flushing the file
     fails.
 
-  @param rli The object representing the Relay_log_info.
-
-  @todo Change the log file information to a binary format to avoid
-  calling longlong2str.
-
   @return 0 on success, 1 on error.
 */
 bool Relay_log_info::flush()
@@ -2595,23 +2564,7 @@ bool Relay_log_info::flush()
   DBUG_ENTER("Relay_log_info::flush()");
 
   IO_CACHE *file = &info_file;
-  // 2*file name, 2*long long, 2*unsigned long, 6*'\n'
-  char buff[FN_REFLEN * 2 + 22 * 2 + 10 * 2 + 6], *pos;
-  my_b_seek(file, 0L);
-  pos= longlong10_to_str(LINES_IN_RELAY_LOG_INFO_WITH_DELAY, buff, 10);
-  *pos++='\n';
-  pos=strmov(pos, group_relay_log_name);
-  *pos++='\n';
-  pos=longlong10_to_str(group_relay_log_pos, pos, 10);
-  *pos++='\n';
-  pos=strmov(pos, group_master_log_name);
-  *pos++='\n';
-  pos=longlong10_to_str(group_master_log_pos, pos, 10);
-  *pos++='\n';
-  pos= longlong10_to_str(sql_delay, pos, 10);
-  *pos++= '\n';
-  if (my_b_write(file, (uchar*) buff, (size_t) (pos-buff)))
-    error=1;
+  save_to_file();
   if (flush_io_cache(file))
     error=1;
   if (sync_relayloginfo_period &&

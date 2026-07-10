@@ -115,7 +115,7 @@ SELECT @@myisam_data_pointer_size = @@global.myisam_data_pointer_size;
 SET myisam_data_pointer_size = 7;
 ERROR HY000: Variable 'myisam_data_pointer_size' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT myisam_data_pointer_size;
-ERROR 42S22: Unknown column 'myisam_data_pointer_size' in 'field list'
+ERROR 42S22: Unknown column 'myisam_data_pointer_size' in 'SELECT'
 SELECT @@myisam_data_pointer_size;
 @@myisam_data_pointer_size
 5

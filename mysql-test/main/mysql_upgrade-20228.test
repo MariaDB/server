@@ -40,8 +40,8 @@ WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
 
 --echo # Running mysql_upgrade
 --exec $MYSQL_UPGRADE --default-character-set=utf8mb4 --force 2>&1
---file_exists $MYSQLD_DATADIR/mysql_upgrade_info
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 --echo #
 --echo # Restoring character_set_client and collation_connection back

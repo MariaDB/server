@@ -3,6 +3,8 @@
 
 --source include/have_maria.inc
 --source include/default_charset.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
 
 # Cleanup
 --disable_warnings
@@ -13,7 +15,7 @@ DROP PROCEDURE IF EXISTS proc_insert_many;
 # --------
 
 # Configure encryption
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
@@ -21,7 +23,7 @@ DROP PROCEDURE IF EXISTS proc_insert_many;
 1;76025E3ADC78D74819927DB02AAA4C35
 EOF
 
---exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
@@ -73,7 +75,7 @@ CALL proc_insert_many();
 UNLOCK TABLES;
 
 # Crash and restart the server while it's still flushing index
---exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET debug_dbug="d,crash_shutdown";
 --error 2013
 shutdown;

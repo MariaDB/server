@@ -1,0 +1,1 @@
+--loose-innodb-binlog-state-interval=65536 --loose-max-binlog-size=524288

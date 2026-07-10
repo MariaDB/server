@@ -25,11 +25,11 @@ PARTITION max VALUES LESS THAN MAXVALUE);
 
 INSERT INTO t1 VALUES (-1),(0),(1),(2),(3),(4),(5),(6),(7),(8);
 
---replace_column 1 # 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 11 #
+--replace_column 1 # 2 # 3 # 4 # 6 # 7 # 8 # 9 # 11 #
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a <= 1;
---replace_column 1 # 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 11 #
+--replace_column 1 # 2 # 3 # 4 # 6 # 7 # 8 # 9 # 11 #
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a < 7;
---replace_column 1 # 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 11 #
+--replace_column 1 # 2 # 3 # 4 # 6 # 7 # 8 # 9 # 11 #
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a <= 1;
 DROP TABLE t1;
 
@@ -813,7 +813,7 @@ explain partitions select * from t7 where a > 91;
 # misc intervals
 explain partitions select * from t7 where a > 11 and a < 29;
 
-# LIST(monontonic_func) partitioning
+# LIST(monotonic_func) partitioning
 create table t8 (a date not null) partition by RANGE(YEAR(a)) (
   partition p0 values less than (1980),
   partition p1 values less than (1990),
@@ -1583,3 +1583,18 @@ select * from t1 left join (t3 join t2) on (t1.a=t3.a and t3.a=t2.b and t3.part_
 
 drop table t0,t1,t2,t3;
 
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-24283 Assertion `bitmap_is_set(&m_part_info->read_partitions, m_part_spec.start_part)' failed in ha_partition::handle_ordered_index_scan
+--echo #
+
+create table t1 (c int key) partition by list (c) (partition p values in (0));
+select max(c) from t1 where c>0;
+drop table t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

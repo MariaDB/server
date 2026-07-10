@@ -1,0 +1,36 @@
+SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
+Variable_name	Value
+duckdb_appender_allocator_flush_threshold	67108864
+SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");
+run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'")
+name	value	description	input_type	scope	aliases	
+VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR[]	
+[ Rows: 1]
+allocator_flush_threshold	128.0 MiB	Peak allocation threshold at which to flush the allocator after completing a task.	VARCHAR	GLOBAL	[]
+
+
+SET GLOBAL duckdb_appender_allocator_flush_threshold = 1048576;
+SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
+Variable_name	Value
+duckdb_appender_allocator_flush_threshold	1048576
+SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");
+run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'")
+name	value	description	input_type	scope	aliases	
+VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR[]	
+[ Rows: 1]
+allocator_flush_threshold	1.0 MiB	Peak allocation threshold at which to flush the allocator after completing a task.	VARCHAR	GLOBAL	[]
+
+
+SET GLOBAL duckdb_appender_allocator_flush_threshold = 1048576 * 1024;
+SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
+Variable_name	Value
+duckdb_appender_allocator_flush_threshold	1073741824
+SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");
+run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'")
+name	value	description	input_type	scope	aliases	
+VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR	VARCHAR[]	
+[ Rows: 1]
+allocator_flush_threshold	1.0 GiB	Peak allocation threshold at which to flush the allocator after completing a task.	VARCHAR	GLOBAL	[]
+
+
+SET GLOBAL duckdb_appender_allocator_flush_threshold = default;

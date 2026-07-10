@@ -8,7 +8,11 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
-
+if ($MTR_COMBINATION_STRICT_FULL_CRC32) {
+call mtr.add_suppression("InnoDB: cannot fulfill innodb_log_recovery_target=102345<");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed\\.");
+}
 FLUSH TABLES;
 
 let $MYSQLD_DATADIR = `SELECT @@datadir`;
@@ -36,6 +40,18 @@ SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 
 --list_files $MYSQLD_DATADIR/test
+if ($MTR_COMBINATION_STRICT_FULL_CRC32) {
+--let $restart_parameters=--innodb-log-recovery-target=102345
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= InnoDB: cannot fulfill innodb_log_recovery_target=102345<
+--source include/search_pattern_in_file.inc
+--error ER_UNKNOWN_STORAGE_ENGINE,ER_NO_SUCH_TABLE_IN_ENGINE
+FLUSH TABLE t1, t2 FOR EXPORT;
+--let $restart_parameters=
+--let $shutdown_timeout=
+}
 --source include/restart_mysqld.inc
 FLUSH TABLE t1, t2 FOR EXPORT;
 --echo # List before copying files
@@ -97,7 +113,6 @@ if ($checksum_algorithm == "strict_full_crc32") {
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t2;
 
-SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -113,7 +128,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT) ENGINE=InnoDB;
@@ -157,7 +172,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore
 CREATE TABLE t1(
@@ -203,7 +218,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore, this time the table has a secondary index too.
 CREATE TABLE t1(
@@ -244,7 +259,7 @@ SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore, this time the table has a secondary index too.
 # Rename the index on the create so that the IMPORT fails, drop index

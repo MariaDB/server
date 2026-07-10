@@ -1,14 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2008, Google Inc.
 Copyright (c) 2014, 2022, MariaDB Corporation.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,11 +24,7 @@ The database buffer buf_pool
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "mtr0mtr.h"
-#include "buf0flu.h"
 #include "buf0lru.h"
-#include "buf0rea.h"
-#include "fsp0types.h"
 
 /** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
@@ -48,7 +37,7 @@ inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool.freed_page_clock & ((1UL << 31) - 1))
 	       < (bpage->freed_page_clock
-		  + (buf_pool.curr_size
+		  + (buf_pool.curr_size()
 		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
 }
@@ -86,26 +75,6 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 	}
 }
 
-/** Allocate a buffer block.
-@return own: the allocated block, in state BUF_BLOCK_MEMORY */
-inline buf_block_t *buf_block_alloc()
-{
-  return buf_LRU_get_free_block(false);
-}
-
-/********************************************************************//**
-Frees a buffer block which does not contain a file page. */
-UNIV_INLINE
-void
-buf_block_free(
-/*===========*/
-	buf_block_t*	block)	/*!< in, own: block to be freed */
-{
-	mysql_mutex_lock(&buf_pool.mutex);
-	buf_LRU_block_free_non_file_page(block);
-	mysql_mutex_unlock(&buf_pool.mutex);
-}
-
 /********************************************************************//**
 Increments the modify clock of a frame by 1. The caller must (1) own the
 buf_pool mutex and block bufferfix count has to be zero, (2) or own an x-lock
@@ -126,18 +95,4 @@ buf_block_modify_clock_inc(
 	assert_block_ahi_valid(block);
 
 	block->modify_clock++;
-}
-
-/********************************************************************//**
-Returns the value of the modify clock. The caller must have an s-lock
-or x-lock on the block.
-@return value */
-UNIV_INLINE
-ib_uint64_t
-buf_block_get_modify_clock(
-/*=======================*/
-	buf_block_t*	block)	/*!< in: block */
-{
-	ut_ad(block->page.lock.have_any());
-	return(block->modify_clock);
 }

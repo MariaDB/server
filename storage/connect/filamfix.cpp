@@ -688,8 +688,7 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
 
   if (of.LowPart == INVALID_SET_FILE_POINTER &&
            (drc = GetLastError()) != NO_ERROR) {
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
     snprintf(g->Message, sizeof(g->Message), MSG(SFP_ERROR), buf);
     return true;
@@ -724,8 +723,7 @@ int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)),
     char buf[256];  // , *fn = (h == Hfile) ? To_File : "Tempfile";
 
     drc = GetLastError();
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                   (LPTSTR)buf, sizeof(buf), NULL);
     snprintf(g->Message, sizeof(g->Message), MSG(READ_ERROR), To_File, buf);
 
@@ -767,8 +765,7 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
       strcpy(buf, MSG(BAD_BYTE_NUM));
     else {
       drc = GetLastError();
-      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                    FORMAT_MESSAGE_IGNORE_INSERTS, NULL, drc, 0,
+      FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, drc, 0,
                     (LPTSTR)buf, sizeof(buf), NULL);
       } // endelse brc
 
@@ -880,8 +877,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = GetLastError();
     snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
   } else
     rc = 0;
@@ -1000,8 +996,7 @@ int BGXFAM::Cardinality(PGLOBAL g)
       if (h == INVALID_HANDLE_VALUE)
         if ((rc = GetLastError()) != ERROR_FILE_NOT_FOUND) {
           snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, 10, filename);
-          FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+          FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
                         (LPTSTR)filename, sizeof(filename), NULL);
           safe_strcat(g->Message, sizeof(g->Message), filename);
           return -1;
@@ -1395,8 +1390,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
     DWORD rc = GetLastError();
     snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, MODE_INSERT,
              tempname);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-              FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+    FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
     safe_strcat(g->Message, sizeof(g->Message), tempname);
     return true;

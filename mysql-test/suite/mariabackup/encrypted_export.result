@@ -1,0 +1,14 @@
+CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB;
+insert into t1 values(repeat('a',100));
+select @@innodb_encrypt_tables;
+@@innodb_encrypt_tables
+ON
+# xtrabackup backup
+# xtrabackup prepare export
+# restart
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

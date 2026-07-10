@@ -32,6 +32,9 @@
 #include "sql_admin.h"
 #include "sql_statistics.h"
 #include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif
 
 const LEX_CSTRING msg_status= {STRING_WITH_LEN("status")};
 const LEX_CSTRING msg_repair= { STRING_WITH_LEN("repair") };
@@ -45,13 +48,16 @@ const LEX_CSTRING msg_optimize= { STRING_WITH_LEN("optimize") };
 /* Prepare, run and cleanup for mysql_recreate_table() */
 
 static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
-                                 Recreate_info *recreate_info)
+                                 Recreate_info *recreate_info,
+                                 bool table_copy)
 {
   bool result_code;
+  TABLE_LIST *save_next_global;
   DBUG_ENTER("admin_recreate_table");
 
   trans_rollback_stmt(thd);
   trans_rollback(thd);
+  thd->tmp_table_binlog_handled= 1;
   close_thread_tables(thd);
   thd->release_transactional_locks();
 
@@ -65,8 +71,12 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= (thd->open_temporary_tables(table_list) ||
-                mysql_recreate_table(thd, table_list, recreate_info, false));
+  /* Ignore if there is more than one table in the list */
+  save_next_global= table_list->next_global;
+  table_list->next_global= 0;
+  result_code= thd->check_and_open_tmp_table(table_list) ||
+               mysql_recreate_table(thd, table_list, recreate_info, table_copy);
+  table_list->next_global= save_next_global;
   reenable_binlog(thd);
   /*
     mysql_recreate_table() can push OK or ERROR.
@@ -226,7 +236,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   {
     /*
       Table open failed, maybe because we run out of memory.
-      Close all open tables and relaese all MDL locks
+      Close all open tables and release all MDL locks
     */
     tdc_release_share(share);
     share->tdc->flush(thd, true);
@@ -283,6 +293,11 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       goto end;
     }
   }
+  /*
+    We have now fixed the table. However the frm file is still of old format.
+    We cannot update the frm_file to FRM_VER_TRUE_VARCHAR as the new format
+    are not compatible with the data.
+  */
 
 end:
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
@@ -445,6 +460,32 @@ dbug_err:
   return open_error;
 }
 
+#ifdef WITH_WSREP
+/** RAII class for temporarily disable wsrep_on in the connection. */
+class Disable_wsrep_on_guard
+{
+ public:
+  /**
+    @param thd     - pointer to the context of connection in which
+                     wsrep_on mode needs to be disabled.
+    @param disable - true if wsrep_on should be disabled
+  */
+  explicit Disable_wsrep_on_guard(THD *thd, bool disable)
+    : m_thd(thd), m_orig_wsrep_on(thd->variables.wsrep_on)
+  {
+    if (disable)
+      thd->variables.wsrep_on= false;
+  }
+
+  ~Disable_wsrep_on_guard()
+  {
+    m_thd->variables.wsrep_on= m_orig_wsrep_on;
+  }
+ private:
+  THD* m_thd;
+  bool m_orig_wsrep_on;
+};
+#endif /* WITH_WSREP */
 
 
 static void send_read_only_warning(THD *thd, const LEX_CSTRING *msg_status,
@@ -503,7 +544,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               const LEX_CSTRING *operator_name,
                               thr_lock_type lock_type,
                               bool org_open_for_modify,
-                              bool repair_table_use_frm,
+                              bool no_errors_from_open,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
                                                   HA_CHECK_OPT *),
@@ -517,14 +558,27 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
-  int result_code;
-  int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
   bool is_table_modified= false;
   LEX_CUSTRING tabledef_version;
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
+
+#ifdef WITH_WSREP
+  /*
+    CACHE INDEX and LOAD INDEX INTO CACHE statements are
+    local operations. Do not replicate them with Galera
+  */
+  const bool disable_wsrep_on= (WSREP(thd) &&
+    (lex->sql_command == SQLCOM_ASSIGN_TO_KEYCACHE ||
+     lex->sql_command == SQLCOM_PRELOAD_KEYS));
+
+  Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
+#endif /* WITH_WSREP */
+
+  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+    DBUG_RETURN(TRUE);
 
   fill_check_table_metadata_fields(thd, &field_list);
 
@@ -558,11 +612,14 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     uchar tabledef_version_buff[MY_UUID_SIZE];
     const char *db= table->db.str;
     bool fatal_error=0;
-    bool open_error= 0;
+    bool open_error= 0, recreate_used= 0;
+    bool require_data_conversion= 0, require_alter_table= 0;
     bool collect_eis=  FALSE;
     bool open_for_modify= org_open_for_modify;
     Recreate_info recreate_info;
+    int compl_result_code, result_code;
 
+    compl_result_code= result_code= HA_ADMIN_FAILED;
     storage_engine_name[0]= 0;                  // Marker that's not used
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
@@ -582,7 +639,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                 ? MDL_SHARED_NO_READ_WRITE
                                 : lock_type >= TL_FIRST_WRITE
                                 ? MDL_SHARED_WRITE : MDL_SHARED_READ);
-
     if (thd->check_killed())
     {
       open_error= false;
@@ -595,7 +651,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     while (1)
     {
       open_error= open_only_one_table(thd, table,
-                                      repair_table_use_frm,
+                                      no_errors_from_open,
                                       (view_operator_func != NULL));
       thd->open_options&= ~extra_open_options;
 
@@ -658,7 +714,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             protocol->store(&table_name, system_charset_info);
             protocol->store(operator_name, system_charset_info);
             protocol->store(&error_clex_str, system_charset_info);
-            length= my_snprintf(buff, sizeof(buff),
+            length= my_snprintf(buff, sizeof(buff), "%s",
                                 ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
@@ -702,7 +758,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     /*
       CHECK/REPAIR TABLE command is only command where VIEW allowed here and
       this command use only temporary table method for VIEWs resolving =>
-      there can't be VIEW tree substitition of join view => if opening table
+      there can't be VIEW tree substitution of join view => if opening table
       succeed then table->table will have real TABLE pointer as value (in
       case of join view substitution table->table can be 0, but here it is
       impossible)
@@ -764,6 +820,25 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     }
 
     /*
+      This has to be tested separately from the following test as
+      optimizer table takes a MDL_SHARED_WRITE lock but we want to
+      log this to the ddl log.
+    */
+
+    if (lock_type == TL_WRITE && table->mdl_request.type >= MDL_SHARED_WRITE)
+    {
+      /* Store information about table for ddl log */
+      storage_engine_partitioned= table->table->file->partition_engine();
+      strmake(storage_engine_name, table->table->file->real_table_type(),
+              sizeof(storage_engine_name)-1);
+      tabledef_version.str= tabledef_version_buff;
+      if ((tabledef_version.length= table->table->s->tabledef_version.length))
+        memcpy((char*) tabledef_version.str,
+               table->table->s->tabledef_version.str,
+               MY_UUID_SIZE);
+    }
+
+    /*
       Close all instances of the table to allow MyISAM "repair"
       (which is internally also used from "optimize") to rename files.
       @todo: This code does not close all instances of the table.
@@ -778,19 +853,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
       if (table->table->s->tmp_table)
-        thd->close_unused_temporary_table_instances(tables);
+        thd->close_unused_temporary_table_instances(table);
       else
       {
-        /* Store information about table for ddl log */
-        storage_engine_partitioned= table->table->file->partition_engine();
-        strmake(storage_engine_name, table->table->file->real_table_type(),
-                sizeof(storage_engine_name)-1);
-        tabledef_version.str= tabledef_version_buff;
-        if ((tabledef_version.length= table->table->s->tabledef_version.length))
-          memcpy((char*) tabledef_version.str,
-                 table->table->s->tabledef_version.str,
-                 MY_UUID_SIZE);
-
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
           goto err;
         DEBUG_SYNC(thd, "after_admin_flush");
@@ -819,30 +884,37 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       /* purecov: end */
     }
 
-    if (operator_func == &handler::ha_repair &&
-        !(check_opt->sql_flags & TT_USEFRM))
+    if (operator_func == &handler::ha_repair)
     {
       handler *file= table->table->file;
-      int check_old_types=   file->check_old_types();
       int check_for_upgrade= file->ha_check_for_upgrade(check_opt);
+      require_data_conversion=
+         check_for_upgrade == HA_ADMIN_NEEDS_DATA_CONVERSION;
+      require_alter_table= check_for_upgrade == HA_ADMIN_NEEDS_ALTER;
 
-      if (check_old_types == HA_ADMIN_NEEDS_ALTER ||
-          check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
+      if (!(check_opt->sql_flags & (TT_USEFRM | TT_FORCE)))
       {
-        /* We use extra_open_options to be able to open crashed tables */
-        thd->open_options|= extra_open_options;
-        result_code= admin_recreate_table(thd, table, &recreate_info) ?
-                     HA_ADMIN_FAILED : HA_ADMIN_OK;
-        thd->open_options&= ~extra_open_options;
-        goto send_result;
-      }
-      if (check_old_types || check_for_upgrade)
-      {
-        /* If repair is not implemented for the engine, run ALTER TABLE */
-        need_repair_or_alter= 1;
+        if (require_data_conversion || require_alter_table)
+        {
+          /* We use extra_open_options to be able to open crashed tables */
+          thd->open_options|= extra_open_options;
+          result_code= (admin_recreate_table(thd, table, &recreate_info, 1) ?
+                        HA_ADMIN_FAILED : HA_ADMIN_OK);
+          recreate_used= 1;
+          thd->open_options&= ~extra_open_options;
+          goto send_result;
+        }
+        if (check_for_upgrade ||
+            !(table->table->file->ha_table_flags() & HA_CAN_REPAIR))
+        {
+          /*
+            If data upgrade is needed or repair is not implemented for the
+            engine, run ALTER TABLE FORCE
+          */
+          need_repair_or_alter= 1;
+        }
       }
     }
-
     result_code= compl_result_code= HA_ADMIN_OK;
 
     if (operator_func == &handler::ha_analyze)
@@ -864,8 +936,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         appropriate action is to just not collect EITS stats for this command.
       */
       collect_eis=
-        (table->table->s->table_category == TABLE_CATEGORY_USER &&
-        !(lex->alter_info.flags & ALTER_PARTITION_ADMIN) &&
+        (tab->s->table_category == TABLE_CATEGORY_USER && !tab->s->sequence &&
+        !(lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN) &&
          (check_eits_collection_allowed(thd) ||
           lex->with_persistent_for_clause));
     }
@@ -877,8 +949,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       result_code = (table->table->file->*operator_func)(thd, check_opt);
       THD_STAGE_INFO(thd, stage_sending_data);
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      if (lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN)
+        set_part_state(&lex->alter_info, table->table->part_info, PART_NORMAL);
+#endif
     }
 
+    /* Note: compl_result_code can be different from result_code here */
     if (compl_result_code == HA_ADMIN_OK && collect_eis)
     {
       if (result_code == HA_ERR_TABLE_READONLY)
@@ -910,22 +987,47 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       table->lock_type= TL_READ;
       DBUG_ASSERT(view_operator_func == NULL);
       open_error= open_only_one_table(thd, table,
-                                      repair_table_use_frm, FALSE);
+                                      no_errors_from_open, FALSE);
       thd->open_options&= ~extra_open_options;
 
       if (unlikely(!open_error))
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
+        MEM_ROOT_SAVEPOINT memroot_sv;
+
         if (!lex->column_list)
         {
+          /* Fields we have to read from the engine */
           bitmap_clear_all(tab->read_set);
-          for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+          /* Fields we want to have statistics for */
+          bitmap_clear_all(&tab->has_value_set);
+
+          for (; *field_ptr; field_ptr++)
           {
-            enum enum_field_types type= (*field_ptr)->type();
-            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-                type > MYSQL_TYPE_BLOB)
-              tab->field[fields]->register_field_in_read_map();
+            Field *field= *field_ptr;
+            if (field->flags & LONG_UNIQUE_HASH_FIELD)
+            {
+              /*
+                No point in doing statistic for hash fields that should be
+                unique
+              */
+              continue;
+            }
+            /*
+              Note that type() always return MYSQL_TYPE_BLOB for
+              all blob types. Another function needs to be added
+              if we in the future want to distinguish between blob
+              types here.
+            */
+            enum enum_field_types type= field->type();
+            if ((type < MYSQL_TYPE_TINY_BLOB ||
+                 type > MYSQL_TYPE_BLOB) &&
+                field->field_length <= thd->variables.analyze_max_length)
+            {
+              field->register_field_in_read_map();
+              bitmap_set_bit(&tab->has_value_set, field->field_index);
+            }
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
@@ -939,9 +1041,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           LEX_STRING *column_name;
           List_iterator_fast<LEX_STRING> it(*lex->column_list);
 
+          /* Fields we have to read from the engine */
           bitmap_clear_all(tab->read_set);
+          /* Fields we want to have statistics for */
+          bitmap_clear_all(&tab->has_value_set);
+
           while ((column_name= it++))
           {
+            Field *field;
+            enum enum_field_types type;
             if (tab->s->fieldnames.type_names == 0 ||
                 (pos= find_type(&tab->s->fieldnames, column_name->str,
                                 column_name->length, 1)) <= 0)
@@ -950,17 +1058,22 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
               break;
             }
             pos--;
-            enum enum_field_types type= tab->field[pos]->type();
-            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-                type > MYSQL_TYPE_BLOB)
-              tab->field[pos]->register_field_in_read_map();
+            field= tab->field[pos];
+            type= field->type();
+            if (!(field->flags & LONG_UNIQUE_HASH_FIELD) &&
+                (type < MYSQL_TYPE_TINY_BLOB ||
+                 type > MYSQL_TYPE_BLOB))
+            {
+              field->register_field_in_read_map();
+              bitmap_set_bit(&tab->has_value_set, field->field_index);
+            }
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
                                   ER_THD(thd, ER_NO_EIS_FOR_FIELD),
                                   column_name->str);
           }
-          tab->file->column_bitmaps_signal();
+          tab->file->column_bitmaps_signal(false);
         }
         if (!lex->index_list)
           tab->keys_in_use_for_query.init(tab->s->keys);
@@ -969,7 +1082,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           int pos;
           LEX_STRING *index_name;
           List_iterator_fast<LEX_STRING> it(*lex->index_list);
-
           tab->keys_in_use_for_query.clear_all();
           while ((index_name= it++))
           {
@@ -983,17 +1095,21 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             tab->keys_in_use_for_query.set_bit(--pos);
           }
         }
+        /* Ensure that number of records are updated */
+        tab->file->info(HA_STATUS_VARIABLE);
+        root_make_savepoint(thd->mem_root, &memroot_sv);
         if (!(compl_result_code=
-              alloc_statistics_for_table(thd, table->table)) &&
+              alloc_statistics_for_table(thd, tab,
+                                         &tab->has_value_set)) &&
             !(compl_result_code=
-              collect_statistics_for_table(thd, table->table)))
-          compl_result_code= update_statistics_for_table(thd, table->table);
+              collect_statistics_for_table(thd, tab)))
+          compl_result_code= update_statistics_for_table(thd, tab);
+        free_statistics_for_table(tab);
+        root_free_to_savepoint(&memroot_sv);
       }
       else
         compl_result_code= HA_ADMIN_FAILED;
 
-      if (table->table)
-        free_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
       else
@@ -1015,10 +1131,11 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         repair was not implemented and we need to upgrade the table
         to a new version so we recreate the table with ALTER TABLE
       */
-      result_code= admin_recreate_table(thd, table, &recreate_info);
+      result_code= admin_recreate_table(thd, table, &recreate_info, 1);
+      recreate_used= 1;
     }
-send_result:
 
+send_result:
     lex->cleanup_after_one_table_open();
     thd->clear_error();  // these errors shouldn't get client
 
@@ -1059,6 +1176,34 @@ send_result:
       }
       thd->get_stmt_da()->clear_warning_info(thd->query_id);
     }
+
+    /*
+      Give a warning if REPAIR TABLE was used but table still needs an
+      ALTER TABLE. This can only happen for old type tables where REPAIR
+      was using FORCE to recover old data.
+    */
+    if (operator_func == &handler::ha_repair && ! recreate_used &&
+        (require_data_conversion || require_alter_table))
+    {
+      char buf[MYSQL_ERRMSG_SIZE];
+      if (result_code == HA_ADMIN_OK)
+      {
+        protocol->prepare_for_resend();
+        protocol->store(&table_name, system_charset_info);
+        protocol->store(operator_name, system_charset_info);
+	protocol->store(STRING_WITH_LEN("note"), system_charset_info);
+        protocol->store(STRING_WITH_LEN("Table data recovered"),system_charset_info);
+        if (protocol->write())
+          goto err;
+      }
+      my_snprintf(buf, sizeof(buf),
+                  ER_THD(thd, ER_TABLE_NEEDS_REBUILD),
+                  table_name.str);
+      if (send_check_errmsg(thd, table, operator_name, buf) < 0)
+        goto err;
+      result_code= HA_ADMIN_FAILED;
+    }
+
     protocol->prepare_for_resend();
     protocol->store(&table_name, system_charset_info);
     protocol->store(operator_name, system_charset_info);
@@ -1150,9 +1295,11 @@ send_result_message:
                  *save_next_global= table->next_global;
       table->next_local= table->next_global= 0;
 
-      result_code= admin_recreate_table(thd, table, &recreate_info);
+      result_code= admin_recreate_table(thd, table, &recreate_info, 0);
+      recreate_used= 1;
       trans_commit_stmt(thd);
       trans_commit(thd);
+      thd->tmp_table_binlog_handled= 1;
       close_thread_tables(thd);
       thd->release_transactional_locks();
       /* Clear references to TABLE and MDL_ticket after releasing them. */
@@ -1233,6 +1380,7 @@ send_result_message:
     }
 
     case HA_ADMIN_NEEDS_UPGRADE:
+    case HA_ADMIN_NEEDS_DATA_CONVERSION:
     case HA_ADMIN_NEEDS_ALTER:
     {
       char buf[MYSQL_ERRMSG_SIZE];
@@ -1241,7 +1389,7 @@ send_result_message:
           table->table->file->ha_table_flags() & HA_CAN_REPAIR ? "TABLE" : 0;
 
       protocol->store(&error_clex_str, system_charset_info);
-      if (what_to_upgrade)
+      if (what_to_upgrade && result_code == HA_ADMIN_NEEDS_UPGRADE)
         length= my_snprintf(buf, sizeof(buf),
                             ER_THD(thd, ER_TABLE_NEEDS_UPGRADE),
                             what_to_upgrade, table->table_name.str);
@@ -1280,13 +1428,8 @@ send_result_message:
 
     if (table->table && !table->view)
     {
-      /*
-        Don't skip flushing if we are collecting EITS statistics.
-      */
-      const bool skip_flush=
-        (operator_func == &handler::ha_analyze) && 
-        (table->table->file->ha_table_flags() & HA_ONLINE_ANALYZE) &&
-        !collect_eis;
+      /* Skip FLUSH TABLES if we are doing analyze */
+      const bool skip_flush= (operator_func == &handler::ha_analyze);
       if (table->table->s->tmp_table)
       {
         /*
@@ -1306,6 +1449,13 @@ send_result_message:
         table->table= 0;                        // For query cache
         query_cache_invalidate3(thd, table, 0);
       }
+      else if (collect_eis && skip_flush && compl_result_code == HA_ADMIN_OK)
+      {
+        TABLE_LIST *save_next_global= table->next_global;
+        table->next_global= 0;
+        read_statistics_for_tables(thd, table, true /* force_reload */);
+        table->next_global= save_next_global;
+      }
     }
     /* Error path, a admin command failed. */
     if (thd->transaction_rollback_request || fatal_error)
@@ -1323,6 +1473,7 @@ send_result_message:
         goto err;
       is_table_modified= true;
     }
+    thd->tmp_table_binlog_handled= 1;
     close_thread_tables(thd);
 
     if (storage_engine_name[0])
@@ -1337,6 +1488,14 @@ send_result_message:
       ddl_log.org_database=     table->db;
       ddl_log.org_table=        table->table_name;
       ddl_log.org_table_id=     tabledef_version;
+      if (recreate_used)
+      {
+        LEX_CUSTRING tabledef_version=
+          { recreate_info.tabledef_version, MY_UUID_SIZE };
+        ddl_log.new_database=     table->db;
+        ddl_log.new_table=        table->table_name;
+        ddl_log.new_table_id=     tabledef_version;
+      }
       backup_log_ddl(&ddl_log);
     }
 
@@ -1364,8 +1523,7 @@ send_result_message:
   }
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
-  if (is_table_modified && is_cmd_replicated &&
-      (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
+  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     auto res= write_bin_log(thd, true, thd->query(), thd->query_length());
@@ -1373,6 +1531,16 @@ send_result_message:
     if (res)
       goto err;
   }
+  else
+  {
+    /*
+      We decided to not log the query to binlog.
+      We mark the query as logged to ensure that temporary tables are not
+      marked with 'mark_as_not_binlogged()' on close.
+    */
+    thd->tmp_table_binlog_handled= 1;
+  }
+
   my_eof(thd);
 
   DBUG_RETURN(FALSE);
@@ -1385,6 +1553,7 @@ err:
   if (table && table->table)
   {
     table->table->mark_table_for_reopen();
+    table->table->mark_as_not_binlogged();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed
@@ -1413,6 +1582,15 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
   HA_CHECK_OPT check_opt;
   KEY_CACHE *key_cache;
   DBUG_ENTER("mysql_assign_to_keycache");
+
+  if (check_some_access(thd, TABLE_ACLS, tables))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "CACHE INDEX",
+             thd->security_ctx->priv_user,
+             thd->security_ctx->host_or_ip,
+             tables->db.str, tables->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
 
   THD_STAGE_INFO(thd, stage_finding_key_cache);
   check_opt.init();
@@ -1453,6 +1631,16 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
 bool mysql_preload_keys(THD* thd, TABLE_LIST* tables)
 {
   DBUG_ENTER("mysql_preload_keys");
+
+  if (check_some_access(thd, TABLE_ACLS, tables))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "LOAD INDEX INTO CACHE",
+             thd->security_ctx->priv_user,
+             thd->security_ctx->host_or_ip,
+             tables->db.str, tables->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
   /*
     We cannot allow concurrent inserts. The storage engine reads
     directly from the index file, bypassing the cache. It could read
@@ -1502,9 +1690,14 @@ bool Sql_cmd_check_table::execute(THD *thd)
   bool res= TRUE;
   DBUG_ENTER("Sql_cmd_check_table::execute");
 
-  if (check_table_access(thd, SELECT_ACL, first_table,
-                         TRUE, UINT_MAX, FALSE))
+  if (check_some_access(thd, TABLE_ACLS, first_table))
+  {
+    my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "CHECK TABLE",
+            thd->security_ctx->priv_user,
+            thd->security_ctx->host_or_ip,
+            first_table->db.str, first_table->table_name.str);
     goto error; /* purecov: inspected */
+  }
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, &msg_check,
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
@@ -1532,7 +1725,8 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
 
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
-    mysql_recreate_table(thd, first_table, &recreate_info, true) :
+    mysql_recreate_table(thd, first_table, &recreate_info,
+                         false) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       &msg_optimize, TL_WRITE, 1, 0, 0, 0,
                       &handler::ha_optimize, 0, true);
@@ -1560,7 +1754,8 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, &msg_repair,
                          TL_WRITE, 1,
-                         MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
+                         MY_TEST(m_lex->check_opt.sql_flags &
+                                 (TT_USEFRM | TT_FORCE)),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
                          &handler::ha_repair, &view_repair, true);
 

@@ -7,7 +7,7 @@ set @save_storage_engine=@@default_storage_engine;
 set default_storage_engine=innodb;
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t1(a char(8), b char(8), filler char(100), primary key(a));
+create table t1(a char(8), b char(8), filler char(100), primary key(a)) charset=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -21,7 +21,7 @@ concat('a-', 1000 + A.a + B.a*10 + C.a*100, '=A'),
 concat('b-', 1000 + A.a + B.a*10 + C.a*100, '=B'),
 'filler'
 from t0 A, t0 B, t0 C;
-create table t2 (a char(8));
+create table t2 (a char(8)) charset=latin1;
 insert into t2 values ('a-1010=A'), ('a-1030=A'), ('a-1020=A');
 This should use join buffer:
 explain select * from t1, t2 where t1.a=t2.a;
@@ -156,7 +156,7 @@ pk varchar(32) character set utf8 primary key,
 kp1 char(32) not null,
 col1 varchar(32),
 key (kp1)
-) engine=innodb;
+) engine=innodb charset=latin1;
 insert into t1
 select
 concat('pk-', 1000 +A.a),

@@ -2,6 +2,8 @@
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
+let $default_id= `select connection_id()`;
+
 set @v1a="Hello";
 set @v2a="World";
 set @v3a=65;
@@ -11,6 +13,9 @@ select @v1a, @v2a, @v3a, @v4a, @v_unknown;
 
 select VARIABLE_NAME, VARIABLE_VALUE
   from performance_schema.user_variables_by_thread
+  inner join performance_schema.threads
+  on user_variables_by_thread.thread_id=threads.thread_id
+  where threads.processlist_id=connection_id()
   order by VARIABLE_NAME;
 
 connect(con1, localhost, root,,);
@@ -22,8 +27,11 @@ set @v4b=NULL;
 
 select @v1b, @v2b, @v3b, @v4b, @v_unknown;
 
-select VARIABLE_NAME, VARIABLE_VALUE
+evalp select VARIABLE_NAME, VARIABLE_VALUE
   from performance_schema.user_variables_by_thread
+  inner join performance_schema.threads
+  on user_variables_by_thread.thread_id=threads.thread_id
+  where threads.processlist_id in ($default_id, connection_id())
   order by VARIABLE_NAME;
 
 --connection default

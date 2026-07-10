@@ -1,13 +1,18 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection master;
+connection slave;
 CREATE USER 'nonsuperuser'@'127.0.0.1';
 GRANT ALTER,CREATE,DELETE,DROP,EVENT,INSERT,PROCESS,REPLICATION SLAVE,
 SELECT,UPDATE ON *.* TO 'nonsuperuser'@'127.0.0.1';
 connect nonpriv, 127.0.0.1, nonsuperuser,, test, $SLAVE_MYPORT,;
 connection nonpriv;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE ADMIN privilege(s) for this operation
 disconnect nonpriv;
 connection slave;
 DROP USER'nonsuperuser'@'127.0.0.1';

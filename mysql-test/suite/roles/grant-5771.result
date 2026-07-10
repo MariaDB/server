@@ -29,6 +29,7 @@ GRANT ALL PRIVILEGES ON `mysqltest2`.* TO `r2`
 GRANT USAGE ON *.* TO `r1`
 GRANT ALL PRIVILEGES ON `mysqltest1`.* TO `r1`
 connection default;
+disconnect foo;
 drop user foo@localhost;
 drop role r1;
 drop role r2;

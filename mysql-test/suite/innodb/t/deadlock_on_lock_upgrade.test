@@ -5,7 +5,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 --connection default
 # There are various scenarious in which a transaction already holds "half"
@@ -102,7 +101,7 @@ SET DEBUG_SYNC='reset';
 # Here, we form a situation in which con1 has LOCK_REC_NOT_GAP on rows 1 and 2
 # con2 waits for lock on row 1, and then con1 wants to upgrade the lock on row 1,
 # which might cause a deadlock, unless con1 properly notices that even though the
-# lock on row 1 can not be upgraded, a separate LOCK_GAP can be obtaied easily.
+# lock on row 1 can not be upgraded, a separate LOCK_GAP can be obtained easily.
 
 CREATE TABLE `t`(
   `id` INT NOT NULL PRIMARY KEY
@@ -139,5 +138,3 @@ INSERT INTO t (`id`) VALUES (1), (2);
 
 DROP TABLE `t`;
 SET DEBUG_SYNC='reset';
-
---source include/wait_until_count_sessions.inc

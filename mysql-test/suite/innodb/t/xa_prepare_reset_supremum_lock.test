@@ -1,0 +1,46 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t (
+  `a` INT NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB;
+
+
+INSERT INTO t VALUES(10);
+INSERT INTO t VALUES(20);
+
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+XA START '1';
+SELECT * FROM t WHERE a > 20 FOR UPDATE;
+# The following INSERT is necessary because trx_prepare() resets locks
+# only if there were modifications in transaction.
+INSERT INTO t VALUES(40);
+XA END '1';
+XA PREPARE '1';
+
+connect (con1,localhost,root);
+SET innodb_lock_wait_timeout=1;
+# The following INSERT must not be blocked if XA PREPARE released supremum lock
+INSERT INTO t VALUES(50);
+
+--connection default
+XA COMMIT '1';
+
+XA START '1';
+SELECT * FROM t WHERE a > 20 LOCK IN SHARE MODE;
+# The following INSERT is necessary because trx_prepare() resets locks
+# only if there were modifications in transaction.
+INSERT INTO t VALUES (5);
+XA END '1';
+XA PREPARE '1';
+
+--connection con1
+# The following INSERT must not be blocked if XA PREPARE released supremum lock
+INSERT INTO t VALUES (60);
+# The following INSERT must not be blocked if XA PREPARE released shared lock
+INSERT INTO t VALUES (30);
+--disconnect con1
+
+--connection default
+XA COMMIT '1';
+DROP TABLE t;

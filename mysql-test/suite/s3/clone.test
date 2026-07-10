@@ -1,0 +1,14 @@
+--source include/have_s3.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # SELECT using ror_merged scan fails with s3 tables
+--echo #
+
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b INT, KEY(a), KEY(b)) ENGINE=Aria;
+INSERT INTO t1 VALUES (0,0),(0,10),(3,10);
+ALTER TABLE t1 ENGINE=S3;
+SELECT * FROM t1 WHERE a = 99 OR b = 2;
+DROP TABLE t1;

@@ -22,6 +22,10 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --connection server_1
 FLUSH TABLES;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;

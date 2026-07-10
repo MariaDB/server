@@ -19,4 +19,57 @@
 --source include/search_pattern_in_file.inc
 --remove_file $SEARCH_FILE
 
+# No valid cipher suites
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --ssl-cipher=ECDHE-ECDSA-FAKE-CIPHER:ECDHE-RSA-INVALID --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Failed to set ciphers to use
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+# Wrong SSL passphrase(pass)
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --ssl-key=$MYSQL_TEST_DIR/std_data/encrypted-server-key.pem  --ssl-passphrase=pass:BadPassword --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get private key
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+# Bad SSL passphrase(file)
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --secure-file-priv=$MYSQLTEST_VARDIR/tmp --ssl-key=$MYSQL_TEST_DIR/std_data/encrypted-server-key.pem  --ssl-passphrase=file:BadFile --log-error=$errorlog
+--let SEARCH_PATTERN=SSL passphrase error: failed to open file 'BadFile'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get private key
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+
+# Check "insecure SSL passphrase file location" warning (secure-file-priv empty)
+# We still let it fail later, by supply non-existing file
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --secure-file-priv= --ssl-key=$MYSQL_TEST_DIR/std_data/encrypted-server-key.pem  --ssl-passphrase=file:$BadFile --log-error=$errorlog
+--let SEARCH_PATTERN=\[Warning\] ssl passphrase file '.*' is not secure
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get private key
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+
+# Bad SSL passphrase(env)
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --ssl-key=$MYSQL_TEST_DIR/std_data/encrypted-server-key.pem  --ssl-passphrase=env:BadEnv --log-error=$errorlog
+--let SEARCH_PATTERN=SSL passphrase error: environment variable 'BadEnv' not found
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get private key
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+# Bad SSL passphrase(invalid prefix)
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --ssl-key=$MYSQL_TEST_DIR/std_data/encrypted-server-key.pem  --ssl-passphrase=BadVal --log-error=$errorlog
+--let SEARCH_PATTERN=SSL passphrase error: ssl-passphrase value must be prefixed with 'file:', 'env:', or 'pass:'
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get private key
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
 --source include/start_mysqld.inc

@@ -1,4 +1,5 @@
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 
@@ -69,6 +70,7 @@ insert into t1 select * from t1;
 
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='firstmatch=off';
+--sorted_result
 select * from 
   json_table('[{"color": "blue", "price": 50},
                      {"color": "red", "price": 100}]',
@@ -144,6 +146,7 @@ create view v2 as select * from   json_table('[{"co\\\\lor": "blue", "price": 50
 select * from v2;
 drop view v2;
 
+--source include/explain-no-costs.inc
 explain format=json select * from
   json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 explain select * from
@@ -414,7 +417,7 @@ SELECT * FROM JSON_TABLE(CONVERT('{"x":1}' USING utf8mb4), '$' COLUMNS(a INT PAT
 --echo #
 SET NAMES utf8;
 SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$.*', b VARCHAR(40) PATH '$[*]', c VARCHAR(8) PATH '$**.*')) AS jt ) AS sq;
-SET NAMES default;
+SET NAMES latin1;
 
 --echo #
 --echo # MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
@@ -422,7 +425,7 @@ SET NAMES default;
 SET NAMES utf8;
 CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
 DROP TABLE t1;
-SET NAMES default;
+SET NAMES latin1;
 
 
 --echo #
@@ -872,12 +875,52 @@ SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
 SELECT 1 FROM JSON_TABLE (row(1,2), '$' COLUMNS (o FOR ORDINALITY)) AS j;
 
 --echo #
---echo # End of 10.6 tests
+--echo # MDEV-30623 JSON_TABLE in subquery not correctly marked as correlated
+--echo # update_correlated_cache() fails to take JSON_TABLE functions in
+--echo # subqueries into account.
 --echo #
 
+create table t1(c json);
+insert into t1 values ('[{"x":"1"},{"x":"2"}]'),
+                      ('[{"x":"10"},{"x":"20"}]'),
+                      ('[{"x":"100"},{"x":"200"}]');
+select c,
+       (SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+       AS jt) as SUBQ
+  from t1;
+
+explain select c,
+       (SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+       AS jt) as SUBQ
+  from t1;
+
+drop table t1;
+
 --echo #
---echo # Start of 10.9 tests
+--echo # MDEV-25822: JSON_TABLE: default values should allow non-string literals
 --echo #
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 0.5 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 5 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 'asdf' on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default -0.5 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 18446744073709551615 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default DATE '2021-01-01' on empty)) as T;
+
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 5 on empty)) as T;
+select * from v;
+show create view v;
+drop view v;
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 18446744073709551615 on empty)) as T;
+select * from v;
+show create view v;
+drop view v;
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 'asdf' on empty)) as T;
+select * from v;
+show create view v;
+drop view v;
+
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo #  MDEV-27743 Remove Lex::charset
@@ -992,6 +1035,161 @@ COLUMNS
   name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
 ) AS jt;
 
---echo #
 --echo # End of 10.9 tests
+
 --echo #
+--echo # MDEV-27898 CREATE VIEW AS SELECT FROM JSON_TABLE column requires global privileges
+--echo #
+
+--echo # Beginning of 10.11 tests
+
+create view v1 as (select * from
+	json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
+
+create user u1@localhost;
+grant ALL on test.* to u1@localhost;
+
+--connect (con1,localhost,u1,,test)
+
+create view v2 as
+	(select * from json_table('[{"a":"1"}]', '$[*]' columns(a int path '$.a')  ) as jt);
+
+disconnect con1;
+connection default;
+DROP VIEW v2;
+DROP VIEW v1;
+DROP USER u1@localhost;
+
+--echo #
+--echo # MDEV-34081: View containing JSON_TABLE does not return JSON
+--echo #
+
+CREATE OR REPLACE VIEW test_view AS SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+  caption VARCHAR(200) PATH '$.caption', 
+  whole_block JSON PATH '$')) t;
+ 
+SELECT * FROM test_view;
+
+SELECT * FROM JSON_TABLE('
+[
+  {
+    "caption": "First Element",
+    "value": 1
+  },
+  {
+    "caption": "Second Element",
+    "value": 2
+  }
+]
+', '$[*]' COLUMNS(
+  caption VARCHAR(200) PATH '$.caption', 
+  whole_block JSON PATH '$')) t;
+
+DROP VIEW test_view;
+
+--echo # End of 10.11 test
+
+--echo #
+--echo # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
+--echo #
+
+--echo # Multi-update with JSON_TABLE
+
+create table  t1 ( name  varchar(10), 
+   color varchar(10),
+   price decimal(8,2),
+   instock BOOLEAN);
+
+insert into t1 values ("Laptop", "black", 20000, 1);
+insert into t1 values ("Jacket", "brown", 5000, 1);
+insert into t1 values ("Jeans", "blue", 5000, 1);
+
+select * from t1;
+
+set @json='
+[
+  {"name":"Laptop", "color":"black", "price":"1000", "ordered":"3"},
+  {"name":"Jeans",  "color":"blue",  "ordered":"0"},
+  {"name":"Phone",  "color":"red",  "ordered":"0"}
+]';
+
+select * from json_table(@json, '$[*]' 
+  columns(
+   name  varchar(10) path '$.name', 
+   color varchar(10) path '$.color',
+   price decimal(8,2) path '$.price',
+   ordered boolean path '$.ordered' ) 
+) as jt;
+
+explain update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=3;
+
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=2;
+
+select * from t1;
+
+explain update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+
+update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+select * from t1;
+
+
+-- error ER_NON_UPDATABLE_TABLE
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0, jt1.ordered=1  where t1.name=jt1.name;
+
+select * from t1;
+
+drop table t1;
+
+--echo # End of 11.0 tests
+
+--source include/test_db_charset_restore.inc

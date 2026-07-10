@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 # 
 # WL#8867: Add JSON_TABLE table function
 # 
@@ -61,8 +62,8 @@ id	jpath_i	jpath_r	jsn_path	jexst
 4	0	0.33	0.33	0
 5	0	0	"asd"	0
 Warnings:
-Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`jpath_i` at row 5
-Warning	1366	Incorrect double value: 'asd' for column ``.`(temporary)`.`jpath_r` at row 5
+Warning	1366	Incorrect integer value: 'asd' for column `*any*`.`json_table`.`jpath_i` at row 5
+Warning	1366	Incorrect double value: 'asd' for column `*any*`.`json_table`.`jpath_r` at row 5
 select * from
 json_table(
 '[{"x":"3"},{"a":2},{"b":1},{"a":0},{"a":[1,2]}]',
@@ -103,6 +104,86 @@ jexst int exists path '$.b')
 where id = 3;
 id	jpath	json_path	jexst
 3	NULL	NULL	1
+select * from
+json_table(
+'[{"name":"Jeans","sizes":[32,34,36],"details":{"fit":"regular"},"flag":true,"jsnull":null},
+      {"name":"T-Shirt","sizes":["Medium","Large"],"details":{"fit":"loose"},"flag":false,"jsnull":null},
+      {"name":"Cellphone"}]',
+'$[*]' columns (name varchar(10) path '$.name',
+sizes varchar(100) format json path '$.sizes',
+details text format json path '$.details',
+flag varchar(10) format json path '$.flag',
+jsnull varchar(10) format json path '$.jsnull')
+) as jt;
+name	sizes	details	flag	jsnull
+Jeans	[32,34,36]	{"fit":"regular"}	true	null
+T-Shirt	["Medium","Large"]	{"fit":"loose"}	false	null
+Cellphone	NULL	NULL	NULL	NULL
+select * from
+json_table(
+'[{"doc":[1,2]},{"doc":{"k":"v"}},{"doc":null},{}]',
+'$[*]' columns (doc json format json path '$.doc' null on empty)
+) as jt;
+doc
+[1,2]
+{"k":"v"}
+null
+NULL
+SELECT HEX(doc) FROM
+json_table(
+'[{"doc":[1,2]},{}]',
+'$[*]' columns (doc blob format json path '$.doc' null on empty)
+) as jt;
+HEX(doc)
+5B312C325D
+NULL
+select * from
+json_table(
+'[{"name":"Jeans","sizes":[32,34,36]},{"name":"Cellphone"}]',
+'$[*]' columns (name varchar(10) path '$.name',
+sizes varchar(100) format json path '$.sizes'
+               default '[99]' on empty)
+) as jt;
+name	sizes
+Jeans	[32,34,36]
+Cellphone	[99]
+select * from
+json_table(
+'[{"a":[1]},{"a":[2]}]',
+'$' columns (a varchar(20) format json path '$[*].a' error on error)
+) as jt;
+ERROR HY000: Can't store multiple matches of the path in the column 'a' of JSON_TABLE 'jt'.
+select * from
+json_table(
+'[{"a":[1,2,3]}]',
+'$[*]' columns (a int format json path '$.a')
+) as jt;
+ERROR HY000: Incorrect usage of FORMAT JSON and non-string JSON_TABLE column
+create view v_fmt as
+select * from
+json_table(
+'[{"sizes":[1,2]}]',
+'$[*]' columns (sizes varchar(20) format json path '$.sizes')
+) as jt;
+select * from v_fmt;
+sizes
+[1,2]
+show create view v_fmt;
+View	Create View	character_set_client	collation_connection
+v_fmt	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_fmt` AS select `jt`.`sizes` AS `sizes` from JSON_TABLE('[{"sizes":[1,2]}]', '$[*]' COLUMNS (`sizes` varchar(20) FORMAT JSON PATH '$.sizes')) `jt`	latin1	latin1_swedish_ci
+drop view v_fmt;
+create view v_fmt_cs as
+select * from
+json_table(
+'[{"sizes":[1,2]}]',
+'$[*]' columns (
+sizes varchar(20) character set utf8mb4 collate utf8mb4_bin
+format json path '$.sizes')
+) as jt;
+show create view v_fmt_cs;
+View	Create View	character_set_client	collation_connection
+v_fmt_cs	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_fmt_cs` AS select `jt`.`sizes` AS `sizes` from JSON_TABLE('[{"sizes":[1,2]}]', '$[*]' COLUMNS (`sizes` varchar(20) CHARSET utf8mb4 COLLATE utf8mb4_bin FORMAT JSON PATH '$.sizes')) `jt`	latin1	latin1_swedish_ci
+drop view v_fmt_cs;
 select * from
 json_table(
 '[{"a":"3"},{"a":2},{"b":1},{"a":0}]',
@@ -189,12 +270,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "tt",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 40,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "table_function": "json_table"
         }
@@ -406,7 +490,7 @@ SELECT * FROM JSON_TABLE('"asdf"',
 a
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'asdf' for column ``.`(temporary)`.`a` at row 1
+Warning	1366	Incorrect integer value: 'asdf' for column `*any*`.`json_table`.`a` at row 1
 SELECT * FROM
 JSON_TABLE('[{"a":1},{"a":2}]',
 '$' COLUMNS (a INT PATH '$[*].a' ERROR ON ERROR)) AS jt;
@@ -465,7 +549,7 @@ id	jid	val
 2	1	2
 2	2	4
 2	3	6
-SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+SELECT id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
@@ -476,14 +560,14 @@ id	jid	val
 2	1	2
 2	2	4
 2	3	6
-EXPLAIN SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+EXPLAIN SELECT id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+SELECT t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
@@ -510,7 +594,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-EXPLAIN SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+EXPLAIN SELECT t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
@@ -530,8 +614,7 @@ EXPLAIN SELECT * FROM t1 WHERE id IN
 (id INT PATH '$')) AS jt);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+1	PRIMARY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 DROP TABLE t1;
 SELECT * FROM JSON_TABLE('"asdf"', '$' COLUMNS(
 tm TIME PATH '$',
@@ -544,15 +627,17 @@ tm	dt	i	f	d
 Warnings:
 Warning	1265	Data truncated for column 'tm' at row 1
 Warning	1265	Data truncated for column 'dt' at row 1
-Warning	1366	Incorrect integer value: 'asdf' for column ``.`(temporary)`.`i` at row 1
-Warning	1366	Incorrect double value: 'asdf' for column ``.`(temporary)`.`f` at row 1
-Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`d` at row 1
+Warning	1366	Incorrect integer value: 'asdf' for column `*any*`.`json_table`.`i` at row 1
+Warning	1366	Incorrect double value: 'asdf' for column `*any*`.`json_table`.`f` at row 1
+Warning	1366	Incorrect decimal value: 'asdf' for column `*any*`.`json_table`.`d` at row 1
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON EMPTY)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL ON EMPTY)) jt' at line 2
+x
+NULL
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON ERROR)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL ON ERROR)) jt' at line 2
+x
+NULL
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON EMPTY)) jt;
 x
@@ -565,17 +650,19 @@ SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x DATE
 PATH '$.x'
                                   DEFAULT DATE'2020-01-01' ON EMPTY)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE'2020-01-01' ON EMPTY)) jt' at line 4
+x
+2020-01-01
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x DATE
 PATH '$.x'
                                   DEFAULT DATE'2020-01-01' ON ERROR)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE'2020-01-01' ON ERROR)) jt' at line 4
+x
+NULL
 #
 # Bug#25413069: SIG11 IN CHECK_COLUMN_GRANT_IN_TABLE_REF
 #
 SELECT a FROM JSON_TABLE(abc, '$[*]' COLUMNS ( a int path '$.a')) AS jt;
-ERROR 42S22: Unknown column 'abc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 'abc' in 'JSON_TABLE'
 #
 # Bug#25420680: ASSERTION `THD->IS_ERROR()' FAILED IN SQL/SQL_SELECT.CC
 #
@@ -663,10 +750,10 @@ DEALLOCATE PREPARE stmt;
 CREATE TABLE t1 (id INT, jc JSON);
 SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 SELECT * FROM JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt LEFT JOIN t1 ON t1.jc=jt.id;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 SELECT * FROM JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt RIGHT JOIN t1 ON t1.jc=jt.id;
 id	id	jc
@@ -690,33 +777,33 @@ SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i RIGHT JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 WITH qn AS
 (SELECT jt.* FROM t1 RIGHT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id)
 SELECT * from qn;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 WITH qn AS
 (SELECT 1 UNION
 SELECT jt.id FROM t1 RIGHT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id)
 SELECT * from qn;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i RIGHT JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 INSERT INTO t1 VALUES(1,"1"),(2,"4"),(3,"3");
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -739,14 +826,14 @@ LEFT JOIN
 JSON_TABLE(t1.jc, '$' COLUMNS (id FOR ORDINALITY)) as jt ON t1.jc=jt.id
 RIGHT JOIN
 JSON_TABLE(jt.id, '$' COLUMNS (id FOR ORDINALITY)) as jt1 ON jt.id=jt1.id;
-ERROR 42S22: Unknown column 'jt.id' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 'jt.id' in 'JSON_TABLE'
 DROP TABLE t1;
 #
 # Bug#25525409: ASSERTION `TABLE_LIST->TABLE' FAILED IN SQL/SQL_BASE.CC
 #
 SELECT * FROM JSON_TABLE( ( SELECT a ) , '$.*' COLUMNS (col1 FOR ORDINALITY) )
 AS alias1;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT * FROM JSON_TABLE( ( SELECT 1 ) , '$.*' COLUMNS (col1 FOR ORDINALITY) )
 AS alias1;
 col1
@@ -858,8 +945,8 @@ col18
 0.000
 0.000
 Warnings:
-Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`col18` at row 1
-Warning	1366	Incorrect decimal value: 'ghjk' for column ``.`(temporary)`.`col18` at row 2
+Warning	1366	Incorrect decimal value: 'asdf' for column `*any*`.`json_table`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'ghjk' for column `*any*`.`json_table`.`col18` at row 2
 CREATE TABLE t1(jd JSON);
 INSERT INTO t1 VALUES('["asdf"]'),('["ghjk"]');
 SELECT * FROM t1,
@@ -871,8 +958,8 @@ jd	col18
 ["asdf"]	0.000
 ["ghjk"]	0.000
 Warnings:
-Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`col18` at row 1
-Warning	1366	Incorrect decimal value: 'ghjk' for column ``.`(temporary)`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'asdf' for column `*any*`.`json_table`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'ghjk' for column `*any*`.`json_table`.`col18` at row 1
 DROP TABLE t1;
 #
 # Bug#25540027: SIG 11 IN FIND_FIELD_IN_TABLE | SQL/SQL_BASE.CC
@@ -1046,7 +1133,7 @@ CREATE TABLE t (x INT);
 INSERT INTO t VALUES (1), (2), (3);
 SELECT MAX(t.x) OVER () m, jt.* FROM t,
 JSON_TABLE(JSON_ARRAY(m), '$[*]' COLUMNS (i INT PATH '$')) jt;
-ERROR 42S22: Unknown column 'm' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 'm' in 'JSON_TABLE'
 DROP TABLE t;
 #
 # Bug#26583283: ASSERTION `!THD->IS_ERROR()' FAILED IN SQL_RESOLVER.CC
@@ -1450,7 +1537,7 @@ PATH '$')) AS jt1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+  `x` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
@@ -1501,12 +1588,10 @@ CREATE VIEW v1 AS
 SELECT * FROM JSON_TABLE('{"å":{"å":1}}', '$.å' COLUMNS (x INT PATH '$.å')) t;
 SELECT * FROM v1;
 x
-1
 SET NAMES latin1;
 SELECT * FROM v1;
 x
-1
-SET NAMES DEFAULT;
+SET NAMES latin1;
 DROP VIEW v1;
 CREATE VIEW v2 AS
 SELECT * FROM JSON_TABLE('{}', '$' COLUMNS (
@@ -1664,3 +1749,4 @@ SELECT HEX(a) FROM JSON_TABLE(
 ) e;
 HEX(a)
 0000000000
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

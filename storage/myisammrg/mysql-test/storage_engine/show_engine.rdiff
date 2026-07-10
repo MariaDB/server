@@ -1,5 +1,5 @@
---- show_engine.result	2013-01-22 22:05:05.246633000 +0400
-+++ show_engine.reject	2013-01-23 02:50:56.871537482 +0400
+--- show_engine.result
++++ show_engine.reject
 @@ -4,7 +4,6 @@
  # volatile data (timestamps, memory info, etc.)
  SHOW ENGINE <STORAGE_ENGINE> STATUS;

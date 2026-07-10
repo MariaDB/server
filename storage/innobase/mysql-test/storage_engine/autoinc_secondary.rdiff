@@ -1,5 +1,5 @@
---- suite/storage_engine/autoinc_secondary.result	2012-07-12 04:34:18.153885986 +0400
-+++ suite/storage_engine/autoinc_secondary.reject	2012-07-15 17:47:03.937703666 +0400
+--- suite/storage_engine/autoinc_secondary.result
++++ suite/storage_engine/autoinc_secondary.reject
 @@ -13,18 +13,15 @@
  5	a
  DROP TABLE t1;

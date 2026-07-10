@@ -79,7 +79,7 @@ struct fts_index_cache_t {
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
-/** Stop word control infotmation. */
+/** Stop word control information. */
 struct fts_stopword_t {
 	ulint		status;		/*!< Status of the stopword tree */
 	ib_alloc_t*	heap;		/*!< The memory allocator to use */
@@ -108,8 +108,6 @@ struct fts_sync_t {
 	doc_id_t	max_doc_id;	/*!< The doc id at which the cache was
 					noted as being full, we use this to
 					set the upper_limit field */
-	time_t		start_time;	/*!< SYNC start time; only used if
-					fts_enable_diag_print */
 	bool		in_progress;	/*!< flag whether sync is in progress.*/
 	bool		unlock_cache;	/*!< flag whether unlock cache when
 					write fts node */
@@ -278,44 +276,6 @@ struct fts_token_t {
 extern const fts_index_selector_t fts_index_selector[];
 
 /******************************************************************//**
-Compare two fts_trx_row_t instances doc_ids. */
-UNIV_INLINE
-int
-fts_trx_row_doc_id_cmp(
-/*===================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
-Compare two fts_ranking_t instances doc_ids. */
-UNIV_INLINE
-int
-fts_ranking_doc_id_cmp(
-/*===================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
-Compare two doc_ids. */
-UNIV_INLINE
-int fts_doc_id_cmp(
-/*==================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
 Duplicate a string. */
 UNIV_INLINE
 void
@@ -327,6 +287,16 @@ fts_string_dup(
 						> 0 if n1 > n2 */
 	fts_string_t*		dst,		/*!< in: dup to here */
 	const fts_string_t*	src,		/*!< in: src string */
+	mem_heap_t*		heap);		/*!< in: heap to use */
+
+/******************************************************************//**
+Duplicate a string with lower case conversion. */
+UNIV_INLINE
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,
+	const fts_string_t&	src,		/*!< in: src string */
 	mem_heap_t*		heap);		/*!< in: heap to use */
 
 /******************************************************************//**

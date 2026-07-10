@@ -16,6 +16,7 @@ localhost	root	test_role1	Y
 localhost	root	test_role2	Y
 localhost	test_user	test_role1	N
 grant select (Role) on mysql.roles_mapping to test_role2;
+change_user test_user,,;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 show grants;
@@ -60,6 +61,7 @@ current_user()	current_role()
 test_user@localhost	NULL
 select Role from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
+change_user root,,;
 drop user 'test_user'@'localhost';
 select * from mysql.tables_priv;
 Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv

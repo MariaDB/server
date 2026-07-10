@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# $Id: mytop,v 1.99-maria6 2019/10/22 14:53:51 jweisbuch Exp $
+# $Id: mytop,v 1.99-maria8 2025/07/16 17:59:26 jweisbuch Exp $
 
 =pod
 
@@ -21,7 +21,7 @@ use Socket;
 use List::Util qw(min max);
 use File::Basename;
 
-$main::VERSION = "1.99-maria6";
+$main::VERSION = "1.99-maria8";
 my $path_for_script = dirname($0);
 
 $| = 1;
@@ -72,6 +72,11 @@ sub cmd_s;
 sub cmd_S;
 sub cmd_q;
 
+## Default username, matching mysql/mariadb on Unix
+my $default_db_user = $WIN
+    ? 'root'
+    : ((getpwuid($<))[0] || $ENV{LOGNAME} || $ENV{USER} || 'root');
+
 ## Default Config Values
 
 my %config = (
@@ -99,7 +104,7 @@ my %config = (
     slow          => 10,        ## slow query time
     socket        => '',
     sort          => 1,         ## default or reverse sort ("s")
-    user          => 'root',
+    user          => $default_db_user,
     fullqueries   => 0,         ## shows untruncated queries
     usercol_width => 8,         ## User column width
     dbcol_width   => 9,         ## DB column width
@@ -147,7 +152,12 @@ if (-e $config)
 
             if (/(\S+)\s*=\s*(.*\S)/)
             {
-                $config{lc $1} = $2 if exists $config{lc $1};
+                my ($k, $v) = ($1, $2);
+                if ($k =~ /^filter_/i) {
+                  $config{lc $k} = StringOrRegex($v) if exists $config{lc $k};
+                } else {
+                  $config{lc $k} = $v if exists $config{lc $k};
+                }
             }
         }
         close CFG;
@@ -251,7 +261,11 @@ if (eval {DBI->install_driver("MariaDB")}) {
 
 if ($config{socket} and -S $config{socket})
 {
-  $dsn .= "${prefix}_socket=$config{socket}";
+    $dsn .= "${prefix}_socket=$config{socket}";
+}
+elsif($config{host} eq "localhost")
+{
+    $dsn .= "host=$config{host}";
 }
 else
 {
@@ -276,7 +290,7 @@ if (not ref $dbh)
 Cannot connect to MariaDB/MySQL server. Please check the:
 
   * database you specified "$config{db}" (default is "")
-  * username you specified "$config{user}" (default is "root")
+  * username you specified "$config{user}" (default is "$default_db_user")
   * password you specified "$config{pass}" (default is "")
   * hostname you specified "$config{host}" (default is "localhost")
   * port you specified "$config{port}" (default is 3306)
@@ -452,7 +466,7 @@ while (1)
         ReadKey(0);
     }
 
-    ## l - change long running hightling
+    ## l - change long running queries highlighting
 
     if ($key eq 'l')
     {
@@ -1438,7 +1452,7 @@ sub GetData()
         ## Strip non printing control symbols
         $thread->{Info} =~ tr/[[:cntrl:]]//;
 
-        ## Collpase whitespace
+        ## Collapse whitespace
         $thread->{Info} =~ s/\s+/ /g;
 
         ## Trailing space removal
@@ -1944,13 +1958,13 @@ sub PrintHelp()
   E - display current replication error
   f - show full query info for a given thread
   F - unfilter the display
-  h - show only a specifc host's connections
+  h - show only a specific host's connections
   H - toggle the mytop header
   i - toggle the display of idle (sleeping) threads
   I - show innodb status
   k - kill a thread
   p - pause the display
-  l - change long running queries hightlighing
+  l - change long running queries highlighting
   m - switch [mode] to qps (queries/sec) scrolling view
   M - switch [mode] to status
   o - reverse the sort order (toggle)
@@ -1958,7 +1972,7 @@ sub PrintHelp()
   r - reset the status counters (via FLUSH STATUS on your server)
   R - change reverse IP lookup
   s - change the delay between screen updates
-  S - change slow query hightlighting
+  S - change slow query highlighting
   t - switch to thread view (default)
   u - show only a specific user
   V - show variables
@@ -2118,7 +2132,7 @@ modules.
 
 =head2 Optional Color Support
 
-In additon, if you want a color B<mytop> (recommended), install
+In addition, if you want a color B<mytop> (recommended), install
 Term::ANSIColor from the CPAN:
 
     http://search.cpan.org/search?dist=ANSIColor
@@ -2192,7 +2206,7 @@ slow queries, and the percentage of Select, Insert, Update, and Delete
 queries.
 
 The third real-time values. First is the number of queries per second,
-then the number of slow queries, followed by query precentages (like
+then the number of slow queries, followed by query percentages (like
 on the previous line).
 
 And the fourth line displays key buffer efficiency (how often keys are
@@ -2243,7 +2257,9 @@ have two dashes `--'. Short arguments only have one '-'.
 
 =item B<-u> or B<--user> username
 
-Username to use when logging in to the MariaDB server. Default: ``B<root>''.
+Username to use when logging in to the MariaDB server. On Unix, the default
+is your login name (same as the C<mysql>/C<mariadb> client). On Windows, the
+default is ``B<root>''.
 
 =item B<-p> or B<--pass> or B<--password> I<password>
 
@@ -2377,8 +2393,9 @@ command-line arguments are processed, so your command-line arguments
 will override directives in the config file.
 
 
-Here is a sample config file C<~/.mytop> which implements the defaults
-described above.
+Here is a sample config file C<~/.mytop>. Omit C<user> to keep the built-in
+default (Unix login on non-Windows, same as C<mysql>/C<mariadb>), the line
+below is only if you want to connect as C<root> explicitly.
 
   user=root
   pass=
@@ -2488,7 +2505,7 @@ Reset the server's status counters via a I<FLUSH STATUS> command.
 
 =item B<R>
 
-Togle IP reverse lookup. Default is on.
+Toggle IP reverse lookup. Default is on.
 
 =item B<s>
 

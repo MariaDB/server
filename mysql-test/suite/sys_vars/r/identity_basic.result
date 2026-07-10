@@ -109,11 +109,11 @@ SELECT @@identity;
 @@identity
 1
 SELECT local.identity;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.identity;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT identity = @@session.identity;
-ERROR 42S22: Unknown column 'identity' in 'field list'
+ERROR 42S22: Unknown column 'identity' in 'SELECT'
 SET @@session.identity = @start_value;
 SELECT @@session.identity;
 @@session.identity

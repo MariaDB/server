@@ -7,6 +7,8 @@ SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
 let $engine_type= memory;
 --source suite/funcs_1/include/bug28309_skip.inc
 
+--source include/test_db_charset_latin1.inc
+
 # Create some objects needed in many testcases
 USE test;
 --source suite/funcs_1/include/memory_tb2.inc
@@ -22,3 +24,4 @@ USE test;
 DROP DATABASE test1;
 DROP TABLE test.tb2;
 
+--source include/test_db_charset_restore.inc

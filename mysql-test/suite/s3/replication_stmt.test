@@ -1,9 +1,14 @@
 --source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
 
+connection slave;
+--source include/stop_slave.inc
+connection master;
 set binlog_format=statement;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
+--source include/start_slave.inc
 set binlog_format=statement;
 RESET MASTER;
 connection master;

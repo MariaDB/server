@@ -1,7 +1,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-CREATE TABLE t1 (f1 VARCHAR(767) PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 VARCHAR(767) PRIMARY KEY) ENGINE=InnoDB CHARSET=latin1;
 
 # MySQL complains about multiple identical indexes on the same column
 --disable_warnings

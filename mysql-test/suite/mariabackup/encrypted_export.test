@@ -1,0 +1,29 @@
+--source include/have_file_key_management.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB;
+insert into t1 values(repeat('a',100));
+
+select @@innodb_encrypt_tables;
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
+--enable_result_log
+--source include/shutdown_mysqld.inc
+
+echo # xtrabackup prepare export;
+--disable_result_log
+exec $XTRABACKUP --prepare --export --target-dir=$targetdir;
+--enable_result_log
+
+--source include/start_mysqld.inc
+let MYSQLD_DATADIR=`select @@datadir`;
+ALTER TABLE t1 DISCARD TABLESPACE;
+copy_file $targetdir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $targetdir/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg;
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+DROP TABLE t1;
+rmdir $targetdir;

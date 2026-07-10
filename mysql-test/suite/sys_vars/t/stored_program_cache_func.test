@@ -33,9 +33,11 @@ create procedure pr(i int) begin
 end |
 --delimiter ;
 call pr(1);
---error ER_BAD_FIELD_ERROR
+#--error ER_BAD_FIELD_ERROR
+# MDEV-5816 added support for recompilation of statements
+# inside a stored routine so the error ER_BAD_FIELD_ERROR is
+# no more expected
 call pr(2);
-drop table t1;
 
 set global stored_program_cache=0;
 call pr(1);

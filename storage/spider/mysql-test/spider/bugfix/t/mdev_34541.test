@@ -1,0 +1,48 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+SET SESSION spider_same_server_link=1;
+SET sql_mode='';
+
+set @old_table_open_cache=@@global.table_open_cache;
+set global table_open_cache=10;
+
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+CREATE TABLE t3 (c INT) ENGINE=InnoDB;
+CREATE TABLE ta (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t5 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t6 (c INT KEY) ENGINE=InnoDB PARTITION BY RANGE (c) (PARTITION p VALUES LESS THAN (5));
+CREATE TABLE t7 (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t8 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+--error 12702
+SELECT * FROM t8;
+--error 12702
+CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB SELECT * FROM t7;
+--error ER_SP_DOES_NOT_EXIST
+CALL foo;
+CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB;
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t7 JOIN t6 ON tc=t0.c;
+--disable_result_log
+SHOW TABLE STATUS;
+--enable_result_log
+
+# we need to drop t7 twice
+drop table ta, t8, t7, t6, t5, t3, t2, t1;
+drop table t7;
+drop server srv;
+set global table_open_cache=@old_table_open_cache;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

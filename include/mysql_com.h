@@ -41,27 +41,6 @@
 #define MYSQL50_TABLE_NAME_PREFIX_LENGTH  (sizeof(MYSQL50_TABLE_NAME_PREFIX)-1)
 #define SAFE_NAME_LEN (NAME_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH)
 
-/*
-  MDEV-4088
-
-  MySQL (and MariaDB 5.x before the fix) was using the first character of the
-  server version string (as sent in the first handshake protocol packet) to
-  decide on the replication event formats. And for 10.x the first character
-  is "1", which the slave thought comes from some ancient 1.x version
-  (ignoring the fact that the first ever MySQL version was 3.x).
-
-  To support replication to these old clients, we fake the version in the
-  first handshake protocol packet to start from "5.5.5-" (for example,
-  it might be "5.5.5-10.0.1-MariaDB-debug-log".
-
-  On the client side we remove this fake version prefix to restore the
-  correct server version. The version "5.5.5" did not support
-  pluggable authentication, so any version starting from "5.5.5-" and
-  claiming to support pluggable auth, must be using this fake prefix.
-*/
-/* this version must be the one that *does not* support pluggable auth */
-#define RPL_VERSION_HACK "5.5.5-"
-
 #define SERVER_VERSION_LENGTH 60
 #define SQLSTATE_LENGTH 5
 #define LIST_PROCESS_HOST_LEN 64
@@ -145,8 +124,7 @@ enum enum_indicator_type
   bulk PS flags
 */
 #define STMT_BULK_FLAG_CLIENT_SEND_TYPES 128
-#define STMT_BULK_FLAG_INSERT_ID_REQUEST 64
-
+#define STMT_BULK_FLAG_SEND_UNIT_RESULTS 64
 
 /* sql type stored in .frm files for virtual fields */
 #define MYSQL_TYPE_VIRTUAL 245
@@ -218,8 +196,8 @@ enum enum_indicator_type
 #define REFRESH_HOSTS           (1ULL << 3)  /* Flush host cache */
 #define REFRESH_STATUS          (1ULL << 4)  /* Flush status variables */
 #define REFRESH_THREADS         (1ULL << 5)  /* Flush thread cache */
-#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart slave
-                                             thread */
+#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart
+                                                slave thread */
 #define REFRESH_MASTER          (1ULL << 7)  /* Remove all bin logs in the index
                                              and truncate the index */
 
@@ -236,10 +214,12 @@ enum enum_indicator_type
 
 #define REFRESH_QUERY_CACHE     (1ULL << 16) /* clear the query cache */
 #define REFRESH_QUERY_CACHE_FREE (1ULL << 17) /* pack query cache */
-#define REFRESH_DES_KEY_FILE    (1ULL << 18)
+/* unused                       (1ULL << 18) */
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 #define REFRESH_SSL             (1ULL << 21)
+#define REFRESH_GLOBAL_STATUS   (1ULL << 22)  /* Flush global status */
+#define REFRESH_SESSION_STATUS  (1ULL << 23)  /* Flush session status */
 
 #define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
@@ -309,6 +289,9 @@ enum enum_indicator_type
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 
+/* permit sending unit result-set for BULK commands */
+#define MARIADB_CLIENT_BULK_UNIT_RESULTS (1ULL << 37)
+
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -349,7 +332,8 @@ enum enum_indicator_type
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            MARIADB_CLIENT_CACHE_METADATA |\
-                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |\
+                           MARIADB_CLIENT_BULK_UNIT_RESULTS)
 /*
   Switch off the flags that are optional and depending on build flags
   If any of the optional flags is supported by the build it will be switched
@@ -422,6 +406,13 @@ enum mariadb_field_attr_t
 
 #define SERVER_STATUS_ANSI_QUOTES       32768U
 
+/*
+  Set for stored procedures if the select query returned a row
+  To check for an empty query, one must also check thd::get_sent_row_count()
+*/
+
+#define SERVER_STATUS_RETURNED_ROW      (1U << 16)
+
 /**
   Server status flags that must be cleared when starting
   execution of a new SQL statement.
@@ -438,7 +429,8 @@ enum mariadb_field_attr_t
                                  SERVER_STATUS_DB_DROPPED |\
                                  SERVER_STATUS_CURSOR_EXISTS|\
                                  SERVER_STATUS_LAST_ROW_SENT|\
-                                 SERVER_SESSION_STATE_CHANGED)
+                                 SERVER_SESSION_STATE_CHANGED|\
+                                 SERVER_STATUS_RETURNED_ROW)
 
 #define MYSQL_ERRMSG_SIZE	512
 #define NET_READ_TIMEOUT	30		/* Timeout on read */
@@ -454,6 +446,7 @@ typedef struct st_vio Vio;
 #define MAX_INT_WIDTH           10      /* Max width for a LONG w.o. sign */
 #define MAX_BIGINT_WIDTH        20      /* Max width for a LONGLONG */
 #define MAX_CHAR_WIDTH		255	/* Max length for a CHAR column */
+#define MYSQL_UDF_MAX_RESULT_LENGTH 255 /* Max length for a UDF result */
 #define MAX_BLOB_WIDTH		16777216	/* Default width for blob */
 
 typedef struct st_net {
@@ -477,7 +470,8 @@ typedef struct st_net {
   char net_skip_rest_factor;
   my_bool thread_specific_malloc;
   unsigned char compress;
-  my_bool unused3; /* Please remove with the next incompatible ABI change. */
+  my_bool pkt_nr_can_be_reset;
+  my_bool using_proxy_protocol;
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet
@@ -738,7 +732,7 @@ void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-char *octet2hex(char *to, const char *str, size_t len);
+char *octet2hex(char *to, const unsigned char *str, size_t len);
 
 /* end of password.c */
 

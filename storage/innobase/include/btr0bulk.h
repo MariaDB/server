@@ -51,19 +51,18 @@ class PageBulk
 public:
 	/** Constructor
 	@param[in]	index		B-tree index
+	@param[in,out]	trx		trnsaction
 	@param[in]	page_no		page number
-	@param[in]	level		page level
-	@param[in]	trx_id		transaction id */
+	@param[in]	level		page level */
 	PageBulk(
 		dict_index_t*	index,
-		trx_id_t	trx_id,
+		trx_t*		trx,
 		uint32_t	page_no,
 		ulint		level)
 		:
 		m_heap(NULL),
 		m_index(index),
-		m_mtr(),
-		m_trx_id(trx_id),
+		m_mtr(trx),
 		m_block(NULL),
 		m_page(NULL),
 		m_page_zip(NULL),
@@ -222,9 +221,6 @@ private:
 	/** The mini-transaction */
 	mtr_t		m_mtr;
 
-	/** The transaction id */
-	trx_id_t	m_trx_id;
-
 	/** The buffer block */
 	buf_block_t*	m_block;
 
@@ -284,8 +280,7 @@ public:
 	@param[in]	index		B-tree index
 	@param[in]	trx		transaction */
 	BtrBulk(
-		dict_index_t*	index,
-		const trx_t*	trx)
+		dict_index_t*	index, trx_t*	trx)
 		:
 		m_index(index),
 		m_trx(trx)
@@ -359,7 +354,7 @@ private:
 	dict_index_t*const	m_index;
 
 	/** Transaction */
-	const trx_t*const	m_trx;
+	trx_t*const		m_trx;
 
 	/** Root page level */
 	ulint			m_root_level;

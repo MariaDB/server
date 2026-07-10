@@ -1,7 +1,7 @@
 --source include/have_partition.inc
 --source include/have_debug.inc
 --source include/have_sequence.inc
---source include/binlog_combinations.inc
+--source include/binlog_format_combinations.inc
 --source include/have_binlog_format_row_or_statement.inc
 --source include/not_valgrind.inc
 

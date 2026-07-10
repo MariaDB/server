@@ -44,9 +44,9 @@ MACRO(MYSQL_ADD_PLUGIN)
   # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
                     ${CMAKE_SOURCE_DIR}/sql
-                    ${PCRE_INCLUDES}
+                    ${PCRE_INCLUDE_DIRS}
                     ${SSL_INCLUDE_DIRS}
-                    ${ZLIB_INCLUDE_DIR})
+                    ${ZLIB_INCLUDE_DIRS})
 
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 plugin)
   SET(SOURCES ${ARG_UNPARSED_ARGUMENTS})
@@ -108,6 +108,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     MESSAGE(FATAL_ERROR "Invalid value for PLUGIN_${plugin}")
   ENDIF()
 
+  # Validate that the requested build mode is compatible with what the
+  # plugin actually supports. STATIC_ONLY plugins cannot be built as
+  # dynamic modules, and MODULE_ONLY plugins cannot be linked statically.
+  IF(PLUGIN_${plugin} STREQUAL "DYNAMIC" AND ARG_STATIC_ONLY)
+    MESSAGE(FATAL_ERROR "Plugin ${plugin} is STATIC_ONLY and cannot be built"
+      " with -DPLUGIN_${plugin}=DYNAMIC. Remove this option or use STATIC.")
+  ELSEIF(PLUGIN_${plugin} STREQUAL "STATIC" AND ARG_MODULE_ONLY)
+    MESSAGE(FATAL_ERROR "Plugin ${plugin} is MODULE_ONLY and cannot be built"
+      " with -DPLUGIN_${plugin}=STATIC. Remove this option or use DYNAMIC.")
+  ENDIF()
+
   IF(ARG_STORAGE_ENGINE)
     SET(with_var "WITH_${plugin}_STORAGE_ENGINE" )
   ELSE()
@@ -161,6 +172,9 @@ MACRO(MYSQL_ADD_PLUGIN)
             PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${version_string}")
         ENDIF()
         ADD_DEPENDENCIES(${target}_embedded GenError ${ARG_DEPENDS})
+        IF(ARG_LINK_LIBRARIES)
+          TARGET_LINK_LIBRARIES (${target}_embedded ${ARG_LINK_LIBRARIES})
+        ENDIF()
       ENDIF()
     ENDIF()
 
@@ -214,6 +228,11 @@ MACRO(MYSQL_ADD_PLUGIN)
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
 
+    IF(WIN32)
+      # A popular library, turns out many plugins need it for gethostname()
+      TARGET_LINK_LIBRARIES (${target} ws2_32)
+    ENDIF()
+
     IF(CMAKE_SYSTEM_NAME MATCHES AIX)
       TARGET_LINK_OPTIONS(${target} PRIVATE "-Wl,-bE:${CMAKE_SOURCE_DIR}/libservices/mysqlservices_aix.def")
     ENDIF()
@@ -250,7 +269,10 @@ MACRO(MYSQL_ADD_PLUGIN)
         ELSE()
           SET(ver "")
         ENDIF()
-        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT})
+        STRING(TOUPPER ${ARG_COMPONENT} ARG_COMPONENT_UPPER)
+        SET(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}SYMLINKS_GROUP ${ARG_COMPONENT} PARENT_SCOPE)
+        SET(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}_GROUP ${ARG_COMPONENT} PARENT_SCOPE)
+        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} ${ARG_COMPONENT}Symlinks)
         SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} PARENT_SCOPE)
 
         IF (NOT ARG_CLIENT)
@@ -277,6 +299,11 @@ MACRO(MYSQL_ADD_PLUGIN)
     MYSQL_INSTALL_TARGETS(${target} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
     IF(ARG_CONFIG AND INSTALL_SYSCONF2DIR)
       INSTALL(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
+    ENDIF()
+    IF(NOT ARG_CLIENT)
+      GET_PROPERTY(my_list GLOBAL PROPERTY SERVER_DYNAMIC_PLUGINS)
+      LIST(APPEND my_list ${target})
+      SET_PROPERTY(GLOBAL PROPERTY SERVER_DYNAMIC_PLUGINS "${my_list}")
     ENDIF()
   ENDIF()
 

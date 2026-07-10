@@ -14,10 +14,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface
-#endif
-
 #define SPIDER_CONNECT_INFO_MAX_LEN 64
 #define SPIDER_CONNECT_INFO_PATH_MAX_LEN FN_REFLEN
 #define SPIDER_LONGLONG_LEN 20
@@ -59,18 +55,60 @@ public:
   const char         *mem_calc_func_name;
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
-  uint               sql_kinds;
-  uint               *sql_kind;
   ulonglong          *connection_ids;
-  uint               conn_kinds;
-  uint               *conn_kind;
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
-  /* for active-standby mode */
+  /*
+    Array of indexes of active servers.
+
+    For a spider table or partition with multiple remotes (HA), the
+    remotes are divided into n groups of active links, where n is the
+    number of "active link count", equal to share->link_count aka
+    share->active_link_count. For example, if a spider table has 11
+    remotes (i.e. share->all_link_count == 11), and
+    share->active_link_count == 3, then we have 3 link groups with
+    group 0 consisting of the 0th, 3rd, 6th and 9th remotes and so on:
+
+    group 0: 0, 3, 6, 9
+    group 1: 1, 4, 7, 10
+    group 2: 2, 5, 8
+
+    conn_link_idx[i] is the "current" remote chosen for the ith group,
+    and it can only take a value in the ith group.
+
+    Continue with the example above, at some point, we could end up
+    with:
+
+    conn_link_idx[0] == 3
+    conn_link_idx[1] == 1
+    conn_link_idx[2] == 8
+
+    conn_link_idx is set in spider_trx_set_link_idx_for_all().
+
+    By default, active_link_idx is the same number as all_link_count,
+    i.e. 11 in the above example.
+
+    If spider HA is gone (MDEV-28862), this will be no longer needed.
+
+    Typically, to distinguish the ith group and ith link, we use
+    variable names link_idx and all_link_idx respectively, so we often
+    have
+
+    all_link_idx == conn_link_idx[link_idx]
+
+    spider->conns[link_idx] is created using connection info of the
+    `conn_link_idx[link_idx]'th remote.
+
+    When only one of the indexes is used, we simply use variable name
+    link_idx
+  */
   uint               *conn_link_idx;
+  /* A bitmap indicating whether each active server have some higher
+  numbered server in the same "group" left to try (can fail over) */
   uchar              *conn_can_fo;
   void               **quick_targets;
+  /* indexed on active servers */
   int                *need_mons;
   query_id_t         search_link_query_id;
   int                search_link_idx;
@@ -80,6 +118,7 @@ public:
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
   SPIDER_PARTITION_HANDLER *partition_handler;
+  /* Whether this ha_spider is the owner of its wide_handler. */
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
@@ -94,8 +133,17 @@ public:
   bool               da_status;
   bool               use_spatial_index;
 
+  /*
+    Index of the table in FROM tables, for the use of direct
+    execution by gbh
+  */
   uint                  idx_for_direct_join;
+  /*
+    Whether using a spider_fields, only applicable to direct
+    execution by gbh
+  */
   bool                  use_fields;
+  /* If use_fields == true, the spider_fields in use for gbh */
   spider_fields         *fields;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *result_link_idx_chain;
@@ -122,10 +170,8 @@ public:
   bool               pre_bitmap_checked;
   bool               bulk_insert;
   bool               info_auto_called;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   bool               auto_inc_temporary;
-#endif
-  int                bulk_size;
+  int                bulk_size= 0;
   int                direct_dup_insert;
   int                store_error_num;
   uint               dup_key_idx;
@@ -138,9 +184,6 @@ public:
 
   ulonglong          *db_request_id;
   uchar              *db_request_phase;
-  uchar              *m_handler_opened;
-  uint               *m_handler_id;
-  char               **m_handler_cid;
   bool               do_direct_update;
   uint               direct_update_kinds;
   spider_index_rnd_init prev_index_rnd_init;
@@ -176,14 +219,14 @@ public:
   handler *clone(
     const char *name,
     MEM_ROOT *mem_root
-  );
+  ) override;
   const char **bas_ext() const;
   int open(
     const char* name,
     int mode,
     uint test_if_locked
-  );
-  int close();
+  ) override;
+  int close() override;
   int check_access_kind_for_connection(
     THD *thd,
     bool write_request
@@ -195,59 +238,56 @@ public:
     THD *thd,
     THR_LOCK_DATA **to,
     enum thr_lock_type lock_type
-  );
+  ) override;
   int external_lock(
     THD *thd,
     int lock_type
-  );
+  ) override;
   int start_stmt(
     THD *thd,
     thr_lock_type lock_type
-  );
-  int reset();
+  ) override;
+  int reset() override;
   int extra(
     enum ha_extra_function operation
-  );
-  int index_init(
-    uint idx,
-    bool sorted
-  );
-  int index_end();
+  ) override;
+  int index_init(uint idx, bool sorted) override;
+  int index_end() override;
   int index_read_map(
     uchar *buf,
     const uchar *key,
     key_part_map keypart_map,
     enum ha_rkey_function find_flag
-  );
+  ) override;
   int index_read_last_map(
     uchar *buf,
     const uchar *key,
     key_part_map keypart_map
-  );
+  ) override;
   int index_next(
     uchar *buf
-  );
+  ) override;
   int index_prev(
     uchar *buf
-  );
+  ) override;
   int index_first(
     uchar *buf
-  );
+  ) override;
   int index_last(
     uchar *buf
-  );
+  ) override;
   int index_next_same(
     uchar *buf,
     const uchar *key,
     uint keylen
-  );
+  ) override;
   int read_range_first(
     const key_range *start_key,
     const key_range *end_key,
     bool eq_range,
     bool sorted
-  );
-  int read_range_next();
+  ) override;
+  int read_range_next() override;
   void reset_no_where_cond();
   bool check_no_where_cond();
   ha_rows multi_range_read_info_const(
@@ -257,8 +297,9 @@ public:
     uint n_ranges,
     uint *bufsz,
     uint *flags,
+    ha_rows limit,
     Cost_estimate *cost
-  );
+  ) override;
   ha_rows multi_range_read_info(
     uint keyno,
     uint n_ranges,
@@ -267,111 +308,99 @@ public:
     uint *bufsz,
     uint *flags,
     Cost_estimate *cost
-  );
+  ) override;
   int multi_range_read_init(
     RANGE_SEQ_IF *seq,
     void *seq_init_param,
     uint n_ranges,
     uint mode,
     HANDLER_BUFFER *buf
-  );
+  ) override;
   int multi_range_read_next(
     range_id_t *range_info
-  );
+  ) override;
   int multi_range_read_next_first(
     range_id_t *range_info
   );
   int multi_range_read_next_next(
     range_id_t *range_info
   );
-  int rnd_init(
-    bool scan
-  );
-  int rnd_end();
+  int rnd_init(bool scan) override;
+  int rnd_end() override;
   int rnd_next(
     uchar *buf
-  );
+  ) override;
   void position(
     const uchar *record
-  );
+  ) override;
   int rnd_pos(
     uchar *buf,
     uchar *pos
-  );
+  ) override;
   int cmp_ref(
     const uchar *ref1,
     const uchar *ref2
-  );
-  int ft_init();
-  void ft_end();
+  ) override;
+  int ft_init() override;
+  void ft_end() override;
   FT_INFO *ft_init_ext(
     uint flags,
     uint inx,
     String *key
-  );
+  ) override;
   int ft_read(
     uchar *buf
-  );
+  ) override;
   int pre_index_read_map(
     const uchar *key,
     key_part_map keypart_map,
     enum ha_rkey_function find_flag,
     bool use_parallel
-  );
-  int pre_index_first(bool use_parallel);
-  int pre_index_last(bool use_parallel);
+  ) override;
+  int pre_index_first(bool use_parallel) override;
+  int pre_index_last(bool use_parallel) override;
   int pre_index_read_last_map(
     const uchar *key,
     key_part_map keypart_map,
     bool use_parallel
-  );
-  int pre_multi_range_read_next(
-    bool use_parallel
-  );
+  ) override;
+  int pre_multi_range_read_next(bool use_parallel) override;
   int pre_read_range_first(
     const key_range *start_key,
     const key_range *end_key,
     bool eq_range,
     bool sorted,
     bool use_parallel
-  );
-  int pre_ft_read(bool use_parallel);
-  int pre_rnd_next(bool use_parallel);
+  ) override;
+  int pre_ft_read(bool use_parallel) override;
+  int pre_rnd_next(bool use_parallel) override;
   int info(
     uint flag
-  );
+  ) override;
   ha_rows records_in_range(
     uint inx,
     const key_range *start_key,
     const key_range *end_key,
     page_range *pages
-  );
+  ) override;
   int check_crd();
-  int pre_records();
-  ha_rows records();
-  int pre_calculate_checksum();
-  int calculate_checksum();
-  const char *table_type() const;
-  ulonglong table_flags() const;
+  int pre_records() override;
+  ha_rows records() override;
+  int pre_calculate_checksum() override;
+  int calculate_checksum() override;
+  const char *table_type() const override;
+  ulonglong table_flags() const override;
   ulong table_flags_for_partition();
-  const char *index_type(
-    uint key_number
-  );
-  ulong index_flags(
-    uint idx,
-    uint part,
-    bool all_parts
-  ) const;
-  uint max_supported_record_length() const;
-  uint max_supported_keys() const;
-  uint max_supported_key_parts() const;
-  uint max_supported_key_length() const;
-  uint max_supported_key_part_length() const;
-  uint8 table_cache_type();
-  bool need_info_for_auto_inc();
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
-  bool can_use_for_auto_inc_init();
-#endif
+  const char *index_type(uint key_number) override;
+  ulong index_flags(uint idx, uint part, bool all_parts) const override;
+  uint max_supported_record_length() const override;
+  uint max_supported_keys() const override;
+  uint max_supported_key_parts() const override;
+  uint max_supported_key_length() const override;
+  uint max_supported_key_part_length() const override;
+  uint8 table_cache_type() override;
+  bool need_info_for_auto_inc() override;
+  bool can_use_for_auto_inc_init() override;
   int update_auto_increment();
   void get_auto_increment(
     ulonglong offset,
@@ -379,159 +408,122 @@ public:
     ulonglong nb_desired_values,
     ulonglong *first_value,
     ulonglong *nb_reserved_values
-  );
-  int reset_auto_increment(
-    ulonglong value
-  );
-  void release_auto_increment();
-  void start_bulk_insert(
-    ha_rows rows,
-    uint flags
-  );
-  int end_bulk_insert();
-  int write_row(
-    const uchar *buf
-  );
+  ) override;
+  int reset_auto_increment(ulonglong value) override;
+  void release_auto_increment() override;
+  void start_bulk_insert(ha_rows rows, uint flags) override;
+  int end_bulk_insert() override;
+  int write_row(const uchar *buf) override;
   void direct_update_init(
     THD *thd,
     bool hs_request
   );
-  bool start_bulk_update();
-  int exec_bulk_update(
-    ha_rows *dup_key_found
-  );
-  int end_bulk_update();
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
+  bool start_bulk_update() override;
+  int exec_bulk_update(ha_rows *dup_key_found) override;
+  int end_bulk_update() override;
   int bulk_update_row(
     const uchar *old_data,
     const uchar *new_data,
     ha_rows *dup_key_found
-  );
+  ) override;
   int update_row(
     const uchar *old_data,
     const uchar *new_data
-  );
-#else
-  int bulk_update_row(
-    const uchar *old_data,
-    uchar *new_data,
-    ha_rows *dup_key_found
-  );
-  int update_row(
-    const uchar *old_data,
-    uchar *new_data
-  );
-#endif
+  ) override;
   bool check_direct_update_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
     longlong offset_limit
   );
-#ifdef SPIDER_MDEV_16246
-  int direct_update_rows_init(
-    List<Item> *update_fields
-  );
-#else
-  int direct_update_rows_init();
-#endif
-  int direct_update_rows(
-    ha_rows *update_rows,
-    ha_rows *found_row
-  );
-  bool start_bulk_delete();
-  int end_bulk_delete();
-  int delete_row(
-    const uchar *buf
-  );
+  int direct_update_rows_init(List<Item> *update_fields) override;
+  int direct_update_rows(ha_rows *update_rows, ha_rows *found_row) override;
+  bool start_bulk_delete() override;
+  int end_bulk_delete() override;
+  int delete_row(const uchar *buf) override;
   bool check_direct_delete_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
     longlong offset_limit
   );
-  int direct_delete_rows_init();
+  int direct_delete_rows_init() override;
   int direct_delete_rows(
     ha_rows *delete_rows
-  );
-  int delete_all_rows();
-  int truncate();
-  double scan_time();
-  double read_time(
-    uint index,
-    uint ranges,
-    ha_rows rows
-  );
-  const key_map *keys_to_use_for_scanning();
-  ha_rows estimate_rows_upper_bound();
+  ) override;
+  int delete_all_rows() override;
+  int truncate() override;
+  IO_AND_CPU_COST scan_time() override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override;
+  const key_map *keys_to_use_for_scanning() override;
+  ha_rows estimate_rows_upper_bound() override;
   void print_error(
     int error,
     myf errflag
-  );
+  ) override;
   bool get_error_message(
     int error,
     String *buf
-  );
+  ) override;
   int create(
     const char *name,
     TABLE *form,
     HA_CREATE_INFO *info
-  );
+  ) override;
   void update_create_info(
     HA_CREATE_INFO* create_info
-  );
+  ) override;
   int rename_table(
     const char *from,
     const char *to
-  );
+  ) override;
   int delete_table(
     const char *name
-  );
-  bool is_crashed() const;
+  ) override;
+  bool is_crashed() const override;
 #ifdef SPIDER_HANDLER_AUTO_REPAIR_HAS_ERROR
-  bool auto_repair(int error) const;
+  bool auto_repair(int error) const override;
 #else
   bool auto_repair() const;
 #endif
   int disable_indexes(
-    uint mode
-  );
+    key_map map, bool persist
+  ) override;
   int enable_indexes(
-    uint mode
-  );
+    key_map map, bool persist
+  ) override;
   int check(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   int repair(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   bool check_and_repair(
     THD *thd
-  );
+  ) override;
   int analyze(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   int optimize(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   bool is_fatal_error(
     int error_num,
     uint flags
-  );
+  ) override;
   Field *field_exchange(
     Field *field
   );
   const COND *cond_push(
     const COND* cond
-  );
-  void cond_pop();
-  int info_push(
-    uint info_type,
-    void *info
-  );
-  void return_record_by_parent();
+  ) override;
+  void cond_pop() override;
+  int info_push(uint info_type, void *info) override;
+  void return_record_by_parent() override;
   TABLE *get_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
@@ -551,25 +543,7 @@ public:
   bool is_sole_projection_field(
     uint16 field_index
   );
-  int check_ha_range_eof();
   int drop_tmp_tables();
-  bool handler_opened(
-    int link_idx,
-    uint tgt_conn_kind
-  );
-  void set_handler_opened(
-    int link_idx
-  );
-  void clear_handler_opened(
-    int link_idx,
-    uint tgt_conn_kind
-  );
-  int close_opened_handler(
-    int link_idx,
-    bool release_conn
-  );
-  int index_handler_init();
-  int rnd_handler_init();
   void set_error_mode();
   void backup_error_status();
   int check_error_mode(
@@ -813,12 +787,34 @@ public:
     const char *alias,
     uint alias_length
   );
-  bool support_use_handler_sql(
-    int use_handler
-  );
   int init_union_table_name_pos_sql();
   int set_union_table_name_pos_sql();
   int append_lock_tables_list();
   int lock_tables();
   int dml_init();
+private:
+  void init_fields();
 };
+
+
+/* This is a hack for ASAN
+ * Libraries such as libxml2 and libodbc do not like being unloaded before
+ * exit and will show as a leak in ASAN with no stack trace (as the plugin
+ * has been unloaded from memory).
+ *
+ * The below is designed to trick the compiler into adding a "UNIQUE" symbol
+ * which can be seen using:
+ * readelf -s storage/spider/ha_spider.so | grep UNIQUE
+ *
+ * Having this symbol means that the plugin remains in memory after dlclose()
+ * has been called. Thereby letting the libraries clean up properly.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+__attribute__((__used__))
+inline int dummy(void)
+{
+  static int d;
+  d++;
+  return d;
+}
+#endif

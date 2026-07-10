@@ -1,0 +1,42 @@
+# We cannot use embedded server here as  access right checking will not work
+--source include/not_embedded.inc
+#
+# only global
+#
+select @@global.max_binlog_total_size;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.max_binlog_total_size;
+show global variables like 'max_binlog_total_size';
+show session variables like 'max_binlog_total_size';
+--disable_warnings
+select * from information_schema.global_variables where variable_name='max_binlog_total_size';
+select * from information_schema.session_variables where variable_name='max_binlog_total_size';
+--enable_warnings
+
+#
+# show that it is not read-only
+#
+set global max_binlog_total_size=1;
+select @@global.max_binlog_total_size, @@global.binlog_space_limit;
+set global max_binlog_total_size=1;
+select @@global.max_binlog_total_size;
+set global binlog_space_limit=2;
+select @@global.max_binlog_total_size, @@global.binlog_space_limit;
+
+--error ER_GLOBAL_VARIABLE
+set session max_binlog_total_size=1;
+
+set global max_binlog_total_size=default;
+
+#
+# Check permissions
+#
+CREATE USER user1@localhost;
+connect (con2,localhost,user1,,);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+set global max_binlog_total_size=1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+set global binlog_space_limit=1;
+disconnect con2;
+connection default;
+DROP USER user1@localhost;

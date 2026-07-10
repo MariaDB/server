@@ -15,7 +15,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 # Compilation with UBSAN, The Undefined Behavior Sanitizer
-# We have to use -Wno-uninitialized and -Wno-unitialized we get a lot of false
+# We have to use -Wno-uninitialized and we get a lot of false
 # positive warnings for this when compiling with -fsanitize=undefined.
 # We also have to compile without Spider as linking with Spider library does
 # not work. (errno: 11, undefined symbol: _ZTI12ha_partition)
@@ -31,7 +31,7 @@ path=`dirname $0`
 #   the destination
 #
 
-extra_flags="$pentium64_cflags $debug_cflags -fsanitize=undefined -DWITH_UBSAN -Wno-conversion -Wno-uninitialized"
+extra_flags="$pentium64_cflags $debug_cflags -fsanitize=undefined -DWITH_UBSAN -Wno-conversion -Wno-uninitialized -Wno-unused-parameter"
 extra_configs="$pentium_configs $debug_configs -DWITH_UBSAN=ON -DMYSQL_MAINTAINER_MODE=NO --without-spider"
 
 . "$path/FINISH.sh"

@@ -1,0 +1,12 @@
+#
+# MDEV-20471 Assertion during cleanup of failed CREATE TABLE LIKE <sequence>
+#
+CREATE SEQUENCE s;
+set @save_debug_dbug=@@debug_dbug;
+set debug_dbug='+d,kill_query_on_sequence_insert';
+CREATE TABLE t LIKE s;
+ERROR 70100: Query execution was interrupted
+DROP TABLE t;
+ERROR 42S02: Unknown table 'test.t'
+DROP SEQUENCE s;
+set debug_dbug=@save_debug_dbug;

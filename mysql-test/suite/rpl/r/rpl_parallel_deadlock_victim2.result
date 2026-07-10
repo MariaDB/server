@@ -1,0 +1,50 @@
+include/master-slave.inc
+[connection master]
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1(a INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 2;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+set @@global.slave_transaction_retries= 2;
+*** MDEV-28776: rpl.rpl_mark_optimize_tbl_ddl fails with timeout on sync_with_master
+connection master;
+SET @@gtid_seq_no= 100;
+INSERT INTO t1  SELECT 1+a FROM t1;
+SET @@gtid_seq_no= 200;
+INSERT INTO t1  SELECT 2+a FROM t1;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+include/save_master_gtid.inc
+connection slave;
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_delay_gtid_0_x_100_start";
+SET GLOBAL debug_dbug="+d,rpl_write_record_small_sleep_gtid_100_200";
+SET GLOBAL debug_dbug="+d,small_sleep_after_lock_wait";
+SET GLOBAL debug_dbug="+d,rpl_delay_deadlock_kill";
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SET GLOBAL debug_dbug= @save_dbug;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+connection slave;
+include/stop_slave.inc
+SET @@global.slave_parallel_threads= 0;
+SET @@global.slave_parallel_mode= optimistic;
+SET @@global.slave_transaction_retries= 10;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

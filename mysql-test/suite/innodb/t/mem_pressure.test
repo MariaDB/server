@@ -1,0 +1,61 @@
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/word_size.inc
+
+--echo #
+--echo # MDEV-24670 avoid OOM by linux kernel co-operative memory management
+--echo #
+
+set @save_dbug=@@debug_dbug;
+
+set @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
+# Wait for the undo logs to be empty from previous tests.
+# This is not an actual parameter, so there is no need to restore it.
+set GLOBAL innodb_max_purge_lag_wait=0;
+
+SET @innodb_buffer_pool_size= @@GLOBAL.innodb_buffer_pool_size;
+SET @innodb_buffer_pool_size_min= @@GLOBAL.innodb_buffer_pool_size_auto_min;
+SELECT
+@@GLOBAL.innodb_buffer_pool_size,
+@@GLOBAL.innodb_buffer_pool_size_auto_min,
+@@GLOBAL.innodb_buffer_pool_size_max;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB CHARSET=latin1;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+SET STATEMENT unique_checks=0, foreign_key_checks=0 FOR
+INSERT INTO t1 SELECT * FROM seq_1_to_1000;
+
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+
+DROP TABLE t1;
+
+SET STATEMENT debug_dbug="d,trigger_garbage_collection" FOR
+SET GLOBAL innodb_buffer_pool_size=@innodb_buffer_pool_size;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Memory pressure event disregarded.*;
+let SEARCH_WAIT= FOUND;
+--source include/search_pattern_in_file.inc
+
+SET STATEMENT debug_dbug="d,trigger_garbage_collection" FOR
+SET GLOBAL innodb_buffer_pool_size_auto_min=
+CAST(@innodb_buffer_pool_size/2 AS UNSIGNED),
+innodb_buffer_pool_size=@innodb_buffer_pool_size;
+
+# The garbage collection happens asynchronously after trigger, in a background
+# thread. So wait for it to happen to avoid sporadic failure.
+let $wait_condition=
+  select @@global.innodb_buffer_pool_size < @innodb_buffer_pool_size;
+--source include/wait_condition.inc
+eval $wait_condition;
+let SEARCH_PATTERN= InnoDB: Memory pressure event shrunk.*;
+let SEARCH_WAIT= FOUND;
+--source include/search_pattern_in_file.inc
+
+set debug_dbug=@save_dbug;
+SET GLOBAL innodb_buffer_pool_size= @innodb_buffer_pool_size;
+SET GLOBAL innodb_buffer_pool_size_auto_min=@innodb_buffer_pool_size_min;
+
+--echo # End of 10.11 tests

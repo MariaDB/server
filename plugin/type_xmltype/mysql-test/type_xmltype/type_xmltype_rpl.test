@@ -1,0 +1,15 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+ 
+CREATE TABLE t1 (a xmltype);
+INSERT INTO t1 VALUES ('<a></a>');
+ 
+--sync_slave_with_master
+ 
+SELECT * from t1;
+
+--connection master
+DROP TABLE t1;
+ 
+--source include/rpl_end.inc
+

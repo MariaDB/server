@@ -4,23 +4,170 @@ set sql_mode="";
 #
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'localhost');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1	localhost				3306		mysql	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1	localhost				3306		mysql		{"HOST": "localhost"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER foo OPTIONS(USER 'bar');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1			bar		0		foo	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1			bar		0		foo		{"USER": "bar"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(USER 'bar');
 ERROR HY000: Can't create federated table. Foreign data src error:  either HOST or SOCKET must be set
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'bar');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1	bar				3306		mysql	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1	bar				3306		mysql		{"HOST": "bar"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET 'bar');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1					3306	bar	mysql	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1					3306	bar	mysql		{"SOCKET": "bar"}
 DROP SERVER s1;
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+Socket
+/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
+DROP SERVER s1;
+#
+# MDEV-33783 CREATE SERVER segfaults on wrong mysql.servers
+#
+create server s1 foreign data wrapper foo options(user 'a');
+alter server s1 options(host 'server.example.org');
+rename table mysql.servers to mysql.servers_save;
+create table mysql.servers (x int);
+alter server s1 options(host 'server.example.org');
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+drop server s1;
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+create server s2 foreign data wrapper foo options(user 'a');
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+flush privileges;
+drop server s1;
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+Socket
+/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
+DROP SERVER s1;
+#
+# MDEV-34716 - Arbitrary OPTIONS for CREATE SERVER
+# MDEV-15696 - SHOW CREATE SERVER
+#
+create server srv foreign data wrapper mysql options
+(host "localhost", port 12345, wait_what "it's all good");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER mysql OPTIONS (host 'localhost', port '12345', wait_what 'it''s all good');
+create or replace server srv foreign data wrapper Foo options
+(host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
+alter server srv options (socket "sock", port 123, foo "", bar ')"{');
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
+alter server srv options (socket "sock", port 123, bar "quux");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', foo '', socket 'sock', port '123', bar 'quux');
+create or replace server srv foreign data wrapper foo options
+(host "localhost", port "12345");
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "bar321");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"bar321")' at line 2
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "123bar");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"123bar")' at line 2
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "0");
+show create server nonexist;
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  nonexist
+drop server srv;
+#
+# MDEV-35557 SIGSEGV in get_server_from_table_to_cache | servers_load, UBSAN null pointer passed as argument 1, which is declared to never be null
+#
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
+ALTER TABLE mysql.servers ENGINE=InnoDB;
+FLUSH PRIVILEGES;
+ALTER TABLE mysql.servers ENGINE=Aria;
+FLUSH PRIVILEGES;
+drop server s1;
+ALTER TABLE mysql.servers ENGINE=Aria;
+#
+# MDEV-35622 SEGV, ASAN use-after-poison when reading system table with less than expected number of columns
+# MDEV-37777 upgrade from MySQL 5.7 regression, mysql.servers invalid structure
+#
+# no crash:
+rename table mysql.servers to mysql.servers_save;
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop column owner,drop column options;
+insert into mysql.servers values(0,0,0,0,0,0,0,0);
+flush privileges;
+drop table mysql.servers;
+# w/o PK
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop primary key;
+insert into mysql.servers values(0,0,0,0,0,0,0,0,0,0);
+flush privileges;
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+drop table mysql.servers;
+# upgrade is ok
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers drop column Options;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+ERROR HY000: Cannot load from mysql.servers. The table is probably corrupted
+flush privileges;
+insert into mysql.servers values('s1',0,0,0,0,0,0,0,0);
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+# MySQL 5.7 (MDEV-37777)
+create table mysql.servers like mysql.servers_save;
+alter table mysql.servers modify Host char(64) not null, modify Owner char(64) not null;
+create server s1 foreign data wrapper mysql options (host '127.0.0.1');
+flush privileges;
+drop server s1;
+drop table mysql.servers;
+rename table mysql.servers_save to mysql.servers;
+# plugin
+create table mysql.plugin_save like mysql.plugin;
+alter table mysql.plugin drop column dl;
+install soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+uninstall soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+drop table mysql.plugin;
+create table mysql.plugin like mysql.plugin_save;
+alter table mysql.plugin drop primary key;
+install soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+uninstall soname "ha_example";
+ERROR HY000: Cannot load from mysql.plugin. The table is probably corrupted
+drop table mysql.plugin;
+rename table mysql.plugin_save to mysql.plugin;
+#
+# MDEV-36230 SIGSEGV in store_server_fields on CREATE SERVER
+#
+## Error code depends on length of long
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 4294967295);
+ERROR 22003: port value is out of range in 'INT'
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483647);
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
+ALTER SERVER s OPTIONS (PORT 4294967295);
+ERROR 22003: port value is out of range in 'INT'
+select * from mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s					2147483647		mysql		{"HOST": "", "PORT": "2147483647"}
+drop server s;
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 2147483648);
+ERROR 22003: port value is out of range in 'INT'
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT 18446744073709551615);
+ERROR 22003: port value is out of range in 'INT'
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-5)' at line 1
+# End of 10.11 tests

@@ -1,3 +1,4 @@
+SET GLOBAL innodb_stats_persistent = 0;
 #
 # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
 # DICT_CREATE_FOREIGN_CONSTR
@@ -10,10 +11,10 @@ ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint 
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
-ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
-set foreign_key_checks = 0;
+ERROR HY000: Duplicate FOREIGN KEY constraint name ''
+set statement foreign_key_checks = 0 for
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
-ERROR HY000: Duplicate FOREIGN KEY constraint name 'test/c1'
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c1'
 drop table t2, t1;
 #
 # Bug #20031243 CREATE TABLE FAILS TO CHECK IF FOREIGN KEY COLUMN
@@ -39,7 +40,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) NOT NULL,
   KEY `idx` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -47,8 +48,8 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `ind` (`b`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (1, 80);
 INSERT INTO t1 VALUES (2, 81);
 INSERT INTO t1 VALUES (3, 82);
@@ -74,7 +75,7 @@ a	b
 54	4
 55	5
 INSERT INTO t2 VALUES (56, 6);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE)
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE)
 ALTER TABLE t1 CHANGE a id INT;
 SELECT id, b FROM t1 ORDER BY id;
 id	b
@@ -92,9 +93,9 @@ a	b
 55	5
 # Operations on child table
 INSERT INTO t2 VALUES (56, 6);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
 UPDATE t2 SET b = 99 WHERE a = 51;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`id`) ON DELETE CASCADE ON UPDATE CASCADE)
 DELETE FROM t2 WHERE a = 53;
 SELECT id, b FROM t1 ORDER BY id;
 id	b
@@ -154,19 +155,15 @@ INSERT INTO parent SET a=0;
 FLUSH TABLES;
 # restart
 disconnect incomplete;
+SET GLOBAL innodb_stats_persistent = 0;
 INSERT INTO child SET a=0;
 INSERT INTO child SET a=1;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
 DELETE FROM parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
 ALTER TABLE child ADD INDEX(a);
 DELETE FROM parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON DELETE CASCADE)
-ALTER TABLE child FORCE;
-DELETE FROM parent;
 DROP TABLE child,parent;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
@@ -209,7 +206,16 @@ CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
 FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
 RENAME TABLE best.t2 TO test.t2;
-ERROR 42S01: Table 't2' already exists
+SHOW CREATE TABLE test.t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` text DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  FULLTEXT KEY `b` (`b`),
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+RENAME TABLE test.t2 TO best.t2;
 SHOW CREATE TABLE best.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -217,7 +223,7 @@ t2	CREATE TABLE `t2` (
   `b` text DEFAULT NULL,
   PRIMARY KEY (`a`),
   FULLTEXT KEY `b` (`b`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`)
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP DATABASE best;
 #
@@ -246,11 +252,21 @@ CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
-ERROR HY000: Cannot change column 'a': used in a foreign key constraint 't1_ibfk_1' of table 'test.t1'
+ERROR HY000: Cannot change column 'a': used in a foreign key constraint '1' of table 'test.t1'
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
 ALTER TABLE t1 CHANGE COLUMN a b TIME;
 ERROR 0A000: ALGORITHM=COPY is not supported. Reason: Columns participating in a foreign key are renamed. Try ALGORITHM=INPLACE
-ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY t1_ibfk_1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`pk`),
+  UNIQUE KEY `a` (`a`),
+  KEY `a_2` (`a`),
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ALTER TABLE t1 CHANGE COLUMN a b TIME, DROP FOREIGN KEY `1`;
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 DROP TABLE t1;
 #
@@ -261,6 +277,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY fk1 (b) REFERENCES t1 (a))
 ENGINE=InnoDB;
 ALTER TABLE t2 DROP FOREIGN KEY fk1, DROP FOREIGN KEY fk1;
+ERROR 42000: Can't DROP FOREIGN KEY `fk1`; check that it exists
 DROP TABLE t2, t1;
 CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
@@ -268,6 +285,8 @@ ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Note	1831	Duplicate index `ft2`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
 ENGINE=InnoDB;
@@ -278,6 +297,8 @@ ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 Warnings:
 Warning	1088	failed to load FOREIGN KEY constraints
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Note	1831	Duplicate index `ft2`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 #
 # MDEV-18630 Conditional jump or move depends on uninitialised value
@@ -285,11 +306,11 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	150	Alter  table `test`.`t1` with foreign key (a) constraint failed. Referenced table `test`.`t2` not found in the data dictionary.
-Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+Error	1005	Can't create temporary table for ALTER TABLE `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t1`
 DROP TABLE t1;
 #
@@ -341,7 +362,7 @@ insert t2 values (4,1),(5,2),(6,3);
 flush table t2 with read lock;
 connect  con1,localhost,root;
 delete from t1 where a=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
 update t1 set a=10 where a=1;
 connection default;
 unlock tables;
@@ -353,7 +374,7 @@ delete from t1 where a=2;
 connection default;
 unlock tables;
 connection con1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
 connection default;
 unlock tables;
 disconnect con1;
@@ -388,7 +409,7 @@ insert t1 values (1,1),(2,2),(3,3);
 create table t2 (t1_pk int, foreign key (t1_pk) references t1 (pk)) engine=innodb;
 insert t2 values (1),(2);
 insert t2 values (10);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`t1_pk`) REFERENCES `t1` (`pk`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`t1_pk`) REFERENCES `t1` (`pk`))
 flush tables;
 flush status;
 update t1 set data=10 where pk+1>10;
@@ -477,10 +498,10 @@ pk	f1	f2	f3	f4	f5	f6	f7	f8
 ROLLBACK;
 ALTER TABLE t1 ADD FOREIGN KEY (f5) REFERENCES t1 (f6) ON UPDATE SET NULL;
 UPDATE t1 SET f6='update';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
 ALTER TABLE t1 ADD FOREIGN KEY (f7) REFERENCES t1 (f8) ON UPDATE CASCADE;
 UPDATE t1 SET f6='cascade';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
 DROP TABLE t1;
 # Start of 10.2 tests
 #
@@ -555,8 +576,8 @@ t2	CREATE TABLE `t2` (
   `f` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `ref_id` (`ref_id`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`ref_id`) REFERENCES `t1` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  CONSTRAINT `1` FOREIGN KEY (`ref_id`) REFERENCES `t1` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection con1;
 BEGIN;
 UPDATE t2 SET f = 11 WHERE id = 1;
@@ -687,9 +708,9 @@ connection default;
 DELETE IGNORE FROM t1 WHERE b = 1;
 Warnings:
 Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
-Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
 Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
-Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Warning	1296	Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
 SELECT a FROM t1 FORCE INDEX(a);
 a
 0
@@ -724,18 +745,19 @@ pk	a	b
 13	0	1
 14	0	1
 15	1	0
-disconnect con1;
+connection con1;
+COMMIT;
+connection default;
 InnoDB		0 transactions not purged
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 #
 # MDEV-17187 table doesn't exist in engine after ALTER other tables
 # with CONSTRAINTs
 #
-call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t2` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t[12]` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
 set foreign_key_checks=on;
 create table t1 (id int not null primary key) engine=innodb;
 create table t2 (id int not null primary key, fid int not null,
@@ -778,7 +800,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -786,7 +808,7 @@ t2	CREATE TABLE `t2` (
   `fid` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table t1,t2;
@@ -813,7 +835,7 @@ t2	CREATE TABLE `t2` (
   `f2` int(11) NOT NULL,
   `f3` int(11) NOT NULL,
   PRIMARY KEY (`f3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
 ERROR 42S01: Table 't2' already exists
 DROP TABLE t2, t1;
@@ -851,11 +873,11 @@ INSERT INTO t1 (a,b) VALUES
 (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
 (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,1),(1,0);
 DELETE FROM t1 WHERE b = 1;
-ERROR HY000: Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+ERROR HY000: Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
 SHOW WARNINGS;
 Level	Code	Message
 Warning	152	InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15. Please drop extra constraints and try again
-Error	1296	Got error 193 '`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
+Error	1296	Got error 193 '`test`.`t1`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`b`) ON DELETE CASCADE' from InnoDB
 DROP TABLE t1;
 FOUND 1 /InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*/ in mysqld.1.err
 # End of 10.2 tests
@@ -889,6 +911,42 @@ DROP INDEX fx ON t1;
 INSERT INTO t1 VALUES (2,11,11);
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
+#
+# MDEV-32018 Allow the setting of Auto_increment on FK referenced columns
+#
+CREATE TABLE t1 (
+id int unsigned NOT NULL PRIMARY KEY
+);
+CREATE TABLE t2 (
+id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+t1_id int unsigned DEFAULT NULL,
+CONSTRAINT FK_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id)
+);
+ALTER TABLE t1 MODIFY id INT unsigned AUTO_INCREMENT;
+DROP TABLE t1,t2;
+#
+# MDEV-31441 BLOB corruption on UPDATE of PRIMARY KEY with FOREIGN KEY
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, FOREIGN KEY (pk) REFERENCES t1(pk))
+ENGINE=InnoDB;
+SET @blob = REPEAT('A', @@innodb_page_size / 2);
+INSERT INTO t1 SET pk=1, t=@blob;
+INSERT INTO t2 SET pk=1;
+connection con1;
+BEGIN;
+DELETE FROM t2;
+connection default;
+UPDATE t1 SET pk=12;
+connection con1;
+COMMIT;
+disconnect con1;
+connection default;
+UPDATE t1 SET pk=1;
+SELECT pk,t=@blob FROM t1;
+pk	t=@blob
+1	1
+DROP TABLE t2, t1;
 # End of 10.4 tests
 #
 # MDEV-20729 Fix REFERENCES constraint in column definition
@@ -903,9 +961,9 @@ t2	CREATE TABLE `t2` (
   `y` int(11) DEFAULT NULL,
   KEY `x` (`x`),
   KEY `fk` (`y`),
-  CONSTRAINT `fk` FOREIGN KEY (`y`) REFERENCES `t1` (`y`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  CONSTRAINT `1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`),
+  CONSTRAINT `fk` FOREIGN KEY (`y`) REFERENCES `t1` (`y`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t3 (z int);
 alter table t3 add x int references t1(x), add y int constraint fk2 references t1(y);
 show create table t3;
@@ -916,9 +974,9 @@ t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
   KEY `x` (`x`),
   KEY `fk2` (`y`),
-  CONSTRAINT `fk2` FOREIGN KEY (`y`) REFERENCES `t1` (`y`),
-  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  CONSTRAINT `1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`),
+  CONSTRAINT `fk2` FOREIGN KEY (`y`) REFERENCES `t1` (`y`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t3, t2, t1;
 create table t1 (id int primary key);
 create table t2 (id2 int references t1);
@@ -929,8 +987,8 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
   KEY `id` (`id`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  CONSTRAINT `1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t2, t1;
 set default_storage_engine= default;
 #
@@ -939,7 +997,7 @@ set default_storage_engine= default;
 SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 DROP TABLE t1;
 #
@@ -971,10 +1029,10 @@ alter table t2 add foreign key(a) references t1(a, b);
 ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
 create or replace table t1(a tinyint primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 create or replace table t1(b int primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 create or replace table t1(a int primary key, b int) engine innodb;
 alter table t2 add foreign key(a) references t1;
 show create table t2;
@@ -982,9 +1040,26 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t2, t1;
+#
+# MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(3), c INT AS (LENGTH(b)) VIRTUAL,
+INDEX(c)) ENGINE=InnoDB;
+CREATE TABLE t2(a INT REFERENCES t1(a) ON UPDATE CASCADE,
+b INT GENERATED ALWAYS AS(a) VIRTUAL, INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1,b='fu';
+INSERT INTO t2 SET a=1;
+UPDATE t1 SET a=2,b='bar';
+SELECT * FROM t1;
+a	b	c
+2	bar	3
+SELECT * FROM t2;
+a	b
+2	2
+DROP TABLE t2,t1;
 # End of 10.5 tests
 #
 # MDEV-26554 Table-rebuilding DDL on parent table causes crash
@@ -995,10 +1070,23 @@ CREATE TABLE child(a INT PRIMARY KEY REFERENCES parent(a)) ENGINE=InnoDB;
 connect  con1, localhost, root,,;
 BEGIN;
 INSERT INTO child SET a=1;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
 connection default;
+TRUNCATE TABLE parent;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+DROP TABLE parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+SET innodb_lock_wait_timeout=0;
+RENAME TABLE parent TO transparent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
 TRUNCATE TABLE parent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP TABLE parent;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
@@ -1014,7 +1102,13 @@ TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
 ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
-DROP TABLE child, parent;
+SET foreign_key_checks=ON;
+TRUNCATE TABLE parent;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`child`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`parent` (`a`))
+ALTER TABLE parent FORCE, ALGORITHM=COPY;
+ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
+RENAME TABLE parent TO transparent;
+DROP TABLE child, transparent;
 #
 # MDEV-26217 Failing assertion: list.count > 0 in ut_list_remove
 # or Assertion `lock->trx == this' failed in dberr_t trx_t::drop_table
@@ -1029,7 +1123,157 @@ CREATE OR REPLACE TABLE t1 (b INT) ENGINE=InnoDB;
 connection default;
 INSERT INTO t2 VALUES (1);
 connection con1;
-disconnect con1;
 connection default;
 DROP TABLE IF EXISTS t2, t1;
+#
+# MDEV-30531 Corrupt index(es) on busy table when using FOREIGN KEY
+#
+CREATE TABLE collections (
+id int(11) unsigned NOT NULL AUTO_INCREMENT,
+collectionhash varchar(255) NOT NULL DEFAULT '0',
+PRIMARY KEY (id),
+UNIQUE KEY ix_collection_collectionhash (collectionhash)
+) ENGINE=InnoDB;
+CREATE TABLE binaries (
+id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+collections_id int(11) unsigned NOT NULL DEFAULT 0,
+binaryhash binary(16) NOT NULL DEFAULT '0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+PRIMARY KEY (id),
+UNIQUE KEY ix_binary_binaryhash (binaryhash),
+CONSTRAINT FK_collections FOREIGN KEY (collections_id) REFERENCES collections (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO collections (id) VALUES (NULL);
+connection con1;
+INSERT INTO binaries (id,collections_id) VALUES (NULL,1);
+REPLACE INTO collections (id) VALUES (NULL);
+connection default;
+REPLACE INTO binaries (id) VALUES (NULL);
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE binaries, collections EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.binaries	check	status	OK
+test.collections	check	status	OK
+disconnect con1;
+DROP TABLE binaries, collections;
+CREATE SCHEMA `#mysql50##mysql50#d-b`;
+CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;
+USE `#mysql50##mysql50#d-b`;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT UNIQUE REFERENCES t1(b)) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1(a);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `b` (`b`),
+  CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`b`),
+  CONSTRAINT `2` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET a=1;
+DELETE FROM t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`#mysql50#d-b`.`t2`, CONSTRAINT `2` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+DELETE FROM t2;
+DELETE FROM t1;
+DROP DATABASE `#mysql50##mysql50#d-b`;
+USE test;
+#
+# MDEV-35962 CREATE INDEX fails to heal a FOREIGN KEY constraint
+#
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+ALTER TABLE t1 ADD KEY(a), ALGORITHM=NOCOPY;
+INSERT INTO t2 VALUES (1);
+DROP INDEX b ON t2;
+ERROR HY000: Cannot drop index 'b': needed in a foreign key constraint
+SET STATEMENT foreign_key_checks=0 FOR
+DROP INDEX b ON t2;
+DELETE FROM t2;
+DELETE FROM t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
+DELETE FROM t1;
+DROP TABLE t2, t1;
+#
+# MDEV-33167 ASAN errors after failing to load foreign key
+#   relation for the table
+#
+call mtr.add_suppression("InnoDB: Load table `test`.`t3` failed, the table has missing foreign key indexes. Turn off 'foreign_key_checks' and try again.");
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t1(f1 VARCHAR(8),
+FOREIGN KEY(f1) REFERENCES test.t3(f1))ENGINE=InnoDB;
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t2(f1 VARCHAR(8),
+FOREIGN KEY(f1) REFERENCES test.t3(f1))
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t3(f1 VARCHAR(8) PRIMARY KEY)
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+set GLOBAL innodb_fast_shutdown=0;
+# restart
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1, t3;
+#
+#  MDEV-19194 ASAN use-after-poison in
+#    fk_prepare_copy_alter_table upon dropping FK
+#
+CREATE TABLE t1(f1 INT NOT NULL, KEY(f1))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL,
+FOREIGN KEY `f1`(f1) REFERENCES t1(f1))ENGINE=InnoDB;
+ALTER TABLE t2 DROP FOREIGN KEY f1, DROP FOREIGN KEY f1, ALGORITHM=COPY;
+ERROR 42000: Can't DROP FOREIGN KEY `f1`; check that it exists
+ALTER IGNORE TABLE t2 DROP FOREIGN KEY f0, DROP FOREIGN KEY f0, ALGORITHM=COPY;
+ERROR 42000: Can't DROP FOREIGN KEY `f0`; check that it exists
+ALTER IGNORE TABLE t2 DROP FOREIGN KEY f0, ALGORITHM=COPY;
+ERROR 42000: Can't DROP FOREIGN KEY `f0`; check that it exists
+ALTER IGNORE TABLE t2 DROP FOREIGN KEY f1, DROP FOREIGN KEY f1, ALGORITHM=COPY;
+ERROR 42000: Can't DROP FOREIGN KEY `f1`; check that it exists
+ALTER IGNORE TABLE t2 DROP FOREIGN KEY f1, DROP FOREIGN KEY IF EXISTS f1, ALGORITHM=COPY;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `f1`; check that it exists
+ALTER TABLE t2 DROP FOREIGN KEY f1, ALGORITHM=COPY;
+ERROR 42000: Can't DROP FOREIGN KEY `f1`; check that it exists
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS f1, ALGORITHM=COPY;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `f1`; check that it exists
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS f1, DROP FOREIGN KEY f1, ALGORITHM=COPY;
+ERROR 42000: Can't DROP FOREIGN KEY `f1`; check that it exists
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS f1, DROP FOREIGN KEY IF EXISTS f1, ALGORITHM=COPY;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `f1`; check that it exists
+Note	1091	Can't DROP FOREIGN KEY `f1`; check that it exists
+DROP TABLE t2, t1;
 # End of 10.6 tests
+CREATE TABLE t1
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(32)BINARY NOT NULL,
+PRIMARY KEY (f1),
+INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('MySQL', 'InnoDB'), ('MariaDB', 'NDB');
+CREATE TABLE t2
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(255)BINARY NOT NULL,
+f3 int, PRIMARY KEY (f1), INDEX(f1), INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES('MySQL', 'MySQL', 1),
+('MariaDB', 'MariaDB', 1);
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t2 (f2);
+ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
+ADD UNIQUE INDEX(f3);
+ERROR HY000: Cannot delete rows from table which is parent in a foreign key constraint '1' of table 't1'
+drop table t1, t2;
+# End of 10.11 tests

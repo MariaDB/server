@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 select 1, 1.0, -1, "hello", NULL;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					1	3	1	1	N	32897	0	63
@@ -147,7 +146,7 @@ id	data	data
 2	female	no
 select t1.id from t1 union select t2.id from t2;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				id	id	246	4	1	Y	32768	0	63
+def				id	id	246	4	1	Y	49152	0	63
 id
 1
 2
@@ -158,7 +157,7 @@ insert into t1 values (2,'two');
 set @arg00=1 ;
 select @arg00 FROM t1 where a=1 union distinct select 1 FROM t1 where a=1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				@arg00	@arg00	8	20	1	Y	32768	0	63
+def				@arg00	@arg00	8	20	1	Y	49152	0	63
 @arg00
 1
 select * from (select @arg00) aaa;
@@ -168,12 +167,12 @@ def			aaa	@arg00	@arg00	8	20	1	Y	32768	0	63
 1
 select 1 union select 1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				1	1	3	1	1	N	32769	0	63
+def				1	1	3	2	1	N	49153	0	63
 1
 1
 select * from (select 1 union select 1) aaa;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def			aaa	1	1	3	1	1	N	32769	0	63
+def			aaa	1	1	3	2	1	N	49153	0	63
 1
 1
 drop table t1;
@@ -222,6 +221,9 @@ def		v3	v3	renamed	renamed	8	12	0	Y	32896	0	63
 renamed
 drop table t1;
 drop view v1,v2,v3;
+#
+# End of 4.1 tests
+#
 select a.* from (select 2147483648 as v_large) a;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def			a	v_large	v_large	8	10	10	N	32769	0	63
@@ -279,16 +281,16 @@ SELECT COALESCE(d, d), IFNULL(d, d), IF(i, d, d),
 CASE i WHEN i THEN d ELSE d END, GREATEST(d, d), LEAST(d, d)
 FROM t1 ORDER BY RAND();
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COALESCE(d, d)	COALESCE(d, d)	10	10	10	Y	128	0	63
+def				IFNULL(d, d)	IFNULL(d, d)	10	10	10	Y	128	0	63
+def				IF(i, d, d)	IF(i, d, d)	10	10	10	Y	128	0	63
+def				CASE i WHEN i THEN d ELSE d END	CASE i WHEN i THEN d ELSE d END	10	10	10	Y	128	0	63
+def				GREATEST(d, d)	GREATEST(d, d)	10	10	10	Y	128	0	63
+def				LEAST(d, d)	LEAST(d, d)	10	10	10	Y	128	0	63
+COALESCE(d, d)	IFNULL(d, d)	IF(i, d, d)	CASE i WHEN i THEN d ELSE d END	GREATEST(d, d)	LEAST(d, d)
 2008-01-01	2008-01-01	2008-01-01	2008-01-01	2008-01-01	2008-01-01
 2008-01-02	2008-01-02	2008-01-02	2008-01-02	2008-01-02	2008-01-02
 2008-01-03	2008-01-03	2008-01-03	2008-01-03	2008-01-03	2008-01-03
-COALESCE(d, d)	IFNULL(d, d)	IF(i, d, d)	CASE i WHEN i THEN d ELSE d END	GREATEST(d, d)	LEAST(d, d)
-def				CASE i WHEN i THEN d ELSE d END	CASE i WHEN i THEN d ELSE d END	10	10	10	Y	128	0	63
-def				COALESCE(d, d)	COALESCE(d, d)	10	10	10	Y	128	0	63
-def				GREATEST(d, d)	GREATEST(d, d)	10	10	10	Y	128	0	63
-def				IF(i, d, d)	IF(i, d, d)	10	10	10	Y	128	0	63
-def				IFNULL(d, d)	IFNULL(d, d)	10	10	10	Y	128	0	63
-def				LEAST(d, d)	LEAST(d, d)	10	10	10	Y	128	0	63
 DROP TABLE t1;
 #
 # Bug#41788 mysql_fetch_field returns org_table == table by a view
@@ -301,7 +303,9 @@ def	test	va	va	f1	f1	3	11	0	Y	32768	0	63
 f1
 DROP VIEW v1;
 DROP TABLE t1;
-End of 5.0 tests
+#
+# End of 5.0 tests
+#
 create table t1(
 # numeric types
 bool_col bool,
@@ -422,7 +426,7 @@ def					ORD('a')	3	7	2	N	32897	0	63
 def					CRC32('a')	3	10	10	N	32929	0	63
 def					UNCOMPRESSED_LENGTH(COMPRESS('a'))	3	10	1	Y	32896	0	63
 STRCMP('a','b')	OCTET_LENGTH('a')	CHAR_LENGTH('a')	COERCIBILITY('a')	ASCII('a')	ORD('a')	CRC32('a')	UNCOMPRESSED_LENGTH(COMPRESS('a'))
--1	1	1	4	97	97	3904355907	1
+-1	1	1	6	97	97	3904355907	1
 SELECT
 INTERVAL(2,1,2,3),
 REGEXP_INSTR('a','a'),
@@ -785,8 +789,8 @@ CREATE TABLE t1 AS SELECT @a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `@a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `@a` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT @b1:=10, @b2:=@b2:=111111111111;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -800,5 +804,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `@b1:=10` int(2) NOT NULL,
   `@b2:=111111111111` bigint(12) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+#
+# End of 10.3 tests
+#

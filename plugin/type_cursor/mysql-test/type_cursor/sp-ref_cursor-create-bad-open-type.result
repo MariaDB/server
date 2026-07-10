@@ -1,0 +1,22 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10152 Add support for TYPE .. IS REF CURSOR
+#
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10));
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,2,3 FROM DUAL;
+END;
+$$
+ERROR HY000: Illegal parameter data types row<2> and row<3> for operation 'OPEN..FOR'
+CREATE PROCEDURE p1 IS
+TYPE rec0_t IS RECORD (a INT, b VARCHAR(10), c INT);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+BEGIN
+OPEN c0 FOR SELECT 1,2 FROM DUAL;
+END;
+$$
+ERROR HY000: Illegal parameter data types row<3> and row<2> for operation 'OPEN..FOR'

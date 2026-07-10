@@ -31,9 +31,9 @@ Created April 08, 2011 Vasil Dimov
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
-#include "buf0buf.h"
+#include "buf0rea.h"
 #include "buf0dump.h"
-#include "dict0dict.h"
+#include "dict0load.h"
 #include "os0file.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -58,7 +58,7 @@ take after being waked up. */
 static volatile bool	buf_dump_should_start;
 static volatile bool	buf_load_should_start;
 
-static bool	buf_load_abort_flag;
+static Atomic_relaxed<bool> buf_load_abort_flag;
 
 /** Start the buffer pool dump/load task and instructs it to start a dump. */
 void buf_dump_start()
@@ -180,7 +180,7 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 	char	buf[FN_REFLEN];
 
 	mysql_mutex_lock(&LOCK_global_system_variables);
-	snprintf(buf, sizeof buf, "%s/%s", get_buf_dump_dir(),
+	snprintf(buf, sizeof buf, "%s" FN_ROOTDIR "%s", get_buf_dump_dir(),
 		 srv_buf_dump_filename);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 
@@ -214,7 +214,7 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 			format = "%s%s";
 			break;
 		default:
-			format = "%s/%s";
+			format = "%s" FN_ROOTDIR "%s";
 		}
 
 		snprintf(path, path_size, format,
@@ -295,7 +295,7 @@ buf_dump(
 
 		/* limit the number of total pages dumped to X% of the
 		total number of pages */
-		t_pages = buf_pool.curr_size * srv_buf_pool_dump_pct / 100;
+		t_pages = buf_pool.curr_size() * srv_buf_pool_dump_pct / 100;
 		if (n_pages > t_pages) {
 			buf_dump_status(STATUS_INFO,
 					"Restricted to " ULINTPF
@@ -404,7 +404,7 @@ done:
 
 	/* success */
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	buf_dump_status(STATUS_INFO,
 			"Buffer pool(s) dump completed at %s", now);
@@ -477,17 +477,17 @@ buf_load()
 		return;
 	}
 
-	/* If dump is larger than the buffer pool(s), then we ignore the
+	/* If the dump is larger than the buffer pool, then we ignore the
 	extra trailing. This could happen if a dump is made, then buffer
 	pool is shrunk and then load is attempted. */
-	dump_n = std::min(dump_n, buf_pool.get_n_pages());
+	dump_n = std::min(dump_n, buf_pool.curr_size());
 
 	if (dump_n != 0) {
 		dump = static_cast<page_id_t*>(ut_malloc_nokey(
 				dump_n * sizeof(*dump)));
 	} else {
 		fclose(f);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty)", now, full_filename);
@@ -553,7 +553,7 @@ buf_load()
 
 	if (dump_n == 0) {
 		ut_free(dump);
-		ut_sprintf_timestamp(now);
+		ut_sprintf_timestamp(now, sizeof(now));
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
 				" (%s was empty or had errors)", now, full_filename);
@@ -562,6 +562,22 @@ buf_load()
 
 	if (!SHUTTING_DOWN()) {
 		std::sort(dump, dump + dump_n);
+		std::set<uint32_t> missing;
+		for (const page_id_t id : st_::span<const page_id_t>
+		       (dump, dump_n)) {
+			missing.emplace(id.space());
+		}
+		for (std::set<uint32_t>::iterator i = missing.begin();
+		     i != missing.end(); ) {
+			auto j = i++;
+			if (fil_space_t* space = fil_space_t::get(*j)) {
+				space->release();
+				missing.erase(j);
+			}
+		}
+		if (!missing.empty()) {
+			dict_load_tablespaces(&missing);
+		}
 	}
 
 	/* Avoid calling the expensive fil_space_t::get() for each
@@ -569,7 +585,6 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	uint32_t	cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_t::get(cur_space_id);
-	ulint		zip_size = space ? space->zip_size() : 0;
 
 	PSI_stage_progress*	pfs_stage_progress __attribute__((unused))
 		= mysql_set_stage(srv_stage_buffer_pool_load.m_key);
@@ -592,12 +607,6 @@ buf_load()
 
 			cur_space_id = this_space_id;
 			space = fil_space_t::get(cur_space_id);
-
-			if (!space) {
-				continue;
-			}
-
-			zip_size = space->zip_size();
 		}
 
 		/* JAN: TODO: As we use background page read below,
@@ -616,7 +625,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size);
+		buf_read_page_background(dump[i], space, nullptr);
 
 		if (buf_load_abort_flag) {
 			if (space) {
@@ -650,11 +659,9 @@ buf_load()
 
 	ut_free(dump);
 
-	if (i == dump_n) {
-		os_aio_wait_until_no_pending_reads(true);
-	}
+  os_aio_wait_until_no_pending_reads(true);
 
-	ut_sprintf_timestamp(now);
+	ut_sprintf_timestamp(now, sizeof(now));
 
 	if (i == dump_n) {
 		buf_load_status(STATUS_INFO,
@@ -698,7 +705,9 @@ static void buf_dump_load_func(void *)
 #ifdef WITH_WSREP
 		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
+			srv_thread_pool->set_concurrency(srv_n_read_io_threads);
 			buf_load();
+			srv_thread_pool->set_concurrency();
 #ifdef WITH_WSREP
 		}
 #endif /* WITH_WSREP */

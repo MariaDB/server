@@ -4,6 +4,7 @@
 # Please check all dependent tests after modifying it
 #
 
+source include/long_test.inc;
 source include/not_embedded.inc;
 source include/have_innodb.inc;
 source include/master-slave.inc;
@@ -17,9 +18,15 @@ call mtr.add_suppression("Read semi-sync reply");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 call mtr.add_suppression("mysqld: Got an error reading communication packets");
 connection slave;
-call mtr.add_suppression("Master server does not support semi-sync");
+# While 'Current_Pos' exists as an option for Using_Gtd, keeping these
+# events in the binlog will update gtid_binlog_pos, and the later calls to
+# set `@@global.gtid_slave_pos= ""` will provide warning messages with
+# inconsistent GTID values because the seq_nos are non-deterministic with
+# the masters events coming in concurrently
+set sql_log_bin=0;
 call mtr.add_suppression("Semi-sync slave .* reply");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
+set sql_log_bin=1;
 connection master;
 
 # wait for dying connections (if any) to disappear
@@ -36,12 +43,12 @@ let $_connections_normal_slave= query_get_value(SHOW STATUS LIKE 'Threads_connec
 --echo #
 connection slave;
 source include/stop_slave.inc;
-reset slave;
+--source include/reset_slave.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
-reset master;
+--source include/reset_master.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 
@@ -51,7 +58,7 @@ set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
 
-set global rpl_semi_sync_master_timeout= 60000; # 60s
+set global rpl_semi_sync_master_timeout= 2000; # 2s
 
 echo [ default state of semi-sync on master should be OFF ];
 show variables like 'rpl_semi_sync_master_enabled';
@@ -96,7 +103,7 @@ show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 # reset master to make sure the following test will start with a clean environment
-reset master;
+--source include/reset_master.inc
 
 connection slave;
 
@@ -195,12 +202,16 @@ sync_slave_with_master;
 --echo # Test semi-sync master will switch OFF after one transaction
 --echo # timeout waiting for slave reply.
 --echo #
+
+connection master;
+show status like "Rpl_semi_sync_master_status";
+
 connection slave;
 source include/stop_slave.inc;
 
 connection master;
 --source include/kill_binlog_dump_threads.inc
-set global rpl_semi_sync_master_timeout= 5000;
+set global rpl_semi_sync_master_timeout= 2000;
 
 # The first semi-sync check should be on because after slave stop,
 # there are no transactions on the master.
@@ -232,8 +243,8 @@ show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
 show status like 'Rpl_semi_sync_master_yes_tx';
 
-# Semi-sync status on master is now OFF, so all these transactions
-# will be replicated asynchronously.
+# Semi-sync status on master is now ON, but there are no slaves attached,
+# so all these transactions will be replicated asynchronously.
 delete from t1 where a=10;
 delete from t1 where a=9;
 delete from t1 where a=8;
@@ -303,7 +314,7 @@ SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 # Do not write the FLUSH STATUS to binlog, to make sure we'll get a
 # clean status after this.
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 echo [ Semi-sync master status variables after FLUSH STATUS ];
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
@@ -338,11 +349,12 @@ eval create table t1 (a int) engine = $engine_type;
 drop table t1;
 
 sync_slave_with_master;
+source include/stop_slave.inc;
 
 echo [ test reset master ];
 connection master;
 
-reset master;
+--source include/reset_master.inc
 
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
@@ -350,8 +362,7 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 
 connection slave;
 
-source include/stop_slave.inc;
-reset slave;
+--source include/reset_slave.inc
 
 # Kill the dump thread on master for previous slave connection and
 --source include/kill_binlog_dump_threads.inc
@@ -366,6 +377,9 @@ connection master;
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
+
+sync_slave_with_master;
+connection master;
 
 replace_result $engine_type ENGINE_TYPE;
 eval create table t1 (a int) engine = $engine_type;
@@ -388,9 +402,9 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 --echo #
 connection slave;
 source include/stop_slave.inc;
-reset slave;
+--source include/reset_slave.inc
 connection master;
-reset master;
+--source include/reset_master.inc
 
 # Kill the dump thread on master for previous slave connection and wait for it to exit
 --source include/kill_binlog_dump_threads.inc
@@ -413,6 +427,10 @@ connection master;
 let $status_var= Rpl_semi_sync_master_clients;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
+
+sync_slave_with_master;
+connection master;
+
 echo [ master semi-sync should be ON ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';

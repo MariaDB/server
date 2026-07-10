@@ -35,10 +35,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "m_string.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 typedef federatedx_io *(*instantiate_io_type)(MEM_ROOT *server_root,
                                               FEDERATEDX_SERVER *server);
 struct io_schemes_st
@@ -51,6 +47,7 @@ struct io_schemes_st
 static const io_schemes_st federated_io_schemes[] =
 {
   { "mysql", &instantiate_io_mysql },
+  { "mariadb", &instantiate_io_mysql },
   { "null", instantiate_io_null } /* must be last element */
 };
 

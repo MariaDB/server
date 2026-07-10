@@ -84,9 +84,9 @@ SELECT @@mysql56_temporal_format = @@global.mysql56_temporal_format;
 SET mysql56_temporal_format = 1;
 ERROR HY000: Variable 'mysql56_temporal_format' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT global.mysql56_temporal_format;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT mysql56_temporal_format = @@session.mysql56_temporal_format;
-ERROR 42S22: Unknown column 'mysql56_temporal_format' in 'field list'
+ERROR 42S22: Unknown column 'mysql56_temporal_format' in 'SELECT'
 SET @@global.mysql56_temporal_format = @start_value;
 SELECT @@global.mysql56_temporal_format;
 @@global.mysql56_temporal_format

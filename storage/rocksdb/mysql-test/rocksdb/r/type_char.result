@@ -6,7 +6,7 @@ c1 CHAR(1) ,
 c20 CHAR(20) ,
 c255 CHAR(255) ,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	YES		NULL	

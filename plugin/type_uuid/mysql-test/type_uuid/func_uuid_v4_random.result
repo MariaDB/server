@@ -1,0 +1,10 @@
+#
+# MDEV-11339 Support UUID v4 generation
+#
+CREATE TABLE t1 (a int primary key not null, u UUID DEFAULT UUID_v4(), unique key(u));
+insert into t1(a) select seq from seq_1_to_100;
+select count(distinct u) AS distinct_uuid_count from t1;
+distinct_uuid_count
+100
+drop table t1;
+# End of 11.7 tests

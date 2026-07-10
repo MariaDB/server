@@ -18,6 +18,8 @@
 #include <service_versions.h>
 #include <mysql/service_wsrep.h>
 #include <mysql/service_thd_mdl.h>
+#include <mysql/service_print_check_msg.h>
+#include <mysql/service_thd.h>
 
 struct st_service_ref {
   const char *name;
@@ -58,7 +60,8 @@ static struct kill_statement_service_st thd_kill_statement_handler= {
 
 static struct thd_timezone_service_st thd_timezone_handler= {
   thd_TIME_to_gmt_sec,
-  thd_gmt_sec_to_TIME
+  thd_gmt_sec_to_TIME,
+  thd_TIME_to_str
 };
 
 static struct my_sha2_service_st my_sha2_handler = {
@@ -113,7 +116,11 @@ static struct logger_service_st logger_service_handler= {
   logger_vprintf,
   logger_printf,
   logger_write,
-  logger_rotate
+  logger_rotate,
+  logger_sync,
+  logger_resize_buffer,
+  logger_set_filesize_limit,
+  logger_set_rotations
 };
 
 static struct thd_autoinc_service_st thd_autoinc_handler= {
@@ -158,6 +165,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_ignore_table,
   wsrep_thd_trx_seqno,
   wsrep_thd_is_aborting,
+  wsrep_thd_in_rollback,
   wsrep_set_data_home_dir,
   wsrep_thd_is_BF,
   wsrep_thd_is_local,
@@ -183,7 +191,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_report_bf_lock_wait,
   wsrep_thd_kill_LOCK,
   wsrep_thd_kill_UNLOCK,
-  wsrep_thd_set_PA_unsafe
+  wsrep_thd_set_PA_unsafe,
+  wsrep_get_domain_id
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=
@@ -208,7 +217,8 @@ static struct my_crypt_service_st crypt_handler=
   my_aes_crypt,
   my_aes_get_size,
   my_aes_ctx_size,
-  my_random_bytes
+  my_random_bytes,
+  my_bytes_to_key,
 };
 
 static struct my_print_error_service_st my_print_error_handler=
@@ -216,6 +226,11 @@ static struct my_print_error_service_st my_print_error_handler=
   my_error,
   my_printf_error,
   my_printv_error
+};
+
+static struct print_check_msg_service_st print_check_msg_handler=
+{
+  print_check_msg
 };
 
 static struct json_service_st json_handler=
@@ -226,11 +241,6 @@ static struct json_service_st json_handler=
   json_get_object_nkey,
   json_escape_string,
   json_unescape_json
-};
-
-static struct thd_mdl_service_st thd_mdl_handler=
-{
-  thd_mdl_context
 };
 
 struct sql_service_st sql_service_handler=
@@ -251,7 +261,21 @@ struct sql_service_st sql_service_handler=
   mysql_fetch_lengths,
   mysql_set_character_set,
   mysql_num_fields,
-  mysql_select_db
+  mysql_select_db,
+  mysql_use_result,
+  mysql_fetch_fields,
+  mysql_real_escape_string,
+  mysql_ssl_set
+};
+
+static struct thd_mdl_service_st thd_mdl_handler=
+{
+  thd_mdl_context
+};
+
+static struct thd_service_st thd_handler=
+{
+  get_current_thd
 };
 
 #define DEFINE_warning_function(name, ret) {                                \
@@ -334,6 +358,7 @@ static struct st_service_ref list_of_services[]=
   { "my_crypt_service",            VERSION_my_crypt,            &crypt_handler},
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "my_print_error_service",      VERSION_my_print_error,      &my_print_error_handler},
+  { "print_check_msg_service",     VERSION_print_check_msg,     &print_check_msg_handler},
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "my_sha2_service",             VERSION_my_sha2,             &my_sha2_handler},
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
@@ -348,11 +373,12 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
-  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
   { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
+  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
   { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
   { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },
   { "provider_service_lzo",        VERSION_provider_lzo,        &provider_handler_lzo },
-  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy }
+  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy },
+  { "thd_service",                 VERSION_thd,                 &thd_handler },
 };

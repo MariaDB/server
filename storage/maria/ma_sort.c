@@ -281,7 +281,12 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
       printf("  - Last merge and dumping keys\n"); /* purecov: tested */
     if (merge_index(info,keys,sort_keys,dynamic_element(&buffpek,0,BUFFPEK *),
                     maxbuffer,&tempfile))
+    {
+      const char *format= "Got error %iE when merging index";
+      _ma_check_print_error(info->sort_info->param,
+                            format, (int) my_errno);
       goto err;					/* purecov: inspected */
+    }
   }
 
   if (flush_maria_ft_buf(info) || _ma_flush_pending_blocks(info))
@@ -449,7 +454,7 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
     }
     if ((sort_keys= (uchar **)
          my_malloc(PSI_INSTRUMENT_ME, (size_t)(keys*(sort_length+sizeof(char*))+
-                   ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
+                   (sort_param->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
       if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek, sizeof(BUFFPEK),
@@ -543,8 +548,16 @@ pthread_handler_t _ma_thr_find_all_keys(void *arg)
   MARIA_SORT_PARAM *sort_param= (MARIA_SORT_PARAM*) arg;
   my_bool error= FALSE;
   /* If my_thread_init fails */
-  if (my_thread_init() || _ma_thr_find_all_keys_exec(sort_param))
+  if (my_thread_init())
     error= TRUE;
+  else
+  {
+    HA_CHECK *check= sort_param->check_param;
+    if (check->init_repair_thread)
+      check->init_repair_thread(check->init_repair_thread_arg);
+    if (_ma_thr_find_all_keys_exec(sort_param))
+      error= TRUE;
+  }
 
   /*
      Thread must clean up after itself.
@@ -752,8 +765,8 @@ static int write_keys(MARIA_SORT_PARAM *info, register uchar **sort_keys,
   if (!buffpek)
     DBUG_RETURN(1);                             /* Out of memory */
 
-  my_qsort2((uchar*) sort_keys,(size_t) count, sizeof(uchar*),
-            (qsort2_cmp) info->key_cmp, info);
+  my_qsort2(sort_keys, count, sizeof(uchar*),
+            info->key_cmp, info);
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, my_tmpdir(info->tmpdir), "ST",
                        DISK_BUFFER_SIZE, info->sort_info->param->myf_rw))
@@ -798,8 +811,8 @@ static int write_keys_varlen(MARIA_SORT_PARAM *info,
   if (!buffpek)
     DBUG_RETURN(1);                             /* Out of memory */
 
-  my_qsort2((uchar*) sort_keys, (size_t) count, sizeof(uchar*),
-            (qsort2_cmp) info->key_cmp, info);
+  my_qsort2(sort_keys, count, sizeof(uchar*),
+            info->key_cmp, info);
   if (!my_b_inited(tempfile) &&
       open_cached_file(tempfile, my_tmpdir(info->tmpdir), "ST",
                        DISK_BUFFER_SIZE, info->sort_info->param->myf_rw))
@@ -841,8 +854,8 @@ static int write_index(MARIA_SORT_PARAM *info, register uchar **sort_keys,
 {
   DBUG_ENTER("write_index");
 
-  my_qsort2((uchar*) sort_keys,(size_t) count,sizeof(uchar*),
-            (qsort2_cmp) info->key_cmp,info);
+  my_qsort2(sort_keys, count,sizeof(uchar*),
+            info->key_cmp,info);
   while (count--)
   {
     if ((*info->key_write)(info, *sort_keys++))
@@ -929,7 +942,7 @@ cleanup:
     buffpek		Where to read from
     sort_length		max length to read
   RESULT
-    > 0	Ammount of bytes read
+    > 0	Amount of bytes read
     -1	Error
 */
 
@@ -1044,8 +1057,8 @@ merge_buffers(MARIA_SORT_PARAM *info, ha_keys keys, IO_CACHE *from_file,
   sort_length=info->key_length;
 
   if (init_queue(&queue,(uint) (Tb-Fb)+1,offsetof(BUFFPEK,key),0,
-                 (int (*)(void*, uchar *,uchar*)) info->key_cmp,
-                 (void*) info, 0, 0))
+                 info->key_cmp,
+                 info, 0, 0))
     DBUG_RETURN(1); /* purecov: inspected */
 
   for (buffpek= Fb ; buffpek <= Tb ; buffpek++)

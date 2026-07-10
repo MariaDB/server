@@ -4,14 +4,7 @@ use My::Platform;
 @ISA = qw(My::Suite);
 
 sub skip_combinations {
-  my @combinations;
-
-  # disable innodb combinations for configurations that were not built
-  push @combinations, 'innodb_plugin' unless $ENV{HA_INNODB_SO};
-
-  push @combinations, 'innodb' unless $::mysqld_variables{'innodb'} eq "ON";
-
-  my %skip = ( 'include/have_innodb.combinations' => [ @combinations ]);
+  my %skip;
 
   $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
                 unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
@@ -25,7 +18,7 @@ sub skip_combinations {
     $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
   }
 
-  if ( $::opt_ps_protocol ) {
+  if ( $::opt_ps_protocol || $::opt_cursor_protocol) {
     $skip{'include/protocol.combinations'} = [ 'nm' ];
   } else {
     $skip{'include/protocol.combinations'} = [ 'ps' ];
@@ -80,12 +73,9 @@ sub skip_combinations {
 
   $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
     unless $openssl_ver ge "1.0.1d" and $openssl_ver lt "1.1.1";
-
-  $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
-    unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "1.0.2";
-
-  $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
-    unless $openssl_ver ge "1.0.2";
+  $skip{'main/func_kdf.combinations'} = [ $ssl_lib =~ /OpenSSL 1\.0\./ ? 'new' : 'old' ];
+  $skip{'main/tlsv13.test'} = 'does not work with OpenSSL <= 1.1.1'
+    unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "3.0.0";
 
   sub utf8_command_line_ok() {
    if (IS_WINDOWS) {
@@ -112,6 +102,10 @@ sub skip_combinations {
   
   $skip{'include/check_windows_admin.inc'} = 'Requires admin privileges'
     unless IS_WINDOWS and Win32::IsAdminUser();
+
+  # MDEV-38326. Chained TLS certificates fails verification for schannel clients
+  $skip{'main/chained_ssl_certificates.test'} = 'Skip if on Windows without OpenSSL'
+    unless !IS_WINDOWS || $openssl_ver;
 
   %skip;
 }

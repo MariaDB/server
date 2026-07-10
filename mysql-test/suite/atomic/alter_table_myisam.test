@@ -1,0 +1,6 @@
+#
+# Test atomic alter table with MyISAM
+
+let $engine_count=1;
+let $engines='myisam';
+--source alter_table.inc

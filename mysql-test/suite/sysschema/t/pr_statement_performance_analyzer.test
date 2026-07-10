@@ -155,9 +155,10 @@ CALL sys.statement_performance_analyzer('delta', 'test.tmp_digests_ini', 'analys
 CALL sys.statement_performance_analyzer('overall', NULL, 'with_errors_or_warnings');
 CALL sys.statement_performance_analyzer('delta', 'test.tmp_digests_ini', 'with_errors_or_warnings');
 
---replace_result $query_select QUERY_SELECT $digest_select DIGEST_SELECT $o_sel_total_latency LATENCY $o_sel_first_seen FIRST_SEEN $o_sel_last_seen LAST_SEEN
+--replace_column 4 LATENCY
+--replace_result $query_select QUERY_SELECT $digest_select DIGEST_SELECT $o_sel_first_seen FIRST_SEEN $o_sel_last_seen LAST_SEEN $digest_update DIGEST_UPDATE $query_update QUERY_UPDATE $o_upd_first_seen FIRST_SEEN $o_upd_last_seen LAST_SEEN
 CALL sys.statement_performance_analyzer('overall', NULL, 'with_full_table_scans');
---replace_result $query_select QUERY_SELECT $digest_select DIGEST_SELECT $d_sel_total_latency LATENCY $o_sel_first_seen FIRST_SEEN $o_sel_last_seen LAST_SEEN
+--replace_result $query_select QUERY_SELECT $digest_select DIGEST_SELECT $d_sel_total_latency LATENCY $o_sel_first_seen FIRST_SEEN $o_sel_last_seen LAST_SEEN 
 CALL sys.statement_performance_analyzer('delta', 'test.tmp_digests_ini', 'with_full_table_scans');
 
 --replace_result $query_select QUERY_SELECT $digest_select DIGEST_SELECT $o_sel_total_latency LATENCY $o_sel_first_seen FIRST_SEEN $o_sel_last_seen LAST_SEEN

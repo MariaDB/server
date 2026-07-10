@@ -1,5 +1,7 @@
 --source include/default_optimizer_switch.inc
 
+--let $replace_regex_tsltz6= /(TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'|<cache>\(current_timestamp\(6\)\))/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
+
 create table emp
 (
   emp_id int,
@@ -164,6 +166,7 @@ select * from (
   select t1.x, t1.y as y1, t2.x as x2, t2.y as y2
   from t1 join t2 on t1.x = t2.x) for system_time as of now() as t;
 
+--replace_regex $replace_regex_tsltz6
 let $a=`show warnings`;
 --echo Query A:
 echo $a;
@@ -174,6 +177,7 @@ select * from (
   from t1 for system_time as of now()
   join t2 for system_time as of now() on t1.x = t2.x) as t;
 
+--replace_regex $replace_regex_tsltz6
 let $b=`show warnings`;
 --echo Query B:
 echo $b;

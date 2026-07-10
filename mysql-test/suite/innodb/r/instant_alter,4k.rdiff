@@ -312,12 +312,11 @@
  connection default;
  InnoDB		0 transactions not purged
  DROP TABLE t1,t2,t3,t4,big;
-@@ -2836,7 +2868,7 @@
+@@ -2836,6 +2868,6 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
 -209
 +211
- SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
  SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
  #

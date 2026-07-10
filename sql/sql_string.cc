@@ -16,10 +16,6 @@
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include <m_string.h>
 #include <m_ctype.h>
@@ -68,7 +64,7 @@ bool Binary_string::real_alloc(size_t length)
        null character is inserted at the appropriate position.
 
    - If the String does not keep a private buffer on the heap, such a buffer
-     will be allocated and the string copied accoring to its length, as found
+     will be allocated and the string copied according to its length, as found
      in String::length().
  
    For C compatibility, the new string buffer is null terminated if it was
@@ -214,7 +210,8 @@ bool Binary_string::set_fcvt(double num, uint decimals)
 }
 
 
-bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
+bool String::set_real_with_type(double num, uint decimals, CHARSET_INFO *cs,
+                                my_gcvt_arg_type type)
 {
   char buff[FLOATING_POINT_BUFFER];
   uint dummy_errors;
@@ -223,12 +220,11 @@ bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
   set_charset(cs);
   if (decimals >= FLOATING_POINT_DECIMALS)
   {
-    len= my_gcvt(num, MY_GCVT_ARG_DOUBLE, sizeof(buff) - 1, buff, NULL);
+    len= my_gcvt(num, type, sizeof(buff) - 1, buff, NULL);
     return copy(buff, (uint)len, &my_charset_latin1, cs, &dummy_errors);
   }
   len= my_fcvt(num, decimals, buff, NULL);
-  return copy(buff, (uint32) len, &my_charset_latin1, cs,
-              &dummy_errors);
+  return copy(buff, (uint32) len, &my_charset_latin1, cs, &dummy_errors);
 }
 
 
@@ -344,7 +340,7 @@ bool String::needs_conversion(size_t arg_length,
   Checks that the source string can just be copied to the destination string
   without conversion.
   Unlike needs_conversion it will require conversion on incoming binary data
-  to ensure the data are verified for vailidity first.
+  to ensure the data are verified for validity first.
 
   @param arg_length   Length of string to copy.
   @param from_cs      Character set to copy from
@@ -389,7 +385,7 @@ bool String::needs_conversion_on_storage(size_t arg_length,
   cs			Character set for 'str'
 
   NOTES
-    For real multi-byte, ascii incompatible charactser sets,
+    For real multi-byte, ascii incompatible character sets,
     like UCS-2, add leading zeros if we have an incomplete character.
     Thus, 
       SELECT _ucs2 0xAA 
@@ -659,24 +655,6 @@ bool String::append_parenthesized(long nr, int radix)
 }
 
 
-bool String::append_with_prefill(const char *s,uint32 arg_length,
-		 uint32 full_length, char fill_char)
-{
-  int t_length= arg_length > full_length ? arg_length : full_length;
-
-  if (realloc_with_extra_if_needed(str_length + t_length))
-    return TRUE;
-  t_length= full_length - arg_length;
-  if (t_length > 0)
-  {
-    bfill(Ptr+str_length, t_length, fill_char);
-    str_length=str_length + t_length;
-  }
-  append(s, arg_length);
-  return FALSE;
-}
-
-
 int Binary_string::strstr(const char *search, uint32 search_length, uint32 offset) const
 {
   if (search_length + offset <= str_length)
@@ -817,6 +795,15 @@ void Binary_string::qs_append(ulonglong i)
 {
   char *buff= Ptr + str_length;
   char *end= longlong10_to_str(i, buff, 10);
+  ASSERT_LENGTH((size_t) (end-buff));
+  str_length+= (uint32) (end-buff);
+}
+
+
+void Binary_string::qs_append_int64(longlong i)
+{
+  char *buff= Ptr + str_length;
+  char *end= longlong10_to_str(i, buff, -10);
   ASSERT_LENGTH((size_t) (end-buff));
   str_length+= (uint32) (end-buff);
 }
@@ -975,7 +962,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
       "from" typically points to a temporary buffer inside Item_xxx::val_str(),
       or to Item::str_value, and thus is "less permanent" than "to".
 
-      Reallocating "to" may give more benifits:
+      Reallocating "to" may give more benefits:
       - "to" can point to a "more permanent" storage and can be reused
         for multiple rows, e.g. str_buffer in Protocol::send_result_set_row(),
         which is passed to val_str() for all string type rows.
@@ -1150,7 +1137,6 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
 }
 
 
-
 /*
   Append characters to a single-quoted string '...', escaping special
   characters with backslashes as necessary.
@@ -1163,25 +1149,44 @@ bool String::append_for_single_quote(const char *st, size_t len)
   int chlen;
   for (; st < end; st++)
   {
-    switch (*st)
+    char ch2= (char) (uchar) escaped_wc_for_single_quote((uchar) *st);
+    if (ch2)
     {
-    case '\\':   APPEND(STRING_WITH_LEN("\\\\")); break;
-    case '\0':   APPEND(STRING_WITH_LEN("\\0")); break;
-    case '\'':   APPEND(STRING_WITH_LEN("\\'")); break;
-    case '\n':   APPEND(STRING_WITH_LEN("\\n")); break;
-    case '\r':   APPEND(STRING_WITH_LEN("\\r")); break;
-    case '\032': APPEND(STRING_WITH_LEN("\\Z")); break;
-    default:     if ((chlen=charset()->charlen(st, end)) > 0)
-                 {
-                   APPEND(st, chlen);
-                   st+= chlen-1;
-                 }
-                 else
-                   APPEND(*st);
+      if (append('\\') || append(ch2))
+        return true;
+      continue;
     }
+    if ((chlen= charset()->charlen(st, end)) > 0)
+    {
+     APPEND(st, chlen);
+      st+= chlen-1;
+    }
+    else
+      APPEND(*st);
   }
   return 0;
 }
+
+
+bool String::append_for_single_quote_using_mb_wc(const char *src,
+                                                 size_t length,
+                                                 CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(&my_charset_bin != charset());
+  DBUG_ASSERT(&my_charset_bin != cs);
+  const uchar *str= (const uchar *) src;
+  const uchar *end= (const uchar *) src + length;
+  int chlen;
+  my_wc_t wc;
+  for ( ; (chlen= cs->cset->mb_wc(cs, &wc, str, end)) > 0; str+= chlen)
+  {
+    my_wc_t wc2= escaped_wc_for_single_quote(wc);
+    if (wc2 ? (append_wc('\\') || append_wc(wc2)) : append_wc(wc))
+      return true;
+  }
+  return false;
+}
+
 
 void String::print(String *str) const
 {

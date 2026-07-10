@@ -8,14 +8,7 @@
 #                 CLIENT (CONTRIBUTION)
 #
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 --source include/not_embedded.inc
-
-USE test;
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
 
 CREATE TABLE t1 (c1  TINYBLOB,
                  c2  BLOB,
@@ -91,6 +84,3 @@ remove_file $MYSQLTEST_VARDIR/tmp/mdev-14593.sql;
 
 #Cleanup
 DROP TABLE t1;
-
-# Wait till all disconnects are completed
- --source include/wait_until_count_sessions.inc

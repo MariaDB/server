@@ -12,11 +12,12 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) DEFAULT NULL,
   KEY `i1` (`f1`,`f2`),
   KEY `i2` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into `t1` (rowid, f1, f2) values (1, 1, 10), (2, 1, NULL);
 connect  a,localhost,root,,;
 connect  b,localhost,root,,;
 connection a;
+set innodb_snapshot_isolation=OFF;
 start transaction with consistent snapshot;
 connection b;
 start transaction;

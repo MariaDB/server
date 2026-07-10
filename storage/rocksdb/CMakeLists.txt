@@ -1,10 +1,17 @@
 # TODO: Copyrights
 
+IF(PLUGIN_ROCKSDB STREQUAL "NO")
+  ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
+  RETURN()
+ENDIF()
+
 SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-invalid-offsetof)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-effc++ DEBUG RELWITHDEBINFO)
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
@@ -24,6 +31,11 @@ ENDIF(HAVE_TIMER_DELETE)
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
+ENDIF()
+
+CHECK_FUNCTION_EXISTS(getauxval  HAVE_AUXV_GETAUXVAL)
+IF(HAVE_AUXV_GETAUXVAL)
+  ADD_DEFINITIONS(-DROCKSDB_AUXV_GETAUXVAL_PRESENT)
 ENDIF()
 
 IF(WITH_VALGRIND)
@@ -58,52 +70,6 @@ IF(MSVC_ARM64)
  SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
 ENDIF()
 
-#
-# Also, disable on ARM64 when not Linux
-# Requires submodule update to v6.16.3
-# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
-#
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
-ENDIF()
-
-# This plugin needs recent C++ compilers (it is using C++11 features)
-# Skip build for the old compilers
-SET(CXX11_FLAGS)
-SET(OLD_COMPILER_MSG "requires c++11 -capable compiler (minimal supported versions are g++ 4.8, clang 3.3, VS2015)")
-
-IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
-  IF (GCC_VERSION VERSION_LESS 4.8)
-    SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
-  ENDIF()
-  SET(CXX11_FLAGS "-std=c++11")
-  IF (GCC_VERSION VERSION_LESS 5.0)
-    SET(CXX11_FLAGS "-std=c++11 -Wno-missing-field-initializers")
-  ENDIF()
-ELSEIF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  IF ((CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS  3.3) OR
-     (CLANG_VERSION_STRING AND CLANG_VERSION_STRING VERSION_LESS  3.3))
-    SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
-  ENDIF()
-  SET(CXX11_FLAGS "-std=c++11 -stdlib=libstdc++")
-  IF(MSVC)
-    # clang-cl does not work yet
-    SKIP_ROCKSDB_PLUGIN("Clang-cl is not supported")
-  ENDIF()
-ELSEIF(MSVC)
-  IF (MSVC_VERSION LESS 1900)
-    SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
-  ENDIF()
-ELSE()
-  SKIP_ROCKSDB_PLUGIN("Compiler not supported")
-ENDIF()
-
-IF(CMAKE_VERSION GREATER 3.0)
-  SET(CMAKE_CXX_STANDARD  11)
-ELSEIF(CXX11_FLAGS)
-  ADD_DEFINITIONS(${CXX11_FLAGS})
-ENDIF()
 
 SET(ROCKSDB_SE_SOURCES
   rdb_mariadb_server_port.cc
@@ -160,6 +126,10 @@ IF(NOT TARGET rocksdb)
   RETURN()
 ENDIF()
 
+ADD_SUBMODULE(rocksdb)
+
+INSTALL_MANPAGES(rocksdb-engine mariadb-ldb.1 myrocks_hotbackup.1)
+
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)
 #define __thread __declspec(thread)
@@ -197,7 +167,7 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
 # MARIAROCKS-TODO: how to properly depend on -lrt ?
-TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARIES})
 if (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()

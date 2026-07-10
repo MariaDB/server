@@ -7,3 +7,16 @@ FLUSH PRIVILEGES;
 # xtrabackup move back
 # restart
 DROP USER backup_user;
+#
+# MDEV-31855 validate ssl certificates using client password in the internal client
+#
+# tcp ssl ssl-verify-server-cert
+#
+# MDEV-32473 --disable-ssl doesn't disable it
+#
+# tcp skip-ssl
+#
+# MDEV-37143 Mariadb-backup fails on Windows with SSL certificate is self-signed error
+#
+# do not fail with passwordless with default protocol
+# do not fail with passwordless with 127.0.0.1 TCP

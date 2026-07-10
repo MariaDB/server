@@ -10,6 +10,7 @@
 # Test spatial index with table have no primary key column
 # Test spatial index with table have no auto_increment
 # Test spatial index with check constraint
+# Test spatial index with missing mysql.innodb_table_stats
 # **********************************************************
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
@@ -26,10 +27,10 @@ c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL)
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 # Check spatial index functionality with Create Index clause options
-CREATE SPATIAL INDEX idx1 on tab(c2 ASC);
-CREATE SPATIAL INDEX idx2 on tab(c3 DESC) COMMENT 'wl6968';
-CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=8 ;
-CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=4 
+CREATE SPATIAL INDEX idx1 on tab(c2);
+CREATE SPATIAL INDEX idx2 on tab(c3) COMMENT 'wl6968';
+CREATE SPATIAL INDEX idx3 on tab(c4) KEY_BLOCK_SIZE=8 ;
+CREATE SPATIAL INDEX idx4 on tab(c5) KEY_BLOCK_SIZE=4
 COMMENT 'Spatial index on Geometry type column';
 
 # Check index type
@@ -94,9 +95,11 @@ ANALYZE TABLE tab;
 
 # Check the spatial relationship between 2 GIS shapes
 
-# Test the MBRContains
+--echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
+# Show plan if we cannot use index order
+EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1+0;
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -117,7 +120,7 @@ WHERE MBRContains(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 
-# Test the MBRWithin
+--echo # Test  the MBRWithin
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
@@ -129,7 +132,7 @@ WHERE MBRWithin(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
-# Test the ST_Crosses
+--echo # Test  the ST_Crosses
 SET @g1 = ST_GeomFromText('POLYGON((100 200,200 300,400 500,500 300,300 200,100 300,100 200))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
@@ -152,7 +155,7 @@ WHERE ST_Crosses(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 
-# Test the MBRDisjoint
+--echo # Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
@@ -164,7 +167,7 @@ WHERE MBRDisjoint(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 
-# Test the MBREquals
+--echo # Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -176,7 +179,6 @@ WHERE MBREquals(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 
-# Test the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
@@ -199,7 +201,7 @@ WHERE MBRintersects(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 
-# Test the Overelaps
+--echo # Test  the Overelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
@@ -222,7 +224,7 @@ WHERE MBROverlaps(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 
-# Test the ST_Touches
+--echo # Test  the ST_Touches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
@@ -245,7 +247,7 @@ WHERE ST_Touches(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 
-# Test the MBRContains
+--echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -268,7 +270,7 @@ WHERE MBRWithin(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
-# Test the MBRDisjoint
+--echo # Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
@@ -280,7 +282,7 @@ WHERE MBRDisjoint(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 
-# Test the MBREquals
+--echo # Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -292,7 +294,7 @@ WHERE MBREquals(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 
-# Test the MBRintersects
+--echo # Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
@@ -315,7 +317,7 @@ WHERE MBRintersects(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 
-# Test the MBROverelaps
+--echo # Test  the MBROverelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
@@ -327,7 +329,7 @@ WHERE MBROverlaps(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 
-# Test the MBRTouches
+--echo # Test  the MBRTouches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
@@ -339,7 +341,7 @@ WHERE MBRTouches(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRTouches(tab.c4, @g1);
 
-# Test with Procedure
+--echo # Test  with Procedure
 delimiter |;
 
 CREATE PROCEDURE proc_wl6968()
@@ -357,7 +359,7 @@ delimiter ;|
 
 CALL proc_wl6968();
 
-# Test the Delete & Update
+--echo # Test  the Delete & Update
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -410,10 +412,10 @@ c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL)
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 
 # Check spatial index functionality with Create Index clause options
-CREATE SPATIAL INDEX idx1 on tab(c2 ASC);
-CREATE SPATIAL INDEX idx2 on tab(c3 DESC) COMMENT 'wl6968';
-CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=2 ;
-CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=8 
+CREATE SPATIAL INDEX idx1 on tab(c2);
+CREATE SPATIAL INDEX idx2 on tab(c3) COMMENT 'wl6968';
+CREATE SPATIAL INDEX idx3 on tab(c4) KEY_BLOCK_SIZE=2 ;
+CREATE SPATIAL INDEX idx4 on tab(c5) KEY_BLOCK_SIZE=8
 COMMENT 'Spatial index on Geometry type column';
 
 # Check index type
@@ -478,7 +480,7 @@ ANALYZE TABLE tab;
 
 # Check the spatial relationship between 2 GIS shapes
 
-# Test the MBRContains
+--echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -501,7 +503,7 @@ WHERE MBRContains(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 
-# Test the MBRWithin
+--echo # Test  the MBRWithin
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
@@ -513,7 +515,7 @@ WHERE MBRWithin(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
-# Test the ST_Crosses
+--echo # Test  the ST_Crosses
 SET @g1 = ST_GeomFromText('POLYGON((100 200,200 300,400 500,500 300,300 200,100 300,100 200))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
@@ -536,7 +538,7 @@ WHERE ST_Crosses(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 
-# Test the MBRDisjoint
+--echo # Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
@@ -548,7 +550,7 @@ WHERE MBRDisjoint(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 
-# Test the MBREquals
+--echo # Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -560,7 +562,7 @@ WHERE MBREquals(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 
-# Test the MBRintersects
+--echo # Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
@@ -583,7 +585,7 @@ WHERE MBRintersects(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 
-# Test the Overelaps
+--echo # Test  the Overelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
@@ -606,7 +608,7 @@ WHERE MBROverlaps(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 
-# Test the ST_Touches
+--echo # Test  the ST_Touches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
@@ -629,7 +631,7 @@ WHERE ST_Touches(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 
-# Test the MBRContains
+--echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -652,7 +654,7 @@ WHERE MBRWithin(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
-# Test the MBRDisjoint
+--echo # Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
@@ -664,7 +666,7 @@ WHERE MBRDisjoint(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 
-# Test the MBREquals
+--echo # Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -676,7 +678,7 @@ WHERE MBREquals(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 
-# Test the MBRintersects
+--echo # Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
@@ -699,7 +701,7 @@ WHERE MBRintersects(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 
-# Test the MBROverelaps
+--echo # Test  the MBROverelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
@@ -711,7 +713,7 @@ WHERE MBROverlaps(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 
-# Test the MBRTouches
+--echo # Test  the MBRTouches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
@@ -723,7 +725,7 @@ WHERE MBRTouches(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRTouches(tab.c4, @g1);
 
-# Test with Procedure
+--echo # Test  with Procedure
 delimiter |;
 
 CREATE PROCEDURE proc_wl6968()
@@ -741,7 +743,7 @@ delimiter ;|
 
 CALL proc_wl6968();
 
-# Test the Delete & Update
+--echo # Test  the Delete & Update
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
@@ -782,10 +784,10 @@ c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL)
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 
 # Check spatial index functionality with Create Index clause options
-CREATE SPATIAL INDEX idx1 on tab(c2 ASC);
-CREATE SPATIAL INDEX idx2 on tab(c3 DESC) COMMENT 'wl6968';
-CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=16 ;
-CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=16 
+CREATE SPATIAL INDEX idx1 on tab(c2);
+CREATE SPATIAL INDEX idx2 on tab(c3) COMMENT 'wl6968';
+CREATE SPATIAL INDEX idx3 on tab(c4) KEY_BLOCK_SIZE=16 ;
+CREATE SPATIAL INDEX idx4 on tab(c5) KEY_BLOCK_SIZE=16
 COMMENT 'Spatial index on Geometry type column';
 
 # Check index type
@@ -850,7 +852,7 @@ ANALYZE TABLE tab;
 
 # Check the spatial relationship between 2 GIS shapes
 
-# Test the MBRContains
+--echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -873,7 +875,7 @@ WHERE MBRContains(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 
-# Test the MBRWithin
+--echo # Test  the MBRWithin
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
@@ -885,7 +887,7 @@ WHERE MBRWithin(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
-# Test the ST_Crosses
+--echo # Test  the ST_Crosses
 SET @g1 = ST_GeomFromText('POLYGON((100 200,200 300,400 500,500 300,300 200,100 300,100 200))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
@@ -908,7 +910,7 @@ WHERE ST_Crosses(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 
-# Test the MBRDisjoint
+--echo # Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
@@ -920,7 +922,7 @@ WHERE MBRDisjoint(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 
-# Test the MBREquals
+--echo # Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -932,7 +934,7 @@ WHERE MBREquals(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 
-# Test the MBRintersects
+--echo # Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
@@ -955,7 +957,7 @@ WHERE MBRintersects(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 
-# Test the Overelaps
+--echo # Test  the Overelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
@@ -978,7 +980,7 @@ WHERE MBROverlaps(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 
-# Test the ST_Touches
+--echo # Test  the ST_Touches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
@@ -1001,7 +1003,7 @@ WHERE ST_Touches(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 
-# Test the MBRContains
+--echo # Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
@@ -1024,7 +1026,7 @@ WHERE MBRWithin(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
-# Test the MBRDisjoint
+--echo # Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
@@ -1036,7 +1038,7 @@ WHERE MBRDisjoint(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 
-# Test the MBREquals
+--echo # Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -1048,7 +1050,7 @@ WHERE MBREquals(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 
-# Test the MBRintersects
+--echo # Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
@@ -1071,7 +1073,7 @@ WHERE MBRintersects(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 
-# Test the MBROverelaps
+--echo # Test  the MBROverelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
@@ -1083,7 +1085,7 @@ WHERE MBROverlaps(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 
-# Test the MBRTouches
+--echo # Test  the MBRTouches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
@@ -1095,7 +1097,7 @@ WHERE MBRTouches(tab.c4, @g1);
 
 EXPLAIN DELETE FROM tab WHERE MBRTouches(tab.c4, @g1);
 
-# Test the Delete & Update
+--echo # Test  the Delete & Update
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
@@ -1124,7 +1126,7 @@ DROP TABLE tab;
 
 # End of Testcase compress table with Auto_increment 
 
-# Test check constraint on spatial column
+--echo # Test  check constraint on spatial column
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(c1 > 0) ) ENGINE=InnoDB;
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(CAST(c1 AS BINARY) > 0) ) ENGINE=InnoDB;
@@ -1164,20 +1166,15 @@ select 1 from t1 where st_intersects(
 );
 drop table t1;
 
-# Reproduce case for updating statistic after droping stats info table.
-CREATE TABLE t1(c1 POINT NOT NULL);
-DROP TABLE mysql.innodb_table_stats;
+# Test spatial index with missing mysql.innodb_table_stats
+--echo #
+--echo # MDEV-24558 : Assertion !index->is_spatial() failed
+--echo #
+CREATE TABLE t1(c1 POINT NOT NULL) ENGINE=InnoDB;
+RENAME TABLE mysql.innodb_table_stats TO mysql.innodb_table_stats_;
 CALL mtr.add_suppression("InnoDB: Table `mysql`.`innodb_table_stats` not found.");
 CALL mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `test`.`t1` but the required system tables mysql.innodb_table_stats and mysql.innodb_index_stats are not present or have unexpected structure. Using transient stats instead.");
 CREATE SPATIAL INDEX idx2 ON t1(c1);
 
 DROP TABLE t1;
-CREATE TABLE mysql.innodb_table_stats (
-  database_name varchar(64) COLLATE utf8_bin NOT NULL,
-  table_name varchar(199) COLLATE utf8_bin NOT NULL,
-  last_update timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  n_rows bigint(20) unsigned NOT NULL,
-  clustered_index_size bigint(20) unsigned NOT NULL,
-  sum_of_other_index_sizes bigint(20) unsigned NOT NULL,
-  PRIMARY KEY (`database_name`,`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+RENAME TABLE mysql.innodb_table_stats_ TO mysql.innodb_table_stats;

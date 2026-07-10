@@ -40,11 +40,11 @@ insert into t2 values(1);
 --connection server_4
 --disable_warnings
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root';
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=no;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root';
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=no;
 --replace_result $SERVER_MYPORT_3 MYPORT_3
-eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root';
+eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=no;
 start all slaves;
 set default_master_connection = 'm1';
 --source include/wait_for_slave_to_start.inc
@@ -78,11 +78,11 @@ drop database a;
 drop database b;
 drop database c;
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root';
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=no;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root';
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=no;
 --replace_result $SERVER_MYPORT_3 MYPORT_3
-eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root';
+eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=no;
 start all slaves;
 set default_master_connection = 'm1';
 --source include/wait_for_slave_to_start.inc
@@ -139,3 +139,4 @@ SET default_master_connection = "m2";
 --source include/wait_for_slave_to_stop.inc
 SET default_master_connection = "";
 --source include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;

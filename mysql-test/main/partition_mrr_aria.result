@@ -27,7 +27,7 @@ t3	CREATE TABLE `t3` (
   `col2` int(11) DEFAULT NULL,
   PRIMARY KEY (`ID`,`part_id`),
   KEY `key_col` (`key_col`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`part_id`)
 (PARTITION `p1` VALUES LESS THAN (3) ENGINE = Aria,
  PARTITION `p2` VALUES LESS THAN (7) ENGINE = Aria,
@@ -44,7 +44,7 @@ set optimizer_switch='mrr=on';
 explain 
 select * from t3 force index (key_col) where key_col < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	key_col	key_col	5	NULL	#	Using where; Rowid-ordered scan
+1	SIMPLE	t3	range	key_col	key_col	5	NULL	#	Using index condition; Rowid-ordered scan
 select * from t3 force index (key_col) where key_col < 3;
 ID	part_id	key_col	col2
 1	0	0	123456
@@ -130,7 +130,7 @@ set optimizer_switch='mrr=on';
 explain extended select * from t0,t2 where t2.a in (3,4) and t0.a=t2.a and (t0.b / 10) = t2.a-1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	idx	idx	5	NULL	2	100.00	Using where; Using index
-1	SIMPLE	t0	ref	idx	idx	5	test.t2.a	12	100.00	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t0	ALL	idx	NULL	NULL	NULL	50	25.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t0`.`tp` AS `tp`,`test`.`t0`.`a` AS `a`,`test`.`t0`.`b` AS `b`,`test`.`t0`.`c` AS `c`,`test`.`t2`.`a` AS `a` from `test`.`t0` join `test`.`t2` where `test`.`t0`.`a` = `test`.`t2`.`a` and `test`.`t2`.`a` in (3,4) and `test`.`t0`.`b` / 10 = `test`.`t2`.`a` - 1
 select * from t0,t2 where t2.a in (3,4) and t0.a=t2.a and (t0.b / 10) = t2.a-1;
@@ -164,7 +164,7 @@ tp	a	b	c	a
 explain extended select * from t0,t2 where t2.a in (3,4) and t0.a=t2.a and (t0.b / 10) = 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	idx	idx	5	NULL	2	100.00	Using where; Using index
-1	SIMPLE	t0	ref	idx	idx	5	test.t2.a	12	100.00	Using index condition; Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t0	ALL	idx	NULL	NULL	NULL	50	25.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t0`.`tp` AS `tp`,`test`.`t0`.`a` AS `a`,`test`.`t0`.`b` AS `b`,`test`.`t0`.`c` AS `c`,`test`.`t2`.`a` AS `a` from `test`.`t0` join `test`.`t2` where `test`.`t0`.`a` = `test`.`t2`.`a` and `test`.`t2`.`a` in (3,4) and `test`.`t0`.`b` / 10 = 4
 select * from t0,t2 where t2.a in (3,4) and t0.a=t2.a and (t0.b / 10) = 4;
@@ -190,7 +190,7 @@ tp	a	b	c	a
 explain extended select * from t1,t2 where t2.a in (3,4) and t1.a=t2.a and (t1.b / 10) = 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	idx	idx	5	NULL	2	100.00	Using where; Using index
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.a	12	100.00	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t1	ref	idx	idx	5	test.t2.a	12	100.00	Using index condition; Using join buffer (flat, BKA join); Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t1`.`tp` AS `tp`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t2`.`a` AS `a` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`t2`.`a` in (3,4) and `test`.`t1`.`b` / 10 = 4
 select * from t1,t2 where t2.a in (3,4) and t1.a=t2.a and (t1.b / 10) = 4;

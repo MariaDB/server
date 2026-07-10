@@ -24,18 +24,15 @@ if ($rpl_inited)
 # Write file to make mysql-test-run.pl expect the "crash", but don't start it
 --let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
---exec echo "wait" > $_expect_file_name
+--write_line wait $_expect_file_name
 
 # Avoid warnings from connection threads that does not have time to exit
 --disable_query_log
 set @@global.log_warnings=0;
 --enable_query_log
 
---let $server_shutdown_timeout= 60
-if ($VALGRIND_TEST)
-{
-  --let $server_shutdown_timeout= 300
-}
+--source include/slow_environ.inc
+--let $server_shutdown_timeout= 60$_timeout_adjustment
 
 if ($shutdown_timeout)
 {

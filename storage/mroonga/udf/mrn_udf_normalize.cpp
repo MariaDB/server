@@ -18,6 +18,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
 #include <mrn_encoding.hpp>
@@ -53,10 +54,19 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
   String *result_str = NULL;
 
   init->ptr = NULL;
+
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "mroonga_normalize(): Mroonga isn't initialized");
+    goto error;
+  }
+
   if (!(1 <= args->arg_count && args->arg_count <= 2)) {
-    sprintf(message,
-            "mroonga_normalize(): Incorrect number of arguments: %u for 1..2",
-            args->arg_count);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "mroonga_normalize(): Incorrect number of arguments: %u for 1..2",
+             args->arg_count);
     goto error;
   }
   if (args->arg_type[0] != STRING_RESULT) {
@@ -74,6 +84,7 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
   }
 
   init->maybe_null = 1;
+  init->max_length = args->lengths[0]*2;
 
   info = (st_mrn_normalize_info *)mrn_my_malloc(sizeof(st_mrn_normalize_info),
                                                 MYF(MY_WME | MY_ZEROFILL));
@@ -101,10 +112,10 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
       info->use_shared_db = false;
     }
     if (!info->db) {
-      sprintf(message,
-              "mroonga_normalize(): failed to %s: %s",
-              action,
-              info->ctx->errbuf);
+      snprintf(message, MYSQL_ERRMSG_SIZE,
+               "mroonga_normalize(): failed to %s: %s",
+               action,
+               info->ctx->errbuf);
       goto error;
     }
   }
@@ -115,8 +126,9 @@ MRN_API my_bool mroonga_normalize_init(UDF_INIT *init, UDF_ARGS *args,
     info->normalizer = grn_ctx_get(info->ctx, args->args[1], args->lengths[1]);
   }
   if (!info->normalizer) {
-    sprintf(message, "mroonga_normalize(): nonexistent normalizer %.*s",
-            (int)args->lengths[1], args->args[1]);
+    snprintf(message, MYSQL_ERRMSG_SIZE,
+             "mroonga_normalize(): nonexistent normalizer %.*s",
+             (int)args->lengths[1], args->args[1]);
     goto error;
   }
   info->flags = 0;
@@ -141,7 +153,7 @@ error:
 }
 
 MRN_API char *mroonga_normalize(UDF_INIT *init, UDF_ARGS *args, char *result,
-                                unsigned long *length, char *is_null, char *error)
+                                unsigned long *length, uchar *is_null, uchar *error)
 {
   st_mrn_normalize_info *info = (st_mrn_normalize_info *)init->ptr;
   grn_ctx *ctx = info->ctx;

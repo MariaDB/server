@@ -1,8 +1,8 @@
-drop table if exists t1;
 '#--------------------FN_DYNVARS_063_01-------------------------#'
 SET @start_value= @@global.log_bin_trust_function_creators;
 ## Creating new user tt ##
 CREATE USER tt@localhost;
+GRANT ALL ON test.* TO tt@localhost;
 ## Setting value of variable to 0 ##
 SET @@global.log_bin_trust_function_creators = 0;
 ## Creating new table t2 ##
@@ -85,6 +85,7 @@ f1(a)
 DROP FUNCTION f1;
 ## Dropping table t1 & t2 ##
 DROP TABLE t1,t2;
+disconnect test_con1;
 disconnect test_con2;
 connection default;
 DROP USER tt@localhost;

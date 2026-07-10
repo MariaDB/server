@@ -1,0 +1,74 @@
+#
+# MDEV-38936: Proactive handling of InnoDB tablespace full condition
+#
+# Test basic warning emission
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+CREATE TABLE t1 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+INSERT INTO t1 (data) SELECT REPEAT('a', 1024*1024) FROM seq_1_to_10;
+FOUND 1 /Tablespace 'test/t1' size 7340032 bytes reached 70% of configured threshold of 10485760 bytes/ in mysqld.1.err
+FOUND 1 /Tablespace 'test/t1' size 8388608 bytes reached 80% of configured threshold of 10485760 bytes/ in mysqld.1.err
+FOUND 1 /Tablespace 'test/t1' size 9437184 bytes reached 90% of configured threshold of 10485760 bytes/ in mysqld.1.err
+FOUND 1 /Tablespace 'test/t1' size 10485760 bytes reached 100% of configured threshold of 10485760 bytes/ in mysqld.1.err
+DROP TABLE t1;
+# Test configurable warning percentage
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+SET GLOBAL innodb_tablespace_size_warning_pct = 80;
+CREATE TABLE t1b (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+INSERT INTO t1b (data) SELECT REPEAT('x', 1024*1024) FROM seq_1_to_8;
+FOUND 1 /Tablespace 'test/t1b' size 8388608 bytes reached 80% of configured threshold of 10485760 bytes/ in mysqld.1.err
+FOUND 1 /Tablespace 'test/t1b' size 9437184 bytes reached 90% of configured threshold of 10485760 bytes/ in mysqld.1.err
+DROP TABLE t1b;
+# Test threshold set to zero disables warnings
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+CREATE TABLE t2 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+INSERT INTO t2 (data) SELECT REPEAT('b', 1024*1024) FROM seq_1_to_5;
+NOT FOUND /Tablespace 'test/t2' size \d+ bytes reached \d+% of configured threshold/ in mysqld.1.err
+DROP TABLE t2;
+# Test disable via threshold=0 then re-enable
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+CREATE TABLE t3 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+INSERT INTO t3 (data) SELECT REPEAT('c', 1024*1024) FROM seq_1_to_10;
+SET GLOBAL innodb_tablespace_size_warning_threshold = 10485760;
+INSERT INTO t3 (data) VALUES (REPEAT('d', 1024*1024));
+FOUND 1 /Tablespace 'test/t3' size 12582912 bytes reached 100% of configured threshold of 10485760 bytes/ in mysqld.1.err
+DROP TABLE t3;
+# Test TRUNCATE TABLE resets warning state
+CREATE TABLE t4 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+INSERT INTO t4 (data) SELECT REPEAT('e', 1024*1024) FROM seq_1_to_10;
+FOUND 1 /Tablespace 'test/t4' size 7340032 bytes reached 70% of configured threshold of 10485760 bytes/ in mysqld.1.err
+FOUND 1 /Tablespace 'test/t4' size 10485760 bytes reached 100% of configured threshold of 10485760 bytes/ in mysqld.1.err
+TRUNCATE TABLE t4;
+INSERT INTO t4 (data) SELECT REPEAT('f', 1024*1024) FROM seq_1_to_10;
+FOUND 2 /Tablespace 'test/t4' size 7340032 bytes reached 70% of configured threshold of 10485760 bytes/ in mysqld.1.err
+FOUND 2 /Tablespace 'test/t4' size 10485760 bytes reached 100% of configured threshold of 10485760 bytes/ in mysqld.1.err
+DROP TABLE t4;
+# Test behavior when tablespace exceeds 100% of threshold
+SET GLOBAL innodb_tablespace_size_warning_threshold = 5242880;
+SET GLOBAL innodb_tablespace_size_warning_pct = 70;
+CREATE TABLE t5 (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data LONGBLOB
+) ENGINE=InnoDB;
+INSERT INTO t5 (data) SELECT REPEAT('g', 1024*1024) FROM seq_1_to_10;
+FOUND 1 /Tablespace 'test/t5' size 4194304 bytes reached 80% of configured threshold of 5242880 bytes/ in mysqld.1.err
+FOUND 1 /Tablespace 'test/t5' size 5242880 bytes reached 100% of configured threshold of 5242880 bytes/ in mysqld.1.err
+DROP TABLE t5;
+SET GLOBAL innodb_tablespace_size_warning_threshold = 0;
+SET GLOBAL innodb_tablespace_size_warning_pct = 85;

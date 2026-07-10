@@ -23,14 +23,6 @@
 # Tests will be skipped for the view protocol
 -- source include/no_view_protocol.inc
 
---disable_warnings
-drop table if exists t1;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop procedure if exists p4;
-drop function if exists f1;
---enable_warnings
 create table t1 (a int);
 --echo #
 --echo # Test 'CREATE PROCEDURE'.
@@ -141,7 +133,7 @@ drop temporary table t1;
 --echo #
 --echo # For that, start a transaction, use a routine. In a concurrent
 --echo # connection, try to drop or alter the routine. It should place
---echo # a pending or exclusive lock and block. In another concurrnet
+--echo # a pending or exclusive lock and block. In another concurrent
 --echo # connection, try to use the routine.
 --echo # That should block on the pending exclusive lock.
 --echo #
@@ -545,8 +537,8 @@ drop function f1;
 create function f1() returns varchar(20) return "f1()";
 create function f2() returns varchar(20) return "f2()";
 create view v1 as select f1() as a;
-set @@session.autocommit=0;
 lock table v1 read;
+start transaction;
 select * from v1;
 savepoint sv;
 select f2();
@@ -573,6 +565,7 @@ connection con2;
 reap;
 connection default;
 unlock tables;
+commit;
 connection con1;
 --echo # Reaping 'drop function f1'...
 reap;
@@ -582,7 +575,6 @@ drop function f1;
 --error ER_SP_DOES_NOT_EXIST
 drop function f2;
 drop view v1;
-set @@session.autocommit=default;
 
 --echo # 
 --echo # 8) Check the situation when we're preparing or executing a
@@ -795,17 +787,10 @@ drop procedure p1;
 drop function f1;
 set @@session.max_sp_recursion_depth=default;
 
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
-connection con3;
 disconnect con3;
---source include/wait_until_disconnected.inc
 connection default;
-
 
 --echo #
 --echo # SHOW CREATE PROCEDURE p1 called from p1, after p1 was altered
@@ -846,12 +831,8 @@ connection con2;
 --echo # Reaping: CALL p1()
 --reap
 
-connection con3;
 disconnect con3;
---source include/wait_until_disconnected.inc
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 DROP PROCEDURE p1;
 
@@ -860,11 +841,6 @@ DROP PROCEDURE p1;
 --echo # Bug#57663 Concurrent statement using stored function and DROP DATABASE
 --echo #           breaks SBR
 --echo #
-
---disable_warnings
-DROP DATABASE IF EXISTS db1;
-DROP FUNCTION IF EXISTS f1;
---enable_warnings
 
 connect(con1, localhost, root);
 connect(con2, localhost, root);
@@ -989,19 +965,14 @@ connection con1;
 --echo # Reaping: DROP DATABASE db1
 --reap
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection con2;
 --echo # Reaping: ALTER FUNCTION f1 COMMENT 'test'
 --error ER_SP_DOES_NOT_EXIST
 --reap
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connection default;
 DROP FUNCTION f1;
 
-
---echo #
 --echo # End of 5.5 tests
---echo #

@@ -2,12 +2,25 @@
 # Tests for setting innodb-page-size=32k;
 --source include/have_innodb.inc
 --source include/have_innodb_32k.inc
+--source include/test_db_charset_latin1.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 
 let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET SESSION innodb_strict_mode=ON;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
+SET SESSION innodb_strict_mode=OFF;
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+SHOW WARNINGS;
+DROP TABLE t1;
+CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
+SHOW WARNINGS;
+DROP TABLE t1;
 
 --echo # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
@@ -609,3 +622,5 @@ show create table t2;
 update t2 set col150=@a;
 update t2 set col145=@b;
 drop table t2;
+
+--source include/test_db_charset_restore.inc

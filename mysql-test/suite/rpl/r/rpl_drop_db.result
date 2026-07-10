@@ -1,13 +1,10 @@
 include/master-slave.inc
 [connection master]
 connection master;
-drop database if exists mysqltest1;
 create database mysqltest1;
 create table mysqltest1.t1 (n int);
 insert into mysqltest1.t1 values (1);
 select * from mysqltest1.t1 into outfile 'mysqltest1/f1.txt';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create table mysqltest1.t2 (n int);
 create table mysqltest1.t3 (n int);
 drop database mysqltest1;

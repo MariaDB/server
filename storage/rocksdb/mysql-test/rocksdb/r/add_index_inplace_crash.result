@@ -16,7 +16,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `ka` (`a`),
   KEY `kab` (`a`,`b`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -36,7 +36,7 @@ t1	CREATE TABLE `t1` (
   `k` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `j` (`j`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`i`)
 PARTITIONS 4
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
@@ -71,7 +71,7 @@ t1	CREATE TABLE `t1` (
   `k` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `j` (`j`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`i`)
 PARTITIONS 4
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
@@ -84,7 +84,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`i`),
   KEY `j` (`j`),
   KEY `kij` (`i`,`j`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`i`)
 PARTITIONS 4
 SELECT COUNT(*) FROM t1;

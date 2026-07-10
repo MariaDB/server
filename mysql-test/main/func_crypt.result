@@ -45,6 +45,8 @@ select password(NULL);
 password(NULL)
 
 set global old_passwords=on;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('');
 password('')
 
@@ -58,20 +60,26 @@ select old_password('idkfa');
 old_password('idkfa')
 5c078dc54ca0fcca
 set old_passwords=on;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('idkfa');
 password('idkfa')
-5c078dc54ca0fcca
+*B669C9DAC3AA6F2254B03CDEF8DFDD6B2D1054BA
 select old_password('idkfa');
 old_password('idkfa')
 5c078dc54ca0fcca
 set global old_passwords=off;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('idkfa');
 password('idkfa')
-5c078dc54ca0fcca
+*B669C9DAC3AA6F2254B03CDEF8DFDD6B2D1054BA
 select old_password('idkfa');
 old_password('idkfa')
 5c078dc54ca0fcca
 set old_passwords=off;
+Warnings:
+Warning	4200	The setting 'old_passwords' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 select password('idkfa ');
 password('idkfa ')
 *2DC31D90647B4C1ABC9231563D2236E96C9A2DB2
@@ -146,7 +154,7 @@ SET optimizer_switch=@save_optimizer_switch;
 #
 # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
 #
-CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('test',password('test')), ('TEST', password('TEST'));
 SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= password("test") OR f2= password("TEST"));
 f1	f2
@@ -174,7 +182,7 @@ DEALLOCATE PREPARE stmt;
 #
 # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
 #
-CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('test',old_password('test')), ('TEST', old_password('TEST'));
 SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= old_password("test") OR f2= old_password("TEST"));
 f1	f2
@@ -223,7 +231,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) DEFAULT encrypt(`a`,123)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('hello');
 SELECT * FROM t1;
 a	b

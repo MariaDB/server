@@ -19,10 +19,20 @@ DROP TEMPORARY TABLE t;
 #
 SET @save_ahi = @@global.innodb_adaptive_hash_index;
 SET GLOBAL innodb_adaptive_hash_index = 1;
+SET @save_ahi_cells = @@global.innodb_adaptive_hash_index_cells;
+SET GLOBAL innodb_adaptive_hash_index_cells=1048576;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
 BEGIN;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 ROLLBACK;
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+bulk_operations
+1
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -35,13 +45,14 @@ INSERT INTO t1 SELECT * FROM seq_1_to_500;
 ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
+SET GLOBAL innodb_adaptive_hash_index_cells = @save_ahi_cells;
 #
 # MDEV-24951 Assertion m.first->second.valid(trx->undo_no) failed
 # in trx_undo_report_row_operation
 #
 CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
-SET tx_read_only=1;
+SET transaction_read_only=1;
 BEGIN;
 INSERT INTO t2 VALUES(0);
 INSERT INTO t VALUES(0);
@@ -53,7 +64,7 @@ COMMIT;
 INSERT INTO t VALUES(0);
 DROP TEMPORARY TABLE t,t2;
 ERROR 25006: Cannot execute statement in a READ ONLY transaction
-SET tx_read_only=0;
+SET transaction_read_only=0;
 DROP TEMPORARY TABLE t,t2;
 #
 # MDEV-24818 Optimize multiple INSERT into empty table
@@ -251,6 +262,28 @@ c1
 1984
 3331
 DROP TABLE t1;
+#
+#  MDEV-33979 Disallow bulk insert operation during
+#      partition update statement
+#
+CREATE TABLE t1(a INT KEY)ENGINE=InnoDB
+PARTITION BY KEY(a) PARTITIONS 16;
+INSERT INTO t1 VALUES(1);
+UPDATE t1 SET a = 2 WHERE a = 1;
+DROP TABLE t1;
+#
+#  MDEV-34265 Possible hang during IO burst with innodb_flush_sync enabled
+#
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+SET @save_dbug=@@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug='+d,ib_page_cleaner_sleep';
+SET STATEMENT debug_dbug='+d,ib_free_page_sleep' FOR
+INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+SET @@GLOBAL.debug_dbug=@save_dbug;
+SELECT length(f1) FROM t1;
+length(f1)
+8459264
+DROP TABLE t1;
 # End of 10.6 tests
 #
 # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
@@ -363,7 +396,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2(d INT)ENGINE=InnoDB;
 DROP TABLE t2, t1;
 #
@@ -421,6 +454,7 @@ Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB o
 INSERT IGNORE INTO t1 VALUES
 (1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
 (2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));
+ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -467,3 +501,103 @@ DROP TABLE t1;
 CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
 DROP TABLE t;
+#
+#  MDEV-32453  Bulk insert fails to apply when trigger
+#                  does insert operation
+#
+CREATE TABLE t(c INT)ENGINE=InnoDB;
+CREATE TRIGGER t2_ai AFTER INSERT ON t FOR EACH ROW SET @a:=(SELECT * FROM t);
+BEGIN;
+INSERT INTO t VALUES (1),(1);
+ERROR 21000: Subquery returns more than 1 row
+COMMIT;
+DROP TABLE t;
+#
+#  MDEV-33868 Assertion `trx->bulk_insert' failed in
+#             innodb_prepare_commit_versioned
+#
+CREATE TABLE t (id INT) ENGINE=InnoDB;
+select 1 into outfile "VARDIR/tmp/t.outfile";
+BEGIN;
+LOAD DATA INFILE 'VARDIR/tmp/t.outfile' INTO TABLE t;
+COMMIT;
+DROP TABLE t;
+#
+#  MDEV-33934 Assertion `!check_foreigns' failed in
+#    trx_t::bulk_insert_apply_for_table(dict_table_t*)
+#
+CREATE TABLE t1(f1 INT,f2 INT,KEY(f1))engine=innodb;
+BEGIN;
+INSERT INTO t1 VALUES();
+SET STATEMENT FOREIGN_KEY_CHECKS=1 FOR SELECT * FROM t1;
+f1	f2
+NULL	NULL
+COMMIT;
+DROP TABLE t1;
+#
+#  MDEV-33970  Assertion `!m.first->second.is_bulk_insert()'
+#         failed in trx_undo_report_row_operation()
+#
+CREATE TABLE t1(c1 INT,c2 CHAR) ENGINE=INNODB PARTITION BY KEY(c1) PARTITIONS 2;
+begin;
+INSERT INTO t1 VALUES(2,0);
+DELETE FROM t1;
+commit;
+DROP TABLE t1;
+#
+#  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
+#               failed in cmp_rec_rec_simple_field
+#
+CREATE TABLE t1(a BLOB, b VARCHAR(2048), PRIMARY KEY (b)) ENGINE=InnoDB
+CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+INSERT INTO t1 VALUES (REPEAT('x',4805),'a'), (REPEAT('x',16111),'b'),
+(REPEAT('x',65535),'c'), (REPEAT('x',11312),'d'),
+(REPEAT('x',35177),'e'), (REPEAT('x',65535),'f'),
+(REPEAT('x',1988),'g'), (NULL,REPEAT('x',2048)),
+(REPEAT('x',2503),'h'), (REPEAT('x',33152),'i'),
+(REPEAT('x',65535),'j'), (REPEAT('x',1988),'k'),
+(REPEAT('x',65535),'l'), (REPEAT('x',65535),'m'),
+(REPEAT('x',65535),'n'), (REPEAT('x',65535),'o'),
+(REPEAT('x',1988),'p'), (REPEAT('x',2503),'q'),
+(REPEAT('x',65535),'r'), (REPEAT('x',65535),'s'),
+(REPEAT('x',65535),'t'), (REPEAT('x',3169),'u'),
+(REPEAT('x',7071),'v'), (REPEAT('x',16111),'w'),
+(REPEAT('x',2325),'x'), (REPEAT('x',33152),'y'),
+(REPEAT('x',65535),'z'), (REPEAT('x',65535),'aa'),
+(REPEAT('x',16111),'bb'), (REPEAT('x',4805),'cc'),
+(REPEAT('x',65535),'dd');
+DROP TABLE t1;
+#
+#  Assertion `page_dir_get_n_heap(new_page) == 2U' failed
+#                  in dberr_t PageBulk::init()
+#
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB PARTITION BY RANGE (f1) (PARTITION p0 VALUES LESS THAN (100));
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
+BEGIN;
+INSERT INTO t1 SELECT seq FROM seq_1_to_1;
+COMMIT;
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+bulk_operations
+1
+DROP TABLE t1;
+call mtr.add_suppression("Found 1 prepared XA transactions");
+#
+#  MDEV-36771 Assertion `bulk_insert == TRX_NO_BULK' failed
+#           in trx_t::assert_freed from innodb_shutdown
+#
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES(1);
+XA END 'a';
+XA PREPARE 'a';
+# restart
+XA COMMIT 'a';
+SELECT * FROM t1;
+f1
+1
+DROP TABLE t1;
+# End of 10.11 tests

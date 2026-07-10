@@ -758,7 +758,7 @@ END;
 END;
 $$
 CALL p1();
-ERROR HY000: Illegal mix of collations (latin1_bin,EXPLICIT) and (latin1_swedish_ci,EXPLICIT) for operation 'concat_operator_oracle'
+ERROR HY000: Illegal mix of collations (latin1_bin,EXPLICIT) and (latin1_swedish_ci,EXPLICIT) for operation 'concat'
 DROP PROCEDURE p1;
 #
 # Non-existing field
@@ -1200,7 +1200,7 @@ END LOOP;
 END;
 $$
 CALL p1;
-ERROR 42S22: Unknown column 'rec' in 'field list'
+ERROR 42S22: Unknown column 'rec' in 'SELECT'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1 AS
 BEGIN
@@ -1211,7 +1211,7 @@ END LOOP;
 END;
 $$
 CALL p1;
-ERROR 42S02: Unknown table 'rec' in field list
+ERROR 42S02: Unknown table 'rec' in SELECT
 DROP PROCEDURE p1;
 # Totally confusing name mixture
 CREATE TABLE rec (rec INT);
@@ -1437,13 +1437,13 @@ $$
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" int(11) DEFAULT NULL,
-  "b" varchar(3) DEFAULT NULL,
+  "b" varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   "c" time DEFAULT NULL
 )
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" int(11) DEFAULT NULL,
-  "b" varchar(3) DEFAULT NULL,
+  "b" varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   "c" time DEFAULT NULL
 )
 #

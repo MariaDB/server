@@ -1,0 +1,20 @@
+#
+# Added status variable "Max_memory_used" to SHOW STATUS
+#
+
+let $l1=`show status like "max_memory_used"`;
+--disable_result_log
+select * from information_schema.processlist where id=0;
+--enable_result_log
+let $l2=`show status like "max_memory_used"`;
+
+--disable_query_log
+eval SET @l1= SUBSTRING_INDEX('$l1', '	', -1);
+eval SET @l2= SUBSTRING_INDEX('$l2', '	', -1);
+eval select @l1 > 10000 as "should be true";
+eval select @l2+0 > @l1+0 as "should be true";
+
+--enable_query_log
+# global max_memory should be NULL as we cannot calculate this
+show global status like "max_memory_used";
+

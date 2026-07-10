@@ -1,0 +1,17 @@
+--echo #
+--echo # MDEV-33434 MDEV-33434 UBSAN null pointer passed as argument 2, which is declared to never be null in spider_udf_direct_sql_create_conn
+--echo #
+
+INSTALL SONAME 'ha_spider';
+SET character_set_connection=ucs2;
+--disable_view_protocol
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT SPIDER_DIRECT_SQL('SELECT SLEEP(1)', '', 'srv "dummy", port "3307"');
+--enable_view_protocol
+--disable_query_log
+--source ../../include/clean_up_spider.inc
+--enable_query_log
+
+--echo #
+--echo # end of test mdev_33434
+--echo #

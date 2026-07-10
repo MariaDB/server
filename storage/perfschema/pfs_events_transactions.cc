@@ -34,7 +34,6 @@
 #include "pfs_host.h"
 #include "pfs_user.h"
 #include "pfs_events_transactions.h"
-#include "pfs_atomic.h"
 #include "pfs_buffer_container.h"
 #include "pfs_builtin_memory.h"
 #include "m_string.h"
@@ -62,7 +61,7 @@ int init_events_transactions_history_long(uint events_transactions_history_long_
 {
   events_transactions_history_long_size= events_transactions_history_long_sizing;
   events_transactions_history_long_full= false;
-  PFS_atomic::store_u32(&events_transactions_history_long_index.m_u32, 0);
+  events_transactions_history_long_index.m_u32.store(0);
 
   if (events_transactions_history_long_size == 0)
     return 0;
@@ -135,7 +134,7 @@ void insert_events_transactions_history_long(PFS_events_transactions *transactio
 
   assert(events_transactions_history_long_array != NULL);
 
-  uint index= PFS_atomic::add_u32(&events_transactions_history_long_index.m_u32, 1);
+  uint index= events_transactions_history_long_index.m_u32.fetch_add(1);
 
   index= index % events_transactions_history_long_size;
   if (index == 0)
@@ -176,7 +175,7 @@ void reset_events_transactions_history(void)
 /** Reset table EVENTS_TRANSACTIONS_HISTORY_LONG data. */
 void reset_events_transactions_history_long(void)
 {
-  PFS_atomic::store_u32(&events_transactions_history_long_index.m_u32, 0);
+  events_transactions_history_long_index.m_u32.store(0);
   events_transactions_history_long_full= false;
 
   PFS_events_transactions *pfs= events_transactions_history_long_array;

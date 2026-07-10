@@ -35,7 +35,7 @@ show global status like "%performance_schema_prepared_statements_lost%";
 show global status like "%performance_schema_prepared_statements_lost%";
 
 # Flush status now
-flush status;
+flush global status;
 
 # status after flush. expect 0.
 show global status like "%performance_schema_prepared_statements_lost%";

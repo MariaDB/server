@@ -53,5 +53,5 @@ COUNT(@@GLOBAL.bind_address)
 1
 1 Expected
 SELECT bind_address = @@SESSION.bind_address;
-ERROR 42S22: Unknown column 'bind_address' in 'field list'
+ERROR 42S22: Unknown column 'bind_address' in 'SELECT'
 Expected error 'Readonly variable'

@@ -46,30 +46,13 @@ IF(GIT_EXECUTABLE)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     RESULT_VARIABLE RESULT
   )
-  IF(NOT RESULT EQUAL 0)
-    SET(GIT_EXECUTABLE)
+  IF(RESULT EQUAL 0)
+    EXECUTE_PROCESS(
+      COMMAND "${GIT_EXECUTABLE}" submodule foreach --recursive "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/$displaypath/"
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      RESULT_VARIABLE RESULT
+    )
   ENDIF()
-  EXECUTE_PROCESS(
-    COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/$path/"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    RESULT_VARIABLE RESULT
-  )
-  IF(NOT RESULT EQUAL 0)
-    SET(GIT_EXECUTABLE)
-  ENDIF()
-  EXECUTE_PROCESS(
-    COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/wsrep-lib/$path/"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/wsrep-lib
-    RESULT_VARIABLE RESULT
-  )
-  IF(NOT RESULT EQUAL 0)
-    SET(GIT_EXECUTABLE)
-  ENDIF()
-  EXECUTE_PROCESS(
-    COMMAND "${GIT_EXECUTABLE}" submodule foreach "${GIT_EXECUTABLE} checkout-index --all --prefix=${PACKAGE_DIR}/storage/columnstore/columnstore/$path/"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/storage/columnstore/columnstore
-    RESULT_VARIABLE RESULT
-  )
   IF(NOT RESULT EQUAL 0)
     SET(GIT_EXECUTABLE)
   ENDIF()
@@ -141,11 +124,8 @@ IF(MYSQL_DOCS_LOCATION)
   EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_directory "${MYSQL_DOCS_LOCATION}" "${PACKAGE_DIR}")
 ENDIF()
 
-# Ensure there is an "INFO_SRC" file.
-INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)
-IF(NOT EXISTS ${PACKAGE_DIR}/Docs/INFO_SRC)
-  CREATE_INFO_SRC(${PACKAGE_DIR}/Docs)
-ENDIF()
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/generate_submodule_info.cmake)
+GENERATE_SUBMODULE_INFO(${PACKAGE_DIR}/cmake/submodule_info.cmake)
 
 # In case we used CPack, it could have copied some
 # extra files that are not usable on different machines.

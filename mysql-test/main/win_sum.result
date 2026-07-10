@@ -32,9 +32,9 @@ insert into t1 values
 (125 , 6, 1, NULL),
 (126 , 6, 1, NULL),
 (127 , 6, 1, NULL);
-select pk, a, b, sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, b, sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as sum
 from t1;
-pk	a	b	sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+pk	a	b	sum
 101	0	10	20
 102	0	10	20
 103	1	10	20
@@ -62,9 +62,9 @@ pk	a	b	sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FO
 125	6	1	3
 126	6	1	3
 127	6	1	2
-select pk, a, c, sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+select pk, a, c, sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as sum
 from t1;
-pk	a	c	sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+pk	a	c	sum
 101	0	1.1	3.2
 102	0	2.1	3.2
 103	1	3.1	7.199999999999999
@@ -104,4 +104,13 @@ EXISTS (SELECT 1 ORDER BY 1+sum(2) OVER ())
 1
 #
 # End of 10.4 tests
+#
+#
+# MDEV-32411 Item_sum arguments incorrectly reset to temp table fields which causes crash
+#
+CREATE TABLE t1 (a INT NOT NULL) ;
+INSERT INTO t1 VALUES (EXISTS(SELECT avg(3) OVER (ORDER BY COUNT(DISTINCT a, HEX(a)))));
+DROP TABLE t1;
+#
+# End of 10.5 tests
 #

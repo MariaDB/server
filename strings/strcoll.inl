@@ -100,6 +100,18 @@
 #endif
 
 
+#if defined(WEIGHT_SIZE) && WEIGHT_SIZE == 3
+#define PUT_WC_BE_HAVE_1BYTE(dst, de, wc) PUT_WC_BE3_HAVE_1BYTE((dst), (de), (wc))
+#define PAD_NWEIGHTS_UNICODE_BE(str, end, n)  my_strxfrm_pad_nweights_unicode_be3(str, end, n)
+#define PAD_UNICODE_BE(str, end)  my_strxfrm_pad_unicode_be3(str, end)
+#else
+#define WEIGHT_SIZE 2
+#define PUT_WC_BE_HAVE_1BYTE(dst, de, wc) PUT_WC_BE2_HAVE_1BYTE((dst), (de), (wc))
+#define PAD_NWEIGHTS_UNICODE_BE(str, end, n)  my_strxfrm_pad_nweights_unicode_be2(str, end, n)
+#define PAD_UNICODE_BE(str, end)  my_strxfrm_pad_unicode_be2(str, end)
+#endif
+
+
 #if DEFINE_STRNNCOLL
 
 /**
@@ -206,16 +218,24 @@ bad:
   @param b           - the right string
   @param b_length    - the length of the right string
   @param b_is_prefix - if the caller wants to check if "b" is a prefix of "a"
+                       *b_is_prefix is set to 1 if it was a prefix match
   @return            - the comparison result
 */
 static int
 MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
                             const uchar *a, size_t a_length, 
                             const uchar *b, size_t b_length,
-                            my_bool b_is_prefix)
+                            my_bool *b_is_prefix)
 {
-  const uchar *a_end= a + a_length;
-  const uchar *b_end= b + b_length;
+  const uchar *a_end, *b_end;
+  DBUG_ASSERT(a);
+  DBUG_ASSERT(b);
+
+  a_end= a + a_length;
+  b_end= b + b_length;
+
+  if (b_is_prefix)
+    *b_is_prefix= 0;
   for ( ; ; )
   {
     int a_weight, b_weight, res;
@@ -252,12 +272,21 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
       0       >0     "a" is a prefix of "b", so "a" is smaller.
       >0      0      "b" is a prefix of "a", check b_is_prefix.
       >0      >0     Two weights were scanned, check weight difference.
+
+      Note: weights can be zero and positive (never negative).
     */
     if (!a_wlen)
-      return b_wlen ? -b_weight : 0;
+      return b_wlen ? -1 : 0;
 
     if (!b_wlen)
-      return b_is_prefix ? 0 : a_weight;
+    {
+      if (b_is_prefix)
+      {
+         *b_is_prefix= 1;	/* Prefix match */
+         return 0;
+      }
+      return +1;
+    }
 
     if ((res= (a_weight - b_weight)))
       return res;
@@ -432,15 +461,18 @@ MY_FUNCTION_NAME(strnncollsp_nchars)(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2_FRM(x,y)  WEIGHT_MB2(x,y)
 #endif
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
                            uchar *dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags)
 {
   uchar *d0= dst;
   uchar *de= dst + dstlen;
+  const uchar *src0= src;
   const uchar *se= src + srclen;
   const uchar *sort_order= cs->sort_order;
+  uint warnings= 0;
+  my_strnxfrm_ret_t rcpad;
 
   for (; dst < de && src < se && nweights; nweights--)
   {
@@ -455,17 +487,24 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
       *dst++= (uchar) (e >> 8);
       if (dst < de)
         *dst++= (uchar) (e & 0xFF);
+      else
+        warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
       src+= 2;
     }
     else
       *dst++= sort_order ? sort_order[*src++] : *src++;
   }
+  rcpad=
 #ifdef DEFINE_STRNNCOLLSP_NOPAD
-  return my_strxfrm_pad_desc_and_reverse_nopad(cs, d0, dst, de,
-					       nweights, flags, 0);
+    my_strxfrm_pad_desc_and_reverse_nopad(cs, d0, dst, de,
+                                          nweights, flags, 0);
 #else
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
+    my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
 #endif
+
+  return my_strnxfrm_ret_construct(rcpad.m_result_length, src - src0,
+           rcpad.m_warnings | warnings |
+           (src < se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 #endif /* DEFINE_STRNXFRM */
 
@@ -490,20 +529,15 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 #error OPTIMIZE_ASCII must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
-#ifndef UNICASE_MAXCHAR
-#error UNICASE_MAXCHAR must be defined for DEFINE_STRNXFRM_UNICODE
+#if OPTIMIZE_ASCII && !defined(WEIGHT_MB1)
+#error WEIGHT_MB1 must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
-#ifndef UNICASE_PAGE0
-#error UNICASE_PAGE0 must be defined for DEFINE_STRNXFRM_UNICODE
+#ifndef MY_WC_WEIGHT
+#error MY_WC_WEIGHT must be defined for DEFINE_STRNXFRM_UNICODE
 #endif
 
-#ifndef UNICASE_PAGES
-#error UNICASE_PAGES must be defined for DEFINE_STRNXFRM_UNICODE
-#endif
-
-
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
                                     uchar *dst, uchar *de,
                                     uint *nweights,
@@ -511,10 +545,11 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
 {
   my_wc_t UNINIT_VAR(wc);
   uchar *dst0= dst;
+  const uchar *src0= src;
+  uint warnings= 0;
 
   DBUG_ASSERT(src || !se);
   DBUG_ASSERT((cs->state & MY_CS_LOWER_SORT) == 0);
-  DBUG_ASSERT(0x7F <= UNICASE_MAXCHAR);
 
   for (; dst < de && *nweights; (*nweights)--)
   {
@@ -524,52 +559,58 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
       break;
     if (src[0] <= 0x7F)
     {
-      wc= UNICASE_PAGE0[*src++].sort;
-      PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+      wc= WEIGHT_MB1(*src++);
+      warnings|= de - dst < WEIGHT_SIZE ?
+                 MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0;
+      PUT_WC_BE_HAVE_1BYTE(dst, de, wc);
       continue;
     }
 #endif
     if ((res= MY_MB_WC(cs, &wc, src, se)) <= 0)
       break;
     src+= res;
-    if (wc <= UNICASE_MAXCHAR)
-    {
-      MY_UNICASE_CHARACTER *page;
-      if ((page= UNICASE_PAGES[wc >> 8]))
-        wc= page[wc & 0xFF].sort;
-    }
-    else
-      wc= MY_CS_REPLACEMENT_CHARACTER;
-    PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
+    wc= MY_WC_WEIGHT(wc);
+    warnings|= de - dst < WEIGHT_SIZE ?
+               MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0;
+    PUT_WC_BE_HAVE_1BYTE(dst, de, wc);
   }
-  return dst - dst0;
+  return my_strnxfrm_ret_construct(dst - dst0, src - src0,
+              warnings |
+              (src < se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
                            uchar *dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags)
 {
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
-                                            src, src + srclen);
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de,
+                                                            &nweights,
+                                                            src, src + srclen);
+  dst+= rc.m_result_length;
   DBUG_ASSERT(dst <= de); /* Safety */
 
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    my_strnxfrm_pad_ret_t rcpad= PAD_NWEIGHTS_UNICODE_BE(dst, de, nweights);
+    rc.m_warnings|= rcpad.m_warnings;
+    dst+= rcpad.m_result_length;
+  }
 
   my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
 
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-    dst+= my_strxfrm_pad_unicode(dst, de);
-  return dst - dst0;
+    dst+= PAD_UNICODE_BE(dst, de);
+  rc.m_result_length= dst - dst0;
+  return rc;
 }
 
 
 #ifdef DEFINE_STRNXFRM_UNICODE_NOPAD
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
                                  uchar *dst, size_t dstlen,
                                  uint nweights,
@@ -577,13 +618,17 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 {
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
-                                            src, src + srclen);
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_internal)(cs,
+                                                            dst, de, &nweights,
+                                                            src, src + srclen);
+  dst+= rc.m_result_length;
   DBUG_ASSERT(dst <= de); /* Safety */
 
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
     size_t len= de - dst;
+    if (len < nweights * 2)
+      rc.m_warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
     set_if_smaller(len, nweights * 2);
     memset(dst, 0x00, len);
     dst+= len;
@@ -596,7 +641,8 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
     memset(dst, 0x00, de - dst);
     dst= de;
   }
-  return dst - dst0;
+  rc.m_result_length= dst - dst0;
+  return rc;
 }
 #endif
 
@@ -625,7 +671,7 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #endif
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
                                     uchar *dst, uchar *de,
                                     uint *nweights,
@@ -633,7 +679,9 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
                                     const uchar *se)
 {
   my_wc_t UNINIT_VAR(wc);
+  const uchar *src0= src;
   uchar *dst0= dst;
+  uint warnings= 0;
 
   DBUG_ASSERT(src || !se);
 
@@ -646,6 +694,8 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
     if (src[0] <= 0x7F)
     {
       wc= *src++;
+      warnings|= de - dst < WEIGHT_SIZE ?
+                 MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0;
       PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
       continue;
     }
@@ -655,48 +705,63 @@ MY_FUNCTION_NAME(strnxfrm_internal)(CHARSET_INFO *cs __attribute__((unused)),
     src+= res;
     if (wc > 0xFFFF)
       wc= MY_CS_REPLACEMENT_CHARACTER;
+    warnings|= de - dst < WEIGHT_SIZE ?
+               MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0;
     PUT_WC_BE2_HAVE_1BYTE(dst, de, wc);
   }
-  return dst - dst0;
+  return my_strnxfrm_ret_construct(dst - dst0, src - src0,
+              warnings |
+              ((src - se) ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
                            uchar *dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags)
 {
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
-                                            src, src + srclen);
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de,
+                                                            &nweights,
+                                                            src, src + srclen);
+  dst+= rc.m_result_length;
   DBUG_ASSERT(dst <= de); /* Safety */
 
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    my_strnxfrm_pad_ret_t rcpad= PAD_NWEIGHTS_UNICODE_BE(dst, de, nweights);
+    rc.m_warnings|= rcpad.m_warnings;
+    dst+= rcpad.m_result_length;
+  }
 
   my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
 
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
-    dst+= my_strxfrm_pad_unicode(dst, de);
-  return dst - dst0;
+    dst+= PAD_UNICODE_BE(dst, de);
+  rc.m_result_length= dst - dst0;
+  return rc;
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
                                  uchar *dst, size_t dstlen, uint nweights,
                                  const uchar *src, size_t srclen, uint flags)
 {
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-  dst+= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de, &nweights,
-                                            src, src + srclen);
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_internal)(cs, dst, de,
+                                                            &nweights,
+                                                            src, src + srclen);
+  dst+= rc.m_result_length;
   DBUG_ASSERT(dst <= de); /* Safety */
 
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
     size_t len= de - dst;
+    if (len < nweights * 2)
+      rc.m_warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
     set_if_smaller(len, nweights * 2);
     memset(dst, 0x00, len);
     dst+= len;
@@ -709,7 +774,8 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
     memset(dst, 0x00, de - dst);
     dst= de;
   }
-  return dst - dst0;
+  rc.m_result_length= dst - dst0;
+  return rc;
 }
 
 #endif /* DEFINE_STRNXFRM_UNICODE_BIN2 */
@@ -722,9 +788,7 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #undef MY_FUNCTION_NAME
 #undef MY_MB_WC
 #undef OPTIMIZE_ASCII
-#undef UNICASE_MAXCHAR
-#undef UNICASE_PAGE0
-#undef UNICASE_PAGES
+#undef MY_WC_WEIGHT
 #undef WEIGHT_ILSEQ
 #undef WEIGHT_MB1
 #undef WEIGHT_MB2
@@ -732,6 +796,7 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #undef WEIGHT_MB4
 #undef WEIGHT_PAD_SPACE
 #undef WEIGHT_MB2_FRM
+#undef WEIGHT_SIZE
 #undef DEFINE_STRNXFRM
 #undef DEFINE_STRNXFRM_UNICODE
 #undef DEFINE_STRNXFRM_UNICODE_NOPAD
@@ -743,3 +808,6 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 #undef STRCOLL_MB7_BIN
 #undef MY_STRCOLL_MB7_4BYTES
 #undef MY_STRCOLL_MB7_8BYTES
+#undef PUT_WC_BE_HAVE_1BYTE
+#undef PAD_NWEIGHTS_UNICODE_BE
+#undef PAD_UNICODE_BE

@@ -36,7 +36,7 @@ are true for
   doesn't normalize `ぁ` to `あ` nor `っ` to `つ`. `ぁ` and `あ` are
   different characters. `っ` and `つ` are also different characters.
   This behavior is described by `ExceptKanaCI` in the long name.  This
-  following behaviors ared described by
+  following behaviors are described by
   `ExceptKanaWithVoicedSoundMark` in the long name.
 * `NormalizerMySQLUnicode` normalizes all Hiragana with voiced sound
   mark such as `が` to Hiragana without voiced sound mark such as `か`.

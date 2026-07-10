@@ -37,13 +37,14 @@
 #endif
 
 #else
+#define sd_listen_fds(FD) (0)
 #define sd_listen_fds_with_names(FD, NAMES) (0)
 #define sd_is_socket_unix(FD, TYPE, LISTENING, PATH, SIZE) (0)
 #define sd_is_socket_inet(FD, FAMILY, TYPE, LISTENING, PORT) (0)
 #define SD_LISTEN_FDS_START (0)
 #define sd_notify(X, Y)
 #define sd_notifyf(E, F, ...)
-#ifdef _WIN32
+#if defined (_WIN32) && !defined(EMBEDDED_LIBRARY)
   #define service_manager_extend_timeout(I, F, ...) \
     mysqld_win_extend_service_timeout(I)
 #else

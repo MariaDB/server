@@ -48,9 +48,9 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   ENDIF()
 
   IF (ARG_WIN32)
-    SET(WIN32 WIN32)
+    SET(ARG_WIN32 WIN32)
   ELSE()
-    UNSET(WIN32)
+    UNSET(ARG_WIN32)
   ENDIF()
   IF (ARG_MACOSX_BUNDLE)
     SET(MACOSX_BUNDLE MACOSX_BUNDLE)
@@ -63,7 +63,7 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
     UNSET(EXCLUDE_FROM_ALL)
   ENDIF()
 
-  ADD_EXECUTABLE(${target} ${WIN32} ${MACOSX_BUNDLE} ${EXCLUDE_FROM_ALL} ${sources})
+  ADD_EXECUTABLE(${target} ${ARG_WIN32} ${MACOSX_BUNDLE} ${EXCLUDE_FROM_ALL} ${sources})
 
   # tell CPack where to install
   IF(NOT ARG_EXCLUDE_FROM_ALL)
@@ -106,7 +106,7 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
          ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${link}
          DESTINATION
          ${ARG_DESTINATION}
-         COMPONENT ${COMP})
+         COMPONENT ${COMP}Symlinks)
     ELSE()
       # Windows note:
       # Here, hardlinks are used, because cmake can't install symlinks.

@@ -5,7 +5,7 @@ drop table if exists t1;
 --enable_warnings
 
 #
-# correct behavoiur for function from reduced subselect
+# correct behaviour for function from reduced subselect
 #
 create table t1(City VARCHAR(30),Location geometry);
 insert into t1 values("Paris",GeomFromText('POINT(2.33 48.87)'));

@@ -37,58 +37,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 namespace tpool
 {
-
 #ifdef __linux__
-#if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
-  extern aio* create_linux_aio(thread_pool* tp, int max_io);
-#else
-  aio *create_linux_aio(thread_pool *, int) { return nullptr; };
-#endif
-#endif
-#ifdef _WIN32
-  extern aio* create_win_aio(thread_pool* tp, int max_io);
+  aio *create_linux_aio(thread_pool* tp, int max_io, aio_implementation);
+#elif defined _WIN32
+  aio *create_win_aio(thread_pool* tp, int max_io);
 #endif
 
   static const std::chrono::milliseconds LONG_TASK_DURATION = std::chrono::milliseconds(500);
   static const int  OVERSUBSCRIBE_FACTOR = 2;
 
-/**
-  Process the cb synchronously
-*/
-void aio::synchronous(aiocb *cb)
-{
-#ifdef _WIN32
-  size_t ret_len;
-#else
-  ssize_t ret_len;
-#endif
-  int err= 0;
-  switch (cb->m_opcode)
-  {
-  case aio_opcode::AIO_PREAD:
-    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-    break;
-  case aio_opcode::AIO_PWRITE:
-    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
-    break;
-  default:
-    abort();
-  }
-#ifdef _WIN32
-  if (static_cast<int>(ret_len) < 0)
-    err= GetLastError();
-#else
-  if (ret_len < 0)
-  {
-    err= errno;
-    ret_len= 0;
-  }
-#endif
-  cb->m_ret_len = ret_len;
-  cb->m_err = err;
-  if (ret_len)
-    finish_synchronous(cb);
-}
 
 
 /**
@@ -129,7 +86,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
@@ -156,6 +113,8 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   };
 
   int m_state;
+  /* Padding to avoid false sharing */
+  char m_pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   bool is_executing_task()
   {
@@ -179,16 +138,6 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
     m_state(NONE),
     m_task_start_time()
   {}
-
-  /*Define custom new/delete because of overaligned structure. */
-  static void *operator new(size_t size)
-  {
-    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  }
-  static void operator delete(void* p)
-  {
-    aligned_free(p);
-  }
 };
 
 
@@ -226,7 +175,6 @@ class thread_pool_generic : public thread_pool
 
   /** Overall number of enqueues*/
   unsigned long long m_tasks_enqueued;
-  unsigned long long m_group_enqueued;
   /** Overall number of dequeued tasks. */
   unsigned long long m_tasks_dequeued;
 
@@ -244,7 +192,7 @@ class thread_pool_generic : public thread_pool
   unsigned int m_concurrency;
 
   /** True, if threadpool is being shutdown, false otherwise */
-  bool m_in_shutdown;
+  bool m_in_shutdown= false;
 
   /** Maintenance timer state : true = active(ON),false = inactive(OFF)*/
   enum class timer_state_t
@@ -269,15 +217,16 @@ class thread_pool_generic : public thread_pool
   /** Last time thread was created*/
   std::chrono::system_clock::time_point m_last_thread_creation;
 
-  /** Minimumum number of threads in this pool.*/
+  /** Minimum number of threads in this pool.*/
   unsigned int m_min_threads;
 
-  /** Maximimum number of threads in this pool. */
+  /** Maximum number of threads in this pool. */
   unsigned int m_max_threads;
 
   /* maintenance related statistics (see maintenance()) */
   size_t m_last_thread_count;
   unsigned long long m_last_activity;
+  std::atomic_flag m_thread_creation_pending= ATOMIC_FLAG_INIT;
 
   void worker_main(worker_data *thread_data);
   void worker_end(worker_data* thread_data);
@@ -303,20 +252,19 @@ class thread_pool_generic : public thread_pool
   }
 public:
   thread_pool_generic(int min_threads, int max_threads);
-  ~thread_pool_generic();
+  ~thread_pool_generic() override;
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
-  virtual aio *create_native_aio(int max_io) override
-  {
 #ifdef _WIN32
-    return create_win_aio(this, max_io);
-#elif defined(__linux__)
-    return create_linux_aio(this,max_io);
+  aio *create_native_aio(int max_io, aio_implementation) override
+  { return create_win_aio(this, max_io); }
+#elif defined __linux__
+  aio *create_native_aio(int max_io, aio_implementation impl) override
+  { return create_linux_aio(this, max_io, impl); }
 #else
-    return nullptr;
+  aio *create_native_aio(int, aio_implementation) override { return nullptr; }
 #endif
-  }
 
   class timer_generic : public thr_timer_t, public timer
   {
@@ -378,7 +326,7 @@ public:
     {
       if (pool)
       {
-        /* EXecute callback in threadpool*/
+        /* Execute callback in threadpool*/
         thr_timer_init(this, submit_task, this);
       }
       else
@@ -408,7 +356,9 @@ public:
     */
     void set_period(int period_ms)
     {
-      std::unique_lock<std::mutex> lk(m_mtx);
+      std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
+      if (!lk.try_lock())
+        return;
       if (!m_on)
         return;
       if (!m_pool)
@@ -435,16 +385,17 @@ public:
       m_task.wait();
     }
 
-    virtual ~timer_generic()
+    ~timer_generic() override
     {
       disarm();
     }
   };
-  timer_generic m_maintenance_timer;
-  virtual timer* create_timer(callback_func func, void *data) override
+  timer_generic* m_maintenance_timer=nullptr;
+  timer* create_timer(callback_func func, void *data) override
   {
     return new timer_generic(func, data, this);
   }
+  void set_concurrency(unsigned int concurrency=0) override;
 };
 
 void thread_pool_generic::cancel_pending(task* t)
@@ -570,18 +521,17 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
 {
   task* task;
   set_tls_pool(this);
-  if(m_worker_init_callback)
-   m_worker_init_callback();
+  m_worker_init_callback();
 
   tls_worker_data = thread_var;
+  m_thread_creation_pending.clear();
 
   while (get_task(thread_var, &task) && task)
   {
     task->execute();
   }
 
-  if (m_worker_destroy_callback)
-    m_worker_destroy_callback();
+  m_worker_destroy_callback();
 
   worker_end(thread_var);
 }
@@ -625,7 +575,7 @@ void thread_pool_generic::check_idle(std::chrono::system_clock::time_point now)
   }
 
   /* Switch timer off after 1 minute of idle time */
-  if (now - idle_since > max_idle_time)
+  if (now - idle_since > max_idle_time && m_active_threads.empty())
   {
     idle_since= invalid_timestamp;
     switch_timer(timer_state_t::OFF);
@@ -724,6 +674,12 @@ bool thread_pool_generic::add_thread()
   if (n_threads >= m_max_threads)
     return false;
 
+  /*
+    Deadlock danger exists, so monitor pool health
+    with maintenance timer.
+  */
+  switch_timer(timer_state_t::ON);
+
   if (n_threads >= m_min_threads)
   {
     auto now = std::chrono::system_clock::now();
@@ -734,10 +690,23 @@ bool thread_pool_generic::add_thread()
         Throttle thread creation and wakeup deadlock detection timer,
         if is it off.
       */
-      switch_timer(timer_state_t::ON);
-
       return false;
     }
+  }
+
+  /* Check and set "thread creation pending" flag before creating the thread. We
+  reset the flag in thread_pool_generic::worker_main in new thread created. The
+  flag must be reset back in case we fail to create the thread. If this flag is
+  not reset all future attempt to create thread for this pool would not work as
+  we would return from here.
+
+  Do not use this flag for pool of fixed size.
+  (since they lack maintenence that would rectify the pool size, if it is too small)
+  */
+  if (m_min_threads != m_max_threads)
+  {
+    if (m_thread_creation_pending.test_and_set())
+      return false;
   }
 
   worker_data *thread_data = m_thread_data_cache.get();
@@ -759,6 +728,7 @@ bool thread_pool_generic::add_thread()
         "current number of threads in pool %zu\n", e.what(), thread_count());
       warning_written = true;
     }
+    m_thread_creation_pending.clear();
     return false;
   }
   return true;
@@ -796,8 +766,7 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_tasks_dequeued(),
   m_wakeups(),
   m_spurious_wakeups(),
-  m_concurrency(std::thread::hardware_concurrency()*2),
-  m_in_shutdown(),
+  m_timer_state(timer_state_t::ON),
   m_timestamp(),
   m_long_tasks_count(),
   m_waiting_task_count(),
@@ -805,19 +774,16 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_min_threads(min_threads),
   m_max_threads(max_threads),
   m_last_thread_count(),
-  m_last_activity(),
-  m_maintenance_timer(thread_pool_generic::maintenance_func, this, nullptr)
+  m_last_activity()
 {
-
-  if (m_max_threads < m_concurrency)
-    m_concurrency = m_max_threads;
-  if (m_min_threads > m_concurrency)
-    m_concurrency = min_threads;
-  if (!m_concurrency)
-    m_concurrency = 1;
+  set_concurrency();
 
   // start the timer
-  m_maintenance_timer.set_time(0, (int)m_timer_interval.count());
+  if (m_min_threads != m_max_threads)
+  {
+    m_maintenance_timer= new timer_generic(thread_pool_generic::maintenance_func, this, nullptr);
+    m_maintenance_timer->set_time(0, (int)m_timer_interval.count());
+  }
 }
 
 
@@ -842,6 +808,20 @@ bool thread_pool_generic::too_many_active_threads()
 {
   return m_active_threads.size() - m_long_tasks_count - m_waiting_task_count >
     m_concurrency* OVERSUBSCRIBE_FACTOR;
+}
+
+void thread_pool_generic::set_concurrency(unsigned int concurrency)
+{
+  std::unique_lock<std::mutex> lk(m_mtx);
+  if (concurrency == 0)
+    concurrency= 2 * std::thread::hardware_concurrency();
+  m_concurrency = concurrency;
+  if (m_concurrency > m_max_threads)
+    m_concurrency = m_max_threads;
+  if (m_concurrency < m_min_threads)
+    m_concurrency = m_min_threads;
+  if (m_concurrency < 1)
+    m_concurrency = 1;
 }
 
 /** Submit a new task*/
@@ -910,7 +890,8 @@ void thread_pool_generic::switch_timer(timer_state_t state)
   long long period= (state == timer_state_t::OFF) ?
      m_timer_interval.count()*10: m_timer_interval.count();
 
-  m_maintenance_timer.set_period((int)period);
+  if (m_maintenance_timer)
+   m_maintenance_timer->set_period((int)period);
 }
 
 
@@ -927,8 +908,9 @@ thread_pool_generic::~thread_pool_generic()
   */
   m_aio.reset();
 
-  /* Also stop the maintanence task early. */
-  m_maintenance_timer.disarm();
+  /* Also stop the maintenance task early. */
+  if (m_maintenance_timer)
+    m_maintenance_timer->disarm();
 
   std::unique_lock<std::mutex> lk(m_mtx);
   m_in_shutdown= true;
@@ -944,6 +926,7 @@ thread_pool_generic::~thread_pool_generic()
   }
 
   lk.unlock();
+  delete m_maintenance_timer;
 }
 
 thread_pool *create_thread_pool_generic(int min_threads, int max_threads)

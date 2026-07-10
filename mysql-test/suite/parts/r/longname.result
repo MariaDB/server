@@ -31,6 +31,8 @@ PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
 ERROR HY000: The path specified for @0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@... is too long
 SET @file_per_table=@@GLOBAL.innodb_file_per_table;
 SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE mysqltest1.t1 (a INT) ENGINE=INNODB
 PARTITION BY RANGE (a) SUBPARTITION BY HASH(a)
 (PARTITION `$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$`
@@ -41,11 +43,13 @@ SUBPARTITION
 `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`)
 );
 SET GLOBAL innodb_file_per_table=@file_per_table;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SHOW CREATE TABLE mysqltest1.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$` VALUES LESS THAN (10)

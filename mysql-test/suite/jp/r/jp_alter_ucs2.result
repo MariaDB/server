@@ -45,7 +45,7 @@ Table	Create Table
   PRIMARY KEY (`ｷｷｷ`),
   UNIQUE KEY `ｸｸｸ` (`ｸｸｸ`),
   KEY `ｶｶｶ` (`ｶｶ`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `ｱｱｱ` DROP INDEX `ｶｶｶ`;
 ALTER TABLE `ｱｱｱ` DROP PRIMARY KEY;
 ALTER TABLE `ｱｱｱ` DROP INDEX `ｸｸｸ`;
@@ -64,7 +64,7 @@ SHOW CREATE TABLE `ｱｱｱ`;
 Table	Create Table
 ｱｱｱ	CREATE TABLE `ｱｱｱ` (
   `ｷｷｷ` char(6) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `あああ` ADD `かかか` char(1) FIRST;
 ALTER TABLE `あああ` ADD `くくく` char(1) AFTER `ききき`;
 ALTER TABLE `あああ` ADD `けけけ` char(1);
@@ -94,7 +94,7 @@ Table	Create Table
   PRIMARY KEY (`ききき`),
   UNIQUE KEY `くくく` (`くくく`),
   KEY `かかか` (`かか`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `あああ` DROP INDEX `かかか`;
 ALTER TABLE `あああ` DROP PRIMARY KEY;
 ALTER TABLE `あああ` DROP INDEX `くくく`;
@@ -113,7 +113,7 @@ SHOW CREATE TABLE `あああ`;
 Table	Create Table
 あああ	CREATE TABLE `あああ` (
   `ききき` char(6) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `龖龖龖` ADD `丄丄丄` char(1) FIRST;
 ALTER TABLE `龖龖龖` ADD `丅丅丅` char(1) AFTER `丂丂丂`;
 ALTER TABLE `龖龖龖` ADD `乚乚乚` char(1);
@@ -143,7 +143,7 @@ Table	Create Table
   PRIMARY KEY (`丂丂丂`),
   UNIQUE KEY `丅丅丅` (`丅丅丅`),
   KEY `丄丄丄` (`丄丄`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `龖龖龖` DROP INDEX `丄丄丄`;
 ALTER TABLE `龖龖龖` DROP PRIMARY KEY;
 ALTER TABLE `龖龖龖` DROP INDEX `丅丅丅`;
@@ -162,7 +162,7 @@ SHOW CREATE TABLE `龖龖龖`;
 Table	Create Table
 龖龖龖	CREATE TABLE `龖龖龖` (
   `丂丂丂` char(6) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DROP TABLE `ｱｱｱ`;
 DROP TABLE `ｲｲｲ`;
 DROP TABLE `あああ`;
@@ -207,7 +207,7 @@ Table	Create Table
   PRIMARY KEY (`ｷｷｷ`),
   UNIQUE KEY `ｸｸｸ` (`ｸｸｸ`),
   KEY `ｶｶｶ` (`ｶｶ`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `ｱｱｱ` DROP INDEX `ｶｶｶ`;
 ALTER TABLE `ｱｱｱ` DROP PRIMARY KEY;
 ALTER TABLE `ｱｱｱ` DROP INDEX `ｸｸｸ`;
@@ -226,7 +226,7 @@ SHOW CREATE TABLE `ｱｱｱ`;
 Table	Create Table
 ｱｱｱ	CREATE TABLE `ｱｱｱ` (
   `ｷｷｷ` char(6) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `あああ` ADD `かかか` char(1) FIRST;
 ALTER TABLE `あああ` ADD `くくく` char(1) AFTER `ききき`;
 ALTER TABLE `あああ` ADD `けけけ` char(1);
@@ -256,7 +256,7 @@ Table	Create Table
   PRIMARY KEY (`ききき`),
   UNIQUE KEY `くくく` (`くくく`),
   KEY `かかか` (`かか`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `あああ` DROP INDEX `かかか`;
 ALTER TABLE `あああ` DROP PRIMARY KEY;
 ALTER TABLE `あああ` DROP INDEX `くくく`;
@@ -275,7 +275,7 @@ SHOW CREATE TABLE `あああ`;
 Table	Create Table
 あああ	CREATE TABLE `あああ` (
   `ききき` char(6) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `龖龖龖` ADD `丄丄丄` char(1) FIRST;
 ALTER TABLE `龖龖龖` ADD `丅丅丅` char(1) AFTER `丂丂丂`;
 ALTER TABLE `龖龖龖` ADD `乚乚乚` char(1);
@@ -305,7 +305,7 @@ Table	Create Table
   PRIMARY KEY (`丂丂丂`),
   UNIQUE KEY `丅丅丅` (`丅丅丅`),
   KEY `丄丄丄` (`丄丄`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `龖龖龖` DROP INDEX `丄丄丄`;
 ALTER TABLE `龖龖龖` DROP PRIMARY KEY;
 ALTER TABLE `龖龖龖` DROP INDEX `丅丅丅`;
@@ -324,7 +324,7 @@ SHOW CREATE TABLE `龖龖龖`;
 Table	Create Table
 龖龖龖	CREATE TABLE `龖龖龖` (
   `丂丂丂` char(6) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DROP TABLE `ｱｱｱ`;
 DROP TABLE `ｲｲｲ`;
 DROP TABLE `あああ`;
@@ -369,7 +369,7 @@ Table	Create Table
   PRIMARY KEY (`ｷｷｷ`),
   UNIQUE KEY `ｸｸｸ` (`ｸｸｸ`),
   KEY `ｶｶｶ` (`ｶｶ`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `ｱｱｱ` DROP INDEX `ｶｶｶ`;
 ALTER TABLE `ｱｱｱ` DROP PRIMARY KEY;
 ALTER TABLE `ｱｱｱ` DROP INDEX `ｸｸｸ`;
@@ -388,7 +388,7 @@ SHOW CREATE TABLE `ｱｱｱ`;
 Table	Create Table
 ｱｱｱ	CREATE TABLE `ｱｱｱ` (
   `ｷｷｷ` char(6) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `あああ` ADD `かかか` char(1) FIRST;
 ALTER TABLE `あああ` ADD `くくく` char(1) AFTER `ききき`;
 ALTER TABLE `あああ` ADD `けけけ` char(1);
@@ -418,7 +418,7 @@ Table	Create Table
   PRIMARY KEY (`ききき`),
   UNIQUE KEY `くくく` (`くくく`),
   KEY `かかか` (`かか`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `あああ` DROP INDEX `かかか`;
 ALTER TABLE `あああ` DROP PRIMARY KEY;
 ALTER TABLE `あああ` DROP INDEX `くくく`;
@@ -437,7 +437,7 @@ SHOW CREATE TABLE `あああ`;
 Table	Create Table
 あああ	CREATE TABLE `あああ` (
   `ききき` char(6) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `龖龖龖` ADD `丄丄丄` char(1) FIRST;
 ALTER TABLE `龖龖龖` ADD `丅丅丅` char(1) AFTER `丂丂丂`;
 ALTER TABLE `龖龖龖` ADD `乚乚乚` char(1);
@@ -467,7 +467,7 @@ Table	Create Table
   PRIMARY KEY (`丂丂丂`),
   UNIQUE KEY `丅丅丅` (`丅丅丅`),
   KEY `丄丄丄` (`丄丄`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 ALTER TABLE `龖龖龖` DROP INDEX `丄丄丄`;
 ALTER TABLE `龖龖龖` DROP PRIMARY KEY;
 ALTER TABLE `龖龖龖` DROP INDEX `丅丅丅`;
@@ -486,7 +486,7 @@ SHOW CREATE TABLE `龖龖龖`;
 Table	Create Table
 龖龖龖	CREATE TABLE `龖龖龖` (
   `丂丂丂` char(6) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DROP TABLE `ｱｱｱ`;
 DROP TABLE `ｲｲｲ`;
 DROP TABLE `あああ`;

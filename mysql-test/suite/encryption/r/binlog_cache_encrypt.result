@@ -1,0 +1,18 @@
+RESET MASTER;
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+SET @saved_threshold= @@GLOBAL.binlog_large_commit_threshold;
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+UPDATE t1 SET c1 = repeat('2', 5242880);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('2', 5242880)
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Update_rows_v1	#	#	table_id: #
+master-bin.000002	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+SET GLOBAL binlog_large_commit_threshold = @saved_threshold;
+DROP TABLE t1;

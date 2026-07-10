@@ -1,0 +1,91 @@
+#
+# decimal with high precision
+# decimal precision more than 38 is not supported by DuckDB, use double by default
+#
+# Create tables
+USE innodb_db;
+create table t_decimal (id int primary key, a decimal(65, 30),b decimal(65, 15),c decimal(65, 0),d decimal(38,30),e decimal(38,18),f decimal(38,0),g decimal(9,9),h decimal(9,4),i decimal(9,0)) engine = innodb;
+USE duckdb_db;
+create table t_decimal (id int primary key, a decimal(65, 30),b decimal(65, 15),c decimal(65, 0),d decimal(38,30),e decimal(38,18),f decimal(38,0),g decimal(9,9),h decimal(9,4),i decimal(9,0)) engine = duckdb;
+# display innodb table structure
+desc innodb_db.t_decimal;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+a	decimal(65,30)	YES		NULL	
+b	decimal(65,15)	YES		NULL	
+c	decimal(65,0)	YES		NULL	
+d	decimal(38,30)	YES		NULL	
+e	decimal(38,18)	YES		NULL	
+f	decimal(38,0)	YES		NULL	
+g	decimal(9,9)	YES		NULL	
+h	decimal(9,4)	YES		NULL	
+i	decimal(9,0)	YES		NULL	
+# display duckdb table structure
+desc duckdb_db.t_decimal;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+a	decimal(65,30)	YES		NULL	
+b	decimal(65,15)	YES		NULL	
+c	decimal(65,0)	YES		NULL	
+d	decimal(38,30)	YES		NULL	
+e	decimal(38,18)	YES		NULL	
+f	decimal(38,0)	YES		NULL	
+g	decimal(9,9)	YES		NULL	
+h	decimal(9,4)	YES		NULL	
+i	decimal(9,0)	YES		NULL	
+# Insert data into innodb
+USE innodb_db;
+insert into t_decimal values (1, 99999999999999999999999999999999999.999999999999999999999999999999,99999999999999999999999999999999999999999999999999.999999999999999,99999999999999999999999999999999999999999999999999999999999999999,99999999.999999999999999999999999999999,99999999999999999999.999999999999999999,99999999999999999999999999999999999999,0.99999999,99999.9999,999999999);
+# Insert data into duckdb
+USE duckdb_db;
+SET GLOBAL duckdb_dml_in_batch = OFF;
+insert into t_decimal values (1, 99999999999999999999999999999999999.999999999999999999999999999999,99999999999999999999999999999999999999999999999999.999999999999999,99999999999999999999999999999999999999999999999999999999999999999,99999999.999999999999999999999999999999,99999999999999999999.999999999999999999,99999999999999999999999999999999999999,0.99999999,99999.9999,999999999);
+# Compare results
+innodb_result : 1	99999999999999999999999999999999999.999999999999999999999999999999	99999999999999999999999999999999999999999999999999.999999999999999	99999999999999999999999999999999999999999999999999999999999999999	99999999.999999999999999999999999999999	99999999999999999999.999999999999999999	99999999999999999999999999999999999999	0.999999990	99999.9999	999999999
+duckdb_result : 1	99999999999999999999999999999999999.999999999999999999999999999999	99999999999999999999999999999999999999999999999999.999999999999999	99999999999999999999999999999999999999999999999999999999999999999	99999999.999999999999999999999999999999	99999999999999999999.999999999999999999	99999999999999999999999999999999999999	0.999999990	99999.9999	999999999
+# Note: precision differences are expected for columns with precision > 38
+# cleanup
+#
+# decimal(2): high precision(>38)  with low precision value(<=38) and duckdb_use_double_for_decimal=on
+#
+set global duckdb_use_double_for_decimal=on;
+# display innodb table structure
+desc innodb_db.t1;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+c1	decimal(40,5)	YES		NULL	
+c2	decimal(40,5)	YES		NULL	
+c3	decimal(40,5)	YES		NULL	
+# display duckdb table structure
+desc duckdb_db.t1;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+c1	decimal(40,5)	YES		NULL	
+c2	decimal(40,5)	YES		NULL	
+c3	decimal(40,5)	YES		NULL	
+# use double
+innodb_result : 4	123456789012345678901234567890.12345
+duckdb_result : 4	123456789012345680000000000000.00000
+set global duckdb_use_double_for_decimal=default;
+#
+# decimal(3): high precision(>38)  with high precision value(>38)  and duckdb_use_double_for_decimal=on
+#
+set global duckdb_use_double_for_decimal=on;
+# display innodb table structure
+desc innodb_db.t1;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+c1	decimal(40,5)	YES		NULL	
+c2	decimal(40,5)	YES		NULL	
+c3	decimal(40,5)	YES		NULL	
+# display duckdb table structure
+desc duckdb_db.t1;
+Field	Type	Null	Key	Default	Extra
+id	int(11)	NO	PRI	NULL	
+c1	decimal(40,5)	YES		NULL	
+c2	decimal(40,5)	YES		NULL	
+c3	decimal(40,5)	YES		NULL	
+# use double
+innodb_result : 4	12345678901234567890123456789012345.12345
+duckdb_result : 4	12345678901234570000000000000000000.00000
+set global duckdb_use_double_for_decimal=default;

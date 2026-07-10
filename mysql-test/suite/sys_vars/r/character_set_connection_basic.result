@@ -1,4 +1,5 @@
 SET @global_start_value = @@global.character_set_connection;
+SET @global_collation_connection = @@global.collation_connection;
 SET @save_character_set_client=@@global.character_set_client;
 SET @@global.character_set_client=@@character_set_client;
 SET @session_start_value = @@character_set_connection;
@@ -15,17 +16,17 @@ SELECT @session_start_value;
 latin1
 '#--------------------FN_DYNVARS_011_01------------------#'
 SELECT character_set_connection;
-ERROR 42S22: Unknown column 'character_set_connection' in 'field list'
+ERROR 42S22: Unknown column 'character_set_connection' in 'SELECT'
 SET character_set_connection=utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
 utf8mb3
 SET session character_set_connection=utf8;
 SELECT session character_set_connection;
-ERROR 42S22: Unknown column 'session' in 'field list'
+ERROR 42S22: Unknown column 'session' in 'SELECT'
 SET global character_set_connection=utf8;
 SELECT global character_set_connection;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 '#--------------------FN_DYNVARS_011_02-------------------------#'
 SET @@character_set_connection = latin5;
 SET @@character_set_connection = DEFAULT;
@@ -69,7 +70,7 @@ res
 1
 '#--------------------FN_DYNVARS_011_05-------------------------#'
 SET @@character_set_connection = utf8 + latin2;
-ERROR 42S22: Unknown column 'utf8' in 'field list'
+ERROR 42S22: Unknown column 'utf8' in 'SET'
 '#--------------------FN_DYNVARS_011_06-------------------------#'
 SET @@session.character_set_connection = big5;
 SELECT @@session.character_set_connection;
@@ -495,7 +496,7 @@ WHERE VARIABLE_NAME='character_set_connection') AS res;
 res
 1
 #
-# MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+# MDEV-31018 Slave of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
 #
 SET character_set_connection=2/*latin2_czech_cs*/;
 ERROR 42000: Unknown character set: '2'
@@ -510,5 +511,5 @@ collation_connection	latin2_general_ci
 SET @@pseudo_slave_mode=0;
 Warnings:
 Warning	1231	Slave applier execution mode not active, statement ineffective.
-SET @@global.character_set_connection = @global_start_value;
+SET @@global.collation_connection = @global_collation_connection;
 SET @@global.character_set_client = @save_character_set_client;

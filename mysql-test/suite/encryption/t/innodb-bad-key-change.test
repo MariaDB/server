@@ -13,17 +13,18 @@ call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` has an unreadable root page");
 call mtr.add_suppression("Table .*t[12].* is corrupted");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[12]\\.ibd' cannot be decrypted; key_version=1");
-call mtr.add_suppression("failed to read \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+call mtr.add_suppression("InnoDB: Failed to read page [1-9][0-9]* from file '.*test/t[12]\\.ibd'");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted; key_version=1");
+call mtr.add_suppression("InnoDB: File '.*test/t[12]\\.ibd' is corrupted");
+call mtr.add_suppression("Table `test`\\.`t[12]` is corrupted");
 call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");
+call mtr.add_suppression("File '.*mariadb-test.std_data.keysbad3\\.txt' not found");
 # for innodb_checksum_algorithm=full_crc32 only
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
-
-SET GLOBAL innodb_file_per_table = ON;
 
 CREATE TABLE t1 (c VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
 INSERT INTO t1 VALUES ('foobar');
@@ -35,19 +36,21 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES ('foobar',1);
 INSERT INTO t1 VALUES ('foobar',2);
 FLUSH TABLE WITH READ LOCK;
+--disable_view_protocol
 SELECT * FROM t1;
+--enable_view_protocol
 
 --echo
 --echo # Restart server with keysbad3.txt
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt --innodb-log-recovery-start=0
 -- source include/restart_mysqld.inc
 
 --disable_warnings
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 --enable_warnings
 
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt --innodb-log-recovery-start=0
 -- source include/restart_mysqld.inc
 
 --replace_regex /key_id [1-9][0-9]*/\1 /
@@ -68,11 +71,11 @@ INSERT INTO t2 VALUES ('foobar',1,2);
 
 --echo
 --echo # Restart server with keys2.txt
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt --innodb-log-recovery-start=0
 -- source include/restart_mysqld.inc
 
 --disable_warnings
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t2;
 
 --error ER_TABLE_CORRUPT

@@ -1,0 +1,43 @@
+#
+# MDEV-30014 heap-use-after-free in  ha_spider::lock_tables(), highly sporadic SIGSEGV in intern_close_table
+#
+for master_1
+for child2
+for child3
+set spider_same_server_link=1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t1 (c int);
+create table t2 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE t3 (c INT KEY) ENGINE=Spider;
+LOCK TABLE t2 WRITE,t3 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+CREATE TABLE t4 (c INT) ENGINE=Spider;
+FLUSH NO_WRITE_TO_BINLOG TABLES t4 WITH READ LOCK;
+Warnings:
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+UNLOCK TABLES;
+drop table t1, t2, t3, t4;
+create table t1 (c int);
+create table t2 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE t3 (c INT KEY) ENGINE=Spider;
+LOCK TABLE t2 WRITE, t3 WRITE;
+ERROR HY000: Unable to connect to foreign data source: localhost
+UNLOCK TABLES;
+drop table t1, t2, t3;
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_30014
+#

@@ -1,0 +1,64 @@
+install soname 'auth_ed25519';
+install plugin three_attempts soname 'dialog_examples';
+create user native@'%' identified via mysql_native_password using password('foo');
+create user ed@'%' identified via ed25519 using password('bar');
+create user nohash@'%' identified via three_attempts using 'onetwothree';
+create user multi@'%' identified via mysql_native_password using password('pw1')
+or ed25519 using password('pw2');
+grant all privileges on test.* to native@'%';
+grant all privileges on test.* to ed@'%';
+grant all privileges on test.* to nohash@'%';
+grant all privileges on test.* to multi@'%';
+create function have_ssl() returns char(3)
+return (select if(variable_value > '','yes','no') as 'have_ssl'
+  from information_schema.session_status
+where variable_name='ssl_cipher');
+# mysql -uroot --disable-ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+# mysql -uroot -e "select test.have_ssl()"
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+test.have_ssl()
+yes
+# mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql -unative -pfoo --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql -ued -pbar --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql -unohash -ponetwothree --ssl-verify-server-cert -e "select test.have_ssl()"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+# mysql -umulti -ppw1 --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+>> MitM active <<
+# mysql -uroot --disable-ssl-verify-server-cert -e "select 'Detecting MitM' as MitM, test.have_ssl()"
+MitM	test.have_ssl()
+No MitM found!	yes
+>> MitM active <<
+# mysql -unative -pfoo --ssl-verify-server-cert -e "select 'Detecting MitM', test.have_ssl()"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+>> MitM active <<
+# mysql -ued -pbar --ssl-verify-server-cert -e "select 'Detecting MitM', test.have_ssl()"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+drop function have_ssl;
+drop user native@'%';
+drop user ed@'%';
+drop user nohash@'%';
+drop user multi@'%';
+uninstall plugin ed25519;
+uninstall plugin three_attempts;

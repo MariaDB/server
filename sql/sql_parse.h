@@ -50,7 +50,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
                                   Alter_info *alter_info,
-                                  const char* create_db);
+                                  const LEX_CSTRING &create_db);
 
 bool parse_sql(THD *thd, Parser_state *parser_state,
                Object_creation_ctx *creation_ctx, bool do_pfs_digest=false);
@@ -87,12 +87,12 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask);
 bool is_update_query(enum enum_sql_command command);
 bool is_log_table_write_query(enum enum_sql_command command);
 bool alloc_query(THD *thd, const char *packet, size_t packet_length);
-void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state);
 bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
 void create_select_for_variable(THD *thd, LEX_CSTRING *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
+void mysql_init_delete(LEX *lex);
 void mysql_init_multi_delete(LEX *lex);
 bool multi_delete_set_locks_and_link_aux_tables(LEX *lex);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
@@ -129,8 +129,8 @@ bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 
 /* Variables */
 
-extern const LEX_CSTRING any_db;
-extern uint sql_command_flags[];
+extern const Lex_ident_db_normalized any_db;
+extern cf_flags_t sql_command_flags[];
 extern uint server_command_flags[];
 extern const LEX_CSTRING command_name[];
 extern uint server_command_flags[];
@@ -188,5 +188,19 @@ check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                    bool no_errors)
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+
+/**
+  Due to an issue with the bison parser, we need to use a different name.
+
+  This is a workaround!
+
+  If we use the global charset variable name we get a warning in the bison
+  parser stderr : suspicious sequence in the output: b4_bin [-Wother]
+  So we work around by having this define that doesn't have 'b4_bin' in it.
+
+  This has been reported, but not fixed yet:
+   https://lists.gnu.org/archive/html/bug-bison/2021-10/msg00027.html
+*/
+#define MY_CHARSET_UTF8MB4_BIN my_charset_utf8mb4_bin
 
 #endif /* SQL_PARSE_INCLUDED */

@@ -9,6 +9,7 @@ set @@log_slow_verbosity="";
 select @@log_slow_filter;
 select @@log_slow_rate_limit;
 select @@log_slow_verbosity;
+--replace_regex /\S+mysqld-slow.log/$PATH\/mysqld-slow.log/
 show variables like "log_slow%";
 set @org_slow_query_log= @@global.slow_query_log;
 
@@ -44,6 +45,7 @@ show fields from mysql.slow_log;
 #
 # Check flush command
 #
+--disable_cursor_protocol
 --disable_ps2_protocol
 
 flush slow logs;
@@ -74,10 +76,12 @@ SET long_query_time=0.1;
 
 --echo # Although this query is disallowed by slow_query_log, it should still increment Slow_queries
 
+--disable_cursor_protocol
 SELECT VARIABLE_VALUE INTO @global_slow_queries
   FROM INFORMATION_SCHEMA.GLOBAL_STATUS
   WHERE VARIABLE_NAME='SLOW_QUERIES';
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
+--enable_cursor_protocol
 SELECT
     CAST(VARIABLE_VALUE AS UNSIGNED)-@global_slow_queries AS Slow_queries_increment
   FROM
@@ -88,11 +92,13 @@ SELECT
 --echo # Although this query is disallowed by log_slow_filter, it should still increment Slow_queries
 
 SET log_slow_filter=filesort;
+--disable_cursor_protocol
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
 SELECT VARIABLE_VALUE INTO @global_slow_queries
   FROM INFORMATION_SCHEMA.GLOBAL_STATUS
   WHERE VARIABLE_NAME='SLOW_QUERIES';
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
+--enable_cursor_protocol
 SELECT
     CAST(VARIABLE_VALUE AS UNSIGNED)-@global_slow_queries AS Slow_queries_increment
   FROM
@@ -117,7 +123,139 @@ show session status like 'Slow_queries';
 
 drop table t;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-31742: incorrect examined rows in case of stored function usage
+--echo #
+
+
+CREATE TABLE `tab_MDEV_30820` (
+`ID` int(11) NOT NULL AUTO_INCREMENT,
+`NAME_F` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`ID`)
+);
+
+ CREATE TABLE `tab2` (
+  `ID` int(11) NOT NULL AUTO_INCREMENT,
+  `TAB1_ID` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+);
+
+--disable_cursor_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+
+--delimiter //
+CREATE FUNCTION `get_zero`() RETURNS int(11)
+BEGIN
+    RETURN(0) ;
+END
+//
+
+for i in 1..100 do insert into tab_MDEV_30820 values (i,'qwerty'); end for ; //
+for i in 1..1000 do insert into tab2 values (i,i+300); end for ; //
+
+--delimiter ;
+
+SET @old_slow_query_log= @@global.slow_query_log;
+SET @old_log_output= @@global.log_output;
+SET @old_long_query_time= @@long_query_time;
+SET GLOBAL log_output= "TABLE";
+SET GLOBAL slow_query_log= ON;
+
+SET SESSION slow_query_log=ON;
+SET SESSION long_query_time= 0;
+
+SELECT 0 as zero, (SELECT ID FROM tab2 where tab2.TAB1_ID =
+tab_MDEV_30820.ID ORDER BY 1 LIMIT 1 ) AS F1 FROM tab_MDEV_30820 ORDER BY 2 DESC LIMIT 2;
+
+SELECT get_zero() as zero, (SELECT ID FROM tab2 where tab2.TAB1_ID =
+tab_MDEV_30820.ID ORDER BY 1 LIMIT 1) AS F1 FROM tab_MDEV_30820 ORDER BY 2 DESC LIMIT 2;
+
+--echo # should be the same rows_examined
+SELECT rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%tab_MDEV_30820%';
+
+## Reset to initial values
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= @old_log_output;
+SET @@global.slow_query_log= @old_slow_query_log;
+SET SESSION slow_query_log=default;
+
+drop table tab_MDEV_30820, tab2;
+drop function get_zero;
+
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-34539 Invalid "use" and "Schema" in slow query log file with multi-line schema
+--echo #
+set global log_output='file';
+set @@log_slow_filter= 'not_using_index';
+set slow_query_log=1;
+set timestamp=1234567890;
+create database `a
+b`;
+use `a
+b`;
+create table t1 (a int);
+insert t1 values (1),(2),(3),(4),(5),(6),(7);
+--disable_ps_protocol
+--disable_view_protocol
+select count(*) from t1 where a>2;
+--enable_view_protocol
+--enable_ps_protocol
+drop database `a
+b`;
+use test;
+set global log_output= @old_log_output;
+set slow_query_log=default;
+set log_slow_filter=default;
+set timestamp=default;
+
+let SEARCH_FILE=`select @@slow_query_log_file`;
+let SEARCH_PATTERN= use \`a\n.*2;
+let SEARCH_OUTPUT=matches;
+source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # MDEV-31366 Assertion `thd->start_time' failed in bool LOGGER::slow_log_print(THD*, const char*, size_t, ulonglong)
+--echo #
+
+TRUNCATE mysql.slow_log;
+SET global log_output='TABLE';
+SET timestamp=0.99;
+SET long_query_time=0.00001;
+SELECT SLEEP(0.1);
+SELECT COUNT(*)>0 AS c1 FROM mysql.slow_log;
+SET global log_output=default;
+SET timestamp=default;
+SET long_query_time=default;
+TRUNCATE mysql.slow_log;
+
+--echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-34251 Conditional jump or move depends on uninitialised value in
+--echo # ha_handler_stats::has_stats
+--echo #
+
+set @@global.log_slow_verbosity="";
+connect (con1,localhost,root,,);
+connection con1;
+
+# valgrind or asan would notice if engine stats are accessed wrong.
+set long_query_time=0.0, log_slow_verbosity='engine';
+connection default;
+disconnect con1;
+
+--echo # End of 10.6 tests

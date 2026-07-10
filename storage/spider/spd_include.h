@@ -64,7 +64,6 @@
 #undef pthread_cond_destroy
 #endif
 #define pthread_cond_destroy mysql_cond_destroy
-#define my_sprintf(A,B) sprintf B
 
 #define spider_stmt_da_message(A) thd_get_error_message(A)
 #define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
@@ -85,11 +84,7 @@
 
 #define SPIDER_TEST(A) MY_TEST(A)
 
-#define SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
 #define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
-#define SPIDER_XID_USES_xid_cache_iterate
-
-#define SPIDER_Item_args_arg_count_IS_PROTECTED
 
 #define SPIDER_Item_func_conv_charset_conv_charset collation.collation
 
@@ -99,7 +94,6 @@
 #define SPIDER_new_THD(A) (new THD(A))
 #define SPIDER_order_direction_is_asc(A) (A->direction == ORDER::ORDER_ASC)
 
-#define SPIDER_HAS_MY_CHARLEN
 #define SPIDER_open_temporary_table
 
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,E,F,G)
@@ -110,8 +104,6 @@
 
 #define SPIDER_read_record_read_record(A) read_record()
 #define SPIDER_has_Item_with_subquery
-#define SPIDER_use_LEX_CSTRING_for_KEY_Field_name
-#define SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 #define SPIDER_use_LEX_CSTRING_for_database_tablename_alias
 #define SPIDER_THD_db_str(A) (A)->db.str
 #define SPIDER_THD_db_length(A) (A)->db.length
@@ -153,9 +145,14 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 #define spider_bit_is_set(BITMAP, BIT) \
   (uint) ((BITMAP)[(BIT) / 8] & (1 << ((BIT) & 7)))
 
+/* Change status of the remote backend server link. */
+/* 0 Doesn't change status.  */
 #define SPIDER_LINK_STATUS_NO_CHANGE         0
+/* 1 Changes status to OK.  */
 #define SPIDER_LINK_STATUS_OK                1
+/* 2 Changes status to RECOVERY.  */
 #define SPIDER_LINK_STATUS_RECOVERY          2
+/* 3 Changes status to no more in group communication. */
 #define SPIDER_LINK_STATUS_NG                3
 
 #define SPIDER_LINK_MON_OK                   0
@@ -163,13 +160,294 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 #define SPIDER_LINK_MON_DRAW_FEW_MON         1
 #define SPIDER_LINK_MON_DRAW                 2
 
-#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     23
+#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     24
 #define SPIDER_TMP_SHARE_UINT_COUNT         SPIDER_TMP_SHARE_CHAR_PTR_COUNT
-#define SPIDER_TMP_SHARE_LONG_COUNT         20
+#define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           314
+#define SPIDER_MEM_CALC_LIST_NUM           SPD_MID_LAST
 #define SPIDER_CONN_META_BUF_LEN           64
+
+/*
+  IDs for spider mem alloc functions, including
+  - spider_alloc_calc_mem_init()
+  - spider_string::init_calc_mem()
+  - spider_malloc()
+  - spider_bulk_alloc_mem()
+  - spider_bulk_malloc()
+  In the format of
+  SPD_MID_<CALLSITE_FUNC_NAME_SANS_SPIDER_PREFIX>_<NO>
+*/
+enum spider_malloc_id {
+  SPD_MID_CHECK_HS_PK_UPDATE_1,
+  SPD_MID_CONN_INIT_1,
+  SPD_MID_CONN_INIT_2,
+  SPD_MID_CONN_QUEUE_AND_MERGE_LOOP_CHECK_1,
+  SPD_MID_CONN_QUEUE_LOOP_CHECK_1,
+  SPD_MID_COPY_TABLES_BODY_1,
+  SPD_MID_COPY_TABLES_BODY_2,
+  SPD_MID_COPY_TABLES_BODY_3,
+  SPD_MID_COPY_TABLES_BODY_4,
+  SPD_MID_COPY_TABLES_BODY_5,
+  SPD_MID_CREATE_CONN_1,
+  SPD_MID_CREATE_CONN_2,
+  SPD_MID_CREATE_CONN_3,
+  SPD_MID_CREATE_CONN_4,
+  SPD_MID_CREATE_CONN_5,
+  SPD_MID_CREATE_CONN_6,
+  SPD_MID_CREATE_CONN_KEYS_1,
+  SPD_MID_CREATE_CONN_THREAD_1,
+  SPD_MID_CREATE_LONGLONG_LIST_1,
+  SPD_MID_CREATE_LONG_LIST_1,
+  SPD_MID_CREATE_MON_THREADS_1,
+  SPD_MID_CREATE_MON_THREADS_2,
+  SPD_MID_CREATE_SHARE_1,
+  SPD_MID_CREATE_SHARE_2,
+  SPD_MID_CREATE_SPIDER_OBJECT_FOR_SHARE_1,
+  SPD_MID_CREATE_SPIDER_OBJECT_FOR_SHARE_2,
+  SPD_MID_CREATE_STRING_1,
+  SPD_MID_CREATE_STRING_LIST_1,
+  SPD_MID_CREATE_TABLE_HOLDER_1,
+  SPD_MID_CREATE_TABLE_NAME_STRING_1,
+  SPD_MID_CREATE_TRX_ALTER_TABLE_1,
+  SPD_MID_CREATE_TRX_HA_1,
+  SPD_MID_DB_CONN_QUEUE_ACTION_1,
+  SPD_MID_DB_FETCH_FOR_ITEM_SUM_FUNC_1,
+  SPD_MID_DB_FETCH_FOR_ITEM_SUM_FUNC_2,
+  SPD_MID_DB_FETCH_FOR_ITEM_SUM_FUNC_3,
+  SPD_MID_DB_HANDLERSOCKET_APPEND_REQUEST_KEY_1,
+  SPD_MID_DB_HANDLERSOCKET_EXEC_QUERY_1,
+  SPD_MID_DB_HANDLERSOCKET_INIT_1,
+  SPD_MID_DB_HANDLERSOCKET_RESULT_FETCH_ROW_FROM_TMP_TABLE_1,
+  SPD_MID_DB_HANDLERSOCKET_RESULT_FETCH_ROW_FROM_TMP_TABLE_2,
+  SPD_MID_DB_HANDLERSOCKET_ROW_APPEND_ESCAPED_TO_STR_1,
+  SPD_MID_DB_HANDLERSOCKET_ROW_CLONE_1,
+  SPD_MID_DB_HANDLERSOCKET_ROW_STORE_TO_FIELD_1,
+  SPD_MID_DB_HANDLERSOCKET_UTIL_APPEND_COLUMN_VALUE_1,
+  SPD_MID_DB_HANDLERSOCKET_UTIL_OPEN_ITEM_FUNC_1,
+  SPD_MID_DB_HANDLERSOCKET_UTIL_OPEN_ITEM_FUNC_2,
+  SPD_MID_DB_HANDLERSOCKET_UTIL_OPEN_ITEM_FUNC_3,
+  SPD_MID_DB_HS_STRING_REF_BUFFER_INIT_1,
+  SPD_MID_DB_HS_STR_BUFFER_ADD_1,
+  SPD_MID_DB_HS_STR_BUFFER_ADD_2,
+  SPD_MID_DB_HS_STR_BUFFER_INIT_1,
+  SPD_MID_DB_INIT_1,
+  SPD_MID_DB_INIT_10,
+  SPD_MID_DB_INIT_11,
+  SPD_MID_DB_INIT_12,
+  SPD_MID_DB_INIT_2,
+  SPD_MID_DB_INIT_3,
+  SPD_MID_DB_INIT_4,
+  SPD_MID_DB_INIT_5,
+  SPD_MID_DB_INIT_6,
+  SPD_MID_DB_INIT_7,
+  SPD_MID_DB_INIT_8,
+  SPD_MID_DB_INIT_9,
+  SPD_MID_DB_MARIADB_UTIL_APPEND_COLUMN_VALUE_1,
+  SPD_MID_DB_MARIADB_UTIL_APPEND_COLUMN_VALUE_2,
+  SPD_MID_DB_MBASE_EXEC_QUERY_1,
+  SPD_MID_DB_MBASE_EXEC_QUERY_2,
+  SPD_MID_DB_MBASE_INIT_1,
+  SPD_MID_DB_MBASE_INIT_2,
+  SPD_MID_DB_MBASE_RESULT_FETCH_ROW_FROM_TMP_TABLE_1,
+  SPD_MID_DB_MBASE_RESULT_FETCH_ROW_FROM_TMP_TABLE_2,
+  SPD_MID_DB_MBASE_RESULT_FETCH_ROW_FROM_TMP_TABLE_3,
+  SPD_MID_DB_MBASE_ROW_APPEND_ESCAPED_TO_STR_1,
+  SPD_MID_DB_MBASE_ROW_CLONE_1,
+  SPD_MID_DB_MBASE_SET_SQL_MODE_1,
+  SPD_MID_DB_MBASE_SET_TIME_ZONE_1,
+  SPD_MID_DB_MBASE_SET_WAIT_TIMEOUT_1,
+  SPD_MID_DB_MBASE_UTIL_PRINT_ITEM_FUNC_1,
+  SPD_MID_DB_MBASE_UTIL_PRINT_ITEM_FUNC_2,
+  SPD_MID_DB_MBASE_UTIL_PRINT_ITEM_FUNC_3,
+  SPD_MID_DB_MBASE_XA_COMMIT_1,
+  SPD_MID_DB_MBASE_XA_END_1,
+  SPD_MID_DB_MBASE_XA_PREPARE_1,
+  SPD_MID_DB_MBASE_XA_ROLLBACK_1,
+  SPD_MID_DB_MYSQL_UTIL_APPEND_COLUMN_VALUE_1,
+  SPD_MID_DB_MYSQL_UTIL_APPEND_COLUMN_VALUE_2,
+  SPD_MID_DB_OPEN_ITEM_INT_1,
+  SPD_MID_DB_OPEN_ITEM_STRING_1,
+  SPD_MID_DB_ORACLE_EXEC_QUERY_1,
+  SPD_MID_DB_ORACLE_GET_ERROR_1,
+  SPD_MID_DB_ORACLE_INIT_1,
+  SPD_MID_DB_ORACLE_INIT_2,
+  SPD_MID_DB_ORACLE_RESULT_FETCH_ROW_FROM_TMP_TABLE_1,
+  SPD_MID_DB_ORACLE_RESULT_FETCH_ROW_FROM_TMP_TABLE_2,
+  SPD_MID_DB_ORACLE_RESULT_FETCH_ROW_FROM_TMP_TABLE_3,
+  SPD_MID_DB_ORACLE_ROW_APPEND_ESCAPED_TO_STR_1,
+  SPD_MID_DB_ORACLE_ROW_INIT_1,
+  SPD_MID_DB_ORACLE_ROW_INIT_2,
+  SPD_MID_DB_ORACLE_UTIL_APPEND_COLUMN_VALUE_1,
+  SPD_MID_DB_ORACLE_UTIL_APPEND_COLUMN_VALUE_2,
+  SPD_MID_DB_ORACLE_UTIL_OPEN_ITEM_FUNC_1,
+  SPD_MID_DB_ORACLE_UTIL_OPEN_ITEM_FUNC_2,
+  SPD_MID_DB_ORACLE_UTIL_OPEN_ITEM_FUNC_3,
+  SPD_MID_DB_QUERY_1,
+  SPD_MID_DB_STORE_RESULT_1,
+  SPD_MID_DB_STORE_RESULT_2,
+  SPD_MID_DB_STORE_RESULT_3,
+  SPD_MID_DB_STORE_RESULT_4,
+  SPD_MID_DB_STORE_RESULT_5,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_1,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_2,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_3,
+  SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_4,
+  SPD_MID_DB_UDF_COPY_TABLES_1,
+  SPD_MID_DB_UDF_PING_TABLE_1,
+  SPD_MID_DB_UDF_PING_TABLE_2,
+  SPD_MID_DB_UDF_PING_TABLE_APPEND_MON_NEXT_1,
+  SPD_MID_DB_UDF_PING_TABLE_APPEND_MON_NEXT_2,
+  SPD_MID_DB_UDF_PING_TABLE_MON_NEXT_1,
+  SPD_MID_DIRECT_SQL_BODY_1,
+  SPD_MID_DIRECT_SQL_INIT_BODY_1,
+  SPD_MID_DISCOVER_TABLE_STRUCTURE_1,
+  SPD_MID_FIELDS_CREATE_CONN_HOLDER_1,
+  SPD_MID_FIELDS_CREATE_LINK_IDX_CHAIN_1,
+  SPD_MID_FIELDS_CREATE_LINK_IDX_HOLDER_1,
+  SPD_MID_GET_INIT_ERROR_TABLE_1,
+  SPD_MID_GET_LGTM_TBLHND_SHARE_1,
+  SPD_MID_GET_PING_TABLE_MON_1,
+  SPD_MID_GET_PING_TABLE_TGT_1,
+  SPD_MID_GET_PT_SHARE_1,
+  SPD_MID_GET_PT_SHARE_2,
+  SPD_MID_GET_SHARE_1,
+  SPD_MID_GET_SHARE_2,
+  SPD_MID_GET_TRX_1,
+  SPD_MID_GET_TRX_10,
+  SPD_MID_GET_TRX_2,
+  SPD_MID_GET_TRX_3,
+  SPD_MID_GET_TRX_4,
+  SPD_MID_GET_TRX_5,
+  SPD_MID_GET_TRX_6,
+  SPD_MID_GET_TRX_7,
+  SPD_MID_GET_TRX_8,
+  SPD_MID_GET_TRX_9,
+  SPD_MID_HANDLERSOCKET_HANDLER_INIT_1,
+  SPD_MID_HANDLERSOCKET_HANDLER_INIT_2,
+  SPD_MID_HANDLERSOCKET_HANDLER_SPIDER_HANDLERSOCKET_HANDLER_1,
+  SPD_MID_HANDLERSOCKET_SHARE_CREATE_COLUMN_NAME_STR_1,
+  SPD_MID_HANDLERSOCKET_SHARE_CREATE_TABLE_NAMES_STR_1,
+  SPD_MID_HANDLERSOCKET_SHARE_CREATE_TABLE_NAMES_STR_2,
+  SPD_MID_HANDLERSOCKET_SHARE_CREATE_TABLE_NAMES_STR_3,
+  SPD_MID_HANDLERSOCKET_SHARE_INIT_1,
+  SPD_MID_HANDLERSOCKET_SHARE_SPIDER_HANDLERSOCKET_SHARE_1,
+  SPD_MID_HA_SPIDER_COND_PUSH_1,
+  SPD_MID_HA_SPIDER_CREATE_1,
+  SPD_MID_HA_SPIDER_CREATE_2,
+  SPD_MID_HA_SPIDER_CREATE_BULK_ACCESS_LINK_1,
+  SPD_MID_HA_SPIDER_FT_INIT_EXT_1,
+  SPD_MID_HA_SPIDER_HA_SPIDER_1,
+  SPD_MID_HA_SPIDER_HA_SPIDER_2,
+  SPD_MID_HA_SPIDER_INFO_PUSH_1,
+  SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_1,
+  SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_2,
+  SPD_MID_HA_SPIDER_MULTI_RANGE_READ_NEXT_FIRST_3,
+  SPD_MID_HA_SPIDER_OPEN_1,
+  SPD_MID_HA_SPIDER_OPEN_2,
+  SPD_MID_HA_SPIDER_OPEN_3,
+  SPD_MID_HA_SPIDER_OPEN_4,
+  SPD_MID_HA_SPIDER_OPEN_5,
+  SPD_MID_HA_SPIDER_OPEN_6,
+  SPD_MID_HA_SPIDER_OPEN_7,
+  SPD_MID_INCREASE_LONGLONG_LIST_1,
+  SPD_MID_INCREASE_LONG_LIST_1,
+  SPD_MID_INCREASE_NULL_STRING_LIST_1,
+  SPD_MID_INCREASE_STRING_LIST_1,
+  SPD_MID_MBASE_COPY_TABLE_INIT_1,
+  SPD_MID_MBASE_HANDLER_APPEND_KEY_COLUMN_TYPES_1,
+  SPD_MID_MBASE_HANDLER_APPEND_MATCH_AGAINST_1,
+  SPD_MID_MBASE_HANDLER_APPEND_TMP_TABLE_AND_SQL_FOR_BKA_1,
+  SPD_MID_MBASE_HANDLER_APPEND_UNION_TABLE_AND_SQL_FOR_BKA_1,
+  SPD_MID_MBASE_HANDLER_INIT_1,
+  SPD_MID_MBASE_HANDLER_INIT_2,
+  SPD_MID_MBASE_HANDLER_INIT_3,
+  SPD_MID_MBASE_HANDLER_INIT_4,
+  SPD_MID_MBASE_HANDLER_INIT_5,
+  SPD_MID_MBASE_HANDLER_INIT_6,
+  SPD_MID_MBASE_HANDLER_INIT_7,
+  SPD_MID_MBASE_HANDLER_INIT_8,
+  SPD_MID_MBASE_HANDLER_INIT_9,
+  SPD_MID_MBASE_HANDLER_INIT_UNION_TABLE_NAME_POS_1,
+  SPD_MID_MBASE_HANDLER_SET_SQL_FOR_EXEC_1,
+  SPD_MID_MBASE_HANDLER_SET_UNION_TABLE_NAME_POS_1,
+  SPD_MID_MBASE_HANDLER_SPIDER_MBASE_HANDLER_1,
+  SPD_MID_MBASE_SHARE_APPEND_SHOW_INDEX_1,
+  SPD_MID_MBASE_SHARE_APPEND_SHOW_INDEX_2,
+  SPD_MID_MBASE_SHARE_APPEND_SHOW_RECORDS_1,
+  SPD_MID_MBASE_SHARE_APPEND_SHOW_TABLE_STATUS_1,
+  SPD_MID_MBASE_SHARE_APPEND_SHOW_TABLE_STATUS_2,
+  SPD_MID_MBASE_SHARE_CREATE_COLUMN_NAME_STR_1,
+  SPD_MID_MBASE_SHARE_CREATE_TABLE_NAMES_STR_1,
+  SPD_MID_MBASE_SHARE_CREATE_TABLE_NAMES_STR_2,
+  SPD_MID_MBASE_SHARE_CREATE_TABLE_NAMES_STR_3,
+  SPD_MID_MBASE_SHARE_DISCOVER_TABLE_STRUCTURE_1,
+  SPD_MID_MBASE_SHARE_INIT_1,
+  SPD_MID_MBASE_SHARE_INIT_2,
+  SPD_MID_MBASE_SHARE_INIT_3,
+  SPD_MID_MBASE_SHARE_INIT_4,
+  SPD_MID_MBASE_SHARE_SPIDER_MBASE_SHARE_1,
+  SPD_MID_OPEN_ALL_TABLES_1,
+  SPD_MID_OPEN_SYS_TABLE_1,
+  SPD_MID_ORACLE_COPY_TABLE_COPY_ROWS_1,
+  SPD_MID_ORACLE_COPY_TABLE_COPY_ROWS_2,
+  SPD_MID_ORACLE_COPY_TABLE_COPY_ROWS_3,
+  SPD_MID_ORACLE_COPY_TABLE_COPY_ROWS_4,
+  SPD_MID_ORACLE_COPY_TABLE_INIT_1,
+  SPD_MID_ORACLE_COPY_TABLE_INIT_2,
+  SPD_MID_ORACLE_HANDLER_APPEND_KEY_COLUMN_TYPES_1,
+  SPD_MID_ORACLE_HANDLER_APPEND_MATCH_AGAINST_1,
+  SPD_MID_ORACLE_HANDLER_APPEND_TMP_TABLE_AND_SQL_FOR_BKA_1,
+  SPD_MID_ORACLE_HANDLER_APPEND_UNION_TABLE_AND_SQL_FOR_BKA_1,
+  SPD_MID_ORACLE_HANDLER_INIT_1,
+  SPD_MID_ORACLE_HANDLER_INIT_2,
+  SPD_MID_ORACLE_HANDLER_INIT_3,
+  SPD_MID_ORACLE_HANDLER_INIT_4,
+  SPD_MID_ORACLE_HANDLER_INIT_5,
+  SPD_MID_ORACLE_HANDLER_INIT_6,
+  SPD_MID_ORACLE_HANDLER_INIT_7,
+  SPD_MID_ORACLE_HANDLER_INIT_8,
+  SPD_MID_ORACLE_HANDLER_INIT_9,
+  SPD_MID_ORACLE_HANDLER_INIT_UNION_TABLE_NAME_POS_1,
+  SPD_MID_ORACLE_HANDLER_SET_SQL_FOR_EXEC_1,
+  SPD_MID_ORACLE_HANDLER_SET_UNION_TABLE_NAME_POS_1,
+  SPD_MID_ORACLE_HANDLER_SPIDER_ORACLE_HANDLER_1,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_AUTOINC_1,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_INDEX_1,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_INDEX_2,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_LAST_INSERT_ID_1,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_LAST_INSERT_ID_2,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_RECORDS_1,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_TABLE_STATUS_1,
+  SPD_MID_ORACLE_SHARE_APPEND_SHOW_TABLE_STATUS_2,
+  SPD_MID_ORACLE_SHARE_CREATE_COLUMN_NAME_STR_1,
+  SPD_MID_ORACLE_SHARE_CREATE_TABLE_NAMES_STR_1,
+  SPD_MID_ORACLE_SHARE_CREATE_TABLE_NAMES_STR_2,
+  SPD_MID_ORACLE_SHARE_CREATE_TABLE_NAMES_STR_3,
+  SPD_MID_ORACLE_SHARE_INIT_1,
+  SPD_MID_ORACLE_SHARE_INIT_2,
+  SPD_MID_ORACLE_SHARE_INIT_3,
+  SPD_MID_ORACLE_SHARE_INIT_4,
+  SPD_MID_ORACLE_SHARE_SPIDER_ORACLE_SHARE_1,
+  SPD_MID_PARSE_CONNECT_INFO_1,
+  SPD_MID_PING_TABLE_BODY_1,
+  SPD_MID_PING_TABLE_BODY_2,
+  SPD_MID_PING_TABLE_INIT_BODY_1,
+  SPD_MID_PING_TABLE_MON_FROM_TABLE_1,
+  SPD_MID_RELEASE_PING_TABLE_MON_LIST_1,
+  SPD_MID_TRX_ANOTHER_LOCK_TABLES_1,
+  SPD_MID_TRY_ODBC_CONNECTION_STRING_1,
+  SPD_MID_UDF_COPY_TABLES_CREATE_TABLE_LIST_1,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_1,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_2,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_3,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_4,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_KEY_1,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_TABLE_LIST_1,
+  SPD_MID_UDF_DIRECT_SQL_CREATE_TABLE_LIST_2,
+  SPD_MID_UDF_GET_COPY_TGT_TABLES_1,
+  SPD_MID_LAST
+};
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;
@@ -181,11 +459,6 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; error_num = 0;}
 #define SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM \
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; tmp_error_num = 0;}
-
-#define SPIDER_SET_FILE_POS(A) \
-  {(A)->thd = current_thd; (A)->func_name = __func__; (A)->file_name = __FILE__; (A)->line_no = __LINE__;}
-#define SPIDER_CLEAR_FILE_POS(A) \
-  {DBUG_PRINT("info", ("spider thd=%p func_name=%s file_name=%s line_no=%lu", (A)->thd, (A)->func_name ? (A)->func_name : "NULL", (A)->file_name ? (A)->file_name : "NULL", (A)->line_no)); (A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
 
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;
@@ -199,7 +472,6 @@ typedef struct st_spider_thread
   volatile bool         killed;
   volatile bool         thd_wait;
   volatile bool         first_free_wait;
-  volatile bool         init_command;
   volatile int          error;
   pthread_t             thread;
   pthread_cond_t        cond;
@@ -208,14 +480,6 @@ typedef struct st_spider_thread
   volatile SPIDER_SHARE *queue_first;
   volatile SPIDER_SHARE *queue_last;
 } SPIDER_THREAD;
-
-typedef struct st_spider_file_pos
-{
-  THD                *thd;
-  const char         *func_name;
-  const char         *file_name;
-  ulong              line_no;
-} SPIDER_FILE_POS;
 
 typedef struct st_spider_link_for_hash
 {
@@ -331,7 +595,6 @@ typedef struct st_spider_conn_loop_check SPIDER_CONN_LOOP_CHECK;
 /* database connection */
 typedef struct st_spider_conn
 {
-  uint               conn_kind;
   char               *conn_key;
   uint               conn_key_length;
   my_hash_value_type conn_key_hash_value;
@@ -346,7 +609,6 @@ typedef struct st_spider_conn
   pthread_mutex_t    mta_conn_mutex;
   volatile bool      mta_conn_mutex_lock_already;
   volatile bool      mta_conn_mutex_unlock_later;
-  SPIDER_FILE_POS    mta_conn_mutex_file_pos;
   uint               join_trx;
   int                trx_isolation;
   bool               semi_trx_isolation_chk;
@@ -365,9 +627,18 @@ typedef struct st_spider_conn
   THD                *thd;
   void               *another_ha_first;
   void               *another_ha_last;
+  /* Exactly one of p_small and p_big is not null */
+  /* The parent node in the binary tree ordered by priority with a
+  smaller or equal priority */
   st_spider_conn     *p_small;
+  /* The parent node in the binary tree ordered by priority with a
+  bigger priority */
   st_spider_conn     *p_big;
+  /* The child node in the binary tree ordered by priority with a
+  smaller priority */
   st_spider_conn     *c_small;
+  /* The child node in the binary tree ordered by priority with a
+  bigger or equal priority */
   st_spider_conn     *c_big;
   longlong           priority;
   bool               server_lost;
@@ -399,6 +670,7 @@ typedef struct st_spider_conn
   char               *tgt_dsn;
   char               *tgt_filedsn;
   char               *tgt_driver;
+  char               *tgt_odbc_conn_str;
   long               tgt_port;
   long               tgt_ssl_vsc;
 
@@ -418,6 +690,7 @@ typedef struct st_spider_conn
   uint               tgt_dsn_length;
   uint               tgt_filedsn_length;
   uint               tgt_driver_length;
+  uint               tgt_odbc_conn_str_length;
   uint               dbton_id;
 
   volatile
@@ -500,20 +773,24 @@ typedef struct st_spider_conn
   SPIDER_IP_PORT_CONN *ip_port_conn;
 
   pthread_mutex_t    loop_check_mutex;
+  /*
+    A hash of SPIDER_CONN_LOOP_CHECK, indexed by
+    SPIDER_CONN_LOOP_CHECK::full_name
+  */
   HASH               loop_checked;
   uint               loop_checked_id;
   const char         *loop_checked_func_name;
   const char         *loop_checked_file_name;
   ulong              loop_checked_line_no;
+  /*
+    A hash of SPIDER_CONN_LOOP_CHECK, indexed by
+    SPIDER_CONN_LOOP_CHECK::to_name
+  */
   HASH               loop_check_queue;
   uint               loop_check_queue_id;
   const char         *loop_check_queue_func_name;
   const char         *loop_check_queue_file_name;
   ulong              loop_check_queue_line_no;
-  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_first;
-  SPIDER_CONN_LOOP_CHECK *loop_check_ignored_last;
-  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_first;
-  SPIDER_CONN_LOOP_CHECK *loop_check_meraged_last;
 } SPIDER_CONN;
 
 typedef struct st_spider_lgtm_tblhnd_share
@@ -569,6 +846,10 @@ enum spider_hnd_stage {
   SPD_HND_STAGE_CLEAR_TOP_TABLE_FIELDS
 };
 
+/*
+  A wide handler is shared among ha_spider of partitions of the same
+  table. It is owned by the last partition.
+*/
 typedef struct st_spider_wide_handler
 {
   spider_hnd_stage   stage;
@@ -659,6 +940,10 @@ typedef struct st_spider_transaction
   uint               trx_ha_reuse_count;
   XID_STATE          internal_xid_state;
   SPIDER_CONN        *join_trx_top;
+  /*
+    Assigned from the global variable `spider_thread_id', which
+    starts from 1 and increments
+  */
   ulonglong          spider_thread_id;
   ulonglong          trx_conn_adjustment;
   uint               locked_connections;
@@ -705,22 +990,38 @@ typedef struct st_spider_share
   char               *table_name;
   uint               table_name_length;
   uint               use_count;
+  /**
+    Probably equals `active_link_count`. See also commit ddff602 of
+    https://github.com/nayuta-yanagisawa/spider-history
+
+    FIXME: consider removing it and using `active_link_count` instead.
+  */
   uint               link_count;
+  /*
+    Number of all links, i.e. all remote servers for the spider
+    table or partition.
+
+    There's also active_link_count
+  */
   uint               all_link_count;
+  /*
+    The bitmap size of ha_spider::conn_can_fo, where the ha_spider
+    is the one `this' associates with (i.e. spider->share == this)
+  */
   uint               link_bitmap_size;
   pthread_mutex_t    mutex;
   pthread_mutex_t    sts_mutex;
   pthread_mutex_t    crd_mutex;
-/*
-  pthread_mutex_t    auto_increment_mutex;
-*/
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   my_hash_value_type table_name_hash_value;
   my_hash_value_type table_path_hash_value;
 
+  /* Whether the share has been initialised */
   volatile bool      init;
+  /* Whether an error occurred in initialisation of this share */
   volatile bool      init_error;
+  /* The time of the initialisation error */
   volatile time_t    init_error_time;
   volatile bool      link_status_init;
   uchar              *table_mon_mutex_bitmap;
@@ -776,10 +1077,6 @@ typedef struct st_spider_share
 
   MEM_ROOT           mem_root;
 
-/*
-  volatile bool      auto_increment_init;
-  volatile ulonglong auto_increment_lclval;
-*/
   ha_statistics      stat;
 
   longlong           static_records_for_status;
@@ -794,17 +1091,27 @@ typedef struct st_spider_share
   longlong           additional_table_flags;
   bool               have_recovery_link;
 
+  /** See `mysql_sysvar_sts_bg_mode` */
   int                sts_bg_mode;
+  /** See `mysql_sysvar_sts_interval` */
   double             sts_interval;
+  /** See `mysql_sysvar_sts_mode` */
   int                sts_mode;
+  /** See `mysql_sysvar_sts_sync` */
   int                sts_sync;
   int                store_last_sts;
+  /** See `mysql_sysvar_load_sts_at_startup` */
   int                load_sts_at_startup;
+  /** See `mysql_sysvar_crd_bg_mode` */
   int                crd_bg_mode;
+  /** See `mysql_sysvar_crd_interval` */
   double             crd_interval;
+  /** See `mysql_sysvar_crd_mode` */
   int                crd_mode;
+  /** See `mysql_sysvar_crd_sync` */
   int                crd_sync;
   int                store_last_crd;
+  /** See `mysql_sysvar_load_crd_at_startup` */
   int                load_crd_at_startup;
   int                crd_type;
   double             crd_weight;
@@ -842,6 +1149,7 @@ typedef struct st_spider_share
   longlong           bgs_second_read;
   longlong           first_read;
   longlong           second_read;
+  /** See `mysql_sysvar_auto_increment_mode` */
   int                auto_increment_mode;
   int                use_table_charset;
   int                use_pushdown_udf;
@@ -852,6 +1160,8 @@ typedef struct st_spider_share
   int                read_only_mode;
   int                error_read_mode;
   int                error_write_mode;
+  /* Number of active remote servers, for use in load balancing read
+  connections */
   int                active_link_count;
 #ifdef HA_CAN_FORCE_BULK_UPDATE
   int                force_bulk_update;
@@ -874,6 +1184,8 @@ typedef struct st_spider_share
   char               **tgt_usernames;
   char               **tgt_passwords;
   char               **tgt_sockets;
+  /** The wrapper of target servers, each element has the same
+  possible values as `SPIDER_DBTON::wrapper` */
   char               **tgt_wrappers;
   char               **tgt_ssl_cas;
   char               **tgt_ssl_capaths;
@@ -885,12 +1197,14 @@ typedef struct st_spider_share
   char               **tgt_dsns;
   char               **tgt_filedsns;
   char               **tgt_drivers;
+  char               **tgt_odbc_conn_strs;
   char               **static_link_ids;
   char               **tgt_pk_names;
   char               **tgt_sequence_names;
   char               **conn_keys;
   long               *tgt_ports;
   long               *tgt_ssl_vscs;
+  /* See SPIDER_LINK_STATUS_* in spd_include.h */
   long               *link_statuses;
   long               *monitoring_bg_flag;
   long               *monitoring_bg_kind;
@@ -900,10 +1214,10 @@ typedef struct st_spider_share
   longlong           *monitoring_bg_interval;
   longlong           *monitoring_limit;
   longlong           *monitoring_sid;
-  long               *use_handlers;
   long               *connect_timeouts;
   long               *net_read_timeouts;
   long               *net_write_timeouts;
+  /* Connection load balancing integer weight */
   long               *access_balances;
   long               *bka_table_name_types;
   long               *strict_group_bys;
@@ -926,10 +1240,12 @@ typedef struct st_spider_share
   uint               *tgt_dsns_lengths;
   uint               *tgt_filedsns_lengths;
   uint               *tgt_drivers_lengths;
+  uint               *tgt_odbc_conn_strs_lengths;
   uint               *static_link_ids_lengths;
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
   uint               *conn_keys_lengths;
+  /* The index in `spider_dbton' of each data node link. */
   uint               *sql_dbton_ids;
 
   uint               server_names_charlen;
@@ -973,6 +1289,7 @@ typedef struct st_spider_share
   uint               tgt_dsns_length;
   uint               tgt_filedsns_length;
   uint               tgt_drivers_length;
+  uint               tgt_odbc_conn_strs_length;
   uint               static_link_ids_length;
   uint               tgt_pk_names_length;
   uint               tgt_sequence_names_length;
@@ -988,7 +1305,6 @@ typedef struct st_spider_share
   uint               monitoring_bg_interval_length;
   uint               monitoring_limit_length;
   uint               monitoring_sid_length;
-  uint               use_handlers_length;
   uint               connect_timeouts_length;
   uint               net_read_timeouts_length;
   uint               net_write_timeouts_length;
@@ -996,14 +1312,26 @@ typedef struct st_spider_share
   uint               bka_table_name_types_length;
   uint               strict_group_bys_length;
 
-  /* for dbton */
+  /*
+    For dbton. A `SPIDER_SHARE` uses all `SPIDER_DBTON`s with the same
+    wrappers as any its `tgt_wrappers`
+  */
+  /* Specifies which dbtons of the `spider_dbton` to use */
   uchar              dbton_bitmap[spider_bitmap_size(SPIDER_DBTON_SIZE)];
   spider_db_share    *dbton_share[SPIDER_DBTON_SIZE];
+  /* Number of `SPIDER_DBTON`s used */
   uint               use_dbton_count;
+  /* Index of each `SPIDER_DBTON` in `spider_dbton` to use */
+  /* Actual size is `use_dbton_count'. Values are the indices of item
+  in `spider_dbton'. */
   uint               use_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_dbton_ids'. */
   uint               dbton_id_to_seq[SPIDER_DBTON_SIZE];
   uint               use_sql_dbton_count;
+  /* Actual size is `use_sql_dbton_count'. Values are the indices of
+  item in `spider_dbton'. */
   uint               use_sql_dbton_ids[SPIDER_DBTON_SIZE];
+  /* Inverse map of `use_sql_dbton_ids'. */
   uint               sql_dbton_id_to_seq[SPIDER_DBTON_SIZE];
 
   SPIDER_ALTER_TABLE alter_table;
@@ -1016,14 +1344,23 @@ typedef struct st_spider_link_pack
   int                        link_idx;
 } SPIDER_LINK_PACK;
 
+/** A struct storing the initialisation error of a table. All
+instances are in `spider_init_error_tables` */
 typedef struct st_spider_init_error_table
 {
+  /* The associated table name */
   char               *table_name;
+  /* Length of the associated table name */
   uint               table_name_length;
+  /* Hash value of the associated table name for lookup */
   my_hash_value_type table_name_hash_value;
+  /* Whether the error has a message */
   bool               init_error_with_message;
+  /* The error message */
   char               init_error_msg[MYSQL_ERRMSG_SIZE];
+  /* The error code */
   volatile int       init_error;
+  /* The error time */
   volatile time_t    init_error_time;
 } SPIDER_INIT_ERROR_TABLE;
 
@@ -1078,6 +1415,7 @@ typedef struct st_spider_direct_sql
   char                 *tgt_dsn;
   char                 *tgt_filedsn;
   char                 *tgt_driver;
+  char                 *tgt_odbc_conn_str;
   char                 *conn_key;
   long                 tgt_port;
   long                 tgt_ssl_vsc;
@@ -1099,6 +1437,7 @@ typedef struct st_spider_direct_sql
   uint                 tgt_dsn_length;
   uint                 tgt_filedsn_length;
   uint                 tgt_driver_length;
+  uint                 tgt_odbc_conn_str_length;
   uint                 conn_key_length;
   uint                 dbton_id;
   my_hash_value_type   conn_key_hash_value;
@@ -1129,12 +1468,14 @@ typedef struct st_spider_mon_table_result
 
 typedef struct st_spider_table_mon
 {
+  /* This share has only one link. */
   SPIDER_SHARE               *share;
   uint32                     server_id;
   st_spider_table_mon_list   *parent;
   st_spider_table_mon        *next;
 } SPIDER_TABLE_MON;
 
+/* List of `SPIDER_TABLE_MON's */
 typedef struct st_spider_table_mon_list
 {
   char                       *key;
@@ -1154,6 +1495,7 @@ typedef struct st_spider_table_mon_list
   SPIDER_TABLE_MON           *current;
   volatile int               mon_status;
 
+  /* This share has only one link */
   SPIDER_SHARE               *share;
 
   pthread_mutex_t            caller_mutex;
@@ -1167,6 +1509,7 @@ typedef struct st_spider_table_mon_list
 
 typedef struct st_spider_copy_table_conn
 {
+  /* This share has only one link. */
   SPIDER_SHARE               *share;
   int                        link_idx;
   SPIDER_CONN                *conn;
@@ -1211,16 +1554,49 @@ public:
   ulong sort;
 };
 
+/*
+  A SPIDER_TRX_HA contains the HA information of a spider table or
+  partition.
+
+  Each SPIDER_TRX_HA is stored in a hash belonging to a SPIDER_TRX
+  i.e. its trx_ha_hash field.
+
+  It thus may have a different lifespan from the ha_spider or
+  SPIDER_SHARE associated with the same spider table/partition.
+*/
 typedef struct st_spider_trx_ha
 {
+  /*
+    A fully qualified table name, used as the key in
+    SPIDER_TRX::trx_ha_hash
+  */
   char                       *table_name;
   uint                       table_name_length;
-  SPIDER_TRX                 *trx;
+  /*
+    The associated SPIDER_SHARE. Will be used to check against a
+    given SPIDER_SHARE
+  */
   SPIDER_SHARE               *share;
+  /*
+    link_count and link_bitmap_size are read from and checked against
+    the corresponding fields of the associated SPIDER_SHARE.
+  */
   uint                       link_count;
   uint                       link_bitmap_size;
+  /*
+    conn_link_idx and conn_can_fo are read from and written to the
+    corresponding fields of the associated ha_spider.
+  */
   uint                       *conn_link_idx;
   uchar                      *conn_can_fo;
+  /*
+    TODO: better documentation of this field.
+
+    By assigning true to wait_for_reusing, in
+    spider_check_trx_and_get_conn the fields of the spider handler
+    will be updated using the trx, as well as some other small
+    behavioural differences there.
+  */
   bool                       wait_for_reusing;
 } SPIDER_TRX_HA;
 
@@ -1237,10 +1613,8 @@ typedef struct st_spider_item_hld
 {
   uint               tgt_num;
   Item               *item;
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
   bool               init_mem_root;
   MEM_ROOT           mem_root;
-#endif
   st_spider_item_hld *next;
 } SPIDER_ITEM_HLD;
 

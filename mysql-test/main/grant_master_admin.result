@@ -30,6 +30,7 @@ connection con1;
 SHOW SLAVE HOSTS;
 Server_id	Host	Port	Master_id
 connection default;
+disconnect con1;
 DROP USER user1@localhost;
 #
 # End of 10.5 tests

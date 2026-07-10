@@ -1,5 +1,5 @@
---- suite/storage_engine/show_engine.result	2017-03-12 04:57:07.169911845 +0200
-+++ suite/storage_engine/show_engine.reject	2017-08-14 22:58:15.508554871 +0300
+--- suite/storage_engine/show_engine.result
++++ suite/storage_engine/show_engine.reject
 @@ -4,7 +4,11 @@
  # volatile data (timestamps, memory info, etc.)
  SHOW ENGINE <STORAGE_ENGINE> STATUS;

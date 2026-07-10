@@ -1,0 +1,14 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+log-bin=mysqld-bin
+log-slave-updates
+binlog-format=ROW
+
+gtid_strict_mode=ON
+gtid_domain_id=10
+
+[mysqld.1]
+wsrep_gtid_mode=ON
+[mysqld.2]
+wsrep_gtid_mode=ON

@@ -26,11 +26,11 @@ public:
 	ZIPDEF(void) = default;
 
 	// Implementation
-	virtual const char *GetType(void) {return "ZIP";}
+	const char *GetType(void) override {return "ZIP";}
 
 	// Methods
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-	virtual PTDB GetTable(PGLOBAL g, MODE m);
+	bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+	PTDB GetTable(PGLOBAL g, MODE m) override;
 
 protected:
 	// Members
@@ -47,22 +47,22 @@ public:
 	TDBZIP(PZIPDEF tdp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
-	virtual PCSZ GetFile(PGLOBAL) {return zfn;}
-	virtual void SetFile(PGLOBAL, PCSZ fn) {zfn = fn;}
+	AMT  GetAmType(void) override {return TYPE_AM_ZIP;}
+	PCSZ GetFile(PGLOBAL) override {return zfn;}
+	void SetFile(PGLOBAL, PCSZ fn) override {zfn = fn;}
 
 	// Methods
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-	virtual int  Cardinality(PGLOBAL g);
-	virtual int  GetMaxSize(PGLOBAL g);
-	virtual int  GetRecpos(void) {return 0;}
+	PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+	int  Cardinality(PGLOBAL g) override;
+	int  GetMaxSize(PGLOBAL g) override;
+	int  GetRecpos(void) override {return 0;}
 
 	// Database routines
-	virtual bool OpenDB(PGLOBAL g);
-	virtual int  ReadDB(PGLOBAL g);
-	virtual int  WriteDB(PGLOBAL g);
-	virtual int  DeleteDB(PGLOBAL g, int irc);
-	virtual void CloseDB(PGLOBAL g);
+	bool OpenDB(PGLOBAL g) override;
+	int  ReadDB(PGLOBAL g) override;
+	int  WriteDB(PGLOBAL g) override;
+	int  DeleteDB(PGLOBAL g, int irc) override;
+	void CloseDB(PGLOBAL g) override;
 
 protected:
 	bool open(PGLOBAL g, const char *filename);
@@ -87,10 +87,10 @@ public:
 	ZIPCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ZIP");
 
 	// Implementation
-	virtual int  GetAmType(void) { return TYPE_AM_ZIP; }
+	int  GetAmType(void) override { return TYPE_AM_ZIP; }
 
 	// Methods
-	virtual void ReadColumn(PGLOBAL g);
+	void ReadColumn(PGLOBAL g) override;
 
 protected:
 	// Default constructor not to be used

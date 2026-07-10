@@ -42,32 +42,26 @@ select pk,
 from t1
 order by pk asc;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 select pk,
        a,
-       nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following)
+       nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following) as nth
 from t1;
---enable_view_protocol
 
-#enable after fix MDEV-28535
---disable_view_protocol
 select pk,
        a,
-       nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 2) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 3) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 4) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 5) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 6) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 7) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 8) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 9) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 10) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 11) over (order by a RANGE BETWEEN 1 preceding and 1 following),
-       nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following)
+       nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth1,
+       nth_value(a, 2) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth2,
+       nth_value(a, 3) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth3,
+       nth_value(a, 4) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth4,
+       nth_value(a, 5) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth5,
+       nth_value(a, 6) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth6,
+       nth_value(a, 7) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth7,
+       nth_value(a, 8) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth8,
+       nth_value(a, 9) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth9,
+       nth_value(a, 10) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth10,
+       nth_value(a, 11) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth11,
+       nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following) as nth12
 from t1
 order by pk asc;
---enable_view_protocol
 
 drop table t1;

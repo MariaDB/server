@@ -22,7 +22,7 @@ INSERT INTO t1 VALUES (2, "bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 connection node_1a;
 SET GLOBAL wsrep_provider_options = 'signal=gcs_core_after_frag_send';
 connection node_1;
-ERROR HY000: Got error 6 "No such device or address" during COMMIT
+ERROR HY000: Error while appending streaming replication fragment(provider status: Not connected to Primary Component)
 INSERT INTO t1 VALUES (3, "cccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 SELECT * FROM t1;
 f1	f2

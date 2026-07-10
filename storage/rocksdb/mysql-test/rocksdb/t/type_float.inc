@@ -56,6 +56,8 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (-9999
 --sorted_result
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1
 
+#Enable after fix MDEV-34624
+--disable_cursor_protocol
 --sorted_result
 query_vertical
 SELECT
@@ -89,6 +91,7 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
 --sorted_result
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1
 
+--enable_prepare_warnings
 INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
   999999999999999999999999999999999999999,
   999999999999999999999999999999999999999.9999999999999999,
@@ -102,6 +105,7 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
   19999999999999999999999999999999999999999999.9999999999,
   6
 );
+--disable_prepare_warnings
 
 --sorted_result
 --query_vertical SELECT f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10 FROM t1
@@ -116,6 +120,7 @@ eval ALTER TABLE t1 ADD COLUMN n66_6 DECIMAL(256,1) $extra_col_opts;
 # Error occurs on MySQL but not on MariaDB:
 # --error ER_TOO_BIG_SCALE
 eval ALTER TABLE t1 ADD COLUMN n66_66 DECIMAL(40,35) $extra_col_opts;
+--enable_cursor_protocol
 
 DROP TABLE t1;
 

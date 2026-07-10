@@ -1,0 +1,84 @@
+#
+# DuckDB DROP DATABASE operations test
+#
+# Test 1: Basic CREATE/DROP DATABASE with DuckDB table
+CREATE DATABASE IF NOT EXISTS db_duck1 CHARACTER SET utf8mb4;
+USE db_duck1;
+CREATE TABLE t1 (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
+SELECT * FROM t1 ORDER BY id;
+id	val
+1	one
+2	two
+3	three
+USE test;
+DROP DATABASE db_duck1;
+USE db_duck1;
+ERROR 42000: Unknown database 'db_duck1'
+# Test 2: Re-create same database after DROP
+CREATE DATABASE db_duck1 CHARACTER SET utf8mb4;
+USE db_duck1;
+CREATE TABLE t1 (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (10, 'ten');
+SELECT * FROM t1 ORDER BY id;
+id	val
+10	ten
+USE test;
+DROP DATABASE db_duck1;
+# Test 3: DROP DATABASE with multiple DuckDB tables
+CREATE DATABASE db_duck2 CHARACTER SET utf8mb4;
+USE db_duck2;
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT) ENGINE = DuckDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, b VARCHAR(20)) ENGINE = DuckDB;
+CREATE TABLE t3 (id INT PRIMARY KEY, c DECIMAL(10,2)) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (1, 100), (2, 200);
+INSERT INTO t2 VALUES (1, 'alpha'), (2, 'beta');
+INSERT INTO t3 VALUES (1, 1.11), (2, 2.22);
+SELECT * FROM t1 ORDER BY id;
+id	a
+1	100
+2	200
+SELECT * FROM t2 ORDER BY id;
+id	b
+1	alpha
+2	beta
+SELECT * FROM t3 ORDER BY id;
+id	c
+1	1.11
+2	2.22
+USE test;
+DROP DATABASE db_duck2;
+CREATE DATABASE db_duck2 CHARACTER SET utf8mb4;
+USE db_duck2;
+CREATE TABLE t1 (id INT PRIMARY KEY, x INT) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (1, 999);
+SELECT * FROM t1;
+id	x
+1	999
+USE test;
+DROP DATABASE db_duck2;
+# Test 4: DROP DATABASE with special name
+CREATE DATABASE `my-duck-db` CHARACTER SET utf8mb4;
+USE `my-duck-db`;
+CREATE TABLE t1 (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (1, 'special');
+SELECT * FROM t1;
+id	val
+1	special
+USE test;
+DROP DATABASE `my-duck-db`;
+# Test 5: DROP DATABASE IF EXISTS on non-existent DB
+DROP DATABASE IF EXISTS db_nonexistent_duck;
+Warnings:
+Note	1008	Can't drop database 'db_nonexistent_duck'; database doesn't exist
+# Test 6: CREATE/DROP DATABASE interleaved with DML on test
+CREATE DATABASE db_duck3 CHARACTER SET utf8mb4;
+USE db_duck3;
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT) ENGINE = DuckDB;
+INSERT INTO t1 VALUES (1, 10);
+SELECT * FROM t1;
+id	val
+1	10
+USE test;
+DROP DATABASE db_duck3;
+# All tests passed

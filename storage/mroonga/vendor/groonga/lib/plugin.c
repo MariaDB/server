@@ -127,7 +127,7 @@ grn_plugin_path(grn_ctx *ctx, grn_id id)
   value_size = grn_hash_get_value(&grn_plugins_ctx, grn_plugins, id, &plugin);
   CRITICAL_SECTION_LEAVE(grn_plugins_lock);
 
-  if (!plugin) {
+  if (!plugin || !value_size) {
     return NULL;
   }
 

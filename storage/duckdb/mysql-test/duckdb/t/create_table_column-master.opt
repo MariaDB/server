@@ -1,0 +1,2 @@
+--duckdb_require_primary_key=off
+--default-time-zone=+00:00

@@ -162,7 +162,7 @@ static bool row_build_spatial_index_key(
 
 write_mbr:
 	if (dlen <= GEO_DATA_HEADER_SIZE) {
-		for (uint i = 0; i < SPDIMS; i += 2) {
+		for (uint i = 0; i < 2 * SPDIMS; i += 2) {
 			tmp_mbr[i] = DBL_MAX;
 			tmp_mbr[i + 1] = -DBL_MAX;
 		}
@@ -215,28 +215,20 @@ row_build_index_entry_low(
 		entry = dtuple_create(heap, entry_len);
 	}
 
-	if (dict_index_is_ibuf(index)) {
-		dtuple_set_n_fields_cmp(entry, entry_len);
-		/* There may only be externally stored columns
-		in a clustered index B-tree of a user table. */
-		ut_a(!ext);
-	} else {
-		dtuple_set_n_fields_cmp(
-			entry, dict_index_get_n_unique_in_tree(index));
-		if (dict_index_is_spatial(index)) {
-			/* Set the MBR field */
-			if (!row_build_spatial_index_key(
-				    index, ext,
-				    dtuple_get_nth_field(entry, 0),
-				    dtuple_get_nth_field(
-					    row,
-					    dict_index_get_nth_field(index, i)
-					    ->col->ind), flag, heap)) {
-				return NULL;
-			}
-
-			i = 1;
+	dtuple_set_n_fields_cmp(entry, dict_index_get_n_unique_in_tree(index));
+	if (index->is_spatial()) {
+		/* Set the MBR field */
+		if (!row_build_spatial_index_key(
+			    index, ext,
+			    dtuple_get_nth_field(entry, 0),
+			    dtuple_get_nth_field(
+				    row,
+				    dict_index_get_nth_field(index, i)
+				    ->col->ind), flag, heap)) {
+			return NULL;
 		}
+
+		i = 1;
 	}
 
 	for (; i < entry_len; i++) {
@@ -250,6 +242,14 @@ row_build_index_entry_low(
 			dict_col_copy_type(f.col, &dfield->type);
 			if (f.col->is_nullable()) {
 				dfield_set_null(dfield);
+				if (f.col->mtype == DATA_BINARY
+				    && !dict_table_is_comp(index->table)) {
+					/* In case of redundant row format,
+					if the non-fixed dropped column
+					is null then set the length of the
+					field data type as 0 */
+					dfield->type.len= 0;
+				}
 			} else {
 				dfield_set_data(dfield, field_ref_zero,
 						f.fixed_len);
@@ -764,7 +764,7 @@ row_rec_to_index_entry_impl(
 		ut_ad(info_bits == 0);
 		ut_ad(!pad);
 	}
-	dtuple_t* entry = dtuple_create(heap, rec_len);
+	dtuple_t* entry = dtuple_create(heap, uint16_t(rec_len));
 	dfield_t* dfield = entry->fields;
 
 	dtuple_set_n_fields_cmp(entry,
@@ -861,7 +861,7 @@ copy_user_fields:
 	}
 
 	if (mblob == 2) {
-		ulint n_fields = ulint(dfield - entry->fields);
+		uint16_t n_fields = uint16_t(dfield - entry->fields);
 		ut_ad(entry->n_fields >= n_fields);
 		entry->n_fields = n_fields;
 	}
@@ -1262,8 +1262,8 @@ row_get_clust_rec(
 
 /***************************************************************//**
 Searches an index record.
-@return whether the record was found or buffered */
-enum row_search_result
+@return whether the record was found */
+bool
 row_search_index_entry(
 /*===================*/
 	const dtuple_t*	entry,	/*!< in: index entry */
@@ -1272,47 +1272,14 @@ row_search_index_entry(
 				be closed by the caller */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ulint	n_fields;
-	ulint	low_match;
-	rec_t*	rec;
-
 	ut_ad(dtuple_check_typed(entry));
 
 	if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, mtr) != DB_SUCCESS) {
-		return ROW_NOT_FOUND;
+		return false;
 	}
 
-	switch (btr_pcur_get_btr_cur(pcur)->flag) {
-	case BTR_CUR_DELETE_REF:
-		ut_ad(!(~mode & BTR_DELETE));
-		return(ROW_NOT_DELETED_REF);
-
-	case BTR_CUR_DEL_MARK_IBUF:
-	case BTR_CUR_DELETE_IBUF:
-	case BTR_CUR_INSERT_TO_IBUF:
-		return(ROW_BUFFERED);
-
-	case BTR_CUR_HASH:
-	case BTR_CUR_HASH_FAIL:
-	case BTR_CUR_BINARY:
-		break;
-	}
-
-	low_match = btr_pcur_get_low_match(pcur);
-
-	rec = btr_pcur_get_rec(pcur);
-
-	n_fields = dtuple_get_n_fields(entry);
-
-	if (page_rec_is_infimum(rec)) {
-
-		return(ROW_NOT_FOUND);
-	} else if (low_match != n_fields) {
-
-		return(ROW_NOT_FOUND);
-	}
-
-	return(ROW_FOUND);
+	return !btr_pcur_is_before_first_on_page(pcur)
+		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields(entry);
 }
 
 /*******************************************************************//**
@@ -1399,18 +1366,18 @@ row_raw_format_str(
 
 	charset_coll = dtype_get_charset_coll(prtype);
 
-	if (UNIV_LIKELY(dtype_is_utf8(prtype))) {
-
+	switch (charset_coll) {
+	case 11: /* ascii_general_ci */
+	case 65: /* ascii_bin */
+	case 33: /* utf8_general_ci */
+	case 83: /* utf8_bin */
+	case 254: /* utf8_general_cs */
 		return(ut_str_sql_format(data, data_len, buf, buf_size));
-	}
-	/* else */
-
-	if (charset_coll == DATA_MYSQL_BINARY_CHARSET_COLL) {
-
+	case 0:
+	case DATA_MYSQL_BINARY_CHARSET_COLL:
 		*format_in_hex = TRUE;
 		return(0);
 	}
-	/* else */
 
 	return(innobase_raw_format(data, data_len, charset_coll,
 					  buf, buf_size));
@@ -1471,9 +1438,18 @@ row_raw_format(
 		break;
 	case DATA_CHAR:
 	case DATA_VARCHAR:
+		/* FTS_%_CONFIG.key are incorrectly created with prtype==0.
+		The DATA_ENGLISH is being used for CHAR columns of the
+		InnoDB internal SQL parser, such as SYS_FOREIGN.ID.
+		For these, we will eventually goto format_in_hex. */
+		ut_ad(dtype_get_charset_coll(prtype) == 8
+		      || (mtype == DATA_VARCHAR
+			  && (prtype == 0 || prtype == DATA_ENGLISH)));
+		goto format_str;
 	case DATA_MYSQL:
 	case DATA_VARMYSQL:
-
+		ut_ad(dtype_get_charset_coll(prtype));
+	format_str:
 		ret = row_raw_format_str(data, data_len, prtype,
 					 buf, buf_size, &format_in_hex);
 		if (format_in_hex) {

@@ -95,7 +95,7 @@ Comments=
 [HistoryLists\hlIncludePath]
 Count=2
 Item0=$(BCB)\include;$(BCB)\include\vcl;..\..\..\include
-Item1=$(BCB)\include;$(BCB)\include\vcl;..\..\..\inluce
+Item1=$(BCB)\include;$(BCB)\include\vcl;..\..\..\include
 
 [HistoryLists\hlLibraryPath]
 Count=1

@@ -1,0 +1,173 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+# Test does a lot of queries that take a lot of CPU under Valgrind.
+--source include/not_valgrind.inc
+
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Aborting");
+
+# Test provisioning a slave from an existing server, using mariabackup --no-lock
+# and the binlog position recovered from InnoDB redo log.
+
+# Update the InnoDB system tablespace to simulate a pre-10.3.5
+# position in TRX_SYS. There was a bug that the wrong position could
+# be recovered if the old filename in TRX_SYS compares newer than the
+# newer filenames stored in rseg headers.
+let MYSQLD_DATADIR=`select @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+--source include/shutdown_mysqld.inc
+
+--perl
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/ibdata1", O_RDWR
+  or die "Cannot open ibdata1: $!\n";
+
+# Read the TRX_SYS page.
+my $page;
+sysseek(IBD_FILE, $ps * 5, SEEK_SET)
+  or die "Cannot seek ibdata1: $!\n";
+sysread(IBD_FILE, $page, $ps)
+  or die "Cannot read ibdata1: $!\n";
+
+# Put in an old binlog position that will compare larger than master-bin.000001
+my $old_name= '~~~-bin.999999' . chr(0);
+my $old_off= 0xffff0000;
+my $old_magic= 873422344;
+my $binlog_offset= $ps - 1000 + 38;
+substr($page, $binlog_offset, 4)= pack('N', $old_magic);
+substr($page, $binlog_offset + 4, 4)= pack('N', ($old_off >> 32));
+substr($page, $binlog_offset + 8, 4)= pack('N', ($old_off & 0xffffffff));
+substr($page, $binlog_offset + 12, length($old_name))= $old_name;
+
+# Write back the modified page.
+my $full_crc32= get_full_crc32(\*IBD_FILE);
+$page= fix_page_crc($page, $full_crc32);
+sysseek(IBD_FILE, $ps * 5, SEEK_SET)
+  or die "Cannot seek ibdata1: $!\n";
+syswrite(IBD_FILE, $page, $ps) == $ps
+  or die "Cannot write ibdata1: $!\n";
+close IBD_FILE;
+EOF
+
+--source include/start_mysqld.inc
+
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+
+RESET MASTER;
+CREATE TABLE t1(a varchar(60) PRIMARY KEY, b VARCHAR(60)) ENGINE INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+CREATE TABLE t2 (val INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (0);
+
+--disable_query_log
+--delimiter //
+CREATE PROCEDURE gen_load()
+  MODIFIES SQL DATA
+  BEGIN
+    DECLARE i INT;
+    DECLARE flag TYPE OF t2.val;
+    SET i = 0;
+    load_loop: LOOP
+      SELECT val INTO flag FROM t2;
+      IF NOT (flag=0) THEN
+        LEAVE load_loop;
+      END IF;
+      START TRANSACTION;
+      INSERT INTO t1 VALUES (CONCAT("AbAdCaFe", LPAD(i, 6, "0")), @@SESSION.last_gtid);
+      COMMIT;
+      SET i = i + 1;
+    END LOOP;
+  END
+//
+--delimiter ;
+--enable_query_log
+
+connect (con1,localhost,root,,);
+--echo *** Start a background load...
+send CALL gen_load();
+
+--connection default
+--echo *** Doing backup...
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --no-lock
+--echo *** Doing prepare...
+--exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir
+
+--echo *** Stop the background load...
+UPDATE t2 SET val=1;
+--connection con1
+reap;
+--connection default
+disconnect con1;
+--let $count_master= `SELECT COUNT(*) FROM t1`
+
+--echo *** Provision a new slave from the backup
+--connect (server2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--let $datadir_2= `SELECT @@datadir`
+
+--echo *** Stopping provisioned server
+--source include/shutdown_mysqld.inc
+
+--echo *** Removing old datadir for provisioned server
+--rmdir $datadir_2
+
+--echo *** Provision new server from backup
+--exec $XTRABACKUP --copy-back --datadir=$datadir_2 --target-dir=$basedir
+
+# --no-lock backup might leave prepared xa transactions. rollback them.
+--error 1
+--exec $MYSQLD_LAST_CMD --tc-heuristic-recover=ROLLBACK
+--source include/start_mysqld.inc
+
+--echo *** Configure slave position from xtrabackup_binlog_pos_innodb
+CREATE TABLE t3 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
+--replace_result $basedir BASEDIR
+--disable_warnings
+eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
+     INTO TABLE t3 FIELDS ESCAPED BY '' (file, pos);
+--enable_warnings
+
+# Remove leading ./ from filename (leading .\ on windows).
+--let provision_master_file= `SELECT REGEXP_REPLACE(file, "^[.].", "") FROM t3`
+--let provision_master_pos= `SELECT pos FROM t3`
+
+--replace_result $SERVER_MYPORT_1 PORT $provision_master_file MASTER_FILE $provision_master_pos MASTER_POS
+eval CHANGE MASTER TO
+  master_ssl_verify_server_cert=0,
+  master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
+  master_log_file= "$provision_master_file",
+  master_log_pos= $provision_master_pos;
+START SLAVE;
+
+--connection default
+--save_master_pos
+
+--connection server2
+--sync_with_master
+--let $count_slave= `SELECT COUNT(*) FROM t1`
+if ($count_master != $count_slave) {
+  --echo *** ERROR: Table on master has $count_master rows, but table on provisioned slave has $count_slave rows
+  --die Row difference on provisioned slave.
+}
+
+# Cleanup
+
+--connection server2
+STOP SLAVE;
+RESET SLAVE ALL;
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2, t3;
+
+--connection default
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2;
+
+rmdir $basedir;

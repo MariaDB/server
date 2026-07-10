@@ -67,8 +67,8 @@ if (-d '../sql') {
   @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', );
   $overlay_regex= '\b(?:storage|plugin|storage[/][^/]*)/(\w+)/mysql-test\b';
 } else {
-  @plugin_suitedirs= ('mysql-test/plugin/*');
-  $overlay_regex= '\bmysql-test/plugin/(\w+)\b';
+  @plugin_suitedirs= ('mariadb-test/plugin/*');
+  $overlay_regex= '\bmariadb-test/plugin/(\w+)\b';
 }
 $plugin_suitedir_regex= $overlay_regex;
 $plugin_suitedir_regex=~ s/\Q(\w+)\E/\\w+/;
@@ -84,7 +84,7 @@ sub init_pattern {
   return undef unless defined $from;
   if ( $from =~ /^[a-z0-9\.]*$/ ) {
     # Does not contain any regex (except . that we allow as
-    # separator betwen suite and testname), make the pattern match
+    # separator between suite and testname), make the pattern match
     # beginning of string
     $from= "^$from";
     mtr_verbose2("$what='$from'");
@@ -154,7 +154,17 @@ sub collect_test_cases ($$$$) {
         {
 	  push (@$cases, @this_case);
 	}
-	else
+	elsif ($::opt_skip_not_found)
+        {
+          push @$cases, My::Test->new
+            (
+             name          => "$sname.$tname",
+             shortname     => $tname,
+             skip          => 1,
+             comment       => 'not found',
+            );
+        }
+        else
 	{
 	  mtr_error("Could not find '$tname' in '$sname' suite");
         }
@@ -174,7 +184,7 @@ sub collect_test_cases ($$$$) {
       #
       # Collect the criteria for sorting, in order of importance.
       # Note that criteria are also used in mysql-test-run.pl to
-      # schedule tests to workers, and it preferres tests that have
+      # schedule tests to workers, and it prefers tests that have
       # *identical* criteria. That is, test name is *not* part of
       # the criteria, but it's part of the sorting function below.
       #
@@ -278,8 +288,8 @@ sub load_suite_object {
 sub suite_for_file($) {
   my ($file) = @_;
   return ($2, $1) if $file =~ m@^(.*/$plugin_suitedir_regex/(\w+))/@o;
-  return ($2, $1) if $file =~ m@^(.*/mysql-test/suite/(\w+))/@;
-  return ('main', $1) if $file =~ m@^(.*/mysql-test)/@;
+  return ($2, $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test/suite/(\w+))/@;
+  return ('main', $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test)/@;
   mtr_error("Cannot determine suite for $file");
 }
 
@@ -387,14 +397,15 @@ sub collect_suite_name($$)
     else
     {
       my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
-                             ["mysql-test/suite", @plugin_suitedirs ],
-                             $suitename);
+                             ["mariadb-test/suite", "mysql-test/suite", @plugin_suitedirs ],
+                             $suitename,
+                             $::opt_skip_not_found ? NOT_REQUIRED : undef);
       #
       # if $suitename contained wildcards, we'll have many suites and
       # their overlays here. Let's group them appropriately.
       #
       for (@dirs) {
-        m@^.*/(?:mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
+        m@^.*/(?:mariadb-test/suite|mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
         push @{$suites{$1}}, $_;
       }
     }
@@ -476,7 +487,7 @@ sub process_suite {
 					     $suitedir));
 
   #
-  # Read suite config files, unless it was done aleady
+  # Read suite config files, unless it was done already
   #
   unless (defined $suite->{name}) {
     $suite->{name} = $suitename;
@@ -614,7 +625,7 @@ sub make_combinations($$@)
 {
   my ($test, $test_combs, @combinations) = @_;
 
-  return ($test) if $test->{'skip'} or not @combinations;
+  return ($test) unless @combinations;
   if ($combinations[0]->{skip}) {
     $test->{skip} = 1;
     $test->{comment} = $combinations[0]->{skip} unless $test->{comment};
@@ -646,6 +657,8 @@ sub make_combinations($$@)
       last;
     }
   }
+
+  return ($test) if $test->{'skip'};
 
   my @cases;
   foreach my $comb (@combinations)
@@ -880,6 +893,12 @@ sub collect_one_test_case {
   }
   my @no_combs = grep { $test_combs{$_} == 1 } keys %test_combs;
   if (@no_combs) {
+    if ($::opt_skip_not_found) {
+      push @{$tinfo->{combinations}}, @no_combs;
+      $tinfo->{'skip'}= 1;
+      $tinfo->{'comment'}= "combination not found";
+      return $tinfo;
+    }
     mtr_error("Could not run $name with '".(
         join(',', sort @no_combs))."' combination(s)");
   }
@@ -1097,7 +1116,7 @@ sub get_tags_from_file($$) {
   $file_to_tags{$file}= $tags;
   $file_to_master_opts{$file}= $master_opts;
   $file_to_slave_opts{$file}= $slave_opts;
-  $file_combinations{$file}= [ ::uniq(@combinations) ];
+  $file_combinations{$file}= [ sort ::uniq(@combinations) ];
   $file_in_overlay{$file} = 1 if $in_overlay;
 
   return @{$tags};

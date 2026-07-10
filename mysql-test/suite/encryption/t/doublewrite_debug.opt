@@ -1,0 +1,3 @@
+--innodb-use-atomic-writes=0
+--innodb-encrypt-tables=on
+--innodb_sys_tablespaces

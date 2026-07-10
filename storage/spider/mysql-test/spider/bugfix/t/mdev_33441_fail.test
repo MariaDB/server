@@ -1,0 +1,10 @@
+--source include/have_debug.inc
+--echo #
+--echo # MDEV-33441 No spider variables available is Spider is loaded upon server startup
+--echo #
+# We test that when retry fails, spider variables are deleted.
+select * from mysql.plugin;
+show variables like 'spider%';
+--echo #
+--echo # end of test mdev_33441_fail
+--echo #

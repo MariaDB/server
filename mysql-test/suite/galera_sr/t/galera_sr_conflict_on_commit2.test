@@ -6,7 +6,7 @@
 # 
 # 1. Node #1 begins a transaction that is SR replicated
 # 2. Node #2 begins a conflicting transaction, hangs
-# 3. Node #1 comits
+# 3. Node #1 commits
 # 4. Node #2 gets a dup key error
 #
 

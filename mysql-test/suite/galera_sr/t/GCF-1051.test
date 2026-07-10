@@ -47,5 +47,4 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 SELECT COUNT(*) = 0 FROM t1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 
-
 DROP TABLE t1;

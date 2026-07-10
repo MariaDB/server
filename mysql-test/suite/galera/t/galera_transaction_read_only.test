@@ -55,4 +55,3 @@ COMMIT;
 --enable_query_log
 
 DROP TABLE t1;
-

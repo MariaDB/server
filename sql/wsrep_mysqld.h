@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2026 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,6 +68,7 @@ extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
 extern const char* wsrep_status_file;
+extern const char* wsrep_allowlist;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
 extern my_bool     wsrep_desync;
@@ -77,7 +78,6 @@ extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
 extern my_bool     wsrep_restart_slave;
-extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern ulong       wsrep_trx_fragment_unit;
@@ -91,6 +91,9 @@ extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
+extern uint        wsrep_applier_retry_count;
+extern char *wsrep_sst_tmp_dir_real;
+extern const char *wsrep_sst_tmp_dir;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -130,7 +133,8 @@ enum enum_wsrep_mode {
   WSREP_MODE_REPLICATE_MYISAM= (1ULL << 3),
   WSREP_MODE_REPLICATE_ARIA= (1ULL << 4),
   WSREP_MODE_DISALLOW_LOCAL_GTID= (1ULL << 5),
-  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6)
+  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6),
+  WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST= (1ULL << 7)
 };
 
 // Streaming Replication
@@ -146,7 +150,6 @@ extern const char *wsrep_SR_store_types[];
 
 // MySQL status variables
 extern my_bool     wsrep_connected;
-extern my_bool     wsrep_ready;
 extern const char* wsrep_cluster_state_uuid;
 extern long long   wsrep_cluster_conf_id;
 extern const char* wsrep_cluster_status;
@@ -161,11 +164,12 @@ extern char*       wsrep_cluster_capabilities;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
                        system_status_var *status_var, enum_var_type scope);
-int  wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff);
+int  wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
+                      system_status_var *, enum_var_type);
 void wsrep_free_status(THD *thd);
 void wsrep_update_cluster_state_uuid(const char* str);
 
-/* Filters out --wsrep-new-cluster oprtion from argv[]
+/* Filters out --wsrep-new-cluster option from argv[]
  * should be called in the very beginning of main() */
 void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
@@ -208,7 +212,7 @@ extern void wsrep_close_applier_threads(int count);
 /* new defines */
 extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication(const char *wsrep_cluster_address);
-extern void wsrep_shutdown_replication();
+extern void wsrep_shutdown();
 extern bool wsrep_check_mode (enum_wsrep_mode mask);
 extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
                                                TABLE_LIST *tables);
@@ -222,6 +226,7 @@ extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 extern bool wsrep_reload_ssl();
+extern bool wsrep_split_allowlist(std::vector<std::string>& allowlist);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
@@ -276,7 +281,6 @@ static inline bool wsrep_cluster_address_exists()
 }
 
 extern my_bool wsrep_ready_get();
-extern void wsrep_ready_wait();
 
 extern mysql_mutex_t LOCK_wsrep_ready;
 extern mysql_cond_t  COND_wsrep_ready;
@@ -354,7 +358,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables= nullptr,
                              const HA_CREATE_INFO* create_info= nullptr);
 
-bool wsrep_should_replicate_ddl(THD* thd, const handlerton *db_type);
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
 
 void wsrep_to_isolation_end(THD *thd);
@@ -501,17 +505,10 @@ void wsrep_init_gtid();
 bool wsrep_check_gtid_seqno(const uint32&, const uint32&, uint64&);
 bool wsrep_get_binlog_gtid_seqno(wsrep_server_gtid_t&);
 
-typedef struct wsrep_key_arr
-{
-    wsrep_key_t* keys;
-    size_t       keys_len;
-} wsrep_key_arr_t;
-bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                      const char*       db,
-                                      const char*       table,
-                                      const TABLE_LIST* table_list,
-                                      wsrep_key_arr_t*  ka);
-void wsrep_keys_free(wsrep_key_arr_t* key_arr);
+int wsrep_append_table_keys(THD* thd,
+                            TABLE_LIST* first_table,
+                            TABLE_LIST* table_list,
+                            Wsrep_service_key_type key_type);
 
 extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
@@ -596,6 +593,45 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
 wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
                                      enum wsrep::key::type type);
 
+/**
+ * Wait until wsrep has reached ready state
+ * @return true if the node is ready, false if it's in shutdown
+ *
+ * @note The function may spuriously stop waiting and return
+ * readiness indication while in reality the node is not being
+ * ready. It's the best effort, and it's false-positive.
+ * In contrast, returning false is guaranteed to only happen
+ * when the node is indeed in shutdown.
+ */
+bool wsrep_wait_ready(THD *thd);
+void wsrep_ready_set(bool ready_value);
+
+/**
+ * Returns true if the given list of tables contains at least one
+ * non-temporary table.
+ */
+bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
+
+/**
+ * Append foreign key to wsrep.
+ *
+ * @param thd           Thread object
+ * @param fk            Foreign Key Info
+ *
+ * @return true if error, otherwise false.
+ */
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
+
+void wsrep_report_query_interrupted(const THD *thd, const char* file, const int line);
+
+/** Return wsrep server uuid.
+ */
+const std::string wsrep_get_server_uuid();
+
+/** Return full wsrep strorage engine checkpoint.
+ */
+const std::string wsrep_get_checkpoint();
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support
@@ -611,7 +647,6 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
-#define wsrep_should_replicate_ddl(X,Y) (1)
 #define wsrep_cluster_address_exists() (false)
 #define WSREP_MYSQL_DB (0)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)

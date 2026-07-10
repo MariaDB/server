@@ -209,24 +209,6 @@ typedef	byte	fseg_inode_t;
 
 static constexpr byte FSEG_MAGIC_N_BYTES[4]={0x05,0xd6,0x69,0xd2};
 
-#define	FSEG_FILLFACTOR		8	/* If the number of unused but reserved
-					pages in a segment is less than
-					reserved pages / FSEG_FILLFACTOR,
-					and there are
-					at least FSEG_FRAG_LIMIT used pages,
-					then we allow a new empty extent to
-					be added to the segment in
-					fseg_alloc_free_page_general().
-					Otherwise, we
-					use unused pages of the segment. */
-
-#define FSEG_FRAG_LIMIT		FSEG_FRAG_ARR_N_SLOTS
-					/* If the segment has >= this many
-					used pages, it may be expanded by
-					allocating extents to the segment;
-					until that only individual fragment
-					pages are allocated from the space */
-
 #define	FSEG_FREE_LIST_LIMIT	40	/* If the reserved size of a segment
 					is at least this many extents, we
 					allow extents to be put to the free
@@ -294,7 +276,7 @@ Determine if a page is marked free.
 @param[in]	descr	extent descriptor
 @param[in]	offset	page offset within extent
 @return whether the page is free */
-inline bool xdes_is_free(const xdes_t *descr, ulint offset)
+inline bool xdes_is_free(const xdes_t *descr, uint32_t offset)
 {
   ut_ad(offset < FSP_EXTENT_SIZE);
   ulint index= XDES_FREE_BIT + XDES_BITS_PER_PAGE * offset;
@@ -351,6 +333,9 @@ fsp_header_check_encryption_key(
 dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+buf_block_t* fsp_page_create(fil_space_t *space, uint32_t offset,
+                             mtr_t *mtr) noexcept;
+
 /** Create a new segment.
 @param space                tablespace
 @param byte_offset          byte offset of the created segment header
@@ -373,9 +358,9 @@ and how many pages are currently used.
 @param[out]     used    number of pages that are used (not more than reserved)
 @param[in,out]  mtr     mini-transaction
 @return number of reserved pages */
-ulint fseg_n_reserved_pages(const buf_block_t &block,
-                            const fseg_header_t *header, ulint *used,
-                            mtr_t *mtr)
+uint32_t fseg_n_reserved_pages(const buf_block_t &block,
+                               const fseg_header_t *header, uint32_t *used,
+                               mtr_t *mtr) noexcept
   MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
@@ -470,50 +455,46 @@ fseg_free_page(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Determine whether a page is allocated.
+@param mtr     mini-transaction
 @param space   tablespace
 @param page    page number
 @return error code
 @retval DB_SUCCESS             if the page is marked as free
 @retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
-dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
-  MY_ATTRIBUTE((nonnull, warn_unused_result));
+dberr_t fseg_page_is_allocated(mtr_t *mtr, fil_space_t *space, unsigned page)
+  noexcept
+  MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Frees part of a segment. This function can be used to free
 a segment by repeatedly calling this function in different
 mini-transactions. Doing the freeing in a single mini-transaction
 might result in too big a mini-transaction.
-@param	header	segment header; NOTE: if the header resides on first
-		page of the frag list of the segment, this pointer
-		becomes obsolete after the last freeing step
-@param	mtr	mini-transaction
-@param	ahi	Drop the adaptive hash index
+@param block   segment header block
+@param header  segment header offset in the block;
+NOTE: if the header resides on first page of the frag list of the segment,
+this pointer becomes obsolete after the last freeing step
+@param mtr     mini-transaction
 @return whether the freeing was completed */
-bool
-fseg_free_step(
-	fseg_header_t*	header,
-	mtr_t*		mtr
+bool fseg_free_step(buf_block_t *block, size_t header, mtr_t *mtr
 #ifdef BTR_CUR_HASH_ADAPT
-	,bool		ahi=false
+                    , bool ahi=false /*!< whether to drop the AHI */
 #endif /* BTR_CUR_HASH_ADAPT */
-	)
-	MY_ATTRIBUTE((warn_unused_result));
+                    ) noexcept;
 
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Frees part of a segment. Differs from fseg_free_step because
 this function leaves the header page unfreed.
-@param	header	segment header which must reside on the first
-		fragment page of the segment
-@param	mtr	mini-transaction
-@param	ahi	drop the adaptive hash index
+@param block   segment header block; must reside on the first
+fragment page of the segment
+@param header  segment header offset in the block
+@param mtr     mini-transaction
 @return whether the freeing was completed, except for the header page */
-bool
-fseg_free_step_not_header(
-	fseg_header_t*	header,
-	mtr_t*		mtr
+bool fseg_free_step_not_header(buf_block_t *block, size_t header, mtr_t *mtr
 #ifdef BTR_CUR_HASH_ADAPT
-	,bool		ahi=false
+                               , bool ahi=false /*!< whether to drop the AHI */
 #endif /* BTR_CUR_HASH_ADAPT */
-	)
-	MY_ATTRIBUTE((warn_unused_result));
+                               ) noexcept;
 
 /** Reset the page type.
 Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
@@ -572,6 +553,13 @@ inline void fsp_init_file_page(
 	fsp_apply_init_file_page(block);
 	mtr->init(block);
 }
+
+/** Truncate the system tablespace
+@param shutdown Called during shutdown */
+void fsp_system_tablespace_truncate(bool shutdown);
+
+/** Truncate the temporary tablespace */
+void fsp_shrink_temp_space();
 
 #ifndef UNIV_DEBUG
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
@@ -715,7 +703,7 @@ inline uint32_t fsp_flags_is_incompatible_mysql(uint32_t flags)
 {
   /*
     MySQL-8.0 SDI flag (bit 14),
-    or MySQL 5.7 Encyption flag (bit 13)
+    or MySQL 5.7 Encryption flag (bit 13)
   */
   return flags >> 13 & 3;
 }

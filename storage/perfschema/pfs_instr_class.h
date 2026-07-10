@@ -23,11 +23,12 @@
 #ifndef PFS_INSTR_CLASS_H
 #define PFS_INSTR_CLASS_H
 
+#include <atomic>
+
 #include "my_global.h"
 #include "mysql_com.h"                          /* NAME_LEN */
 #include "lf.h"
 #include "pfs_global.h"
-#include "pfs_atomic.h"
 #include "sql_array.h"
 
 /**
@@ -66,7 +67,6 @@ class PFS_opaque_container_page;
 */
 
 extern my_bool pfs_enabled;
-extern enum_timer_name *class_timers[];
 
 /** Key, naming a synch instrument (mutex, rwlock, cond). */
 typedef unsigned int PFS_sync_key;
@@ -157,8 +157,6 @@ struct PFS_instr_class
   char m_name[PFS_MAX_INFO_NAME_LENGTH];
   /** Length in bytes of @c m_name. */
   uint m_name_length;
-  /** Timer associated with this class. */
-  enum_timer_name *m_timer;
 
   bool is_singleton() const
   {
@@ -265,6 +263,46 @@ struct PFS_table_share_key
   char m_hash_key[PFS_TABLESHARE_HASHKEY_SIZE];
   /** Length in bytes of @c m_hash_key. */
   uint m_key_length;
+
+  size_t available_length() const
+  {
+    return sizeof(m_hash_key) - m_key_length;
+  }
+
+  char *end()
+  {
+    return m_hash_key + m_key_length;
+  }
+
+  void set(bool temporary,
+           const char *schema_name, size_t schema_name_length,
+           const char *table_name, size_t table_name_length);
+
+private:
+  // Append and 0-terminate a string with an optional lower-case conversion
+  void append_opt_casedn_z(CHARSET_INFO *cs,
+                           const char *str, size_t length,
+                           bool casedn)
+  {
+    DBUG_ASSERT(length <= sizeof(m_hash_key)); // Expect valid db/tbl names
+    size_t dst_length= available_length();
+    if (dst_length > 0)
+    {
+      dst_length--;
+      DBUG_ASSERT(dst_length >= length);
+      if (casedn)
+      {
+        m_key_length+= (uint) cs->casedn(str, length, end(), dst_length);
+      }
+      else
+      {
+        set_if_smaller(length, dst_length); // Safety for release builds
+        memcpy(end(), str, length);
+        m_key_length+= (uint) length;
+      }
+      m_hash_key[m_key_length++]= '\0';
+    }
+  }
 };
 
 /** Table index or 'key' */
@@ -329,22 +367,22 @@ public:
 
   inline void init_refcount(void)
   {
-    PFS_atomic::store_32(& m_refcount, 1);
+    m_refcount.store(1);
   }
 
   inline int get_refcount(void)
   {
-    return PFS_atomic::load_32(& m_refcount);
+    return m_refcount.load();
   }
 
   inline void inc_refcount(void)
   {
-    PFS_atomic::add_32(& m_refcount, 1);
+    m_refcount.fetch_add(1);
   }
 
   inline void dec_refcount(void)
   {
-    PFS_atomic::add_32(& m_refcount, -1);
+    m_refcount.fetch_sub(1);
   }
 
   void refresh_setup_object_flags(PFS_thread *thread);
@@ -387,7 +425,7 @@ public:
 
 private:
   /** Number of opened table handles. */
-  int m_refcount;
+  std::atomic<int> m_refcount;
   /** Table locks statistics. */
   PFS_table_share_lock *m_race_lock_stat;
   /** Table indexes' stats. */
@@ -587,6 +625,9 @@ PFS_socket_class *find_socket_class(PSI_socket_key key);
 PFS_socket_class *sanitize_socket_class(PFS_socket_class *unsafe);
 PFS_memory_class *find_memory_class(PSI_memory_key key);
 PFS_memory_class *sanitize_memory_class(PFS_memory_class *unsafe);
+#ifndef DBUG_OFF
+extern "C" const char *dbug_print_memroot_name(struct st_mem_root *root);
+#endif
 PFS_instr_class *find_idle_class(uint index);
 PFS_instr_class *sanitize_idle_class(PFS_instr_class *unsafe);
 PFS_instr_class *find_metadata_class(uint index);

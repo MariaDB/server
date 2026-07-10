@@ -234,14 +234,8 @@
 
 /* Fix to avoid warnings when sizeof(ha_rows) == sizeof(long) */
 
-#ifdef BIG_TABLES
 #define mi_rowstore(T,A)    mi_int8store(T, A)
 #define mi_rowkorr(T)       mi_uint8korr(T)
-#else
-#define mi_rowstore(T,A)    { mi_int4store(T, 0);\
-                              mi_int4store(((uchar*) (T) + 4), A); }
-#define mi_rowkorr(T)       mi_uint4korr((const uchar*) (T) + 4)
-#endif
 
 #if SIZEOF_OFF_T > 4
 #define mi_sizestore(T,A)   mi_int8store(T, A)

@@ -28,6 +28,8 @@ dt date NOT NULL,
 tm time NOT NULL,
 PRIMARY KEY (skey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (skey, dt, tm) VALUES (0, '2012-01-01', '12:00:00'),(1, '2012-02-01', '12:00:00'),(2, '2012-03-01', '12:00:00'),(3, '2012-04-01', '12:00:00'),(4, '2012-05-01', '12:00:00'),(5, '2012-06-01', '12:00:00'),(6, '2012-07-01', '12:00:00'),(7, '2012-08-01', '12:00:00'),(8, '2012-09-01', '12:00:00'),(9, '2012-10-01', '12:00:00');
 FLUSH TABLES;
 

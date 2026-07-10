@@ -79,6 +79,7 @@ static my_bool has_no_data(Vio *vio __attribute__((unused)))
 int vio_pipe_shutdown(Vio *vio, int how)
 {
   vio->shutdown_flag= how;
+  vio->state= VIO_STATE_SHUTDOWN;
   return CancelIoEx(vio->hPipe, NULL);
 }
 #endif
@@ -98,6 +99,7 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
 #endif
   memset(vio, 0, sizeof(*vio));
   vio->type= type;
+  vio->state= VIO_STATE_ACTIVE;
   vio->mysql_socket= MYSQL_INVALID_SOCKET;
   mysql_socket_setfd(&vio->mysql_socket, sd);
   vio->localhost= flags & VIO_LOCALHOST;

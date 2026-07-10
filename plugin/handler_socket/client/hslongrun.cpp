@@ -481,7 +481,7 @@ hs_longrun_thread_hs::op_insert(record_value& rec)
   cli->response_recv(numflds);
   if (arg.sh.verbose > 10) {
     const string_ref *row = cli->get_next_row();
-    fprintf(stderr, "HS op=+ errrcode=%d errmess=[%s]\n", cli->get_error_code(),
+    fprintf(stderr, "HS op=+ errcode=%d errmess=[%s]\n", cli->get_error_code(),
       row ? to_string(row[0]).c_str() : "");
   }
   const bool op_success = cli->get_error_code() == 0;
@@ -927,7 +927,7 @@ hs_longrun_main(int argc, char **argv)
   shared.verbose = shared.conf.get_int("verbose", 1);
   const int table_size = shared.conf.get_int("table_size", 10000);
   for (int i = 0; i < table_size; ++i) {
-    std::auto_ptr<record_value> rec(new record_value());
+    std::unique_ptr<record_value> rec(new record_value());
     rec->key = to_stdstring(i);
     shared.records.push_back_ptr(rec);
   }
@@ -966,7 +966,7 @@ hs_longrun_main(int argc, char **argv)
       int id = thrs.size();
       const hs_longrun_thread_hs::arg_type arg(id, e.type, e.op, e.lock,
 	shared);
-      std::auto_ptr<hs_longrun_thread_base> thr;
+      std::unique_ptr<hs_longrun_thread_base> thr;
       if (e.hs) {
       	thr.reset(new hs_longrun_thread_hs(arg));
       } else {

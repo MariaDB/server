@@ -1,0 +1,38 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @save_binlog_stmt_cache_size= @@GLOBAL.binlog_stmt_cache_size;
+SET GLOBAL binlog_stmt_cache_size= 4096;
+CALL mtr.add_suppression('"No space left on device".*An incident event is written to binary log');
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+FLUSH GLOBAL STATUS;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+Variable_name	Value
+Binlog_stmt_cache_disk_use	0
+Binlog_stmt_cache_use	0
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,load_data_binlog_cache_error";
+LOAD DATA CONCURRENT LOCAL INFILE 'std_data/bug30435_5k.txt'
+  REPLACE INTO TABLE t1 (a);
+ERROR HY000: Error writing file '<FILENAME>' (Errcode: 28 "No space left on device")
+SET SESSION debug_dbug= @old_dbug;
+SHOW STATUS LIKE "binlog_stmt_cache%";
+Variable_name	Value
+Binlog_stmt_cache_disk_use	1
+Binlog_stmt_cache_use	1
+SELECT IF(COUNT(*) > 0 AND COUNT(*) < 5000,
+"ok",
+CONCAT("ERROR! Row count ", COUNT(*), " not as expected for partially executed query"))
+AS check_result
+FROM t1;
+check_result
+ok
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+connection master;
+SET GLOBAL binlog_stmt_cache_size= @save_binlog_stmt_cache_size;
+DROP TABLE t1;
+include/rpl_end.inc

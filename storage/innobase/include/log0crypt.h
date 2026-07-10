@@ -28,6 +28,9 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 
 #include "log0log.h"
 
+/** innodb_encrypt_log: whether to encrypt the redo log */
+extern my_bool srv_encrypt_log;
+
 /** Initialize the redo log encryption key and random parameters
 when creating a new redo log.
 The random parameters will be persisted in the log header.
@@ -37,13 +40,15 @@ The random parameters will be persisted in the log header.
 bool log_crypt_init();
 
 /** Add the encryption information to the log header buffer.
-@param buf   part of log header buffer */
-void log_crypt_write_header(byte *buf);
+@param buf   part of log header buffer
+@param archive  the expected value of innodb_log_archive */
+void log_crypt_write_header(byte *buf, bool archive) noexcept;
 
 /** Read the encryption information from a redo log checkpoint buffer.
 @param buf   part of checkpoint buffer
+@param archive  the expected value of innodb_log_archive
 @return whether the operation was successful */
-bool log_crypt_read_header(const byte *buf);
+bool log_crypt_read_header(const byte *buf, bool archive) noexcept;
 
 /** Read the MariaDB 10.1 checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer
@@ -76,15 +81,14 @@ ATTRIBUTE_COLD bool log_decrypt(byte* buf, lsn_t lsn, ulint size);
 @return buf */
 byte *log_decrypt_buf(const byte *iv, byte *buf, const byte *data, uint len);
 
-/** Decrypt a log snippet.
-@param iv    initialization vector
-@param buf   buffer to be replaced with encrypted contents
-@param end   pointer past the end of buf */
-void log_decrypt_buf(const byte *iv, byte *buf, const byte *const end);
+/** Decrypt a mini-transaction in place.
+@param buf   start of the mini-transaction
+@param end   end of data (followed by sequence byte and the 8-byte nonce) */
+void log_decrypt_mtr(byte *buf, const byte *end) noexcept;
 
 /** Encrypt or decrypt a temporary file block.
 @param[in]	src		block to encrypt or decrypt
-@param[in]	size		size of the block
+@param[in]	size		length of both src and dst in bytes
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
 @param[in]	encrypt		true=encrypt; false=decrypt
@@ -99,7 +103,7 @@ bool log_tmp_block_encrypt(
 
 /** Decrypt a temporary file block.
 @param[in]	src		block to decrypt
-@param[in]	size		size of the block
+@param[in]	size		length of both src and dst in bytes
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
 @return whether the operation succeeded */

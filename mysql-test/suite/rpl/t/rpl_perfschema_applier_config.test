@@ -10,9 +10,9 @@
 #
 #  - Verify that output is same as SSS on a fresh slave.
 #  - Verify that the value of this field is correct after STOP SLAVE.
-#  - Verify that, when desired delay is set, the value is shown corectly.
+#  - Verify that, when desired delay is set, the value is shown correctly.
 #  - Verify that the value is preserved after STOP SLAVE.
-#  - Verify that, when desired delay is reset, the value is shown corectly.
+#  - Verify that, when desired delay is reset, the value is shown correctly.
 #
 #  ==== Related Worklog ====
 #
@@ -57,7 +57,7 @@ let $assert_cond= "$sss_value" = "$ps_value";
 source include/assert.inc;
 
 --echo
---echo # Verify that, when desired delay is set, the value is shown corectly.
+--echo # Verify that, when desired delay is set, the value is shown correctly.
 --echo
 
 eval change master to master_delay= 2;
@@ -82,7 +82,7 @@ let $assert_cond= "$sss_value" = "$ps_value";
 source include/assert.inc;
 
 --echo
---echo # Verify that, when desired delay is reset, the value is shown corectly.
+--echo # Verify that, when desired delay is reset, the value is shown correctly.
 --echo
 
 eval change master to master_delay= 0;

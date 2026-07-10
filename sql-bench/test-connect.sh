@@ -258,7 +258,7 @@ print "Time to select_2_rows ($opt_loop_count): " .
 
 if ($limits->{'functions'})
 {
-  print "Test select with aritmetic (+)\n";
+  print "Test select with arithmetic (+)\n";
   $loop_time=new Benchmark;
 
   for ($i=0; $i < $opt_loop_count; $i++)

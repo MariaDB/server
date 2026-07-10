@@ -86,9 +86,9 @@ SELECT @@sync_frm;
 @@sync_frm
 1
 SELECT global.sync_frm;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT sync_frm = @@session.sync_frm;
-ERROR 42S22: Unknown column 'sync_frm' in 'field list'
+ERROR 42S22: Unknown column 'sync_frm' in 'SELECT'
 SET @@global.sync_frm = @start_value;
 SELECT @@global.sync_frm;
 @@global.sync_frm

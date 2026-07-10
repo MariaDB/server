@@ -4,19 +4,14 @@
 # This is intended to mimick how mysqldump and innobackup work.
 
 # And it requires InnoDB
+--source include/no_view_protocol.inc
 --source include/have_innodb.inc
-
---echo # Save the initial number of concurrent sessions
---source include/count_sessions.inc
 
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connect (con3,localhost,root,,);
 connection con1;
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 CREATE TABLE t1 (a INT) ENGINE=innodb;
 
 # blocks COMMIT ?
@@ -92,7 +87,3 @@ disconnect con3;
 --echo # drop the table.
 DROP TABLE t1;
 --echo # End of 4.1 tests
-
---echo # Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-

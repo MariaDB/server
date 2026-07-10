@@ -28,7 +28,7 @@
  *     any later version, or
  *  b) the Apache License, Version 2.0
  */
-
+#include <stddef.h>
 #include <altivec.h>
 
 
@@ -57,11 +57,12 @@ static unsigned int __attribute__ ((aligned (32)))
 __crc32_vpmsum(unsigned int crc, const void* p, unsigned long len);
 
 
-unsigned int CRC32_FUNCTION(unsigned int crc, const unsigned char *p,
-			    unsigned long len)
+unsigned CRC32_FUNCTION(unsigned crc, const void *buffer, size_t len)
 {
 	unsigned int prealign;
 	unsigned int tail;
+
+	const unsigned char *p = buffer;
 
 #ifdef CRC_XOR
 	crc ^= 0xffffffff;
@@ -104,7 +105,7 @@ out:
 #endif
 
 /* When we have a load-store in a single-dispatch group and address overlap
- * such that foward is not allowed (load-hit-store) the group must be flushed.
+ * such that forward is not allowed (load-hit-store) the group must be flushed.
  * A group ending NOP prevents the flush.
  */
 #define GROUP_ENDING_NOP asm("ori 2,2,0" ::: "memory")

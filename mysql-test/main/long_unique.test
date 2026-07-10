@@ -136,7 +136,7 @@ insert into t1 values(7,1);
 drop table t1;
 
 --echo #table with multiple  long blob column and varchar text column ;
-create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique);
+create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique) charset=latin1;
 insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555),
 ('sachin',341,'fdf','gfgfgfg','hghgr'),('maria',345,'frter','dasd','utyuty'),
 (123456789034567891,353534,53453453453456,64565464564564,45435345345345),
@@ -236,7 +236,7 @@ show keys from t1;
 drop table t1;
 --echo #now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
-  unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h));
+  unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h)) charset=latin1;
 
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
 ('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb')
@@ -389,6 +389,7 @@ select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1;
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2;
 --error ER_BAD_FIELD_ERROR
 select * from t1 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
+--sorted_result
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
 --error ER_BAD_FIELD_ERROR
@@ -404,6 +405,7 @@ show create table t1;
 insert into t1 value(concat(repeat('s',3000),'1'));
 --error ER_DUP_ENTRY
 insert into t1 value(concat(repeat('s',3000),'2'));
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 
@@ -550,5 +552,27 @@ DROP TABLE t1, t2;
 
 --error ER_NO_AUTOINCREMENT_WITH_UNIQUE
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
+
+--echo #
+--echo # MDEV-35620 UBSAN: runtime error: applying zero offset to null pointer in _ma_unique_hash, skip_trailing_space, my_hash_sort_mb_nopad_bin and my_strnncollsp_utf8mb4_bin
+--echo #
+
+--echo # Disable result log. The exact result is not important.
+--echo # We just need to make sure UBSAN nullptr-with-offset is not reported.
+--disable_result_log
+SELECT DISTINCT user,authentication_string FROM mysql.user;
+SELECT DISTINCT USER,PASSWORD FROM mysql.user;
+SELECT DISTINCT USER,plugin FROM mysql.user;
+--enable_result_log
+--echo # Enabling result log again.
+
+create or replace table t1 (t text) engine=aria;
+insert into t1 values ('');
+insert into t1 values (NULL);
+select distinct t from t1;
+alter table t1 ENGINE=MyISAM;
+select distinct t from t1;
+DROP TABLE t1;
+
 
 --echo # End of 10.5 tests

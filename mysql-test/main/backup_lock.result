@@ -1,6 +1,7 @@
 #
 # Testing which locks we get from all stages
 #
+InnoDB		0 transactions not purged
 BACKUP STAGE START;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
 WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
@@ -34,14 +35,15 @@ connection default;
 #
 # testing if BACKUP STAGE FLUSH causes deadlocks with ALTER TABLE
 #
-create table t1 (a int) engine=innodb;
+create table t1 (a int) stats_persistent= 0, engine=innodb;
+InnoDB		0 transactions not purged
 connection con2;
 backup stage start;
 connection default;
 start transaction;
 insert into t1 values (1);
 connection con1;
-alter table t1 add column (j int), algorithm copy;
+alter table t1 add column (j int), algorithm copy, lock shared;
 connection con2;
 backup stage flush;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
@@ -53,7 +55,7 @@ MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 SET STATEMENT max_statement_time=1 FOR backup stage block_ddl;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+ERROR 70100: Query was interrupted: execution time limit 1.0 sec exceeded
 backup stage block_ddl;
 connection default;
 commit;
@@ -104,7 +106,8 @@ drop table t1;
 #
 # testing if BACKUP STAGE FLUSH causes deadlocks with DROP TABLE
 #
-create table t1 (a int) engine=innodb;
+create table t1 (a int)stats_persistent=0, engine=innodb;
+InnoDB		0 transactions not purged
 start transaction;
 insert into t1 values (1);
 connection con1;
@@ -132,6 +135,7 @@ connection default;
 # Check if backup stage block_dll + concurrent drop table blocks select
 #
 create table t1 (a int) engine=innodb;
+InnoDB		0 transactions not purged
 backup stage start;
 backup stage block_ddl;
 connection con1;
@@ -262,6 +266,7 @@ col1
 SET AUTOCOMMIT = 0;
 UPDATE t_permanent_innodb SET col1 = 9;
 UPDATE t_permanent_aria SET col1 = 9;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_myisam SET col1 = 9;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_aria2 SET col1 = 9;

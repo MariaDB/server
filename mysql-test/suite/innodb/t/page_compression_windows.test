@@ -1,0 +1,7 @@
+--source include/have_innodb.inc
+--source include/windows.inc
+create table t_compressed(b longblob) engine=InnoDB page_compressed=1;
+insert into  t_compressed values(repeat(1,1000000));
+# Check that compression worked, i.e allocated size (physical file size) < logical file size
+select allocated_size < file_size from information_schema.innodb_sys_tablespaces where name='test/t_compressed';
+drop table t_compressed;

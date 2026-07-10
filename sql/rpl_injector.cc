@@ -55,7 +55,7 @@ injector::transaction::~transaction()
 
   /*
     We set the first character to null just to give all the copies of the
-    start position a (minimal) chance of seening that the memory is lost.
+    start position a (minimal) chance of seeing that the memory is lost.
     All assuming the my_free does not step over the memory, of course.
   */
   *the_memory= '\0';
@@ -113,7 +113,7 @@ int injector::transaction::use_table(server_id_type sid, table tbl)
   server_id_type save_id= m_thd->variables.server_id;
   m_thd->set_server_id(sid);
   DBUG_ASSERT(tbl.is_transactional() == tbl.get_table()->file->row_logging_has_trans);
-  error= m_thd->binlog_write_table_map(tbl.get_table(), 0);
+  error= m_thd->binlog_write_table_map(tbl.get_table());
   m_thd->set_server_id(save_id);
   DBUG_RETURN(error);
 }

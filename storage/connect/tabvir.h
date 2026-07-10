@@ -24,12 +24,12 @@ class DllExport VIRDEF : public TABDEF {  /* Logical table description */
 	VIRDEF(void) = default;
 
   // Implementation
-  virtual const char *GetType(void) {return "VIRTUAL";}
+  const char *GetType(void) override {return "VIRTUAL";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL, LPCSTR, int) {Pseudo = 3; return false;}
-  virtual int  Indexable(void) {return 3;}
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL, LPCSTR, int) override {Pseudo = 3; return false;}
+  int  Indexable(void) override {return 3;}
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -44,24 +44,24 @@ class DllExport TDBVIR : public TDBASE {
 	TDBVIR(PVIRDEF tdp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_VIR;}
+  AMT  GetAmType(void) override {return TYPE_AM_VIR;}
 
   // Methods
-  virtual int  GetRecpos(void) {return N;}
-  virtual bool SetRecpos(PGLOBAL g, int recpos)
+  int  GetRecpos(void) override {return N;}
+  bool SetRecpos(PGLOBAL g, int recpos) override
                {N = recpos - 2; return false;}
-	virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+	int  RowNumber(PGLOBAL g, bool b = false) override {return N + 1;}
           int  TestFilter(PFIL filp, bool nop);
 
   // Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  Cardinality(PGLOBAL g) {return (g) ? Size : 1;}
-  virtual int  GetMaxSize(PGLOBAL g) {return Size;}
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-	virtual void CloseDB(PGLOBAL g) {}
+	PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  Cardinality(PGLOBAL g) override {return (g) ? Size : 1;}
+  int  GetMaxSize(PGLOBAL g) override {return Size;}
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+	void CloseDB(PGLOBAL g) override {}
 
  protected:
   // Members
@@ -79,10 +79,10 @@ class VIRCOL : public COLBLK {
   VIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "VIRTUAL");
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_VIR;}
+  int  GetAmType(void) override {return TYPE_AM_VIR;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used
@@ -100,11 +100,11 @@ class TDBVICL : public TDBCAT {
   TDBVICL(PVIRDEF tdp) : TDBCAT(tdp) {}
 
   // Methods
-  virtual int  Cardinality(PGLOBAL g) {return 2;} // Avoid DBUG_ASSERT
+  int  Cardinality(PGLOBAL g) override {return 2;} // Avoid DBUG_ASSERT
 
  protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   }; // end of class TDBVICL

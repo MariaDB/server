@@ -50,11 +50,17 @@ c DATETIME DEFAULT '1999-10-10 10:10:10',
 KEY idx0(a),
 KEY idx1(b)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_b (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_c (
 a INT AUTO_INCREMENT,
 b CHAR(1) DEFAULT 'c',
@@ -63,11 +69,17 @@ KEY idx0(a),
 KEY idx1(b),
 KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_d (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02');
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03');
 insert into tbl_c values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04');
@@ -87,7 +99,7 @@ a	b	c	a
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
-select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t0 left join `auto_test_remote`.`ta_r_auto_inc` t1 on (t1.`a` = t0.`a`) left join `auto_test_remote`.`ta_r_3` t2 on (t2.`c` = t1.`c`) left join `auto_test_remote`.`ta_r` t3 on (t3.`b` = t2.`b`) where 1 order by t0.`a` desc
+select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t0 left join `auto_test_remote`.`ta_r_auto_inc` t1 on ((t1.`a` = t0.`a`) and (t0.`a` is not null)) left join `auto_test_remote`.`ta_r_3` t2 on (t2.`c` = t1.`c`) left join `auto_test_remote`.`ta_r` t3 on ((t3.`b` = t2.`b`) and (t2.`b` is not null)) where 1 order by t0.`a` desc
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')

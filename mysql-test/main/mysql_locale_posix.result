@@ -33,7 +33,7 @@ Database: ó
 
 utf8
 @@character_set_client
-utf8mb3
+utf8mb4
 Database: ó
 +--------+
 | Tables |
@@ -70,3 +70,16 @@ DROP DATABASE `Ã³`;
 DROP DATABASE `Ăł`;
 DROP DATABASE `цЁ`;
 DROP DATABASE `ó`;
+#
+# Start of 11.8 tests
+#
+#
+# MDEV-22217 Make OS character sets "utf8" and "utf-8" map to MariaDB character set "utf8mb4"
+#
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	utf8mb4
+CHARACTER_SET_CONNECTION	utf8mb4
+CHARACTER_SET_RESULTS	utf8mb4
+#
+# End of 11.8 tests
+#

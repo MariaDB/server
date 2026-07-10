@@ -149,16 +149,8 @@ DROP USER test2@localhost;
 #               MYSQL 8
 #
 SELECT 1 FROM DUAL LIMIT 1 INTO @var FOR UPDATE;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT 1 FROM DUAL LIMIT 1 FOR UPDATE INTO @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT 1 FROM DUAL LIMIT 1 INTO @var FOR UPDATE INTO @var;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var' at line 1
 SELECT 1 UNION SELECT 1 FOR UPDATE INTO @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT 1 UNION SELECT 1 INTO @var FOR UPDATE;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead

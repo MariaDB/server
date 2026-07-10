@@ -99,7 +99,8 @@ ALTER TABLE t1
 DROP COLUMN id1,
 ADD COLUMN id2 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 DROP INDEX idx1,
-ADD FULLTEXT INDEX idx2(value),
-ALGORITHM=INPLACE;
+ADD FULLTEXT INDEX idx2(value);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
 SET GLOBAL debug_dbug = @save_debug;

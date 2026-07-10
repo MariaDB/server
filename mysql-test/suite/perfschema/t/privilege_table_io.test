@@ -3,6 +3,7 @@
 # sometimes contains duplicated entries of roles_mapping.
 
 --source include/not_embedded.inc
+--source include/hostname_is_not_localhost.inc
 --source include/have_perfschema.inc
 --source include/restart_mysqld.inc
 --source ../include/table_io_setup_helper.inc

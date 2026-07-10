@@ -1,6 +1,9 @@
-@@ -527,4 +527,4 @@
+@@ -576,7 +576,7 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--35
-+36
+-37
++38
+ CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+ INSERT INTO t1 VALUES(1, 'a');
+ ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;

@@ -26,7 +26,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CHECKSUM=1
  PARTITION BY RANGE (`i`)
 (PARTITION `p3` VALUES LESS THAN (3) ENGINE = MyISAM,
  PARTITION `p5` VALUES LESS THAN (5) ENGINE = MyISAM,
@@ -40,7 +40,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6);
 CHECKSUM TABLE t1;
 Table	Checksum
@@ -56,7 +56,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CHECKSUM=1
 DROP TABLE t1;
 #
 # Bug#31931: Mix of handlers error message
@@ -107,7 +107,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM AUTO_INCREMENT=14 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (NULL);
 # NOTE: 12 exists only in non transactional engines!
 SELECT * FROM t1;
@@ -129,7 +129,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM AUTO_INCREMENT=14 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 INSERT INTO t1 VALUES (NULL);
 SELECT * FROM t1;
@@ -259,3 +259,24 @@ CHECK TABLE `t1` EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-31122 Server crash in get_lock_data / mysql_lock_abort_for_thread
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT, c varchar(5))
+PARTITION BY RANGE COLUMNS(c)
+SUBPARTITION by key(b) SUBPARTITIONS 2 (
+PARTITION p0 VALUES LESS THAN ('m'),
+PARTITION p1 VALUES LESS THAN ('z')
+);
+connect  con1,localhost,root,,;
+HANDLER t1 OPEN;
+SELECT b FROM t2 PARTITION (p0);
+connection default;
+SET lock_wait_timeout= 1;
+ALTER TABLE t1 FORCE;
+connection con1;
+b
+disconnect con1;
+connection default;
+DROP TABLE t2, t1;

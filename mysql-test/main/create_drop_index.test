@@ -14,3 +14,13 @@ DROP TABLE t1;
 
 --error ER_WRONG_USAGE
 CREATE OR REPLACE INDEX IF NOT EXISTS i1 ON t1(b,a);
+
+--echo #
+--echo # MDEV-35021 Behavior for RTREE indexes changed, assertion fails
+--echo #
+create table t (f int not null);
+--error ER_WRONG_ARGUMENTS
+create index ind using rtree on t (f);
+drop table t;
+
+--echo # End of 11.7 tests

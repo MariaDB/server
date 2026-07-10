@@ -1,0 +1,96 @@
+--source include/have_debug.inc
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--source type_sys_refcursor-helper_routines-debug-create.inc
+
+--echo #
+--echo # DO statement cleans ref counters
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  CALL show_cursor_and_refs('p2-0', '-', 0, 5);
+  SET @log= '';
+  DO ff0(), ff0();
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-1', '-', 0, 5);
+END;
+/
+DELIMITER ;/
+CALL p2;
+CALL show_cursor_and_refs('/p2', '-', 0, 5);
+DROP PROCEDURE p2;
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE p2c0 SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(p2c0 AS CHAR), 0, 5);
+  OPEN p2c0 FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(p2c0 AS CHAR), 0, 5);
+  SET @log= '';
+  DO ff1(p2c0), ff1(p2c0);
+  SELECT @log;
+  CALL show_cursor_and_refs('p2-2', CAST(p2c0 AS CHAR), 0, 5);
+END;
+/
+DELIMITER ;/
+CALL p2;
+CALL show_cursor_and_refs('/p2', '-', 0, 5);
+DROP PROCEDURE p2;
+
+DELIMITER /;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE p2c0 SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p2-0', CAST(p2c0 AS CHAR), 0, 5);
+  OPEN p2c0 FOR SELECT 1;
+  CALL show_cursor_and_refs('p2-1', CAST(p2c0 AS CHAR), 0, 5);
+  DO COALESCE(p2c0), COALESCE(p2c0);
+  CALL show_cursor_and_refs('p2-2', CAST(p2c0 AS CHAR), 0, 5);
+END;
+/
+DELIMITER ;/
+CALL p2;
+CALL show_cursor_and_refs('/p2', '-', 0, 5);
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # DO + EXECUTE IMMEDIATE
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  CALL show_cursor_and_refs('p1-0', CAST(c0 AS CHAR), 0, 1);
+
+  OPEN c0 FOR SELECT 10;
+  CALL show_cursor_and_refs('p1-1', CAST(c0 AS CHAR), 0, 1);
+
+  EXECUTE IMMEDIATE 'DO ?' USING c0;
+  CALL show_cursor_and_refs('p1-2', CAST(c0 AS CHAR), 0, 1);
+
+  EXECUTE IMMEDIATE 'DO ?' USING c0;
+  CALL show_cursor_and_refs('p1-3', CAST(c0 AS CHAR), 0, 1);
+
+  SET c0= NULL;
+  CALL show_cursor_and_refs('p1-0', CAST(c0 AS CHAR), 0, 1);
+
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p1;
+--enable_column_names
+DROP PROCEDURE p1;
+
+
+--source type_sys_refcursor-helper_routines-debug-drop.inc

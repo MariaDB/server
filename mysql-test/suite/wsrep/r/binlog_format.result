@@ -16,6 +16,9 @@ SHOW VARIABLES LIKE 'binlog_format';
 Variable_name	Value
 binlog_format	STATEMENT
 CREATE TABLE IF NOT EXISTS test.t1 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+Warnings:
+Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
+Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 SET binlog_format=MIXED;
 Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
@@ -26,9 +29,14 @@ SHOW VARIABLES LIKE 'binlog_format';
 Variable_name	Value
 binlog_format	MIXED
 CREATE TABLE IF NOT EXISTS test.t2 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+Warnings:
+Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
+Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 SET binlog_format=ROW;
 SHOW WARNINGS;
 Level	Code	Message
+Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
+Warning	1105	Galera does not support binlog_format = MIXED in CREATE TABLE [SELECT|REPLACE] forcing ROW
 SHOW VARIABLES LIKE 'binlog_format';
 Variable_name	Value
 binlog_format	ROW

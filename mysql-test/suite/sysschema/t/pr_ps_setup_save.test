@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-37979 sys.ps_setup_save does not restore SQL_LOG_BIN after error, causes replication discrepancy
+--echo #
+
+select @@sql_log_bin;
+
+--error ER_SIGNAL_EXCEPTION
+call sys.ps_setup_save(-1);
+
+select @@sql_log_bin;
+
+--echo # End of 10.11 tests

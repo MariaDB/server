@@ -1,0 +1,33 @@
+--echo # MDEV-13594: Support for JSON operators -> and ->>
+
+CREATE TABLE t1 (id INT, data JSON);
+INSERT INTO t1 VALUES (1, '{"name":"Alice","age":30}');
+INSERT INTO t1 VALUES (2, '{"name":"Bob","age":25}');
+
+# Test -> operator (JSON_EXTRACT equivalent)
+SELECT data->'$.name' FROM t1;
+
+# Test ->> operator (JSON_UNQUOTE(JSON_EXTRACT) equivalent)  
+SELECT data->>'$.name' FROM t1;
+
+# Test in WHERE clause
+SELECT id FROM t1 WHERE data->>'$.name' = 'Alice';
+
+# Test with numeric path
+SELECT data->'$.age' FROM t1;
+
+# Test in ORDER BY
+SELECT id FROM t1 ORDER BY data->>'$.name';
+
+# Test with literal JSON string (not just column)
+SELECT '{"x":1}'->'$.x';
+
+# Verify equivalence
+SELECT 
+  data->'$.name',
+  JSON_EXTRACT(data, '$.name'),
+  data->>'$.name',
+  JSON_UNQUOTE(JSON_EXTRACT(data, '$.name'))
+FROM t1 LIMIT 1;
+
+DROP TABLE t1;

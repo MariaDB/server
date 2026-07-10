@@ -1,0 +1,16 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+
+[mysqld.2]
+log-slave-updates
+binlog-checksum=CRC32
+
+[mysqld.3]
+log-slave-updates
+binlog-checksum=CRC32
+
+[ENV]
+SERVER_MYPORT_3=                @mysqld.3.port
+SERVER_MYSOCK_3=                @mysqld.3.socket
+

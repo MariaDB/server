@@ -1,0 +1,11 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep-debug=1
+auto_increment_offset=1
+auto_increment_increment=2
+
+[mysqld.2]
+wsrep-debug=1
+auto_increment_offset=2
+auto_increment_increment=2

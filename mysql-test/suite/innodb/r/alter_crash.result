@@ -65,7 +65,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` int(11) NOT NULL,
   PRIMARY KEY (`f2`,`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (5,6),(7,8);
 SELECT * FROM t1;
 f1	f2
@@ -107,7 +107,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `f1` int(11) NOT NULL,
   `f2` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=InnoDB;
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
@@ -145,7 +145,7 @@ t1	CREATE TABLE `t1` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 UPDATE t1 SET d=NULL;
 SELECT * FROM t1;
 a	b	d
@@ -178,7 +178,7 @@ t1	CREATE TABLE `t1` (
   `f6` int(11) NOT NULL,
   `f4` char(100) NOT NULL,
   PRIMARY KEY (`f6`,`f4`(3),`f3`(3))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -215,9 +215,63 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t1;
+a	b
+1	1
+2	1
+connect ddl, localhost, root;
+SET DEBUG_SYNC = 'fil_ibd_create_logged SIGNAL stuck WAIT_FOR ever';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR stuck';
+# Kill the server
+disconnect ddl;
+# restart
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 a	b
 1	1
 2	1
 DROP TABLE t1;
+#
+#  MDEV-38079 Crash recovery fails after ALTER TABLE…PAGE_COMPRESSED=1
+#
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 PAGE_COMPRESSED=1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Changing table options requires the table to be rebuilt. Try ALGORITHM=INPLACE
+DROP TABLE t1;
+#
+#  MDEV-38928  Assertion undo_no <= 1 in reset_and_truncate_undo
+#  during ALTER IGNORE on temporary table
+#
+CREATE TEMPORARY TABLE t1 (f1 INT) ENGINE=INNODB;
+INSERT INTO t1 (f1) VALUES (0),(0);
+ALTER IGNORE TABLE t1 FORCE;
+DROP TABLE t1;
+#
+#  MDEV-38951 Assertion `0' upon ALTER IGNORE handling duplicate keys
+#
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1), (1);
+ALTER IGNORE TABLE t1 ADD UNIQUE(f1);
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-38993 Assertion `trx->undo_no == 1' fails upon ALTER IGNORE
+#
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(1),(2);
+ALTER IGNORE TABLE t ADD UNIQUE(a);
+DROP TABLE t;

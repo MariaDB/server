@@ -84,10 +84,10 @@ prep_stmt::operator =(const prep_stmt& x)
 
 struct database : public database_i, private noncopyable {
   database(const config& c);
-  virtual ~database();
-  virtual dbcontext_ptr create_context(bool for_write) volatile;
-  virtual void stop() volatile;
-  virtual const config& get_conf() const volatile;
+  ~database() override;
+  dbcontext_ptr create_context(bool for_write) volatile override;
+  void stop() volatile override;
+  const config& get_conf() const volatile override;
  public:
   int child_running;
  private:
@@ -128,21 +128,21 @@ struct expr_user_lock : private noncopyable {
 
 struct dbcontext : public dbcontext_i, private noncopyable {
   dbcontext(volatile database *d, bool for_write);
-  virtual ~dbcontext();
-  virtual void init_thread(const void *stack_botton,
-    volatile int& shutdown_flag);
-  virtual void term_thread();
-  virtual bool check_alive();
-  virtual void lock_tables_if();
-  virtual void unlock_tables_if();
-  virtual bool get_commit_error();
-  virtual void clear_error();
-  virtual void close_tables_if();
-  virtual void table_addref(size_t tbl_id);
-  virtual void table_release(size_t tbl_id);
-  virtual void cmd_open(dbcallback_i& cb, const cmd_open_args& args);
-  virtual void cmd_exec(dbcallback_i& cb, const cmd_exec_args& args);
-  virtual void set_statistics(size_t num_conns, size_t num_active);
+  ~dbcontext() override;
+  void init_thread(const void *stack_botton,
+    volatile int& shutdown_flag) override;
+  void term_thread() override;
+  bool check_alive() override;
+  void lock_tables_if() override;
+  void unlock_tables_if() override;
+  bool get_commit_error() override;
+  void clear_error() override;
+  void close_tables_if() override;
+  void table_addref(size_t tbl_id) override;
+  void table_release(size_t tbl_id) override;
+  void cmd_open(dbcallback_i& cb, const cmd_open_args& args) override;
+  void cmd_exec(dbcallback_i& cb, const cmd_exec_args& args) override;
+  void set_statistics(size_t num_conns, size_t num_active) override;
  private:
   int set_thread_message(const char *fmt, ...)
     __attribute__((format (printf, 2, 3)));
@@ -175,7 +175,7 @@ struct dbcontext : public dbcontext_i, private noncopyable {
   THD *thd;
   MYSQL_LOCK *lock;
   bool lock_failed;
-  std::auto_ptr<expr_user_lock> user_lock;
+  std::unique_ptr<expr_user_lock> user_lock;
   int user_level_lock_timeout;
   bool user_level_lock_locked;
   bool commit_error;
@@ -288,11 +288,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
     thd->system_thread = static_cast<enum_thread_type>(1<<30UL);
     memset(&thd->net, 0, sizeof(thd->net));
     if (for_write_flag) {
-      #if MYSQL_VERSION_ID >= 50505
       thd->variables.option_bits |= OPTION_BIN_LOG;
-      #else
-      thd->options |= OPTION_BIN_LOG;
-      #endif
       safeFree((char*) thd->db.str);
       thd->db.str= my_strdup(PSI_NOT_INSTRUMENTED, "handlersocket", MYF(0));
       thd->db.length= sizeof("handlersocket")-1;
@@ -382,13 +378,7 @@ dbcontext::lock_tables_if()
       }
       table_vec[i].modified = false;
     }
-    #if MYSQL_VERSION_ID >= 50505
     lock = thd->lock = mysql_lock_tables(thd, &tables[0], num_open, 0);
-    #else
-    bool need_reopen= false;
-    lock = thd->lock = mysql_lock_tables(thd, &tables[0], num_open,
-      MYSQL_LOCK_NOTIFY_IF_NEED_REOPEN, &need_reopen);
-    #endif
     statistic_increment(lock_tables_count, &LOCK_status);
     thd_proc_info(thd, &info_message_buf[0]);
     DENA_VERBOSE(100, fprintf(stderr, "HNDSOCK lock tables %p %p %zu %zu\n",
@@ -399,11 +389,7 @@ dbcontext::lock_tables_if()
 	thd));
     }
     if (for_write_flag) {
-      #if MYSQL_VERSION_ID >= 50505
       thd->set_current_stmt_binlog_format_row();
-      #else
-      thd->current_stmt_binlog_row_based = 1;
-      #endif
     }
     DENA_ALLOCA_FREE(tables);
   }
@@ -426,11 +412,7 @@ dbcontext::unlock_tables_if()
     }
     {
       bool suc = true;
-      #if MYSQL_VERSION_ID >= 50505
       suc = (trans_commit_stmt(thd) == 0);
-      #else
-      suc = (ha_autocommit_or_rollback(thd, 0) == 0);
-      #endif
       if (!suc) {
 	commit_error = true;
 	DENA_VERBOSE(10, fprintf(stderr,
@@ -996,7 +978,6 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     TABLE *table = 0;
     bool refresh = true;
     const thr_lock_type lock_type = for_write_flag ? TL_WRITE : TL_READ;
-    #if MYSQL_VERSION_ID >= 50505
     LEX_CSTRING db_name=  { arg.dbn, strlen(arg.dbn) };
     LEX_CSTRING tbl_name= { arg.tbl, strlen(arg.tbl) };
     tables.init_one_table(&db_name, &tbl_name, 0, lock_type);
@@ -1006,11 +987,6 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     if (!open_table(thd, &tables, &ot_act)) {
       table = tables.table;
     }
-    #else
-    tables.init_one_table(arg.dbn, arg.tbl, lock_type);
-    table = open_table(thd, &tables, thd->mem_root, &refresh,
-      OPEN_VIEW_NO_PARSE);
-    #endif
     if (table == 0) {
       DENA_VERBOSE(20, fprintf(stderr,
 	"HNDSOCK failed to open %p [%s] [%s] [%d]\n",

@@ -27,11 +27,74 @@
   @file storage/perfschema/pfs_timer.h
   Performance schema timers (declarations).
 */
+#include "my_config.h"
 #include <my_rdtsc.h>
 #include "pfs_column_types.h"
 
 /** Conversion factor, from micro seconds to pico seconds. */
 #define MICROSEC_TO_PICOSEC 1000000
+
+#ifndef MY_CONFIG_H
+/* my_config.h MUST be included before testing HAVE_XXX flags. */
+#error "This build is broken"
+#endif
+
+/*
+  HAVE_SYS_TIMES_H:
+  - cmakedefine from config.h.cmake
+  - testable after #include "my_config.h"
+
+  HAVE_GETHRTIME:
+  - cmakedefine from config.h.cmake
+  - testable after #include "my_config.h"
+
+  HAVE_CLOCK_GETTIME:
+  - cmakedefine from config.h.cmake
+  - testable after #include "my_config.h"
+
+  __APPLE__:
+  __MACH__:
+*/
+
+/*
+  See my_timer_nanoseconds() in mysys/my_rdtsc.cc
+  This logic matches my_timer_nanoseconds(),
+  to find out at compile time if a nanosecond
+  timer is available or not.
+*/
+
+#if defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
+#define HAVE_NANOSEC_TIMER
+#elif defined(HAVE_CLOCK_GETTIME)
+#define HAVE_NANOSEC_TIMER
+#elif defined(__APPLE__) && defined(__MACH__)
+#define HAVE_NANOSEC_TIMER
+#endif
+
+#ifdef HAVE_NANOSEC_TIMER
+  /* Use NANOSECOND for statements and the like. */
+  #define USED_TIMER_NAME TIMER_NAME_NANOSEC
+  #define USED_TIMER my_timer_nanoseconds
+#else
+  /* Otherwise use MICROSECOND for statements and the like. */
+  #define USED_TIMER_NAME TIMER_NAME_MICROSEC
+  #define USED_TIMER my_timer_microseconds
+#endif
+
+ulonglong inline get_idle_timer()
+{ return USED_TIMER(); }
+
+ulonglong inline get_wait_timer()
+{ return my_timer_cycles(); }
+
+ulonglong inline get_stage_timer()
+{ return USED_TIMER(); }
+
+ulonglong inline get_statement_timer()
+{ return USED_TIMER(); }
+
+ulonglong inline get_transaction_timer()
+{ return USED_TIMER(); }
 
 /**
   A time normalizer.
@@ -42,13 +105,16 @@
 struct time_normalizer
 {
   /**
-    Get a time normalizer for a given timer.
-    @param timer_name the timer name
+    Get a time normalizer for the statement timer.
     @return the normalizer for the timer
   */
-  static time_normalizer* get(enum_timer_name timer_name);
+  static time_normalizer *get_idle();
+  static time_normalizer *get_wait();
+  static time_normalizer *get_stage();
+  static time_normalizer *get_statement();
+  static time_normalizer *get_transaction();
 
-  /** Timer value at server statup. */
+  /** Timer value at server startup. */
   ulonglong m_v0;
   /** Conversion factor from timer values to pico seconds. */
   ulonglong m_factor;
@@ -86,31 +152,6 @@ struct time_normalizer
 };
 
 /**
-  Idle timer.
-  The timer used to measure all idle events.
-*/
-extern enum_timer_name idle_timer;
-/**
-  Wait timer.
-  The timer used to measure all wait events.
-*/
-extern enum_timer_name wait_timer;
-/**
-  Stage timer.
-  The timer used to measure all stage events.
-*/
-extern enum_timer_name stage_timer;
-/**
-  Statement timer.
-  The timer used to measure all statement events.
-*/
-extern enum_timer_name statement_timer;
-/**
-  Transaction timer.
-  The timer used to measure all transaction events.
-*/
-extern enum_timer_name transaction_timer;
-/**
   Timer information data.
   Characteristics about each supported timer.
 */
@@ -118,35 +159,6 @@ extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 
 /** Initialize the timer component. */
 void init_timers();
-
-extern "C"
-{
-  /** A timer function. */
-  typedef ulonglong (*timer_fct_t)(void);
-}
-
-/**
-  Get a timer value, in pico seconds.
-  @param timer_name the timer to use
-  @return timer value, in pico seconds
-*/
-ulonglong get_timer_pico_value(enum_timer_name timer_name);
-/**
-  Get a timer value, in timer units.
-  @param timer_name the timer to use
-  @return timer value, in timer units
-*/
-ulonglong get_timer_raw_value(enum_timer_name timer_name);
-/**
-  Get a timer value and function, in timer units.
-  This function is useful when code needs to call the same timer several times.
-  The returned timer function can be invoked directly, which avoids having to
-  resolve the timer by name for each call.
-  @param timer_name the timer to use
-  @param[out] fct the timer function
-  @return timer value, in timer units
-*/
-ulonglong get_timer_raw_value_and_function(enum_timer_name timer_name, timer_fct_t *fct);
 
 #endif
 

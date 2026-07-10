@@ -110,9 +110,9 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE diagnostics (
     READS SQL DATA
 BEGIN
     DECLARE v_start, v_runtime, v_iter_start, v_sleep DECIMAL(20,2) DEFAULT 0.0;
-    DECLARE v_has_innodb, v_has_ndb, v_has_ps, v_has_replication, v_has_ps_replication VARCHAR(8) CHARSET utf8 DEFAULT 'NO';
+    DECLARE v_has_innodb, v_has_ndb, v_has_ps, v_has_replication, v_has_ps_replication VARCHAR(8) CHARSET utf8 COLLATE utf8_general_ci DEFAULT 'NO';
     DECLARE v_this_thread_enabled, v_has_ps_vars, v_has_metrics ENUM('YES', 'NO');
-    DECLARE v_table_name, v_banner VARCHAR(64) CHARSET utf8;
+    DECLARE v_table_name, v_banner VARCHAR(64) CHARSET utf8 COLLATE utf8_general_ci;
     DECLARE v_sql_status_summary_select, v_sql_status_summary_delta, v_sql_status_summary_from, v_no_delta_names TEXT;
     DECLARE v_output_time, v_output_time_prev DECIMAL(20,3) UNSIGNED;
     DECLARE v_output_count, v_count, v_old_group_concat_max_len INT UNSIGNED DEFAULT 0;
@@ -353,12 +353,12 @@ BEGIN
                                 (''io_global_by_file_by_bytes'', ''total''),
                                 (''io_global_by_wait_by_bytes'', ''total_requested'')
                          )
-                         THEN CONCAT(''sys.format_bytes('', COLUMN_NAME, '') AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_bytes('', COLUMN_NAME, '') AS '', COLUMN_NAME)
                     WHEN SUBSTRING(COLUMN_NAME, -8) = ''_latency''
-                         THEN CONCAT(''sys.format_time('', COLUMN_NAME, '') AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_pico_time('', COLUMN_NAME, '') AS '', COLUMN_NAME)
                     WHEN SUBSTRING(COLUMN_NAME, -7) = ''_memory'' OR SUBSTRING(COLUMN_NAME, -17) = ''_memory_allocated''
                          OR ((SUBSTRING(COLUMN_NAME, -5) = ''_read'' OR SUBSTRING(COLUMN_NAME, -8) = ''_written'' OR SUBSTRING(COLUMN_NAME, -6) = ''_write'') AND SUBSTRING(COLUMN_NAME, 1, 6) <> ''COUNT_'')
-                         THEN CONCAT(''sys.format_bytes('', COLUMN_NAME, '') AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_bytes('', COLUMN_NAME, '') AS '', COLUMN_NAME)
                     ELSE COLUMN_NAME
                END
                ORDER BY ORDINAL_POSITION
@@ -383,24 +383,24 @@ BEGIN
                                 (''io_global_by_file_by_bytes'', ''total''),
                                 (''io_global_by_wait_by_bytes'', ''total_requested'')
                          )
-                         THEN CONCAT(''sys.format_bytes(e.'', COLUMN_NAME, ''-IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_bytes(e.'', COLUMN_NAME, ''-IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
                     WHEN SUBSTRING(COLUMN_NAME, 1, 4) IN (''max_'', ''min_'') AND SUBSTRING(COLUMN_NAME, -8) = ''_latency''
-                         THEN CONCAT(''sys.format_time(e.'', COLUMN_NAME, '') AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_pico_time(e.'', COLUMN_NAME, '') AS '', COLUMN_NAME)
                     WHEN COLUMN_NAME = ''avg_latency''
-                         THEN CONCAT(''sys.format_time((e.total_latency - IFNULL(s.total_latency, 0))'',
+                         THEN CONCAT(''format_pico_time((e.total_latency - IFNULL(s.total_latency, 0))'',
                                      ''/NULLIF(e.total - IFNULL(s.total, 0), 0)) AS '', COLUMN_NAME)
                     WHEN SUBSTRING(COLUMN_NAME, -12) = ''_avg_latency''
-                         THEN CONCAT(''sys.format_time((e.'', SUBSTRING(COLUMN_NAME FROM 1 FOR CHAR_LENGTH(COLUMN_NAME)-12), ''_latency - IFNULL(s.'', SUBSTRING(COLUMN_NAME FROM 1 FOR CHAR_LENGTH(COLUMN_NAME)-12), ''_latency, 0))'',
+                         THEN CONCAT(''format_pico_time((e.'', SUBSTRING(COLUMN_NAME FROM 1 FOR CHAR_LENGTH(COLUMN_NAME)-12), ''_latency - IFNULL(s.'', SUBSTRING(COLUMN_NAME FROM 1 FOR CHAR_LENGTH(COLUMN_NAME)-12), ''_latency, 0))'',
                                      ''/NULLIF(e.'', SUBSTRING(COLUMN_NAME FROM 1 FOR CHAR_LENGTH(COLUMN_NAME)-12), ''s - IFNULL(s.'', SUBSTRING(COLUMN_NAME FROM 1 FOR CHAR_LENGTH(COLUMN_NAME)-12), ''s, 0), 0)) AS '', COLUMN_NAME)
                     WHEN SUBSTRING(COLUMN_NAME, -8) = ''_latency''
-                         THEN CONCAT(''sys.format_time(e.'', COLUMN_NAME, '' - IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_pico_time(e.'', COLUMN_NAME, '' - IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
                     WHEN COLUMN_NAME IN (''avg_read'', ''avg_write'', ''avg_written'')
-                         THEN CONCAT(''sys.format_bytes(IFNULL((e.total_'', IF(COLUMN_NAME = ''avg_read'', ''read'', ''written''), ''-IFNULL(s.total_'', IF(COLUMN_NAME = ''avg_read'', ''read'', ''written''), '', 0))'',
+                         THEN CONCAT(''format_bytes(IFNULL((e.total_'', IF(COLUMN_NAME = ''avg_read'', ''read'', ''written''), ''-IFNULL(s.total_'', IF(COLUMN_NAME = ''avg_read'', ''read'', ''written''), '', 0))'',
                                      ''/NULLIF(e.count_'', IF(COLUMN_NAME = ''avg_read'', ''read'', ''write''), ''-IFNULL(s.count_'', IF(COLUMN_NAME = ''avg_read'', ''read'', ''write''), '', 0), 0), 0)) AS '',
                                      COLUMN_NAME)
                     WHEN SUBSTRING(COLUMN_NAME, -7) = ''_memory'' OR SUBSTRING(COLUMN_NAME, -17) = ''_memory_allocated''
                          OR ((SUBSTRING(COLUMN_NAME, -5) = ''_read'' OR SUBSTRING(COLUMN_NAME, -8) = ''_written'' OR SUBSTRING(COLUMN_NAME, -6) = ''_write'') AND SUBSTRING(COLUMN_NAME, 1, 6) <> ''COUNT_'')
-                         THEN CONCAT(''sys.format_bytes(e.'', COLUMN_NAME, '' - IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
+                         THEN CONCAT(''format_bytes(e.'', COLUMN_NAME, '' - IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
                     ELSE CONCAT(''(e.'', COLUMN_NAME, '' - IFNULL(s.'', COLUMN_NAME, '', 0)) AS '', COLUMN_NAME)
                END
                ORDER BY ORDINAL_POSITION
@@ -688,7 +688,7 @@ BEGIN
   Type VARCHAR(100) NOT NULL,
   Enabled ENUM(''YES'', ''NO'', ''PARTIAL'') NOT NULL,
   PRIMARY KEY (Type, Variable_name)
-) ENGINE = InnoDB DEFAULT CHARSET=utf8'));
+) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_general_ci'));
 
         IF (v_has_metrics) THEN
             SET @sys.diagnostics.sql = CONCAT(
@@ -785,7 +785,7 @@ SELECT ''UNIX_TIMESTAMP()'' AS Variable_name, ROUND(UNIX_TIMESTAMP(NOW(3)), 3) A
             EXECUTE stmt_ndbcluster_status;
 
             SELECT 'ndbinfo.memoryusage' AS 'The following output is:';
-            SELECT node_id, memory_type, sys.format_bytes(used) AS used, used_pages, sys.format_bytes(total) AS total, total_pages,
+            SELECT node_id, memory_type, format_bytes(used) AS used, used_pages, format_bytes(total) AS total, total_pages,
                    ROUND(100*(used/total), 2) AS 'Used %'
             FROM ndbinfo.memoryusage;
 
@@ -870,9 +870,9 @@ SELECT ''UNIX_TIMESTAMP()'' AS Variable_name, ROUND(UNIX_TIMESTAMP(NOW(3)), 3) A
     IF (@sys.diagnostics.allow_i_s_tables = 'ON') THEN
         SELECT 'Storage Engine Usage' AS 'The following output is:';
         SELECT ENGINE, COUNT(*) AS NUM_TABLES,
-                sys.format_bytes(SUM(DATA_LENGTH)) AS DATA_LENGTH,
-                sys.format_bytes(SUM(INDEX_LENGTH)) AS INDEX_LENGTH,
-                sys.format_bytes(SUM(DATA_LENGTH+INDEX_LENGTH)) AS TOTAL
+                format_bytes(SUM(DATA_LENGTH)) AS DATA_LENGTH,
+                format_bytes(SUM(INDEX_LENGTH)) AS INDEX_LENGTH,
+                format_bytes(SUM(DATA_LENGTH+INDEX_LENGTH)) AS TOTAL
             FROM information_schema.TABLES
             GROUP BY ENGINE;
 

@@ -14,7 +14,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` char(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v INT AS (a) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v TIME AS (a) VIRTUAL, KEY(v));
 ERROR HY000: Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
@@ -59,7 +59,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v TEXT AS (RTRIM(a)) VIRTUAL, KEY(v(100)));
 SHOW CREATE TABLE t1;
@@ -68,7 +68,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` text GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL,
   KEY `v` (`v`(100))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(TRAILING ' ' FROM a)) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -77,7 +77,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (trim(trailing ' ' from `a`)) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v TEXT AS (TRIM(TRAILING ' ' FROM a)) VIRTUAL, KEY(v(100)));
 SHOW CREATE TABLE t1;
@@ -86,7 +86,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` text GENERATED ALWAYS AS (trim(trailing ' ' from `a`)) VIRTUAL,
   KEY `v` (`v`(100))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(BOTH ' ' FROM a)) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -95,7 +95,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (trim(both ' ' from `a`)) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v TEXT AS (TRIM(BOTH ' ' FROM a)) VIRTUAL, KEY(v(100)));
 SHOW CREATE TABLE t1;
@@ -104,7 +104,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` text GENERATED ALWAYS AS (trim(both ' ' from `a`)) VIRTUAL,
   KEY `v` (`v`(100))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(TRAILING NULL FROM a)) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -113,7 +113,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (trim(trailing NULL from `a`)) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(BOTH NULL FROM a)) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -122,7 +122,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (trim(both NULL from `a`)) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 # PAD_CHAR_TO_FULL_LENGTH + TRIM not resolving dependency
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(LEADING ' ' FROM a)) VIRTUAL, KEY(v));
@@ -195,7 +195,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,5,' ')) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,6,' ')) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -204,7 +204,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,6,' ')) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,6,NULL)) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -213,7 +213,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,6,NULL)) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,NULL,' ')) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -222,7 +222,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,NULL,' ')) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 # PAD_CHAR_TO_FULL_LENGTH + RPAD not resolving dependency
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,4,' ')) VIRTUAL, KEY(v));
@@ -250,7 +250,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a` = 'a') VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 a CHAR(5) CHARACTER SET latin1 COLLATE latin1_nopad_bin,
@@ -269,7 +269,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a` like 'a%') VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v INT AS (a LIKE NULL) VIRTUAL, KEY(v));
 SHOW CREATE TABLE t1;
@@ -278,7 +278,7 @@ t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` int(11) GENERATED ALWAYS AS (`a` like NULL) VIRTUAL,
   KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v INT AS (a LIKE 'a') VIRTUAL, KEY(v));
 ERROR HY000: Function or expression '`a` like 'a'' cannot be used in the GENERATED ALWAYS AS clause of `v`
@@ -342,7 +342,7 @@ t1	CREATE TABLE `t1` (
   `b` int(10) unsigned DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (cast(`a` as signed) - cast(`b` as signed)) VIRTUAL,
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 a INT UNSIGNED,
@@ -357,10 +357,10 @@ t1	CREATE TABLE `t1` (
   `b` int(10) unsigned DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (cast(`a` as decimal(20,0)) - cast(`b` as decimal(20,0))) VIRTUAL,
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
-# Comnination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
+# Combination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
 #
 CREATE TABLE t1 (
 a INT UNSIGNED,
@@ -414,7 +414,7 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
-# A persisten virtual column cannot depend on sql_mode
+# A persistent virtual column cannot depend on sql_mode
 CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (a) PERSISTENT);
 ERROR HY000: Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 SHOW WARNINGS;
@@ -427,7 +427,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(5) DEFAULT NULL,
   `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.2 tests

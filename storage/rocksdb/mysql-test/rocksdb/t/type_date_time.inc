@@ -3,11 +3,11 @@
 # (DATE, DATETIME, TIMESTAMP, TIME, YEAR)
 #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 set @save_time_zone=@@time_zone;
 set time_zone='UTC';
+set old_mode=2_digit_year;
+--enable_prepare_warnings
+--disable_cursor_protocol
 eval CREATE TABLE t1 (
   d DATE $extra_col_opts,
   dt DATETIME $extra_col_opts,
@@ -18,6 +18,8 @@ eval CREATE TABLE t1 (
   y2 YEAR(2) $extra_col_opts,
   pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
+--enable_cursor_protocol
+--disable_prepare_warnings
 
 SHOW COLUMNS IN t1;
 

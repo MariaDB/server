@@ -18,3 +18,23 @@ connect(localhost,root,,test,MASTER_MYPORT,MYSQL_TMP_DIR/mysqld.1.sock);
 connect con2,localhost,root;
 ERROR HY000: Received malformed packet
 set global debug_dbug=@old_dbug;
+#
+# Start of 11.2 tests
+#
+#
+# MDEV-33182 Server assertion fails when trying to test the connection with DBeaver
+#
+SET global debug_dbug='+d,thd_init_client_charset_utf8mb3_bin';
+connect con1,localhost,root;
+connection con1;
+SHOW VARIABLES LIKE 'collation%';
+Variable_name	Value
+collation_connection	utf8mb3_bin
+collation_database	utf8mb4_uca1400_ai_ci
+collation_server	utf8mb4_uca1400_ai_ci
+disconnect con1;
+connection default;
+SET global debug_dbug=@old_debug;
+#
+# End of 11.2 tests
+#

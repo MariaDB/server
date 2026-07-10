@@ -33,12 +33,12 @@
 	*/
 
 
-File my_create(const char *FileName, int CreateFlags, int access_flags,
+File my_create(const char *FileName, mode_t CreateFlags, int access_flags,
 	       myf MyFlags)
 {
   int fd;
   DBUG_ENTER("my_create");
-  DBUG_PRINT("my",("Name: '%s' CreateFlags: %d  AccessFlags: %d  MyFlags: %lu",
+  DBUG_PRINT("my",("Name: '%s' CreateFlags: %u  AccessFlags: %d  MyFlags: %lu",
 		   FileName, CreateFlags, access_flags, MyFlags));
 #if defined(_WIN32)
   fd= my_win_open(FileName, access_flags | O_CREAT);

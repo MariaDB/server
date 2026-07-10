@@ -16,30 +16,44 @@ select count(*) from just_a_test where state = 'California';
 count(*)
 2
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	just_a_test	IND_just_a_test_first_name_last_name	1
-test	just_a_test	IND_just_a_test_state	2
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
+test	just_a_test	IND_just_a_test_first_name_last_name	1	1
+test	just_a_test	IND_just_a_test_state	2	1
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	18	5	5
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
+test	just_a_test	18	5	5	5	0	0	2	0	0	0
 alter table just_a_test drop key IND_just_a_test_first_name_last_name;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	just_a_test	IND_just_a_test_state	2
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
+test	just_a_test	IND_just_a_test_state	2	1
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	23	5	5
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
+test	just_a_test	23	5	5	5	0	0	2	0	0	0
 alter table just_a_test drop column state;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
+select * from just_a_test force index(primary) where id between 1 and 2;
+id	first_name	last_name	address	phone	email
+1	fa	la	china_a	11111111	fa_la@163.com
+2	fb	lb	china_b	22222222	fb_lb@163.com
+select * from just_a_test force index(primary) where id=8;
+id	first_name	last_name	address	phone	email
+update just_a_test set first_name="unlucky" where id=5;
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	28	5	5
-drop table just_a_test;
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
+test	just_a_test	31	6	6	5	1	0	4	1	0	0
+delete from just_a_test where id=5;
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
+test	just_a_test	32	7	7	5	1	1	5	1	0	0
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
+test	just_a_test	PRIMARY	4	3
+drop table just_a_test;
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
 create table just_a_test(id int not null primary key,first_name varchar(10),last_name varchar(10),address varchar(100),phone bigint,email varchar(30), state varchar(30),key(first_name,last_name),key(state));
 insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','California'),
 (2,'fb','lb','china_b',22222222,'fb_lb@163.com','Arizona'),
@@ -56,16 +70,17 @@ select count(*) from just_a_test where id between 2 and 4;
 count(*)
 3
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
-test	just_a_test	PRIMARY	4
-test	just_a_test	first_name	1
-test	just_a_test	state	2
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
+test	just_a_test	PRIMARY	4	1
+test	just_a_test	first_name	1	1
+test	just_a_test	state	2	1
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-test	just_a_test	7	5	15
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
+test	just_a_test	7	5	15	5	0	0	3	0	0	0
 drop table just_a_test;
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ	QUERIES
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
-TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES	ROWS_INSERTED	ROWS_UPDATED	ROWS_DELETED	KEY_READ_HITS	KEY_READ_MISSES	PAGES_ACCESSED	PAGES_READ_FROM_DISK
 set global userstat=@save_userstat;
+# End of 11.5 tests

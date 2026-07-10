@@ -1,0 +1,34 @@
+INSTALL SONAME 'ha_spider';
+CREATE TABLE t (s INT) ENGINE=SPIDER PARTITION BY HASH (s);
+LOAD INDEX INTO CACHE t PARTITION (p,p1);
+Table	Op	Msg_type	Msg_text
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	error	Corrupt
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY) ENGINE=SPIDER PARTITION BY KEY() PARTITIONS 2;
+HANDLER t OPEN AS h;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t;
+CREATE TABLE t (c INT PRIMARY KEY) ENGINE=SPIDER PARTITION BY HASH (c) PARTITIONS 2;
+CREATE TRIGGER t AFTER INSERT ON t FOR EACH ROW INSERT INTO t VALUES(0);
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t;
+CREATE TABLE t (b INT) ENGINE=InnoDB;
+PREPARE s FROM 'SELECT * FROM t LIMIT 2';
+DROP TABLE t;
+CREATE TABLE t (a INT) ENGINE=Spider PARTITION BY LIST (a) PARTITIONS 2 (PARTITION p1 VALUES IN (0,1),PARTITION p2 VALUES IN (2,3));
+EXECUTE s;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE t;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+LOCK TABLES t WRITE;
+CREATE OR REPLACE TABLE t (d INT) ENGINE=Spider PARTITION BY LIST COLUMNS (d) (PARTITION p VALUES IN (0));
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

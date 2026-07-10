@@ -10,7 +10,7 @@
 drop table if exists t0, t1;
 --enable_warnings
 
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 set debug_sync='RESET';
 
 # 

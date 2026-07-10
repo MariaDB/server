@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-/* close a isam-database */
+/* close an Aria table */
 /*
   TODO:
    We need to have a separate mutex on the closed file to allow other threads
@@ -42,8 +42,10 @@ int maria_close(register MARIA_HA *info)
   DBUG_ASSERT(info->key_del_used == 0);
   /* Check that file is not part of any uncommitted transactions */
   DBUG_ASSERT(info->trn == 0 || info->trn == &dummy_transaction_object);
+  DBUG_ASSERT(info->dfile.pagecache == info->s->kfile.pagecache);
 
-  if (share->reopen == 1)
+  /* pagecache can be 0 if we come here from maria_recreate_table */
+  if (share->reopen == 1 && share->pagecache)
   {
     /*
       If we are going to close the file, flush page cache without
@@ -104,6 +106,10 @@ int maria_close(register MARIA_HA *info)
     */
     DBUG_ASSERT(share->open_list == 0);
 
+    /* Ensure that we have stopped tracking of temporary files */
+    DBUG_ASSERT(share->track_data.file_size == 0);
+    DBUG_ASSERT(share->track_index.file_size == 0);
+
     /* Flush everything */
     if (share->kfile.file >= 0)
     {
@@ -119,8 +125,11 @@ int maria_close(register MARIA_HA *info)
         Extra flush, just in case someone opened and closed the file
         since the start of the function (very unlikely)
       */
-      if (flush_pagecache_blocks(share->pagecache, &share->kfile,
-                        share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
+      if (share->pagecache &&
+          flush_pagecache_blocks(share->pagecache, &share->kfile,
+                                 share->deleting ?
+                                 FLUSH_IGNORE_CHANGED :
+                                 FLUSH_RELEASE))
         error= my_errno;
       unmap_file(info);
       if (!internal_table &&

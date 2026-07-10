@@ -1,4 +1,3 @@
-drop table if exists t1,t1aa,t2aa;
 set sql_mode="";
 DROP DATABASE IF EXISTS testdb;
 CREATE DATABASE testdb;
@@ -19,7 +18,7 @@ Grants for select_only_c1@localhost
 GRANT USAGE ON *.* TO `select_only_c1`@`localhost`
 GRANT SELECT (`c1`) ON `testdb`.`v1` TO `select_only_c1`@`localhost`
 
-"after fix privs"
+# after fix privs
 SHOW GRANTS FOR 'show_view_tbl'@'localhost';
 Grants for show_view_tbl@localhost
 GRANT USAGE ON *.* TO `show_view_tbl`@`localhost`
@@ -35,3 +34,4 @@ DROP USER 'select_only_c1'@'localhost';
 DROP VIEW testdb.v1;
 DROP TABLE testdb.t1;
 DROP DATABASE testdb;
+# End of 4.1 tests

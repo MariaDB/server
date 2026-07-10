@@ -1,0 +1,2 @@
+--timezone=GMT
+--duckdb_require_primary_key=off

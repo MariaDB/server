@@ -1,5 +1,4 @@
 # Save the initial number of concurrent sessions.
---source include/count_sessions.inc
 --source include/have_innodb.inc
 
 let $initial_timeout=`select @@innodb_lock_wait_timeout`;
@@ -27,8 +26,6 @@ connection c;
 select @@innodb_lock_wait_timeout;
 
 disconnect c;
---source include/wait_until_disconnected.inc
-
 connection a;
 --replace_result $connection_b_id <connection_b_id>
 eval SET @connection_b_id = $connection_b_id;
@@ -107,12 +104,8 @@ connection b;
 reap;
 
 disconnect b;
---source include/wait_until_disconnected.inc
-
 connection a;
 disconnect a;
---source include/wait_until_disconnected.inc
-
 connection default;
 drop table t1;
 --replace_result $initial_timeout <initial_timeout>
@@ -196,5 +189,3 @@ disconnect con2;
 # clear
 connection default;
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc

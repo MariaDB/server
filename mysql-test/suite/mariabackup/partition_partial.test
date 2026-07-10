@@ -16,7 +16,7 @@ echo # xtrabackup backup;
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables=test.t1" --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 "--tables=test.t1" --target-dir=$targetdir;
 --enable_result_log
 INSERT INTO t1 VALUES (1), (101), (201), (301);
 

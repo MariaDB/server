@@ -14,13 +14,15 @@
 # ------------------------------------------------------------------------------
 # Get the size of ONE known colum and check the size against some values to
 # be able to use the correct --replace_result statement. Using this only the
-# one pair of 'wrong' values is replaced and not all occurrencies of all
+# one pair of 'wrong' values is replaced and not all occurrences of all
 # possible pairs of values. See bug #12777 for details.
+--disable_cursor_protocol
 SELECT character_maximum_length INTO @CML
   FROM information_schema.columns
  WHERE table_schema = 'information_schema'
    AND table_name   = 'columns'
    AND column_name  = 'table_catalog';
+--enable_cursor_protocol
 
 let $bug_12777_0512= `SELECT @CML =  512`;
 let $bug_12777_1023= `SELECT @CML = 1023`;
@@ -70,7 +72,7 @@ let $engine_memory= `SELECT @ENGINE_MEMORY = 1`;
 --disable_warnings
 DROP DATABASE IF EXISTS test1;
 --enable_warnings
-CREATE DATABASE test1;
+CREATE DATABASE test1 CHARACTER SET latin1;
 USE test;
 
 if ($engine_innodb)

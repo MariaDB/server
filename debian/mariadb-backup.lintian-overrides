@@ -1,0 +1,7 @@
+# These are from stop word list
+spelling-error-in-binary depricated deprecated [usr/bin/mariadb-backup]
+spelling-error-in-binary explicite explicit [usr/bin/mariadb-backup]
+spelling-error-in-binary noone no one [usr/bin/mariadb-backup]
+spelling-error-in-binary thats that's [usr/bin/mariadb-backup]
+spelling-error-in-binary theres there's [usr/bin/mariadb-backup]
+spelling-error-in-binary yuR your [usr/bin/mariadb-backup]

@@ -1,0 +1,47 @@
+# Checking stack usage
+#
+# basic tests
+#
+select variable_value > 0 from information_schema.session_status where variable_name="stack_usage";
+variable_value > 0
+1
+#
+# Ensure stack usage is same for each iteration when using WITH recursive
+#
+create table t1
+WITH recursive Fibonacci(PrevN, N, Stack) AS
+(
+SELECT 0, 1, 0
+UNION ALL
+SELECT N, PrevN + N, (select variable_value from information_schema.session_status where variable_name="stack_usage")
+FROM Fibonacci
+WHERE N < 100000
+)
+SELECT PrevN as N, Stack FROM Fibonacci;
+select (select stack from t1 where n=2) = (select stack from t1 where N=75025) as c;
+c
+1
+DROP table t1;
+#
+# Check stack with recursion
+#
+set @@max_sp_recursion_depth=20;
+create or replace procedure recursion(x int, max int, OUT res int)
+begin
+select variable_value into res from information_schema.session_status where variable_name="stack_usage";
+if (x < max) then
+call recursion(x+1, max, res);
+end if;
+end;
+$$
+call recursion(0,2,@s1);
+call recursion(0,3,@s2);
+call recursion(0,4,@s3);
+$$
+select @s1 > 0 && @s2 > 0 && @s3 > 0;
+@s1 > 0 && @s2 > 0 && @s3 > 0
+1
+drop procedure recursion;
+#
+# End of 10.5 tests
+#

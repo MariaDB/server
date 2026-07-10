@@ -1,3 +1,4 @@
+set @@time_zone='+00:00';
 create table t1(
 x int unsigned,
 sys_start bigint unsigned as row start invisible,
@@ -66,7 +67,7 @@ c varchar(8),
 period for system_time(s, e))
 with system versioning;
 insert into t1 values (1, null, null, 'foo');
-select i, c, e>TIMESTAMP'2038-01-01 00:00:00' AS current_row from t1;
+select i, c,  e>LEFT(SYS_TIME_MAX, 10) AS current_row from t1;;
 i	c	current_row
 1	foo	1
 drop table t1;
@@ -84,3 +85,4 @@ select pk,i,row_end > '2038-01-01' from t1 for system_time all;
 pk	i	row_end > '2038-01-01'
 1	1000	1
 drop table t1;
+set @@time_zone=default;

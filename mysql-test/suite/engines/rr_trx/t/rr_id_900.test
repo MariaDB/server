@@ -35,7 +35,7 @@ START TRANSACTION;
 # Re-using unique values in an effort to avoid rollbacks due to duplicate keys.
 #
 # NOTE: Because we maintain 0-sum consistency by "cancelling out" the deleted row with a new
-#       row later, we need to make sure we knoe exactly what we are deleting, thus using
+#       row later, we need to make sure we know exactly what we are deleting, thus using
 #       FOR UPDATE clause.
 --echo *** Disabling result log
 --disable_result_log
@@ -93,7 +93,7 @@ START TRANSACTION;
 --echo *** Disabling result log
 --disable_result_log
 # In order not to pick the same row as above, try to pick a different pk.
-# Use FOR UPDATE to make sure we maintain 0-sum consistency througout the transaction.
+# Use FOR UPDATE to make sure we maintain 0-sum consistency throughout the transaction.
 --error 0, ER_LOCK_DEADLOCK, ER_LOCK_WAIT_TIMEOUT, ER_CHECKREAD
 SELECT @pk:=`pk`,
        @unique1:=`int1_unique`,

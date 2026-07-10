@@ -20,4 +20,3 @@ SET GLOBAL wsrep_desync=0;
 --sleep 1
 DROP TABLE t1;
 SHOW VARIABLES LIKE 'wsrep_desync';
-

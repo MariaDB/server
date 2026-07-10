@@ -15,7 +15,7 @@ DROP TABLE IF EXISTS table_11733 ;
 # so we use a non-SUPER one:
 
 create user test@localhost;
-grant CREATE, SELECT, DROP on *.* to test@localhost;
+grant CREATE, SELECT, DROP, INSERT on *.* to test@localhost;
 
 connect (con1,localhost,test,,test);
 
@@ -38,19 +38,18 @@ select * from table_11733 ;
 --error ER_OPTION_PREVENTS_STATEMENT
 COMMIT;
 
+disconnect con1;
 connection default;
 set global read_only=0;
 drop table table_11733 ;
 drop user test@localhost;
-
-disconnect con1;
 
 #
 # Bug #35732: read-only blocks SELECT statements in InnoDB
 #
 # Test 1: read only mode
 create user test@localhost;
-GRANT CREATE, SELECT, DROP ON *.* TO test@localhost;
+GRANT CREATE, SELECT, DROP, LOCK TABLES ON *.* TO test@localhost;
 connect(con1, localhost, test, , test);
 
 connection default;
@@ -94,6 +93,7 @@ set global read_only=1;
 connection con1;
 unlock tables;
 
+disconnect con1;
 connection default;
 SET GLOBAL read_only=0;
 
@@ -101,9 +101,7 @@ UNLOCK TABLES;
 DROP TABLE t1;
 DROP USER test@localhost;
 
-disconnect con1;
-
---echo echo End of 5.1 tests 
+--echo # End of 5.1 tests
 
 --echo #
 --echo # Bug#33669: Transactional temporary tables do not work under --read-only
@@ -250,3 +248,29 @@ SET GLOBAL READ_ONLY = OFF;
 DROP USER bug33669@localhost;
 DROP DATABASE db1;
 
+--echo # End of 5.5 tests
+
+--echo #
+--echo # MDEV-33889 Read only server throws error when running a create temporary table as select statement
+--echo #
+create table t1(a int) engine=innodb;
+create user u1@localhost;
+grant insert, select, update, delete, create temporary tables on test.* to u1@localhost;
+insert into t1 values (1);
+set global read_only=1;
+
+connect u1,localhost,u1;
+set default_tmp_storage_engine=innodb;
+
+create temporary table tt1 (a int);
+create temporary table tt2 like t1;
+create temporary table tt3 as select * from t1;
+select * from tt3;
+disconnect u1;
+
+connection default;
+drop table t1;
+drop user u1@localhost;
+set global read_only=0;
+
+--echo # End of 10.5 tests

@@ -15,7 +15,7 @@ items	CREATE TABLE `items` (
   `score3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `score1` (`score1`,`score2`,`score3`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO items (score1, score2, score3) VALUES(1, 10, -100);
 INSERT INTO items (score1, score2, score3) VALUES(1, 10,   0);
 INSERT INTO items (score1, score2, score3) VALUES(2, 10,  100);

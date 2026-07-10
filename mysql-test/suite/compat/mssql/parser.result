@@ -66,7 +66,7 @@ Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Da
 p 1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,MSSQL,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS	CREATE DEFINER="root"@"localhost" PROCEDURE "p 1"()
 BEGIN
 SELECT 'test' [a b];
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL [p 1];
 a b
 test

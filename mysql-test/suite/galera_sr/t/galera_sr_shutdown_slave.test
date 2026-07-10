@@ -8,8 +8,9 @@
 --let $node_1=node_1
 --let $node_2=node_2
 --source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_2
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:.*");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE = InnoDB;

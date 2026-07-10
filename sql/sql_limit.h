@@ -43,7 +43,7 @@ class Select_limit_counters
       select_limit_cnt= limit;
       with_ties= with_ties_arg;
       /*
-        Guard against an overflow condition, where limit + offset exceede
+        Guard against an overflow condition, where limit + offset exceeds
         ha_rows value range. This case covers unreasonably large parameter
         values that do not have any practical use so assuming in this case
         that the query does not have a limit is fine.

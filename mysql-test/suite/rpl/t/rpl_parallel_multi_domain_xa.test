@@ -1,0 +1,179 @@
+# Similar to rpl_parallel_optimistic_xa to verify XA
+# parallel execution with multiple gtid domain.
+# References:
+# MDEV-33668 Adapt parallel slave's round-robin scheduling to XA events
+
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+--source include/master-slave.inc
+
+# Tests' global declarations
+--let $trx = _trx_
+--let $slave_timeout= -1
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("WSREP: handlerton rollback failed");
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--save_master_pos
+
+# Prepare to restart slave into optimistic parallel mode
+--connection slave
+--sync_with_master
+--source include/stop_slave.inc
+# This test runs huge number of transactions independently in parallel that
+# all conflict on a single row. This requires a large number of retries, as a
+# transaction can repeatedly conflict/deadlock with a large number of other
+# transactions (in a different domain) one by one.
+SET @old_transaction_retries                 = @@GLOBAL.slave_transaction_retries;
+SET @@global.slave_transaction_retries       = 1000;
+SET @old_parallel_threads                    = @@GLOBAL.slave_parallel_threads;
+SET @old_slave_domain_parallel_threads       = @@GLOBAL.slave_domain_parallel_threads;
+SET @@global.slave_parallel_threads          = 5;
+SET @@global.slave_domain_parallel_threads = 3;
+SET @old_parallel_mode               = @@GLOBAL.slave_parallel_mode;
+
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+--connection master
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--let $mode = 2
+# mode = 2 is optimistic
+SET @@global.slave_parallel_mode     ='optimistic';
+while ($mode)
+{
+  --connection master
+  #
+  # create XA events alternating gtid domains to run them in parallel on slave.
+  #
+  --let $domain_num = 3
+  --let $trx_num = 777
+  --let $i       = $trx_num
+  --let $conn    = master
+  --disable_query_log
+  while($i > 0)
+  {
+    --let $domain_id = `SELECT $i % $domain_num`
+    --eval set @@gtid_domain_id = $domain_id
+    # 'decision' to commit 0, or rollback 1
+    --let  $decision = `SELECT $i % 2`
+    --eval XA START '$conn$trx$i'
+    --eval   UPDATE t1 SET b = 1 - 2 * $decision WHERE a = 1
+    --eval XA END '$conn$trx$i'
+    --eval XA PREPARE '$conn$trx$i'
+    --let $term = COMMIT
+    if ($decision)
+    {
+      --let $term = ROLLBACK
+    }
+    --eval XA $term '$conn$trx$i'
+
+    --dec $i
+  }
+  --enable_query_log
+  --source include/save_master_gtid.inc
+
+  --connection slave
+  if (`select $mode = 1`)
+  {
+    SET @@global.slave_parallel_mode     ='conservative';
+  }
+  --source include/start_slave.inc
+  --source include/sync_with_master_gtid.inc
+  --source include/stop_slave.inc
+
+  --dec $mode
+}
+
+
+# Generations test.
+# Create few ranges of XAP groups length of greater than
+#   3 * slave_parallel_threads + 1
+# terminated upon each range.
+--let $iter = 3
+--let $generation_len = @@global.slave_parallel_threads
+--let $domain_num = 3
+--disable_query_log
+--connection master
+while ($iter)
+{
+  --let $k = `select 3 * 3 * $generation_len`
+	--let $_k = $k
+  while ($k)
+  {
+		--connect(con$k,localhost,root,,)
+    #
+    # create XA events alternating gtid domains to run them in parallel on slave.
+    #
+		--let $domain_id = `SELECT $k % $domain_num`
+		--eval set @@gtid_domain_id = $domain_id
+		--eval XA START '$trx$k'
+		--eval   INSERT INTO t1 VALUES ($k + 1, $iter)
+		--eval XA END '$trx$k'
+		--eval XA PREPARE '$trx$k'
+
+		--disconnect con$k
+    --connection master
+
+		--dec $k
+  }
+
+	--connection master
+	--let $k = $_k
+  while ($k)
+	{
+		--let $term = COMMIT
+		--let $decision = `SELECT $k % 2`
+		if ($decision)
+		{
+			--let $term = ROLLBACK
+		}
+		--eval XA $term '$trx$k'
+	}
+	--dec $iter
+}
+--enable_query_log
+--source include/save_master_gtid.inc
+
+--connection slave
+SET @@global.slave_parallel_mode     = 'optimistic';
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+#
+# Overall consistency check
+#
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+
+#
+# Clean up.
+#
+--connection slave
+--source include/stop_slave.inc
+SET @@global.slave_parallel_mode           = @old_parallel_mode;
+SET @@global.slave_parallel_threads        = @old_parallel_threads;
+SET @@global.slave_domain_parallel_threads = @old_slave_domain_parallel_threads;
+SET @@global.slave_transaction_retries     = @old_transaction_retries;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+--source include/rpl_end.inc

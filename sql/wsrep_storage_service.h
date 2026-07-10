@@ -28,19 +28,19 @@ class Wsrep_storage_service :
 public:
   Wsrep_storage_service(THD*);
   ~Wsrep_storage_service();
-  int start_transaction(const wsrep::ws_handle&);
-  void adopt_transaction(const wsrep::transaction&);
+  int start_transaction(const wsrep::ws_handle&) override;
+  void adopt_transaction(const wsrep::transaction&) override;
   int append_fragment(const wsrep::id&,
                       wsrep::transaction_id,
                       int flags,
                       const wsrep::const_buffer&,
-                      const wsrep::xid&);
-  int update_fragment_meta(const wsrep::ws_meta&);
-  int remove_fragments();
-  int commit(const wsrep::ws_handle&, const wsrep::ws_meta&);
-  int rollback(const wsrep::ws_handle&, const wsrep::ws_meta&);
-  void store_globals();
-  void reset_globals();
+                      const wsrep::xid&) override;
+  int update_fragment_meta(const wsrep::ws_meta&) override;
+  int remove_fragments() override;
+  int commit(const wsrep::ws_handle&, const wsrep::ws_meta&) override;
+  int rollback(const wsrep::ws_handle&, const wsrep::ws_meta&) override;
+  void store_globals() override;
+  void reset_globals() override;
 private:
   friend class Wsrep_server_service;
   THD* m_thd;

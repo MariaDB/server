@@ -107,10 +107,10 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
                                     Json_writer_object *trace_object);
 
 void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab);
-void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables);
+void trace_plan_prefix(Json_writer_object *jsobj, JOIN *join, uint idx,
+                       table_map join_tables);
 void print_final_join_order(JOIN *join);
-void print_best_access_for_table(THD *thd, POSITION *pos,
-                                 enum join_type type);
+void print_best_access_for_table(THD *thd, POSITION *pos);
 
 void trace_condition(THD * thd, const char *name, const char *transform_type,
                     Item *item, const char *table_name= nullptr);

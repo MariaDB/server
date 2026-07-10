@@ -31,3 +31,26 @@ sub mycrc32 {
 
  return $crc;
 }
+
+
+# Fix the checksum of an InnoDB tablespace page.
+# Inputs:
+#   $page        A bytestring with the page data.
+#   $full_crc32  Checksum type, see get_full_crc32() in innodb-util.pl
+# Returns: the modified page as a bytestring.
+sub fix_page_crc {
+  my ($page, $full_crc32)= @_;
+  my $ps= length($page);
+  my $polynomial = 0x82f63b78; # CRC-32C
+  if ($full_crc32) {
+    my $ck = mycrc32(substr($page, 0, $ps - 4), 0, $polynomial);
+    substr($page, $ps - 4, 4) = pack("N", $ck);
+  } else {
+    my $ck= pack("N",
+                 mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page, 0, 4)= $ck;
+    substr($page, $ps-8, 4)= $ck;
+  }
+  return $page;
+}

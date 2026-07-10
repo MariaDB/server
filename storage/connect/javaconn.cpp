@@ -276,8 +276,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			char  buf[256];
 			DWORD rc = GetLastError();
 
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-										FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+			FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 				            (LPTSTR)buf, sizeof(buf), NULL);
 			snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR)": %s", rc,
 							 soname, buf);
@@ -407,10 +406,9 @@ bool JAVAConn::Open(PGLOBAL g)
 			jpop->Append(ClassPath);
 		}	// endif ClassPath
 
-		// All wrappers are pre-compiled in JavaWrappers.jar in the share dir
 		jpop->Append(sep);
 		jpop->Append(GetMessageDir());
-		jpop->Append("JavaWrappers.jar");
+		jpop->Append("JdbcInterface.jar");
 
 #if defined(MONGO_SUPPORT)
 		jpop->Append(sep);

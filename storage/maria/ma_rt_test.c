@@ -23,9 +23,6 @@
 #include "ma_checkpoint.h"
 #include "trnman.h"
 #include <my_getopt.h>
-
-#ifdef HAVE_RTREE_KEYS
-
 #include "ma_rt_index.h"
 
 #define MAX_REC_LENGTH 1024
@@ -99,9 +96,9 @@ int main(int argc, char *argv[])
   get_options(argc, argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
-      (init_pagecache(maria_pagecache, maria_block_size * 16, 0, 0,
-                      maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      (multi_init_pagecache(&maria_pagecaches, 1, maria_block_size * 16, 0, 0,
+                            maria_block_size, 0, MY_WME)) ||
+      ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -687,10 +684,3 @@ static void usage()
 }
 
 #include "ma_check_standalone.h"
-
-#else
-int main(int argc __attribute__((unused)),char *argv[] __attribute__((unused)))
-{
-  exit(0);
-}
-#endif /*HAVE_RTREE_KEYS*/

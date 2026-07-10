@@ -1,0 +1,57 @@
+--- innodb-fts-ddl.result	2023-11-23 13:40:18.932463721 +0100
++++ innodb-fts-ddl,vers_trx.result	2024-04-09 11:45:57.097484346 +0200
+@@ -11,8 +11,10 @@
+ ('MySQL vs. YourSQL','In the following database comparison ...'),
+ ('MySQL Security','When configured properly, MySQL ...');
+ ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+-ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
+-ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=INPLACE;
++ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
++ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
++affected rows: 6
++info: Records: 6  Duplicates: 0  Warnings: 0
+ SELECT * FROM fts_test WHERE MATCH (title, body)
+ AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+ id	title	body
+@@ -26,7 +28,9 @@
+ ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+ ('MySQL vs. YourSQL','In the following database comparison ...'),
+ ('MySQL Security','When configured properly, MySQL ...');
+-ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
++ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
++affected rows: 12
++info: Records: 12  Duplicates: 0  Warnings: 0
+ SELECT * FROM fts_test WHERE MATCH (title, body)
+ AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+ id	title	body
+@@ -76,8 +80,10 @@
+ ('MySQL vs. YourSQL','In the following database comparison ...'),
+ ('MySQL Security','When configured properly, MySQL ...');
+ ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY, LOCK=NONE;
+-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+-ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
++ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
++ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
++affected rows: 6
++info: Records: 6  Duplicates: 0  Warnings: 0
+ ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
+ ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
+@@ -162,7 +168,7 @@
+ (20, 'MySQL Security','When configured properly, MySQL ...');
+ ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+ ADD FULLTEXT INDEX idx3 (title), ALGORITHM=INPLACE;
+-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
++ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
+ ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+ ADD FULLTEXT INDEX idx3 (title);
+ affected rows: 6
+@@ -274,7 +280,7 @@
+ call mtr.add_suppression("InnoDB: Failed to create");
+ CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
+ ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+-ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB
++ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
+ DROP TABLE t1;
+ CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
+ ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);

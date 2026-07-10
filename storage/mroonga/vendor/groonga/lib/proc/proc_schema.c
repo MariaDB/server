@@ -17,9 +17,8 @@
 */
 
 #include "../grn_proc.h"
-
 #include "../grn_db.h"
-
+#include <my_attribute.h>
 #include <groonga/plugin.h>
 
 typedef struct {
@@ -572,6 +571,8 @@ command_schema_table_output_token_filters(grn_ctx *ctx, grn_obj *table)
   GRN_OBJ_FIN(ctx, &token_filters);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void
 command_schema_table_command_collect_arguments(grn_ctx *ctx,
                                                grn_obj *table,
@@ -692,6 +693,7 @@ command_schema_table_command_collect_arguments(grn_ctx *ctx,
 #undef ADD_OBJECT_NAME
 #undef ADD
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void
 command_schema_table_output_command(grn_ctx *ctx, grn_obj *table)
@@ -875,6 +877,8 @@ command_schema_output_indexes(grn_ctx *ctx, grn_obj *object)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void
 command_schema_column_command_collect_arguments(grn_ctx *ctx,
                                                 grn_obj *table,
@@ -973,6 +977,7 @@ command_schema_column_command_collect_arguments(grn_ctx *ctx,
 #undef ADD_OBJECT_NAME
 #undef ADD
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void
 command_schema_column_output_command(grn_ctx *ctx,
@@ -1125,6 +1130,8 @@ command_schema_output_table(grn_ctx *ctx,
   grn_ctx_output_map_close(ctx);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void
 command_schema_output_tables(grn_ctx *ctx, grn_schema_data *data)
 {
@@ -1196,6 +1203,9 @@ command_schema_output_tables(grn_ctx *ctx, grn_schema_data *data)
   GRN_OBJ_FIN(ctx, &table_ids);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 static grn_obj *
 command_schema(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
 {
@@ -1214,6 +1224,7 @@ command_schema(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data
 
   return NULL;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void
 grn_proc_init_schema(grn_ctx *ctx)

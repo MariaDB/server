@@ -1,0 +1,30 @@
+#
+# MDEV 38305 : Expose adaptive hash index statistics in ANALYZE FORMAT=JSON
+#
+SET @start_global_value= @@global.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index= ON;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+col1 INT,
+col2 INT,
+col3 INT,
+INDEX idx_1 (col1),
+INDEX idx_2 (col2),
+INDEX idx_3 (col3)
+) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 20, seq % 5, seq % 10 FROM seq_0_to_999;
+ANALYZE FORMAT=JSON SELECT * FROM t1 FORCE INDEX(idx_1) WHERE col1 = 5
+ahi_searches	ahi_searches_btree	ahi_rows_added	ahi_pages_added	r_rows
+0	[51]	0	0	[50]
+ANALYZE FORMAT=JSON SELECT * FROM t1 FORCE INDEX(idx_2) WHERE col2 = 3
+ahi_searches	ahi_searches_btree	ahi_rows_added	ahi_pages_added	r_rows
+[129]	[72]	[797]	[2]	[200]
+ANALYZE FORMAT=JSON SELECT * FROM t1 FORCE INDEX(idx_3) WHERE col3 = 5
+ahi_searches	ahi_searches_btree	ahi_rows_added	ahi_pages_added	r_rows
+[101]	0	0	0	[100]
+SET GLOBAL innodb_adaptive_hash_index = OFF;
+ANALYZE FORMAT=JSON SELECT * FROM t1 FORCE INDEX(idx_2) WHERE col2 = 2
+ahi_searches	ahi_searches_btree	ahi_rows_added	ahi_pages_added	r_rows
+0	0	0	0	[200]
+DROP TABLE t1;
+SET GLOBAL innodb_adaptive_hash_index= @start_global_value;

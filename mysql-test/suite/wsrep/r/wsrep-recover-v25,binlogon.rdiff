@@ -1,5 +1,5 @@
---- r/wsrep-recover-v25.result	2019-02-28 09:20:56.153775856 +0200
-+++ r/wsrep-recover-v25.reject	2019-02-28 09:22:16.578113115 +0200
+--- r/wsrep-recover-v25.result
++++ r/wsrep-recover-v25,binlogoin.reject
 @@ -12,4 +12,16 @@
  SELECT VARIABLE_VALUE `expect 6` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
  expect 6

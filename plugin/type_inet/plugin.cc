@@ -21,6 +21,13 @@
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
 
+static struct st_mariadb_data_type plugin_descriptor_type_inet4=
+{
+  MariaDB_DATA_TYPE_INTERFACE_VERSION,
+  Type_handler_inet4::singleton()
+};
+
+
 static struct st_mariadb_data_type plugin_descriptor_type_inet6=
 {
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
@@ -40,7 +47,7 @@ public:
   static Create_func_inet_ntoa s_singleton;
 protected:
   Create_func_inet_ntoa() {}
-  virtual ~Create_func_inet_ntoa() {}
+  ~Create_func_inet_ntoa() override {}
 };
 
 
@@ -54,7 +61,7 @@ public:
   static Create_func_inet_aton s_singleton;
 protected:
   Create_func_inet_aton() {}
-  virtual ~Create_func_inet_aton() {}
+  ~Create_func_inet_aton() override {}
 };
 
 
@@ -68,7 +75,7 @@ public:
   static Create_func_inet6_aton s_singleton;
 protected:
   Create_func_inet6_aton() {}
-  virtual ~Create_func_inet6_aton() {}
+  ~Create_func_inet6_aton() override {}
 };
 
 
@@ -82,7 +89,7 @@ public:
   static Create_func_inet6_ntoa s_singleton;
 protected:
   Create_func_inet6_ntoa() {}
-  virtual ~Create_func_inet6_ntoa() {}
+  ~Create_func_inet6_ntoa() override {}
 };
 
 
@@ -96,7 +103,7 @@ public:
   static Create_func_is_ipv4 s_singleton;
 protected:
   Create_func_is_ipv4() {}
-  virtual ~Create_func_is_ipv4() {}
+  ~Create_func_is_ipv4() override {}
 };
 
 
@@ -110,7 +117,7 @@ public:
   static Create_func_is_ipv6 s_singleton;
 protected:
   Create_func_is_ipv6() {}
-  virtual ~Create_func_is_ipv6() {}
+  ~Create_func_is_ipv6() override {}
 };
 
 
@@ -124,7 +131,7 @@ public:
   static Create_func_is_ipv4_compat s_singleton;
 protected:
   Create_func_is_ipv4_compat() {}
-  virtual ~Create_func_is_ipv4_compat() {}
+  ~Create_func_is_ipv4_compat() override {}
 };
 
 
@@ -138,7 +145,7 @@ public:
   static Create_func_is_ipv4_mapped s_singleton;
 protected:
   Create_func_is_ipv4_mapped() {}
-  virtual ~Create_func_is_ipv4_mapped() {}
+  ~Create_func_is_ipv4_mapped() override {}
 };
 
 
@@ -169,6 +176,21 @@ static Plugin_function
 /*************************************************************************/
 
 maria_declare_plugin(type_inet)
+{
+  MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_type_inet4,// pointer to type-specific plugin descriptor
+  "inet4",                      // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Data type INET4",            // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0.1",                      // String version representation
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
+},
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_type_inet6,// pointer to type-specific plugin descriptor

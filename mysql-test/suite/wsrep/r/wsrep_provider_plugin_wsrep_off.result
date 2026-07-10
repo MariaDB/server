@@ -1,0 +1,5 @@
+SELECT @@wsrep_on;
+@@wsrep_on
+0
+select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider%';
+variable_type	global_value

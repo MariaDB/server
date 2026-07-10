@@ -1,0 +1,2 @@
+--innodb_data_file_path=ibdata1:3M;ibdata2:1M:autoextend
+--innodb_sys_tablespaces

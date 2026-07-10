@@ -25,7 +25,6 @@ connection default;
 revoke alter on mysqltest_1.* from mysqltest_1@localhost;
 connect  conn3,localhost,mysqltest_1,,mysqltest_1;
 alter table t1 drop partition p3;
-ERROR 42000: ALTER command denied to user 'mysqltest_1'@'localhost' for table `mysqltest_1`.`t1`
 disconnect conn3;
 connection default;
 revoke select,alter,drop on mysqltest_1.* from mysqltest_1@localhost;
@@ -49,3 +48,93 @@ drop table t1;
 drop user mysqltest_1@localhost;
 drop schema mysqltest_1;
 End of 5.1 tests
+#
+# MDEV-39028: DROP PARTITION should only require DROP privilege
+#
+create database mysqltest_2;
+use mysqltest_2;
+create table t1 (a int)
+partition by list (a) (
+partition p0 values in (0),
+partition p1 values in (1),
+partition p2 values in (2));
+insert into t1 values (0), (1), (2);
+# No privileges (must fail)
+create user foo;
+grant select on mysqltest_2.* to foo;
+connect conn,localhost,foo,,mysqltest_2;
+show grants for current_user;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT ON `mysqltest_2`.* TO `foo`@`%`
+alter table t1 drop partition p1;
+ERROR 42000: DROP command denied to user 'foo'@'localhost' for table `mysqltest_2`.`t1`
+alter table t1 convert partition p1 to table tp1;
+ERROR 42000: DROP command denied to user 'foo'@'localhost' for table `mysqltest_2`.`t1`
+disconnect conn;
+# Only ALTER privilege (must fail)
+connection default;
+grant alter on mysqltest_2.* to foo;
+connect conn,localhost,foo,,mysqltest_2;
+show grants for current_user;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT, ALTER ON `mysqltest_2`.* TO `foo`@`%`
+alter table t1 drop partition p1;
+ERROR 42000: DROP command denied to user 'foo'@'localhost' for table `mysqltest_2`.`t1`
+alter table t1 convert partition p1 to table tp1;
+ERROR 42000: DROP command denied to user 'foo'@'localhost' for table `mysqltest_2`.`t1`
+disconnect conn;
+# Only DROP privilege (DROP must succeed, CONVERT OUT must fail)
+connection default;
+revoke alter on mysqltest_2.* from foo;
+grant drop on mysqltest_2.* to foo@;
+connect conn,localhost,foo,,mysqltest_2;
+show grants for current_user;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT, DROP ON `mysqltest_2`.* TO `foo`@`%`
+alter table t1 drop partition p1;
+alter table t1 convert partition p2 to table tp2;
+ERROR 42000: INSERT, CREATE command denied to user 'foo'@'localhost' for table `mysqltest_2`.`tp2`
+disconnect conn;
+# CREATE and INSERT privileges (CONVERT OUT must fail)
+connection default;
+revoke drop on mysqltest_2.* from foo;
+grant insert, create on mysqltest_2.* to foo@;
+connect conn,localhost,foo,,mysqltest_2;
+show grants for current_user;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT, INSERT, CREATE ON `mysqltest_2`.* TO `foo`@`%`
+alter table t1 convert partition p2 to table tp2;
+ERROR 42000: DROP command denied to user 'foo'@'localhost' for table `mysqltest_2`.`t1`
+disconnect conn;
+# DROP and INSERT privileges (CONVERT OUT must fail)
+connection default;
+revoke create on mysqltest_2.* from foo;
+grant drop on mysqltest_2.* to foo@;
+connect conn,localhost,foo,,mysqltest_2;
+show grants for current_user;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT, INSERT, DROP ON `mysqltest_2`.* TO `foo`@`%`
+alter table t1 convert partition p2 to table tp2;
+ERROR 42000: CREATE command denied to user 'foo'@'localhost' for table `mysqltest_2`.`tp2`
+disconnect conn;
+# CREATE, DROP and INSERT privileges (CONVERT OUT must succeed)
+connection default;
+grant create on mysqltest_2.* to foo@;
+connect conn,localhost,foo,,mysqltest_2;
+show grants for current_user;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT, INSERT, CREATE, DROP ON `mysqltest_2`.* TO `foo`@`%`
+alter table t1 convert partition p2 to table tp2;
+disconnect conn;
+connection default;
+drop table t1;
+drop user foo;
+drop database mysqltest_2;
+use test;
+# End of 11.4 tests

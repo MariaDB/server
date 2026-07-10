@@ -23,6 +23,8 @@
 #ifndef PFS_SERVER_H
 #define PFS_SERVER_H
 
+#include "m_string.h"                           /* LEX_CSTRING */
+
 /**
   @file storage/perfschema/pfs_server.h
   Private interface for the server (declarations).
@@ -53,7 +55,7 @@
   #define PFS_MAX_SOCKET_CLASS 10
 #endif
 #ifndef PFS_MAX_STAGE_CLASS
-  #define PFS_MAX_STAGE_CLASS 160
+  #define PFS_MAX_STAGE_CLASS 170
 #endif
 #ifndef PFS_STATEMENTS_STACK_SIZE
   #define PFS_STATEMENTS_STACK_SIZE 10
@@ -178,7 +180,7 @@ struct PFS_global_param
   */
   long m_file_handle_sizing;
   /**
-    Maxium number of instrumented socket instances
+    Maximum number of instrumented socket instances
     @sa socket_lost
   */
   long m_socket_sizing;
@@ -299,7 +301,7 @@ void init_pfs_instrument_array();
 /**
   Process one PFS_INSTRUMENT configuration string.
 */
-int add_pfs_instr_to_array(const char* name, const char* value);
+int add_pfs_instr_to_array(const LEX_CSTRING &name, const LEX_CSTRING &value);
 
 /**
   Shutdown the performance schema.

@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+#
+# Below should not cause nodes to be inconsistent (they could if we
+# allow TOI as some error are ignored on applier
+#
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t ENGINE=InnoDB WITH SYSTEM VERSIONING AS SELECT 1 AS i;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t;

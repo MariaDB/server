@@ -1,0 +1,140 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY, b INT, c LONGBLOB) ENGINE=RocksDB;
+INSERT INTO t1 SELECT seq, seq*seq, REPEAT('x', 50*seq) FROM seq_1_to_100;
+INSERT INTO t2 SELECT seq, 10000 - seq*seq, REPEAT('y', 50*seq) FROM seq_1_to_100;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 8;
+include/start_slave.inc
+*** Cross-engine transaction, InnoDB and RocksDB.
+connect con1,localhost,root,,;
+BEGIN;
+UPDATE t1 SET b=b+a WHERE a BETWEEN 10 AND 20;
+REPLACE INTO t2 SELECT a, b, c FROM t1 WHERE a BETWEEN 30 and 40;
+connect con2,localhost,root,,;
+BEGIN;
+UPDATE t1, t2
+SET t1.b=t1.b + LENGTH(t2.c), t2.c=CONCAT("|", t2.c, "|")
+WHERE t1.a = t2.a
+AND t1.a BETWEEN 50 AND 60;
+connection con1;
+UPDATE t1 SET b=-b WHERE a=100;
+connection con2;
+UPDATE t2 SET c=CONCAT('-', c) WHERE a BETWEEN 50 AND 90;
+connection con1;
+COMMIT;
+connection con2;
+COMMIT;
+*** RocksDB-only transactions with binlog in InnoDB.
+connection master;
+UPDATE t2 SET c=CONCAT('<', c, '>') WHERE a BETWEEN 20 AND 80;
+UPDATE t2 SET b=b+1 WHERE a=1 OR a=92;
+UPDATE t2 SET b=b*2 WHERE a MOD 7 = 0;
+*** RocksDB transaction that rolls back.
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=3;
+UPDATE t2 SET b=b+1 WHERE a=5;
+UPDATE t2 SET b=b+1 WHERE a=8;
+ROLLBACK;
+connection con2;
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=4;
+UPDATE t2 SET b=b+1 WHERE a=9;
+UPDATE t2 SET b=b+1 WHERE a=13;
+disconnect con2;
+connection master;
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	348765	252500
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	661537	252685
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	348765	252500
+SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t2;
+COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
+100	5050	661537	252685
+*** Test a RocksDB transaction that needs to roll back after having binlogged an internal 2pc xid
+connection slave1;
+SET STATEMENT sql_log_bin= 0
+FOR UPDATE t1 SET a= a+1000000 WHERE a=5;
+BEGIN;
+SELECT a FROM t1 WHERE a=2 FOR UPDATE;
+a
+2
+connection master;
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=5;
+COMMIT;
+UPDATE t2 SET b=b+2 WHERE a=10;
+include/save_master_gtid.inc
+connection slave;
+connection slave1;
+ROLLBACK;
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1032]
+SET STATEMENT sql_log_bin= 0
+FOR UPDATE t1 SET a= a-1000000 WHERE a=1000000 + 5;
+START SLAVE SQL_THREAD;
+include/sync_with_master_gtid.inc
+*** XA transaction empty because statements roll back on error
+connection master;
+CREATE TRIGGER u AFTER INSERT ON t2 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //
+XA BEGIN 'xid44';
+INSERT IGNORE INTO t2(a) VALUES (0);
+ERROR 42000: SAVEPOINT A does not exist
+XA END 'xid44';
+XA PREPARE 'xid44';
+XA COMMIT 'xid44';
+DROP TRIGGER u;
+XA BEGIN 'xid44';
+INSERT INTO t2(a) VALUES (0);
+XA END 'xid44';
+XA PREPARE 'xid44';
+include/rpl_restart_server.inc [server_number=1]
+XA COMMIT 'xid44';
+SELECT * FROM t2 WHERE a=0;
+a	b	c
+0	NULL	NULL
+DELETE FROM t2 WHERE a=0;
+*** XA transaction XID not freed in RocksDB
+connection master;
+CREATE TRIGGER u AFTER INSERT ON t2 FOR EACH ROW BEGIN RELEASE SAVEPOINT A ;  END //
+XA BEGIN 'xid31';
+INSERT IGNORE INTO t2(a) VALUES (0);
+ERROR 42000: SAVEPOINT A does not exist
+XA END 'xid31';
+XA PREPARE 'xid31';
+XA COMMIT 'xid31';
+DROP TRIGGER u;
+XA BEGIN 'xid31';
+INSERT INTO t2(a) VALUES (0);
+XA END 'xid31';
+XA PREPARE 'xid31';
+XA COMMIT 'xid31';
+connection master1;
+XA BEGIN 'xid31';
+UPDATE t2 SET b=b+10 WHERE a=0;
+UPDATE t2 SET b=b+10 WHERE a=1;
+XA END 'xid31';
+XA PREPARE 'xid31';
+XA COMMIT 'xid31';
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_threads;
+include/start_slave.inc
+connection master;
+DROP TABLE t1, t2;
+CALL mtr.add_suppression("Can't find record in 't1'");
+CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+include/rpl_end.inc

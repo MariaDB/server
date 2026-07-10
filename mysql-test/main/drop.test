@@ -123,10 +123,7 @@ connection addconroot1;
 connection addconroot2;
 --reap
 disconnect addconroot2;
---source include/wait_until_disconnected.inc
-connection addconroot1;
 disconnect addconroot1;
---source include/wait_until_disconnected.inc
 connection default;
 --enable_service_connection
 
@@ -361,3 +358,9 @@ drop table mysqltest.does_not_exists;
 drop database mysqltest;
 drop database mysqltest;
 set @@session.sql_if_exists=0;
+
+--echo #
+--echo # MDEV-34205 ASAN stack-buffer-overflow in strxnmov | frm_file_exists
+--echo #
+--error ER_BAD_TABLE_ERROR
+DROP TABLE `##################################################_long`.`#################################################_long`;

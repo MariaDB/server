@@ -1,0 +1,33 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+connect  stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(1024))
+ENGINE=InnoDB STATS_PERSISTENT=1;
+INSERT INTO t1 VALUES (1,REPEAT('b',1024));
+SELECT index_length FROM information_schema.tables
+WHERE table_schema = 'test' AND table_name = 't1';
+index_length
+0
+ALTER TABLE t1 ADD INDEX b (b(800));
+SELECT FLOOR(index_length/@@innodb_page_size) FROM information_schema.tables
+WHERE table_schema = 'test' AND table_name = 't1';
+FLOOR(index_length/@@innodb_page_size)
+1
+ALTER TABLE t1 ADD INDEX ba (b(800),a);
+SELECT FLOOR(index_length/@@innodb_page_size) FROM information_schema.tables
+WHERE table_schema = 'test' AND table_name = 't1';
+FLOOR(index_length/@@innodb_page_size)
+2
+disconnect stop_purge;
+DROP TABLE t1;
+#
+# MDEV-22855  Assertion (!field->prefix_len ||
+#        field->fixed_len == field->prefix_len)
+#        failed in btr_node_ptr_max_size
+#
+CREATE TABLE t1(c CHAR(194) CHARACTER SET UTF32, KEY k1(c(193)))ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
+DROP TABLE t1;
+# End of 10.4 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

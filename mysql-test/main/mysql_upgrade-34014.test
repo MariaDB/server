@@ -1,0 +1,26 @@
+--source include/mysql_upgrade_preparation.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Stat of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34014 mysql_upgrade failed
+--echo #
+
+SHOW CREATE DATABASE sys;
+
+--echo # Emulate db.opt file was removed in a mistake
+--remove_file $MYSQLD_DATADIR/sys/db.opt
+FLUSH TABLES;
+SHOW CREATE DATABASE sys;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+SHOW CREATE DATABASE sys;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

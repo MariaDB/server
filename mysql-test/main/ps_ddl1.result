@@ -20,8 +20,6 @@ else
 select '' as "SUCCESS";
 end if;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set @reprepare_count= 0;
 flush status;
 drop table if exists t1;
@@ -165,7 +163,7 @@ call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt7;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'INSERT INTO'
 call p_verify_reprepare_count(1);
 SUCCESS
 
@@ -185,17 +183,17 @@ call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt3;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt2;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt1;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 call p_verify_reprepare_count(1);
 SUCCESS
 
@@ -205,7 +203,7 @@ call p_verify_reprepare_count(1);
 ERROR
 Expected: 1, actual: 0
 execute stmt7;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'INSERT INTO'
 call p_verify_reprepare_count(1);
 SUCCESS
 
@@ -225,17 +223,17 @@ call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt3;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt2;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 call p_verify_reprepare_count(1);
 SUCCESS
 
 execute stmt1;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 call p_verify_reprepare_count(1);
 SUCCESS
 

@@ -83,4 +83,3 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
 DROP TABLE t1;
-

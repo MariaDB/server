@@ -1,0 +1,83 @@
+# MDEV-36238: Test `--show-slave-auth-info` (and `--report-user`/`password`)
+#
+# `rpl.rpl_show_slave_hosts` and `rpl.rpl_slave_alias_replica`
+# (and several others) test SHOW SLAVE HOSTS without `--show-slave-auth-info`.
+# This test supplements them with a comparison between with and without.
+
+# SHOW SLAVE HOSTS is agnostic of binlog formats
+--source include/have_binlog_format_mixed.inc
+
+--echo # Setup
+
+# This server has `--show-slave-auth-info`.
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+# This `--show-slave-auth-info`-less server asserts that it is per-master.
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+# This is a non-reporting slave.
+--connect (slave1,127.0.0.1,root,,,$SERVER_MYPORT_3)
+# This is a self-reporting slave.
+--connect (slave2,127.0.0.1,root,,,$SERVER_MYPORT_4)
+
+--let $rpl_server_number= 2
+while ($rpl_server_number)
+{
+  --connection slave$rpl_server_number
+
+  --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+  --eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$SERVER_MYPORT_1, master_ssl_verify_server_cert=0
+  --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+  --eval CHANGE MASTER 'control sample' TO master_host='127.0.0.1', master_user='root', master_port=$SERVER_MYPORT_2, master_ssl_verify_server_cert=0
+  --disable_warnings
+  START ALL SLAVES;
+  --enable_warnings
+
+  --dec $rpl_server_number
+}
+
+--echo # Test
+
+--let $rpl_server_number= 2
+while ($rpl_server_number)
+{
+  --connection master$rpl_server_number
+
+  # Make sure the master's synced up
+  --let $show_statement= SHOW SLAVE HOSTS
+  --let $field= Server_id
+  --let $condition= =3
+  --source include/wait_show_condition.inc
+  --let $condition= =4
+  --source include/wait_show_condition.inc
+
+  --replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3 $SERVER_MYPORT_4 SERVER_MYPORT_4
+  SHOW SLAVE HOSTS;
+
+  --dec $rpl_server_number
+}
+
+# MDEV-20601 Make REPLICA a synonym for SLAVE in SQL statements
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3 $SERVER_MYPORT_4 SERVER_MYPORT_4
+SHOW REPLICA HOSTS;
+
+--echo # Cleanup
+
+--let $rpl_server_number= 2
+while ($rpl_server_number)
+{
+  --connection slave$rpl_server_number
+
+  --disable_warnings
+  STOP ALL SLAVES;
+  --enable_warnings
+  --source include/wait_for_slave_to_stop.inc
+  SET @@SESSION.default_master_connection= 'control sample';
+  --source include/wait_for_slave_to_stop.inc
+  RESET SLAVE ALL;
+
+  --dec $rpl_server_number
+}
+
+--disconnect master1
+--disconnect master2
+--disconnect slave1
+--disconnect slave2

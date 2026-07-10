@@ -78,9 +78,11 @@ sync_with_master;
 SET SESSION sql_log_bin= 0;
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --connection slave1_1

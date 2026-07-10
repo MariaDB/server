@@ -1,0 +1,11 @@
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+!include include/default_client.cnf
+
+[mysqld]
+plugin-maturity=experimental
+plugin-load-add=ha_duckdb.so
+
+[ENV]
+MASTER_MYPORT=              @mysqld.1.port
+MASTER_MYSOCK=              @mysqld.1.socket

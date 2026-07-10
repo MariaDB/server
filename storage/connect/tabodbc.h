@@ -31,14 +31,14 @@ public:
   ODBCDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "ODBC";}
+  const char *GetType(void) override {return "ODBC";}
   PSZ  GetConnect(void) {return Connect;}
   int  GetCatver(void) {return Catver;}
 
   // Methods
-	virtual int  Indexable(void) {return 2;}
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  int  Indexable(void) override {return 2;}
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -63,28 +63,28 @@ class TDBODBC : public TDBEXT {
   TDBODBC(PTDBODBC tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_ODBC;}
-  virtual PTDB Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_ODBC;}
+  PTDB Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBODBC(this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
-  virtual bool SetRecpos(PGLOBAL g, int recpos);
-  virtual PCSZ GetFile(PGLOBAL g);
-  virtual void SetFile(PGLOBAL g, PCSZ fn);
-  virtual void ResetSize(void);
-  virtual PCSZ GetServer(void) {return "ODBC";}
+  PTDB Clone(PTABS t) override;
+  bool SetRecpos(PGLOBAL g, int recpos) override;
+  PCSZ GetFile(PGLOBAL g) override;
+  void SetFile(PGLOBAL g, PCSZ fn) override;
+  void ResetSize(void) override;
+  PCSZ GetServer(void) override {return "ODBC";}
   virtual int  Indexable(void) {return 2;}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  Cardinality(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
-	virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  Cardinality(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
+  bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr) override;
 
  protected:
   // Internal functions
@@ -109,16 +109,16 @@ class ODBCCOL : public EXTCOL {
  public:
   // Constructors
   ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "ODBC");
-  ODBCCOL(ODBCCOL *colp, PTDB tdbp); // Constructor used in copy process
+  ODBCCOL(ODBCCOL *colp, PTDB tdbp); // Constructor used in opy process
 
   // Implementation
-  virtual int     GetAmType(void) {return TYPE_AM_ODBC;}
-          SQLLEN *GetStrLen(void) {return StrLen;}
+  int     GetAmType(void) override {return TYPE_AM_ODBC;}
+  SQLLEN *GetStrLen(void) {return StrLen;}
 
   // Methods
 //virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void   ReadColumn(PGLOBAL g);
-  virtual void   WriteColumn(PGLOBAL g);
+  void   ReadColumn(PGLOBAL g) override;
+  void   WriteColumn(PGLOBAL g) override;
           void   AllocateBuffers(PGLOBAL g, int rows);
           void  *GetBuffer(DWORD rows);
           SWORD  GetBuflen(void);
@@ -146,20 +146,20 @@ class TDBXDBC : public TDBODBC {
   TDBXDBC(PTDBXDBC tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_XDBC;}
-  virtual PTDB Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_XDBC;}
+  PTDB Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBXDBC(this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
+  PTDB Clone(PTABS t) override;
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
 
  protected:
   // Internal functions
@@ -185,8 +185,8 @@ class XSRCCOL : public ODBCCOL {
   // Implementation
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
 
  protected:
   // Members
@@ -203,8 +203,8 @@ class TDBDRV : public TDBCAT {
   TDBDRV(PODEF tdp) : TDBCAT(tdp) {Maxres = tdp->Maxres;}
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   int      Maxres;            // Returned lines limit
@@ -219,8 +219,8 @@ class TDBSRC : public TDBDRV {
   TDBSRC(PODEF tdp) : TDBDRV(tdp) {}
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // No additional Members
   }; // end of class TDBSRC
@@ -234,8 +234,8 @@ class TDBOTB : public TDBDRV {
   TDBOTB(PODEF tdp);
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
 	PCSZ     Dsn;               // Points to connection string
@@ -254,8 +254,8 @@ class TDBOCL : public TDBOTB {
 	 TDBOCL(PODEF tdp);
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
 	char    *Colpat;						// Points to column pattern

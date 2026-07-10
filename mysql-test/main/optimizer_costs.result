@@ -1,0 +1,347 @@
+select table_name,engine from information_schema.tables where table_name="optimizer_costs";
+table_name	engine
+OPTIMIZER_COSTS	MEMORY
+show create table information_schema.optimizer_costs;
+Table	Create Table
+OPTIMIZER_COSTS	CREATE TEMPORARY TABLE `OPTIMIZER_COSTS` (
+  `ENGINE` varchar(192) NOT NULL,
+  `OPTIMIZER_DISK_READ_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_INDEX_BLOCK_COPY_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_KEY_COMPARE_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_KEY_COPY_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_KEY_LOOKUP_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_KEY_NEXT_FIND_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_DISK_READ_RATIO` decimal(9,6) NOT NULL,
+  `OPTIMIZER_ROW_COPY_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_ROW_LOOKUP_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_ROW_NEXT_FIND_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_ROWID_COMPARE_COST` decimal(9,6) NOT NULL,
+  `OPTIMIZER_ROWID_COPY_COST` decimal(9,6) NOT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+select * from information_schema.optimizer_costs where engine in
+("memory","innodb","aria","default") order by engine;
+ENGINE	Aria
+OPTIMIZER_DISK_READ_COST	10.240000
+OPTIMIZER_INDEX_BLOCK_COPY_COST	0.035600
+OPTIMIZER_KEY_COMPARE_COST	0.011361
+OPTIMIZER_KEY_COPY_COST	0.015685
+OPTIMIZER_KEY_LOOKUP_COST	0.435777
+OPTIMIZER_KEY_NEXT_FIND_COST	0.082347
+OPTIMIZER_DISK_READ_RATIO	0.020000
+OPTIMIZER_ROW_COPY_COST	0.060866
+OPTIMIZER_ROW_LOOKUP_COST	0.130839
+OPTIMIZER_ROW_NEXT_FIND_COST	0.045916
+OPTIMIZER_ROWID_COMPARE_COST	0.002653
+OPTIMIZER_ROWID_COPY_COST	0.002653
+ENGINE	default
+OPTIMIZER_DISK_READ_COST	10.240000
+OPTIMIZER_INDEX_BLOCK_COPY_COST	0.035600
+OPTIMIZER_KEY_COMPARE_COST	0.011361
+OPTIMIZER_KEY_COPY_COST	0.015685
+OPTIMIZER_KEY_LOOKUP_COST	0.435777
+OPTIMIZER_KEY_NEXT_FIND_COST	0.082347
+OPTIMIZER_DISK_READ_RATIO	0.020000
+OPTIMIZER_ROW_COPY_COST	0.060866
+OPTIMIZER_ROW_LOOKUP_COST	0.130839
+OPTIMIZER_ROW_NEXT_FIND_COST	0.045916
+OPTIMIZER_ROWID_COMPARE_COST	0.002653
+OPTIMIZER_ROWID_COPY_COST	0.002653
+ENGINE	InnoDB
+OPTIMIZER_DISK_READ_COST	10.240000
+OPTIMIZER_INDEX_BLOCK_COPY_COST	0.035600
+OPTIMIZER_KEY_COMPARE_COST	0.011361
+OPTIMIZER_KEY_COPY_COST	0.015685
+OPTIMIZER_KEY_LOOKUP_COST	0.791120
+OPTIMIZER_KEY_NEXT_FIND_COST	0.099000
+OPTIMIZER_DISK_READ_RATIO	0.020000
+OPTIMIZER_ROW_COPY_COST	0.060870
+OPTIMIZER_ROW_LOOKUP_COST	0.765970
+OPTIMIZER_ROW_NEXT_FIND_COST	0.070130
+OPTIMIZER_ROWID_COMPARE_COST	0.002653
+OPTIMIZER_ROWID_COPY_COST	0.002653
+ENGINE	MEMORY
+OPTIMIZER_DISK_READ_COST	0.000000
+OPTIMIZER_INDEX_BLOCK_COPY_COST	0.000000
+OPTIMIZER_KEY_COMPARE_COST	0.011361
+OPTIMIZER_KEY_COPY_COST	0.000000
+OPTIMIZER_KEY_LOOKUP_COST	0.000000
+OPTIMIZER_KEY_NEXT_FIND_COST	0.000000
+OPTIMIZER_DISK_READ_RATIO	0.000000
+OPTIMIZER_ROW_COPY_COST	0.002334
+OPTIMIZER_ROW_LOOKUP_COST	0.000000
+OPTIMIZER_ROW_NEXT_FIND_COST	0.008017
+OPTIMIZER_ROWID_COMPARE_COST	0.002653
+OPTIMIZER_ROWID_COPY_COST	0.002653
+show variables like "optimizer%cost";
+Variable_name	Value
+optimizer_disk_read_cost	10.240000
+optimizer_index_block_copy_cost	0.035600
+optimizer_key_compare_cost	0.011361
+optimizer_key_copy_cost	0.015685
+optimizer_key_lookup_cost	0.435777
+optimizer_key_next_find_cost	0.082347
+optimizer_row_copy_cost	0.060866
+optimizer_row_lookup_cost	0.130839
+optimizer_row_next_find_cost	0.045916
+optimizer_rowid_compare_cost	0.002653
+optimizer_rowid_copy_cost	0.002653
+optimizer_scan_setup_cost	10.000000
+optimizer_where_cost	0.032000
+show variables like "optimizer_disk_read_ratio";
+Variable_name	Value
+optimizer_disk_read_ratio	0.020000
+#
+# Test change some 'default' variables
+#
+SELECT @@optimizer_disk_read_ratio,@@optimizer_index_block_copy_cost;
+@@optimizer_disk_read_ratio	@@optimizer_index_block_copy_cost
+0.020000	0.035600
+SET global optimizer_disk_read_ratio=0.8;
+SET global optimizer_index_block_copy_cost=0.1;
+SELECT @@optimizer_disk_read_ratio,@@optimizer_index_block_copy_cost;
+@@optimizer_disk_read_ratio	@@optimizer_index_block_copy_cost
+0.800000	0.100000
+select optimizer_disk_read_ratio,optimizer_index_block_copy_cost from information_schema.optimizer_costs where engine='default';
+optimizer_disk_read_ratio	optimizer_index_block_copy_cost
+0.800000	0.100000
+SET global optimizer_disk_read_ratio=default;
+SET global optimizer_index_block_copy_cost=default;
+SELECT @@optimizer_disk_read_ratio,@@optimizer_index_block_copy_cost;
+@@optimizer_disk_read_ratio	@@optimizer_index_block_copy_cost
+0.020000	0.035600
+#
+# Test change some 'engine' variables
+#
+select @@MEMORY.optimizer_row_lookup_cost;
+@@MEMORY.optimizer_row_lookup_cost
+0.000000
+set @tmp=@@MEMORY.optimizer_row_lookup_cost;
+set @@global.MEMORY.optimizer_row_lookup_cost=1;
+select @@MEMORY.optimizer_row_lookup_cost;
+@@MEMORY.optimizer_row_lookup_cost
+1.000000
+set @@global.MEMORY.optimizer_row_lookup_cost=default;
+select @@MEMORY.optimizer_row_lookup_cost;
+@@MEMORY.optimizer_row_lookup_cost
+0.130839
+set @@global.MEMORY.optimizer_row_lookup_cost=@tmp;
+select @@MEMORY.optimizer_row_lookup_cost;
+@@MEMORY.optimizer_row_lookup_cost
+0.000000
+#
+# Print variables with different syntaxes
+#
+SHOW VARIABLES like "optimizer_row_lookup_cost";
+Variable_name	Value
+optimizer_row_lookup_cost	0.130839
+SELECT @@optimizer_row_lookup_cost;
+@@optimizer_row_lookup_cost
+0.130839
+SELECT @@global.default.optimizer_row_lookup_cost;
+@@global.default.optimizer_row_lookup_cost
+0.130839
+SELECT @@global.default.`optimizer_row_lookup_cost`;
+@@global.default.`optimizer_row_lookup_cost`
+0.130839
+SELECT @@MEMORY.optimizer_row_lookup_cost;
+@@MEMORY.optimizer_row_lookup_cost
+0.000000
+SELECT @@memory.optimizer_row_lookup_cost;
+@@memory.optimizer_row_lookup_cost
+0.000000
+SELECT @@InnoDB.optimizer_row_lookup_cost;
+@@InnoDB.optimizer_row_lookup_cost
+0.765970
+#
+# Accessing not existing cost
+#
+SELECT @@not_existing.optimizer_row_lookup_cost;
+@@not_existing.optimizer_row_lookup_cost
+0.130839
+SELECT @@NOT_existing.optimizer_row_lookup_cost;
+@@NOT_existing.optimizer_row_lookup_cost
+0.130839
+select engine from information_schema.optimizer_costs where engine like '%existing';
+engine
+#
+# Creating a new cost structure
+#
+SET global new_engine.optimizer_disk_read_cost=100;
+select * from information_schema.optimizer_costs where engine like 'new_engine';
+ENGINE	OPTIMIZER_DISK_READ_COST	OPTIMIZER_INDEX_BLOCK_COPY_COST	OPTIMIZER_KEY_COMPARE_COST	OPTIMIZER_KEY_COPY_COST	OPTIMIZER_KEY_LOOKUP_COST	OPTIMIZER_KEY_NEXT_FIND_COST	OPTIMIZER_DISK_READ_RATIO	OPTIMIZER_ROW_COPY_COST	OPTIMIZER_ROW_LOOKUP_COST	OPTIMIZER_ROW_NEXT_FIND_COST	OPTIMIZER_ROWID_COMPARE_COST	OPTIMIZER_ROWID_COPY_COST
+new_engine	100.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000	-1.000000
+select @@new_engine.optimizer_disk_read_cost, @@new_engine.optimizer_row_copy_cost;
+@@new_engine.optimizer_disk_read_cost	@@new_engine.optimizer_row_copy_cost
+100.000000	-1.000000
+#
+# Errors
+#
+SELECT @@default.optimizer_disk_read_cost;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'default.optimizer_disk_read_cost' at line 1
+set global Aria.optimizer_disk_read_cost=NULL;
+ERROR 42000: Incorrect argument type to variable 'optimizer_disk_read_cost'
+set @tmp=@@Aria.optimizer_disk_read_cost;
+SET global Aria.optimizer_disk_read_cost=-1;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_disk_read_cost value: '-1'
+select @@Aria.optimizer_disk_read_cost;
+@@Aria.optimizer_disk_read_cost
+0.000000
+SET global Aria.optimizer_disk_read_cost=200000;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_disk_read_cost value: '200000'
+select @@Aria.optimizer_disk_read_cost;
+@@Aria.optimizer_disk_read_cost
+10000.000000
+set global Aria.optimizer_disk_read_cost=@tmp;
+select @@Aria.optimizer_disk_read_cost;
+@@Aria.optimizer_disk_read_cost
+10.240000
+#
+# Test of cost of ref compared to table scan + join_cache
+#
+create or replace table t1 (p int primary key, a char(10)) engine=myisam;
+create or replace table t2 (p int primary key, i int, a char(10), key k2(a)) engine=myisam;
+insert into t2 select seq,seq,'a' from seq_1_to_512;
+insert into t1 select seq,'a' from seq_1_to_4;
+explain select count(*) from t1, t2 where t1.p = t2.i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	512	Using where; Using join buffer (flat, BNL join)
+insert into t1 select seq,'a' from seq_5_to_10;
+explain select count(*) from t1, t2 where t1.p = t2.i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	512	Using where
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.i	1	Using index
+drop table t1,t2;
+#
+# Test of optimizer_scan_setup_cost
+#
+create table t1 (p int primary key, a char(10)) engine=myisam;
+create table t2 (p int primary key, i int, a char(10), key k1(i), key k2(a)) engine=myisam;
+insert into t1 values (2, 'qqqq'), (11, 'yyyy');
+insert into t2 values (1, 2, 'qqqq'), (2, 2, 'pppp'),
+(3, 2, 'yyyy'), (4, 3, 'zzzz');
+set @org_myisam_disk_read_ratio=@@myisam.optimizer_disk_read_ratio;
+set @@optimizer_scan_setup_cost=10,@@global.myisam.optimizer_disk_read_ratio=0.2;
+flush tables;
+explain select sum(t2.p+length(t1.a)) from t1, t2 where t1.p = t2.i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ref	k1	k1	5	test.t1.p	1	
+set @@optimizer_scan_setup_cost=0.0, @@global.myisam.optimizer_disk_read_ratio=0.0;
+flush tables;
+explain select sum(t2.p+length(t1.a)) from t1, t2 where t1.p = t2.i;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	k1	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+set @@optimizer_scan_setup_cost=default,@@global.myisam.optimizer_disk_read_ratio=@org_myisam_disk_read_ratio;
+flush tables;
+drop table t1,t2;
+#
+# Test of group by optimization
+#
+set @@optimizer_scan_setup_cost=0;
+CREATE TABLE t1 (id INT NOT NULL, a DATE, KEY(id,a)) engine=myisam;
+INSERT INTO t1 values (1,'2001-01-01'),(1,'2001-01-02'),
+(1,'2001-01-03'),(1,'2001-01-04'),
+(2,'2001-01-01'),(2,'2001-01-02'),
+(2,'2001-01-03'),(2,'2001-01-04'),
+(3,'2001-01-01'),(3,'2001-01-02'),
+(3,'2001-01-03'),(3,'2001-01-04'),
+(4,'2001-01-01'),(4,'2001-01-02'),
+(4,'2001-01-03'),(4,'2001-01-04');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	id	8	NULL	16	Using where; Using index
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	id	8	NULL	5	Using where; Using index for group-by
+drop table t1;
+set @@optimizer_scan_setup_cost=default;
+#
+# Test of straight join costs
+#
+create table t1 (l_orderkey int(11) NOT NULL,
+l_partkey int(11) DEFAULT NULL,
+l_suppkey int(11) DEFAULT NULL,
+PRIMARY KEY (l_orderkey)) engine=aria;
+insert into t1 select seq,seq,seq from seq_1_to_1000;
+explain select straight_join count(*) from seq_1_to_10000,t1 where seq=l_orderkey;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_10000	index	PRIMARY	PRIMARY	8	NULL	10000	Using index
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.seq_1_to_10000.seq	1	Using where; Using index
+show status like "last_query_cost";
+Variable_name	Value
+Last_query_cost	5.641229
+set @org_cost=@@aria.optimizer_key_next_find_cost;
+set global aria.optimizer_key_next_find_cost=1000;
+flush tables;
+explain select count(*) from seq_1_to_10000,t1 where seq=l_orderkey;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_10000	index	PRIMARY	PRIMARY	8	NULL	10000	Using index
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.seq_1_to_10000.seq	1	Using where; Using index
+show status like "last_query_cost";
+Variable_name	Value
+Last_query_cost	5.641229
+set global aria.optimizer_key_next_find_cost=@org_cost;
+drop table t1;
+#
+# Testing distinct group optimization
+#
+create table t1 (a int, b int, key(a,b));
+insert into t1 select seq,seq from seq_1_to_1000;
+explain select count(distinct a,b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	1000	Using index for group-by (scanning)
+explain select count(distinct a,b) from t1 where a>100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	901	Using where; Using index for group-by (scanning)
+explain select count(distinct a,b) from t1 where a>800;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	206	Using where; Using index
+update t1 set a=mod(a,10);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain select count(distinct a,b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	1000	Using index for group-by (scanning)
+explain select count(distinct a,b) from t1 where a>1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	788	Using where; Using index for group-by (scanning)
+explain select count(distinct a,b) from t1 where a>8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	109	Using where; Using index
+update t1 set b=mod(b,2);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain select count(distinct a,b) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	a	10	NULL	11	Using index for group-by
+explain select count(distinct a,b) from t1 where a>1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	9	Using where; Using index for group-by
+explain select count(distinct a,b) from t1 where a>8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	1	Using where; Using index for group-by
+drop table t1;
+#
+# cleanup
+#
+"New cost structures: 1 (should be 1)"

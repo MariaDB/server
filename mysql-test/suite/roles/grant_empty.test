@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 #
 # MDEV-5668 Assertion `granted_role->is_role()' fails on granting role with empty name
 #
@@ -7,7 +8,6 @@ grant '' to foo@localhost;
 #
 # MDEV-5238 Server crashes in find_role_grant_pair on SHOW GRANTS for an anonymous user
 #
---source include/not_embedded.inc
 
 create user ''@localhost;
 create role r1;
@@ -18,6 +18,6 @@ select current_user;
 show grants;
 
 connection default;
+disconnect con1;
 drop role r1;
 drop user ''@localhost;
-

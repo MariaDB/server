@@ -57,7 +57,9 @@ DROP USER 'plug_user';
 
 --echo # Cleanup (on master).
 --connection master
+--disable_warnings
 DROP USER 'plug_user';
+--enable_warnings
 
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

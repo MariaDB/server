@@ -4,8 +4,10 @@
 # Please check all dependent tests after modifying it
 #
 
+--source include/long_test.inc
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
+--source include/test_db_charset_latin1.inc
 
 connection slave;
 set @saved_slave_type_conversions = @@global.slave_type_conversions;
@@ -18,7 +20,7 @@ CREATE TABLE type_conversions (
        On_Slave LONGTEXT,
        Expected LONGTEXT,
        Compare INT,
-       Error TEXT);
+       Error INT2);
 
 SELECT @@global.slave_type_conversions;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
@@ -59,7 +61,7 @@ disable_query_log;
 SELECT RPAD(Source, 15, ' ') AS Source_Type,
        RPAD(Target, 15, ' ') AS Target_Type,
        RPAD(Flags, 25, ' ') AS All_Type_Conversion_Flags,
-       IF(Compare IS NULL AND Error IS NOT NULL, '<Correct error>',
+       IF(Compare IS NULL AND Error, '<Correct error>',
           IF(Compare, '<Correct value>',
              CONCAT("'", On_Slave, "' != '", Expected, "'")))
          AS Value_On_Slave
@@ -71,8 +73,10 @@ call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be conve
 
 connection master;
 DROP TABLE t1;
+--source include/test_db_charset_restore.inc
 sync_slave_with_master;
 
 set global slave_type_conversions = @saved_slave_type_conversions;
+
 
 --source include/rpl_end.inc

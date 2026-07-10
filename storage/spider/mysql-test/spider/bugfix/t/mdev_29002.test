@@ -1,0 +1,33 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+SET spider_same_server_link= on;
+SET global spider_same_server_link= on;
+evalp CREATE SERVER s FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE t (a INT);
+CREATE TABLE t1_spider (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't'";
+CREATE TABLE t2_spider (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't'";
+SELECT * FROM t1_spider, t2_spider;
+SELECT table_name, index_name, cardinality FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name IN ('t1_spider','t2_spider');
+RENAME TABLE t1_spider TO t3_spider;
+SELECT * FROM t3_spider;
+
+DROP TABLE t3_spider, t2_spider, t;
+drop server s;
+
+# case by roel
+CREATE TABLE t1 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",HOST "srv",TABLE "t"';
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",HOST "srv",TABLE "t"';
+CREATE TABLE t3 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",HOST "srv",TABLE "t"';
+SHOW TABLE STATUS;
+drop table t1, t2, t3;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

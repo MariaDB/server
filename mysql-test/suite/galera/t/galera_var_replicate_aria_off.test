@@ -3,7 +3,6 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 --source include/have_aria.inc
 
 CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=Aria;

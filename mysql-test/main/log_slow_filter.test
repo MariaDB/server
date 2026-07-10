@@ -1,0 +1,7 @@
+# Test setting log_slow_filter to empty in config files
+
+call mtr.add_suppression("log_slow_filter=\"\" changed to log_slow_filter=ALL");
+
+show variables like "log_slow_filter";
+set @@log_slow_filter="all";
+show variables like "log_slow_filter";

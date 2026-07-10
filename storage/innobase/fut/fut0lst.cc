@@ -35,8 +35,8 @@ Created 11/28/1995 Heikki Tuuri
 @param[in]      page    page number
 @param[in]      boffset byte offset
 @param[in,out]  mtr     mini-transaction */
-static void flst_write_addr(const buf_block_t& block, byte *faddr,
-                            uint32_t page, uint16_t boffset, mtr_t* mtr)
+void flst_write_addr(const buf_block_t &block, byte *faddr,
+                     uint32_t page, uint16_t boffset, mtr_t *mtr)
 {
   ut_ad(mtr->memo_contains_page_flagged(faddr, MTR_MEMO_PAGE_X_FIX |
                                         MTR_MEMO_PAGE_SX_FIX));
@@ -46,6 +46,14 @@ static void flst_write_addr(const buf_block_t& block, byte *faddr,
   static_assert(FIL_ADDR_PAGE == 0, "compatibility");
   static_assert(FIL_ADDR_BYTE == 4, "compatibility");
   static_assert(FIL_ADDR_SIZE == 6, "compatibility");
+
+  if (!mtr->is_logged())
+  {
+    mach_write_to_4(faddr + FIL_ADDR_PAGE, page);
+    mach_write_to_2(faddr + FIL_ADDR_BYTE, boffset);
+    mtr->set_modified(block);
+    return;
+  }
 
   const bool same_page= mach_read_from_4(faddr + FIL_ADDR_PAGE) == page;
   const bool same_offset= mach_read_from_2(faddr + FIL_ADDR_BYTE) == boffset;
@@ -72,13 +80,13 @@ static void flst_write_addr(const buf_block_t& block, byte *faddr,
 @param[in,out]  mtr     mini-transaction */
 static void flst_zero_both(const buf_block_t& b, byte *addr, mtr_t *mtr)
 {
+  const ulint boffset= ulint(addr - b.page.frame);
   if (mach_read_from_4(addr + FIL_ADDR_PAGE) != FIL_NULL)
-    mtr->memset(&b, ulint(addr - b.page.frame) + FIL_ADDR_PAGE, 4, 0xff);
+    mtr->memset(&b, boffset + FIL_ADDR_PAGE, 4, 0xff);
   mtr->write<2,mtr_t::MAYBE_NOP>(b, addr + FIL_ADDR_BYTE, 0U);
   /* Initialize the other address by (MEMMOVE|0x80,offset,FIL_ADDR_SIZE,source)
   which is 4 bytes, or less than FIL_ADDR_SIZE. */
   memcpy(addr + FIL_ADDR_SIZE, addr, FIL_ADDR_SIZE);
-  const uint16_t boffset= page_offset(addr);
   mtr->memmove(b, boffset + FIL_ADDR_SIZE, boffset, FIL_ADDR_SIZE);
 }
 
@@ -113,17 +121,18 @@ static void flst_add_to_empty(buf_block_t *base, uint16_t boffset,
 }
 
 /** Insert a node after another one.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  cur     insert position block
-@param[in]      coffset byte offset of the insert position
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the block to be added
-@param[in,out]  mtr     mini-transaction */
+@param base    base node block
+@param boffset byte offset of the base node
+@param cur     insert position block
+@param coffset byte offset of the insert position
+@param add     block to be added
+@param aoffset byte offset of the block to be added
+@param limit   fil_space_t::free_limit
+@param mtr     mini-transaction */
 static dberr_t flst_insert_after(buf_block_t *base, uint16_t boffset,
                                  buf_block_t *cur, uint16_t coffset,
                                  buf_block_t *add, uint16_t aoffset,
-                                 mtr_t *mtr)
+                                 uint32_t limit, mtr_t *mtr)
 {
   ut_ad(base != cur || boffset != coffset);
   ut_ad(base != add || boffset != aoffset);
@@ -139,6 +148,15 @@ static dberr_t flst_insert_after(buf_block_t *base, uint16_t boffset,
                                    MTR_MEMO_PAGE_SX_FIX));
 
   fil_addr_t next_addr= flst_get_next_addr(cur->page.frame + coffset);
+  if (next_addr.page >= limit)
+  {
+    if (UNIV_UNLIKELY(next_addr.page != FIL_NULL))
+      return DB_CORRUPTION;
+  }
+  else if (UNIV_UNLIKELY(next_addr.boffset < FIL_PAGE_DATA ||
+                         next_addr.boffset >= base->physical_size() -
+                         FIL_PAGE_DATA_END))
+    return DB_CORRUPTION;
 
   flst_write_addr(*add, add->page.frame + aoffset + FLST_PREV,
                   cur->page.id().page_no(), coffset, mtr);
@@ -167,18 +185,19 @@ static dberr_t flst_insert_after(buf_block_t *base, uint16_t boffset,
 }
 
 /** Insert a node before another one.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  cur     insert position block
-@param[in]      coffset byte offset of the insert position
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the block to be added
-@param[in,out]  mtr     mini-transaction
+@param base    base node block
+@param boffset byte offset of the base node
+@param cur     insert position block
+@param coffset byte offset of the insert position
+@param add     block to be added
+@param aoffset byte offset of the block to be added
+@param limit   fil_space_t::free_limit
+@param mtr     mini-transaction
 @return error code */
 static dberr_t flst_insert_before(buf_block_t *base, uint16_t boffset,
                                   buf_block_t *cur, uint16_t coffset,
                                   buf_block_t *add, uint16_t aoffset,
-                                  mtr_t *mtr)
+                                  uint32_t limit, mtr_t *mtr)
 {
   ut_ad(base != cur || boffset != coffset);
   ut_ad(base != add || boffset != aoffset);
@@ -194,6 +213,15 @@ static dberr_t flst_insert_before(buf_block_t *base, uint16_t boffset,
                                    MTR_MEMO_PAGE_SX_FIX));
 
   fil_addr_t prev_addr= flst_get_prev_addr(cur->page.frame + coffset);
+  if (prev_addr.page >= limit)
+  {
+    if (UNIV_UNLIKELY(prev_addr.page != FIL_NULL))
+      return DB_CORRUPTION;
+  }
+  else if (UNIV_UNLIKELY(prev_addr.boffset < FIL_PAGE_DATA ||
+                         prev_addr.boffset >= base->physical_size() -
+                         FIL_PAGE_DATA_END))
+    return DB_CORRUPTION;
 
   flst_write_addr(*add, add->page.frame + aoffset + FLST_PREV,
                   prev_addr.page, prev_addr.boffset, mtr);
@@ -234,14 +262,9 @@ void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
   flst_zero_both(block, base + FLST_FIRST, mtr);
 }
 
-/** Append a file list node to a list.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the node to be added
-@param[in,outr] mtr     mini-transaction */
 dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
-                      buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+                      buf_block_t *add, uint16_t aoffset,
+                      uint32_t limit, mtr_t *mtr)
 {
   ut_ad(base != add || boffset != aoffset);
   ut_ad(boffset < base->physical_size());
@@ -258,27 +281,31 @@ dberr_t flst_add_last(buf_block_t *base, uint16_t boffset,
   else
   {
     fil_addr_t addr= flst_get_last(base->page.frame + boffset);
+    if (UNIV_UNLIKELY(addr.page >= limit))
+      return DB_CORRUPTION;
+    else if (UNIV_UNLIKELY(addr.boffset < FIL_PAGE_DATA ||
+                           addr.boffset >= base->physical_size() -
+                           FIL_PAGE_DATA_END))
+      return DB_CORRUPTION;
+
     buf_block_t *cur= add;
-    dberr_t err;
-    if (addr.page != add->page.id().page_no() &&
-        !(cur= buf_page_get_gen(page_id_t{add->page.id().space(), addr.page},
-                                add->zip_size(), RW_SX_LATCH, nullptr,
-                                BUF_GET_POSSIBLY_FREED, mtr, &err)))
-      return err;
+    if (addr.page != add->page.id().page_no())
+    {
+      dberr_t err;
+      cur= buf_page_get_gen(page_id_t{add->page.id().space(), addr.page},
+                            add->zip_size(), RW_SX_LATCH, nullptr,
+                            BUF_GET_POSSIBLY_FREED, mtr, &err);
+      if (!cur)
+        return err;
+    }
     return flst_insert_after(base, boffset, cur, addr.boffset,
-                             add, aoffset, mtr);
+                             add, aoffset, limit, mtr);
   }
 }
 
-/** Prepend a file list node to a list.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the node to be added
-@param[in,out]  mtr     mini-transaction
-@return error code */
 dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
-                       buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
+                       buf_block_t *add, uint16_t aoffset,
+                       uint32_t limit, mtr_t *mtr)
 {
   ut_ad(base != add || boffset != aoffset);
   ut_ad(boffset < base->physical_size());
@@ -296,6 +323,12 @@ dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
   else
   {
     fil_addr_t addr= flst_get_first(base->page.frame + boffset);
+    if (UNIV_UNLIKELY(addr.page >= limit))
+      return DB_CORRUPTION;
+    else if (UNIV_UNLIKELY(addr.boffset < FIL_PAGE_DATA ||
+                           addr.boffset >= base->physical_size() -
+                           FIL_PAGE_DATA_END))
+      return DB_CORRUPTION;
     buf_block_t *cur= add;
     dberr_t err;
     if (addr.page != add->page.id().page_no() &&
@@ -304,19 +337,13 @@ dberr_t flst_add_first(buf_block_t *base, uint16_t boffset,
                                 BUF_GET_POSSIBLY_FREED, mtr, &err)))
       return err;
     return flst_insert_before(base, boffset, cur, addr.boffset,
-                              add, aoffset, mtr);
+                              add, aoffset, limit, mtr);
   }
 }
 
-/** Remove a file list node.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  cur     block to be removed
-@param[in]      coffset byte offset of the current record to be removed
-@param[in,out]  mtr     mini-transaction
-@return error code */
 dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *cur, uint16_t coffset, mtr_t *mtr)
+                    buf_block_t *cur, uint16_t coffset,
+                    uint32_t limit, mtr_t *mtr)
 {
   ut_ad(boffset < base->physical_size());
   ut_ad(coffset < cur->physical_size());
@@ -329,9 +356,27 @@ dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
   const fil_addr_t next_addr= flst_get_next_addr(cur->page.frame + coffset);
   dberr_t err= DB_SUCCESS;
 
-  if (prev_addr.page == FIL_NULL)
+  if (next_addr.page >= limit)
+  {
+    if (next_addr.page != FIL_NULL)
+      return DB_CORRUPTION;
+  }
+  else if (UNIV_UNLIKELY(next_addr.boffset < FIL_PAGE_DATA ||
+                         next_addr.boffset >= base->physical_size() -
+                         FIL_PAGE_DATA_END))
+    return DB_CORRUPTION;
+
+  if (prev_addr.page >= limit)
+  {
+    if (prev_addr.page != FIL_NULL)
+      return DB_CORRUPTION;
     flst_write_addr(*base, base->page.frame + boffset + FLST_FIRST,
                     next_addr.page, next_addr.boffset, mtr);
+  }
+  else if (UNIV_UNLIKELY(prev_addr.boffset < FIL_PAGE_DATA ||
+                         prev_addr.boffset >= base->physical_size() -
+                         FIL_PAGE_DATA_END))
+    return DB_CORRUPTION;
   else
   {
     buf_block_t *b= cur;
@@ -348,16 +393,21 @@ dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
                     prev_addr.page, prev_addr.boffset, mtr);
   else
   {
-    dberr_t err2;
-    if (next_addr.page == cur->page.id().page_no() ||
-        (cur= buf_page_get_gen(page_id_t(cur->page.id().space(),
-                                         next_addr.page),
-                               cur->zip_size(), RW_SX_LATCH, nullptr,
-                               BUF_GET_POSSIBLY_FREED, mtr, &err2)))
+    if (next_addr.page == cur->page.id().page_no())
+    write_addr:
       flst_write_addr(*cur, cur->page.frame + next_addr.boffset + FLST_PREV,
                       prev_addr.page, prev_addr.boffset, mtr);
-    else if (err == DB_SUCCESS)
-      err= err2;
+    else
+    {
+      dberr_t err2;
+      cur= buf_page_get_gen(page_id_t(cur->page.id().space(), next_addr.page),
+                            cur->zip_size(), RW_SX_LATCH, nullptr,
+                            BUF_GET_POSSIBLY_FREED, mtr, &err2);
+      if (cur)
+        goto write_addr;
+      if (err == DB_SUCCESS)
+        err= err2;
+    }
   }
 
   byte *len= &base->page.frame[boffset + FLST_LEN];
@@ -367,50 +417,56 @@ dberr_t flst_remove(buf_block_t *base, uint16_t boffset,
   return err;
 }
 
-#ifdef UNIV_DEBUG
 /** Validate a file-based list. */
-void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr)
+dberr_t flst_validate(const buf_block_t *base, uint16_t boffset,
+                      mtr_t *mtr) noexcept
 {
-  ut_ad(boffset < base->physical_size());
+  if (boffset >= base->physical_size())
+    return DB_CORRUPTION;
+
   ut_ad(mtr->memo_contains_flagged(base, MTR_MEMO_PAGE_X_FIX |
                                    MTR_MEMO_PAGE_SX_FIX));
 
-  /* We use two mini-transaction handles: the first is used to lock
-  the base node, and prevent other threads from modifying the list.
-  The second is used to traverse the list. We cannot run the second
-  mtr without committing it at times, because if the list is long,
-  the x-locked pages could fill the buffer, resulting in a deadlock. */
-  mtr_t mtr2;
-
   const uint32_t len= flst_get_len(base->page.frame + boffset);
   fil_addr_t addr= flst_get_first(base->page.frame + boffset);
+  dberr_t err= DB_SUCCESS;
 
   for (uint32_t i= len; i--; )
   {
-    mtr2.start();
+    if (addr.boffset < FIL_PAGE_DATA ||
+        addr.boffset >= base->physical_size() - FIL_PAGE_DATA_END)
+      return DB_CORRUPTION;
     const buf_block_t *b=
       buf_page_get_gen(page_id_t(base->page.id().space(), addr.page),
-                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr);
-    ut_ad(b);
+                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr,
+                       &err);
+    if (!b)
+      return err;
     addr= flst_get_next_addr(b->page.frame + addr.boffset);
-    mtr2.commit();
+    mtr->release_last_page();
   }
 
-  ut_ad(addr.page == FIL_NULL);
+  if (addr.page != FIL_NULL)
+    return DB_CORRUPTION;
 
   addr= flst_get_last(base->page.frame + boffset);
 
   for (uint32_t i= len; i--; )
   {
-    mtr2.start();
+    if (addr.boffset < FIL_PAGE_DATA ||
+        addr.boffset >= base->physical_size() - FIL_PAGE_DATA_END)
+      return DB_CORRUPTION;
     const buf_block_t *b=
       buf_page_get_gen(page_id_t(base->page.id().space(), addr.page),
-                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr);
-    ut_ad(b);
+                       base->zip_size(), RW_SX_LATCH, nullptr, BUF_GET, mtr,
+                       &err);
+    if (!b)
+      return err;
     addr= flst_get_prev_addr(b->page.frame + addr.boffset);
-    mtr2.commit();
+    mtr->release_last_page();
   }
 
-  ut_ad(addr.page == FIL_NULL);
+  if (addr.page != FIL_NULL)
+    return DB_CORRUPTION;
+  return err;
 }
-#endif

@@ -1,9 +1,11 @@
 install plugin pam soname 'auth_pam_v1.so';
 create user test_pam identified via pam using 'mariadb_mtr';
+grant all on test.* to test_pam;
 create user pam_test;
+grant all on test.* to pam_test;
 grant proxy on pam_test to test_pam;
 #
-# athentication is successful, challenge/pin are ok
+# authentication is successful, challenge/pin are ok
 # note that current_user() differs from user()
 #
 Challenge input first.
@@ -14,14 +16,14 @@ select user(), current_user(), database();
 user()	current_user()	database()
 test_pam@localhost	pam_test@%	test
 #
-# athentication is unsuccessful
+# authentication is unsuccessful
 #
 Challenge input first.
 Enter: *************************
 Now, the magic number!
 PIN: 9224
 #
-# athentication is successful
+# authentication is successful
 #
 Now, the magic number!
 PIN: 9212
@@ -29,7 +31,7 @@ select user(), current_user(), database();
 user()	current_user()	database()
 test_pam@localhost	pam_test@%	test
 #
-# athentication is unsuccessful
+# authentication is unsuccessful
 #
 Now, the magic number!
 PIN: 9212

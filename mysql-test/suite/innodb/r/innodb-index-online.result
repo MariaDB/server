@@ -1,6 +1,6 @@
+SET GLOBAL innodb_monitor_reset_all=all;
+SET GLOBAL innodb_monitor_reset_all=default;
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
 CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT, c3 TEXT)
 ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 VALUES (1,1,''), (2,2,''), (3,3,''), (4,4,''), (5,5,'');
@@ -54,7 +54,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   `c3` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
 connection con1;
@@ -155,6 +155,7 @@ test	t1_c2_stats	GEN_CLUST_INDEX	LAST_UPDATE	size	1	NULL	Number of pages in the 
 connection con1;
 KILL QUERY @id;
 ERROR 70100: Query execution was interrupted
+SET GLOBAL innodb_max_purge_lag_wait=0;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2d_created WAIT_FOR kill_done';
 CREATE INDEX c2d ON t1(c2);
 connection default;
@@ -206,7 +207,7 @@ CREATE INDEX c2d ON t1(c2);
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	c1	A	80	NULL	NULL		BTREE			NO
-t1	1	c2d	1	c2	A	10	NULL	NULL	YES	BTREE			NO
+t1	1	c2d	1	c2	A	5	NULL	NULL	YES	BTREE			NO
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE c2 > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	c2d	c2d	5	NULL	32	Using where; Using index
@@ -218,16 +219,16 @@ t1	CREATE TABLE `t1` (
   `c3` text DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `c2d` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=1
 connection default;
 SET @merge_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2e_created WAIT_FOR dml2_done';
@@ -274,13 +275,13 @@ name	pos
 c2	0
 c3	1
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SELECT
 (@merge_encrypt_1-@merge_encrypt_0)-
@@ -320,16 +321,16 @@ ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	1
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 connection con1;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2f_created WAIT_FOR dml3_done';
@@ -405,16 +406,16 @@ ddl_sort_file_alter_table	0
 ddl_log_file_alter_table	2
 connection default;
 SET @merge_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 SELECT
 (@merge_encrypt_2-@merge_encrypt_1)-
@@ -437,6 +438,7 @@ COUNT(c22f)
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+SET GLOBAL innodb_max_purge_lag_wait=0;
 ALTER TABLE t1 ADD UNIQUE INDEX c3p5(c3(5));
 ERROR 23000: Duplicate entry 'NULL' for key 'c3p5'
 UPDATE t1 SET c3 = NULL WHERE c3 = '';
@@ -484,7 +486,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c1`),
   KEY `c2d` (`c22f`),
   KEY `c2f` (`c22f`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1 COMMENT='testing if c2e will be dropped'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=1 COMMENT='testing if c2e will be dropped'
 ALTER TABLE t1 DROP INDEX c2d, DROP INDEX c2f;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
@@ -516,7 +518,7 @@ SET DEBUG_SYNC = 'RESET';
 disconnect con1;
 CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
 ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create temporary table for ALTER TABLE `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 DROP TABLE t2,t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(0,0);
@@ -530,7 +532,6 @@ INSERT INTO t1 VALUES(1,1);
 ROLLBACK;
 SET DEBUG_SYNC = 'now SIGNAL inserted';
 connection con1;
-disconnect con1;
 connection default;
 SELECT * FROM t1;
 a	b
@@ -539,7 +540,31 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-36281 DML aborts during online virtual index
+#
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL,
+f3 INT NOT NULL, f4 INT AS (f3) VIRTUAL,
+f5 INT AS (f1) VIRTUAL, INDEX(f4))ENGINE=InnoDB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 2, 3);
+SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL dml_start WAIT_FOR dml_finish';
+ALTER TABLE t1 ADD INDEX v1(f5, f2, f4), ADD INDEX v2(f3, f5);
+connection con1;
+set DEBUG_SYNC="now WAIT_FOR dml_start";
+UPDATE t1 SET f3= f3 + 1;
+set DEBUG_SYNC="now SIGNAL dml_finish";
+disconnect con1;
+connection default;
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT f5, f2, f4 FROM t1 USE INDEX(v1);
+f5	f2	f4
+1	2	4
+SELECT f3, f5 FROM t1 USE INDEX(v2);
+f3	f5
+4	1
+DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

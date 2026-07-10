@@ -39,8 +39,8 @@ a varchar(10) NOT NULL,
 e int(11) DEFAULT 0,   
 KEY (a) 
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
-insert into t1 values (1,1,1),(2,2,2);
-explain select a from t1 where a <'zzz';
+insert into t1 values (1,"a",1),(2,"b",2),(3,"c",2);
+explain select a from t1 where a <'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	32	NULL	#	Using where
 CREATE TABLE t2(

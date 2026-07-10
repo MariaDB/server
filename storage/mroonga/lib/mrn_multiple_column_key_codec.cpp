@@ -693,7 +693,7 @@ namespace mrn {
                             "data: <%.*s>",
                             normalized_length,
                             UINT_MAX16,
-                            field->field_name,
+                            field->field_name.str,
                             blob_data_length, blob_data);
         memcpy(grn_key, normalized, blob_data_length);
         new_blob_data_length = blob_data_length;

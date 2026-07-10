@@ -16,10 +16,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation  // gcc: Class implementation
-#endif
-
 /* C++ system header files */
 #include <time.h>
 #include <string>
@@ -105,9 +101,9 @@ class Rdb_compact_filter : public rocksdb::CompactionFilter {
     return false;
   }
 
-  virtual bool IgnoreSnapshots() const override { return true; }
+  bool IgnoreSnapshots() const override { return true; }
 
-  virtual const char *Name() const override { return "Rdb_compact_filter"; }
+  const char *Name() const override { return "Rdb_compact_filter"; }
 
   void get_ttl_duration_and_offset(const GL_INDEX_ID &gl_index_id,
                                    uint64 *ttl_duration,

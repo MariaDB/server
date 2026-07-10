@@ -1,0 +1,57 @@
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+--echo #
+--echo # Using sys_refcursor operations on non-cursor variables
+--echo #
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE cur INT;
+  OPEN cur FOR SELECT 1 AS c FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE cur, var INT;
+  FETCH cur INTO var;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE cur INT;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  DECLARE c INT;
+  FETCH c INTO a;
+END;
+$$
+DELIMITER ;$$
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+DECLARE
+  cur INT;
+BEGIN
+  SELECT cur%isopen;
+END;
+$$
+DELIMITER ;$$
+SET sql_mode=DEFAULT;

@@ -70,7 +70,7 @@ my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size)
   */
   info->s->file_map= (uchar*)
                   my_mmap(0, (size_t)(size + MEMMAP_EXTRA_MARGIN),
-                          info->s->mode==O_RDONLY ? PROT_READ :
+                          info->s->index_mode==O_RDONLY ? PROT_READ :
                           PROT_READ | PROT_WRITE,
                           MAP_SHARED | MAP_NORESERVE,
                           info->dfile.file, 0L);
@@ -445,6 +445,11 @@ static int _ma_find_writepos(MARIA_HA *info,
     info->state->data_file_length+= tmp;
     info->s->state.split++;
     info->update|=HA_STATE_WRITE_AT_END;
+    if (info->s->tracked &&
+        _ma_update_tmp_file_size(&info->s->track_data,
+                                 MY_ALIGN(info->state->data_file_length,
+                                          MARIA_TRACK_INCREMENT_SIZE)))
+      DBUG_RETURN(-1);
   }
   DBUG_RETURN(0);
 } /* _ma_find_writepos */
@@ -886,6 +891,11 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	  info->state->data_file_length+= tmp;
 	  info->update|= HA_STATE_WRITE_AT_END | HA_STATE_EXTEND_BLOCK;
 	  length+=tmp;
+          if (info->s->tracked &&
+              _ma_update_tmp_file_size(&info->s->track_data,
+                                       MY_ALIGN(info->state->data_file_length,
+                                                MARIA_TRACK_INCREMENT_SIZE)))
+            goto err;
 	}
 	else if (length < MARIA_MAX_BLOCK_LENGTH - MARIA_MIN_BLOCK_LENGTH)
 	{
@@ -893,7 +903,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	    Check if next block is a deleted block
 	    Above we have MARIA_MIN_BLOCK_LENGTH to avoid the problem where
 	    the next block is so small it can't be splited which could
-	    casue problems
+	    cause problems
 	  */
 
 	  MARIA_BLOCK_INFO del_block;
@@ -1488,7 +1498,6 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
   uchar *UNINIT_VAR(to);
   uint UNINIT_VAR(left_length);
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_dynamic_record");
 
   if (filepos == HA_OFFSET_ERROR)
@@ -1525,7 +1534,8 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
       {
         if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                              block_info.rec_len +
-                             share->base.extra_rec_buff_size, flag))
+                             share->base.extra_rec_buff_size,
+                             MY_WME | share->malloc_flag))
           goto err;
       }
       to= info->rec_buff;
@@ -1784,7 +1794,6 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
   uchar *UNINIT_VAR(to);
   MARIA_BLOCK_INFO block_info;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_rnd_dynamic_record");
 
 #ifdef MARIA_EXTERNAL_LOCKING
@@ -1875,7 +1884,8 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
       {
 	if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                              block_info.rec_len +
-                             share->base.extra_rec_buff_size, flag))
+                             share->base.extra_rec_buff_size,
+                             MY_WME | share->malloc_flag))
 	  goto err;
       }
       to= info->rec_buff;

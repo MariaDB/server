@@ -3,6 +3,10 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 --connection server_1
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -14,7 +18,7 @@ INSERT INTO t2 VALUES (1,0), (2,0);
 
 --connection server_2
 --sync_with_master
-SET @old_isolation= @@GLOBAL.tx_isolation;
+SET @old_isolation= @@GLOBAL.transaction_isolation;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 --source include/stop_slave.inc
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
@@ -62,7 +66,7 @@ SELECT * FROM t2 ORDER BY a;
 
 --connection server_2
 --source include/stop_slave.inc
-SET GLOBAL tx_isolation= @old_isolation;
+SET GLOBAL transaction_isolation= @old_isolation;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc

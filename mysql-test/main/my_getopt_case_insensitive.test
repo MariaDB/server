@@ -1,0 +1,8 @@
+--echo #
+--echo # MDEV-27126: my_getopt compares option names case sensitively
+--echo #
+
+--echo # Check if the variable is set correctly from options
+SELECT @@GLOBAL.slow_query_log;
+
+--echo # End of test.

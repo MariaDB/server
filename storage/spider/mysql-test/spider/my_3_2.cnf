@@ -1,0 +1,9 @@
+[mysqld.3.2]
+loose_partition=                         1
+
+[ENV]
+CHILD3_2_MYPORT=          @mysqld.3.2.port
+CHILD3_2_MYSOCK=          @mysqld.3.2.socket
+CHILD3_2_ENGINE_TYPE=     InnoDB
+CHILD3_2_ENGINE=          ENGINE=InnoDB
+CHILD3_2_CHARSET=         DEFAULT CHARSET=utf8

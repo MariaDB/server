@@ -2,6 +2,8 @@
 # We use default-character-set=latin1 to avoid character set auto-detection
 # when running tests - not to depend on the current machine localization.
 #
+[client]
+loose-disable-ssl-verify-server-cert
 
 [mysql]
 default-character-set=latin1
@@ -17,6 +19,9 @@ default-character-set=latin1
 
 [mysql_upgrade]
 default-character-set=latin1
+
+[mysqlslap]
+loose-skip-ssl
 
 [mysqltest]
 loose-ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem

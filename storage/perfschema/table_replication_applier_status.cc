@@ -62,7 +62,7 @@ table_replication_applier_status::m_share=
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status("
   "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null comment 'The replication channel name.',"
   "SERVICE_STATE ENUM('ON','OFF') not null comment 'Shows ON when the replication channel''s applier threads are active or idle, OFF means that the applier threads are not active.',"
-  "REMAINING_DELAY INTEGER unsigned comment 'Seconds the replica needs to wait to reach the desired delay from master.',"
+  "REMAINING_DELAY INTEGER unsigned comment 'Seconds the slave needs to wait to reach the desired delay from master.',"
   "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null comment 'The number of retries that were made because the replication SQL thread failed to apply a transaction.')") },
   false, /* m_perpetual */
   false, /* m_optional */
@@ -166,7 +166,7 @@ void table_replication_applier_status::make_row(Master_info *mi)
     m_row.service_state= PS_RPL_NO;
 
   m_row.remaining_delay= 0;
-  if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+  if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
   {
     time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
     m_row.remaining_delay= (uint)(t < sql_delay_end ?

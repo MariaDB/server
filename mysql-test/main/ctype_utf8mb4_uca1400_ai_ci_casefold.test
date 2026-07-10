@@ -1,0 +1,15 @@
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-30577 Case folding for uca1400 collations is not up to date
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+--source include/ctype_unicode_casefold_bmp.inc
+--source include/ctype_unicode_casefold_supplementary.inc
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

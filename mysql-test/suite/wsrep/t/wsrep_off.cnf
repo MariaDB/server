@@ -1,0 +1,17 @@
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+
+[mysqld]
+wsrep-on=OFF
+wsrep-provider=@ENV.WSREP_PROVIDER
+log-bin
+binlog-format=row
+loose-wsrep_cluster_address=gcomm://
+loose-wsrep_node_address='127.0.0.1:@mysqld.1.#galera_port'
+loose-wsrep-incoming-address=127.0.0.1:@mysqld.1.port
+
+[mysqld.1]
+wsrep-on=OFF
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port

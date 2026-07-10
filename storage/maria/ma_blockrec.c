@@ -448,8 +448,10 @@ my_bool _ma_once_end_block_record(MARIA_SHARE *share)
   int res= _ma_bitmap_end(share);
   if (share->bitmap.file.file >= 0)
   {
-    if (flush_pagecache_blocks(share->pagecache, &share->bitmap.file,
-                       share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
+    if (share->pagecache &&
+        flush_pagecache_blocks(share->pagecache, &share->bitmap.file,
+                               share->deleting ?
+                               FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
       res= 1;
     /*
       File must be synced as it is going out of the maria_open_list and so
@@ -488,7 +490,7 @@ my_bool _ma_init_block_record(MARIA_HA *info)
 {
   MARIA_ROW *row= &info->cur_row, *new_row= &info->new_row;
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   uint default_extents;
   DBUG_ENTER("_ma_init_block_record");
 
@@ -953,14 +955,13 @@ void copy_not_changed_fields(MARIA_HA *info, MY_BITMAP *changed_fields,
                              uchar *to, uchar *from)
 {
   MARIA_COLUMNDEF *column, *end_column;
-  uchar *bitmap= (uchar*) changed_fields->bitmap;
   MARIA_SHARE *share= info->s;
-  uint bit= 1;
+  uint bit= 0;
 
   for (column= share->columndef, end_column= column+ share->base.fields;
-       column < end_column; column++)
+       column < end_column; column++, bit++)
   {
-    if (!(*bitmap & bit))
+    if (!bitmap_is_set(changed_fields, bit))
     {
       uint field_length= column->length;
       if (column->type == FIELD_VARCHAR)
@@ -971,11 +972,6 @@ void copy_not_changed_fields(MARIA_HA *info, MY_BITMAP *changed_fields,
           field_length= uint2korr(from + column->offset) + 2;
       }
       memcpy(to + column->offset, from + column->offset, field_length);
-    }
-    if ((bit= (bit << 1)) == 256)
-    {
-      bitmap++;
-      bit= 1;
     }
   }
 }
@@ -2091,7 +2087,8 @@ static my_bool write_tail(MARIA_HA *info,
         data_file_length after writing any log record (FILE_ID/REDO/UNDO) (see
         collect_tables()).
       */
-      _ma_set_share_data_file_length(share, position + block_size);
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        res= 1;
     }
   }
   DBUG_RETURN(res);
@@ -2194,7 +2191,10 @@ static my_bool write_full_pages(MARIA_HA *info,
     DBUG_ASSERT(block->used & BLOCKUSED_USED);
   }
   if (share->state.state.data_file_length < max_position)
-    _ma_set_share_data_file_length(share, max_position);
+  {
+    if (_ma_set_share_data_file_length(info, max_position))
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
@@ -2654,7 +2654,6 @@ static my_bool write_block_record(MARIA_HA *info,
   LSN lsn;
   my_off_t position;
   uint save_my_errno;
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("write_block_record");
 
   head_block= bitmap_blocks->block;
@@ -2721,7 +2720,7 @@ static my_bool write_block_record(MARIA_HA *info,
     for every data segment we want to store.
   */
   if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
-                       row->head_length, myflag))
+                       row->head_length, MY_WME | share->malloc_flag))
     DBUG_RETURN(1);
 
   tmp_data_used= 0;                 /* Either 0 or last used uchar in 'data' */
@@ -3216,7 +3215,10 @@ static my_bool write_block_record(MARIA_HA *info,
     /* Increase data file size, if extended */
     position= (my_off_t) head_block->page * block_size;
     if (share->state.state.data_file_length <= position)
-      _ma_set_share_data_file_length(share, position + block_size);
+    {
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        goto disk_err;
+    }
   }
 
   if (share->now_transactional && (tmp_data_used || blob_full_pages_exists))
@@ -4750,7 +4752,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
   MARIA_EXTENT_CURSOR extent;
   MARIA_COLUMNDEF *column, *end_column;
   MARIA_ROW *cur_row= &info->cur_row;
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf myflag= MY_WME | share->malloc_flag;
   DBUG_ENTER("_ma_read_block_record2");
 
   start_of_data= data;
@@ -5048,7 +5050,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
 #ifdef EXTRA_DEBUG
   if (share->calc_checksum && !info->in_check_table)
   {
-    /* Esnure that row checksum is correct */
+    /* Ensure that row checksum is correct */
     DBUG_ASSERT(((share->calc_checksum)(info, record) & 255) ==
                 cur_row->checksum);
   }
@@ -5089,7 +5091,6 @@ static my_bool read_row_extent_info(MARIA_HA *info, uchar *buff,
   uint flag, row_extents, row_extents_size;
   uint field_lengths __attribute__ ((unused));
   uchar *extents, *end;
-  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("read_row_extent_info");
 
   if (!(data= get_record_position(share, buff,
@@ -5113,7 +5114,7 @@ static my_bool read_row_extent_info(MARIA_HA *info, uchar *buff,
     if (info->cur_row.extents_buffer_length < row_extents_size &&
         _ma_alloc_buffer(&info->cur_row.extents,
                          &info->cur_row.extents_buffer_length,
-                         row_extents_size, myflag))
+                         row_extents_size, MY_WME | share->malloc_flag))
       DBUG_RETURN(1);
     memcpy(info->cur_row.extents, data, ROW_EXTENT_SIZE);
     data+= ROW_EXTENT_SIZE;
@@ -5283,7 +5284,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
 my_bool _ma_scan_init_block_record(MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
-  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  myf flag= MY_WME | share->malloc_flag;
   DBUG_ENTER("_ma_scan_init_block_record");
   DBUG_ASSERT(info->dfile.file == share->bitmap.file.file);
 
@@ -5710,7 +5711,7 @@ uint ma_calc_length_for_store_length(ulong nr)
 }
 
 
-/* Retrive a stored number */
+/* Retrieve a stored number */
 
 static ulong ma_get_length(const uchar **packet)
 {
@@ -5790,7 +5791,7 @@ static size_t fill_insert_undo_parts(MARIA_HA *info, const uchar *record,
     /* Store length of all not empty char, varchar and blob fields */
     log_parts->str= field_lengths - 2;
     log_parts->length=   info->cur_row.field_lengths_length+2;
-    int2store(log_parts->str, info->cur_row.field_lengths_length);
+    int2store((void *)log_parts->str, info->cur_row.field_lengths_length);
     row_length+= log_parts->length;
     log_parts++;
   }
@@ -6239,7 +6240,7 @@ my_bool write_hook_for_undo_row_delete(enum translog_record_type type
 
 
 /**
-   @brief Upates "records" and "checksum" and calls the generic UNDO hook
+   @brief Updates "records" and "checksum" and calls the generic UNDO hook
 
    @return Operation status, always 0 (success)
 */
@@ -7612,7 +7613,7 @@ void _ma_print_block_info(MARIA_SHARE *share, uchar *buff)
          (uint)buff[DIR_COUNT_OFFSET],
          (uint)buff[DIR_FREE_OFFSET],
          (uint) uint2korr(buff + EMPTY_SPACE_OFFSET));
-  printf("Start of directory: %lu\n",
+  printf("Start of directory: %u\n",
          maria_block_size - PAGE_SUFFIX_SIZE -
          (uint) buff[DIR_COUNT_OFFSET] * DIR_ENTRY_SIZE);
   _ma_print_directory(share, stdout, buff, maria_block_size);

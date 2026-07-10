@@ -92,4 +92,31 @@ SELECT * from t6;
 DROP TABLE t6;
 rmdir $targetdir;
 
+--echo #
+--echo # MDEV-33011 mariabackup --backup: FATAL ERROR: ... Can't open datafile cool_down/t3
+--echo #
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Cannot rename '.*t1.ibd' to '.*non_existing_db.*' because the target schema directory doesn't exist");
+--enable_query_log
+
+mkdir $targetdir;
+
+--echo # Simulate zero initialized page to defer tablespace load after rename log is found
+SET @save_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG="+d,checkpoint_after_file_create";
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+
+--echo # RENAME that fails after redo log entry is written and flushed
+--replace_result "\\" "/"
+--error ER_ERROR_ON_RENAME
+RENAME TABLE t1 TO non_existing_db.t1;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--enable_result_log
+
+DROP TABLE t1;
+rmdir $targetdir;

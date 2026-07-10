@@ -1,0 +1,2 @@
+--max_allowed_packet=128M
+--default-time-zone=+00:00

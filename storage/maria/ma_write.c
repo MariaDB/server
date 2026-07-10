@@ -21,6 +21,7 @@
 #include "trnman.h"
 #include "ma_key_recover.h"
 #include "ma_blockrec.h"
+#include "mysys_err.h"
 
 	/* Functions declared in this file */
 
@@ -88,7 +89,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
   MARIA_SHARE *share= info->s;
   uint i;
   int save_errno;
-  MARIA_RECORD_POS filepos, oldpos= info->cur_row.lastpos;
+  MARIA_RECORD_POS filepos;
   uchar *buff;
   my_bool lock_tree= share->lock_key_trees;
   my_bool fatal_error;
@@ -174,7 +175,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
 	mysql_rwlock_wrlock(&keyinfo->root_lock);
 	keyinfo->version++;
       }
-      if (keyinfo->flag & HA_FULLTEXT )
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_ma_ft_add(info,i, buff,record,filepos))
         {
@@ -302,7 +303,7 @@ int maria_write(MARIA_HA *info, const uchar *record)
   share->state.changed|= STATE_NOT_MOVABLE | STATE_NOT_ZEROFILLED;
   info->state->changed= 1;
 
-  info->cur_row.lastpos= oldpos;
+  info->cur_row.lastpos= filepos;
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
   if (info->invalidator != 0)
   {
@@ -356,7 +357,7 @@ err:
            @todo RECOVERY BUG
            The key deletes below should generate CLR_ENDs
         */
-	if (keyinfo->flag & HA_FULLTEXT)
+	if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
         {
           if (_ma_ft_del(info,i,buff,record,filepos))
 	  {
@@ -385,6 +386,11 @@ err:
 	  mysql_rwlock_unlock(&keyinfo->root_lock);
       }
     }
+  }
+  else if (my_errno == HA_ERR_LOCAL_TMP_SPACE_FULL ||
+           my_errno == HA_ERR_GLOBAL_TMP_SPACE_FULL)
+  {
+    filepos= HA_OFFSET_ERROR;         /* Avoid write_record_abort() */
   }
   else
     fatal_error= 1;
@@ -428,14 +434,15 @@ err2:
 
 my_bool _ma_ck_write(MARIA_HA *info, MARIA_KEY *key)
 {
+  my_bool tmp;
   DBUG_ENTER("_ma_ck_write");
 
   if (info->bulk_insert &&
       is_tree_inited(&info->bulk_insert[key->keyinfo->key_nr]))
-  {
-    DBUG_RETURN(_ma_ck_write_tree(info, key));
-  }
-  DBUG_RETURN(_ma_ck_write_btree(info, key));
+    tmp= _ma_ck_write_tree(info, key);
+  else
+    tmp= _ma_ck_write_btree(info, key);
+  DBUG_RETURN(tmp);
 } /* _ma_ck_write */
 
 
@@ -483,8 +490,6 @@ static my_bool _ma_ck_write_btree_with_log(MARIA_HA *info, MARIA_KEY *key,
   my_bool transactional= share->now_transactional;
   DBUG_ENTER("_ma_ck_write_btree_with_log");
   
-  LINT_INIT_STRUCT(org_key);
-
   if (transactional)
   {
     /* Save original value as the key may change */
@@ -582,7 +587,7 @@ my_bool _ma_enlarge_root(MARIA_HA *info, MARIA_KEY *key, my_off_t *root)
   page_store_info(share, &page);
 
   /*
-    Clear unitialized part of page to avoid valgrind/purify warnings
+    Clear uninitialized part of page to avoid valgrind/purify warnings
     and to get a clean page that is easier to compress and compare with
     pages generated with redo
   */
@@ -655,7 +660,7 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
     else
       dup_key_pos= HA_OFFSET_ERROR;
 
-    if (keyinfo->flag & HA_FULLTEXT)
+    if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint off;
       int  subkeys;
@@ -856,13 +861,13 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   page_store_size(share, anc_page);
 
   /*
-    Check if the new key fits totally into the the page
+    Check if the new key fits totally into the page
     (anc_buff is big enough to contain a full page + one key)
   */
   if (a_length <= share->max_index_block_size)
   {
     if (share->max_index_block_size - a_length < 32 &&
-        (keyinfo->flag & HA_FULLTEXT) && key_pos == endpos &&
+        keyinfo->key_alg == HA_KEY_ALG_FULLTEXT && key_pos == endpos &&
         share->base.key_reflength <= share->rec_reflength &&
         share->options & (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD))
     {
@@ -890,8 +895,10 @@ ChangeSet@1.2562, 2008-04-09 07:41:40+02:00, serg@janus.mylan +9 -0
       get_key_length(alen,a);
       DBUG_ASSERT(info->ft1_to_ft2==0);
       if (alen == blen &&
-          ha_compare_text(keyinfo->seg->charset, a, alen,
-                          b, blen, 0) == 0)
+          ha_compare_char_varying(keyinfo->seg->charset,
+                                  a, alen,
+                                  b, blen,
+                                  FALSE/*b_is_prefix*/) == 0)
       {
         /* Yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)
@@ -1069,7 +1076,7 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
     res= -1;
 
   /*
-    Clear unitialized part of page to avoid valgrind/purify warnings
+    Clear uninitialized part of page to avoid valgrind/purify warnings
     and to get a clean page that is easier to compress and compare with
     pages generated with redo
   */
@@ -1311,7 +1318,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   if ((right ? right_length : left_length) + curr_keylength <=
       share->max_index_block_size)
   {
-    /* Enough space to hold all keys in the two buffers ; Balance bufferts */
+    /* Enough space to hold all keys in the two buffers ; Balance buffers */
     new_left_length= share->keypage_header+nod_flag+(keys/2)*curr_keylength;
     new_right_length=share->keypage_header+nod_flag+(((keys+1)/2)*
                                                        curr_keylength);
@@ -1489,7 +1496,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   extra_page.buff=    extra_buff;
 
   /*
-    5 is the minum number of keys we can have here. This comes from
+    5 is the minimum number of keys we can have here. This comes from
     the fact that each full page can store at least 2 keys and in this case
     we have a 'split' key, ie 2+2+1 = 5
   */
@@ -1552,7 +1559,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   {
     /*
       Page order according to key values:
-      orignal_page (curr_page = left_page), next_page (buff), extra_buff
+      original_page (curr_page = left_page), next_page (buff), extra_buff
 
       Move page positions so that we store data in extra_page where
       next_page was and next_page will be stored at the new position
@@ -1682,8 +1689,12 @@ static my_bool _ma_ck_write_tree(register MARIA_HA *info, MARIA_KEY *key)
 
 /* typeof(_ma_keys_compare)=qsort_cmp2 */
 
-static int keys_compare(bulk_insert_param *param, uchar *key1, uchar *key2)
+static int keys_compare(void *param_, const void *key1_,
+                        const void *key2_)
 {
+  const bulk_insert_param *param= param_;
+  const uchar *key1= key1_;
+  const uchar *key2= key2_;
   uint not_used[2];
   return ha_key_cmp(param->info->s->keyinfo[param->keynr].seg,
                     key1, key2, USE_WHOLE_KEY, SEARCH_SAME,
@@ -1789,7 +1800,7 @@ int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-                (qsort_cmp2) keys_compare, keys_free, (void *)params++, MYF(0));
+                keys_compare, keys_free, params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;
@@ -2039,7 +2050,7 @@ my_bool _ma_log_change(MARIA_PAGE *ma_page, const uchar *key_pos, uint length,
 
    @note
      Write log entry for page that has got a key added to the page under
-     one and only one of the following senarios:
+     one and only one of the following scenarios:
      - Page is shortened from end
      - Data is added to end of page
      - Data added at front of page

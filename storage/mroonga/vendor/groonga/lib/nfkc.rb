@@ -789,7 +789,7 @@ def create_compose_map(decompose_map)
     src = src.chars.collect{|c| decompose_map[c] || c}.join
     dst = decompose_map[dst] || dst
     if cc[src] && cc[src] != dst
-      STDERR.puts("caution: inconsitent mapping '#{src}' => '#{cc[src]}'|'#{dst}'")
+      STDERR.puts("caution: inconsistent mapping '#{src}' => '#{cc[src]}'|'#{dst}'")
     end
     cc[src] = dst if src != dst
   }

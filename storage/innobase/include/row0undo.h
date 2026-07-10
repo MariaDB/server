@@ -71,36 +71,22 @@ is assigned to handle an undo log record in the chain of different versions
 of the record, and the other thread happens to get the x-latch to the
 clustered index record at the right time.
 	If a query thread notices that the clustered index record it is looking
-for is missing, or the roll ptr field in the record doed not point to the
+for is missing, or the roll ptr field in the record does not point to the
 undo log record the thread was assigned to handle, then it gives up the undo
 task for that undo log record, and fetches the next. This situation can occur
 just in the case where the transaction modified the same record several times
 and another thread is currently doing the undo for successive versions of
 that index record. */
 
-/** Execution state of an undo node */
-enum undo_exec {
-	UNDO_NODE_FETCH_NEXT = 1,	/*!< we should fetch the next
-					undo log record */
-	/** rollback an insert into persistent table */
-	UNDO_INSERT_PERSISTENT,
-	/** rollback an update (or delete) in a persistent table */
-	UNDO_UPDATE_PERSISTENT,
-	/** rollback an insert into temporary table */
-	UNDO_INSERT_TEMPORARY,
-	/** rollback an update (or delete) in a temporary table */
-	UNDO_UPDATE_TEMPORARY,
-};
-
 /** Undo node structure */
 struct undo_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_UNDO */
-	undo_exec	state;	/*!< rollback execution state */
+	bool		is_temp;/*!< whether this is a temporary table */
 	trx_t*		trx;	/*!< trx for which undo is done */
 	roll_ptr_t	roll_ptr;/*!< roll pointer to undo log record */
 	trx_undo_rec_t*	undo_rec;/*!< undo log record */
 	undo_no_t	undo_no;/*!< undo number of the record */
-	ulint		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
+	byte		rec_type;/*!< undo log record type: TRX_UNDO_INSERT_REC,
 				... */
 	trx_id_t	new_trx_id; /*!< trx id to restore to clustered index
 				record */

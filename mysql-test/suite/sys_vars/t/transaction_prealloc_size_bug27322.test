@@ -35,7 +35,7 @@
 #      83 root ... 542  set session transaction_prealloc_size=1024*1024*1024*2
 #      84 root ... 1    SHOW PROCESSLIST
 #
-# There is a significant probablitity that this tests fails with testcase
+# There is a significant probability that this tests fails with testcase
 # timeout if the testing box is not powerful enough.
 #
 SET @def_var= @@session.transaction_prealloc_size;

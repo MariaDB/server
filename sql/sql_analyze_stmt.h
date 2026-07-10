@@ -236,6 +236,12 @@ public:
       ? static_cast<double>(r_rows) / static_cast<double>(r_scans)
       : 0;
   }
+  double get_avg_rows_after_where() const
+  {
+    return r_scans
+      ? static_cast<double>(r_rows_after_where) / static_cast<double>(r_scans)
+      : 0;
+  }
 
   double get_filtered_after_where() const
   {
@@ -463,7 +469,8 @@ public:
      n_positive_checks++;
   }
 
-  inline void increment_container_elements_count() { container_elements++; }
+  inline void set_container_elements_count(uint elements)
+  { container_elements= elements; }
 
   uint get_container_elements() const { return container_elements; }
 

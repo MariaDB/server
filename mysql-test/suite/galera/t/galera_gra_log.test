@@ -43,7 +43,7 @@ CREATE TABLE t1 (f1 INTEGER);
 --eval SET GLOBAL wsrep_ignore_apply_errors = $restore_wsrep_ignore_apply_errors
 DROP TABLE t1;
 
-CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc

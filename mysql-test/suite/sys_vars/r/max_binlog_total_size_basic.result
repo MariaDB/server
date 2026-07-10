@@ -1,0 +1,41 @@
+select @@global.max_binlog_total_size;
+@@global.max_binlog_total_size
+0
+select @@session.max_binlog_total_size;
+ERROR HY000: Variable 'max_binlog_total_size' is a GLOBAL variable
+show global variables like 'max_binlog_total_size';
+Variable_name	Value
+max_binlog_total_size	0
+show session variables like 'max_binlog_total_size';
+Variable_name	Value
+max_binlog_total_size	0
+select * from information_schema.global_variables where variable_name='max_binlog_total_size';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_BINLOG_TOTAL_SIZE	0
+select * from information_schema.session_variables where variable_name='max_binlog_total_size';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_BINLOG_TOTAL_SIZE	0
+set global max_binlog_total_size=1;
+select @@global.max_binlog_total_size, @@global.binlog_space_limit;
+@@global.max_binlog_total_size	@@global.binlog_space_limit
+1	1
+set global max_binlog_total_size=1;
+select @@global.max_binlog_total_size;
+@@global.max_binlog_total_size
+1
+set global binlog_space_limit=2;
+select @@global.max_binlog_total_size, @@global.binlog_space_limit;
+@@global.max_binlog_total_size	@@global.binlog_space_limit
+2	2
+set session max_binlog_total_size=1;
+ERROR HY000: Variable 'max_binlog_total_size' is a GLOBAL variable and should be set with SET GLOBAL
+set global max_binlog_total_size=default;
+CREATE USER user1@localhost;
+connect  con2,localhost,user1,,;
+set global max_binlog_total_size=1;
+ERROR 42000: Access denied; you need (at least one of) the BINLOG ADMIN privilege(s) for this operation
+set global binlog_space_limit=1;
+ERROR 42000: Access denied; you need (at least one of) the BINLOG ADMIN privilege(s) for this operation
+disconnect con2;
+connection default;
+DROP USER user1@localhost;

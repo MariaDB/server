@@ -1,0 +1,39 @@
+#
+# MDEV-33010: Crash when pushing condition with CHARSET()/COERCIBILITY()
+#             into derived table
+#
+CREATE TABLE t1 (c1 BIGINT, KEY (c1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (c2 DOUBLE UNSIGNED);
+INSERT INTO t2 VALUES (1);
+SET optimizer_switch='derived_merge=off';
+EXPLAIN EXTENDED
+SELECT dt1_c1 FROM
+(SELECT c1 AS dt1_c1 FROM t1) AS dt1
+JOIN
+(SELECT 1 AS dt2_c2 FROM t2) AS dt2
+ON CHARSET(dt2_c2) BETWEEN dt1_c1 AND dt1_c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DERIVED	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DERIVED	t1	ref	c1	c1	9	const	1	100.00	Using where; Using index
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'binary'
+Note	1003	/* select#1 */ select `dt1`.`dt1_c1` AS `dt1_c1` from (/* select#2 */ select `test`.`t1`.`c1` AS `dt1_c1` from `test`.`t1` where <cache>(charset(1)) between `test`.`t1`.`c1` and `test`.`t1`.`c1`) `dt1` where <cache>(charset(1)) between `dt1`.`dt1_c1` and `dt1`.`dt1_c1`
+EXPLAIN EXTENDED
+SELECT dt1_c1 FROM
+(SELECT c1 AS dt1_c1 FROM t1) AS dt1
+JOIN
+(SELECT 1 AS dt2_c2 FROM t2) AS dt2
+ON COERCIBILITY(dt2_c2) BETWEEN dt1_c1 AND dt1_c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DERIVED	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DERIVED	t1	ref	c1	c1	9	const	1	100.00	Using where; Using index
+Warnings:
+Note	1003	/* select#1 */ select `dt1`.`dt1_c1` AS `dt1_c1` from (/* select#2 */ select `test`.`t1`.`c1` AS `dt1_c1` from `test`.`t1` where <cache>(coercibility(1)) between `test`.`t1`.`c1` and `test`.`t1`.`c1`) `dt1` where <cache>(coercibility(1)) between `dt1`.`dt1_c1` and `dt1`.`dt1_c1`
+SET optimizer_switch=DEFAULT;
+DROP TABLE t1, t2;
+# End of 10.4 tests

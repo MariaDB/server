@@ -153,11 +153,11 @@ SELECT @@transaction_prealloc_size;
 @@transaction_prealloc_size
 1024
 SELECT local.transaction_prealloc_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.transaction_prealloc_size;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT transaction_prealloc_size = @@session.transaction_prealloc_size;
-ERROR 42S22: Unknown column 'transaction_prealloc_size' in 'field list'
+ERROR 42S22: Unknown column 'transaction_prealloc_size' in 'SELECT'
 SET @@global.transaction_prealloc_size = @start_global_value;
 SELECT @@global.transaction_prealloc_size;
 @@global.transaction_prealloc_size

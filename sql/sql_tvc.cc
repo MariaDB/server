@@ -30,7 +30,7 @@
     Walk through all VALUES items.
   @param
      @param processor      - the processor to call for each Item
-     @param walk_qubquery  - if should dive into subquery items
+     @param walk_subquery  - if should dive into subquery items
      @param argument       - the argument to pass recursively
   @retval
     true   on error
@@ -46,7 +46,7 @@ bool table_value_constr::walk_values(Item_processor processor,
     List_iterator_fast<Item> item_it(*list);
     while (Item *item= item_it++)
     {
-       if (item->walk(&Item::unknown_splocal_processor, false, argument))
+       if (item->walk(&Item::unknown_splocal_processor, argument, 0))
          return true;
     }
   }
@@ -118,8 +118,8 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
     types and aggregates them with the previous ones stored in holders. If
     list_a is the first one in the list of lists its elements types are put in
     holders. The errors can be reported when count of list_a elements is
-    different from the first_list_el_count. Also error can be reported whe
-    n aggregation can't be made.
+    different from the first_list_el_count. Also error can be reported when
+    aggregation can't be made.
 
   @retval
     true    if an error was reported
@@ -258,7 +258,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   
   List_item *first_elem= li++;
   uint cnt= first_elem->elements;
-  Type_holder *holders;
+  Type_holder *holders= type_holders;
   
   if (cnt == 0)
   {
@@ -269,32 +269,38 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   if (fix_fields_for_tvc(thd, li))
     DBUG_RETURN(true);
 
-  if (!(holders= new (thd->stmt_arena->mem_root) Type_holder[cnt]) ||
-       join_type_handlers_for_tvc(thd, li, holders, cnt) ||
-       get_type_attributes_for_tvc(thd, li, holders,
-				   lists_of_values.elements, cnt))
-    DBUG_RETURN(true);
-  
-  List_iterator_fast<Item> it(*first_elem);
-  Item *item;
-  Query_arena *arena, backup;
-  arena=thd->activate_stmt_arena_if_needed(&backup);
-  
-  sl->item_list.empty();
-  for (uint pos= 0; (item= it++); pos++)
+  if (!holders)
   {
-    /* Error's in 'new' will be detected after loop */
-    Item_type_holder *new_holder= new (thd->mem_root)
-                      Item_type_holder(thd, item, holders[pos].type_handler(),
-                                       &holders[pos]/*Type_all_attributes*/,
-                                       holders[pos].get_maybe_null());
-    sl->item_list.push_back(new_holder);
+    DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+                thd->stmt_arena->is_conventional());
+    holders= type_holders=
+      new (thd->active_stmt_arena_to_use()->mem_root) Type_holder[cnt];
+    if (!holders ||
+         join_type_handlers_for_tvc(thd, li, holders, cnt) ||
+         get_type_attributes_for_tvc(thd, li, holders,
+				     lists_of_values.elements, cnt))
+       DBUG_RETURN(true);
+    List_iterator_fast<Item> it(*first_elem);
+    Item *item;
+    Query_arena *arena, backup;
+    arena=thd->activate_stmt_arena_if_needed(&backup);
+
+    sl->item_list.empty();
+    for (uint pos= 0; (item= it++); pos++)
+    {
+      /* Error's in 'new' will be detected after loop */
+      Item_type_holder *new_holder= new (thd->mem_root)
+                        Item_type_holder(thd, item, holders[pos].type_handler(),
+                                         &holders[pos]/*Type_all_attributes*/,
+                                         holders[pos].get_maybe_null());
+      sl->item_list.push_back(new_holder);
+    }
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
+    if (unlikely(thd->is_fatal_error))
+      DBUG_RETURN(true); // out of memory
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
-  
-  if (unlikely(thd->is_fatal_error))
-    DBUG_RETURN(true); // out of memory
     
   result= tmp_result;
   
@@ -306,7 +312,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)
   */
 
-  thd->where="order clause";
+  thd->where= THD_WHERE::ORDER_CLAUSE;
   ORDER *order= sl->order_list.first;
   for (; order; order=order->next)
   {
@@ -321,7 +327,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
       if (!count || count > first_elem->elements)
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                 order_item->full_name(), thd->where);
+                 order_item->full_name(), thd_where(thd));
         DBUG_RETURN(true);
       }
       order->in_field_list= 1;
@@ -582,7 +588,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
       {
         if (i == 1)
 	{
-          sprintf(col_name, "_col_%i", j+1);
+          snprintf(col_name, sizeof(col_name), "_col_%i", j+1);
           row_list->element_index(j)->set_name(thd, col_name, strlen(col_name),
                                                thd->charset());
         }
@@ -595,7 +601,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
     {
       if (i == 1)
       {
-        sprintf(col_name, "_col_%i", 1);
+        snprintf(col_name, sizeof(col_name), "_col_%i", 1);
         args[i]->set_name(thd, col_name, strlen(col_name), thd->charset());
       }
       if (tvc_value->push_back(args[i]))
@@ -677,7 +683,7 @@ bool table_value_constr::to_be_wrapped_as_with_tail()
     the select of the form
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
 
-  @retval pointer to the result of of the transformation if successful
+  @retval pointer to the result of the transformation if successful
           NULL - otherwise
 */
 
@@ -705,12 +711,12 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
     goto err;
   wrapper_sl->select_number= ++thd->lex->stmt_lex->current_select_number;
   wrapper_sl->parent_lex= lex; /* Used in init_query. */
-  wrapper_sl->init_query();
-  wrapper_sl->init_select();
+  wrapper_sl->make_empty_select();
   wrapper_sl->is_tvc_wrapper= true;
 
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;
+  wrapper_sl->distinct=      tvc_sl->distinct;
   wrapper_sl->set_linkage(tvc_sl->get_linkage());
   wrapper_sl->exclude_from_table_unique_test=
                                  tvc_sl->exclude_from_table_unique_test;
@@ -730,7 +736,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
 
   /*
     Create a unit for the substituted select used for TVC and attach it
-    to the the wrapper select wrapper_sl as the only unit. The created
+    to the wrapper select wrapper_sl as the only unit. The created
     unit is the unit for the derived table tvc_x of the transformation.
   */
   if (!(derived_unit= new (thd->mem_root) SELECT_LEX_UNIT()))
@@ -738,6 +744,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   derived_unit->init_query();
   derived_unit->thd= thd;
   derived_unit->include_down(wrapper_sl);
+  derived_unit->distinct= tvc_sl->distinct;
 
   /*
     Attach the select used of TVC as the only slave to the unit for
@@ -797,7 +804,7 @@ err:
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
       ORDER BY ... LIMIT n [OFFSET m]
 
-  @retval pointer to the result of of the transformation if successful
+  @retval pointer to the result of the transformation if successful
           NULL - otherwise
 */
 
@@ -954,8 +961,10 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!length  || length > tmp_table_max_key_length() ||
       args[0]->cols() > tmp_table_max_key_parts())
   {
-    trace_conv.add("done", false);
-    trace_conv.add("reason", "key is too long");
+    if (unlikely(trace_conv.trace_started()))
+      trace_conv.
+        add("done", false).
+        add("reason", "key is too long");
     return this;
   }
 
@@ -963,15 +972,19 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   {
     if (!args[i]->const_item())
     {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "non-constant element in the IN-list");
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "non-constant element in the IN-list");
       return this;
     }
 
     if (cmp_row_types(args[i], args[0]))
     {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "type mismatch");
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "type mismatch");
       return this;
     }
   }
@@ -985,7 +998,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   */
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   /* Create item list as '*' for the subquery SQ */
   Item *item;
   SELECT_LEX *sq_select; // select for IN subquery;
@@ -1003,10 +1016,12 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
+  derived_unit->distinct= 1;
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);
+  tvc_select->distinct= 1;
 
   /* Create TVC used in the transformation */
   if (create_value_list_for_tvc(thd, &values))
@@ -1039,7 +1054,9 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   sq_select->add_where_field(derived_unit->first_select());
   sq_select->context.table_list= sq_select->table_list.first;
   sq_select->context.first_name_resolution_table= sq_select->table_list.first;
-  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  sq_select->table_list.first->derived_type= (DTYPE_TABLE |
+                                              DTYPE_MATERIALIZE |
+                                              DTYPE_IN_PREDICATE);
   lex->derived_tables|= DERIVED_SUBQUERY;
 
   sq_select->where= 0;
@@ -1154,7 +1171,7 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   @details
     For each IN predicate from AND parts of the WHERE condition and/or
     ON expressions of the SELECT for this join the method performs
-    the intransformation into an equivalent IN sunquery if it's needed.
+    the intransformation into an equivalent IN subquery if it's needed.
 
   @retval
     false     always

@@ -10,12 +10,12 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `date` timestamp NOT NULL,
   `title` varchar(100) NOT NULL,
   `content` text NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `date` (`date`,`title`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='ENGINE "MyISAM"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='ENGINE "MyISAM"'
 INSERT INTO diaries (date, title, content)
 VALUES ("2012-03-04", "cloudy day", "Today is cloudy day...");
 INSERT INTO diaries (date, title, content)

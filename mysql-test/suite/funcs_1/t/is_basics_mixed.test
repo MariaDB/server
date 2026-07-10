@@ -52,6 +52,7 @@ SELECT DATABASE();
 --error 0,ER_CANNOT_USER
 DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
+GRANT SELECT ON test.* TO 'testuser1'@'localhost';
 # Low privileged user
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);
@@ -185,14 +186,12 @@ let $OUTFILE = $MYSQLTEST_VARDIR/tmp/datadict.out;
 --error 0,1
 remove_file $OUTFILE;
 --replace_result $OUTFILE <OUTFILE>
---disable_ps2_protocol
 eval SELECT table_name,table_schema
 INTO OUTFILE '$OUTFILE'
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
 FROM information_schema.tables
 WHERE table_schema = 'db_datadict' ORDER BY table_name;
---enable_ps2_protocol
 cat_file $OUTFILE;
 remove_file $OUTFILE;
 #

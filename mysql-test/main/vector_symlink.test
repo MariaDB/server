@@ -1,0 +1,38 @@
+--source include/have_symlink.inc
+--source include/not_windows.inc
+--source include/have_innodb.inc
+
+
+ --echo #
+ --echo # MDEV-35152 - DATA/INDEX DIRECTORY options are ignored for vector index
+ --echo #
+--let $datadir= `select @@datadir`
+evalp create table t1id (a vector(1) not null, vector(a)) engine=InnoDB data directory '$MYSQL_TMP_DIR';
+evalp create table t1ii (a vector(1) not null, vector(a)) engine=InnoDB index directory '$MYSQL_TMP_DIR';
+evalp create table t1md (a vector(1) not null, vector(a)) engine=MyISAM data directory '$MYSQL_TMP_DIR';
+evalp create table t1mi (a vector(1) not null, vector(a)) engine=MyISAM index directory '$MYSQL_TMP_DIR';
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+show create table t1id;
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+show create table t1ii;
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+show create table t1md;
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+show create table t1mi;
+
+--echo ######### MYSQL_TMP_DIR:
+--list_files $MYSQL_TMP_DIR/ t1*
+--echo ######### MYSQL_TMP_DIR/test:
+--list_files $MYSQL_TMP_DIR/test/ t1*
+--echo ######### datadir/test:
+--list_files $datadir/test/ t1*
+
+drop table t1id, t1ii, t1md, t1mi;
+
+--echo ######### MYSQL_TMP_DIR:
+--list_files $MYSQL_TMP_DIR/ t1*
+--echo ######### MYSQL_TMP_DIR/test:
+--list_files $MYSQL_TMP_DIR/test/ t1*
+--echo ######### datadir/test:
+--list_files $datadir/test/ t1*

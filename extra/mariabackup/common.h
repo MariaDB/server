@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_global.h>
 #include <mysql_version.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <my_sys.h>
 
@@ -55,7 +54,7 @@ static inline int vasprintf(char **strp, const char *fmt, va_list args)
   {
     return -1;
   }
-  vsprintf(*strp, fmt, args);
+  vsnprintf(*strp, len + 1, fmt, args);
   return len;
 }
 
@@ -143,7 +142,7 @@ static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const ch
 # define POSIX_FADV_NORMAL
 # define POSIX_FADV_SEQUENTIAL
 # define POSIX_FADV_DONTNEED
-# define posix_fadvise(a,b,c,d) do {} while(0)
+# define posix_fadvise(fd, offset, len, advice) do { (void)offset; } while(0)
 #endif
 
 /***********************************************************************

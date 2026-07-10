@@ -1,0 +1,128 @@
+#
+# Start of 11.5 tests
+#
+#
+# MDEV-31340 Remove MY_COLLATION_HANDLER::strcasecmp()
+#
+SET NAMES utf8;
+CREATE TABLE t1 (I int, ı int);
+ERROR 42S21: Duplicate column name 'ı'
+CREATE TABLE t1 (a int, b int, KEY I(a), KEY ı(b));
+ERROR 42000: Duplicate key name 'ı'
+SET @@lc_time_names=it_ıT;
+SELECT @@lc_time_names;
+@@lc_time_names
+it_IT
+SET @@lc_time_names=DEFAULT;
+CREATE VIEW v1 AS SELECT 1;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
+COUNT(*)
+1
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.VıEWS WHERE TABLE_NAME='v1';
+COUNT(*)
+1
+DROP VIEW v1;
+CREATE OR REPLACE TABLE t1 (pk int, c int);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (1,3);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (2,3);
+SELECT pk, COUNT(*) OVER I AS cnt
+FROM t1
+WINDOW ı AS (PARTITION BY c ORDER BY pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING);
+pk	cnt
+1	2
+2	2
+1	2
+2	2
+1	2
+2	2
+DROP TABLE t1;
+SELECT CEIL(10.6);
+CEIL(10.6)
+11
+SELECT CEıL(10.6);
+CEıL(10.6)
+11
+CREATE FUNCTION I() RETURNS INT RETURN 1;
+SELECT ı();
+ı()
+1
+DROP FUNCTION ı;
+WITH I AS (SELECT 'a1' AS a, 'b1' AS b) SELECT * FROM ı;
+a	b
+a1	b1
+INSTALL PLUGIN arıa SONAME 'not important';
+ERROR HY000: Plugin 'arıa' already installed
+CREATE TABLE t1 (a INT) ENGINE=MyıSAM;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+SELECT @@CHARACTER_SET_CLıENT;
+@@CHARACTER_SET_CLıENT
+utf8mb3
+SET @I='i';
+SELECT @ı;
+@ı
+i
+CREATE TABLE t1(
+x INT,
+start_timestamp TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+end_timestamp TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME(start_tımestamp, end_tımestamp)
+) WITH SYSTEM VERSIONING;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `start_timestamp` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `end_timestamp` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`start_timestamp`, `end_timestamp`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+label_ı:
+LOOP
+label_I:
+LOOP
+LEAVE label_I;
+END LOOP;
+LEAVE label_ı;
+END LOOP;
+END;
+$$
+ERROR 42000: Redefining label label_I
+BEGIN NOT ATOMIC
+label_ı:
+LOOP
+SELECT 'looping' AS stage;
+LEAVE label_I;
+END LOOP;
+SELECT 'out of loop' AS stage;
+END;
+$$
+stage
+looping
+stage
+out of loop
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT 'a' AS I FROM t1 GROUP BY ı;
+I
+a
+SELECT 'a' AS ı FROM t1 GROUP BY I;
+ı
+a
+SELECT 'a' AS İ FROM t1 GROUP BY i;
+ERROR 42S22: Unknown column 'i' in 'GROUP BY'
+SELECT 'a' AS i FROM t1 GROUP BY İ;
+ERROR 42S22: Unknown column 'İ' in 'GROUP BY'
+DROP TABLE t1;
+#
+# End of 11.5 tests
+#

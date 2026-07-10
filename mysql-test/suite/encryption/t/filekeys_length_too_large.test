@@ -1,0 +1,28 @@
+--echo #
+--echo # MDEV-9158 file_key_management should support reading from a named pipe
+--echo #
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--echo # Test checks if opening a too large key file, file key plugin will only read max key file size bytes and extra bytes will be ignored.
+
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval select seq,repeat(md5(seq), 200)
+     into outfile '$MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key'
+          fields terminated by ';'
+     from seq_1_to_1000;
+
+--echo #Large key file will read max size bytes, which is 1MB
+let SEARCH_PATTERN=filekeys-data-too-large.key too large, must be less than 1048576 bytes;
+eval call mtr.add_suppression("$SEARCH_PATTERN");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+--error 2
+INSTALL SONAME 'file_key_management';
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key

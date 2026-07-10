@@ -108,7 +108,7 @@ public:
 		big_rec_t*      big_rec;
 		rec_t*          rec;
 		btr_cur_t       ins_cur;
-		mtr_t           mtr;
+		mtr_t           mtr{scan_mtr->trx};
 		rtr_info_t      rtr_info;
 		rec_offs*	ins_offsets = NULL;
 		dberr_t		error = DB_SUCCESS;
@@ -120,7 +120,7 @@ public:
 		ut_ad(mtr_started == scan_mtr->is_active());
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-				log_sys.set_check_flush_or_checkpoint(););
+				log_sys.set_check_for_checkpoint(true););
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec.begin();
 		     it != m_dtuple_vec.end();
@@ -128,7 +128,7 @@ public:
 			dtuple = *it;
 			ut_ad(dtuple);
 
-			if (log_sys.check_flush_or_checkpoint()) {
+			if (log_sys.check_for_checkpoint()) {
 				if (mtr_started) {
 					if (!btr_pcur_move_to_prev_on_page(pcur)) {
 						error = DB_CORRUPTION;
@@ -150,7 +150,7 @@ public:
 					  false);
 			rtr_info_update_btr(&ins_cur, &rtr_info);
 
-			error = rtr_insert_leaf(&ins_cur, dtuple,
+			error = rtr_insert_leaf(&ins_cur, nullptr, dtuple,
 						BTR_MODIFY_LEAF, &mtr);
 
 			/* It need to update MBR in parent entry,
@@ -163,7 +163,8 @@ public:
 				rtr_info_update_btr(&ins_cur, &rtr_info);
 				mtr.start();
 				index->set_modified(mtr);
-				error = rtr_insert_leaf(&ins_cur, dtuple,
+				error = rtr_insert_leaf(&ins_cur, nullptr,
+							dtuple,
 							BTR_MODIFY_TREE, &mtr);
 			}
 
@@ -186,7 +187,8 @@ public:
 						  &ins_cur, index, false);
 
 				rtr_info_update_btr(&ins_cur, &rtr_info);
-				error = rtr_insert_leaf(&ins_cur, dtuple,
+				error = rtr_insert_leaf(&ins_cur, nullptr,
+							dtuple,
 							BTR_MODIFY_TREE, &mtr);
 
 				if (error == DB_SUCCESS) {
@@ -244,6 +246,7 @@ public:
 #define FTS_PENDING_DOC_MEMORY_LIMIT	1000000
 
 /** Insert sorted data tuples to the index.
+@param[in,out]	trx		transaction
 @param[in]	index		index to be inserted
 @param[in]	old_table	old table
 @param[in]	fd		file descriptor
@@ -267,6 +270,7 @@ and then stage->inc() will be called for each record that is processed.
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
+	trx_t*			trx,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	const pfs_os_file_t&	fd,
@@ -281,10 +285,10 @@ row_merge_insert_index_tuples(
 	ut_stage_alter_t*	stage= nullptr,
 	merge_file_t*		blob_file= nullptr);
 
-/******************************************************//**
-Encode an index record. */
+/** Encode an index record.
+@return size of the record */
 static MY_ATTRIBUTE((nonnull))
-void
+ulint
 row_merge_buf_encode(
 /*=================*/
 	byte**			b,		/*!< in/out: pointer to
@@ -315,6 +319,7 @@ row_merge_buf_encode(
 				   entry->fields, n_fields);
 
 	*b += size;
+	return size;
 }
 
 static MY_ATTRIBUTE((malloc, nonnull))
@@ -525,8 +530,6 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
 @param[in,out]	row		table row
 @param[in]	ext		cache of externally stored
 				column prefixes, or NULL
-@param[in]	history_fts	row is historical in a system-versioned table
-				on which a FTS_DOC_ID_INDEX(FTS_DOC_ID) exists
 @param[in,out]	doc_id		Doc ID if we are creating
 				FTS index
 @param[in,out]	conv_heap	memory heap where to allocate data when
@@ -549,7 +552,6 @@ row_merge_buf_add(
 	fts_psort_t*		psort_info,
 	dtuple_t*		row,
 	const row_ext_t*	ext,
-	const bool		history_fts,
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
 	dberr_t*		err,
@@ -614,7 +616,7 @@ error:
 			: NULL;
 
 		/* Process the Doc ID column */
-		if (!v_col && (history_fts || *doc_id)
+		if (!v_col && *doc_id
 		    && col->ind == index->table->fts->doc_col) {
 			fts_write_doc_id((byte*) &write_doc_id, *doc_id);
 
@@ -675,7 +677,7 @@ error:
 			}
 
 			/* Tokenize and process data for FTS */
-			if (!history_fts && (index->type & DICT_FTS)) {
+			if (index->type & DICT_FTS) {
 				fts_doc_item_t*	doc_item;
 				byte*		value;
 				void*		ptr;
@@ -778,7 +780,10 @@ error:
 			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
-				ut_a(buf != field_ref_zero);
+				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
+					*err = DB_CORRUPTION;
+					goto error;
+				}
 				if (i < dict_index_get_n_unique(index)) {
 					dfield_set_data(field, buf, len);
 				} else {
@@ -791,7 +796,10 @@ error:
 			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
-				ut_a(buf != field_ref_zero);
+				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
+					*err = DB_CORRUPTION;
+					goto error;
+				}
 				dfield_set_data(field, buf, len);
 			}
 		}
@@ -823,7 +831,7 @@ error:
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			/* len should be between size calcualted base on
+			/* len should be between size calculated based on
 			mbmaxlen and mbminlen */
 			ut_ad(len <= fixed_len);
 			ut_ad(!col->mbmaxlen || len >= col->mbminlen
@@ -1053,7 +1061,8 @@ length in the field data
 @param	heap		heap to store the blob offset and length
 @return DB_SUCCESS if successful */
 static dberr_t row_merge_write_blob_to_tmp_file(
-   dfield_t *field, merge_file_t *blob_file,mem_heap_t **heap)
+   dfield_t *field, uint32_t local_len,
+   merge_file_t *blob_file, mem_heap_t **heap)
 {
   if (blob_file->fd == OS_FILE_CLOSED)
   {
@@ -1062,83 +1071,74 @@ static dberr_t row_merge_write_blob_to_tmp_file(
       return DB_OUT_OF_MEMORY;
   }
   uint64_t val= blob_file->offset;
-  uint32_t len= field->len;
+  uint32_t field_len= field->len;
   dberr_t err= os_file_write(
     IORequestWrite, "(bulk insert)", blob_file->fd,
-    field->data, blob_file->offset, len);
+    static_cast<const byte*>(field->data) + local_len, blob_file->offset,
+    field_len - local_len);
 
   if (err != DB_SUCCESS)
     return err;
 
-  byte *data= static_cast<byte*>
-    (mem_heap_alloc(*heap, BTR_EXTERN_FIELD_REF_SIZE));
+  byte *data=
+    static_cast<byte*>(mem_heap_alloc(*heap,
+                                      local_len + BTR_EXTERN_FIELD_REF_SIZE));
 
+  memcpy(data, field->data, local_len);
+  dfield_set_data(field, data, local_len + BTR_EXTERN_FIELD_REF_SIZE);
+  dfield_set_ext(field);
+
+  data+= local_len;
   /* Write zeroes for first 8 bytes */
   memset(data, 0, 8);
   /* Write offset for next 8 bytes */
   mach_write_to_8(data + 8, val);
   /* Write length of the blob in 4 bytes */
-  mach_write_to_4(data + 16, len);
-  blob_file->offset+= field->len;
+  mach_write_to_4(data + 16, field_len - local_len);
+  blob_file->offset+= (field_len - local_len);
   blob_file->n_rec++;
-  dfield_set_data(field, data, BTR_EXTERN_FIELD_REF_SIZE);
-  dfield_set_ext(field);
   return err;
 }
 
-/** This function is invoked when tuple size is greater than
-innodb_sort_buffer_size. Basically it recreates the tuple
-by writing the blob field to the temporary file.
-@param entry     index fields to be encode the blob
+/** Variable length field data or fixed length
+character greater than 255 can be stored externally. Instead
+of storing it externally, InnoDB should store it in temporary
+file and write offset, length into the tuple field
+@param fields    index fields to be encode the blob
 @param blob_file file to store the blob data
+@param index     index for the tuple to be stored
 @param heap      heap to store the blob offset and blob length
-@return tuple which fits into sort_buffer_size */
-static dtuple_t* row_merge_buf_large_tuple(const dtuple_t &entry,
-                                           merge_file_t *blob_file,
-                                           mem_heap_t **heap)
+@return error code */
+static
+dberr_t row_merge_buf_blob(dfield_t *fields,
+                           merge_file_t *blob_file,
+                           const dict_index_t *index,
+                           mem_heap_t **heap)
 {
-  if (!*heap)
-    *heap= mem_heap_create(DTUPLE_EST_ALLOC(entry.n_fields));
+  const uint blob_prefix= dict_table_has_atomic_blobs(index->table)
+    ? 0
+    : REC_ANTELOPE_MAX_INDEX_COL_LEN;
+  const uint min_local_len = blob_prefix
+    ? blob_prefix + FIELD_REF_SIZE
+    : 2 * FIELD_REF_SIZE;
 
-  dtuple_t *tuple= dtuple_copy(&entry, *heap);
-  for (ulint i= 0; i < tuple->n_fields; i++)
+  for (ulint i= index->first_user_field(); i < index->n_fields; i++)
   {
-    dfield_t *field= &tuple->fields[i];
-    if (dfield_is_null(field) || field->len <= 2000)
+    dfield_t *field= &fields[i];
+    if (dfield_is_null(field) || index->fields[i].fixed_len)
       continue;
 
-    dberr_t err= row_merge_write_blob_to_tmp_file(field, blob_file, heap);
-    if (err != DB_SUCCESS)
-      return nullptr;
-  }
-
-  return tuple;
-}
-
-
-/** Write the field data whose length is more than 2000 bytes
-into blob temporary file and write offset, length into the
-tuple field
-@param entry     index fields to be encode the blob
-@param n_fields  number of fields in the entry
-@param heap      heap to store the blob offset and blob length
-@param blob_file file to store the blob data */
-static dberr_t row_merge_buf_blob(const mtuple_t *entry, ulint n_fields,
-                                  mem_heap_t **heap, merge_file_t *blob_file)
-{
-
-  if (!*heap)
-    *heap= mem_heap_create(100);
-
-  for (ulint i= 0; i < n_fields; i++)
-  {
-    dfield_t *field= &entry->fields[i];
-    if (dfield_is_null(field) || field->len <= 2000)
-      continue;
-
-    dberr_t err= row_merge_write_blob_to_tmp_file(field, blob_file, heap);
-    if (err != DB_SUCCESS)
-      return err;
+    if (field->len > min_local_len &&
+        DATA_BIG_COL(index->fields[i].col))
+    {
+      if (*heap == nullptr)
+        *heap= mem_heap_create(256);
+      dberr_t err=
+        row_merge_write_blob_to_tmp_file(field, blob_prefix,
+                                         blob_file, heap);
+      if (err)
+        return err;
+     }
   }
 
   return DB_SUCCESS;
@@ -1168,14 +1168,30 @@ dberr_t row_merge_buf_write(const row_merge_buf_t *buf,
 
 		if (blob_file) {
 			ut_ad(buf->index->is_primary());
-			err = row_merge_buf_blob(
-				entry, n_fields, &blob_heap, blob_file);
+
+			err = row_merge_buf_blob(entry->fields,
+						 blob_file, buf->index,
+                                                 &blob_heap);
 			if (err != DB_SUCCESS) {
 				goto func_exit;
 			}
 		}
 
-		row_merge_buf_encode(&b, index, entry, n_fields);
+		ulint rec_size= row_merge_buf_encode(
+				&b, index, entry, n_fields);
+		if (blob_file) {
+			ulint rec_max_size =
+				(srv_page_size == UNIV_PAGE_SIZE_MAX)
+				? REDUNDANT_REC_MAX_DATA_SIZE
+				: page_get_free_space_of_empty(
+					dict_table_is_comp(
+						index->table)) / 2;
+			if (rec_size > rec_max_size) {
+				err = DB_TOO_BIG_RECORD;
+				goto func_exit;
+			}
+		}
+
 		ut_ad(b < &block[srv_sort_buf_size]);
 
 		DBUG_LOG("ib_merge_sort",
@@ -1859,7 +1875,7 @@ row_merge_read_clustered_index(
 						data for virtual column */
 	btr_pcur_t		pcur;		/* Cursor on the clustered
 						index */
-	mtr_t			mtr;		/* Mini transaction */
+	mtr_t			mtr{trx};	/* Mini transaction */
 	bool			mtr_started = false;
 	dberr_t			err = DB_SUCCESS;/* Return code */
 	ulint			n_nonnull = 0;	/* number of columns
@@ -1888,6 +1904,7 @@ row_merge_read_clustered_index(
 	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
+	ut_ad(old_table->fts || !new_table->fts || !new_table->versioned());
 	ut_ad(!defaults || col_map);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
@@ -1900,16 +1917,12 @@ row_merge_read_clustered_index(
 
 	trx->op_info = "reading clustered index";
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Start Create Index\n");
-#endif
-
 	/* Create and initialize memory for record buffers */
 
 	merge_buf = static_cast<row_merge_buf_t**>(
 		ut_malloc_nokey(n_index * sizeof *merge_buf));
 
-	row_merge_dup_t	clust_dup = {index[0], table, col_map, 0};
+	row_merge_dup_t	clust_dup = {index[0], trx, table, col_map, 0};
 	dfield_t*	prev_fields = nullptr;
 	const ulint	n_uniq = dict_index_get_n_unique(index[0]);
 
@@ -2000,23 +2013,29 @@ err_exit:
 		trx->error_key_num = 0;
 		goto func_exit;
 	} else {
-		rec_t* rec = page_rec_get_next(btr_pcur_get_rec(&pcur));
+		const page_t* const page = btr_pcur_get_page(&pcur);
+		const auto comp = page_is_comp(page);
+		const rec_t* const rec = comp
+			? page_rec_next_get<true>(page,
+						  btr_pcur_get_rec(&pcur))
+			: page_rec_next_get<false>(page,
+						   btr_pcur_get_rec(&pcur));
 		if (!rec) {
 corrupted_metadata:
 			err = DB_CORRUPTION;
 			goto err_exit;
 		}
-		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
-		    & REC_INFO_MIN_REC_FLAG) {
+		if (rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG) {
 			if (!clust_index->is_instant()) {
 				goto corrupted_metadata;
 			}
-			if (page_rec_is_comp(rec)
+			if (comp
 			    && rec_get_status(rec) != REC_STATUS_INSTANT) {
 				goto corrupted_metadata;
 			}
 			/* Skip the metadata pseudo-record. */
-			btr_pcur_get_page_cur(&pcur)->rec = rec;
+			btr_pcur_get_page_cur(&pcur)->rec =
+				const_cast<rec_t*>(rec);
 		} else if (clust_index->is_instant()) {
 			goto corrupted_metadata;
 		}
@@ -2113,7 +2132,6 @@ corrupted_metadata:
 		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
-		bool history_row, history_fts = false;
 
 		stage->n_pk_recs_inc();
 
@@ -2151,38 +2169,6 @@ corrupted_rec:
 			mem_heap_empty(row_heap);
 
 			if (!mtr_started) {
-				goto scan_next;
-			}
-
-			if (clust_index->lock.is_waiting()) {
-				/* There are waiters on the clustered
-				index tree lock, likely the purge
-				thread. Store and restore the cursor
-				position, and yield so that scanning a
-				large table will not starve other
-				threads. */
-
-				/* Store the cursor position on the last user
-				record on the page. */
-				if (!btr_pcur_move_to_prev_on_page(&pcur)) {
-					goto corrupted_index;
-				}
-				/* Leaf pages must never be empty, unless
-				this is the only page in the index tree. */
-				if (!btr_pcur_is_on_user_rec(&pcur)
-				    && btr_pcur_get_block(&pcur)->page.id()
-				    .page_no() != clust_index->page) {
-					goto corrupted_index;
-				}
-
-				btr_pcur_store_position(&pcur, &mtr);
-				mtr.commit();
-				mtr_started = false;
-
-				/* Give the waiters a chance to proceed. */
-				std::this_thread::yield();
-scan_next:
-				ut_ad(!mtr_started);
 				ut_ad(!mtr.is_active());
 				mtr.start();
 				mtr_started = true;
@@ -2195,7 +2181,7 @@ scan_next:
 corrupted_index:
 					err = DB_CORRUPTION;
 					goto func_exit;
-                                }
+				}
 				/* Move to the successor of the
 				original record. */
 				if (!btr_pcur_move_to_next_user_rec(
@@ -2223,19 +2209,21 @@ end_of_index:
 						  next_page_no),
 					old_table->space->zip_size(),
 					RW_S_LATCH, nullptr, BUF_GET, &mtr,
-					&err, false);
+					&err);
 				if (!block) {
 					goto err_exit;
 				}
+
+				buf_page_make_young_if_needed(&block->page);
+
+				const auto s = mtr.get_savepoint();
+				mtr.rollback_to_savepoint(s - 2, s - 1);
 
 				page_cur_set_before_first(block, cur);
 				if (!page_cur_move_to_next(cur)
 				    || page_cur_is_after_last(cur)) {
 					goto corrupted_rec;
 				}
-
-				const auto s = mtr.get_savepoint();
-				mtr.rollback_to_savepoint(s - 2, s - 1);
 			}
 		} else {
 			mem_heap_empty(row_heap);
@@ -2373,11 +2361,6 @@ end_of_index:
 					   row_heap);
 		ut_ad(row);
 
-		history_row = new_table->versioned()
-		       && dtuple_get_nth_field(row, new_table->vers_end)
-		       ->vers_history_row();
-		history_fts = history_row && new_table->fts;
-
 		for (ulint i = 0; i < n_nonnull; i++) {
 			dfield_t*	field	= &row->fields[nonnull[i]];
 
@@ -2406,7 +2389,7 @@ end_of_index:
 		}
 
 		/* Get the next Doc ID */
-		if (add_doc_id && !history_fts) {
+		if (add_doc_id) {
 			doc_id++;
 		} else {
 			doc_id = 0;
@@ -2428,8 +2411,7 @@ end_of_index:
 		} else if (rec_trx_id < trx->id) {
 			/* Reset the DB_TRX_ID,DB_ROLL_PTR of old rows
 			for which history is not going to be
-			available after the rebuild operation.
-			This essentially mimics row_purge_reset_trx_id(). */
+			available after the rebuild operation. */
 			row->fields[new_trx_id_col].data
 				= const_cast<byte*>(reset_trx_id);
 			row->fields[new_trx_id_col + 1].data
@@ -2446,7 +2428,9 @@ end_of_index:
 								add_autoinc);
 
 			if (new_table->versioned()) {
-				if (history_row) {
+				if (dtuple_get_nth_field(row,
+							 new_table->vers_end)
+				    ->vers_history_row()) {
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
@@ -2543,6 +2527,7 @@ write_buffers:
 				error. */
 				if (!row_geo_field_is_valid(row, buf->index)) {
 					err = DB_CANT_CREATE_GEOMETRY_OBJECT;
+					trx->error_key_num = i;
 					break;
 				}
 
@@ -2562,7 +2547,7 @@ write_buffers:
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table, new_table,
-					psort_info, row, ext, history_fts,
+					psort_info, row, ext,
 					&doc_id, conv_heap, &err,
 					&v_heap, eval_table, trx,
 					col_collate)))) {
@@ -2715,7 +2700,7 @@ write_buffers:
 					}
 
 					err = row_merge_insert_index_tuples(
-						index[i], old_table,
+						trx, index[i], old_table,
 						OS_FILE_CLOSED, NULL, buf,
 						clust_btr_bulk,
 						table_total_rows,
@@ -2766,7 +2751,8 @@ write_buffers:
 					}
 				} else if (dict_index_is_unique(buf->index)) {
 					row_merge_dup_t	dup = {
-						buf->index, table, col_map, 0};
+						buf->index, trx, table,
+						col_map, 0};
 
 					row_merge_buf_sort(buf, &dup);
 
@@ -2828,7 +2814,7 @@ write_buffers:
 					BtrBulk	btr_bulk(index[i], trx);
 
 					err = row_merge_insert_index_tuples(
-						index[i], old_table,
+						trx, index[i], old_table,
 						OS_FILE_CLOSED, NULL, buf,
 						&btr_bulk,
 						table_total_rows,
@@ -2895,7 +2881,7 @@ write_buffers:
 				    (!(rows_added = row_merge_buf_add(
 						buf, fts_index, old_table,
 						new_table, psort_info,
-						row, ext, history_fts, &doc_id,
+						row, ext, &doc_id,
 						conv_heap, &err, &v_heap,
 						eval_table, trx, col_collate)))) {
                                         /* An empty buffer should have enough
@@ -2974,9 +2960,6 @@ all_done:
 		mem_heap_free(conv_heap);
 	}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
-#endif
 	if (UNIV_LIKELY_NULL(fts_parallel_sort_cond)) {
 wait_again:
                 /* Check if error occurs in child thread */
@@ -3017,9 +3000,6 @@ wait_again:
 		}
 	}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Tokenization\n");
-#endif
 	for (ulint i = 0; i < n_index; i++) {
 		row_merge_buf_free(merge_buf[i]);
 	}
@@ -3046,7 +3026,7 @@ wait_again:
 		if (err == DB_SUCCESS) {
 			new_table->fts->cache->synced_doc_id = max_doc_id;
 
-		        /* Update the max value as next FTS_DOC_ID */
+			/* Update the max value as next FTS_DOC_ID */
 			if (max_doc_id >= new_table->fts->cache->next_doc_id) {
 				new_table->fts->cache->next_doc_id =
 					max_doc_id + 1;
@@ -3538,17 +3518,6 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
-	/* These thd_progress* calls will crash on sol10-64 when innodb_plugin
-	is used. MDEV-9356: innodb.innodb_bug53290 fails (crashes) on
-	sol10-64 in buildbot.
-	*/
-#ifndef __sun__
-	/* Progress report only for "normal" indexes. */
-	if (dup && !(dup->index->type & DICT_FTS)) {
-		thd_progress_init(trx->mysql_thd, 1);
-	}
-#endif /* __sun__ */
-
 	if (global_system_variables.log_warnings > 2) {
 		sql_print_information("InnoDB: Online DDL : merge-sorting"
 				      " has estimated " ULINTPF " runs",
@@ -3557,15 +3526,6 @@ row_merge_sort(
 
 	/* Merge the runs until we have one big run */
 	do {
-		/* Report progress of merge sort to MySQL for
-		show processlist progress field */
-		/* Progress report only for "normal" indexes. */
-#ifndef __sun__
-		if (dup && !(dup->index->type & DICT_FTS)) {
-			thd_progress_report(trx->mysql_thd, file->offset - num_runs, file->offset);
-		}
-#endif /* __sun__ */
-
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset, stage,
 				  crypt_block, space);
@@ -3589,13 +3549,6 @@ row_merge_sort(
 
 	ut_free(run_offset);
 
-	/* Progress report only for "normal" indexes. */
-#ifndef __sun__
-	if (dup && !(dup->index->type & DICT_FTS)) {
-		thd_progress_end(trx->mysql_thd);
-	}
-#endif /* __sun__ */
-
 	DBUG_RETURN(error);
 }
 
@@ -3604,10 +3557,16 @@ in field data for the tuple
 @param tuple     tuple to be inserted
 @param heap      heap to allocate the memory for the blob storage
 @param blob_file file to handle blob data */
-static dberr_t row_merge_copy_blob_from_file(dtuple_t *tuple, mem_heap_t *heap,
+static dberr_t row_merge_copy_blob_from_file(dtuple_t *tuple,
+                                             dict_index_t *index,
+                                             mem_heap_t *heap,
                                              merge_file_t *blob_file)
 {
-  for (ulint i = 0; i < dtuple_get_n_fields(tuple); i++)
+  ut_ad(tuple->n_fields == index->n_fields);
+  const uint blob_prefix= dict_table_has_atomic_blobs(index->table)
+    ? 0
+    : REC_ANTELOPE_MAX_INDEX_COL_LEN;
+  for (ulint i = index->first_user_field(); i < tuple->n_fields; i++)
   {
     dfield_t *field= dtuple_get_nth_field(tuple, i);
     const byte *field_data= static_cast<byte*>(dfield_get_data(field));
@@ -3618,15 +3577,18 @@ static dberr_t row_merge_copy_blob_from_file(dtuple_t *tuple, mem_heap_t *heap,
     ut_a(field_len >= BTR_EXTERN_FIELD_REF_SIZE);
     ut_ad(!dfield_is_null(field));
 
+    field_data += blob_prefix;
     ut_ad(mach_read_from_8(field_data) == 0);
     uint64_t offset= mach_read_from_8(field_data + 8);
     uint32_t len= mach_read_from_4(field_data + 16);
 
-    byte *data= (byte*) mem_heap_alloc(heap, len);
-    if (dberr_t err= os_file_read(IORequestRead, blob_file->fd, data,
+    byte *data= (byte*) mem_heap_alloc(heap, blob_prefix + len);
+    memcpy(data, field->data, blob_prefix);
+    if (dberr_t err= os_file_read(IORequestRead, blob_file->fd,
+                                  data + blob_prefix,
                                   offset, len, nullptr))
       return err;
-    dfield_set_data(field, data, len);
+    dfield_set_data(field, data, blob_prefix + len);
   }
 
   return DB_SUCCESS;
@@ -3711,8 +3673,6 @@ row_merge_mtuple_to_dtuple(
 	dtuple_t*	dtuple,
 	const mtuple_t* mtuple)
 {
-	ut_ad(!dict_index_is_ibuf(index));
-
 	memcpy(dtuple->fields, mtuple->fields,
 	       dtuple->n_fields * sizeof *mtuple->fields);
 }
@@ -3720,6 +3680,7 @@ row_merge_mtuple_to_dtuple(
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
+	trx_t*			trx,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	const pfs_os_file_t&	fd,
@@ -3747,12 +3708,12 @@ row_merge_insert_index_tuples(
 	double			curr_progress = 0;
 	dict_index_t*		old_index = NULL;
 	const mrec_t*		mrec  = NULL;
-	mtr_t			mtr;
-
+	mtr_t			mtr{trx};
 
 	DBUG_ENTER("row_merge_insert_index_tuples");
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_spatial(index));
 
@@ -3848,7 +3809,7 @@ row_merge_insert_index_tuples(
 		if (!dtuple_get_n_ext(dtuple)) {
 		} else if (blob_file) {
 			error = row_merge_copy_blob_from_file(
-				dtuple, tuple_heap, blob_file);
+				dtuple, index, tuple_heap, blob_file);
 			if (error != DB_SUCCESS) {
 				break;
 			}
@@ -3926,6 +3887,7 @@ row_merge_drop_index_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
@@ -3989,6 +3951,7 @@ row_merge_drop_indexes_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
@@ -4063,6 +4026,7 @@ row_merge_drop_indexes(
 	dict_index_t*	next_index;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
@@ -4120,7 +4084,7 @@ row_merge_drop_indexes(
 					prebuilt->ins_node->entry_list
 					in ins_node_create_entry_list(). */
 #ifdef BTR_CUR_HASH_ADAPT
-					ut_ad(!index->search_info->ref_count);
+					ut_ad(!index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 					dict_index_remove_from_cache(
 						table, index);
@@ -4369,13 +4333,11 @@ void row_merge_drop_temp_indexes()
 }
 
 
-/** Create temporary merge files in the given paramater path, and if
-UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
+/** Create temporary merge files in the given parameter path, and if
+UNIV_PFS_IO is defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
-pfs_os_file_t
-row_merge_file_create_low(
-	const char*	path)
+static pfs_os_file_t row_merge_file_create_mode(const char *path, int mode)
 {
 	if (!path) {
 		path = mysql_tmpdir;
@@ -4416,6 +4378,13 @@ row_merge_file_create_low(
 	return(fd);
 }
 
+/** Create a temporary file at the specified path.
+@param path location for creating temporary merge files, or nullptr
+@return File descriptor */
+pfs_os_file_t row_merge_file_create_low(const char *path)
+{
+  return row_merge_file_create_mode(path, O_BINARY | O_SEQUENTIAL);
+}
 
 /** Create a merge file in the given location.
 @param[out]	merge_file	merge file structure
@@ -4426,16 +4395,16 @@ row_merge_file_create(
 	merge_file_t*	merge_file,
 	const char*	path)
 {
-	merge_file->fd = row_merge_file_create_low(path);
 	merge_file->offset = 0;
 	merge_file->n_rec = 0;
-
-	if (merge_file->fd != OS_FILE_CLOSED) {
-		if (srv_disable_sort_file_cache) {
-			os_file_set_nocache(merge_file->fd,
-				"row0merge.cc", "sort");
-		}
-	}
+	merge_file->fd =
+		row_merge_file_create_mode(path,
+#if !defined _WIN32 && defined O_DIRECT
+					   srv_disable_sort_file_cache
+					   ? O_DIRECT | O_BINARY | O_SEQUENTIAL
+					   :
+#endif
+					   O_BINARY | O_SEQUENTIAL);
 	return(merge_file->fd);
 }
 
@@ -4461,6 +4430,7 @@ row_merge_file_destroy(
 	merge_file_t*	merge_file)	/*!< in/out: merge file structure */
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	if (merge_file->fd != OS_FILE_CLOSED) {
 		row_merge_file_destroy_low(merge_file->fd);
@@ -4538,6 +4508,7 @@ row_merge_create_index(
 	DBUG_ENTER("row_merge_create_index");
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 
 	/* Create the index prototype, using the passed in def, this is not
 	a persistent operation. We pass 0 as the space id, and determine at
@@ -4561,10 +4532,10 @@ row_merge_create_index(
 				n_add_vcol++;
 			} else {
 				name = dict_table_get_v_col_name(
-					table, ifield->col_no);
+					table, ifield->col_no).str;
 			}
 		} else {
-			name = dict_table_get_col_name(table, ifield->col_no);
+			name = dict_table_get_col_name(table, ifield->col_no).str;
 		}
 
 		dict_mem_index_add_field(index, name, ifield->prefix_len,
@@ -4674,6 +4645,7 @@ row_merge_build_indexes(
 	DBUG_ENTER("row_merge_build_indexes");
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!recv_sys.rpo);
 	ut_ad((old_table == new_table) == !col_map);
 	ut_ad(!defaults || col_map);
 
@@ -4737,14 +4709,32 @@ row_merge_build_indexes(
 		* static_cast<double>(n_indexes);
 	for (i = 0; i < n_indexes; i++) {
 		if (indexes[i]->type & DICT_FTS) {
-			ibool	opt_doc_id_size = FALSE;
+			bool	opt_doc_id_size = false;
 
 			/* To build FTS index, we would need to extract
 			doc's word, Doc ID, and word's position, so
 			we need to build a "fts sort index" indexing
 			on above three 'fields' */
+
+			/* Check whether we can use 4 bytes instead of 8 bytes
+			integer field to hold the Doc ID, thus reduce
+			the overall sort size. If the fulltext index is being
+			added for the first time then we should use 8 bytes Doc ID
+			size because table->stat_n_rows is an estimation and
+			not reliable to determine the Doc ID size. */
+			if (old_table->fts || !DICT_TF2_FLAG_IS_SET(
+					new_table, DICT_TF2_FTS_ADD_DOC_ID)) {
+				/* If the Doc ID column is supplied by user
+				or rebuilding the existing FTS table, then
+				check the maximum Doc ID in the old table */
+				doc_id_t max_doc_id =
+				  fts_get_max_doc_id((dict_table_t*) old_table);
+				opt_doc_id_size =
+				  (max_doc_id < MAX_DOC_ID_OPT_VAL);
+			}
+
 			fts_sort_idx = row_merge_create_fts_sort_index(
-				indexes[i], old_table, &opt_doc_id_size);
+				indexes[i], new_table, opt_doc_id_size);
 
 			row_merge_dup_t*	dup
 				= static_cast<row_merge_dup_t*>(
@@ -4781,13 +4771,9 @@ row_merge_build_indexes(
 	/* Do not continue if we can't encrypt table pages */
 	if (!old_table->is_readable() ||
 	    !new_table->is_readable()) {
-		error = DB_DECRYPTION_FAILED;
-		ib_push_warning(trx->mysql_thd, DB_DECRYPTION_FAILED,
-			"Table %s is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			!old_table->is_readable() ? old_table->name.m_name :
-				new_table->name.m_name);
+		error = innodb_decryption_failed(trx->mysql_thd,
+						 !old_table->is_readable()
+						 ? old_table : new_table);
 		goto func_exit;
 	}
 
@@ -4849,13 +4835,10 @@ row_merge_build_indexes(
 					psort_info, 0);
 			}
 
-#ifdef FTS_INTERNAL_DIAG_PRINT
-			DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Insert\n");
-#endif
 		} else if (merge_files[k].fd != OS_FILE_CLOSED) {
 			char	buf[NAME_LEN + 1];
 			row_merge_dup_t	dup = {
-				sort_idx, table, col_map, 0};
+				sort_idx, trx, table, col_map, 0};
 
 			pct_cost = (COST_BUILD_INDEX_STATIC +
 				    (total_dynamic_cost
@@ -4924,7 +4907,7 @@ row_merge_build_indexes(
 				}
 
 				error = row_merge_insert_index_tuples(
-					sort_idx, old_table,
+					trx, sort_idx, old_table,
 					merge_files[k].fd, block, NULL,
 					&btr_bulk,
 					merge_files[k].n_rec, pct_progress, pct_cost,
@@ -4976,12 +4959,6 @@ row_merge_build_indexes(
 		if (error != DB_SUCCESS) {
 			trx->error_key_num = key_numbers[i];
 			goto func_exit;
-		}
-
-		if (indexes[i]->type & DICT_FTS
-		    && UNIV_UNLIKELY(fts_enable_diag_print)) {
-			ib::info() << "Finished building full-text index "
-				<< indexes[i]->name;
 		}
 	}
 
@@ -5084,7 +5061,9 @@ dberr_t row_merge_bulk_t::alloc_block()
   return DB_SUCCESS;
 }
 
-row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
+row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table,
+                                   bool sort_primary_key)
+  : m_sort_primary_key(sort_primary_key)
 {
   ulint n_index= 0;
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
@@ -5206,14 +5185,45 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
                        m_block, m_crypt_block,
                        buf->index->table->space->id))
     return DB_TEMP_FILE_WRITE_FAIL;
+
+  DBUG_EXECUTE_IF("write_to_tmp_file_fail",
+                  return DB_TEMP_FILE_WRITE_FAIL;);
   MEM_UNDEFINED(&m_block[0], srv_sort_buf_size);
   return DB_SUCCESS;
+}
+
+ATTRIBUTE_COLD
+dberr_t row_merge_bulk_t::load_one_row(trx_t *trx)
+{
+  /* Load the single row into the clustered index. BtrBulk has
+  nothing to do for bulk insert here and used only as a interface
+  to insert single row. */
+  dict_index_t *index= m_merge_buf[0].index;
+  BtrBulk btr_bulk(index, trx);
+  ut_ad(m_merge_buf[0].n_tuples == 1);
+  dberr_t err= row_merge_insert_index_tuples(trx, index, index->table,
+                                             OS_FILE_CLOSED, nullptr,
+                                             &m_merge_buf[0], &btr_bulk,
+                                             0, 0, 0, nullptr,
+                                             index->table->space_id,
+                                             nullptr,
+                                             m_blob_file.fd == OS_FILE_CLOSED
+                                             ? nullptr : &m_blob_file);
+  if (err != DB_SUCCESS)
+    trx->error_info= index;
+  else if (index->table->persistent_autoinc)
+    btr_write_autoinc(trx, index, 1);
+  err= btr_bulk.finish(err);
+  if (err == DB_SUCCESS && index->is_clust())
+    index->table->stat_n_rows= 1;
+  return err;
 }
 
 dberr_t row_merge_bulk_t::bulk_insert_buffered(const dtuple_t &row,
                                                const dict_index_t &ind,
                                                trx_t *trx)
 {
+  ut_ad(row.n_fields == ind.n_fields);
   dberr_t err= DB_SUCCESS;
   ulint i= 0;
   mem_heap_t *large_tuple_heap= nullptr;
@@ -5239,8 +5249,16 @@ add_to_buf:
     if (buf->n_tuples == 0)
     {
       /* Tuple data size is greater than srv_sort_buf_size */
-      dtuple_t *big_tuple= row_merge_buf_large_tuple(
-        row, &m_blob_file, &large_tuple_heap);
+      ut_ad(i == 0);
+      if (!large_tuple_heap)
+        large_tuple_heap= mem_heap_create(DTUPLE_EST_ALLOC(row.n_fields));
+
+      dtuple_t *big_tuple= dtuple_copy(&row, large_tuple_heap);
+      err= row_merge_buf_blob(big_tuple->fields, &m_blob_file,
+                              &ind, &large_tuple_heap);
+      if (err)
+	goto func_exit;
+
       if (row_merge_bulk_buf_add(buf, *ind.table, *big_tuple))
       {
         i++;
@@ -5250,7 +5268,7 @@ add_to_buf:
 
     if (index->is_unique())
     {
-      row_merge_dup_t dup{index, nullptr, nullptr, 0};
+      row_merge_dup_t dup{index, trx, nullptr, nullptr, 0};
       row_merge_buf_sort(buf, &dup);
       if (dup.n_dup)
       {
@@ -5276,6 +5294,8 @@ add_to_buf:
   }
 
 func_exit:
+  if (!m_sort_primary_key && ind.is_clust())
+    err= load_one_row(trx);
   if (large_tuple_heap)
     mem_heap_free(large_tuple_heap);
   return err;
@@ -5290,7 +5310,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
   dict_index_t *index= buf.index;
   dict_table_t *table= index->table;
   BtrBulk btr_bulk(index, trx);
-  row_merge_dup_t dup = {index, nullptr, nullptr, 0};
+  row_merge_dup_t dup = {index, trx, nullptr, nullptr, 0};
 
   if (buf.n_tuples)
   {
@@ -5315,7 +5335,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
     {
       /* Data got fit in merge buffer. */
       err= row_merge_insert_index_tuples(
-            index, table, OS_FILE_CLOSED, nullptr,
+            trx, index, table, OS_FILE_CLOSED, nullptr,
             &buf, &btr_bulk, 0, 0, 0, nullptr, table->space_id, nullptr,
             m_blob_file.fd == OS_FILE_CLOSED ? nullptr : &m_blob_file);
       goto func_exit;
@@ -5329,7 +5349,7 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
     goto func_exit;
 
   err= row_merge_insert_index_tuples(
-        index, table, file->fd, m_block, nullptr,
+        trx, index, table, file->fd, m_block, nullptr,
         &btr_bulk, 0, 0, 0, m_crypt_block, table->space_id,
         nullptr, &m_blob_file);
 
@@ -5337,23 +5357,42 @@ func_exit:
   if (err != DB_SUCCESS)
     trx->error_info= index;
   else if (index->is_primary() && table->persistent_autoinc)
-    btr_write_autoinc(index, table->autoinc);
+    btr_write_autoinc(trx, index, table->autoinc - 1);
   err= btr_bulk.finish(err);
+  if (err == DB_SUCCESS && index->is_clust())
+    table->stat_n_rows= (file && file->fd != OS_FILE_CLOSED)
+      ? file->n_rec : buf.n_tuples;
   return err;
 }
 
 dberr_t row_merge_bulk_t::write_to_table(dict_table_t *table, trx_t *trx)
 {
-  ulint i= 0;
-  for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
-       index; index= UT_LIST_GET_NEXT(indexes, index))
+  dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
+  ut_ad(index->is_clust());
+  ulint i= !m_sort_primary_key;
+  if (i)
+    /* For clustered index, InnoDB does call load_one_row() while
+    buffering the first insert and uses row_ins_clust_index_entry()
+    for subsequent rows. So skip the clustered index while applying
+    the buffered insert operation */
+    index= UT_LIST_GET_NEXT(indexes, index);
+  for (; index; index= UT_LIST_GET_NEXT(indexes, index))
   {
     if (!index->is_btree())
       continue;
 
     dberr_t err= write_to_index(i, trx);
-    if (err != DB_SUCCESS)
+    switch (err) {
+    default:
+      if (table->skip_alter_undo)
+        my_error_innodb(err, table->name.m_name, table->flags);
       return err;
+    case DB_SUCCESS:
+      break;
+    case DB_DUPLICATE_KEY:
+      trx->error_info= index;
+      return err;
+    }
     i++;
   }
 
@@ -5370,18 +5409,8 @@ dberr_t trx_mod_table_time_t::write_bulk(dict_table_t *table, trx_t *trx)
   return err;
 }
 
-dberr_t trx_t::bulk_insert_apply_low()
+void trx_t::bulk_rollback_low()
 {
-  ut_ad(bulk_insert);
-  ut_ad(!check_unique_secondary);
-  ut_ad(!check_foreigns);
-  dberr_t err;
-  for (auto& t : mod_tables)
-    if (t.second.is_bulk_insert())
-      if ((err= t.second.write_bulk(t.first, this)) != DB_SUCCESS)
-        goto bulk_rollback;
-  return DB_SUCCESS;
-bulk_rollback:
   undo_no_t low_limit= UINT64_MAX;
   for (auto& t : mod_tables)
   {
@@ -5390,9 +5419,22 @@ bulk_rollback:
       if (t.second.get_first() < low_limit)
         low_limit= t.second.get_first();
       delete t.second.bulk_store;
+      t.second.bulk_store= nullptr;
+      t.second.end_bulk_insert();
     }
   }
-  trx_savept_t bulk_save{low_limit};
-  rollback(&bulk_save);
-  return err;
+  rollback(&low_limit);
+}
+
+dberr_t trx_t::bulk_insert_apply_low()
+{
+  ut_ad(bulk_insert);
+  for (auto& t : mod_tables)
+    if (t.second.is_bulk_insert())
+      if (dberr_t err= t.second.write_bulk(t.first, this))
+      {
+        bulk_rollback_low();
+        return err;
+      }
+  return DB_SUCCESS;
 }

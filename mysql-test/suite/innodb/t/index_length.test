@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
+
+--connect (stop_purge,localhost,root)
+# Prevent the purge of history from acquiring a table handle.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--connection default
+
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(1024))
+ENGINE=InnoDB STATS_PERSISTENT=1;
+INSERT INTO t1 VALUES (1,REPEAT('b',1024));
+
+SELECT index_length FROM information_schema.tables
+WHERE table_schema = 'test' AND table_name = 't1';
+ALTER TABLE t1 ADD INDEX b (b(800));
+SELECT FLOOR(index_length/@@innodb_page_size) FROM information_schema.tables
+WHERE table_schema = 'test' AND table_name = 't1';
+ALTER TABLE t1 ADD INDEX ba (b(800),a);
+SELECT FLOOR(index_length/@@innodb_page_size) FROM information_schema.tables
+WHERE table_schema = 'test' AND table_name = 't1';
+disconnect stop_purge;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22855  Assertion (!field->prefix_len ||
+--echo #        field->fixed_len == field->prefix_len)
+--echo #        failed in btr_node_ptr_max_size
+--echo #
+CREATE TABLE t1(c CHAR(194) CHARACTER SET UTF32, KEY k1(c(193)))ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
+DROP TABLE t1;
+--echo # End of 10.4 tests
+
+--source include/test_db_charset_restore.inc

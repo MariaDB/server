@@ -164,11 +164,11 @@ SELECT @@max_seeks_for_key;
 @@max_seeks_for_key
 1
 SELECT local.max_seeks_for_key;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.max_seeks_for_key;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT max_seeks_for_key = @@session.max_seeks_for_key;
-ERROR 42S22: Unknown column 'max_seeks_for_key' in 'field list'
+ERROR 42S22: Unknown column 'max_seeks_for_key' in 'SELECT'
 SET @@global.max_seeks_for_key = @start_global_value;
 SELECT @@global.max_seeks_for_key;
 @@global.max_seeks_for_key

@@ -124,3 +124,22 @@ sub ib_restore_ibd_files {
         ib_restore_ibd_file($tmpd, $datadir, $db, $table);
     }
 }
+
+# Read the flag whether a tablespace is using full_crc32.
+# Input: filehandle opened on the tablespace.
+sub get_full_crc32 {
+    my ($TBLSPC)= @_;
+    my $old_pos= sysseek($TBLSPC, 0, 1);
+    die "tell() failed on tablespace filehandle: $!\n"
+        unless defined($old_pos);
+    sysseek($TBLSPC, 0, 0)
+        or die "sysseek() failed on tablespace filehandle: $!\n";
+    my $tblspc_hdr;
+    sysread($TBLSPC, $tblspc_hdr, 58)
+        or die "Cannot read tablespace header: $!\n";
+    sysseek($TBLSPC, $old_pos, 0)
+        or die "sysseek() failed on tablespace filehandle: $!\n";
+    my $full_crc32=
+        unpack("N", substr($tblspc_hdr, 54, 4)) & 0x10; # FIL_SPACE_FLAGS
+    return $full_crc32;
+}

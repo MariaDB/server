@@ -37,7 +37,7 @@ C_MODE_START
   LSN of the last checkoint
   (if last_checkpoint_lsn == LSN_IMPOSSIBLE then there was never a checkpoint)
 */
-extern LSN last_checkpoint_lsn;
+extern volatile LSN last_checkpoint_lsn;
 /*
   Last log number (if last_logno == FILENO_IMPOSSIBLE then there is no log
   file yet)
@@ -68,10 +68,13 @@ typedef enum enum_control_file_error {
 
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
                                         my_bool print_error,
-                                        my_bool wait_for_lock);
+                                        my_bool wait_for_lock,
+                                        int open_flags);
 int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
                                     uint32 last_logno_arg, TrID max_trid_arg,
                                     uint8 recovery_failures_arg);
+/* For simple programs that creates Aria files*/
+CONTROL_FILE_ERROR ma_control_file_open_or_create();
 int ma_control_file_end(void);
 my_bool ma_control_file_inited(void);
 my_bool print_aria_log_control(void);

@@ -199,12 +199,6 @@ xb_fil_cur_open(
 		return(XB_FIL_CUR_SKIP);
 	}
 
-	if (srv_file_flush_method == SRV_O_DIRECT
-	    || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
-
-		os_file_set_nocache(cursor->file, node->name, "OPEN");
-	}
-
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	cursor->page_size = node->space->physical_size();
@@ -214,7 +208,10 @@ xb_fil_cur_open(
 	cursor->buf_size = XB_FIL_CUR_PAGES * cursor->page_size;
 	cursor->buf = static_cast<byte*>(aligned_malloc(cursor->buf_size,
 							srv_page_size));
-
+	cursor->tmp_page = static_cast<byte*>(aligned_malloc(srv_page_size,
+							     srv_page_size));
+	cursor->tmp_frame = static_cast<byte*>(aligned_malloc(srv_page_size,
+							      srv_page_size));
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
 	cursor->buf_offset = 0;
@@ -237,8 +234,7 @@ xb_fil_cur_open(
 				      / cursor->page_size);
 
 	cursor->read_filter = read_filter;
-	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
-				  node->space->id);
+	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor);
 
 	return(XB_FIL_CUR_SUCCESS);
 }
@@ -247,8 +243,6 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 			      const xb_fil_cur_t *cursor,
 			      const fil_space_t *space)
 {
-	byte tmp_frame[UNIV_PAGE_SIZE_MAX];
-	byte tmp_page[UNIV_PAGE_SIZE_MAX];
 	const ulint page_size = cursor->page_size;
 	uint16_t page_type = fil_page_get_type(page);
 
@@ -287,7 +281,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 	}
 
 	if (space->full_crc32()) {
-		return buf_page_is_corrupted(true, page, space->flags);
+		return buf_page_is_corrupted(false, page, space->flags);
 	}
 
 	/* Validate encrypted pages. The first page is never encrypted.
@@ -311,40 +305,42 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 		    && !opt_extended_validation)
 			return false;
 
-		memcpy(tmp_page, page, page_size);
+		memcpy(cursor->tmp_page, page, page_size);
 
 		if (!space->crypt_data
 		    || space->crypt_data->type == CRYPT_SCHEME_UNENCRYPTED
-		    || !fil_space_decrypt(space, tmp_frame, tmp_page)) {
+		    || !fil_space_decrypt(space, cursor->tmp_frame,
+					  cursor->tmp_page)) {
 			return true;
 		}
 
 		if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-			return buf_page_is_corrupted(true, tmp_page,
+			return buf_page_is_corrupted(false, cursor->tmp_page,
 						     space->flags);
 		}
 	}
 
 	if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
-		memcpy(tmp_page, page, page_size);
+		memcpy(cursor->tmp_page, page, page_size);
 	}
 
 	if (page_type == FIL_PAGE_PAGE_COMPRESSED
 	    || page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		ulint decomp = fil_page_decompress(tmp_frame, tmp_page,
+		ulint decomp = fil_page_decompress(cursor->tmp_frame,
+						   cursor->tmp_page,
 						   space->flags);
-		page_type = fil_page_get_type(tmp_page);
+		page_type = fil_page_get_type(cursor->tmp_page);
 
 		return (!decomp
 			|| (decomp != srv_page_size
 			    && cursor->zip_size)
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
-			|| buf_page_is_corrupted(true, tmp_page,
+			|| buf_page_is_corrupted(false, cursor->tmp_page,
 						 space->flags));
 	}
 
-	return buf_page_is_corrupted(true, page, space->flags);
+	return buf_page_is_corrupted(false, page, space->flags);
 }
 
 /** Reads and verifies the next block of pages from the source
@@ -508,12 +504,12 @@ xb_fil_cur_close(
 /*=============*/
 	xb_fil_cur_t *cursor)	/*!< in/out: source file cursor */
 {
-	if (cursor->read_filter) {
-		cursor->read_filter->deinit(&cursor->read_filter_ctxt);
-	}
-
 	aligned_free(cursor->buf);
+	aligned_free(cursor->tmp_page);
+	aligned_free(cursor->tmp_frame);
 	cursor->buf = NULL;
+	cursor->tmp_page = NULL;
+	cursor->tmp_frame = NULL;
 
 	if (cursor->node != NULL) {
 		xb_fil_node_close_file(cursor->node);
