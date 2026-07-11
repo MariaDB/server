@@ -1314,9 +1314,9 @@ int main(int argc, char **argv)
   }
   else
   {
-    for (; *argv != NULL; argv++)
+    for (char **t=argv; *t != NULL; t++)
     {
-      table_load_params p(*argv, "", current_db, 0);
+      table_load_params p(*t, "", current_db, 0);
       files_to_load.push_back(p);
     }
   }
