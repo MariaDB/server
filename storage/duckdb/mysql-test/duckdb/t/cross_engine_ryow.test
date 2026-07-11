@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # Cross-engine RYOW: duckdb_cross_engine_ryow toggles visibility of
 --echo # uncommitted parent-transaction writes to non-DuckDB tables
@@ -40,6 +42,20 @@ ROLLBACK;
 --echo
 --sorted_result
 SELECT d.id, i.name, i.score FROM t_duck d JOIN t_inno i ON d.id=i.id;
+
+--echo
+--echo # (4) RYOW enabled + large external table (rows > DuckDB vector size):
+--echo #     the direct handler scan spans multiple chunks and must still expose
+--echo #     the parent transaction's uncommitted write on re-read.
+--echo
+CREATE TABLE t_inno_big (id INT PRIMARY KEY, score INT) ENGINE=InnoDB;
+INSERT INTO t_inno_big SELECT seq, seq FROM seq_1_to_3000;
+SET SESSION duckdb_cross_engine_ryow=1;
+BEGIN;
+UPDATE t_inno_big SET score=999 WHERE id=1;
+SELECT i.score FROM t_duck d JOIN t_inno_big i ON d.id=i.id WHERE i.id=1;
+ROLLBACK;
+DROP TABLE t_inno_big;
 
 --echo
 --echo # Cleanup
