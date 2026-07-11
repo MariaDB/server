@@ -106,7 +106,7 @@ redirects to one of two table functions.
 | Table function | `_mdb_scan` | `_mdb_scan_direct` |
 | Scan mechanism | fiber runs a synthetic `SELECT … WHERE …` via `mysql_execute_command()` | direct `ha_rnd_init` / `ha_rnd_next` on the parent handler |
 | Transaction | separate background-THD transaction | parent THD's transaction |
-| Visibility | committed data only (the fiber's transaction opens its own REPEATABLE READ view; the parent's uncommitted writes are **not** visible) | **Read-Your-Own-Writes**: the parent's uncommitted writes are visible |
+| Visibility | committed data only — the fiber runs in a *separate transaction* (background THD), so the parent's uncommitted writes are **not** visible (isolation follows the server default) | **Read-Your-Own-Writes**: the parent's uncommitted writes are visible |
 | MariaDB optimizer for the external table | yes — range/index access, ICP (`idx_cond_push`), range-filter pushdown, index choice | no — plain full table scan |
 | DuckDB `filter_pushdown` | `true` — DuckDB removes the predicates from the plan; the fiber applies them via the WHERE registered by `make_cond_for_table()` | `false` — DuckDB keeps the `Filter` operator above the scan and applies predicates itself |
 | DuckDB `projection_pushdown` | `true` | `true` |
