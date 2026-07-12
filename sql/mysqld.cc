@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -307,7 +307,7 @@ const char *my_localhost= "localhost",
            *delayed_user= "delayed", *slave_user= "<replication_slave>",
            *wsrep_user= "<wsrep_applier>";
 
-bool opt_large_files= sizeof(my_off_t) > 4;
+READ_ONLY_SYSVAR my_bool opt_large_files;
 static my_bool opt_autocommit; ///< for --autocommit command-line option
 /*
   Used with --help for detailed option
@@ -344,7 +344,7 @@ static char *default_character_set_name;
 static char *character_set_filesystem_name;
 static char *lc_messages;
 static char *lc_time_names_name;
-char *my_bind_addr_str;
+READ_ONLY_SYSVAR char *my_bind_addr_str;
 static char *default_collation_name;
 char *default_storage_engine, *default_tmp_storage_engine;
 char *enforced_storage_engine=NULL;
@@ -362,7 +362,9 @@ char server_uid[SERVER_UID_SIZE+1];   // server uid will be written here
 
 /* Global variables */
 
-bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+READ_ONLY_SYSVAR my_bool opt_bin_log;
+bool opt_bin_log_used=0;
+READ_ONLY_SYSVAR my_bool opt_ignore_builtin_innodb;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -372,11 +374,12 @@ static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
 bool opt_error_log= IF_WIN(1,0);
-bool opt_disable_networking=0, opt_skip_show_db=0;
-bool opt_skip_name_resolve=0;
+READ_ONLY_SYSVAR my_bool opt_disable_networking;
+READ_ONLY_SYSVAR my_bool opt_skip_show_db;
+READ_ONLY_SYSVAR my_bool opt_skip_name_resolve;
 my_bool opt_character_set_client_handshake= 1;
 bool opt_endinfo, using_udf_functions;
-my_bool locked_in_memory;
+READ_ONLY_SYSVAR my_bool locked_in_memory;
 bool opt_using_transactions;
 bool volatile abort_loop;
 uint volatile global_disable_checkpoint;
@@ -385,6 +388,64 @@ ulong slow_start_timeout;
 #endif
 static MEM_ROOT startup_root;
 MEM_ROOT read_only_root;
+
+#if defined(HAVE_RO_AFTER_INIT) && !defined(EMBEDDED_LIBRARY)
+// start and end of the ro_after_init section, to test if a variable is in it
+extern char ro_after_init_start[] __attribute__((weak));
+extern char ro_after_init_end[] __attribute__((weak));
+
+#elif defined(_MSC_VER) && !defined(EMBEDDED_LIBRARY)
+
+/*
+  $a/$z bracket the ro_after_init$m section (see READ_ONLY_SYSVAR in
+  my_global.h): MSVC's linker merges and alphabetically sorts sections by
+  their full "name$suffix" across every object file being linked
+*/
+#pragma section("ro_after_init$a", read, write)
+#pragma section("ro_after_init$z", read, write)
+__declspec(allocate("ro_after_init$a")) __declspec(align(4096))
+static char ro_after_init_start_marker;
+__declspec(allocate("ro_after_init$z")) __declspec(align(4096))
+static char ro_after_init_end_marker;
+static char * const ro_after_init_start= &ro_after_init_start_marker;
+static char * const ro_after_init_end= &ro_after_init_end_marker;
+
+#else
+
+static constexpr char *ro_after_init_start= 0;
+static constexpr char *ro_after_init_end= 0;
+
+#endif
+
+/* set protection of the __ro_after_init section */
+static void set_ro_after_init_prot(enum my_vmem_prot prot)
+{
+  if (size_t size= ro_after_init_end - ro_after_init_start)
+    my_virtual_mem_protect(ro_after_init_start, size, prot);
+}
+
+/* used for asserts, so returns TRUE if mprotect is impossible */
+bool var_is_ro_after_init(const char *addr)
+{
+  return ! ro_after_init_start ||
+    (addr >= ro_after_init_start && addr < ro_after_init_end);
+}
+
+/*
+  FLUSH PRIVILEGES leaves --skip-grant-tables mode by clearing opt_noacl.
+  But opt_noacl is READ_ONLY_SYSVAR, so briefly remove the protection for this
+  single write. It's done at most once and only when the server was started
+  with --skip-grant-tables.
+*/
+void clear_opt_noacl()
+{
+  if (opt_noacl)
+  {
+    set_ro_after_init_prot(MY_VMEM_READWRITE);
+    opt_noacl= 0;
+    set_ro_after_init_prot(MY_VMEM_READONLY);
+  }
+}
 
 /**
    @brief 'grant_option' is used to indicate if privileges needs
@@ -397,15 +458,15 @@ bool volatile grant_option;
 
 my_bool opt_skip_slave_start = 0; ///< If set, slave is not autostarted
 my_bool opt_reckless_slave = 0;
-my_bool opt_enable_named_pipe= 0;
+READ_ONLY_SYSVAR my_bool opt_enable_named_pipe= 0;
 my_bool opt_local_infile, opt_slave_compressed_protocol;
 my_bool opt_safe_user_create = 0;
 my_bool opt_show_slave_auth_info;
-my_bool opt_log_slave_updates= 0;
-my_bool opt_replicate_annotate_row_events= 0;
+READ_ONLY_SYSVAR my_bool opt_log_slave_updates;
+READ_ONLY_SYSVAR my_bool opt_replicate_annotate_row_events;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
-char *opt_slave_skip_errors;
-char *opt_slave_transaction_retry_errors;
+READ_ONLY_SYSVAR char *opt_slave_skip_errors;
+READ_ONLY_SYSVAR char *opt_slave_transaction_retry_errors;
 
 /*
   Legacy global handlerton. These will be removed (please do not add more).
@@ -417,17 +478,18 @@ handlerton *partition_hton;
 my_bool read_only= 0, opt_readonly= 0;
 my_bool use_temp_pool, relay_log_purge;
 my_bool relay_log_recovery;
-my_bool opt_sync_frm, opt_allow_suspicious_udfs;
+my_bool opt_sync_frm;
+READ_ONLY_SYSVAR my_bool opt_allow_suspicious_udfs;
 my_bool opt_secure_auth= 0;
 my_bool opt_require_secure_transport= 0;
-char* opt_secure_file_priv;
-my_bool lower_case_file_system= 0;
-my_bool opt_large_pages= 0;
+READ_ONLY_SYSVAR char* opt_secure_file_priv;
+READ_ONLY_SYSVAR my_bool lower_case_file_system;
+READ_ONLY_SYSVAR my_bool opt_large_pages;
 #ifdef HAVE_SOLARIS_LARGE_PAGES
 my_bool opt_super_large_pages= 0;
 #endif
 my_bool opt_myisam_use_mmap= 0;
-uint   opt_large_page_size= 0;
+READ_ONLY_SYSVAR uint opt_large_page_size;
 #if defined(ENABLED_DEBUG_SYNC)
 MYSQL_PLUGIN_IMPORT uint    opt_debug_sync_timeout= 0;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -440,7 +502,7 @@ ulong opt_replicate_events_marked_for_skip;
   changed). False otherwise.
 */
 volatile bool mqh_used = 0;
-my_bool opt_noacl;
+READ_ONLY_SYSVAR my_bool opt_noacl;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
@@ -449,21 +511,24 @@ my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
-uint mysqld_port, select_errors, dropping_tables, ha_open_options;
-uint mysqld_extra_port;
+READ_ONLY_SYSVAR uint mysqld_port;
+uint select_errors, dropping_tables, ha_open_options;
+READ_ONLY_SYSVAR uint mysqld_extra_port;
 uint mysqld_port_timeout;
 ulong delay_key_write_options;
-uint protocol_version;
-uint lower_case_table_names;
+READ_ONLY_SYSVAR uint protocol_version;
+READ_ONLY_SYSVAR uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 Atomic_counter<uint32_t> THD_count::count, CONNECT::count;
 bool shutdown_wait_for_slaves;
 Atomic_counter<uint32_t> slave_open_temp_tables;
 ulong thread_created;
-ulong back_log, connect_timeout, server_id;
+READ_ONLY_SYSVAR ulong back_log;
+ulong connect_timeout, server_id;
 ulong what_to_log;
 ulong slow_launch_time;
-ulong open_files_limit, max_binlog_size;
+READ_ONLY_SYSVAR ulong open_files_limit;
+ulong max_binlog_size;
 ulong slave_trans_retries;
 ulong slave_trans_retry_interval;
 uint  slave_net_timeout;
@@ -480,7 +545,7 @@ double slave_max_statement_time_double;
 ulonglong slave_max_statement_time;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
-ulonglong test_flags;
+READ_ONLY_SYSVAR ulonglong test_flags;
 ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
 ulong executed_events=0;
@@ -496,7 +561,7 @@ ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 uint max_password_errors;
 ulong extra_max_connections;
-uint max_digest_length= 0;
+READ_ONLY_SYSVAR uint max_digest_length;
 ulong slave_retried_transactions;
 ulong transactions_multi_engine;
 ulong rpl_transactions_multi_engine;
@@ -505,7 +570,7 @@ ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
 my_decimal decimal_zero;
-long opt_secure_timestamp;
+READ_ONLY_SYSVAR long opt_secure_timestamp;
 uint default_password_lifetime;
 my_bool disconnect_on_expired_password;
 
@@ -585,14 +650,20 @@ const double log_10[] = {
 
 time_t server_start_time, flush_status_time;
 
-char mysql_home[FN_REFLEN], pidfile_name[FN_REFLEN], system_time_zone[30];
+READ_ONLY_SYSVAR char mysql_home[FN_REFLEN];
+READ_ONLY_SYSVAR char pidfile_name[FN_REFLEN];
+READ_ONLY_SYSVAR char system_time_zone[30];
 char *default_tz_name;
-char log_error_file[FN_REFLEN], glob_hostname[FN_REFLEN], *opt_log_basename;
-char mysql_real_data_home[FN_REFLEN],
-     lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
-     mysql_charsets_dir[FN_REFLEN],
-     *opt_init_file, *opt_tc_log_file, *opt_ddl_recovery_file;
-char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
+READ_ONLY_SYSVAR char log_error_file[FN_REFLEN];
+READ_ONLY_SYSVAR char glob_hostname[FN_REFLEN];
+char *opt_log_basename;
+READ_ONLY_SYSVAR char mysql_real_data_home[FN_REFLEN];
+READ_ONLY_SYSVAR char lc_messages_dir[FN_REFLEN];
+char reg_ext[FN_EXTLEN], mysql_charsets_dir[FN_REFLEN];
+char *opt_tc_log_file, *opt_ddl_recovery_file;
+READ_ONLY_SYSVAR char *opt_init_file;
+READ_ONLY_SYSVAR char *lc_messages_dir_ptr= lc_messages_dir;
+READ_ONLY_SYSVAR char *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
 size_t mysql_unpacked_real_data_home_len;
 uint mysql_real_data_home_len, mysql_data_home_len= 1;
@@ -600,20 +671,24 @@ uint reg_ext_length;
 const key_map key_map_empty(0);
 key_map key_map_full(0);                        // Will be initialized later
 
-DATE_TIME_FORMAT global_date_format, global_datetime_format, global_time_format;
+READ_ONLY_SYSVAR DATE_TIME_FORMAT global_date_format;
+READ_ONLY_SYSVAR DATE_TIME_FORMAT global_datetime_format;
+READ_ONLY_SYSVAR DATE_TIME_FORMAT global_time_format;
 Time_zone *default_tz;
 
-const char *mysql_real_data_home_ptr= mysql_real_data_home;
+READ_ONLY_SYSVAR const char *mysql_real_data_home_ptr= mysql_real_data_home;
 extern "C" {
-char server_version[SERVER_VERSION_LENGTH];
+READ_ONLY_SYSVAR char server_version[SERVER_VERSION_LENGTH];
 }
-char *server_version_ptr;
+READ_ONLY_SYSVAR char *server_version_ptr;
 bool using_custom_server_version= false;
-char *mysqld_unix_port, *opt_mysql_tmpdir;
-ulong thread_handling;
+READ_ONLY_SYSVAR char *mysqld_unix_port;
+READ_ONLY_SYSVAR char *opt_mysql_tmpdir;
+READ_ONLY_SYSVAR ulong thread_handling;
 
-my_bool encrypt_binlog;
-my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
+READ_ONLY_SYSVAR my_bool encrypt_binlog;
+my_bool encrypt_tmp_disk_tables;
+READ_ONLY_SYSVAR my_bool encrypt_tmp_files;
 
 /** name of reference on left expression in rewritten IN subquery */
 const LEX_CSTRING in_left_expr_name= {STRING_WITH_LEN("<left expr>") };
@@ -678,19 +753,24 @@ uint temp_pool_set_next()
   return res;
 }
 
-CHARSET_INFO *system_charset_info, *files_charset_info ;
+READ_ONLY_SYSVAR CHARSET_INFO *system_charset_info;
 CHARSET_INFO *national_charset_info, *table_alias_charset;
-CHARSET_INFO *character_set_filesystem;
+CHARSET_INFO *character_set_filesystem, *files_charset_info;
 CHARSET_INFO *error_message_charset_info;
 
 MY_LOCALE *my_default_lc_messages;
 MY_LOCALE *my_default_lc_time_names;
 
-SHOW_COMP_OPTION have_ssl, have_symlink, have_dlopen, have_query_cache;
-SHOW_COMP_OPTION have_geometry, have_rtree_keys;
-SHOW_COMP_OPTION have_crypt, have_compress;
-SHOW_COMP_OPTION have_profiling;
-SHOW_COMP_OPTION have_openssl;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_ssl;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_symlink;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_dlopen;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_query_cache;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_geometry;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_rtree_keys;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_crypt;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_compress;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_profiling;
+READ_ONLY_SYSVAR SHOW_COMP_OPTION have_openssl;
 
 #ifndef EMBEDDED_LIBRARY
 static std::atomic<char*> shutdown_user;
@@ -761,11 +841,15 @@ int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters, if master_host is not NULL, we are a slave */
-uint report_port= 0;
+READ_ONLY_SYSVAR uint report_port= 0;
 ulong master_retry_count=0;
 char *master_info_file;
-char *relay_log_info_file, *report_user, *report_password, *report_host;
-char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
+READ_ONLY_SYSVAR char *relay_log_info_file;
+READ_ONLY_SYSVAR char *report_user;
+READ_ONLY_SYSVAR char *report_password;
+READ_ONLY_SYSVAR char *report_host;
+READ_ONLY_SYSVAR char *opt_relay_logname= 0;
+char *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
 
@@ -782,7 +866,8 @@ my_bool opt_expect_abort= 0, opt_bootstrap= 0;
 static my_bool opt_myisam_log;
 static int cleanup_done;
 static ulong opt_specialflag;
-char *mysql_home_ptr, *pidfile_name_ptr;
+READ_ONLY_SYSVAR char *mysql_home_ptr;
+READ_ONLY_SYSVAR char *pidfile_name_ptr;
 /** Initial command line arguments (count), after load_defaults().*/
 static int defaults_argc;
 /**
@@ -1491,10 +1576,15 @@ Query_cache query_cache;
 
 
 my_bool opt_use_ssl  = 0;
-char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
-  *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
-  *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
-ulonglong tls_version= 0;
+READ_ONLY_SYSVAR char *opt_ssl_ca= NULL;
+READ_ONLY_SYSVAR char *opt_ssl_capath= NULL;
+READ_ONLY_SYSVAR char *opt_ssl_cert= NULL;
+READ_ONLY_SYSVAR char *opt_ssl_cipher= NULL;
+READ_ONLY_SYSVAR char *opt_ssl_key= NULL;
+READ_ONLY_SYSVAR char *opt_ssl_crl= NULL;
+READ_ONLY_SYSVAR char *opt_ssl_crlpath= NULL;
+READ_ONLY_SYSVAR ulonglong tls_version= 0;
+char *opt_tls_version= NULL;
 
 static scheduler_functions thread_scheduler_struct, extra_thread_scheduler_struct;
 scheduler_functions *thread_scheduler= &thread_scheduler_struct,
@@ -1961,6 +2051,8 @@ static void clean_up(bool print_message)
   DBUG_PRINT("exit",("clean_up"));
   if (cleanup_done++)
     return; /* purecov: inspected */
+
+  set_ro_after_init_prot(MY_VMEM_READWRITE); // to allow cleanup
 
 #ifdef HAVE_REPLICATION
   // We must call end_slave() as clean_up may have been called during startup
@@ -6029,6 +6121,9 @@ int mysqld_main(int argc, char **argv)
 
   /* Protect read_only_root against writes */
   protect_root(&read_only_root, MY_VMEM_READONLY);
+
+  /* Protect read-only sysvars */
+  set_ro_after_init_prot(MY_VMEM_READONLY);
 
   if (opt_bootstrap)
   {

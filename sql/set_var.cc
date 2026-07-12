@@ -1,5 +1,6 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
    Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -182,6 +183,10 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.def_value= def_val;
   option.app_type= this;
   option.var_type= flags & AUTO_SET ? GET_AUTO : 0;
+
+  /* only check readonly, global, not-plugin sysvars */
+  SYSVAR_ASSERT(!is_readonly() || scope() != GLOBAL || offset == 0 ||
+                var_is_ro_after_init((char*)global_var_ptr()));
 
   if (chain->last)
     chain->last->next= this;
@@ -749,6 +754,7 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free)
       error|= var->update(thd);         // Returns 0, -1 or 1
   }
 
+  DBUG_EXECUTE_IF("set_skip_name_resolve", opt_skip_name_resolve= 0;);
 err:
   if (free)
     free_underlaid_joins(thd, thd->lex->first_select_lex());

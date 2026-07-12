@@ -266,6 +266,21 @@ protected:
   friend class Session_tracker;
 };
 
+/*
+  special assert for sysvars. Tells the name of the variable,
+  and fails even in non-debug builds.
+
+  It is supposed to be used *only* in Sys_var* constructors,
+  and has name_arg hard-coded to prevent incorrect usage.
+*/
+#define SYSVAR_ASSERT(X)                                                \
+    while(!(X))                                                         \
+    {                                                                   \
+      fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);       \
+      DBUG_ASSERT(0);                                                   \
+      exit(255);                                                        \
+    }
+
 #include "sql_plugin.h"                    /* SHOW_HA_ROWS, SHOW_MY_BOOL */
 
 

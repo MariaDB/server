@@ -1,5 +1,6 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates
    Copyright (c) 2012, 2014, SkySQL Ab
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,7 +49,8 @@
 #define one_signal_hand_sigmask(A,B,C)
 #endif
 
-my_bool thr_alarm_inited= 0, my_disable_thr_alarm= 0;
+my_bool thr_alarm_inited= 0;
+READ_ONLY_SYSVAR my_bool my_disable_thr_alarm= 0;
 
 #if !defined(_WIN32)
 

@@ -74,7 +74,7 @@ const char *wsrep_SR_store_types[]= { "none", "table", NullS };
 extern my_bool plugins_are_initialized;
 
 /* System variables. */
-const char *wsrep_provider;
+READ_ONLY_SYSVAR const char *wsrep_provider;
 const char *wsrep_provider_options;
 const char *wsrep_cluster_address;
 const char *wsrep_cluster_name;
@@ -82,11 +82,11 @@ const char *wsrep_node_name;
 const char *wsrep_node_address;
 const char *wsrep_node_incoming_address;
 const char *wsrep_start_position;
-const char *wsrep_data_home_dir;
+READ_ONLY_SYSVAR const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
-const char *wsrep_notify_cmd;
-const char *wsrep_status_file;
-const char *wsrep_allowlist;
+READ_ONLY_SYSVAR const char *wsrep_notify_cmd;
+READ_ONLY_SYSVAR const char *wsrep_status_file;
+READ_ONLY_SYSVAR const char *wsrep_allowlist;
 
 ulong   wsrep_debug;                            // Debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
@@ -94,7 +94,7 @@ my_bool wsrep_auto_increment_control;           // Control auto increment variab
 my_bool wsrep_drupal_282555_workaround;         // Retry autoinc insert after dupkey
 my_bool wsrep_certify_nonPK;                    // Certify, even when no primary key
 ulong   wsrep_certification_rules      = WSREP_CERTIFICATION_RULES_STRICT;
-my_bool wsrep_recovery;                         // Recovery
+READ_ONLY_SYSVAR my_bool wsrep_recovery;        // Recovery
 my_bool wsrep_log_conflicts;
 my_bool wsrep_load_data_splitting= 0;           // Commit load data every 10K intervals
 my_bool wsrep_slave_UK_checks;                  // Slave thread does UK checks
@@ -125,7 +125,7 @@ long wsrep_max_protocol_version= 4;             // Maximum protocol version to u
 long int  wsrep_protocol_version= wsrep_max_protocol_version;
 ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
-ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
+READ_ONLY_SYSVAR ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;

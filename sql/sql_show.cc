@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -593,7 +593,7 @@ static DYNAMIC_ARRAY ignore_db_dirs_array;
   A value for the read only system variable to show a list of
   ignored directories.
 */
-char *opt_ignore_db_dirs= NULL;
+READ_ONLY_SYSVAR char *opt_ignore_db_dirs;
 
 /**
   This flag is ON if:
