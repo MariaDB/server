@@ -54,6 +54,7 @@
 #include "ddl_log.h"
 
 #include <m_ctype.h>
+#include <my_virtual_mem.h>
 #include <my_dir.h>
 #include <my_bit.h>
 #include "my_cpu.h"
@@ -2047,7 +2048,7 @@ static void clean_up(bool print_message)
   mysql_library_end();
   finish_client_errs();
   free_root(&startup_root, MYF(0));
-  protect_root(&read_only_root, PROT_READ | PROT_WRITE);
+  protect_root(&read_only_root, MY_VMEM_READWRITE);
   free_root(&read_only_root, MYF(0));
   cleanup_errmsgs();
   free_error_messages();
@@ -3924,7 +3925,7 @@ static int init_early_variables()
   global_status_var.global_memory_used= 0;
   init_alloc_root(PSI_NOT_INSTRUMENTED, &startup_root, 1024, 0, MYF(0));
   init_alloc_root(PSI_NOT_INSTRUMENTED, &read_only_root, 1024, 0,
-		  MYF(MY_ROOT_USE_MPROTECT));
+		  MYF(MY_ROOT_USE_VMEM));
   return 0;
 }
 
@@ -6027,7 +6028,7 @@ int mysqld_main(int argc, char **argv)
 #endif /* WITH_WSREP */
 
   /* Protect read_only_root against writes */
-  protect_root(&read_only_root, PROT_READ);
+  protect_root(&read_only_root, MY_VMEM_READONLY);
 
   if (opt_bootstrap)
   {

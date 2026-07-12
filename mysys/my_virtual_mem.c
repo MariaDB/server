@@ -1,4 +1,4 @@
-/* Copyright (c) 2025, MariaDB
+/* Copyright (c) 2025, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,10 +69,18 @@ static my_bool is_memory_committed(char *ptr, size_t size)
 }
 #endif
 
+/*
+  "commit" - in other words, allocate - memory.
+  ptr must lie within a previously reserved range or be NULL.
+  in the latter case new memory is reserved and committed.
+
+  This is compatible with the mmap / VirtualAlloc semantics.
+*/
 char *my_virtual_mem_commit(char *ptr, size_t size)
 {
-  DBUG_ASSERT(ptr);
 #ifdef _WIN32
+  if (!ptr)
+    return VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (my_use_large_pages)
   {
     DBUG_ASSERT(is_memory_committed(ptr, size));
@@ -88,6 +96,12 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
     }
   }
 #else
+  if (!ptr)
+  {
+    void *p= mmap(NULL, size, PROT_READ | PROT_WRITE,
+                  MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    return p == MAP_FAILED ? NULL : p;
+  }
   if (my_use_large_pages)
     /* my_large_virtual_alloc() already created a read/write mapping. */;
   else
@@ -172,7 +186,6 @@ void my_virtual_mem_decommit(char *ptr, size_t size)
 void my_virtual_mem_release(char *ptr, size_t size)
 {
 #ifdef _WIN32
-  DBUG_ASSERT(my_use_large_pages || !is_memory_committed(ptr, size));
   if (!VirtualFree(ptr, 0, MEM_RELEASE))
   {
     my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
@@ -186,4 +199,17 @@ void my_virtual_mem_release(char *ptr, size_t size)
     DBUG_ASSERT(0);
   }
 #endif
+}
+
+
+void my_virtual_mem_protect(void *ptr, size_t size, enum my_vmem_prot prot)
+{
+  int res __attribute__((unused));
+#ifdef _WIN32
+  DWORD old_prot;
+  res= VirtualProtect(ptr, size, prot ? PAGE_READWRITE : PAGE_READONLY, &old_prot);
+#else
+  res= mprotect(ptr, size, prot ? PROT_READ | PROT_WRITE : PROT_READ);
+#endif
+  DBUG_ASSERT(res == 0); // bad ptr or size alignment, neither should be possible
 }
