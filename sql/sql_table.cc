@@ -9163,7 +9163,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       LEX_CSTRING tmp_name;
       bzero((char*) &key_create_info, sizeof(key_create_info));
       if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-        key_info->algorithm= alter_ctx->fast_alter_partition ?
+        key_info->algorithm= (alter_ctx->fast_alter_partition || !(alter_info->flags & ALTER_CHANGE_COLUMN)) ?
           HA_KEY_ALG_HASH : HA_KEY_ALG_UNDEF;
       /*
         For fast alter partition we set HA_KEY_ALG_HASH above to make sure it
