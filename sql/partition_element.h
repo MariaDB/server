@@ -173,6 +173,19 @@ public:
     DBUG_ASSERT(ev->col_val_array);
     return ev->col_val_array[idx];
   }
+
+  /*
+    Leaf-bitmap (read/lock_partitions) range [bit_no, bit_no_end) covered by
+    this top-level partition: a single bit if not subpartitioned, num_subparts
+    bits otherwise.
+  */
+  uint32 bitmap_range(uint num_subparts, uint32 &bit_no_end) const
+  {
+    uint32 sub_factor= num_subparts ? num_subparts : 1;
+    uint32 first= id * sub_factor;
+    bit_no_end= first + sub_factor;
+    return first;
+  }
 };
 
 #endif /* PARTITION_ELEMENT_INCLUDED */
