@@ -6499,16 +6499,21 @@ bool Item_func_is_json::val_bool()
 {
   bool result= true;
   bool unique_keys= true;
+  THD *thd;
   String *js= args[0]->val_json(&tmp_value);
 
   if ((null_value= args[0]->null_value))
     return 0;
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   json_scan_start(&je, js->charset(), (const uchar*)js->ptr(),
                   (const uchar*)js->end());
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   if (json_read_value(&je))
-    return negated;
+    goto js_error;
 
   switch (type_constraint)
   {
@@ -6536,17 +6541,23 @@ bool Item_func_is_json::val_bool()
       unique_keys= handle_nested_value(&je);
 
     if (je.s.error)
-      return negated;
+      goto js_error;
   }
   else
   {
     // verify JSON is well-formed
     while (json_scan_next(&je) == 0) {}
     if (je.s.error)
-      return negated;
+      goto js_error;
   }
 
   return negated ? !(result && unique_keys) : (result && unique_keys);
+js_error:
+  if (je.s.error != JE_KILLED)
+    return negated;
+  report_json_error(js, &je, 0);
+  null_value= true;
+  return 0;
 }
 
 
