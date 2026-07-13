@@ -587,8 +587,10 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
   uint key_len;
   int fcoll_type_found= 0, feature_type_found= 0;
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return NULL;
+
   const uint32_t *killed_ptr= (uint32_t *) je->killed_ptr;
-  int stack_p;
 
   if (json_read_value(je))
     goto err_return;
@@ -754,10 +756,8 @@ handle_feature_collection:
 
 create_geom:
 
-  stack_p= je->stack_p;
   json_scan_start(je, je->s.cs, coord_start, je->s.str_end);
   je->killed_ptr= killed_ptr;
-  je->stack_p= stack_p;
 
   if (res->reserve(1 + 4, 512))
     goto err_return;
@@ -771,10 +771,8 @@ create_geom:
   return result;
 
 handle_geometry_key:
-  stack_p= je->stack_p;
   json_scan_start(je, je->s.cs, geometry_start, je->s.str_end);
   je->killed_ptr= killed_ptr;
-  je->stack_p= stack_p;
   return create_from_json(buffer, je, er_on_3D, res);
 
 err_return:

@@ -148,3 +148,21 @@ SELECT ST_GeomFromText(CONCAT(REPEAT('GEOMETRYCOLLECTION(',5000),'POINT(1 1)',RE
 --enable_result_log
 
 --echo # End of 10.6 tests
+
+
+--echo #
+--echo # MDEV-39813 ST_GeomFromGeoJSON does not control recursion depth
+--echo #
+
+set @len = 3000;
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ST_GeomFromGeoJSON(
+  concat(
+    repeat('{"type":"GeometryCollection", "geometries":[', @len),
+    '{"type":"Point","coordinates":[0,0]}',
+    repeat(']}', @len)
+  )) as exp;
+--enable_result_log
+
+--echo # End of 12.3 tests
