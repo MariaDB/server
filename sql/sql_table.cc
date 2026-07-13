@@ -115,6 +115,21 @@ static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
                                   const HA_CREATE_INFO *);
 
+static bool append_table_to_dir(THD *thd, const char **filename_ptr,
+                                const LEX_CSTRING *table_name)
+{
+  char buf[FN_REFLEN];
+  LEX_CSTRING fname;
+  DBUG_ASSERT(table_name->str[table_name->length] == 0);
+  fname.str= buf;
+  fname.length= tablename_to_filename(table_name->str, buf, sizeof(buf));
+  if (fname.length)
+    return append_file_to_dir(thd, filename_ptr, &fname);
+
+  my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name->str);
+  return 1;
+}
+
 /**
   @brief Helper function for explain_filename
   @param thd          Thread handle
@@ -12319,9 +12334,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
   create_info.alias= create_table->alias;
 
   /* Fix names if symlinked or relocated tables */
-  if (append_file_to_dir(thd, &create_info.data_file_name,
+  if (append_table_to_dir(thd, &create_info.data_file_name,
                          &create_table->table_name) ||
-      append_file_to_dir(thd, &create_info.index_file_name,
+      append_table_to_dir(thd, &create_info.index_file_name,
                          &create_table->table_name))
     goto end_with_restore_list;
 

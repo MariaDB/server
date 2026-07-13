@@ -1,11 +1,6 @@
 --source include/have_symlink.inc
 --source include/not_windows.inc
 
---disable_warnings
-drop table if exists t1,t2,t7,t8,t9;
-drop database if exists mysqltest;
---enable_warnings
-
 #
 # First create little data to play with
 #
@@ -323,17 +318,11 @@ DATA DIRECTORY "$MYSQLTEST_VARDIR/tmp";
 DROP TABLE test.t1;
 use test;
 
-#
-# End of 5.5 tests
-#
+--echo # End of 5.5 tests
 
-#
-# End of 10.0 tests
-#
-
-#
-# MDEV-13636 ALTER TABLE ... DELAY_KEY_WRITE=1 creates table copy for MyISAM table with DATA DIRECTORY/INDEX DIRECTORY options
-#
+--echo #
+--echo # MDEV-13636 ALTER TABLE ... DELAY_KEY_WRITE=1 creates table copy for MyISAM table with DATA DIRECTORY/INDEX DIRECTORY options
+--echo #
 replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
 eval
 create table t1(c1 int, c2 int, c3 varchar(100)) engine=MyISAM data directory='$MYSQL_TMP_DIR' index directory = '$MYSQL_TMP_DIR';
@@ -343,9 +332,7 @@ replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
 show create table t1;
 drop table t1;
 
-#
-# End of 10.1 tests
-#
+--echo # End of 10.1 tests
 
 --echo #
 --echo # MDEV-40159: single quote in DATA DIRECTORY breaks SHOW CREATE TABLE
@@ -363,5 +350,19 @@ eval CREATE TABLE t1 (a int) index directory="$MYSQL_TMP_DIR/o'hara";
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 --rmdir $MYSQL_TMP_DIR/o'hara
+
+--echo #
+--echo # MDEV-40358 symlinked table name is not encoded
+--echo #
+replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
+eval create table `../t1` (a int) engine=myisam
+  data directory='$MYSQL_TMP_DIR'
+  index directory='$MYSQL_TMP_DIR';
+replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR;
+eval create table `../t2` (a int) engine=aria
+  data directory='$MYSQL_TMP_DIR'
+  index directory='$MYSQL_TMP_DIR';
+list_files $MYSQL_TMP_DIR *.M*;
+drop table `../t1`, `../t2`;
 
 --echo # End of 10.6 tests
