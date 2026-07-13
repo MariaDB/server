@@ -2079,3 +2079,16 @@ select XMLISVALID(@xml, @schema);
 
 --echo # End of 11.8 tests
 
+#
+# MDEV-40356 Server crashes in XMLSchema_simpleContent::validate_prepare.
+#
+
+--error ER_WRONG_VALUE
+SELECT XMLISVALID('<root/>',
+    '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="root" type="t"/>
+        <xs:complexType name="t">
+            <xs:simpleContent/>
+        </xs:complexType>
+     </xs:schema>') AS r;
+

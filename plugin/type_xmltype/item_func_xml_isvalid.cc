@@ -1569,6 +1569,7 @@ public:
 
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override;
   void validate_prepare() override { m_nested->validate_prepare(); }
   bool validate_attr(MY_XML_VALIDATION_DATA *st,
                      const char *attr, size_t len) override
@@ -2838,6 +2839,22 @@ bool XMLSchema_simpleContent::enter_tag(MY_XML_VALIDATION_DATA *st,
 
   st->push(t);
   m_nested= t;
+  return MY_XML_OK;
+}
+
+
+bool XMLSchema_simpleContent::leave(MY_XML_VALIDATION_DATA *st,
+                                    const char *attr, size_t len)
+{
+  if (!m_nested)
+  {
+    /*
+      simpleContent element must contain either an
+      xs:extension or an xs:restriction.
+    */
+    return MY_XML_ERROR;
+  }
+  st->pop();
   return MY_XML_OK;
 }
 
