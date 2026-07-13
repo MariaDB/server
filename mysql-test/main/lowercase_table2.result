@@ -1,7 +1,3 @@
-DROP TABLE IF EXISTS t1,t2,t3,t2aA,t1Aa;
-DROP DATABASE IF EXISTS `TEST_$1`;
-DROP DATABASE IF EXISTS `test_$1`;
-DROP DATABASE IF EXISTS mysqltest_LC2;
 CREATE TABLE T1 (a int) ENGINE=MyISAM;
 INSERT INTO T1 VALUES (1);
 SHOW TABLES LIKE "T1";
@@ -361,7 +357,6 @@ drop database db1;
 #
 # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
 #
-CREATE DATABASE `#mysql50#D+b1`;
 ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
 SHOW CREATE DATABASE `D+b1`;
 Database	Create Database

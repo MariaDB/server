@@ -1547,8 +1547,9 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
       opened through the table cache. They are opened by db.table_name,
       not by their path name.
     */
-    size_t length= build_table_filename(buff, sizeof(buff),
-                                      tables->db.str, tables->table_name.str, "", 0);
+    size_t length= build_table_filename(buff, sizeof(buff), tables->db.str,
+                                        tables->table_name.str, "", 0);
+    DBUG_ASSERT(length > 0);
     /*
       If a MyISAM table is in the same directory as the MERGE table,
       we use the table name without a path. This means that the

@@ -5271,6 +5271,7 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
   // name length in symbols
   size_t name_length= 0;
   const char *end= name+length;
+  bool valid_filename= true;
 
   if (!check_for_path_chars &&
       (check_for_path_chars= check_mysql50_prefix(name)))
@@ -5294,18 +5295,34 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (system_charset_info->use_mb())
     {
-      int len=my_ismbchar(system_charset_info, name, end);
-      if (len)
+      if (int len= my_ismbchar(system_charset_info, name, end))
       {
         name+= len;
         name_length++;
+        valid_filename= 0;
         continue;
       }
     }
 #endif
-    if (check_for_path_chars &&
-        (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR))
-      return 1;
+    if (check_for_path_chars)
+    {
+      if (*name == '/' || *name == '\\' || *name == '~' || *name == FN_EXTCHAR)
+        return 1;
+      my_wc_t wc;
+      if (valid_filename)
+      {
+        int len= my_charset_filename.mb_wc(&wc, (const uchar*)name,
+                                                (const uchar*)end);
+        if (len > 0)
+        {
+          name+= len;
+          name_length+= len;
+          continue;
+        }
+        else
+          valid_filename= false;
+      }
+    }
     /*
       We don't allow zero byte in table/schema names:
       - Some code still uses NULL-terminated strings.
@@ -5324,6 +5341,8 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
     name++;
     name_length++;
   }
+  if (check_for_path_chars && valid_filename)
+    return 1; /* #mysql50# prefix is not allowed on correctly encoded names */
 #if defined(USE_MB) && defined(USE_MB_IDENT)
   return last_char_is_space || (name_length > NAME_CHAR_LEN);
 #else

@@ -4488,7 +4488,8 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      LEX_CSTRING *db_name)
 {
   char path[FN_REFLEN + 1];
-  build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
+  if (!build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0))
+    return 0;
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
@@ -5449,6 +5450,8 @@ static bool verify_database_directory_exists(const LEX_CSTRING &dbname)
   if (!dbname.str[0])
     DBUG_RETURN(true); // Empty database name: does not exist.
   path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  if (!path_len)
+    DBUG_RETURN(true); // invalid name
   path[path_len - 1]= 0;
   if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
     DBUG_RETURN(true); // The database directory was not found: does not exist.
@@ -6447,7 +6450,6 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   CHARSET_INFO *cs= system_charset_info;
   LEX_CSTRING definer, params, returns= empty_clex_str;
   LEX_CSTRING db, name;
-  char path[FN_REFLEN];
   sp_head *sp;
   const Sp_handler *sph;
   bool free_sp_head;
@@ -6456,8 +6458,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
-  (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-  init_tmp_table_share(thd, &share, "", 0, "", path);
+  init_tmp_table_share(thd, &share, "", 0, "", "");
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
@@ -6619,14 +6620,12 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                                                 &free_sp_head);
         if (sp)
         {
-          char path[FN_REFLEN];
           TABLE_SHARE share;
           TABLE tbl;
           Field *field;
 
           bzero((char*) &tbl, sizeof(TABLE));
-          (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-          init_tmp_table_share(thd, &share, "", 0, "", path);
+          init_tmp_table_share(thd, &share, "", 0, "", "");
           field= sp->m_return_field_def.make_field(&share, thd->mem_root,
                                                    &empty_clex_str);
           field->table= &tbl;

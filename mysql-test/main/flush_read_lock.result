@@ -70,7 +70,6 @@ create temporary table t1_temp(i int) engine=myisam;
 create temporary table t2_temp(j int) engine=myisam;
 create temporary table t3_temp_trans(i int) engine=innodb;
 create database mysqltest1;
-create database `#mysql50#mysqltest-2`;
 create procedure p1() begin end;
 create function f1() returns int return 0;
 create view v1 as select 1 as i;

@@ -1,21 +1,22 @@
 call mtr.add_suppression("Invalid .old.. table or database name");
 --source include/not_embedded.inc
+--source include/have_partition.inc
 
 #remove this include after fix MDEV-27872
 --source include/no_view_protocol.inc
 
---disable_warnings
-drop database if exists `mysqltest1`;
-drop database if exists `mysqltest-1`;
-drop database if exists `#mysql50#mysqltest-1`;
---enable_warnings
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 create database `mysqltest1`;
-create database `#mysql50#mysqltest-1`;
 create table `mysqltest1`.`t1` (a int);
-create table `mysqltest1`.`#mysql50#t-1` (a int);
+--copy_file $MYSQLD_DATADIR/mysqltest1/t1.frm  $MYSQLD_DATADIR/mysqltest1/t-1.frm
+--copy_file $MYSQLD_DATADIR/mysqltest1/t1.MYI  $MYSQLD_DATADIR/mysqltest1/t-1.MYI
+--copy_file $MYSQLD_DATADIR/mysqltest1/t1.MYD  $MYSQLD_DATADIR/mysqltest1/t-1.MYD
+--mkdir $MYSQLD_DATADIR/mysqltest-1
 create table `#mysql50#mysqltest-1`.`t1` (a int);
-create table `#mysql50#mysqltest-1`.`#mysql50#t-1` (a int);
+--copy_file $MYSQLD_DATADIR/mysqltest-1/t1.frm  $MYSQLD_DATADIR/mysqltest-1/t-1.frm
+--copy_file $MYSQLD_DATADIR/mysqltest-1/t1.MYI  $MYSQLD_DATADIR/mysqltest-1/t-1.MYI
+--copy_file $MYSQLD_DATADIR/mysqltest-1/t1.MYD  $MYSQLD_DATADIR/mysqltest-1/t-1.MYD
 show create database `mysqltest1`;
 --error 1049
 show create database `mysqltest-1`;
@@ -53,7 +54,6 @@ drop table `txu@0023p@0023p1`;
 --echo # Bug#37631 Incorrect key file for table after upgrading from 5.0 to 5.1
 --echo #
 --echo # copy table created using mysql4.0 into the data dir
-let $MYSQLD_DATADIR= `SELECT @@datadir`;
 copy_file std_data/bug37631.frm $MYSQLD_DATADIR/test/t1.frm;
 copy_file std_data/bug37631.MYD $MYSQLD_DATADIR/test/t1.MYD;
 copy_file std_data/bug37631.MYI $MYSQLD_DATADIR/test/t1.MYI;
@@ -67,7 +67,6 @@ DROP TABLE t1;
 # Check if old tables work
 #
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --error 0,1
 --remove_file $MYSQLD_DATADIR/test/t1.frm
 --copy_file std_data/old_table-323.frm $MYSQLD_DATADIR/test/t1.frm
@@ -107,7 +106,6 @@ drop database `tabc`;
 #
 # Bug#43385 Cannot ALTER DATABASE ... UPGRADE DATA DIRECTORY NAME when Views exist
 #
-let $MYSQLD_DATADIR= `select @@datadir`;
 --mkdir $MYSQLD_DATADIR/a-b-c
 use `#mysql50#a-b-c`;
 create table t1(f1 char(10));
@@ -183,3 +181,164 @@ drop table `ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com`;
 
 --echo # End of 5.1 tests
 
+--echo #
+--echo # MDEV-40362 #mysql50# mixes up with table names in the table cache
+--echo #
+
+--error ER_WRONG_TABLE_NAME
+drop table if exists `#mysql50#t`;
+
+--error ER_WRONG_TABLE_NAME
+drop table if exists `#mysql50#a@002fb`;
+
+--error ER_WRONG_TABLE_NAME
+drop table if exists `#mysql50#COM1@@@`;
+
+--error ER_WRONG_TABLE_NAME
+create table `#mysql50#t-1`(a int);
+
+create table `t-1`(a int);
+drop table if exists `#mysql50#t-1`;
+drop table `t-1`;
+
+create table t1 (a int);
+--error ER_WRONG_TABLE_NAME
+rename table t1 to `#mysql50#t-1`;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t-1.frm
+--move_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/test/t-1.MYI
+--move_file $MYSQLD_DATADIR/test/t1.MYD $MYSQLD_DATADIR/test/t-1.MYD
+rename table `#mysql50#t-1` to t1;
+--error ER_WRONG_TABLE_NAME
+alter table t1 rename to `#mysql50#t-1`;
+drop table t1;
+
+#
+# databases
+#
+--error ER_WRONG_DB_NAME
+drop database if exists `#mysql50#db`;
+
+drop database if exists `#mysql50#db-1`;
+
+--error ER_WRONG_DB_NAME
+create database `#mysql50#mysqltest-1`;
+
+create table t1 (a int) partition by list (a) (
+  partition p0 values in (3),
+  partition p1 values in (5)
+);
+--error ER_PARSE_ERROR # must be ER_WRONG_TABLE_NAME in 10.11
+alter table t1 convert partition p0 to table `#mysql50#t-1`;
+drop table t1;
+
+#
+# partition/subpartition names
+#
+
+--error ER_WRONG_PARTITION_NAME
+create table t1 (a int) partition by list (a) (
+  partition p0 values in (3),
+  partition `p-1` values in (5),
+  partition `#mysql50#p-2` values in (7)
+);
+
+--error ER_WRONG_PARTITION_NAME
+create table t1 (a integer) partition by list(a) subpartition by key(a) (
+  partition p1 values in (0) (subpartition sp1, subpartition `#mysql50#sp-2`),
+  partition p2 values in (1) (subpartition sp3, subpartition `sp-4`)
+);
+
+# two ways to fix bad partition name:
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p-2.MYD
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p-2.MYI
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p0.MYD
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p0.MYI
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p@002d1.MYD
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p@002d1.MYI
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50.par $MYSQLD_DATADIR/test/t1.par
+select * from t1;
+show create table t1;
+alter table t1 reorganize partition `#mysql50#p-2` into (partition t2 values in (7));
+show create table t1;
+drop table t1;
+
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p-2.MYD
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p-2.MYI
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p0.MYD
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p0.MYI
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p@002d1.MYD
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p@002d1.MYI
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50.par $MYSQLD_DATADIR/test/t1.par
+select * from t1;
+show create table t1;
+--error ER_PARSE_ERROR # no error in 10.11
+alter table t1 convert parition `#mysql50#p-2` table t2;
+--error ER_PARSE_ERROR # no error in 10.11
+alter table t1 convert table t2 to partition p2 values in (7);
+alter table t1 reorganize partition `#mysql50#p-2` into (partition t2 values in (7));
+show create table t1;
+drop table t1;
+
+#
+# failure to rename and ddl rollback
+#
+create table t1(id int, c1 varchar(64));
+create table t2(id int, c1 varchar(64)) partition by range(id) (
+  partition p0 values less than (10),
+  partition pmax values less than maxvalue
+);
+insert into t1 values (7, 'foobar');
+insert into t2 values (1, 'pewpewpew');
+flush tables;
+select * from t1;
+--error 1103
+rename table t1 to `#mysql50#t2#p#p0`;
+select * from t1;
+drop table t1, t2;
+
+#
+# views
+#
+--error ER_WRONG_TABLE_NAME
+create view `#mysql50#v-1` as select 1;
+create view v1 as select 1;
+--move_file $MYSQLD_DATADIR/test/v1.frm $MYSQLD_DATADIR/test/v-1.frm
+show tables;
+select * from `#mysql50#v-1`;
+show create view `#mysql50#v-1`;
+drop view `#mysql50#v-1`;
+
+#
+# sequences
+#
+--error ER_WRONG_TABLE_NAME
+create sequence `#mysql50#s-1`;
+create sequence s1;
+--move_file $MYSQLD_DATADIR/test/s1.frm $MYSQLD_DATADIR/test/s-1.frm
+--move_file $MYSQLD_DATADIR/test/s1.MYI $MYSQLD_DATADIR/test/s-1.MYI
+--move_file $MYSQLD_DATADIR/test/s1.MYD $MYSQLD_DATADIR/test/s-1.MYD
+--disable_ps2_protocol
+select nextval(`#mysql50#s-1`);
+--enable_ps2_protocol
+drop sequence `#mysql50#s-1`;
+
+#
+# triggers
+#
+create table t1 (a int);
+--error ER_SP_WRONG_NAME
+create trigger `#mysql50#trg-1` before insert on t1 for each row set @a=1;
+drop table t1;
+--error ER_TRG_DOES_NOT_EXIST
+drop trigger `#mysql50#a/b`;
+--error ER_TRG_DOES_NOT_EXIST
+show create trigger `#mysql50#a/b`;
+
+#
+# INFORMATION_SCHEMA
+#
+select * from information_schema.schemata where schema_name='#mysql50#/';
+
+--echo # End of 10.6 tests

@@ -224,14 +224,15 @@ DROP DATABASE mysql_test;
 --echo #
 create database mysqltestbug26703;
 use mysqltestbug26703;
-create table `#mysql50#abc``def` ( id int );
---error ER_WRONG_TABLE_NAME
-create table `a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-create table `a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-create table `#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234` (a int);
---error ER_WRONG_TABLE_NAME
-create table `#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345` (a int);
+create table t1 (id int);
+--copy_file $MYSQLD_DATADIR/mysqltestbug26703/t1.frm $MYSQLD_DATADIR/mysqltestbug26703/a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234.frm
+--copy_file $MYSQLD_DATADIR/mysqltestbug26703/t1.MYD $MYSQLD_DATADIR/mysqltestbug26703/a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234.MYD
+--copy_file $MYSQLD_DATADIR/mysqltestbug26703/t1.MYI $MYSQLD_DATADIR/mysqltestbug26703/a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234.MYI
+--move_file $MYSQLD_DATADIR/mysqltestbug26703/t1.frm $MYSQLD_DATADIR/mysqltestbug26703/abc`def.frm
+--move_file $MYSQLD_DATADIR/mysqltestbug26703/t1.MYD $MYSQLD_DATADIR/mysqltestbug26703/abc`def.MYD
+--move_file $MYSQLD_DATADIR/mysqltestbug26703/t1.MYI $MYSQLD_DATADIR/mysqltestbug26703/abc`def.MYI
 show tables;
+show create table `#mysql50#abc``def`;
 use test;
 drop database mysqltestbug26703;
 

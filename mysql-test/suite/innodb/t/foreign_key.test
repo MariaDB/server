@@ -1201,7 +1201,8 @@ CHECK TABLE binaries, collections EXTENDED;
 # Cleanup
 DROP TABLE binaries, collections;
 
-CREATE SCHEMA `#mysql50##mysql50#d-b`;
+--let $datadir=`select @@datadir`
+--mkdir "$datadir/#mysql50#d-b"
 CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;
 USE `#mysql50##mysql50#d-b`;
 CREATE TABLE t2 (a INT PRIMARY KEY, b INT UNIQUE REFERENCES t1(b)) ENGINE=InnoDB;

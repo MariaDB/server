@@ -155,18 +155,16 @@ Error	1146	Table 'mysql.proc' doesn't exist
 #
 create database mysqltestbug26703;
 use mysqltestbug26703;
-create table `#mysql50#abc``def` ( id int );
-create table `a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-ERROR 42000: Incorrect table name 'a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-create table `a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-create table `#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234` (a int);
-create table `#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345` (a int);
-ERROR 42000: Incorrect table name '#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345'
+create table t1 (id int);
 show tables;
 Tables_in_mysqltestbug26703
 #mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234
 #mysql50#abc`def
-a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+show create table `#mysql50#abc``def`;
+Table	Create Table
+#mysql50#abc`def	CREATE TABLE `#mysql50#abc``def` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 use test;
 drop database mysqltestbug26703;
 # End of 5.1 tests

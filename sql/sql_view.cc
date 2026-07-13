@@ -265,6 +265,9 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   bool res= TRUE;
   DBUG_ENTER("create_view_precheck");
 
+  if (error_if_mysql50_prefix(view->table_name.str, ER_WRONG_TABLE_NAME))
+    DBUG_RETURN(TRUE);
+
   /*
     Privilege check for view creation:
     - user has CREATE VIEW privilege on view table

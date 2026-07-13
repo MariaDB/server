@@ -1227,7 +1227,7 @@ create table t3 (a int) row_format=page;
 drop table t1,t2,t3;
 
 # -- End of Bug#45829
-create table `#mysql50#t-1` (a int) engine=myisam;
+create table t1 (a int) engine=myisam;
 insert into `#mysql50#t-1` values (1);
 show tables;
 Tables_in_test
