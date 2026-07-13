@@ -2057,3 +2057,11 @@ type="xs:string"/></xs:sequence></xs:complexType></xs:element></xs:schema>'
 ) AS v;
 v
 1
+SELECT XMLISVALID('<root/>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="root" type="t"/>
+        <xs:complexType name="t">
+            <xs:simpleContent/>
+        </xs:complexType>
+     </xs:schema>') AS r;
+ERROR HY000: Incorrect XML value: 'XML Schema parse error at line 4 pos 32: '
