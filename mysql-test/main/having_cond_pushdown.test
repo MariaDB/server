@@ -1658,7 +1658,7 @@ execute stmt;
 drop table t1, t2;
 
 --echo #
---echo # MDEV-39916 Crash with having filter when getting pushed down
+--echo # MDEV-39916: Crash when pushing "NOT col" from HAVING into WHERE
 --echo #
 
 CREATE TABLE t1 (a INT);

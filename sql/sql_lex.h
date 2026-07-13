@@ -1180,7 +1180,13 @@ public:
 
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /*
+    Pushdown from HAVING into WHERE optimization: conditions from the HAVING
+    clause that should be added into the WHERE.
+  */
   List<Item> attach_to_conds;
+
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* 
