@@ -1086,5 +1086,81 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 DROP TABLE t1, t2;
 #
+# MDEV-36610: Subquery wrongly marked as eliminated by table elimination
+#             when equality propagation shares a WHERE-clause subquery
+#             into an eliminated outer join's ON expression
+#
+CREATE TABLE t0 (k INT);
+INSERT INTO t0 VALUES (20),(9);
+CREATE TABLE t1 (a BIGINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT PRIMARY KEY);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t2 VALUES (5),(6);
+CREATE TABLE t3 (c INT);
+INSERT INTO t3 VALUES (2);
+CREATE TABLE t4 (a BIGINT, x INT);
+INSERT INTO t4 VALUES (2,20),(3,30);
+# t2 is eliminated, but the subquery must still be shown and executed:
+explain SELECT t1.* FROM t1 LEFT JOIN t2 ON (t2.b = t1.a)
+WHERE t1.a = (SELECT c FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+SELECT t1.* FROM t1 LEFT JOIN t2 ON (t2.b = t1.a)
+WHERE t1.a = (SELECT c FROM t3);
+a
+2
+# t2 is eliminated; the subquery must still be shown and executed:
+explain SELECT t0.k, t4.x FROM t0
+LEFT JOIN (t4 LEFT JOIN t2 ON t2.b = t4.a)
+ON (t0.k = t4.x AND t4.a = (SELECT c FROM t3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+SELECT t0.k, t4.x FROM t0
+LEFT JOIN (t4 LEFT JOIN t2 ON t2.b = t4.a)
+ON (t0.k = t4.x AND t4.a = (SELECT c FROM t3));
+k	x
+20	20
+9	NULL
+truncate t2;
+DROP TABLE t4;
+CREATE TABLE t4 (d INT);
+INSERT INTO t4 VALUES (1),(2),(7);
+# The subquery is shared with the WHERE clause, so it must still be
+# shown and executed:
+explain SELECT t1.* FROM t1
+LEFT JOIN t2 ON (t2.b = t1.a)
+LEFT JOIN t4 ON (t4.d = t1.a)
+WHERE t1.a = (SELECT c FROM t3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	system	PRIMARY	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+SELECT t1.* FROM t1
+LEFT JOIN t2 ON (t2.b = t1.a)
+LEFT JOIN t4 ON (t4.d = t1.a)
+WHERE t1.a = (SELECT c FROM t3);
+a
+2
+explain SELECT t1.a FROM t1
+LEFT JOIN t2 ON (t2.b = t1.a AND t1.a <> (SELECT c FROM t3))
+LEFT JOIN t4 ON (t4.d = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	system	PRIMARY	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+SELECT t1.a FROM t1
+LEFT JOIN t2 ON (t2.b = t1.a AND t1.a <> (SELECT c FROM t3))
+LEFT JOIN t4 ON (t4.d = t1.a);
+a
+1
+2
+DROP TABLE t0, t1, t2, t3, t4;
+#
 # End of 10.11 tests
 #

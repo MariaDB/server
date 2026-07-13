@@ -838,5 +838,62 @@ select t1.null_col from t1 left join t2 on (t2.unique_col<=>t1.notnull_col);
 DROP TABLE t1, t2;
 
 --echo #
+--echo # MDEV-36610: Subquery wrongly marked as eliminated by table elimination
+--echo #             when equality propagation shares a WHERE-clause subquery
+--echo #             into an eliminated outer join's ON expression
+--echo #
+CREATE TABLE t0 (k INT);
+INSERT INTO t0 VALUES (20),(9);
+CREATE TABLE t1 (a BIGINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT PRIMARY KEY);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t2 VALUES (5),(6);
+CREATE TABLE t3 (c INT);
+INSERT INTO t3 VALUES (2);
+CREATE TABLE t4 (a BIGINT, x INT);
+INSERT INTO t4 VALUES (2,20),(3,30);
+
+--echo # t2 is eliminated, but the subquery must still be shown and executed:
+
+let $q=
+SELECT t1.* FROM t1 LEFT JOIN t2 ON (t2.b = t1.a)
+  WHERE t1.a = (SELECT c FROM t3);
+eval explain $q;
+eval $q;
+
+--echo # t2 is eliminated; the subquery must still be shown and executed:
+let $q=
+SELECT t0.k, t4.x FROM t0
+LEFT JOIN (t4 LEFT JOIN t2 ON t2.b = t4.a)
+ON (t0.k = t4.x AND t4.a = (SELECT c FROM t3));
+eval explain $q;
+eval $q;
+
+truncate t2;
+DROP TABLE t4;
+CREATE TABLE t4 (d INT);
+INSERT INTO t4 VALUES (1),(2),(7);
+--echo # The subquery is shared with the WHERE clause, so it must still be
+--echo # shown and executed:
+let $q=
+SELECT t1.* FROM t1
+  LEFT JOIN t2 ON (t2.b = t1.a)
+  LEFT JOIN t4 ON (t4.d = t1.a)
+  WHERE t1.a = (SELECT c FROM t3);
+eval explain $q;
+eval $q;
+
+let $q=
+SELECT t1.a FROM t1
+  LEFT JOIN t2 ON (t2.b = t1.a AND t1.a <> (SELECT c FROM t3))
+  LEFT JOIN t4 ON (t4.d = t1.a);
+eval explain $q;
+eval $q;
+
+
+DROP TABLE t0, t1, t2, t3, t4;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
