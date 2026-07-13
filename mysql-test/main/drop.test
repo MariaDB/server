@@ -1,22 +1,15 @@
 --source include/have_innodb.inc
 
 call mtr.add_suppression("table or database name 'abc`def'");
+call mtr.add_suppression("Invalid .old.. table or database name 'a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234'");
 
-# Initialise
---disable_warnings
-drop table if exists t1;
-drop database if exists mysqltest;
-# If earlier test failed
-drop database if exists client_test_db;
---enable_warnings
-
---error 1051
+--error ER_BAD_TABLE_ERROR
 drop table t1;
 create table t1(n int);
 insert into t1 values(1);
 create temporary table t1( n int);
 insert into t1 values(2);
---error 1050
+--error ER_TABLE_EXISTS_ERROR
 create table t1(n int);
 drop table t1;
 select * from t1;
@@ -41,14 +34,14 @@ create database mysqltest;
 # (tableN instead on tN)
 #
 use mysqltest;
---error 1051
+--error ER_BAD_TABLE_ERROR
 drop table table1, table2, table3, table4, table5, table6,
 table7, table8, table9, table10, table11, table12, table13,
 table14, table15, table16, table17, table18, table19, table20,
 table21, table22, table23, table24, table25, table26, table27,
 table28;
 
---error 1051
+--error ER_BAD_TABLE_ERROR
 drop table table1, table2, table3, table4, table5, table6,
 table7, table8, table9, table10, table11, table12, table13,
 table14, table15, table16, table17, table18, table19, table20,
@@ -60,24 +53,24 @@ drop database mysqltest;
 
 # test drop/create database and FLUSH TABLES WITH READ LOCK
 flush tables with read lock;
---error 1209,1223
+--error ER_CREATE_DB_WITH_READ_LOCK,ER_CANT_UPDATE_WITH_READLOCK
 create database mysqltest;
 unlock tables;
 create database mysqltest;
 show databases;
 flush tables with read lock;
---error 1208,1223
+--error ER_DROP_DB_WITH_READ_LOCK,ER_CANT_UPDATE_WITH_READLOCK
 drop database mysqltest;
 unlock tables;
 drop database mysqltest;
 show databases;
---error 1008
+--error ER_DB_DROP_EXISTS
 drop database mysqltest;
 
 # test create table and FLUSH TABLES WITH READ LOCK
 drop table t1;
 flush tables with read lock;
---error 1223
+--error ER_CANT_UPDATE_WITH_READLOCK
 create table t1(n int);
 unlock tables;
 create table t1(n int);
@@ -100,10 +93,6 @@ drop table t1;
 # and one of name-locking command.
 #
 --disable_service_connection
---disable_warnings
-drop database if exists mysqltest;
-drop table if exists t1;
---enable_warnings
 create table t1 (i int);
 create database mysqltest;
 lock tables t1 read;
@@ -134,9 +123,6 @@ connection default;
 # Bug#25858 Some DROP TABLE under LOCK TABLES can cause deadlocks
 #
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
 create table t1 (a int);
 create table t2 (a int);
 lock table t1 read;
@@ -163,7 +149,7 @@ connection default;
 unlock tables;
 drop table t1,t2;
 
---echo End of 5.0 tests
+--echo # End of 5.0 tests
 
 #
 # Bug#30152 MySQLD crash duing alter table causes DROP DATABASE to FAIL due to temp file
@@ -201,14 +187,9 @@ use test;
 ###########################################################################
 
 --echo
---echo # --
---echo # -- Bug#29958: Weird message on DROP DATABASE if mysql.proc does not
---echo # -- exist.
---echo # --
-
---disable_warnings
-DROP DATABASE IF EXISTS mysql_test;
---enable_warnings
+--echo #
+--echo # Bug#29958: Weird message on DROP DATABASE if mysql.proc does not exist
+--echo #
 
 CREATE DATABASE mysql_test;
 
@@ -238,61 +219,39 @@ DROP DATABASE mysql_test;
 --remove_file $copy_of_proc_MAD
 --remove_file $copy_of_proc_MAI
 
---echo
---echo # --
---echo # -- End of Bug#29958.
---echo # --
-
-###########################################################################
-
---echo
-#
-# Bug#26703: DROP DATABASE fails if database contains a #mysql50# table with backticks
-#
+--echo #
+--echo # Bug#26703: DROP DATABASE fails if database contains a #mysql50# table with backticks
+--echo #
 create database mysqltestbug26703;
 use mysqltestbug26703;
 create table `#mysql50#abc``def` ( id int );
 --error ER_WRONG_TABLE_NAME
-create table `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-create table `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
-create table `#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234` (a int);
+create table `a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
+create table `a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` (a int);
+create table `#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234` (a int);
 --error ER_WRONG_TABLE_NAME
-create table `#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345` (a int);
+create table `#mysql50#a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345` (a int);
 show tables;
 use test;
 drop database mysqltestbug26703;
 
---echo End of 5.1 tests
+--echo # End of 5.1 tests
 
 ###########################################################################
 
 --echo
---echo # --
---echo # -- Bug#37431 (DROP TABLE does not report errors correctly).
---echo # --
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
+--echo #
+--echo # Bug#37431 (DROP TABLE does not report errors correctly).
+--echo #
 
 --error ER_BAD_TABLE_ERROR
 DROP TABLE t1;
 
 SHOW WARNINGS;
 
---echo
---echo # --
---echo # -- End of Bug#37431.
---echo # --
-
-
 --echo #
 --echo # Bug#54282 Crash in MDL_context::upgrade_shared_lock_to_exclusive
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
 
 CREATE TABLE t1 (a INT);
 LOCK TABLE t1 WRITE;
@@ -336,8 +295,6 @@ FOR EACH ROW
 INSERT INTO table1 VALUES (1);
 
 DROP TABLE table1,table2;
-
---echo # End BUG#34750
 
 --echo #
 --echo # MDEV-11105 Table named 'db' has weird side effect.
