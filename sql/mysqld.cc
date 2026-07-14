@@ -2148,13 +2148,6 @@ static void clean_up(bool print_message)
   logger.cleanup_end();
   sys_var_end();
   free_charsets();
-
-  my_free(const_cast<char*>(log_bin_basename));
-  my_free(const_cast<char*>(log_bin_index));
-#ifndef EMBEDDED_LIBRARY
-  my_free(const_cast<char*>(relay_log_basename));
-  my_free(const_cast<char*>(relay_log_index));
-#endif
   free_list(opt_plugin_load_list_ptr);
   destroy_proxy_protocol_networks();
 
@@ -6120,6 +6113,7 @@ int mysqld_main(int argc, char **argv)
 #endif /* WITH_WSREP */
 
   /* Protect read_only_root against writes */
+  move_allocated_sysvars_to_root(&read_only_root);
   protect_root(&read_only_root, MY_VMEM_READONLY);
 
   /* Protect read-only sysvars */
@@ -8550,7 +8544,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     }
     break;
   case OPT_IGNORE_DB_DIRECTORY:
-    opt_ignore_db_dirs= NULL; // will be set in ignore_db_dirs_process_additions
     if (*argument == 0)
       ignore_db_dirs_reset();
     else

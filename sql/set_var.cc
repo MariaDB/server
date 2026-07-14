@@ -197,6 +197,35 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   test_load= &static_test_load;
 }
 
+/*
+  move a read-only global char* value to a memroot and reset ALLOCATED flag.
+  used before mprotect()-ing the memroot from changes.
+*/
+void sys_var::move_charptr_to_root(MEM_ROOT *root)
+{
+  char **ptr= (char**)global_var_ptr();
+  if (!is_readonly() || scope() != GLOBAL || cast_pluginvar() || is_struct()
+      || show_type() != SHOW_CHAR_PTR || !*ptr || var_is_ro_after_init(*ptr))
+    return;
+
+  char *old_val= *ptr;
+  *ptr= strdup_root(root, old_val);
+  if (flags & ALLOCATED)
+  {
+    my_free(old_val);
+    flags&= ~ALLOCATED;
+  }
+}
+
+
+void move_allocated_sysvars_to_root(MEM_ROOT *root)
+{
+  for (uint i= 0; i < system_variable_hash.records; i++)
+    ((sys_var*) my_hash_element(&system_variable_hash, i))
+      ->move_charptr_to_root(root);
+}
+
+
 bool sys_var::update(THD *thd, set_var *var)
 {
   enum_var_type type= var->type;
@@ -755,6 +784,8 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free)
   }
 
   DBUG_EXECUTE_IF("set_skip_name_resolve", opt_skip_name_resolve= 0;);
+  DBUG_EXECUTE_IF("set_bind_address_buf", my_bind_addr_str[0]= '2';);
+
 err:
   if (free)
     free_underlaid_joins(thd, thd->lex->first_select_lex());

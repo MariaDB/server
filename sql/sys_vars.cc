@@ -5497,7 +5497,7 @@ static Sys_var_charptr_fscs Sys_relay_log(
 static Sys_var_charptr_fscs Sys_relay_log_index(
        "relay_log_index", "The location and name to use for the file "
        "that keeps a list of the last relay logs.",
-       READ_ONLY GLOBAL_VAR(relay_log_index), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(relay_log_index), NO_CMD_LINE,
        DEFAULT(0));
 
 /*
@@ -5507,19 +5507,19 @@ static Sys_var_charptr_fscs Sys_relay_log_index(
 */
 static Sys_var_charptr_fscs Sys_binlog_index(
        "log_bin_index", "File that holds the names for last binary log files.",
-       READ_ONLY GLOBAL_VAR(log_bin_index), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(log_bin_index), NO_CMD_LINE,
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_relay_log_basename(
        "relay_log_basename",
        "The full path of the relay log file names, excluding the extension.",
-       READ_ONLY GLOBAL_VAR(relay_log_basename), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(relay_log_basename), NO_CMD_LINE,
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_log_bin_basename(
        "log_bin_basename",
        "The full path of the binary log file names, excluding the extension.",
-       READ_ONLY GLOBAL_VAR(log_bin_basename), NO_CMD_LINE,
+       PREALLOCATED READ_ONLY GLOBAL_VAR(log_bin_basename), NO_CMD_LINE,
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_relay_log_info_file(
@@ -6516,7 +6516,7 @@ static Sys_var_charptr_fscs Sys_ignore_db_dirs(
        "Specifies a directory to add to the ignore list when collecting "
        "database names from the datadir. Put a blank argument to reset "
        "the list accumulated so far.",
-       READ_ONLY GLOBAL_VAR(opt_ignore_db_dirs), 
+       PREALLOCATED READ_ONLY GLOBAL_VAR(opt_ignore_db_dirs),
        CMD_LINE(REQUIRED_ARG, OPT_IGNORE_DB_DIRECTORY),
        DEFAULT(0));
 
