@@ -78,6 +78,11 @@ inline MYSQL_THD spider_create_sys_thd(SPIDER_THREAD *thread)
   THD *thd = create_thd();
   if (thd)
   {
+    if (my_net_init(&thd->net, NULL, thd, MYF(0)))
+    {
+      destroy_thd(thd);
+      return NULL;
+    }
     SPIDER_set_next_thread_id(thd);
     thd->mysys_var->current_cond = &thread->cond;
     thd->mysys_var->current_mutex = &thread->mutex;

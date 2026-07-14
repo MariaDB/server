@@ -807,6 +807,7 @@ xa end 'c:foo';
 xa prepare 'c:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'c:bar';

@@ -101,7 +101,10 @@ bool Cached_item_str::cmp(void)
 
 int Cached_item_str::cmp_read_only()
 {
-  String *res= item->val_str(&tmp_value);
+  String res;
+  if (String *tmp_res= item->val_str(&tmp_value))
+    res.set(tmp_res->ptr(), MY_MIN(tmp_res->length(), value_max_length),
+            tmp_res->charset());
 
   if (null_value)
   {
@@ -113,7 +116,7 @@ int Cached_item_str::cmp_read_only()
   if (item->null_value)
     return 1;
 
-  return sortcmp(&value, res, item->collation.collation);
+  return sortcmp(&value, &res, item->collation.collation);
 }
 
 

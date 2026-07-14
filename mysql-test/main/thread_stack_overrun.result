@@ -1,0 +1,6 @@
+#
+# MDEV-37781 ASAN build crashes with low thread stack
+#
+EXECUTE IMMEDIATE CONCAT('SELECT 1', REPEAT('+1', @@global.thread_stack));
+ERROR HY000: Thread stack overrun:  # bytes used of a # byte stack, and # bytes needed. Consider increasing the thread_stack system variable.
+# End of 10.11 tests

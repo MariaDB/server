@@ -747,7 +747,6 @@ public:
       UNCACHEABLE_RAND
       UNCACHEABLE_SIDEEFFECT
       UNCACHEABLE_EXPLAIN
-      UNCACHEABLE_PREPARE
   */
 
   bool is_linkage_set() const

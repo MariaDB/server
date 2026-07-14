@@ -1257,3 +1257,19 @@ SET names latin1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-39690: UBSAN: signed integer overflow in `my_strntoll_8bit`, `my_strntoll_mb2_or_mb4` during BLOB-to-integer conversion
+--echo #
+
+SET @old_mode=@@sql_mode;
+SET sql_mode='';
+
+CREATE TABLE t1 (c VARCHAR(30) CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('-9223372036854775809'),('-9223372036854775808'),('1');
+SELECT * FROM t1 WHERE c IN (VALUES(1));
+
+DROP TABLE t1;
+SET @@sql_mode= @old_mode;
+
+--echo # End of 10.11 tests

@@ -1,0 +1,39 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t_a (id INT PRIMARY KEY, c INT) ENGINE=InnoDB;
+CREATE TABLE t_b (id INT PRIMARY KEY, c INT) ENGINE=InnoDB;
+INSERT INTO t_a VALUES (1, 0);
+INSERT INTO t_b VALUES (1, 0);
+connect node_1_holder, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+BEGIN;
+SELECT * FROM t_b WHERE id = 1 FOR UPDATE;
+id	c
+1	0
+connect node_1_victim, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION tx_isolation = 'READ-COMMITTED';
+BEGIN;
+UPDATE t_a SET c = c + 1 WHERE id > 0;
+connection node_1;
+connection node_1_victim;
+SET DEBUG_SYNC = 'row_search_before_rec_lock SIGNAL victim_at_lock WAIT_FOR victim_cont';
+SET DEBUG_SYNC = 'trx_t_release_locks_enter SIGNAL victim_at_release WAIT_FOR holder_done';
+UPDATE t_b SET c = c + 1 WHERE id > 0;
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR victim_at_lock';
+connection node_2;
+UPDATE t_a SET c = c + 100 WHERE id = 1;
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL victim_cont';
+SET DEBUG_SYNC = 'now WAIT_FOR victim_at_release';
+connection node_1_holder;
+COMMIT;
+connection node_1;
+SET DEBUG_SYNC = 'now SIGNAL holder_done';
+connection node_1_victim;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t_a, t_b;
+disconnect node_1_holder;
+disconnect node_1_victim;

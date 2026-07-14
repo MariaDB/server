@@ -595,11 +595,21 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 bool Item_func_json_valid::val_bool()
 {
   String *js= args[0]->val_json(&tmp_value);
+  THD *thd;
+  json_engine_t je;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
-  return json_valid(js->ptr(), js->length(), js->charset());
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+  je.killed_ptr= (uint32_t *) &thd->killed;
+
+  if (json_valid(&je, js->ptr(), js->length(), js->charset()))
+    return true;
+  /* Sql_condition::WARN_LEVEL_WARN becomes an error in check constraints */
+  report_json_error_ex(js->ptr(), &je, func_name(), 0, Sql_condition::WARN_LEVEL_NOTE);
+  return false;
 }
 
 
@@ -615,8 +625,13 @@ bool Item_func_json_equals::fix_length_and_dec(THD *thd)
 bool Item_func_json_equals::val_bool()
 {
   longlong result= 0;
-
+  int arg_num= 0;
   String a_tmp, b_tmp;
+  THD *thd;
+  json_engine_t je;
+
+  if ((null_value= args[0]->null_value || args[1]->null_value))
+    return 1;
 
   String *a= args[0]->val_json(&a_tmp);
   String *b= args[1]->val_json(&b_tmp);
@@ -636,27 +651,31 @@ bool Item_func_json_equals::val_bool()
     return 1;
   }
 
-  if ((null_value= args[0]->null_value || args[1]->null_value))
-  {
-    null_value= 1;
-    goto end;
-  }
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_normalize(&a_res, a->ptr(), a->length(), a->charset()))
-  {
-    null_value= 1;
-    goto end;
-  }
+  if (json_normalize(&je, &a_res, a->ptr(), a->length(), a->charset()))
+    goto return_null;
 
-  if (json_normalize(&b_res, b->ptr(), b->length(), b->charset()))
-  {
-    null_value= 1;
-    goto end;
-  }
+  arg_num++;
+  if (json_normalize(&je, &b_res, b->ptr(), b->length(), b->charset()))
+    goto return_null;
 
   result= strcmp(a_res.str, b_res.str) ? 0 : 1;
+  goto end;
+
+return_null:
+  null_value= 1;
 
 end:
+  if (je.s.error)
+  {
+    /* looks convoluted, but report_json_error is a macro */
+    if (arg_num != 0)
+       a= b;
+    report_json_error(a, &je, arg_num);
+  }
   dynstr_free(&b_res);
   dynstr_free(&a_res);
   return result;
@@ -3139,13 +3158,17 @@ longlong Item_func_json_length::val_int()
   uint length= 0;
   int array_counters[JSON_DEPTH_LIMIT]= {0};
   int err;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &current_thd->killed;
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   if (arg_count > 1)
   {
@@ -3211,7 +3234,6 @@ longlong Item_func_json_length::val_int()
 
 err_return:
   report_json_error(js, &je, 0);
-  current_thd->check_killed(); // to get the error message right
 null_return:
   null_value= 1;
   return 0;
@@ -3224,14 +3246,17 @@ longlong Item_func_json_depth::val_int()
   json_engine_t je;
   uint depth= 0, c_depth= 0;
   bool inc_depth= TRUE;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &current_thd->killed;
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   do
   {
@@ -3266,7 +3291,6 @@ longlong Item_func_json_depth::val_int()
     return depth;
 
   report_json_error(js, &je, 0);
-  current_thd->check_killed(); // to get the error message right
   null_value= 1;
   return 0;
 }
@@ -3332,7 +3356,6 @@ String *Item_func_json_type::val_str(String *str)
 
 error:
   report_json_error(js, &je, 0);
-  current_thd->check_killed();
   null_value= 1;
   return 0;
 }
@@ -4593,6 +4616,8 @@ String* Item_func_json_objectagg::val_str(String* str)
 String *Item_func_json_normalize::val_str(String *buf)
 {
   String tmp;
+  json_engine_t je;
+  THD *thd;
   String *raw_json= args[0]->val_str(&tmp);
 
   DYNAMIC_STRING normalized_json;
@@ -4606,22 +4631,27 @@ String *Item_func_json_normalize::val_str(String *buf)
   if (null_value)
     goto end;
 
-  if (json_normalize(&normalized_json,
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
+  je.killed_ptr= (uint32_t *) &thd->killed;
+
+  if (json_normalize(&je, &normalized_json,
                      raw_json->ptr(), raw_json->length(),
                      raw_json->charset()))
-  {
-    null_value= 1;
-    goto end;
-  }
+    goto null_return;
 
   buf->length(0);
   buf->set_charset(collation.collation);
   if (buf->append(normalized_json.str, normalized_json.length))
-  {
-    null_value= 1;
-    goto end;
-  }
+    goto null_return;
 
+  goto end;
+
+null_return:
+  null_value= 1;
+
+  if (je.s.error)
+    report_json_error(raw_json, &je, 0);
 end:
   dynstr_free(&normalized_json);
   return null_value ? NULL : buf;
@@ -4813,6 +4843,8 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   json_skip_level(js);
   const char *value_end= (const char*)value->s.c_str;
   const char *js_end= (const char*)js->s.c_str;
+  json_engine_t je;
+  je.killed_ptr= js->killed_ptr;
 
   String a(value_begin, value_end-value_begin,value->s.cs);
   String b(js_begin, js_end-js_begin, js->s.cs);
@@ -4823,9 +4855,16 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   { 
     goto error;
   }
-  if (json_normalize(&a_res, a.ptr(), a.length(), value->s.cs) ||
-      json_normalize(&b_res, b.ptr(), b.length(), value->s.cs))
+  if (json_normalize(&je, &a_res, a.ptr(), a.length(), value->s.cs))
   {
+    value->s.error= je.s.error;
+    value->s.c_str= je.s.c_str;
+    goto error;
+  }
+  if (json_normalize(&je, &b_res, b.ptr(), b.length(), value->s.cs))
+  {
+    js->s.error= je.s.error;
+    js->s.c_str= je.s.c_str;
     goto error;
   }
 
@@ -5018,9 +5057,13 @@ bool Item_func_json_overlaps::val_bool()
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
   int result;
+  THD *thd;
 
   if ((null_value= args[0]->null_value))
     return 0;
+
+  thd= current_thd;
+  JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
   if (!a2_parsed)
   {
@@ -5036,9 +5079,11 @@ bool Item_func_json_overlaps::val_bool()
 
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
+  je.killed_ptr= (uint32_t *) &thd->killed;
 
   json_scan_start(&ve, val->charset(), (const uchar *) val->ptr(),
                   (const uchar *) val->end());
+  ve.killed_ptr= (uint32_t *) &thd->killed;
 
   if (json_read_value(&je) || json_read_value(&ve))
     goto error;
@@ -5054,7 +5099,6 @@ error:
     report_json_error(js, &je, 0);
   if (ve.s.error)
     report_json_error(val, &ve, 1);
-  current_thd->check_killed(); // to get the error message right
   return 0;
 }
 
@@ -5349,7 +5393,7 @@ static bool create_hash(json_engine_t *value, HASH *items, bool &item_hash_inite
         init_dynamic_string(&norm_val, NULL, 0, 0))
       return true;
 
-    if (json_normalize(&norm_val, (const char*) value_start,
+    if (json_normalize(value, &norm_val, (const char*) value_start,
                        value_len, value->s.cs))
     {
       dynstr_free(&norm_val);
@@ -5443,8 +5487,8 @@ bool Item_func_json_array_intersect::
         init_dynamic_string(&norm_val, NULL, 0, 0))
       goto error;
 
-    if (json_normalize(&norm_val, (const char*) value_start,
-                         value_len, value->s.cs))
+    if (json_normalize(value, &norm_val, (const char*) value_start,
+                       value_len, value->s.cs))
     {
       dynstr_free(&norm_val);
       goto error;
