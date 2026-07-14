@@ -1833,6 +1833,7 @@ public:
 
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override;
 };
 
 
@@ -2960,6 +2961,16 @@ bool XMLSchema_group_def::enter_tag(MY_XML_VALIDATION_DATA *st,
   st->push(def);
 
   return MY_XML_OK;
+}
+
+
+bool XMLSchema_group_def::leave(MY_XML_VALIDATION_DATA *st,
+                                const char *attr, size_t len)
+{
+  if (!m_compositor)
+    return MY_XML_ERROR;  /* group with no compositor is not allowed. */
+
+  return XMLSchema_tag::leave(st, attr, len);
 }
 
 
