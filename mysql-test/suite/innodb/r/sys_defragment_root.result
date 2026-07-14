@@ -1,0 +1,44 @@
+#
+# MDEV-40332 InnoDB: Defragmentation of BASE_IDX in
+#	SYS_VIRTUAL failed: Data structure corruption
+#
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/root_datadir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/root_datadir --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/root_datadir --debug_dbug=+d,defer_sys_virtual
+# SYS_VIRTUAL is absent for now
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE SPACE=0 AND NAME='SYS_VIRTUAL';
+NAME
+SET GLOBAL innodb_file_per_table= 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+SET GLOBAL innodb_limit_optimistic_insert_debug= 2;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL, f3 INT NOT NULL,
+INDEX(f1), INDEX(f2), INDEX(f3))
+STATS_PERSISTENT=0 ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+COMMIT;
+# Restart without the flag: SYS_VIRTUAL is now created
+# into the grown tablespace, so its BASE_IDX root page
+# lands in a high extent.
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/root_datadir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/root_datadir --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/root_datadir
+# SYS_VIRTUAL now exists, and its BASE_IDX root landed
+# above the 10M (640-page) shrink floor
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE SPACE=0 AND NAME='SYS_VIRTUAL';
+NAME
+SYS_VIRTUAL
+SELECT PAGE_NO > 640 AS root_above_shrink_floor
+FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE SPACE=0 AND NAME='BASE_IDX';
+root_above_shrink_floor
+1
+SET GLOBAL innodb_limit_optimistic_insert_debug= 2;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_32;
+DROP TABLE t1;
+InnoDB		0 transactions not purged
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/root_datadir --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/root_datadir --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/root_datadir --innodb_data_file_path=ibdata1:10M:autoextend:autoshrink --innodb_fast_shutdown=0
+SELECT FILE_SIZE < $fsize AS shrunk
+FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;
+shrunk
+1
+# restart
