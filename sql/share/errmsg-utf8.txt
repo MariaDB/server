@@ -12406,7 +12406,5 @@ ER_WARN_QB_NAME_PATH_VIEW_NOT_FOUND
         eng "Hint %s is ignored. `%s` required at element #%u of the path is not found in the target query block."
 ER_WARN_QB_NAME_PATH_NOT_SUPPORTED_INSIDE_VIEW
         eng "Hint %s is ignored. QB_NAME hints with path are not supported inside view definitions."
-ER_CANT_SET_IN_TRANSACTION
-        eng "Cannot set %s within a transaction"
 ER_CANT_SET_IN_SUBSTATEMENT
         eng "Cannot set %s within a trigger or stored program"

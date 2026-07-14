@@ -5,7 +5,7 @@ CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 VALUES (1);
 SET @@session.server_id = 100;
-ERROR HY000: Cannot set @@session.server_id within a transaction
+ERROR 25001: @@session.server_id can't be set while a transaction is in progress
 ROLLBACK;
 #
 # Test that SET @@session.server_id works outside transaction
@@ -20,7 +20,7 @@ SELECT @@session.server_id;
 SET autocommit = 0;
 INSERT INTO t1 VALUES (2);
 SET @@session.server_id = 200;
-ERROR HY000: Cannot set @@session.server_id within a transaction
+ERROR 25001: @@session.server_id can't be set while a transaction is in progress
 ROLLBACK;
 SET autocommit = 1;
 #
@@ -53,7 +53,7 @@ SET @@session.server_id = 100;
 END//
 BEGIN;
 CALL sp1();
-ERROR HY000: Cannot set @@session.server_id within a transaction
+ERROR 25001: @@session.server_id can't be set while a transaction is in progress
 ROLLBACK;
 DROP PROCEDURE sp1;
 #
@@ -68,7 +68,7 @@ SET @@session.server_id = 100;
 COMMIT;
 END//
 CALL sp2();
-ERROR HY000: Cannot set @@session.server_id within a transaction
+ERROR 25001: @@session.server_id can't be set while a transaction is in progress
 DROP PROCEDURE sp2;
 #
 # Cleanup
