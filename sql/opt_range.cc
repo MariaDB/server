@@ -16777,8 +16777,7 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
   uint flag= range->range_flag;
   String key_name;
   key_name.set_charset(system_charset_info);
-  key_part_map keypart_map= range->start_key.keypart_map |
-                            range->end_key.keypart_map;
+  key_part_map keypart_map= range->start_key.keypart_map;
 
   if (flag & GEOM_FLAG)
   {
@@ -16794,6 +16793,7 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
     return;
   }
 
+  keypart_map|= range->end_key.keypart_map;
   if (range->start_key.length)
   {
     print_key_value(out, key_part, range->start_key.key,
