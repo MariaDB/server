@@ -962,4 +962,21 @@ Binlog_type_info Field_geom::binlog_type_info() const
                           field_charset(), type_handler_geom()->geometry_type());
 }
 
+void
+Field_geom::print_key_part_value(String *out, const uchar* key, uint32)
+{
+  if (real_maybe_null() && *key)
+  {
+    /*
+      Byte 0 of key is the null-byte. If set, key is NULL.
+      Otherwise, print the key value starting immediately after the
+      null-byte
+    */
+    out->append(NULL_clex_str);
+    return;
+  }
+
+  out->append(STRING_WITH_LEN("unprintable_geometry_value"));
+}
+
 #endif // HAVE_SPATIAL
