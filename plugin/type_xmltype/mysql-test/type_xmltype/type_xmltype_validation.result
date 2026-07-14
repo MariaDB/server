@@ -1986,3 +1986,41 @@ select XMLISVALID(@xml, @schema);
 XMLISVALID(@xml, @schema)
 1
 # End of 11.8 tests
+SELECT XMLISVALID('<root>x</root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+       <xs:complexType name="A">
+           <xs:simpleContent>
+               <xs:extension base="B"/>
+           </xs:simpleContent>
+      </xs:complexType>
+      <xs:complexType name="B">
+          <xs:simpleContent>
+              <xs:extension base="A"/>
+          </xs:simpleContent>
+      </xs:complexType>
+
+      <xs:element name="root" type="A"/></xs:schema>') AS r;
+ERROR HY000: Invalid XML schema, type B has bad circular references.
+SELECT XMLISVALID('<root>x</root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+       <xs:complexType name="A">
+           <xs:simpleContent>
+               <xs:restriction base="B"/>
+           </xs:simpleContent>
+      </xs:complexType>
+      <xs:complexType name="B">
+          <xs:simpleContent>
+              <xs:restriction base="A"/>
+          </xs:simpleContent>
+      </xs:complexType>
+
+      <xs:element name="root" type="A"/></xs:schema>') AS r;
+ERROR HY000: Invalid XML schema, type B has bad circular references.
+SELECT XMLISVALID( '<root>x</root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+       <xs:element name="root" type="A"/>
+       <xs:simpleType name="A">
+           <xs:restriction base="A"/>
+       </xs:simpleType>
+    </xs:schema>' ) AS r;
+ERROR HY000: Invalid XML schema, type A has bad circular references.
