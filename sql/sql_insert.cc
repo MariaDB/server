@@ -2193,6 +2193,55 @@ int Write_record::replace_row(ha_rows *inserted, ha_rows *deleted)
 }
 
 
+/*
+  insert_values keeps the blob pointers of the row being inserted. They may
+  point into the buffers of Field_blob::value, which storing into the fields
+  in the UPDATE clause would overwrite or free. Keep the buffers aside until
+  insert_on_duplicate_update() returns, after which insert_values is stale.
+  With BEFORE triggers, NOT NULL columns are stored through the fields of
+  TABLE::field_to_fill(), so their buffers are kept too.
+*/
+class Insert_values_blobs
+{
+  TABLE *table;
+  String *held;
+  bool oom;
+public:
+  Insert_values_blobs(TABLE *table_arg)
+    : table(table_arg), held(NULL), oom(false)
+  {
+    uint n= table->s->blob_fields;
+    if (!n)
+      return;
+    if (!(held= (String*) my_malloc(PSI_INSTRUMENT_ME, 2 * n * sizeof(String),
+                                    MYF(MY_WME))))
+    {
+      oom= true;
+      return;
+    }
+    Field **fill= table->field_to_fill();
+    for (uint i= 0; i < 2 * n; i++)
+      ::new (&held[i]) String;
+    for (uint i= 0; i < n; i++)
+    {
+      uint fn= table->s->blob_field[i];
+      static_cast<Field_blob*>(table->field[fn])->swap(held[i], false);
+      if (fill[fn] != table->field[fn])
+        static_cast<Field_blob*>(fill[fn])->swap(held[n + i], false);
+    }
+  }
+  ~Insert_values_blobs()
+  {
+    for (uint i= 0; held && i < 2 * table->s->blob_fields; i++)
+      held[i].~String();
+    my_free(held);
+  }
+  Insert_values_blobs(const Insert_values_blobs&)= delete;
+  Insert_values_blobs &operator=(const Insert_values_blobs&)= delete;
+  bool failed() const { return oom; }
+};
+
+
 int Write_record::insert_on_duplicate_update(ha_rows *inserted,
                                              ha_rows *updated)
 {
@@ -2212,6 +2261,9 @@ int Write_record::insert_on_duplicate_update(ha_rows *inserted,
   */
   DBUG_ASSERT(table->insert_values != NULL);
   store_record(table,insert_values);
+  Insert_values_blobs insert_values_blobs(table);
+  if (unlikely(insert_values_blobs.failed()))
+    return restore_on_error();
   restore_record(table,record[1]);
   table->reset_default_fields();
 

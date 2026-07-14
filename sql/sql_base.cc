@@ -9116,6 +9116,46 @@ static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *en
 ******************************************************************************/
 
 
+/*
+  Same-type blob column assignments (UPDATE, ODKU) alias the source. That
+  breaks for SET a=.., b=a, a=.. : b points into a's buffer, which storing a
+  again overwrites or frees.
+  set() makes one assignment store by value, keeping the caller's setting.
+*/
+class Copy_blobs_guard
+{
+  TABLE *table;
+  bool saved, active;
+public:
+  Copy_blobs_guard(TABLE *table_arg, bool active_arg)
+    : table(table_arg), saved(table_arg->copy_blobs), active(active_arg) {}
+  void set(bool copy) { if (active) table->copy_blobs= saved || copy; }
+  void restore() { table->copy_blobs= saved; }
+  ~Copy_blobs_guard() { restore(); }
+};
+
+
+/*
+  A blob taken as is from a column of a row read from the engine points into
+  engine memory, which stays valid until the row is written. Anything else
+  may point into a buffer owned by a field, or needs conversion, and must be
+  copied.
+*/
+static bool blob_source_needs_copy(Field *to, Item *value)
+{
+  if (!(to->flags & BLOB_FLAG))
+    return false;
+  Item *src= value->real_item();
+  if (src->type() != Item::FIELD_ITEM)
+    return true;
+  Field *from= static_cast<Item_field*>(src)->result_field;
+  Field_blob *to_blob= static_cast<Field_blob*>(to);
+  /* blob_copy_is_verbatim() ensures 'from' is a Field_blob (type BLOB) */
+  return !to_blob->blob_copy_is_verbatim(from) || from->vcol_info ||
+         static_cast<Field_blob*>(from)->data_in_value();
+}
+
+
 /**
   Fill the fields of a table with the values of an Item list
 
@@ -9151,6 +9191,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
+  Copy_blobs_guard copy_blobs_guard(table_arg,
+                                    update && table_arg->s->blob_fields);
 
   thd->no_errors= ignore_errors;
   /*
@@ -9191,6 +9233,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     {
       if (!skip_sys_field)
       {
+        copy_blobs_guard.set(blob_source_needs_copy(rfield, value));
         if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
         {
           my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
@@ -9208,6 +9251,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                  (my_ptrdiff_t) (table->record[1] - table->record[0]));
     }
   }
+
+  /* Forced copying applies to the SET list only */
+  copy_blobs_guard.restore();
 
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
     unwind_stored_field_offsets(fields, NULL);

@@ -854,4 +854,271 @@ INSERT INTO t VALUES (0),(0);
 UPDATE t AS t1 LEFT JOIN t AS t2 ON t1.f <=> t2.f SET t2.f = NULL;
 ERROR 01000: Data truncated for column 'f' at row 4
 DROP TABLE t;
+#
+# MDEV-29510: ASAN errors upon updating a BLOB column twice in one UPDATE
+#
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=Aria;
+INSERT INTO t VALUES (1,'foo','bar'),(2,'baz','qux');
+UPDATE t SET a = 'x', b = a, a = 'foobarqux';
+SELECT pk, a, b FROM t ORDER BY pk;
+pk	a	b
+1	foobarqux	x
+2	foobarqux	x
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB, c BLOB, g TEXT,
+h TEXT, vb BLOB AS (CONCAT(a,'!')) VIRTUAL,
+tb TINYBLOB) ENGINE=Aria;
+INSERT INTO t (pk,a,b,c,g,h) VALUES (1,'foo','bar','baz','tg','th');
+# sources in the engine row buffer
+UPDATE t SET b=a, a=b;
+UPDATE t SET h=g, g=h;
+SELECT pk, a, b, g, h FROM t;
+pk	a	b	g	h
+1	foo	foo	tg	tg
+# sources in a field buffer
+UPDATE t SET a=CONCAT(a,'x'), b=a, a='y';
+SELECT pk, a, b FROM t;
+pk	a	b
+1	y	foox
+UPDATE t SET a=CONCAT(a,'x'), b=a, c=b, a=REPEAT('z',300);
+SELECT pk, LEFT(a,3), b, c FROM t;
+pk	LEFT(a,3)	b	c
+1	zzz	yx	yx
+UPDATE t SET a='m', b=a, c=b, b='n', a='o';
+SELECT pk, a, b, c FROM t;
+pk	a	b	c
+1	o	n	m
+# virtual column source
+UPDATE t SET b=vb, a='longer-than-before';
+SELECT pk, a, b, vb FROM t;
+pk	a	b	vb
+1	longer-than-before	o!	longer-than-before!
+# target shorter than the source
+UPDATE t SET a=REPEAT('a',1000);
+UPDATE t SET tb=a, a='y';
+ERROR 22001: Data too long for column 'tb' at row 1
+SELECT pk, LENGTH(a), tb FROM t;
+pk	LENGTH(a)	tb
+1	1000	NULL
+DROP TABLE t;
+# NOT NULL blobs and a trigger: the row is stored through other fields
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, b BLOB NOT NULL)
+ENGINE=Aria;
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW SET @x=1;
+INSERT INTO t VALUES (1,'foo','bar'),(2,'baz','qux');
+UPDATE t SET a='x', b=a, a=REPEAT('q',300);
+SELECT pk, LEFT(a,3), b FROM t;
+pk	LEFT(a,3)	b
+1	qqq	x
+2	qqq	x
+UPDATE t SET b=a, a=b;
+SELECT pk, LEFT(a,3), LEFT(b,3) FROM t;
+pk	LEFT(a,3)	LEFT(b,3)
+1	qqq	qqq
+2	qqq	qqq
+DROP TABLE t;
+# copy_blobs users: the source is longer than the target
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, tb TINYBLOB, at TEXT,
+tt TINYTEXT) ENGINE=Aria;
+INSERT INTO t VALUES (1,REPEAT('x',1000),'q',REPEAT('y',300),'q');
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW SET NEW.tb=NEW.a;
+UPDATE t SET pk=2;
+ERROR 22001: Data too long for column 'tb' at row 0
+DROP TRIGGER tr;
+UPDATE IGNORE t SET tt=at;
+Warnings:
+Warning	1265	Data truncated for column 'tt' at row 1
+UPDATE t SET tt=at;
+ERROR 22001: Data too long for column 'tt' at row 1
+SELECT pk, LENGTH(tb), LENGTH(tt) FROM t;
+pk	LENGTH(tb)	LENGTH(tt)
+1	1	255
+DROP TABLE t;
+# SIMULTANEOUS_ASSIGNMENT
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=Aria;
+INSERT INTO t VALUES (1,'foo','bar');
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode= CONCAT(@@sql_mode, ',SIMULTANEOUS_ASSIGNMENT');
+UPDATE t SET b=a, a=b;
+SELECT * FROM t;
+pk	a	b
+1	bar	foo
+SET sql_mode= @save_sql_mode;
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=MyISAM;
+INSERT INTO t VALUES (1,'foo','bar'),(2,'baz','qux');
+UPDATE t SET a = 'x', b = a, a = 'foobarqux';
+SELECT pk, a, b FROM t ORDER BY pk;
+pk	a	b
+1	foobarqux	x
+2	foobarqux	x
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB, c BLOB, g TEXT,
+h TEXT, vb BLOB AS (CONCAT(a,'!')) VIRTUAL,
+tb TINYBLOB) ENGINE=MyISAM;
+INSERT INTO t (pk,a,b,c,g,h) VALUES (1,'foo','bar','baz','tg','th');
+# sources in the engine row buffer
+UPDATE t SET b=a, a=b;
+UPDATE t SET h=g, g=h;
+SELECT pk, a, b, g, h FROM t;
+pk	a	b	g	h
+1	foo	foo	tg	tg
+# sources in a field buffer
+UPDATE t SET a=CONCAT(a,'x'), b=a, a='y';
+SELECT pk, a, b FROM t;
+pk	a	b
+1	y	foox
+UPDATE t SET a=CONCAT(a,'x'), b=a, c=b, a=REPEAT('z',300);
+SELECT pk, LEFT(a,3), b, c FROM t;
+pk	LEFT(a,3)	b	c
+1	zzz	yx	yx
+UPDATE t SET a='m', b=a, c=b, b='n', a='o';
+SELECT pk, a, b, c FROM t;
+pk	a	b	c
+1	o	n	m
+# virtual column source
+UPDATE t SET b=vb, a='longer-than-before';
+SELECT pk, a, b, vb FROM t;
+pk	a	b	vb
+1	longer-than-before	o!	longer-than-before!
+# target shorter than the source
+UPDATE t SET a=REPEAT('a',1000);
+UPDATE t SET tb=a, a='y';
+ERROR 22001: Data too long for column 'tb' at row 1
+SELECT pk, LENGTH(a), tb FROM t;
+pk	LENGTH(a)	tb
+1	1000	NULL
+DROP TABLE t;
+# NOT NULL blobs and a trigger: the row is stored through other fields
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, b BLOB NOT NULL)
+ENGINE=MyISAM;
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW SET @x=1;
+INSERT INTO t VALUES (1,'foo','bar'),(2,'baz','qux');
+UPDATE t SET a='x', b=a, a=REPEAT('q',300);
+SELECT pk, LEFT(a,3), b FROM t;
+pk	LEFT(a,3)	b
+1	qqq	x
+2	qqq	x
+UPDATE t SET b=a, a=b;
+SELECT pk, LEFT(a,3), LEFT(b,3) FROM t;
+pk	LEFT(a,3)	LEFT(b,3)
+1	qqq	qqq
+2	qqq	qqq
+DROP TABLE t;
+# copy_blobs users: the source is longer than the target
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, tb TINYBLOB, at TEXT,
+tt TINYTEXT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1,REPEAT('x',1000),'q',REPEAT('y',300),'q');
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW SET NEW.tb=NEW.a;
+UPDATE t SET pk=2;
+ERROR 22001: Data too long for column 'tb' at row 0
+DROP TRIGGER tr;
+UPDATE IGNORE t SET tt=at;
+Warnings:
+Warning	1265	Data truncated for column 'tt' at row 1
+UPDATE t SET tt=at;
+ERROR 22001: Data too long for column 'tt' at row 1
+SELECT pk, LENGTH(tb), LENGTH(tt) FROM t;
+pk	LENGTH(tb)	LENGTH(tt)
+1	1	255
+DROP TABLE t;
+# SIMULTANEOUS_ASSIGNMENT
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=MyISAM;
+INSERT INTO t VALUES (1,'foo','bar');
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode= CONCAT(@@sql_mode, ',SIMULTANEOUS_ASSIGNMENT');
+UPDATE t SET b=a, a=b;
+SELECT * FROM t;
+pk	a	b
+1	bar	foo
+SET sql_mode= @save_sql_mode;
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'foo','bar'),(2,'baz','qux');
+UPDATE t SET a = 'x', b = a, a = 'foobarqux';
+SELECT pk, a, b FROM t ORDER BY pk;
+pk	a	b
+1	foobarqux	x
+2	foobarqux	x
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB, c BLOB, g TEXT,
+h TEXT, vb BLOB AS (CONCAT(a,'!')) VIRTUAL,
+tb TINYBLOB) ENGINE=InnoDB;
+INSERT INTO t (pk,a,b,c,g,h) VALUES (1,'foo','bar','baz','tg','th');
+# sources in the engine row buffer
+UPDATE t SET b=a, a=b;
+UPDATE t SET h=g, g=h;
+SELECT pk, a, b, g, h FROM t;
+pk	a	b	g	h
+1	foo	foo	tg	tg
+# sources in a field buffer
+UPDATE t SET a=CONCAT(a,'x'), b=a, a='y';
+SELECT pk, a, b FROM t;
+pk	a	b
+1	y	foox
+UPDATE t SET a=CONCAT(a,'x'), b=a, c=b, a=REPEAT('z',300);
+SELECT pk, LEFT(a,3), b, c FROM t;
+pk	LEFT(a,3)	b	c
+1	zzz	yx	yx
+UPDATE t SET a='m', b=a, c=b, b='n', a='o';
+SELECT pk, a, b, c FROM t;
+pk	a	b	c
+1	o	n	m
+# virtual column source
+UPDATE t SET b=vb, a='longer-than-before';
+SELECT pk, a, b, vb FROM t;
+pk	a	b	vb
+1	longer-than-before	o!	longer-than-before!
+# target shorter than the source
+UPDATE t SET a=REPEAT('a',1000);
+UPDATE t SET tb=a, a='y';
+ERROR 22001: Data too long for column 'tb' at row 1
+SELECT pk, LENGTH(a), tb FROM t;
+pk	LENGTH(a)	tb
+1	1000	NULL
+DROP TABLE t;
+# NOT NULL blobs and a trigger: the row is stored through other fields
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, b BLOB NOT NULL)
+ENGINE=InnoDB;
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW SET @x=1;
+INSERT INTO t VALUES (1,'foo','bar'),(2,'baz','qux');
+UPDATE t SET a='x', b=a, a=REPEAT('q',300);
+SELECT pk, LEFT(a,3), b FROM t;
+pk	LEFT(a,3)	b
+1	qqq	x
+2	qqq	x
+UPDATE t SET b=a, a=b;
+SELECT pk, LEFT(a,3), LEFT(b,3) FROM t;
+pk	LEFT(a,3)	LEFT(b,3)
+1	qqq	qqq
+2	qqq	qqq
+DROP TABLE t;
+# copy_blobs users: the source is longer than the target
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, tb TINYBLOB, at TEXT,
+tt TINYTEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,REPEAT('x',1000),'q',REPEAT('y',300),'q');
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW SET NEW.tb=NEW.a;
+UPDATE t SET pk=2;
+ERROR 22001: Data too long for column 'tb' at row 0
+DROP TRIGGER tr;
+UPDATE IGNORE t SET tt=at;
+Warnings:
+Warning	1265	Data truncated for column 'tt' at row 1
+UPDATE t SET tt=at;
+ERROR 22001: Data too long for column 'tt' at row 1
+SELECT pk, LENGTH(tb), LENGTH(tt) FROM t;
+pk	LENGTH(tb)	LENGTH(tt)
+1	1	255
+DROP TABLE t;
+# SIMULTANEOUS_ASSIGNMENT
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'foo','bar');
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode= CONCAT(@@sql_mode, ',SIMULTANEOUS_ASSIGNMENT');
+UPDATE t SET b=a, a=b;
+SELECT * FROM t;
+pk	a	b
+1	bar	foo
+SET sql_mode= @save_sql_mode;
+DROP TABLE t;
 # End of MariaDB 10.11 tests

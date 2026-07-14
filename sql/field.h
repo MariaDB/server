@@ -4517,6 +4517,15 @@ public:
       return do_copy_blob;
     return get_identical_copy_func();
   }
+  /* Is 'data' in the buffer of 'value' (overwritten or freed by a store) */
+  bool in_value(const char *data) const
+  {
+    return value.is_alloced() && data >= value.ptr() &&
+           data < value.ptr() + value.alloced_length();
+  }
+  bool data_in_value() const { return in_value((const char*) get_ptr()); }
+  /* Is 'from' a blob that is stored as is, without conversion or truncation */
+  bool blob_copy_is_verbatim(const Field *from) const;
   int  store_field(Field *from) override
   {                                             // Be sure the value is stored
     if (field_charset() == &my_charset_bin &&
@@ -4527,9 +4536,28 @@ public:
       value.copy(tmp.ptr(), tmp.length(), &my_charset_bin);
       return store(value.ptr(), value.length(), &my_charset_bin);
     }
+    if (table->copy_blobs)
+    {
+      /* 'value' is the copy target: read the source into a local String */
+      String tmp;
+      from->val_str(&tmp);
+      if (tmp.length() && blob_copy_is_verbatim(from))
+      {
+        /* The data is already well-formed and fits: skip the charset check */
+        DBUG_ASSERT(marked_for_write_or_computed());
+        DBUG_ASSERT(!in_value(tmp.ptr()));
+        if (value.copy(tmp.ptr(), tmp.length(), &my_charset_bin))
+        {
+          bzero(ptr, Field_blob::pack_length());
+          return -1;
+        }
+        set_ptr(value.length(), (uchar*) value.ptr());
+        return 0;
+      }
+      return store(tmp.ptr(), tmp.length(), from->charset());
+    }
     from->val_str(&value);
-    if (table->copy_blobs ||
-        (!value.is_alloced() && from->is_varchar_and_in_write_set()))
+    if (!value.is_alloced() && from->is_varchar_and_in_write_set())
       value.copy();
     return store(value.ptr(), value.length(), from->charset());
   }
