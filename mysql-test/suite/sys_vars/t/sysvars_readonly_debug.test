@@ -15,3 +15,12 @@ set @@global.skip_name_resolve=0;
 set @@debug_dbug='d,set_skip_name_resolve';
 --enable_reconnect
 --source include/wait_until_connected_again.inc
+
+select @@global.version;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@global.version=0;
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013,2026
+set @@debug_dbug='d,set_version_buf';
+--enable_reconnect
+--source include/wait_until_connected_again.inc

@@ -9,3 +9,10 @@ set @@global.skip_name_resolve=0;
 ERROR HY000: Variable 'skip_name_resolve' is a read only variable
 set @@debug_dbug='d,set_skip_name_resolve';
 Got one of the listed errors
+select @@global.version;
+@@global.version
+12.11.10-fake-version-for-the-test
+set @@global.version=0;
+ERROR HY000: Variable 'version' is a read only variable
+set @@debug_dbug='d,set_version_buf';
+Got one of the listed errors
