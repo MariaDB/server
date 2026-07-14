@@ -4101,7 +4101,6 @@ static int find_used_partitions_imerge(PART_PRUNE_PARAM *ppar,
                                        SEL_IMERGE *imerge);
 static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
                                             List<SEL_IMERGE> &merges);
-static void mark_all_partitions_as_used(partition_info *part_info);
 
 #ifndef DBUG_OFF
 static void print_partitioning_index(KEY_PART *parts, KEY_PART *parts_end);
@@ -4118,13 +4117,28 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num);
   @param      table          Table to perform partition pruning for
   @param      pprune_cond    Condition to use for partition pruning
   
+  @param[in]  part_info->read_partitions
+              Candidate partitions to scan; normally all partitions (or the
+              PARTITION() set), possibly already restricted (e.g. to the
+              current partition of a versioned table)
+
+  @param[out] part_info->read_partitions
+              Narrowed to the partitions that may hold records matching the
+              condition; never widened
+
   @note This function assumes that lock_partitions are setup when it
   is invoked. The function analyzes the condition, finds partitions that
   need to be used to retrieve the records that match the condition, and 
-  marks them as used by setting appropriate bit in part_info->read_partitions
-  In the worst case all partitions are marked as used. If the table is not
-  yet locked, it will also unset bits in part_info->lock_partitions that is
-  not set in read_partitions.
+  narrows part_info->read_partitions to them.
+  If the table is not yet locked, it will also unset bits in
+  part_info->lock_partitions that is not set in read_partitions.
+
+  The matching set is computed independently of the incoming
+  read_partitions/lock_partitions: the analysis walks the whole partition
+  list (or only the value interval derived from the condition for
+  range-capable partitioning), and the result is then intersected into
+  read_partitions. A restriction already present in read_partitions
+  therefore narrows the outcome but does not reduce the pruning work.
 
   This function returns promptly if called for non-partitioned table.
 
@@ -4142,11 +4156,18 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   if (!part_info)
     DBUG_RETURN(FALSE); /* not a partitioned table */
   
+  /*
+    Must be a subset of the locked partitions.
+    lock_partitions contains the partitions marked by explicit partition
+    selection (... t PARTITION (pX) ...) and we must only use partitions
+    within that set. read_partitions may be wider on entry: e.g.
+    check_insert_or_replace_autoincrement() sets all bits for
+    INSERT/REPLACE ... SELECT. Done before the early returns below.
+  */
+  bitmap_intersect(&part_info->read_partitions, &part_info->lock_partitions);
+
   if (!pprune_cond)
-  {
-    mark_all_partitions_as_used(part_info);
     DBUG_RETURN(FALSE);
-  }
   
   PART_PRUNE_PARAM prune_param;
   MEM_ROOT alloc;
@@ -4162,7 +4183,6 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 
   if (create_partition_index_description(&prune_param))
   {
-    mark_all_partitions_as_used(part_info);
     free_root(&alloc,MYF(0));		// Return memory & allocator
     DBUG_RETURN(FALSE);
   }
@@ -4264,24 +4284,15 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 
 all_used:
   retval= FALSE; // some partitions are used
-  mark_all_partitions_as_used(prune_param.part_info);
   goto all_used_end;
 end:
-  bitmap_copy(&prune_param.part_info->read_partitions,
-              &prune_param.parts_bitmap);
+  bitmap_intersect(&prune_param.part_info->read_partitions,
+                   &prune_param.parts_bitmap);
 all_used_end:
   dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
-  /*
-    Must be a subset of the locked partitions.
-    lock_partitions contains the partitions marked by explicit partition
-    selection (... t PARTITION (pX) ...) and we must only use partitions
-    within that set.
-  */
-  bitmap_intersect(&prune_param.part_info->read_partitions,
-                   &prune_param.part_info->lock_partitions);
   /*
     If not yet locked, also prune partitions to lock if not UPDATEing
     partition key fields. This will also prune lock_partitions if we are under
@@ -4949,13 +4960,6 @@ pop_and_go_right:
   return (left_res || right_res || res);
 }
  
-
-static void mark_all_partitions_as_used(partition_info *part_info)
-{
-  bitmap_copy(&(part_info->read_partitions),
-              &(part_info->lock_partitions));
-}
-
 
 /*
   Check if field types allow to construct partitioning index description

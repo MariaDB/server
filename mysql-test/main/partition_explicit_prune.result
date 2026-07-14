@@ -2006,3 +2006,26 @@ drop table t1;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-17613 Read sole now-partition for non-historical versioned query
+#
+# INSERT ... SELECT from explicit PARTITION() without WHERE must not
+# read partitions outside of it (read_partitions widened by auto-increment)
+#
+create table t1 (id int auto_increment primary key, x int)
+partition by range (id) (
+partition p0 values less than (10),
+partition p1 values less than maxvalue);
+insert into t1 values (1, 1), (2, 2), (11, 11), (12, 12);
+create table t2 (id int, x int);
+# Fresh share: auto-increment is not initialized yet
+flush tables;
+insert into t2 select * from t1 partition (p0);
+select * from t2;
+id	x
+1	1
+2	2
+drop tables t1, t2;
+#
+# End of 10.11 tests
+#
