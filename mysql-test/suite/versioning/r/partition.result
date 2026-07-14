@@ -421,7 +421,7 @@ i
 6
 explain partitions select * from t1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	t1	pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	#	
 explain partitions select * from t1 for system_time as of '2001-02-04 10:20:30';
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p0_p0sp0,p0_p0sp1,p2_p2sp0,p2_p2sp1,pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	#	Using where
@@ -3641,5 +3641,59 @@ Table	Op	Msg_type	Msg_text
 test.t	repair	status	OK
 drop table t;
 set timestamp=default;
+#
+# MDEV-17613 Read sole now-partition for non-historical versioned query
+#
+create table t1 (
+id int,
+ts timestamp(6) generated always as row start invisible,
+te timestamp(6) generated always as row end invisible,
+primary key (id, te),
+period for system_time (ts, te)
+) with system versioning
+partition by system_time interval 1 month (
+partition p0 history, partition p1 history, partition pcur current);
+insert t1 values (1), (2), (0);
+delete from t1 where id = 1;
+select * from t1;
+id
+0
+2
+# Below there should be: Select tables optimized away
+# (except heap combination)
+explain extended select max(id) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+Warnings:
+Note	1003	select max(`test`.`t1`.`id`) AS `max(id)` from `test`.`t1`
+drop tables t1;
+# Corner cases: outer and sysvar-set FOR SYSTEM_TIME
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (id int)
+with system versioning
+partition by system_time interval 1 hour
+starts timestamp'2000-01-01 00:00:00' (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set id= 2;
+# implicit query reads only the current partition (id=2):
+select id from t1;
+id
+2
+# outer FOR SYSTEM_TIME must propagate into derived t1 and read history (id=1):
+select * from (select id from t1) for system_time as of timestamp'2000-01-01 01:00:00' as dt;
+id
+1
+# system_versioning_asof must be honored and read history (id=1):
+set system_versioning_asof= '2000-01-01 01:00:00';
+select id from t1;
+id
+1
+set system_versioning_asof= default;
+set timestamp= default;
+drop table t1;
 # End of 10.11 tests
 set global innodb_stats_persistent= @save_persistent;

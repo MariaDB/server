@@ -2261,7 +2261,35 @@ public:
 
 struct vers_select_conds_t
 {
+  /*
+    Effective system-time selection used to build the actual row condition
+    (row_start/row_end predicate). is_set() tests it against SYSTEM_TIME_UNSPECIFIED.
+    set_all() forces it to SYSTEM_TIME_ALL in three situations:
+
+      1) once the row_start/row_end predicate for the requested time has been
+         generated and attached to the query - marking it applied so a later pass
+         or the next prepared-statement execution neither rebuilds nor re-applies
+         it (guarded by "if (type == SYSTEM_TIME_ALL) continue");
+
+      2) a versioned table whose history is stored in partitions is queried with
+         an explicit PARTITION(...) clause - the named partitions are read as-is,
+         without a versioning predicate;
+
+      3) the same kind of table queried implicitly (no FOR SYSTEM_TIME) -
+         read_partitions is narrowed to the now-partition, which takes the place
+         of the row_end predicate.
+
+    Because set_all() overwrites 'type', orig_type preserves what was actually
+    requested.
+  */
   vers_system_time_t type;
+  /*
+    Originally requested system-time selection, set by init() from an explicit
+    FOR SYSTEM_TIME clause or by init_from_sysvar() from @@system_versioning_asof.
+    Unlike 'type' it is NOT overwritten by set_all(), so it still reflects the
+    request after the predicate has been applied. Tested by was_set(); used by
+    print() to reconstruct the FOR SYSTEM_TIME clause.
+  */
   vers_system_time_t orig_type;
   bool used:1;
   bool delete_history:1;
