@@ -3067,11 +3067,10 @@ my_bool init_key_info(THD *thd, Alter_info *alter_info,
 
       if (is_hash_field_needed)
       {
-        if (key_cinfo->algorithm == HA_KEY_ALG_UNDEF)
+        if (key_cinfo->algorithm == HA_KEY_ALG_UNDEF || key_cinfo->algorithm == HA_KEY_ALG_HASH)
           key_cinfo->algorithm= HA_KEY_ALG_LONG_HASH;
 
-        if (key_cinfo->algorithm != HA_KEY_ALG_HASH &&
-            key_cinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+        if (key_cinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
           DBUG_RETURN(TRUE);
