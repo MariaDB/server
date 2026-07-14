@@ -153,6 +153,13 @@ public:
     return false;
   }
 
+
+  /*
+    Check for bad circular references.
+    TODO: add check for the 'final' type extensions.
+  */
+  virtual bool check_type() { return FALSE; }
+
   /* Validation of an XML. */
 
   /* check the name of the rule. */
@@ -577,6 +584,7 @@ public:
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
 
+  bool check_type() override;
   void validate_prepare() override;
   bool validate_value(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override;
@@ -1317,6 +1325,15 @@ public:
   }
   bool leave(MY_XML_VALIDATION_DATA *st,
             const char *attr, size_t len) override;
+  bool check_type() override
+  {
+    return m_compositor->check_type();
+  }
+  void get_type_name(LEX_CSTRING *name) const
+  {
+    name->str= m_type_name.m_val;
+    name->length= m_type_name.m_val_len;
+  }
   bool validate_name(const char *attr, size_t len) override
   {
     return m_type_name.eq_value(attr, len);
@@ -1436,11 +1453,14 @@ class XMLSchema_restriction_in_simpleType: public XMLSchema_tag
   /* enum */
   XMLSchema_enum_facet *m_enumeration;
 
+  bool m_in_check_type;
+
 public:
   XMLSchema_restriction_in_simpleType(): XMLSchema_tag(),
     m_base_type(NULL),
     m_base(&xs_base),
-    m_enumeration(NULL)
+    m_enumeration(NULL),
+    m_in_check_type(FALSE)
   {
     declare_attribute(&m_base);
   }
@@ -1450,6 +1470,17 @@ public:
             const char *attr, size_t len) override;
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
+  bool check_type() override
+  {
+    bool res;
+    if (m_in_check_type)
+      return TRUE;   /* circular restrictions are not allowed. */
+
+    m_in_check_type= true;
+    res= m_base_type->check_type();
+    m_in_check_type= false;
+    return res;
+  }
   void validate_prepare() override
   {
     m_base_type->validate_prepare();
@@ -1500,10 +1531,11 @@ class XMLSchema_extension_in_simpleContent: public XMLSchema_tag
 {
   XMLSchema_tag_attribute m_base;
   XMLSchema_std_attributes m_attributes;
+  bool m_in_check_type; /* needed to check for circular extensions. */
 public:
   XMLSchema_type *m_base_type;
   XMLSchema_extension_in_simpleContent(): XMLSchema_tag(),
-    m_base(&xs_base), m_base_type(NULL)
+    m_base(&xs_base), m_in_check_type(false), m_base_type(NULL)
   {
     declare_attribute(&m_base);
   }
@@ -1521,6 +1553,17 @@ public:
             const char *attr, size_t len) override;
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
+
+  bool check_type() override
+  {
+    bool res;
+    if (m_in_check_type) /* circular extensions not allowed. */
+      return TRUE;
+    m_in_check_type= true;
+    res= m_base_type->check_type();
+    m_in_check_type= false;
+    return res;
+  }
 
   void validate_prepare() override
   {
@@ -1595,6 +1638,7 @@ public:
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
   bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override;
+  bool check_type() override { return m_nested->check_type(); }
   void validate_prepare() override { m_nested->validate_prepare(); }
   bool validate_attr(MY_XML_VALIDATION_DATA *st,
                      const char *attr, size_t len) override
@@ -1658,6 +1702,15 @@ public:
   {
     *m_tags_hook= NULL;
     return XMLSchema_tag::leave(st, attr, len);
+  }
+  bool check_type() override
+  {
+    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+    {
+      if(cur->check_type())
+        return TRUE;
+    }
+    return FALSE;
   }
   void validate_prepare() override
   {
@@ -1893,6 +1946,10 @@ public:
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
 
+  bool check_type() override
+  {
+    return m_group->m_compositor->check_type();
+  }
   void validate_prepare() override
   {
     m_group->m_compositor->validate_prepare();
@@ -2107,6 +2164,7 @@ public:
 
   XMLSchema_type *find_simple_type(const char *name, size_t len) const;
   XMLSchema_type *find_complex_type(const char *name, size_t len) const;
+  bool check_types(LEX_CSTRING *bad_type);
 };
 
 
@@ -3232,6 +3290,30 @@ XMLSchema_type *XMLSchema_schema::find_complex_type(
   return NULL;
 }
 
+bool XMLSchema_schema::check_types(LEX_CSTRING *bad_type)
+{
+  XMLSchema_user_type *t;
+
+  for(t= m_global_complexTypes; t; t= t->m_next_type)
+  {
+    if (t->check_type())
+    {
+      t->get_type_name(bad_type);
+      return TRUE;
+    }
+  }
+
+  for(t= m_global_simpleTypes; t; t= t->m_next_type)
+  {
+    if (t->check_type())
+    {
+      t->get_type_name(bad_type);
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
 
 XMLSchema_type *XMLSchema_schema::find_simple_type_by_name(
    MY_XML_VALIDATION_DATA *st, const char *name, size_t len) const
@@ -3314,6 +3396,12 @@ bool XMLSchema_schema::validate_element(MY_XML_VALIDATION_DATA *st,
   e->validate_prepare();
   st->push(e);
   return MY_XML_OK;
+}
+
+
+bool XMLSchema_attribute::check_type()
+{
+  return m_type->check_type();
 }
 
 
@@ -3469,6 +3557,15 @@ static int schema_parse(THD *thd, const String *xml,
         rc= 1;
         goto exit;
       }
+    }
+
+    if (user_data->schema->check_types(&bad_type))
+    {
+      my_printf_error(ER_UNKNOWN_ERROR,
+          "Invalid XML schema, type %.*s has bad circular references.", MYF(0),
+          (int) bad_type.length, bad_type.str);
+      rc= 1;
+      goto exit;
     }
   }
 
