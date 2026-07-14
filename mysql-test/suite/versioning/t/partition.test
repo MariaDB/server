@@ -969,6 +969,17 @@ update v1 set f= '';
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 delete from v1;
 
+--echo # system_versioning_asof is ignored by DML, so it does not cause ER_TABLE_NOT_LOCKED_FOR_WRITE
+create or replace view v1 as select * from t1;
+set system_versioning_asof= '2000-01-01 00:00:00';
+select * from v1;
+select * from v1 for update;
+--enable_info
+update v1 set f= '';
+delete from v1;
+--disable_info
+set system_versioning_asof= default;
+
 # cleanup
 drop view v1;
 drop table t1;
@@ -2867,6 +2878,139 @@ create table t (x int) with system versioning partition by system_time interval 
 repair table t;
 drop table t;
 set timestamp=default;
+
+--echo #
+--echo # MDEV-17613 Read sole now-partition for non-historical versioned query
+--echo #
+create table t1 (
+  id int,
+  ts timestamp(6) generated always as row start invisible,
+  te timestamp(6) generated always as row end invisible,
+  primary key (id, te),
+  period for system_time (ts, te)
+) with system versioning
+partition by system_time interval 1 month (
+  partition p0 history, partition p1 history, partition pcur current);
+
+insert t1 values (1), (2), (0);
+delete from t1 where id = 1;
+select * from t1;
+--echo # Below there should be: Select tables optimized away
+--echo # (except heap combination)
+explain extended select max(id) from t1;
+--echo # Exact COUNT(*) (MyISAM, heap) must not count history rows
+select count(*) from t1;
+--echo # UPDATE without WHERE changes only current rows
+update t1 set id= id + 10;
+--sorted_result
+select * from t1;
+select count(*) from t1 for system_time all;
+--echo # sql_safe_updates rejects DELETE without WHERE even with LIMIT,
+--echo # as for a non-versioned table
+set sql_safe_updates= 1;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1 limit 1;
+set sql_safe_updates= default;
+--echo # DELETE without WHERE removes only current rows
+delete from t1;
+select count(*) from t1;
+select count(*) from t1 for system_time all;
+
+drop tables t1;
+
+--echo # Multi-table DELETE/UPDATE under sql_safe_updates: checks use the
+--echo # written WHERE and the join access types, as before
+create table t1 (x int) with system versioning
+partition by system_time (partition p0 history, partition pn current);
+create table t2 (y int);
+insert into t1 values (1), (2);
+insert into t2 values (1), (2);
+set sql_safe_updates= 1;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete t1 from t1, t2;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+update t1, t2 set t1.x= t2.y;
+--echo # LIMIT does not exempt multi-table UPDATE from the full join check
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+update t1, t2 set t1.x= t2.y order by t1.x limit 1;
+set sql_safe_updates= default;
+drop tables t1, t2;
+
+--echo # As for a non-versioned table, an index on row_end does not exempt
+--echo # UPDATE/DELETE without WHERE: UPDATE needs LIMIT, DELETE is rejected
+create table t1 (
+  x int,
+  ts timestamp(6) as row start invisible,
+  te timestamp(6) as row end invisible,
+  period for system_time (ts, te),
+  key (te)
+) with system versioning
+partition by system_time (partition p0 history, partition pn current);
+insert into t1 values (1), (2);
+set sql_safe_updates= 1;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+update t1 set x= x + 1;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1;
+update t1 set x= x + 1 limit 1;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1 limit 1;
+set sql_safe_updates= default;
+drop table t1;
+
+--echo # Corner cases: outer and sysvar-set FOR SYSTEM_TIME
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (id int)
+with system versioning
+partition by system_time interval 1 hour
+starts timestamp'2000-01-01 00:00:00' (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set id= 2;
+--echo # implicit query reads only the current partition (id=2):
+select id from t1;
+--echo # outer FOR SYSTEM_TIME must propagate into derived t1 and read history (id=1):
+select * from (select id from t1) for system_time as of timestamp'2000-01-01 01:00:00' as dt;
+--echo # system_versioning_asof must be honored and read history (id=1):
+set system_versioning_asof= '2000-01-01 01:00:00';
+select id from t1;
+set system_versioning_asof= default;
+--echo # re-execution reads only the current partition (id=2):
+prepare s from 'select id from t1';
+execute s;
+execute s;
+deallocate prepare s;
+create procedure sp() select id from t1;
+call sp;
+call sp;
+drop procedure sp;
+--echo # the same through merged derived table and view (id=2):
+create view v1 as select id from t1;
+prepare s from 'select id from (select id from t1) dt';
+execute s;
+execute s;
+deallocate prepare s;
+prepare s from 'select id from v1';
+execute s;
+execute s;
+deallocate prepare s;
+create procedure sp() select id from (select id from t1) dt;
+call sp;
+call sp;
+drop procedure sp;
+drop view v1;
+--echo # re-execution with system_versioning_asof reads history (id=1):
+set system_versioning_asof= '2000-01-01 01:00:00';
+prepare s from 'select id from t1';
+execute s;
+execute s;
+deallocate prepare s;
+set system_versioning_asof= default;
+set timestamp= default;
+drop table t1;
 
 --echo # End of 10.11 tests
 

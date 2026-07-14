@@ -4119,12 +4119,14 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num);
   
   @param[in]  part_info->read_partitions
               Candidate partitions to scan; normally all partitions (or the
-              PARTITION() set), possibly already restricted (e.g. to the
-              current partition of a versioned table)
+              PARTITION() set)
 
   @param[out] part_info->read_partitions
               Narrowed to the partitions that may hold records matching the
-              condition; never widened
+              condition. For a versioned table with history partitions
+              accessed without FOR SYSTEM_TIME, PARTITION() and
+              @@system_versioning_asof, also narrowed to the now-partition,
+              with or without a condition. Never widened.
 
   @note This function assumes that lock_partitions are setup when it
   is invoked. The function analyzes the condition, finds partitions that
@@ -4156,6 +4158,28 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   if (!part_info)
     DBUG_RETURN(FALSE); /* not a partitioned table */
   
+  /*
+    Read only now_part, as vers_setup_conds() did not add the row_end condition.
+    Done here as prune_partitions() runs on each execution, also for merged
+    derived tables and views, for which vers_setup_conds() is not called
+    again.
+  */
+  if (TABLE_LIST *tl= table->pos_in_table_list)
+  {
+    if (part_info->vers_info && !tl->partition_names &&
+        !tl->vers_conditions.was_set() && !tl->vers_conditions.from_sysvar)
+    {
+      DBUG_ASSERT(part_info->vers_info->initialized());
+      uint32 end;
+      const uint32 start=
+        part_info->vers_info->now_part->bitmap_range(part_info->num_subparts,
+                                                     end);
+      for (uint32 i= 0; i < part_info->read_partitions.n_bits; i++)
+        if (i < start || i >= end)
+          bitmap_clear_bit(&part_info->read_partitions, i);
+    }
+  }
+
   /*
     Must be a subset of the locked partitions.
     lock_partitions contains the partitions marked by explicit partition

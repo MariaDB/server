@@ -1,5 +1,5 @@
---- partition.result	2024-07-19 08:48:17.680094893 +0200
-+++ partition,heap.result	2024-07-19 11:32:08.570439183 +0200
+--- partition.result
++++ partition,heap.reject
 @@ -2244,85 +2244,6 @@
  (PARTITION `p0` HISTORY ENGINE = X,
   PARTITION `pn` CURRENT ENGINE = X)
@@ -221,3 +221,19 @@
  # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
  set timestamp= unix_timestamp('2000-01-01 00:00:00');
  create or replace table t1 (x int primary key) with system versioning
+@@ -3657,13 +3450,13 @@
+ delete from t1 where id = 1;
+ select * from t1;
+ id
+-0
+ 2
++0
+ # Below there should be: Select tables optimized away
+ # (except heap combination)
+ explain extended select max(id) from t1;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
++1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+ Warnings:
+ Note	1003	select max(`test`.`t1`.`id`) AS `max(id)` from `test`.`t1`
+ drop tables t1;
