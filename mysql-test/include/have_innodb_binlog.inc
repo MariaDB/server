@@ -1,1 +1,2 @@
+--source include/not_embedded.inc
 --source include/have_innodb.inc
