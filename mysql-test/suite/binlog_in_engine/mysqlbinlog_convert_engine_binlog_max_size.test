@@ -1,0 +1,40 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--let $datadir= `SELECT @@datadir`
+
+--source include/reset_master.inc
+
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, REPEAT('a', 48 * 1024));
+INSERT INTO t1 VALUES (2, REPEAT('b', 48 * 1024));
+INSERT INTO t1 VALUES (3, REPEAT('c', 48 * 1024));
+
+# Complete binlog-000000.ibb and wait until it is available on disk.
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+
+--echo *** Convert with a 32K maximum output binlog size
+--exec $MYSQL_BINLOG --convert-engine-binlog --max-binlog-size=32768 --result-file=$MYSQL_TMP_DIR/max_size_conv $datadir/binlog-000000.ibb
+
+# Rotation is checked at transaction boundaries. The first large INSERT stays
+# in the initial file; each following INSERT starts a new output file.
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000001
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000002
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000003
+
+--echo *** Rotated files form a replayable binlog sequence
+--exec $MYSQL_BINLOG --gtid-strict-mode=0 $MYSQL_TMP_DIR/max_size_conv.000001 $MYSQL_TMP_DIR/max_size_conv.000002 $MYSQL_TMP_DIR/max_size_conv.000003 > $MYSQLTEST_VARDIR/tmp/max_size_replay.sql
+DROP TABLE t1;
+--exec $MYSQL --abort-source-on-error -e "source $MYSQLTEST_VARDIR/tmp/max_size_replay.sql;" test
+--remove_file $MYSQLTEST_VARDIR/tmp/max_size_replay.sql
+
+SELECT a, LENGTH(b) FROM t1 ORDER BY a;
+
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000001
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000002
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000003
+DROP TABLE t1;

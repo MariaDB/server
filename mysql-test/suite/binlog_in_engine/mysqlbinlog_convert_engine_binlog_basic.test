@@ -5,7 +5,6 @@
 #   binlogs (.ibb) into legacy-format binary log 
 #
 
---source include/have_binlog_format_row.inc
 --source include/have_innodb_binlog.inc
 
 --let $datadir= `SELECT @@datadir`

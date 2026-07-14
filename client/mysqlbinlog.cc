@@ -129,6 +129,7 @@ static my_bool debug_info_flag, debug_check_flag;
 static my_bool force_if_open_opt= 1;
 static my_bool opt_raw_mode= 0, opt_stop_never= 0;
 static my_bool opt_convert_engine_binlog= 0;
+static ulong opt_max_binlog_size= 1024L * 1024L * 1024L;
 my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
@@ -1943,7 +1944,6 @@ static void generate_output_legacy_binlog_name(char *out_name, size_t out_name_l
 static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
                                       size_t out_name_len)
 {
-
   /* Reset the log_file_pos to 0 for the new output legacy binlog file */
   log_file_pos= 0;
 
@@ -2005,6 +2005,23 @@ static bool init_output_legacy_binlog(FILE **out_file, char *out_name,
   return false;
 }
 
+static bool rotate_output_legacy_binlog(FILE **out_file, char *out_name,
+                                        size_t out_name_len)
+{
+  char next_out_file_name[FN_REFLEN + 1];
+  generate_output_legacy_binlog_name(next_out_file_name,
+                                     sizeof(next_out_file_name),
+                                     convert_engine_output_index + 1);
+
+  if (write_rotate_log_event_to_legacy_binlog(*out_file, next_out_file_name))
+    return true;
+
+  my_fclose(*out_file, MYF(0));
+  *out_file= NULL;
+
+  return init_output_legacy_binlog(out_file, out_name, out_name_len);
+}
+
 /*
   Writes the event to the converted legacy binlog file
   @param ev: The event to write
@@ -2024,18 +2041,9 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
     // close the output legacy binlog file if it is open
     if (output_legacy_binlog_file)
     {
-      char next_out_file_name[FN_REFLEN + 1];
-      generate_output_legacy_binlog_name(next_out_file_name,
-                                         sizeof(next_out_file_name),
-                                         convert_engine_output_index + 1);
-
-      /* Write the ROTATE_EVENT to the output legacy binlog file */
-      if (write_rotate_log_event_to_legacy_binlog(output_legacy_binlog_file,
-                                                  next_out_file_name))
+      if (rotate_output_legacy_binlog(&output_legacy_binlog_file,
+                                      out_file_name, sizeof(out_file_name)))
         goto err;
-
-      my_fclose(output_legacy_binlog_file, MYF(0));
-      output_legacy_binlog_file= NULL;
     }
 
     return OK_CONTINUE;
@@ -2051,6 +2059,17 @@ static Exit_status write_event_to_legacy_binlog(Log_event *ev)
 
     if (init_output_legacy_binlog(&output_legacy_binlog_file, out_file_name,
                                   sizeof(out_file_name)))
+      goto err;
+  }
+
+  /*
+    Rotate the output legacy binlog file once the max binlog size is reached.
+  */
+  if (ev->get_type_code() == GTID_EVENT &&
+      log_file_pos >= opt_max_binlog_size)
+  {
+    if (rotate_output_legacy_binlog(&output_legacy_binlog_file, out_file_name,
+                                    sizeof(out_file_name)))
       goto err;
   }
 
@@ -2150,6 +2169,11 @@ static struct my_option my_options[] =
    "Convert InnoDB based engine binlog files to legacy binlog files.",
    &opt_convert_engine_binlog, &opt_convert_engine_binlog, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   /* TODO: Tarun what should be the max value? */
+  {"max-binlog-size", 0,
+   "Maximum size of converted legacy binlog files.",
+   &opt_max_binlog_size, &opt_max_binlog_size, 0, GET_ULONG, REQUIRED_ARG,
+   1024L * 1024L * 1024L, IO_SIZE, 1024L * 1024L * 1024L, 0, IO_SIZE, 0},
   {"flashback", 'B', "Flashback feature can rollback you committed data to a special time point.",
 #ifdef WHEN_FLASHBACK_REVIEW_READY
    "before Flashback feature writing a row, original row can insert to review-dbname.review-tablename,"
