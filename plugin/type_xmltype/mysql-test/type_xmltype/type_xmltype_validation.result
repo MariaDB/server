@@ -2065,3 +2065,19 @@ SELECT XMLISVALID('<root/>',
         </xs:complexType>
      </xs:schema>') AS r;
 ERROR HY000: Incorrect XML value: 'XML Schema parse error at line 4 pos 32: '
+SELECT XMLISVALID('<root/>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:group name="g"/>
+        <xs:element name="root" type="t"/>
+        <xs:complexType name="t">
+            <xs:group ref="g"/>
+        </xs:complexType></xs:schema>') AS r;
+ERROR HY000: Incorrect XML value: 'XML Schema parse error at line 2 pos 29: '
+SELECT XMLISVALID('<root> <tag /> </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:group name="g"/>
+        <xs:element name="root" type="t"/>
+        <xs:complexType name="t">
+            <xs:group ref="g"/>
+        </xs:complexType></xs:schema>') AS r;
+ERROR HY000: Incorrect XML value: 'XML Schema parse error at line 2 pos 29: '
