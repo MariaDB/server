@@ -472,4 +472,157 @@ insert into t1 set j =  (value (j)) on duplicate key update i = default;
 insert into t1 set j =  (value (j)) on duplicate key update i = default;
 drop table t1;
 drop sequence s;
+#
+# MDEV-29510: ASAN errors upon updating a BLOB column twice in one UPDATE
+#
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=Aria;
+INSERT INTO t VALUES (1,'foobarqux','x'),(2,'baz','qux');
+INSERT INTO t VALUES (1,'z','z'),(2,'z','z')
+ON DUPLICATE KEY UPDATE a = 'x', b = a, a = 'foobarqux';
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	foobarqux	x
+2	foobarqux	x
+INSERT INTO t VALUES (1,'v1','v2') ON DUPLICATE KEY UPDATE b = a, a = VALUES(a);
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	v1	foobarqux
+2	foobarqux	x
+INSERT INTO t SELECT 2,'z','z' ON DUPLICATE KEY UPDATE a = 'x', b = a, a = 'y';
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	v1	foobarqux
+2	y	x
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE b = VALUES(a), a = VALUES(b);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	v2	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'xxxxxxxxxxxx', b = VALUES(a);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	xxxxxxxxxxxx	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'x', b = a, a = VALUES(b);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	v2	x
+DROP TABLE t;
+# NOT NULL blobs and a trigger: the row is stored through other fields
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, b BLOB NOT NULL)
+ENGINE=Aria;
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SET @x=1;
+INSERT INTO t VALUES (1,'v1','v2');
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE b = VALUES(a), a = VALUES(b);
+SELECT * FROM t;
+pk	a	b
+1	v2	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'xxxxxxxxxxxx', b = VALUES(a);
+SELECT * FROM t;
+pk	a	b
+1	xxxxxxxxxxxx	v1
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=MyISAM;
+INSERT INTO t VALUES (1,'foobarqux','x'),(2,'baz','qux');
+INSERT INTO t VALUES (1,'z','z'),(2,'z','z')
+ON DUPLICATE KEY UPDATE a = 'x', b = a, a = 'foobarqux';
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	foobarqux	x
+2	foobarqux	x
+INSERT INTO t VALUES (1,'v1','v2') ON DUPLICATE KEY UPDATE b = a, a = VALUES(a);
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	v1	foobarqux
+2	foobarqux	x
+INSERT INTO t SELECT 2,'z','z' ON DUPLICATE KEY UPDATE a = 'x', b = a, a = 'y';
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	v1	foobarqux
+2	y	x
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE b = VALUES(a), a = VALUES(b);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	v2	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'xxxxxxxxxxxx', b = VALUES(a);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	xxxxxxxxxxxx	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'x', b = a, a = VALUES(b);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	v2	x
+DROP TABLE t;
+# NOT NULL blobs and a trigger: the row is stored through other fields
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, b BLOB NOT NULL)
+ENGINE=MyISAM;
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SET @x=1;
+INSERT INTO t VALUES (1,'v1','v2');
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE b = VALUES(a), a = VALUES(b);
+SELECT * FROM t;
+pk	a	b
+1	v2	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'xxxxxxxxxxxx', b = VALUES(a);
+SELECT * FROM t;
+pk	a	b
+1	xxxxxxxxxxxx	v1
+DROP TABLE t;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB, b BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,'foobarqux','x'),(2,'baz','qux');
+INSERT INTO t VALUES (1,'z','z'),(2,'z','z')
+ON DUPLICATE KEY UPDATE a = 'x', b = a, a = 'foobarqux';
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	foobarqux	x
+2	foobarqux	x
+INSERT INTO t VALUES (1,'v1','v2') ON DUPLICATE KEY UPDATE b = a, a = VALUES(a);
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	v1	foobarqux
+2	foobarqux	x
+INSERT INTO t SELECT 2,'z','z' ON DUPLICATE KEY UPDATE a = 'x', b = a, a = 'y';
+SELECT * FROM t ORDER BY pk;
+pk	a	b
+1	v1	foobarqux
+2	y	x
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE b = VALUES(a), a = VALUES(b);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	v2	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'xxxxxxxxxxxx', b = VALUES(a);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	xxxxxxxxxxxx	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'x', b = a, a = VALUES(b);
+SELECT * FROM t WHERE pk=1;
+pk	a	b
+1	v2	x
+DROP TABLE t;
+# NOT NULL blobs and a trigger: the row is stored through other fields
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, b BLOB NOT NULL)
+ENGINE=InnoDB;
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SET @x=1;
+INSERT INTO t VALUES (1,'v1','v2');
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE b = VALUES(a), a = VALUES(b);
+SELECT * FROM t;
+pk	a	b
+1	v2	v1
+INSERT INTO t VALUES (1,'v1','v2')
+ON DUPLICATE KEY UPDATE a = 'xxxxxxxxxxxx', b = VALUES(a);
+SELECT * FROM t;
+pk	a	b
+1	xxxxxxxxxxxx	v1
+DROP TABLE t;
 # End of 10.11 tests

@@ -8807,6 +8807,16 @@ int Field_blob::copy_value(Field_blob *from)
 }
 
 
+bool Field_blob::blob_copy_is_verbatim(const Field *from) const
+{
+  return type() == MYSQL_TYPE_BLOB && from->type() == MYSQL_TYPE_BLOB &&
+         from->pack_length() == Field_blob::pack_length() &&
+         from->charset() == field_charset() &&
+         !compression_method() && !from->compression_method() &&
+         !f_is_hex_escape(flags) && !table->blob_storage;
+}
+
+
 int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
