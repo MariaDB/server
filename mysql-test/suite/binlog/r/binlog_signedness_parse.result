@@ -1,0 +1,77 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+#
+# Test 1: Non-numeric column between two numeric columns does not
+#         consume a signedness bit (signed INT, CHAR, unsigned INT)
+#
+CREATE TABLE t1(c_signed INT, c_char CHAR(10), c_unsigned INT UNSIGNED);
+INSERT INTO t1 VALUES(-1, 'x', 1);
+# Columns(`c_signed` INT,
+#         `c_char` CHAR(10) CHARSET latin1 COLLATE latin1_swedish_ci,
+#         `c_unsigned` INT UNSIGNED)
+DROP TABLE t1;
+RESET MASTER;
+#
+# Test 2: Byte boundary — 8 signed numerics then a non-numeric then an
+#         unsigned numeric.  The non-numeric must not shift the bit
+#         cursor into the second byte prematurely.
+#
+CREATE TABLE t1(
+c1 TINYINT, c2 TINYINT, c3 TINYINT, c4 TINYINT,
+c5 TINYINT, c6 TINYINT, c7 TINYINT, c8 TINYINT,
+c_text TEXT,
+c9 TINYINT UNSIGNED);
+INSERT INTO t1(c1) VALUES(1);
+# Columns(`c1` TINYINT,
+#         `c2` TINYINT,
+#         `c3` TINYINT,
+#         `c4` TINYINT,
+#         `c5` TINYINT,
+#         `c6` TINYINT,
+#         `c7` TINYINT,
+#         `c8` TINYINT,
+#         `c_text` TEXT CHARSET latin1 COLLATE latin1_swedish_ci,
+#         `c9` TINYINT UNSIGNED)
+DROP TABLE t1;
+RESET MASTER;
+#
+# Test 3: Multiple non-numeric columns between numeric columns across
+#         a byte boundary
+#
+CREATE TABLE t1(
+c1 TINYINT UNSIGNED, c2 TINYINT UNSIGNED,
+c3 TINYINT UNSIGNED, c4 TINYINT UNSIGNED,
+c5 TINYINT UNSIGNED, c6 TINYINT UNSIGNED,
+c7 TINYINT UNSIGNED, c8 TINYINT UNSIGNED,
+c_blob BLOB, c_varchar VARCHAR(100),
+c9 TINYINT, c10 TINYINT UNSIGNED);
+INSERT INTO t1(c1) VALUES(1);
+# Columns(`c1` TINYINT UNSIGNED,
+#         `c2` TINYINT UNSIGNED,
+#         `c3` TINYINT UNSIGNED,
+#         `c4` TINYINT UNSIGNED,
+#         `c5` TINYINT UNSIGNED,
+#         `c6` TINYINT UNSIGNED,
+#         `c7` TINYINT UNSIGNED,
+#         `c8` TINYINT UNSIGNED,
+#         `c_blob` BLOB,
+#         `c_varchar` VARCHAR(100) CHARSET latin1 COLLATE latin1_swedish_ci,
+#         `c9` TINYINT,
+#         `c10` TINYINT UNSIGNED)
+DROP TABLE t1;
+RESET MASTER;
+#
+# Test 4: YEAR is treated as a numeric type: it always reads as UNSIGNED
+#         and consumes a signedness bit, so a numeric column following it
+#         still reads the correct bit (signed INT, YEAR, unsigned INT).
+#
+CREATE TABLE t1(c_signed INT, c_year YEAR, c_unsigned INT UNSIGNED);
+INSERT INTO t1(c_signed) VALUES(-1);
+# Columns(`c_signed` INT,
+#         `c_year` YEAR UNSIGNED,
+#         `c_unsigned` INT UNSIGNED)
+DROP TABLE t1;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = NO_LOG;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

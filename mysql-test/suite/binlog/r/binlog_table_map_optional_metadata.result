@@ -9,7 +9,7 @@ c_datetime DATETIME, c_datetime_f DATETIME(3),
 c_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
 c_timestamp_f TIMESTAMP(3) DEFAULT "2017-1-1 10:10:10");
 INSERT INTO t1(c_year) VALUES(2017);
-# Columns(YEAR,
+# Columns(YEAR UNSIGNED,
 #         DATE,
 #         TIME,
 #         TIME(3),
