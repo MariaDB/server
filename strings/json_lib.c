@@ -2043,7 +2043,7 @@ enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
   @retval 1 - success, json is well-formed
   @retval 0 - error, json is invalid
 */
-int json_valid(json_engine_t *je, const char *js, size_t js_len, CHARSET_INFO *cs)
+int json_valid_engine(json_engine_t *je, const char *js, size_t js_len, CHARSET_INFO *cs)
 {
   volatile const uint32_t *killed_ptr= je->killed_ptr;
   json_scan_start(je, cs, (const uchar *) js, (const uchar *) js + js_len);
@@ -2052,6 +2052,13 @@ int json_valid(json_engine_t *je, const char *js, size_t js_len, CHARSET_INFO *c
   return je->s.error == 0;
 }
 
+int json_valid(const char *js, size_t js_len, CHARSET_INFO *cs)
+{
+  json_engine_t je;
+  json_scan_start(&je, cs, (const uchar *) js, (const uchar *) js + js_len);
+  while (json_scan_next(&je) == 0) /* no-op */ ;
+  return je.s.error == 0;
+}
 
 /*
   Expects the JSON object as an js argument, and the key name.
