@@ -385,10 +385,10 @@ set timestamp=unix_timestamp('2001-02-04 10:30:10');
 update t1 set i=6 where i=5;
 select subpartition_name, partition_description, table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
-p1sp0	2001-02-04 00:00:00	1
-p1sp1	2001-02-04 00:00:00	0
 p0sp0	2001-02-05 00:00:00	1
 p0sp1	2001-02-05 00:00:00	1
+p1sp0	2001-02-04 00:00:00	1
+p1sp1	2001-02-04 00:00:00	0
 p2sp0	2001-02-06 00:00:00	0
 p2sp1	2001-02-06 00:00:00	0
 pnsp0	CURRENT	0
@@ -398,8 +398,8 @@ i
 1
 select * from t1 partition (p0);
 i
-5
 2
+5
 select * from t1 partition (p2);
 i
 alter table t1 rebuild partition p0, p1, p2;
@@ -408,8 +408,8 @@ i
 1
 select * from t1 partition (p0);
 i
-5
 2
+5
 select * from t1 partition (p2);
 i
 ## pruning check
@@ -2216,9 +2216,9 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` CURRENT ENGINE = X)
 select * from t1;
 x
-3
 13
 23
+3
 select * from t1 for system_time all order by x;
 x
 3
