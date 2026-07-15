@@ -7013,9 +7013,6 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
 
           if (table->s->tmp_table == NO_TMP_TABLE)
           {
-            if (alter_info->drop_stat_fields.push_back(field, thd->mem_root))
-              DBUG_RETURN(true);
-
             KEY *key_info= table->key_info;
             for (uint i= 0; i < table->s->keys; i++, key_info++)
             {
@@ -8609,6 +8606,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (def && field->invisible < INVISIBLE_SYSTEM)
     {						// Field is changed
+      if (field->type_handler_for_comparison() !=
+            def->type_handler()->type_handler_for_comparison() &&
+          table->s->tmp_table == NO_TMP_TABLE &&
+          alter_info->drop_stat_fields.push_back(field, thd->mem_root))
+        DBUG_RETURN(true);
       def->field=field;
       /*
         Add column being updated to the list of new columns.

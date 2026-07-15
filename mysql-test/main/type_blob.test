@@ -863,7 +863,9 @@ SET histogram_type = DOUBLE_PREC_HB;
 CREATE TABLE t (a INT);
 INSERT INTO t VALUES (1),(2);
 ANALYZE TABLE t PERSISTENT FOR ALL;
+select count(*) from mysql.column_stats where table_name='t';
 ALTER TABLE t MODIFY a BLOB, ALGORITHM=COPY;
+select count(*) from mysql.column_stats where table_name='t';
 
 SELECT a FROM t WHERE a LIKE '1%';
 
