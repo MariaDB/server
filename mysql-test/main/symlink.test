@@ -365,4 +365,23 @@ eval create table `../t2` (a int) engine=aria
 list_files $MYSQL_TMP_DIR *.M*;
 drop table `../t1`, `../t2`;
 
+--echo #
+--echo # MDEV-40395 MyISAM/Aria silently truncate extensions from filenames, if too long
+--echo #
+let $dir=$MYSQL_TMP_DIR$(repeat("/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 8));
+let $dir=$(substr("$dir",1,504));
+exec mkdir -p $dir;
+replace_result $dir /504/byte/long/path 63 36;
+error ER_CANT_CREATE_TABLE;
+eval create table t12345 (a int) engine=myisam data directory='$dir';
+replace_result $dir /504/byte/long/path 63 36;
+error ER_CANT_CREATE_TABLE;
+eval create table t12345 (a int) engine=myisam index directory='$dir';
+replace_result $dir /504/byte/long/path 63 36;
+error ER_CANT_CREATE_TABLE;
+eval create table t12345 (a int) engine=aria data directory='$dir';
+replace_result $dir /504/byte/long/path 63 36;
+error ER_CANT_CREATE_TABLE;
+eval create table t12345 (a int) engine=aria index directory='$dir';
+
 --echo # End of 10.6 tests

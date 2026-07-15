@@ -283,4 +283,15 @@ data directory='MYSQL_TMP_DIR'
 @002e@002e@002ft2.MAD
 @002e@002e@002ft2.MAI
 drop table `../t1`, `../t2`;
+#
+# MDEV-40395 MyISAM/Aria silently truncate extensions from filenames, if too long
+#
+create table t12345 (a int) engine=myisam data directory='/504/byte/long/path';
+ERROR HY000: Can't create table `test`.`t12345` (errno: 36 "File name too long")
+create table t12345 (a int) engine=myisam index directory='/504/byte/long/path';
+ERROR HY000: Can't create table `test`.`t12345` (errno: 36 "File name too long")
+create table t12345 (a int) engine=aria data directory='/504/byte/long/path';
+ERROR HY000: Can't create table `test`.`t12345` (errno: 36 "File name too long")
+create table t12345 (a int) engine=aria index directory='/504/byte/long/path';
+ERROR HY000: Can't create table `test`.`t12345` (errno: 36 "File name too long")
 # End of 10.6 tests
