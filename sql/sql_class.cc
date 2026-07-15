@@ -7147,12 +7147,22 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
         trans= table->file->has_transactions();
 
-        if (share->tmp_table)
-          lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TEMP_TRANS_TABLE :
-                                               LEX::STMT_WRITES_TEMP_NON_TRANS_TABLE);
-        else
-          lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
-                                               LEX::STMT_WRITES_NON_TRANS_TABLE);
+        /*
+          For SELECT ... FOR UPDATE, tbl->updating is false because the
+          table is only locked for reading, not actually being modified.
+          MyISAM has no row-level locking so FOR UPDATE escalates to
+          TL_WRITE, but this does not mean the table is being written to.
+          Only set the write flag when the table is actually being written.
+        */
+        if (tbl->updating)
+        {
+          if (share->tmp_table)
+            lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TEMP_TRANS_TABLE :
+                                                 LEX::STMT_WRITES_TEMP_NON_TRANS_TABLE);
+          else
+            lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
+                                                 LEX::STMT_WRITES_NON_TRANS_TABLE);
+        }
 
         flags_write_all_set &= flags;
         flags_write_some_set |= flags;
