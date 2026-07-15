@@ -863,6 +863,8 @@ Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
   {
     if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
       ((subselect_single_select_engine *) engine)->change_select(wrapper_sl);
+    wrapper_sl->nest_level= tvc_sl->nest_level;
+    wrapper_sl->nest_level_base= tvc_sl->nest_level_base;
   }
   lex->current_select= parent_select;
   return wrapper_sl;

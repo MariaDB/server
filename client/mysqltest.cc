@@ -12549,6 +12549,7 @@ void init_re(void)
       "^("
       "[[:space:]]*PREPARE[[:space:]]|"
       "[[:space:]]*EXECUTE[[:space:]]|"
+      "[[:space:]]*EXPLAIN[[:space:]]+EXTENDED[[:space:]]|"
       "[[:space:]]*DEALLOCATE[[:space:]]+PREPARE[[:space:]]|"
       "[[:space:]]*DROP[[:space:]]+PREPARE[[:space:]]|"
       "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"

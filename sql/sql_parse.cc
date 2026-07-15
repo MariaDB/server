@@ -8326,7 +8326,8 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
   order->used=0;
-  order->view_ref= 0;   // may be read in find_order_in_list() before being set
+  // view_ref may be read in find_order_in_list() before being set
+  order->view_ref= nullptr;
   order->resolution= NOT_RESOLVED;
   order->select_item= nullptr;
   order->from_field= nullptr;

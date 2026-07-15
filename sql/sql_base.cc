@@ -6292,8 +6292,6 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     item_name                   name of item if it will be created (VIEW)
     ref				expression substituted in VIEW should be passed
                                 using this reference (return view_ref_found)
-    register_tree_change        TRUE if ref is not stack variable and we
-                                need register changes in item tree
 
   RETURN
     0			field is not found
@@ -6304,8 +6302,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
 static Field *
 find_field_in_view(THD *thd, TABLE_LIST *table_list,
                    const char *name, size_t length,
-                   const char *item_name, Item **ref,
-                   bool register_tree_change)
+                   const char *item_name, Item **ref)
 {
   DBUG_ENTER("find_field_in_view");
   DBUG_PRINT("enter",
@@ -6688,8 +6685,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
   if (table_list->field_translation)
   {
     /* 'table_list' is a view or an information schema table. */
-    if ((fld= find_field_in_view(thd, table_list, name, length, item_name, ref,
-                                 register_tree_change)))
+    if ((fld= find_field_in_view(thd, table_list, name, length, item_name, ref)))
       *actual_table= table_list;
   }
   else if (!table_list->nested_join)
@@ -6837,6 +6833,10 @@ Field *find_field_in_table_sef(TABLE *table, const char *name)
     return (Field *)0;
 }
 
+extern
+bool fix_field_reference_to_having(THD *thd, Name_resolution_context *context,
+                                   Field *found, Item_ident *item,
+                                   Item **reference);
 
 /*
   Find field in table list.
@@ -6941,12 +6941,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
     {
       if (found == WRONG_GRANT)
 	return (Field*) 0;
-
-      /*
-        Only views fields should be marked as dependent, not an underlying
-        fields.
-      */
-      if (!table_ref->belong_to_view && !table_ref->belong_to_derived)
+      if (thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+          thd->stmt_arena->is_conventional())
       {
         SELECT_LEX *current_sel= item->context->select_lex;
         SELECT_LEX *last_select= table_ref->select_lex;
@@ -6976,6 +6972,17 @@ find_field_in_tables(THD *thd, Item_ident *item,
         {
           mark_select_range_as_dependent(thd, last_select, current_sel,
                                          found, *ref, item, true);
+          if (found &&
+              found != view_ref_found &&
+              (thd->lex->in_sum_func ?
+                thd->lex->in_sum_func->nest_level != current_sel->nest_level:
+                true) &&
+              last_select->having_fix_field)
+          {
+            if (fix_field_reference_to_having(thd, &current_sel->context, found,
+                                              item, ref))
+              return (Field*) 0;
+          }
         }
       }
       return found;
