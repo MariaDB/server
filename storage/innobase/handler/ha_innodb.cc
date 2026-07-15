@@ -8897,6 +8897,14 @@ ha_innobase::flush_pending_cascade_binlog()
 
 	m_user_thd->binlog_mark_fk_cascade_events();
 
+	/*
+	  Everything logged from here until the end of the loop is a
+	  cascade-derived row event; mark it so that it is distinguishable from
+	  the originating statement's own row events (which were already logged
+	  above with only FK_CASCADE_EVENTS_F).
+	*/
+	m_user_thd->binlog_begin_fk_cascade_derived();
+
 	for (auto& ev : trx->pending_cascade_binlog_row_events) {
 		if (ev.table == NULL || ev.table->file == NULL) {
 			if (ev.before_record) {
@@ -8939,6 +8947,8 @@ ha_innobase::flush_pending_cascade_binlog()
 		my_free(ev.before_record);
 		my_free(ev.after_record);
 	}
+
+	m_user_thd->binlog_end_fk_cascade_derived();
 
 	trx->pending_cascade_binlog_row_events.clear();
 }
