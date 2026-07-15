@@ -224,7 +224,7 @@ static int duckdb_init_func(void *p)
   duckdb_hton= (handlerton *) p;
   duckdb_hton->db_type= DB_TYPE_AUTOASSIGN;
   duckdb_hton->create= duckdb_create_handler;
-  duckdb_hton->flags= HTON_NO_FLAGS;
+  duckdb_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   duckdb_hton->prepare= duckdb_prepare;
   duckdb_hton->commit= duckdb_commit;
   duckdb_hton->rollback= duckdb_rollback;
