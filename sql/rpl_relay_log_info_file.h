@@ -20,6 +20,7 @@
 
 #include "rpl_info_file.h"
 
+/// @note The line count excludes the line-count line.
 struct Relay_log_info_file: Info_file
 {
   /**
