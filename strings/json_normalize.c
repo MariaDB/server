@@ -828,7 +828,7 @@ json_normalize_engine(json_engine_t *je, DYNAMIC_STRING *result,
   }
 
 
-  if (!json_valid(je, in, in_size, &my_charset_utf8mb4_bin))
+  if (!json_valid_engine(je, in, in_size, &my_charset_utf8mb4_bin))
   {
     err= 1;
     goto json_normalize_end;

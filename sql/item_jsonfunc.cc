@@ -600,7 +600,7 @@ bool Item_func_json_valid::val_bool()
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_valid(&je, js->ptr(), js->length(), js->charset()))
+  if (json_valid_engine(&je, js->ptr(), js->length(), js->charset()))
     return true;
   /* Sql_condition::WARN_LEVEL_WARN becomes an error in check constraints */
   report_json_error_ex(js->ptr(), &je, func_name(), 0, Sql_condition::WARN_LEVEL_NOTE);
