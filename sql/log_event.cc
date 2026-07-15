@@ -3746,70 +3746,148 @@ Table_map_log_event::~Table_map_log_event()
 /**
    Parses SIGNEDNESS field.
 
-   @param[out] vec     stores the signedness flags extracted from field.
+   @param[out] column_metadata store all column metadata here (including signedness)
    @param[in]  field   SIGNEDNESS field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_signedness(std::vector<bool> &vec,
-                             unsigned char *field, unsigned int length)
+using Optional_column_metadata= Table_map_log_event::Optional_metadata_fields::Column_metadata;
+static void parse_signedness(
+  Dynamic_array<Optional_column_metadata>& column_metadata,
+  unsigned char *field, unsigned int length)
 {
-  for (unsigned int i= 0; i < length; i++)
+  unsigned char *p= field;
+  unsigned char *field_end= p + length;
+  unsigned char unsigned_bitfield= 0;
+  unsigned char mask= 0;
+
+  for (uint col= 0; col < column_metadata.size(); col++)
   {
-    for (unsigned char c= 0x80; c != 0; c>>= 1)
-      vec.push_back(field[i] & c);
+    auto &col_meta= column_metadata.at(col);
+    if (!is_numeric_type(col_meta.column_type))
+      continue;
+    if (mask == 0)
+    {
+      if (p >= field_end)
+        return;
+      unsigned_bitfield= *p++;
+      mask= 0x80;
+    }
+    col_meta.is_unsigned= unsigned_bitfield & mask;
+    mask >>= 1;
   }
 }
 
 /**
    Parses DEFAULT_CHARSET field.
 
-   @param[out] default_charset  stores collation numbers extracted from field.
+   @param[out] fields  store all optional metadata here (including charsets)
    @param[in]  field   DEFAULT_CHARSET field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_default_charset(Table_map_log_event::Optional_metadata_fields::
-                                  Default_charset &default_charset,
-                                  unsigned char *field, unsigned int length)
+static void parse_default_charset(
+  Table_map_log_event::Optional_metadata_fields& fields,
+  unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
   unsigned char* end= field + length;
 
-  default_charset.default_charset= net_field_length(&p);
+  uint default_cs= net_field_length(&p);
   if (unlikely(p > end))
     return;
+  for (uint i= 0; i < fields.m_column_metadata.size(); i++)
+    if (is_character_type(fields.m_column_metadata.at(i).column_type))
+      fields.m_column_metadata.at(i).charset= default_cs;
   while (p < end)
   {
     unsigned int col_index= net_field_length(&p);
     if (unlikely(p > end))
       return;
-    unsigned int col_charset= net_field_length(&p);
+    uint charset= net_field_length(&p);
     if (unlikely(p > end))
       return;
+    if (col_index < fields.m_column_metadata.size())
+      fields.m_column_metadata.at(col_index).charset= charset;
+  }
+}
 
-    default_charset.charset_pairs.push_back(std::make_pair(col_index,
-                                                           col_charset));
+/**
+   Parses ENUM_AND_SET_DEFAULT_CHARSET field.
+
+   @param[out] fields  store all optional metadata here (including charsets)
+   @param[in]  field   ENUM_AND_SET_DEFAULT_CHARSET field in table_map_event.
+   @param[in]  length  length of the field
+ */
+static void parse_enum_and_set_default_charset(
+  Table_map_log_event::Optional_metadata_fields& fields,
+  unsigned char *field, unsigned int length)
+{
+  unsigned char* p= field;
+  unsigned char* end= field + length;
+
+  uint default_cs= net_field_length(&p);
+  if (unlikely(p > end))
+    return;
+  for (uint i= 0; i < fields.m_column_metadata.size(); i++)
+    if (is_enum_or_set_type(fields.m_column_metadata.at(i).column_type))
+      fields.m_column_metadata.at(i).enum_and_set_column_charset= default_cs;
+  while (p < end)
+  {
+    unsigned int col_index= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
+    uint charset= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
+    if (col_index < fields.m_column_metadata.size())
+      fields.m_column_metadata.at(col_index).enum_and_set_column_charset= charset;
   }
 }
 
 /**
    Parses COLUMN_CHARSET field.
 
-   @param[out] vec     stores collation numbers extracted from field.
+   @param[out] column_metadata store all column metadata here (including charsets)
    @param[in]  field   COLUMN_CHARSET field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_column_charset(std::vector<unsigned int> &vec,
-                                 unsigned char *field, unsigned int length)
+static void parse_column_charset(
+  Dynamic_array<Optional_column_metadata>& column_metadata,
+  unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
   unsigned char* end= field + length;
 
-  while (p < end)
+  for (uint col= 0; p < end && col < column_metadata.size(); col++)
   {
-    unsigned int charset= net_field_length(&p);
+    if (!is_character_type(column_metadata.at(col).column_type))
+      continue;
+    column_metadata.at(col).charset= net_field_length(&p);
     if (unlikely(p > end))
       return;
-    vec.push_back(charset);
+  }
+}
+
+/**
+   Parses ENUM_AND_SET_COLUMN_CHARSET field.
+
+   @param[out] column_metadata store all column metadata here (including charsets)
+   @param[in]  field   ENUM_AND_SET_COLUMN_CHARSET field in table_map_event.
+   @param[in]  length  length of the field
+ */
+static void parse_enum_and_set_column_charset(
+  Dynamic_array<Optional_column_metadata>& column_metadata,
+  unsigned char *field, unsigned int length)
+{
+  unsigned char* p= field;
+  unsigned char* end= field + length;
+
+  for (uint col= 0; p < end && col < column_metadata.size(); col++)
+  {
+    if (!is_enum_or_set_type(column_metadata.at(col).column_type))
+      continue;
+    column_metadata.at(col).enum_and_set_column_charset= net_field_length(&p);
+    if (unlikely(p > end))
+      return;
   }
 }
 
@@ -3817,98 +3895,118 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
    Parses COLUMN_NAME field.
 
    @param[in]  root    Allocate memory here
-   @param[out] name    Store column names extracted from field here
+   @param[out] column_metadata store all column metadata here (including column names)
    @param[in]  field   COLUMN_NAME field in table_map_event.
    @param[in]  length  length of the field
  */
-static bool parse_column_name(MEM_ROOT *root, LEX_CSTRING *name,
-                              unsigned char *field, unsigned int length)
+static bool parse_column_name(MEM_ROOT *root,
+  Dynamic_array<Optional_column_metadata>& column_metadata,
+  unsigned char *field, unsigned int length)
 {
-  for (uchar *end= field+length; field < end ; name++)
+  unsigned int col = 0;
+  for (uchar *end= field+length; field < end && col < column_metadata.size(); col++)
   {
+    LEX_CSTRING& name = column_metadata.at(col).column_name;
     uint name_length= net_field_length(&field);
     if (unlikely(field + name_length > end))
       return 1;
-    if (!(name->str= strmake_root(root, (char*) field, name_length)))
+    if (!(name.str= strmake_root(root, (char*) field, name_length)))
       return 1;
-    name->length= name_length;
+    name.length= name_length;
     field+= name_length;
   }
 
-  name->str= 0;                                 // End marker
   return 0;
 }
 
 /**
    Parses SET_STR_VALUE/ENUM_STR_VALUE field.
 
-   @param[out] vec     stores SET/ENUM column's string values extracted from
-                       field. Each SET/ENUM column's string values are stored
-                       into a string separate vector. All of them are stored
-                       in 'vec'.
-   @param[in]  field   COLUMN_NAME field in table_map_event.
-   @param[in]  length  length of the field
+   @param[out] column_metadata store all column metadata here (including
+               set/enum strings)
+   @param[in]  field      SET_STR_VALUE/ENUM_STR_VALUE field in table_map_event.
+   @param[in]  length     length of the field
+   @param[in]  column_type  type of the given column (i.e. MYSQL_TYPE_XYZ)
+   @param[in]  var_to_set   pointer-to-member selecting which str_vector to fill
+
+   @retval false ok
+   @retval true  out of memory while reserving the str_vector
  */
-static void parse_set_str_value(std::vector<Table_map_log_event::
-                                Optional_metadata_fields::str_vector> &vec,
-                                unsigned char *field, unsigned int length)
+static bool parse_set_str_value(
+    Dynamic_array<Optional_column_metadata> &column_metadata,
+    unsigned char *field, unsigned int length,
+    uchar column_type,
+    Table_map_log_event::Optional_metadata_fields::str_vector
+        Optional_column_metadata::*var_to_set)
 {
   unsigned char* p= field;
   unsigned char* end= field + length;
 
-  while (p < end)
+  for (uint col= 0; p < end && col < column_metadata.size(); col++)
   {
+    if (column_metadata.at(col).column_type != column_type)
+      continue;
+
     unsigned int count= net_field_length(&p);
     if (unlikely(p > end))
-      return;
+      return 0;
 
-    vec.push_back(std::vector<std::string>());
+    auto* column_strings= &(column_metadata.at(col).*var_to_set);
+
+    if (column_strings->reserve(count))
+      return 1;
+
     for (unsigned int i= 0; i < count; i++)
     {
       unsigned len1= net_field_length(&p);
       if (unlikely(p + len1 > end))
-        return;
-      vec.back().push_back(std::string(reinterpret_cast<char *>(p), len1));
+        return 0;
+      column_strings->append(LEX_CSTRING{reinterpret_cast<char *>(p), len1});
       p+= len1;
     }
   }
+
+  return 0;
 }
 
 /**
    Parses GEOMETRY_TYPE field.
 
-   @param[out] vec     stores geometry column's types extracted from field.
+   @param[out] column_metadata store all column metadata here (including
+     geometry types)
    @param[in]  field   GEOMETRY_TYPE field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_geometry_type(std::vector<unsigned int> &vec,
-                                unsigned char *field, unsigned int length)
+static void parse_geometry_type(
+    Dynamic_array<Optional_column_metadata> &column_metadata,
+    unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
   unsigned char* end= field + length;
 
-  while (p < end)
+  for (unsigned int col = 0; p < end && col < column_metadata.size(); col++)
   {
-    unsigned int geom_type= net_field_length(&p);
-    if (unlikely(p > end))
-      return;
-    vec.push_back(geom_type);
+    auto& col_metadata = column_metadata.at(col);
+    if (col_metadata.column_type == MYSQL_TYPE_GEOMETRY)
+    {
+      col_metadata.geometry_type = net_field_length(&p);
+      if (unlikely(p > end))
+        return;
+    }
   }
 }
 
 /**
    Parses SIMPLE_PRIMARY_KEY field.
 
-   @param[out] vec     stores primary key's column information extracted from
-                       field. Each column has an index and a prefix which are
-                       stored as a unit_pair. prefix is always 0 for
-                       SIMPLE_PRIMARY_KEY field.
+   @param[out] column_metadata store all column metadata here (including
+     primary key information). The prefix is always 0 for SIMPLE_PRIMARY_KEY.
    @param[in]  field   SIMPLE_PRIMARY_KEY field in table_map_event.
    @param[in]  length  length of the field
  */
-static void parse_simple_pk(std::vector<Table_map_log_event::
-                            Optional_metadata_fields::uint_pair> &vec,
-                            unsigned char *field, unsigned int length)
+static void parse_simple_pk(
+    Dynamic_array<Optional_column_metadata> &column_metadata,
+    unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
   unsigned char* end= field + length;
@@ -3918,23 +4016,22 @@ static void parse_simple_pk(std::vector<Table_map_log_event::
     unsigned int col_index= net_field_length(&p);
     if (unlikely(p > end))
       return;
-    vec.push_back(std::make_pair(col_index, (unsigned int) 0));
+    if (col_index < column_metadata.size())
+      column_metadata.at(col_index).primary_key = 0;
   }
 }
 
 /**
    Parses PRIMARY_KEY_WITH_PREFIX field.
 
-   @param[out] vec     stores primary key's column information extracted from
-                       field. Each column has an index and a prefix which are
-                       stored as a unit_pair.
+   @param[out] column_metadata store all column metadata here (including
+     primary key lengths)
    @param[in]  field   PRIMARY_KEY_WITH_PREFIX field in table_map_event.
    @param[in]  length  length of the field
  */
-
-static void parse_pk_with_prefix(std::vector<Table_map_log_event::
-                                 Optional_metadata_fields::uint_pair> &vec,
-                                 unsigned char *field, unsigned int length)
+static void parse_pk_with_prefix(
+    Dynamic_array<Optional_column_metadata> &column_metadata,
+    unsigned char *field, unsigned int length)
 {
   unsigned char* p= field;
   unsigned char* end= field + length;
@@ -3947,21 +4044,42 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
     unsigned int col_prefix= net_field_length(&p);
     if (unlikely(p > end))
       return;
-    vec.push_back(std::make_pair(col_index, col_prefix));
+    if (col_index < column_metadata.size())
+      column_metadata.at(col_index).primary_key = col_prefix;
   }
 }
 
 Table_map_log_event::Optional_metadata_fields::
 Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
+                         const uchar* column_types,
+                         const uchar* field_metadata,
                          uchar* optional_metadata,
                          size_t optional_metadata_len,
                          bool only_column_names)
+    : m_column_metadata(PSI_INSTRUMENT_MEM, master_columns)
 {
   unsigned int len;
   uchar *metadata_end;
 
   allocation_error= 0;
-  m_column_name= 0;
+
+  // initializing the elements of m_column_metadata and their types
+  for (uint i= 0; i < master_columns; i++)
+  {
+    Column_metadata col{};
+    col.column_type = column_types[i];
+    if (field_metadata)
+    {
+      if (col.column_type == MYSQL_TYPE_STRING &&
+          (*field_metadata == MYSQL_TYPE_ENUM ||
+           *field_metadata == MYSQL_TYPE_SET))
+        col.column_type= *field_metadata;
+      advance_field_metadata_ptr(col.column_type, &field_metadata);
+    }
+    if (m_column_metadata.append(col))
+      goto error;
+  }
+
   if (optional_metadata == NULL)
     return;
 
@@ -3979,42 +4097,42 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
 
     switch(type) {
     case SIGNEDNESS:
-      parse_signedness(m_signedness, field, len);
+      parse_signedness(m_column_metadata, field, len);
       break;
     case DEFAULT_CHARSET:
-      parse_default_charset(m_default_charset, field, len);
+      parse_default_charset(*this, field, len);
       break;
     case COLUMN_CHARSET:
-      parse_column_charset(m_column_charset, field, len);
+      parse_column_charset(m_column_metadata, field, len);
       break;
     case COLUMN_NAME:
-      if (!(m_column_name= (LEX_CSTRING*) alloc_root(root,
-                                                     sizeof(LEX_CSTRING) *
-                                                     (master_columns +1 ))))
-        goto error;
-      if (parse_column_name(root, m_column_name, field, len))
+      if (parse_column_name(root, m_column_metadata, field, len))
         goto error;
       break;
     case SET_STR_VALUE:
-      parse_set_str_value(m_set_str_value, field, len);
+      if (parse_set_str_value(m_column_metadata, field, len, MYSQL_TYPE_SET,
+                              &Optional_column_metadata::set_str_values))
+        goto error;
       break;
     case ENUM_STR_VALUE:
-      parse_set_str_value(m_enum_str_value, field, len);
+      if (parse_set_str_value(m_column_metadata, field, len, MYSQL_TYPE_ENUM,
+                              &Optional_column_metadata::enum_str_values))
+        goto error;
       break;
     case GEOMETRY_TYPE:
-      parse_geometry_type(m_geometry_type, field, len);
+      parse_geometry_type(m_column_metadata, field, len);
       break;
     case SIMPLE_PRIMARY_KEY:
-      parse_simple_pk(m_primary_key, field, len);
+      parse_simple_pk(m_column_metadata, field, len);
       break;
     case PRIMARY_KEY_WITH_PREFIX:
-      parse_pk_with_prefix(m_primary_key, field, len);
+      parse_pk_with_prefix(m_column_metadata, field, len);
       break;
     case ENUM_AND_SET_DEFAULT_CHARSET:
-      parse_default_charset(m_enum_and_set_default_charset, field, len);
+      parse_enum_and_set_default_charset(*this, field, len);
       break;
     case ENUM_AND_SET_COLUMN_CHARSET:
-      parse_column_charset(m_enum_and_set_column_charset, field, len);
+      parse_enum_and_set_column_charset(m_column_metadata, field, len);
       break;
     default:
       DBUG_ASSERT(0);
@@ -4025,12 +4143,12 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
 error:
   allocation_error= 1;
   /*
-    m_column_name may be partially filled (remaining entries uninitialized)
-    if parsing failed midway. Reset it so callers checking "!m_column_name"
-    fall back to positional column mapping instead of reading uninitialized
-    LEX_CSTRING entries.
+    The column names may be partially filled if parsing failed midway. Clear
+    all of them so callers checking the first column's name fall back to
+    positional column mapping instead of using a half-parsed name list.
   */
-  m_column_name= 0;
+  for (size_t i= 0; i < m_column_metadata.size(); i++)
+    m_column_metadata.at(i).column_name= LEX_CSTRING{nullptr, 0};
   return;
 }
 

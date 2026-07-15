@@ -30,13 +30,52 @@
 #define _log_event_h
 
 #include <my_bitmap.h>
+#include "mysql/psi/psi_base.h"
 #include "rpl_constants.h"
-#include <vector>
+#include "sql_array.h"
 #include <string>
-#include <functional>
-#include <memory>
-#include <map>
+#include <optional>
 #include <lex_charset.h>
+
+static inline bool is_numeric_type(uint type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_TINY:
+  case MYSQL_TYPE_SHORT:
+  case MYSQL_TYPE_INT24:
+  case MYSQL_TYPE_LONG:
+  case MYSQL_TYPE_LONGLONG:
+  case MYSQL_TYPE_NEWDECIMAL:
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+  case MYSQL_TYPE_YEAR:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static inline bool is_character_type(uint type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_BLOB:
+  // Base class is blob for geom type
+  case MYSQL_TYPE_GEOMETRY:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static inline bool is_enum_or_set_type(uint type)
+{
+  return type == MYSQL_TYPE_ENUM || type == MYSQL_TYPE_SET;
+}
 
 #ifdef MYSQL_CLIENT
 #include "sql_const.h"
@@ -4433,6 +4472,42 @@ class table_def;
   </tr>
   </table>
 */
+/**
+  Advances a field metadata pointer past the metadata for one column.
+  The advancement size depends on the column type, mirroring the layout
+  written by Field::save_field_metadata().
+
+  @param[in]     type      The resolved column type (e.g. MYSQL_TYPE_ENUM,
+                            not MYSQL_TYPE_STRING, for enum columns)
+  @param[in,out] meta_ptr  Pointer into the field metadata blob; advanced
+                            in-place by the number of bytes consumed.
+*/
+inline void advance_field_metadata_ptr(uint type, const uchar** meta_ptr)
+{
+  switch (type) {
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIME2:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_GEOMETRY:
+    (*meta_ptr)++;
+    break;
+  case MYSQL_TYPE_NEWDECIMAL:
+  case MYSQL_TYPE_BIT:
+  case MYSQL_TYPE_ENUM:
+  case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_STRING:
+    (*meta_ptr) += 2;
+    break;
+  default:
+    break;
+  }
+}
+
 class Table_map_log_event : public Log_event
 {
 public:
@@ -4516,42 +4591,32 @@ public:
   };
   struct Optional_metadata_fields
   {
-    typedef std::pair<unsigned int, unsigned int> uint_pair;
-    typedef std::vector<std::string> str_vector;
+    typedef Dynamic_array<LEX_CSTRING> str_vector;
     bool allocation_error; /* Set if allocation of data structures fails */
 
-    struct Default_charset
+    struct Column_metadata
     {
-      Default_charset() : default_charset(0) {}
-      bool empty() const { return default_charset == 0; }
+        LEX_CSTRING column_name{ nullptr, 0 };
+        uchar column_type{};
+        bool is_unsigned{ false };
 
-      // Default charset for the columns which are not in charset_pairs.
-      unsigned int default_charset;
+        // each str_vector stores values for the enum/set column
+        str_vector enum_str_values{PSI_INSTRUMENT_MEM, 0};
+        str_vector set_str_values{PSI_INSTRUMENT_MEM, 0};
 
-      /* The uint_pair means <column index, column charset number>. */
-      std::vector<uint_pair> charset_pairs;
+        uint geometry_type{ 0 };
+
+        // Prefix length of primary key (if applicable), where a value of 0
+        // indicates to use the entire column as a primary key
+        // (SIMPLE_PRIMARY_KEY).
+        std::optional<uint> primary_key{};
+
+        // 0 means no charset information present
+        uint charset{ 0 };
+        uint enum_and_set_column_charset{ 0 };
     };
 
-    // Contents of DEFAULT_CHARSET field is converted into Default_charset.
-    Default_charset m_default_charset;
-    // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
-    // Default_charset.
-    Default_charset m_enum_and_set_default_charset;
-    std::vector<bool> m_signedness;
-    // Character set number of every string column
-    std::vector<unsigned int> m_column_charset;
-    // Character set number of every ENUM or SET column.
-    std::vector<unsigned int> m_enum_and_set_column_charset;
-    LEX_CSTRING *m_column_name;
-    // each str_vector stores values of one enum/set column
-    std::vector<str_vector> m_enum_str_value;
-    std::vector<str_vector> m_set_str_value;
-    std::vector<unsigned int> m_geometry_type;
-    /*
-      The uint_pair means <column index, prefix length>.  Prefix length is 0 if
-      whole column value is used.
-    */
-    std::vector<uint_pair> m_primary_key;
+    Dynamic_array<Column_metadata> m_column_metadata;
 
     /*
       It parses m_optional_metadata and populates into above variables.
@@ -4564,9 +4629,28 @@ public:
       @param[in] only_column_names Only read column names
      */
     Optional_metadata_fields(MEM_ROOT *root, uint master_cols,
+                             const uchar* column_types,
+                             const uchar* field_metadata,
                              uchar* optional_metadata,
                              size_t optional_metadata_len,
                              bool only_column_names);
+
+    ~Optional_metadata_fields()
+    {
+      /*
+        Dynamic_array frees its own buffer in its destructor, but it does so
+        via delete_dynamic(), which only releases the flat element buffer and
+        does not run the element destructors. Each Column_metadata owns
+        heap-allocated str_vectors (enum_str_values / set_str_values), so
+        destroy every element explicitly to avoid leaking those buffers.
+      */
+      for (size_t i= 0; i < m_column_metadata.size(); i++)
+        m_column_metadata.at(i).~Column_metadata();
+    }
+
+    /* Owns heap allocations; copying would lead to double frees. */
+    Optional_metadata_fields(const Optional_metadata_fields&)= delete;
+    Optional_metadata_fields& operator=(const Optional_metadata_fields&)= delete;
   };
 
   /**
@@ -4706,11 +4790,7 @@ private:
   bool init_primary_key_field();
 #endif
 
-#ifdef MYSQL_CLIENT
-  class Charset_iterator;
-  class Default_charset_iterator;
-  class Column_charset_iterator;
-#endif
+
   char const    *m_dbnam;
   size_t         m_dblen;
   char const    *m_tblnam;
