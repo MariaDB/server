@@ -120,7 +120,7 @@ KEY_CREATE_INFO default_key_create_info=
 
 static void flush_pending_cascade_binlog_for_thd(THD *thd)
 {
-  if (!thd || thd->rgi_slave) return;
+  if (!thd) return;
 
   TABLE *table;
   for (table = thd->open_tables; table; table = table->next) {
