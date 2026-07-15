@@ -26,14 +26,17 @@ partition by range columns (x) (
     partition p1 values less than (1000));
 
 insert into t1 values (3), (300);
+--sorted_result
 select * from t1;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
 delete from t1;
+--sorted_result
 select * from t1;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
+--sorted_result
 select * from t1 for system_time all;
 select * from t1 partition (p0) for system_time all;
 select * from t1 partition (p1) for system_time all;
@@ -140,6 +143,7 @@ alter table t1 drop partition p1;
 --error ER_VERS_WRONG_PARTS
 alter table t1 drop partition p0;
 
+--sorted_result
 select x from t1;
 
 --echo # rename works
@@ -216,6 +220,7 @@ update t1 set x = x + 1;
 
 --source suite/versioning/wait_system_clock.inc
 
+--sorted_result
 execute select_p0;
 execute select_pn;
 
@@ -251,11 +256,14 @@ show create table t1;
 alter table t1 drop partition non_existent;
 
 insert into t1 values (1), (2), (3), (4), (5), (6);
+--sorted_result
 select * from t1 partition (pn);
 delete from t1 where x < 4;
 delete from t1;
 --echo # You see warning above ^
+--sorted_result
 select * from t1 partition (p0);
+--sorted_result
 select * from t1 partition (p1);
 
 insert into t1 values (7), (8);
@@ -288,13 +296,17 @@ set @ts=(select partition_description from information_schema.partitions
   where table_schema='test' and table_name='t1' and partition_name='p0');
 
 alter table t1 add column b int;
+--sorted_result
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 alter table t1 add partition (partition p1 history, partition p2 history);
+--sorted_result
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 alter table t1 drop partition p0;
+--sorted_result
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 --error ER_VERS_DROP_PARTITION_INTERVAL
 alter table t1 drop partition p2;
+--sorted_result
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 
 #
@@ -310,7 +322,9 @@ insert t1 values (1); delete from t1;
 set timestamp=unix_timestamp('2001-02-04 10:20:50');
 insert t1 values (2); delete from t1;
 
+--sorted_result
 select subpartition_name, partition_description, table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+--sorted_result
 select * from t1 partition (p1);
 
 set timestamp=unix_timestamp('2001-02-04 10:20:55');
@@ -320,13 +334,16 @@ insert t1 values (4),(5);
 set timestamp=unix_timestamp('2001-02-04 10:30:10');
 update t1 set i=6 where i=5;
 
+--sorted_result
 select subpartition_name, partition_description, table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 select * from t1 partition (p1);
+--sorted_result
 select * from t1 partition (p0);
 select * from t1 partition (p2);
 
 alter table t1 rebuild partition p0, p1, p2;
 select * from t1 partition (p1);
+--sorted_result
 select * from t1 partition (p0);
 select * from t1 partition (p2);
 
@@ -466,6 +483,7 @@ set timestamp= unix_timestamp('2001-01-01 00:00:02');
 update t1 set i= i + 1;
 
 select *, row_end from t1 partition (p0);
+--sorted_result
 select *, row_end from t1 partition (p1);
 
 set timestamp= unix_timestamp('2000-01-01 00:00:00');
@@ -484,6 +502,7 @@ update t1 set i= i + 1;
 set timestamp= unix_timestamp('2000-01-04 00:00:01');
 update t1 set i= i + 1;
 
+--sorted_result
 select *, row_end from t1 partition (p0);
 select *, row_end from t1 partition (p1);
 
@@ -519,7 +538,9 @@ subpartition by key (x)
 subpartitions 2;
 
 insert into t1 (x) values (1), (2), (3), (4), (5);
+--sorted_result
 select * from t1 partition (pnsp0);
+--sorted_result
 select * from t1 partition (pnsp1);
 
 delete from t1 where x < 3;
@@ -529,6 +550,7 @@ delete from t1;
 --echo # You see warning above ^ (no matter if nothing was deleted)
 select * from t1 partition (p0sp0);
 select * from t1 partition (p0sp1);
+--sorted_result
 select * from t1 partition (p1sp0);
 select * from t1 partition (p1sp1);
 
@@ -873,6 +895,7 @@ create or replace table t1 (
 insert into t1 (x) values (1), (2), (3), (4);
 update t1 set a= 'foo' limit 3;
 update t1 set a= 'bar' limit 4;
+--sorted_result
 select * from t1;
 drop table t1;
 
@@ -930,6 +953,7 @@ create or replace table t1 (pk int primary key, f int) engine=innodb
         partition by key() partitions 2;
 insert into t1 values (1,10),(2,20);
 --echo # expected to hit same partition
+--sorted_result
 select * from t1 partition (p0);
 alter table t1 drop system versioning;
 
@@ -1130,17 +1154,20 @@ replace into t1 select seq from seq_1_to_70;
 # Puts 60 rows into p1
 replace into t1 select seq from seq_1_to_60;
 
+--sorted_result
 select partition_name, table_rows
 from information_schema.partitions
 where table_name = 't1';
 rollback;
 
+--sorted_result
 select partition_name, table_rows
 from information_schema.partitions
 where table_name = 't1';
 
 # Should put 10 rows into the empty partition p0
 replace into t1 select seq from seq_1_to_10;
+--sorted_result
 select partition_name, table_rows
 from information_schema.partitions
 where table_name = 't1';
@@ -1622,6 +1649,7 @@ starts '2000-01-01 00:00:00';
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 select * from t1 partition (p0);
+--sorted_result
 select * from t1 partition (p1);
 select * from t1 partition (p2);
 select * from t1 partition (pn);
@@ -1637,6 +1665,7 @@ update t1 set x= x + 1;
 update t1 set x= x + 1;
 --echo # You see warning above ^
 select * from t1 partition (p0);
+--sorted_result
 select * from t1 partition (p1);
 select * from t1 partition (p2);
 select * from t1 partition (p3);
@@ -1791,6 +1820,7 @@ select * from tp1 for system_time all;
 
 --replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
 show create table t1;
+--sorted_result
 select * from t1;
 select * from t1 for system_time all order by x;
 
@@ -2645,6 +2675,7 @@ insert into t1 (a,row_start,row_end) values
 ('p1',                   '2021-09-30', '2021-10-01 10:00:00'),
 ('overflows, so also p1','2021-09-30', '2021-10-10 10:00:00'),
 ('pn, current',          '2021-09-30', '2038-01-19 03:14:07.999999');
+--sorted_result
 select table_name,partition_name,partition_ordinal_position,partition_method,partition_description,table_rows
 from information_schema.partitions where table_schema='test';
 drop table t1;
@@ -2787,6 +2818,7 @@ update t1 set x= 3;
 
 --echo # CREATE result: row 1 got into p1
 select *, row_start, row_end from t1 partition (p0);
+--sorted_result
 select *, row_start, row_end from t1 partition (p1);
 flush tables;
 --echo # For CREATE pruning is affected by current timestamp, but SELECT works
@@ -2806,6 +2838,7 @@ partition by system_time interval 1 hour (
 
 --echo # ALTER result: row 1 got into p1
 Select *, row_start, row_end from t1 partition (p0);
+--sorted_result
 Select *, row_start, row_end from t1 partition (p1);
 flush tables;
 Explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
@@ -2867,6 +2900,53 @@ create table t (x int) with system versioning partition by system_time interval 
 repair table t;
 drop table t;
 set timestamp=default;
+
+--echo #
+--echo # MDEV-17613 Read sole now-partition for non-historical versioned query
+--echo #
+create table t1 (
+  id int,
+  ts timestamp(6) generated always as row start invisible,
+  te timestamp(6) generated always as row end invisible,
+  primary key (id, te),
+  period for system_time (ts, te)
+) with system versioning
+partition by system_time interval 1 month (
+  partition p0 history, partition p1 history, partition pcur current);
+
+
+insert t1 values (1), (2), (0);
+delete from t1 where id = 1;
+--sorted_result
+select * from t1;
+--echo # Below there should be: Select tables optimized away
+--echo # (except heap combination)
+explain extended select max(id) from t1;
+
+drop tables t1;
+
+--echo # Corner cases: outer and sysvar-set FOR SYSTEM_TIME
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (id int)
+with system versioning
+partition by system_time interval 1 hour
+starts timestamp'2000-01-01 00:00:00' (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set id= 2;
+--echo # implicit query reads only the current partition (id=2):
+select id from t1;
+--echo # outer FOR SYSTEM_TIME must propagate into derived t1 and read history (id=1):
+select * from (select id from t1) for system_time as of timestamp'2000-01-01 01:00:00' as dt;
+--echo # system_versioning_asof must be honored and read history (id=1):
+set system_versioning_asof= '2000-01-01 01:00:00';
+select id from t1;
+set system_versioning_asof= default;
+set timestamp= default;
+drop table t1;
 
 --echo # End of 10.11 tests
 

@@ -947,6 +947,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
+  orig_type= type;
   delete_history= false;
   start.unit= VERS_TIMESTAMP;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
@@ -1237,22 +1238,23 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     vers_select_conds_t &vers_conditions= table->vers_conditions;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      /*
-        if the history is stored in partitions, then partitions
-        themselves are not versioned
-      */
-      if (table->partition_names && table->table->part_info->vers_info)
+    partition_info *part_info= table->table->part_info;
+    /*
+      if the history is stored in partitions, then partitions
+      themselves are not versioned
+    */
+    if (table->partition_names && part_info->vers_info)
+    {
+      /* If the history is stored in partitions, then partitions
+          themselves are not versioned. */
+      if (vers_conditions.was_set())
       {
-        /* If the history is stored in partitions, then partitions
-            themselves are not versioned. */
-        if (vers_conditions.was_set())
-        {
-          my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
-          DBUG_RETURN(-1);
-        }
-        else if (!vers_conditions.is_set())
-          vers_conditions.set_all();
+        my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
+        DBUG_RETURN(-1);
       }
+      else if (!vers_conditions.is_set())
+        vers_conditions.set_all();
+    }
 #endif
 
     if (outer_table && !vers_conditions.is_set())
@@ -1268,6 +1270,23 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
     }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (part_info && part_info->vers_info &&
+        !table->partition_names &&
+        !vers_conditions.was_set())
+    {
+      /* Enable only now_part in read_partitions */
+      uint32 end;
+      const uint32 start= part_info->vers_info->now_part->bitmap_range(part_info->num_subparts, end);
+
+      bitmap_clear_all(&part_info->read_partitions);
+      for (uint32 i= start; i < end; i++)
+        bitmap_set_bit(&part_info->read_partitions, i);
+
+      vers_conditions.set_all();
+    }
+#endif
 
     if (vers_conditions.is_set())
     {
