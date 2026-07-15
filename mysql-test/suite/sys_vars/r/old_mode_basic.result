@@ -1,11 +1,11 @@
 SET @global_start_value = @@global.old_mode;
 SELECT @global_start_value;
 @global_start_value
-UTF8_IS_UTF8MB3
+
 SET @session_start_value = @@session.old_mode;
 SELECT @session_start_value;
 @session_start_value
-UTF8_IS_UTF8MB3
+
 '#--------------------FN_DYNVARS_152_01------------------------#'
 SET @@global.old_mode = "NO_PROGRESS_INFO";
 Warnings:
@@ -13,14 +13,14 @@ Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future re
 SET @@global.old_mode = DEFAULT;
 SELECT @@global.old_mode;
 @@global.old_mode
-UTF8_IS_UTF8MB3
+
 SET @@session.old_mode = "NO_PROGRESS_INFO";
 Warnings:
 Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SET @@session.old_mode = DEFAULT;
 SELECT @@session.old_mode;
 @@session.old_mode
-UTF8_IS_UTF8MB3
+
 '#---------------------FN_DYNVARS_152_02-------------------------#'
 SET @@global.old_mode = NULL;
 ERROR 42000: Variable 'old_mode' can't be set to the value of 'NULL'
@@ -199,11 +199,11 @@ NO_PROGRESS_INFO
 SET @@global.old_mode = @global_start_value;
 SELECT @@global.old_mode;
 @@global.old_mode
-UTF8_IS_UTF8MB3
+
 SET @@session.old_mode = @session_start_value;
 SELECT @@session.old_mode;
 @@session.old_mode
-UTF8_IS_UTF8MB3
+
 #
 # Beginning of 10.6 test
 #
@@ -222,7 +222,7 @@ SET @save_collation_server = @@collation_server;
 SET @save_collation_database = @@collation_database;
 SELECT @@OLD_MODE;
 @@OLD_MODE
-UTF8_IS_UTF8MB3
+
 SELECT @@character_set_server,@@character_set_client,@@character_set_results,
 @@character_set_connection, @@character_set_filesystem, @@character_set_database,
 @@collation_connection, @@collation_server, @@collation_database;
@@ -244,7 +244,7 @@ SELECT @@character_set_server, @@character_set_client, @@character_set_results,
 @@character_set_connection, @@character_set_filesystem, @@character_set_database,
 @@collation_connection, @@collation_server, @@collation_database;
 @@character_set_server	@@character_set_client	@@character_set_results	@@character_set_connection	@@character_set_filesystem	@@character_set_database	@@collation_connection	@@collation_server	@@collation_database
-utf8mb3	utf8mb3	utf8mb3	utf8mb3	utf8mb3	utf8mb3	utf8mb3_general_ci	utf8mb3_unicode_ci	utf8mb3_bin
+utf8mb4	utf8mb4	utf8mb4	utf8mb4	utf8mb4	utf8mb4	utf8mb4_general_ci	utf8mb4_unicode_ci	utf8mb4_bin
 CREATE DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_general_ci';
 ALTER DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_unicode_ci';
 CREATE TABLE tb1 (id1 INT) CHARACTER SET 'utf8' COLLATE 'utf8_bin';
@@ -252,7 +252,7 @@ SHOW CREATE TABLE tb1;
 Table	Create Table
 tb1	CREATE TABLE `tb1` (
   `id1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
 DROP TABLE tb1;
 DROP DATABASE db1;
 #

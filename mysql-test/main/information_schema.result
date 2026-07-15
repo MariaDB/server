@@ -657,7 +657,7 @@ t1	CREATE TABLE `t1` (
   `DEFAULT_COLLATE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `DESCRIPTION` varchar(60) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create view v1 as select * from information_schema.TABLES;
 drop view v1;
@@ -1354,8 +1354,8 @@ default character set utf8;
 select CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH from
 information_schema.columns where table_schema='test' and table_name = 't1';
 CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH
-1	3
-9	27
+1	4
+9	36
 drop table t1;
 use mysql;
 INSERT INTO `proc` (db,type,body,definer,created,modified,character_set_client, collation_connection, db_collation, body_utf8,param_list,returns,comment)

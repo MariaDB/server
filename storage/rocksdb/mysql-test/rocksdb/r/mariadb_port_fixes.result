@@ -42,7 +42,7 @@ KEY (a)
 insert into t1 values (1,"a",1),(2,"b",2),(3,"c",2);
 explain select a from t1 where a <'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	32	NULL	#	Using where
+1	SIMPLE	t1	range	a	a	42	NULL	#	Using where
 CREATE TABLE t2(
 pk int,
 a varchar(10) NOT NULL,
@@ -52,7 +52,7 @@ KEY (a)
 insert into t2 values (1,1,1),(2,2,2);
 explain select a from t2 where a <'zzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	32	NULL	#	Using where
+1	SIMPLE	t2	range	a	a	42	NULL	#	Using where
 drop table t1,t2;
 set global rocksdb_strict_collation_check=@tmp_rscc;
 #

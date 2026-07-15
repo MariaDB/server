@@ -263,8 +263,8 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 #
 #
 --disable_service_connection
-set names utf8;
-select convert('admin𝌆' using utf8);
+set names utf8mb3;
+select convert('admin𝌆' using utf8mb3);
 --error ER_UDF_NO_PATHS
 install plugin foo soname 'admin𝌆';
 --enable_service_connection

@@ -664,8 +664,8 @@ replication_applier_status_by_coordinator	utf8mb3_general_ci	NULL
 replication_applier_status_by_worker	utf8mb3_general_ci	NULL
 replication_connection_configuration	utf8mb3_general_ci	NULL
 rwlock_instances	utf8mb3_general_ci	NULL
-session_account_connect_attrs	utf8mb3_bin	NULL
-session_connect_attrs	utf8mb3_bin	NULL
+session_account_connect_attrs	utf8mb4_bin	NULL
+session_connect_attrs	utf8mb4_bin	NULL
 session_status	utf8mb3_general_ci	NULL
 setup_actors	utf8mb3_general_ci	NULL
 setup_consumers	utf8mb3_general_ci	NULL

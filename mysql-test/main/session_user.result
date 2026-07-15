@@ -35,7 +35,7 @@ CREATE OR REPLACE TABLE t1 (a int, b varchar(100) DEFAULT (SESSION_USER()));
 # Test old mode SESSION_USER_IS_USER behaves properly
 SELECT @@OLD_MODE, @@GLOBAL.OLD_MODE;
 @@OLD_MODE	@@GLOBAL.OLD_MODE
-UTF8_IS_UTF8MB3	UTF8_IS_UTF8MB3
+	
 SELECT USER(), SESSION_USER();
 USER()	SESSION_USER()
 test_user@localhost	test_user@%
@@ -44,7 +44,7 @@ Warnings:
 Warning	1287	'SESSION_USER_IS_USER' is deprecated and will be removed in a future release
 SELECT @@OLD_MODE, @@GLOBAL.OLD_MODE;
 @@OLD_MODE	@@GLOBAL.OLD_MODE
-UTF8_IS_UTF8MB3,SESSION_USER_IS_USER	UTF8_IS_UTF8MB3
+SESSION_USER_IS_USER	
 SELECT USER(), SESSION_USER();
 USER()	SESSION_USER()
 test_user@localhost	test_user@localhost

@@ -10,10 +10,6 @@
 # Also testing A-uml, O-uml, U-uml
 #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 #
 # Create a table with a varchar(x) column,
 # using current values of

@@ -1504,7 +1504,7 @@ EXPLAIN
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "(case when convert(t1.a using utf8mb3) = <cache>(_utf8mb3'a' collate utf8mb3_bin) then NULL else t1.a end)"
+          "attached_condition": "(case when convert(t1.a using utf8mb4) = <cache>(_utf8mb4'a' collate utf8mb4_bin) then NULL else t1.a end)"
         }
       }
     ]

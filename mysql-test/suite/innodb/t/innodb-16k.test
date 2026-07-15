@@ -55,43 +55,43 @@ c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(160)
 # Max key Part length is 767
 # InnoDB assumes 3 bytes for each UTF8 character.
 #
-CREATE TABLE t1 (a varchar(255) character set utf8,
-                 b varchar(255) character set utf8,
-                 c varchar(255) character set utf8,
-                 d varchar(255) character set utf8,
-                 e varchar(4) character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+                 b varchar(255) character set utf8mb3,
+                 c varchar(255) character set utf8mb3,
+                 d varchar(255) character set utf8mb3,
+                 e varchar(4) character set utf8mb3,
                  PRIMARY KEY (a,b,c,d,e))
 		 ENGINE=innodb;
 
 DROP TABLE t1;
 
 --error ER_TOO_LONG_KEY
-CREATE TABLE t1 (a varchar(255) character set utf8,
-                 b varchar(255) character set utf8,
-                 c varchar(255) character set utf8,
-                 d varchar(255) character set utf8,
-                 e varchar(5) character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+                 b varchar(255) character set utf8mb3,
+                 c varchar(255) character set utf8mb3,
+                 d varchar(255) character set utf8mb3,
+                 e varchar(5) character set utf8mb3,
                  PRIMARY KEY (a,b,c,d,e))
 		 ENGINE=innodb;
 
-CREATE TABLE t1 (a varchar(255) character set utf8,
-                 b varchar(255) character set utf8,
-                 c varchar(255) character set utf8,
-                 d varchar(255) character set utf8,
-                 e varchar(255) character set utf8,
-                 f varchar(4)   character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+                 b varchar(255) character set utf8mb3,
+                 c varchar(255) character set utf8mb3,
+                 d varchar(255) character set utf8mb3,
+                 e varchar(255) character set utf8mb3,
+                 f varchar(4)   character set utf8mb3,
                  PRIMARY KEY (a), KEY (b,c,d,e,f))
 		 ENGINE=innodb;
 
 DROP TABLE t1;
 
 --error ER_TOO_LONG_KEY
-CREATE TABLE t1 (a varchar(255) character set utf8,
-                 b varchar(255) character set utf8,
-                 c varchar(255) character set utf8,
-                 d varchar(255) character set utf8,
-                 e varchar(255) character set utf8,
-                 f varchar(5)   character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+                 b varchar(255) character set utf8mb3,
+                 c varchar(255) character set utf8mb3,
+                 d varchar(255) character set utf8mb3,
+                 e varchar(255) character set utf8mb3,
+                 f varchar(5)   character set utf8mb3,
                  PRIMARY KEY (a), KEY (b,c,d,e,f))
 		 ENGINE=innodb;
 

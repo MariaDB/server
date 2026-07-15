@@ -1,5 +1,5 @@
 --source include/have_rocksdb.inc
-
+set old_mode=utf8_is_utf8mb3;
 #
 # VARCHAR column types
 #

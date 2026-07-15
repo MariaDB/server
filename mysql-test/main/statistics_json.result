@@ -4485,7 +4485,6 @@ set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
-drop table if exists t1;
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
 call mtr.add_suppression("Failed to parse histogram for table .*");
@@ -7824,7 +7823,7 @@ col1 varchar(10) charset utf8
 set names utf8;
 select hex('б'), collation('б');
 hex('б')	collation('б')
-D0B1	utf8mb3_uca1400_ai_ci
+D0B1	utf8mb4_uca1400_ai_ci
 insert into t1 values 
 ('а'),('б'),('в'),('г'),('д'),('е'),('ж'),('з'),('и'),('й');
 analyze table t1 persistent for all;
@@ -8036,12 +8035,12 @@ JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251))
 # MDEV-36977 Histogram code lacks coverage for non-latin characters
 #
 create table t1 (
-col1 varchar(10) charset utf8 collate utf8mb3_general_ci
+col1 varchar(10) charset utf8mb3 collate utf8mb3_general_ci
 );
 set names utf8;
 select hex('Ꙃ'), collation('Ꙃ');
 hex('Ꙃ')	collation('Ꙃ')
-EA9982	utf8mb3_uca1400_ai_ci
+EA9982	utf8mb4_uca1400_ai_ci
 insert into t1 values
 ('Ꙩ'),('Ꙛ'),('ꙮ'),('Ꙃ'),('Ꚛ'),('ꘐ'),('ꘜ'),('ꕫ'),('ꖿ'), ('ꙛ');
 analyze table t1 persistent for all;

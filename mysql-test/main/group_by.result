@@ -711,7 +711,7 @@ c varchar(50) NOT NULL,
 d varchar(100) NOT NULL,
 primary key (a,b(132),c,d),
 key a (a,b)
-) charset=utf8;
+) charset=utf8mb3;
 insert into t2 select 
 x3.a,  -- 3
 concat('val-', x3.a + 3*x4.a), -- 12

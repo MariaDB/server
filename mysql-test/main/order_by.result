@@ -4177,7 +4177,7 @@ drop table t1;
 #
 # Packing sort keys with complex collations
 #
-create table t1(a varchar(255) charset utf8, b int, c decimal);
+create table t1(a varchar(255) charset utf8mb3, b int, c decimal);
 insert into t1 values ('abc', 1, 1) , ('bcd', 2, 2), ('cde',3, 3);
 insert into t1 values ('def', 4, 4) , ('efg', 5, 5), ('fgh', 6, 6);
 #
@@ -4300,7 +4300,7 @@ drop table t1;
 #
 # MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
 #
-create table t1 (a varchar(200) character set utf8 collate utf8_general_ci, b int);
+create table t1 (a varchar(200) character set utf8mb3 collate utf8mb3_general_ci, b int);
 insert into t1 select seq, seq from seq_1_to_10;
 select * from t1 order by a;
 a	b

@@ -19,15 +19,6 @@
 SET character_set_collations= REGEXP_REPLACE(@@character_set_collations, '(utf8mb[34]=[a-z0-9_]*)', '');
 SELECT @@character_set_collations;
 
-
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
---echo #
---echo # Start of 5.5 tests
---echo #
-
 set names utf8mb4;
 
 select left(_utf8mb4 0xD0B0D0B1D0B2,1);
@@ -1184,7 +1175,7 @@ DROP DATABASE crashtest;
 USE test;
 SET CHARACTER SET default;
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # Test for bug #11484: wrong results for a DISTINCT varchar column in uft8. 
@@ -1604,44 +1595,44 @@ UPDATE IGNORE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
 UPDATE t2 SET utf8mb3_encoding= _utf8mb4 x'ea9da8' where u_decimal= 42856;
 
 # Returns utfmb4
-SELECT HEX(CONCAT(utf8mb4_encoding, _utf8 x'ea9da8')) FROM t1;
+SELECT HEX(CONCAT(utf8mb4_encoding, _utf8mb3 x'ea9da8')) FROM t1;
 SELECT HEX(CONCAT(utf8mb4_encoding, utf8mb3_encoding)) FROM t1,t2;
 
 #--error ER_INVALID_CHARACTER_STRING
-#SELECT CONCAT(_utf8 utf8mb4_encoding, _utf8 '|') FROM t1;
+#SELECT CONCAT(_utf8mb3 utf8mb4_encoding, _utf8mb3 '|') FROM t1;
 #--error ER_INVALID_CHARACTER_STRING
-#SELECT CONCAT(_utf8mb3 utf8mb4_encoding, _utf8 '|') FROM t1;
+#SELECT CONCAT(_utf8mb3 utf8mb4_encoding, _utf8mb3 '|') FROM t1;
 
 SELECT count(*) FROM t1, t2
    WHERE t1.utf8mb4_encoding > t2.utf8mb3_encoding;
 
 # Alter from 4-byte charset to 3-byte charset, error
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb3;
 SHOW CREATE TABLE t1;
 SELECT u_decimal,hex(utf8mb4_encoding),utf8mb4_encoding FROM t1;
 
-# Alter table from utf8 to utf8mb4
+# Alter table from utf8mb3 to utf8mb4
 ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t2;
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 
-# Alter table back from utf8mb4 to utf8
+# Alter table back from utf8mb4 to utf8mb3
 ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb3;
 SHOW CREATE TABLE t2;
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 
-# ALter of utf8mb4 column to utf8
+# ALter of utf8mb4 column to utf8mb3
 ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb3;
 SHOW CREATE TABLE t1;
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 
-# ALter of utf8 column to utf8mb4
+# ALter of utf8mb3 column to utf8mb4
 ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t1;
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 
-# ALter of utf8 column to utf8mb4
+# ALter of utf8mb3 column to utf8mb4
 ALTER TABLE t2 MODIFY utf8mb3_encoding VARCHAR(10) CHARACTER SET utf8mb4;
 SHOW CREATE TABLE t2;
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
@@ -1652,9 +1643,9 @@ DROP TABLE IF EXISTS t3;
 CREATE TABLE t3 (
         u_decimal int NOT NULL,
         utf8mb3_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8;
+) CHARACTER SET utf8mb3;
 
-# Insert select utf8mb4 (4-byte) into utf8 (3-byte), error
+# Insert select utf8mb4 (4-byte) into utf8mb3 (3-byte), error
 #--error ER_INVALID_CHARACTER_STRING
 INSERT INTO t3 SELECT * FROM t1;
 
@@ -1666,7 +1657,7 @@ CREATE TABLE t4 (
         utf8mb4_encoding VARCHAR(10) NOT NULL
 ) CHARACTER SET utf8mb4;
 
-# Insert select utf8 (3-byte) into utf8mb4 (4-byte)
+# Insert select utf8mb3 (3-byte) into utf8mb4 (4-byte)
 INSERT INTO t3 SELECT * FROM t2;
 
 DROP TABLE t1;
@@ -1675,13 +1666,13 @@ DROP TABLE t3;
 DROP TABLE t4;
 
 --echo #
---echo # Testing that mixing utf8 and utf8mb4 collations returns utf8mb4
+--echo # Testing that mixing utf8mb3 and utf8mb4 collations returns utf8mb4
 --echo #
-SELECT CHARSET(CONCAT(_utf8mb4'a',_utf8'b'));
+SELECT CHARSET(CONCAT(_utf8mb4'a',_utf8mb3'b'));
 
 CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 NOT NULL);
 INSERT INTO t1 VALUES (x'ea9da8'),(x'f48fbfbf');
-SELECT CONCAT(utf8mb4, _utf8 x'ea9da8') FROM t1 LIMIT 0;
+SELECT CONCAT(utf8mb4, _utf8mb3 x'ea9da8') FROM t1 LIMIT 0;
 
 CREATE TABLE t2 (utf8mb3 VARCHAR(10) CHARACTER SET utf8mb3 NOT NULL);
 INSERT INTO t2 VALUES (x'ea9da8');
@@ -1701,37 +1692,36 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 --echo #
---echo # Check that mixing utf8mb4 with an invalid utf8 constant returns error
+--echo # Check that mixing utf8mb4 with an invalid utf8mb3 constant returns error
 --echo #
 # This should perhaps be changed to return ER_INVALID_CHARACTER_STRING
 CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4);
 INSERT INTO t1 VALUES (x'f48fbfbf');
 --error ER_CANT_AGGREGATE_2COLLATIONS
-SELECT CONCAT(utf8mb4, _utf8 'ø') FROM t1;
+SELECT CONCAT(utf8mb4, _utf8mb3 'ø') FROM t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
-SELECT CONCAT('a', _utf8 'ø') FROM t1;
+SELECT CONCAT('a', _utf8mb3 'ø') FROM t1;
 DROP TABLE t1;
-
 
 --echo #
 --echo # Bug#51675 Server crashes on inserting 4 byte char.
 --echo # after ALTER TABLE to 'utf8mb4' 
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 ( 
-  subject varchar(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci, 
-  p VARCHAR(15) CHARACTER SET utf8 
+  subject varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci, 
+  p VARCHAR(15) CHARACTER SET utf8mb3 
 ) DEFAULT CHARSET=latin1; 
 
 # Alter old table, add index 
 ALTER TABLE t1 ADD INDEX (subject); 
 
-# Alter old 'utf8' table to new 'utf8mb4'
+# Alter old 'utf8mb3' table to new 'utf8mb4'
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1
-  DEFAULT CHARACTER SET utf8,
+  DEFAULT CHARACTER SET utf8mb3,
   MODIFY subject varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  MODIFY p varchar(255) CHARACTER SET utf8;
+  MODIFY p varchar(255) CHARACTER SET utf8mb3;
 SHOW CREATE TABLE t1; 
 
 INSERT INTO t1(subject) VALUES ('abcd'); 
@@ -1854,15 +1844,7 @@ SELECT DISTINCT INSERT(UUID(), 9, 1, "X") AS c FROM t1;
 
 DROP TABLE t1;
 
-
---echo #
 --echo # End of 5.5 tests
---echo #
-
-
---echo #
---echo # Start of 10.0 tests
---echo #
 
 --echo #
 --echo # MDEV-11343 LOAD DATA INFILE fails to load data with an escape character followed by a multi-byte character
@@ -1877,33 +1859,33 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # This test sets session character set to 3-byte utf8,
---echo # but then sends a 4-byte sequence (which is wrong for 3-byte utf8).
+--echo # This test sets session character set to 3-byte utf8mb3,
+--echo # but then sends a 4-byte sequence (which is wrong for 3-byte utf8mb3).
 --echo # It should be replaced to four question marks: '????' in both columns
 --echo # (i.e. four unknown bytes are replaced to four question marks),
 --echo # then the rest of the string should be stored, so we get 'a ???? b'.
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (
   a VARCHAR(32) CHARACTER SET utf8mb4,
-  b VARCHAR(32) CHARACTER SET utf8
+  b VARCHAR(32) CHARACTER SET utf8mb3
 );
 INSERT IGNORE INTO t1 SELECT 'a üòÅ b', 'a üòÅ b';
 SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo # This test sets session character set to 4-byte utf8,
+--echo # This test sets session character set to 4-byte utf8mb3,
 --echo # then normally sends a 4-byte sequence.
 --echo # It should be stored AS IS into the utf8mb4 column (a),
---echo # and should be replaced to a single question mark in the utf8 column (b)
+--echo # and should be replaced to a single question mark in the utf8mb3 column (b)
 --echo # (i.e. one character that cannot be converted is replaced to one question mark).
 --echo #
 
 SET NAMES utf8mb4;
 CREATE TABLE t1 (
   a VARCHAR(32) CHARACTER SET utf8mb4,
-  b VARCHAR(32) CHARACTER SET utf8
+  b VARCHAR(32) CHARACTER SET utf8mb3
 );
 INSERT IGNORE INTO t1 SELECT 'a üòÅ b', 'a üòÅ b';
 SELECT * FROM t1;
@@ -1936,14 +1918,7 @@ SET NAMES default;
 SET NAMES utf8mb4;
 --source include/ctype_mdev13118.inc
 
-
---echo #
 --echo # End of 10.0 tests
---echo #
-
---echo #
---echo # Start of 10.1 tests
---echo #
 
 --echo #
 --echo # MDEV-6572 "USE dbname" with a bad sequence erroneously connects to a wrong database
@@ -1964,14 +1939,7 @@ WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='f1';
 SELECT body_utf8 FROM mysql.proc WHERE name='f1';
 DROP FUNCTION f1;
 
---echo #
 --echo # End of 10.1 tests
---echo #
-
-
---echo #
---echo # End of 10.2 tests
---echo #
 
 --echo #
 --echo # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
@@ -2027,14 +1995,7 @@ SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COL
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-
---echo #
 --echo # End of 10.2 tests
---echo #
-
---echo #
---echo # Start of 10.6 tests
---echo #
 
 --echo #
 --echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
@@ -2054,14 +2015,7 @@ SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.6 tests
---echo #
-
-
---echo #
---echo # Start of 10.11 tests
---echo #
 
 --echo #
 --echo # MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
@@ -2073,7 +2027,8 @@ SELECT 1 COLLATE utf8mb4_bin;
 --error ER_COLLATION_CHARSET_MISMATCH
 SELECT 1 COLLATE latin1_swedish_ci;
 
---echo # MDEV-34376 Wrong data types when mixing an utf8 *TEXT column and a short binary
+--echo #
+--echo # MDEV-34376 Wrong data types when mixing an utf8mb3 *TEXT column and a short binary
 --echo #
 
 CREATE TABLE t1 (
@@ -2165,9 +2120,7 @@ DROP TABLE t2;
 DROP VIEW v2, v1;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.5 tests
---echo #
 
 --echo #
 --echo # MDEV-10865 COLLATE keyword doesn't work in PREPARE query
@@ -2201,7 +2154,4 @@ CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE utf8mb4_unicode_ci AS c1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-
---echo #
 --echo # End of 10.11 tests
---echo #

@@ -86,7 +86,7 @@ CREATE TABLE t8 (a char(10) character set utf8 not null);
 INSERT INTO t8 VALUES ('a'),('a\0'),('a\t'),('a ');
 SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t8;
 DROP TABLE t8;
-CREATE TABLE t8(a VARCHAR(255), KEY(a)) DEFAULT CHARSET=utf8;
+CREATE TABLE t8(a VARCHAR(255), KEY(a)) DEFAULT CHARSET=utf8mb3;
 eval INSERT INTO t8 VALUES('uUABCDEFGHIGKLMNOPRSTUVWXYZbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
 INSERT INTO t8 VALUES('uu');
 check table t8;

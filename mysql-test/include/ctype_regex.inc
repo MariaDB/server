@@ -8,10 +8,6 @@
 --echo # Bug#31081 server crash in regexp function
 --echo #
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 #
 # Create a table with two varchar(64) null-able column,
 # using current values of

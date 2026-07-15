@@ -1,12 +1,6 @@
 # General purpose bug fix tests go here : subselect.test too large
 
-
 --source include/default_optimizer_switch.inc
-
---disable_warnings
-drop table if exists t0,t1,t2,t3,t4,t5,t6;
-drop view if exists v1, v2;
---enable_warnings
 
 --source include/have_sequence.inc
 
@@ -2271,7 +2265,7 @@ DROP TABLE t1,t2,t3,t4;
 --echo # MDEV-21265: IN predicate conversion to IN subquery should be allowed for a broader set of datatype comparison
 --echo #
 
-CREATE TABLE t1(a VARCHAR(50) collate utf8_general_ci, b INT);
+CREATE TABLE t1(a VARCHAR(50) collate utf8mb3_general_ci, b INT);
 INSERT INTO t1 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
 
 CREATE TABLE t2(a VARCHAR(50) collate utf8mb4_general_ci, b INT);
@@ -2289,7 +2283,7 @@ set names 'utf8mb4';
 EXPLAIN
 SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
 
-set names utf8 collate utf8_general_ci;
+set names utf8mb3 collate utf8mb3_general_ci;
 --echo #
 --echo # IN predicate to IN subquery is performed as materialization is allowed
 --echo # The character set on the inner side is a proper subset of the outer side

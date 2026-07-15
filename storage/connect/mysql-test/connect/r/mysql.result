@@ -343,10 +343,10 @@ C390
 Warnings:
 Warning	1105	Out of range value for column name at row 1
 Warning	1265	Data truncated for column 'name' at row 1
-Warning	1105	Out of range value Ð? for column 'name' at row 1
+Warning	1105	Out of range value Ð˜ for column 'name' at row 1
 Warning	1105	Out of range value for column name at row 2
 Warning	1265	Data truncated for column 'name' at row 2
-Warning	1105	Out of range value Iva for column 'name' at row 2
+Warning	1105	Out of range value Ivan for column 'name' at row 2
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (col char(5)) CHARSET=utf8;

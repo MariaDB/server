@@ -138,14 +138,14 @@ SELECT TO_DATE('2023-01-02 가 03:04:05', 'YYYY-MM-DD "가" HH24:MI:SS') AS c;
 SELECT TO_DATE('2023-01-02 豈 03:04:05', 'YYYY-MM-DD "豈" HH24:MI:SS') AS c;
 SELECT TO_DATE('2023-01-02 Ａ03:04:05', 'YYYY-MM-DD "ａ" HH24:MI:SS') AS c;
 
-SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_general_ci,
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb4_general_ci,
                'YYYY-MM-DD "a" HH24:MI:SS') AS c;
-SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_general_ci,
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb4_general_ci,
                'YYYY-MM-DD "A" HH24:MI:SS') AS c;
 
-SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_bin,
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb4_bin,
                'YYYY-MM-DD "a" HH24:MI:SS') AS c;
-SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb3_bin,
+SELECT TO_DATE('2023-01-02 à 03:04:05' COLLATE utf8mb4_bin,
                'YYYY-MM-DD "à" HH24:MI:SS') AS c;
 
 --echo # NULL handling

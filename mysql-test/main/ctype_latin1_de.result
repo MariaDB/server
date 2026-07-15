@@ -397,7 +397,6 @@ b
 a
 DROP TABLE t1;
 "BEGIN ctype_german.inc"
-drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
 select collation(s1) from t1;
 collation(s1)

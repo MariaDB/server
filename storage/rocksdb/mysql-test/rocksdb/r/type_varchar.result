@@ -1,3 +1,6 @@
+set old_mode=utf8_is_utf8mb3;
+Warnings:
+Warning	1287	'UTF8_IS_UTF8MB3' is deprecated and will be removed in a future release
 #
 # A basic test whether endspace-aware variable length encoding 
 # works when in PK

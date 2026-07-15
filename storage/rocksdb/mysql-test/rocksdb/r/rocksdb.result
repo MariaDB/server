@@ -1164,7 +1164,7 @@ insert into t3 values(1, 'one',11), (2,'two',22);
 explain 
 select key1 from t3 where key1='one';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ref	key1	key1	31	const	#	Using where; Using index
+1	SIMPLE	t3	ref	key1	key1	41	const	#	Using where
 select key1 from t3 where key1='one';
 key1
 one
@@ -2579,7 +2579,7 @@ c1-val3	c2-val3	7
 c1-val1	c2-val1	5
 explain SELECT * FROM t1  force index(idx) WHERE c1 <> '1' ORDER BY c1 DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	32	NULL	#	Using where
+1	SIMPLE	t1	range	idx	idx	42	NULL	#	Using where
 drop table t1;
 #
 # Issue#267: MyRocks issue with no matching min/max row and count(*)

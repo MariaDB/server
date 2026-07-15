@@ -20,7 +20,7 @@ create table t1 (a varchar(1500), b varchar(1570))
 partition by list columns(a,b)
 ( partition p0 values in (('a','b')));
 
-create table t1 (a varchar(1023) character set utf8 collate utf8_spanish2_ci)
+create table t1 (a varchar(1023) character set utf8mb3 collate utf8mb3_spanish2_ci)
 partition by range columns(a)
 ( partition p0 values less than ('CZ'),
   partition p1 values less than ('CH'),

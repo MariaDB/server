@@ -579,7 +579,7 @@ t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL,
   `d` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 add index (b);
 insert into t1 values(10,10,'kkk','iii');
 select * from t1;
@@ -610,7 +610,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 add unique index (c), add index (d);
 insert into t1 values(11,11,'aaa','mmm');
 select * from t1;
@@ -654,10 +654,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	b	5	NULL	7	
 explain select * from t1 force index(c) order by c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	31	NULL	7	
+1	SIMPLE	t1	index	NULL	c	41	NULL	7	
 explain select * from t1 force index(d) order by d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	d	63	NULL	7	
+1	SIMPLE	t1	index	NULL	d	83	NULL	7	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -669,7 +669,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `c` (`c`),
   KEY `b` (`b`),
   KEY `d` (`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

@@ -1,0 +1,300 @@
+SET NAMES utf8mb3;
+#
+# MDEV-39022 Add `LOCAL spvar` syntax for prepared statements and SYS_REFCURSORs
+#
+PREPARE LOCAL spvar FROM 'SELECT 1';
+ERROR 42000: Undeclared variable: spvar
+EXECUTE LOCAL spvar;
+ERROR 42000: Undeclared variable: spvar
+DEALLOCATE PREPARE LOCAL spvar;
+ERROR 42000: Undeclared variable: spvar
+OPEN c0 FOR LOCAL spvar;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OPEN c0 FOR LOCAL spvar' at line 1
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE `` TEXT DEFAULT 'stmt';
+PREPARE LOCAL `` FROM 'CREATE TABLE t1 (a INT)';
+EXECUTE LOCAL ``;
+DEALLOCATE PREPARE LOCAL ``;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+v0 TEXT;
+`` TEXT := 'stmt';
+BEGIN
+PREPARE LOCAL `` FROM 'SELECT 1';
+OPEN c0 FOR LOCAL ``;
+FETCH c0 INTO v0;
+SELECT v0;
+CLOSE c0;
+DEALLOCATE PREPARE LOCAL ``;
+END;
+$$
+CALL p1;
+v0
+1
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar TEXT DEFAULT '';
+PREPARE LOCAL spvar FROM 'CREATE TABLE t1 (a INT)';
+EXECUTE LOCAL spvar;
+DEALLOCATE PREPARE LOCAL spvar;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+v0 TEXT;
+spvar TEXT := '';
+BEGIN
+PREPARE LOCAL spvar FROM 'SELECT 1';
+OPEN c0 FOR LOCAL spvar;
+FETCH c0 INTO v0;
+SELECT v0;
+CLOSE c0;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+v0
+1
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+# MDEV-40060 Assertion `Well_formed_prefix(system_charset_info, name->str, name->length).length() == name->length' failed in void Lex_ident_sys_st::set_valid_utf8(const LEX_CSTRING *)
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARBINARY(8) DEFAULT 0xFF;
+PREPARE LOCAL spvar FROM 'CREATE TABLE t1 (a INT)';
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (\xFF) given to PREPARE
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARBINARY(8) DEFAULT 0xFF;
+EXECUTE LOCAL spvar;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (\xFF) given to EXECUTE
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARBINARY(8) DEFAULT 0xFF;
+DEALLOCATE PREPARE LOCAL spvar;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (\xFF) given to DEALLOCATE PREPARE
+DROP PROCEDURE p1;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+v0 TEXT;
+spvar VARBINARY(8) := 0xFF;
+BEGIN
+PREPARE LOCAL spvar FROM 'SELECT 1';
+OPEN c0 FOR LOCAL spvar;
+FETCH c0 INTO v0;
+SELECT v0;
+CLOSE c0;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (\xFF) given to PREPARE
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+# End of MDEV-40060 Assertion `Well_formed_prefix(system_charset_info, name->str, name->length).length() == name->length' failed in void Lex_ident_sys_st::set_valid_utf8(const LEX_CSTRING *)
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar TEXT DEFAULT NULL;
+PREPARE LOCAL spvar FROM 'CREATE TABLE t1 (a INT)';
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (NULL) given to PREPARE
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar TEXT DEFAULT NULL;
+EXECUTE LOCAL spvar;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (NULL) given to EXECUTE
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar TEXT DEFAULT NULL;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (NULL) given to DEALLOCATE PREPARE
+DROP PROCEDURE p1;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+spvar TEXT := NULL;
+BEGIN
+OPEN c0 FOR LOCAL spvar;
+END;
+$$
+CALL p1;
+ERROR HY000: Unknown prepared statement handler (NULL) given to OPEN
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS
+TYPE rec0_t IS RECORD (a INT, b INT);
+TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+c0 cur0_t;
+ps_name VARCHAR(32) DEFAULT 'stmt';
+BEGIN
+PREPARE stmt FROM 'SELECT 1,2';
+OPEN c0 FOR LOCAL ps_name;
+END;
+$$
+ERROR HY000: Incorrect usage of c0 and OPEN..FOR LOCAL ps_name_variable
+SET sql_mode=DEFAULT;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+EXECUTE LOCAL spvar;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+c0
+1
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b TEXT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va INT DEFAULT 10;
+DECLARE vb TEXT DEFAULT 'b10';
+DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+PREPARE LOCAL spvar FROM 'INSERT INTO t1 VALUES (?,?)';
+EXECUTE LOCAL spvar USING va, vb;
+DEALLOCATE PREPARE LOCAL spvar;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+a	b
+10	b10
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+PREPARE stmt FROM 'SELECT 1 AS c0';
+EXECUTE LOCAL spvar;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+c0
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+EXECUTE stmt;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+c0
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+EXECUTE LOCAL spvar;
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CALL p1;
+c0
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE spvar VARCHAR(32) CHARACTER SET latin1 DEFAULT 'àçé';
+PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+EXECUTE LOCAL spvar;
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+CALL p1;
+c0
+1
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b TEXT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE spvar TEXT DEFAULT 'stmt';
+PREPARE LOCAL spvar FROM 'INSERT INTO t2 VALUES (?, ?)';
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE spvar TEXT DEFAULT 'stmt';
+EXECUTE LOCAL spvar;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE spvar TEXT DEFAULT 'stmt';
+DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP TABLE t1;
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a INT, b TEXT);
+CREATE TABLE t2 (a INT, b TEXT);
+PREPARE stmt FROM 'SELECT 1,2';
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE
+c0 SYS_REFCURSOR;
+spvar TEXT DEFAULT 'stmt';
+v0 INT;
+v1 TEXT;
+BEGIN
+OPEN c0 FOR LOCAL spvar;
+FETCH c0 INTO v0, v1;
+CLOSE c0;
+INSERT INTO t2 VALUES (v0, v1);
+END;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+INSERT INTO t1 VALUES (1,'b1');
+SELECT * FROM t2;
+a	b
+DEALLOCATE PREPARE stmt;
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

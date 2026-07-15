@@ -685,7 +685,7 @@ BEGIN
         CALL sys.execute_prepared_stmt(CONCAT('CREATE TEMPORARY TABLE ', v_table_name, ' (
   Variable_name VARCHAR(193) NOT NULL,
   Variable_value VARCHAR(1024),
-  Type VARCHAR(100) NOT NULL,
+  Type VARCHAR(100) CHARSET latin1 NOT NULL,
   Enabled ENUM(''YES'', ''NO'', ''PARTIAL'') NOT NULL,
   PRIMARY KEY (Type, Variable_name)
 ) ENGINE = InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_general_ci'));

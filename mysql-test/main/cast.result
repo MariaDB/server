@@ -822,13 +822,13 @@ collation(cast("a" as char(10) binary))
 latin1_bin
 select collation(cast("a" as char(10) charset utf8 binary));
 collation(cast("a" as char(10) charset utf8 binary))
-utf8mb3_bin
+utf8mb4_bin
 select collation(cast("a" as char(10) ascii binary));
 collation(cast("a" as char(10) ascii binary))
 latin1_bin
 select collation(cast("a" as char(10) binary charset utf8));
 collation(cast("a" as char(10) binary charset utf8))
-utf8mb3_bin
+utf8mb4_bin
 select collation(cast("a" as char(10) binary ascii));
 collation(cast("a" as char(10) binary ascii))
 latin1_bin
@@ -1239,14 +1239,14 @@ DECLARE a VARCHAR(30) CHARACTER SET utf8;
 SET a=CAST(_utf8 0xD18F AS CHAR(1) CHARACTER SET latin1);
 END;
 $$
-ERROR HY000: Cannot convert 'utf8mb3' character 0xD18F to 'latin1'
+ERROR HY000: Cannot convert 'utf8mb4' character 0xD18F to 'latin1'
 # Conversion problems still escalate warnings to errors (with right truncation)
 BEGIN NOT ATOMIC
 DECLARE a VARCHAR(30) CHARACTER SET utf8;
 SET a=CAST(_utf8 0xD18FD18F AS CHAR(1) CHARACTER SET latin1);
 END;
 $$
-ERROR HY000: Cannot convert 'utf8mb3' character 0xD18F to 'latin1'
+ERROR HY000: Cannot convert 'utf8mb4' character 0xD18F to 'latin1'
 # CAST(number AS CHAR) escalates warnings to errors on truncation
 CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
 INSERT INTO t1 VALUES (CAST(123 AS CHAR(1)));

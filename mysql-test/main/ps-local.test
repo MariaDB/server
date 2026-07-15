@@ -1,0 +1,405 @@
+SET NAMES utf8mb3;
+
+--echo #
+--echo # MDEV-39022 Add `LOCAL spvar` syntax for prepared statements and SYS_REFCURSORs
+--echo #
+
+# LOCAL outside of a stored routine
+
+--error ER_SP_UNDECLARED_VAR
+PREPARE LOCAL spvar FROM 'SELECT 1';
+
+--error ER_SP_UNDECLARED_VAR
+EXECUTE LOCAL spvar;
+
+--error ER_SP_UNDECLARED_VAR
+DEALLOCATE PREPARE LOCAL spvar;
+
+--error ER_PARSE_ERROR
+OPEN c0 FOR LOCAL spvar;
+
+
+# Empty LOCAL variable name: EXECUTE
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE `` TEXT DEFAULT 'stmt';
+  PREPARE LOCAL `` FROM 'CREATE TABLE t1 (a INT)';
+  EXECUTE LOCAL ``;
+  DEALLOCATE PREPARE LOCAL ``;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Empty LOCAL variable name: CURSOR
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  v0 TEXT;
+  `` TEXT := 'stmt';
+BEGIN
+  PREPARE LOCAL `` FROM 'SELECT 1';
+  OPEN c0 FOR LOCAL ``;
+  FETCH c0 INTO v0;
+  SELECT v0;
+  CLOSE c0;
+  DEALLOCATE PREPARE LOCAL ``;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+
+# LOCAL variable evaluates to an empty PS name: EXECUTE
+# We support this because we also support PREPARE `` FROM '...';
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar TEXT DEFAULT '';
+  PREPARE LOCAL spvar FROM 'CREATE TABLE t1 (a INT)';
+  EXECUTE LOCAL spvar;
+  DEALLOCATE PREPARE LOCAL spvar;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# LOCAL variable evaluates to an empty PS name: CURSOR
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  v0 TEXT;
+  spvar TEXT := '';
+BEGIN
+  PREPARE LOCAL spvar FROM 'SELECT 1';
+  OPEN c0 FOR LOCAL spvar;
+  FETCH c0 INTO v0;
+  SELECT v0;
+  CLOSE c0;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+--echo # MDEV-40060 Assertion `Well_formed_prefix(system_charset_info, name->str, name->length).length() == name->length' failed in void Lex_ident_sys_st::set_valid_utf8(const LEX_CSTRING *)
+
+# LOCAL variable value does not cast to utf8: PREPARE
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARBINARY(8) DEFAULT 0xFF;
+  PREPARE LOCAL spvar FROM 'CREATE TABLE t1 (a INT)';
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# LOCAL variable value does not cast to utf8: EXECUTE
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARBINARY(8) DEFAULT 0xFF;
+  EXECUTE LOCAL spvar;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# LOCAL variable value does not cast to utf8: DEALLOCATE
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARBINARY(8) DEFAULT 0xFF;
+  DEALLOCATE PREPARE LOCAL spvar;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# LOCAL variable value does not cast to utf8: CURSOR
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  v0 TEXT;
+  spvar VARBINARY(8) := 0xFF;
+BEGIN
+  PREPARE LOCAL spvar FROM 'SELECT 1';
+  OPEN c0 FOR LOCAL spvar;
+  FETCH c0 INTO v0;
+  SELECT v0;
+  CLOSE c0;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+--echo # End of MDEV-40060 Assertion `Well_formed_prefix(system_charset_info, name->str, name->length).length() == name->length' failed in void Lex_ident_sys_st::set_valid_utf8(const LEX_CSTRING *)
+
+
+# LOCAL variable evaluates to a NULL PS name: PREPARE/EXECUTE/DEALLOCATE/CURSOR
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar TEXT DEFAULT NULL;
+  PREPARE LOCAL spvar FROM 'CREATE TABLE t1 (a INT)';
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar TEXT DEFAULT NULL;
+  EXECUTE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar TEXT DEFAULT NULL;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+
+# LOCAL variable evaluates to a NULL PS name: CURSOR
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  spvar TEXT := NULL;
+BEGIN
+  OPEN c0 FOR LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_STMT_HANDLER
+CALL p1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+
+# OPEN strict_cursor_variable FROM LOCAL ps_name_variable -- not supported
+SET sql_mode=ORACLE;
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b INT);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+  ps_name VARCHAR(32) DEFAULT 'stmt';
+BEGIN
+  PREPARE stmt FROM 'SELECT 1,2';
+  OPEN c0 FOR LOCAL ps_name;
+END;
+$$
+DELIMITER ;$$
+SET sql_mode=DEFAULT;
+
+
+# PREPARE extended; EXECUTE extended; DEALLOCATE extended;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+  PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+  EXECUTE LOCAL spvar;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+# PREPARE extended; EXECUTE extended .. USING ..; DEALLOCATE extended;
+
+CREATE TABLE t1 (a INT, b TEXT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va INT DEFAULT 10;
+  DECLARE vb TEXT DEFAULT 'b10';
+  DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+  PREPARE LOCAL spvar FROM 'INSERT INTO t1 VALUES (?,?)';
+  EXECUTE LOCAL spvar USING va, vb;
+  DEALLOCATE PREPARE LOCAL spvar;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+# PREPARE simple; EXECUTE extended; DEALLOCATE extended;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+  PREPARE stmt FROM 'SELECT 1 AS c0';
+  EXECUTE LOCAL spvar;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+# PREPARE extended; EXECUTE simple; DEALLOCATE extended;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+  PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+# PREPARE extended; EXECUTE extended; DEALLOCATE simple;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARCHAR(32) DEFAULT 'stmt';
+  PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+  EXECUTE LOCAL spvar;
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# Extended name with non-ASCII characters
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE spvar VARCHAR(32) CHARACTER SET latin1 DEFAULT 'àçé';
+  PREPARE LOCAL spvar FROM 'SELECT 1 AS c0';
+  EXECUTE LOCAL spvar;
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# PS + LOCAL + trigger - not allowed
+
+CREATE TABLE t1 (a INT, b TEXT);
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  DECLARE spvar TEXT DEFAULT 'stmt';
+  PREPARE LOCAL spvar FROM 'INSERT INTO t2 VALUES (?, ?)';
+END;
+$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  DECLARE spvar TEXT DEFAULT 'stmt';
+  EXECUTE LOCAL spvar;
+END;
+$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  DECLARE spvar TEXT DEFAULT 'stmt';
+  DEALLOCATE PREPARE LOCAL spvar;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+# PS + LOCAL + trigger + CURSOR - not allowed
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a INT, b TEXT);
+CREATE TABLE t2 (a INT, b TEXT);
+PREPARE stmt FROM 'SELECT 1,2';
+DELIMITER $$;
+
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  DECLARE
+    c0 SYS_REFCURSOR;
+    spvar TEXT DEFAULT 'stmt';
+    v0 INT;
+    v1 TEXT;
+  BEGIN
+    OPEN c0 FOR LOCAL spvar;
+    FETCH c0 INTO v0, v1;
+    CLOSE c0;
+    INSERT INTO t2 VALUES (v0, v1);
+  END;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1 VALUES (1,'b1');
+SELECT * FROM t2;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

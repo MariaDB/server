@@ -15,8 +15,8 @@ create table t2(a int, b varchar(1024)) engine=myisam;
 insert into t2 select seq, repeat("a", 500) from seq_1_to_100;
 show status like "%tmp_space%";
 Variable_name	Value
-Max_tmp_space_used	102054
-Tmp_space_used	102054
+Max_tmp_space_used	101706
+Tmp_space_used	101706
 change_user foo,,;
 use test;
 select count(*) from t1;
@@ -24,7 +24,7 @@ count(*)
 100
 show status like "%tmp_space%";
 Variable_name	Value
-Max_tmp_space_used	102054
+Max_tmp_space_used	101706
 Tmp_space_used	0
 drop table t1,t2;
 change_user root,,;

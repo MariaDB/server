@@ -3,13 +3,6 @@
 #
 
 --source include/default_optimizer_switch.inc
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
-
---echo #
---echo # Start of 5.5 tests
---echo #
 
 set names utf8mb4;
 
@@ -1266,7 +1259,7 @@ DROP DATABASE crashtest;
 USE test;
 SET CHARACTER SET default;
 
-# End of 4.1 tests
+--echo # ctype_utf8mb4.inc: End of 4.1 tests
 
 #
 # Test for bug #11484: wrong results for a DISTINCT varchar column in uft8. 
@@ -1705,14 +1698,14 @@ UPDATE t2 SET utf8mb3_encoding= _utf8mb4 x'ea9da8' where u_decimal= 42856;
 
 # Returns utfmb4
 --sorted_result
-SELECT HEX(CONCAT(utf8mb4_encoding, _utf8 x'ea9da8')) FROM t1;
+SELECT HEX(CONCAT(utf8mb4_encoding, _utf8mb3 x'ea9da8')) FROM t1;
 --sorted_result
 SELECT HEX(CONCAT(utf8mb4_encoding, utf8mb3_encoding)) FROM t1,t2;
 
 #--error ER_INVALID_CHARACTER_STRING
-#SELECT CONCAT(_utf8 utf8mb4_encoding, _utf8 '|') FROM t1;
-#--error ER_INVALID_CHARACTER_STRING
 #SELECT CONCAT(_utf8mb3 utf8mb4_encoding, _utf8 '|') FROM t1;
+#--error ER_INVALID_CHARACTER_STRING
+#SELECT CONCAT(_utf8mb3 utf8mb4_encoding, _utf8mb3 '|') FROM t1;
 
 SELECT count(*) FROM t1, t2
    WHERE t1.utf8mb4_encoding > t2.utf8mb3_encoding;
@@ -1720,25 +1713,25 @@ SELECT count(*) FROM t1, t2
 # Alter from 4-byte charset to 3-byte charset, error
 --disable_warnings
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-ALTER TABLE t1 CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci;
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 --enable_warnings
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT u_decimal,hex(utf8mb4_encoding),utf8mb4_encoding FROM t1;
 
-# Alter table from utf8 to utf8mb4
+# Alter table from utf8mb3 to utf8mb4
 ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t2;
 --sorted_result
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 
-# Alter table back from utf8mb4 to utf8
+# Alter table back from utf8mb4 to utf8mb3
 ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 SHOW CREATE TABLE t2;
 --sorted_result
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 
-# ALter of utf8mb4 column to utf8
+# ALter of utf8mb4 column to utf8mb3
 --disable_warnings
 ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 --enable_warnings
@@ -1746,13 +1739,13 @@ SHOW CREATE TABLE t1;
 --sorted_result
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 
-# ALter of utf8 column to utf8mb4
+# ALter of utf8mb3 column to utf8mb4
 ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 
-# ALter of utf8 column to utf8mb4
+# ALter of utf8mb3 column to utf8mb4
 ALTER TABLE t2 MODIFY utf8mb3_encoding VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t2;
 --sorted_result
@@ -1764,9 +1757,9 @@ DROP TABLE IF EXISTS t3;
 eval CREATE TABLE t3 (
         u_decimal int NOT NULL,
         utf8mb3_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8 COLLATE utf8_general_ci ENGINE $engine;
+) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci ENGINE $engine;
 
-# Insert select utf8mb4 (4-byte) into utf8 (3-byte), error
+# Insert select utf8mb4 (4-byte) into utf8mb3 (3-byte), error
 #--error ER_INVALID_CHARACTER_STRING
 INSERT INTO t3 SELECT * FROM t1;
 
@@ -1778,7 +1771,7 @@ eval CREATE TABLE t4 (
         utf8mb4_encoding VARCHAR(10) NOT NULL
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE $engine;
 
-# Insert select utf8 (3-byte) into utf8mb4 (4-byte)
+# Insert select utf8mb3 (3-byte) into utf8mb4 (4-byte)
 INSERT INTO t3 SELECT * FROM t2;
 
 DROP TABLE t1;
@@ -1787,13 +1780,13 @@ DROP TABLE t3;
 DROP TABLE t4;
 
 --echo #
---echo # Testing that mixing utf8 and utf8mb4 collations returns utf8mb4
+--echo # Testing that mixing utf8mb3 and utf8mb4 collations returns utf8mb4
 --echo #
-SELECT CHARSET(CONCAT(_utf8mb4'a',_utf8'b'));
+SELECT CHARSET(CONCAT(_utf8mb4'a',_utf8mb3'b'));
 
 eval CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL) ENGINE $engine;
 INSERT INTO t1 VALUES (x'ea9da8'),(x'f48fbfbf');
-SELECT CONCAT(utf8mb4, _utf8 x'ea9da8') FROM t1 LIMIT 0;
+SELECT CONCAT(utf8mb4, _utf8mb3 x'ea9da8') FROM t1 LIMIT 0;
 
 eval CREATE TABLE t2 (utf8mb3 VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL) ENGINE $engine;
 INSERT INTO t2 VALUES (x'ea9da8');
@@ -1813,24 +1806,18 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 --echo #
---echo # Check that mixing utf8mb4 with an invalid utf8 constant returns error
+--echo # Check that mixing utf8mb4 with an invalid utf8mb3 constant returns error
 --echo #
 # This should perhaps be changed to return ER_INVALID_CHARACTER_STRING
 eval CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci) ENGINE $engine;
 INSERT INTO t1 VALUES (x'f48fbfbf');
 --error ER_CANT_AGGREGATE_2COLLATIONS
-SELECT CONCAT(utf8mb4, _utf8 '¿') FROM t1;
+SELECT CONCAT(utf8mb4, _utf8mb3 '¿') FROM t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
-SELECT CONCAT('a', _utf8 '¿') FROM t1;
+SELECT CONCAT('a', _utf8mb3 '¿') FROM t1;
 DROP TABLE t1;
 
---echo #
---echo # End of 5.5 tests
---echo #
-
---echo #
---echo # ctype_utf8mb4.inc: Start of 10.1 tests
---echo #
+--echo # ctype_utf8mb4.inc: End of 5.5 tests
 
 --echo #
 --echo # MDEV-8417 utf8mb4: compare broken bytes as "greater than any non-broken character"
@@ -1853,9 +1840,7 @@ SELECT id,HEX(a) FROM t1 ORDER BY a DESC,id DESC;
 SELECT COUNT(DISTINCT a) FROM t1;
 DROP TABLE t1;
 
---echo #
 --echo # ctype_utf8mb4.inc: End of 10.1 tests
---echo #
 
 --echo #
 --echo # End of ctype_utf8mb4.inc

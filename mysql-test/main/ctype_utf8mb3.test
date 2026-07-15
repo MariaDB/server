@@ -1,6 +1,6 @@
 --source include/no_valgrind_without_big.inc
 #
-# Tests with the utf8 character set
+# Tests with the utf8mb3 character set
 #
 
 let $MYSQLD_DATADIR= `select @@datadir`;
@@ -29,10 +29,10 @@ drop database if exists mysqltest;
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
-set names utf8;
+set names utf8mb3;
 
-select left(_utf8 0xD0B0D0B1D0B2,1);
-select right(_utf8 0xD0B0D0B2D0B2,1);
+select left(_utf8mb3 0xD0B0D0B1D0B2,1);
+select right(_utf8mb3 0xD0B0D0B2D0B2,1);
 
 select locate('he','hello');
 select locate('he','hello',2);
@@ -40,35 +40,35 @@ select locate('lo','hello',2);
 select locate('HE','hello');
 select locate('HE','hello',2);
 select locate('LO','hello',2);
-select locate('HE','hello' collate utf8_bin);
-select locate('HE','hello' collate utf8_bin,2);
-select locate('LO','hello' collate utf8_bin,2);
+select locate('HE','hello' collate utf8mb3_bin);
+select locate('HE','hello' collate utf8mb3_bin,2);
+select locate('LO','hello' collate utf8mb3_bin,2);
 
-select locate(_utf8 0xD0B1, _utf8 0xD0B0D0B1D0B2);
-select locate(_utf8 0xD091, _utf8 0xD0B0D0B1D0B2);
-select locate(_utf8 0xD0B1, _utf8 0xD0B0D091D0B2);
-select locate(_utf8 0xD091, _utf8 0xD0B0D0B1D0B2 collate utf8_bin);
-select locate(_utf8 0xD0B1, _utf8 0xD0B0D091D0B2 collate utf8_bin);
+select locate(_utf8mb3 0xD0B1, _utf8mb3 0xD0B0D0B1D0B2);
+select locate(_utf8mb3 0xD091, _utf8mb3 0xD0B0D0B1D0B2);
+select locate(_utf8mb3 0xD0B1, _utf8mb3 0xD0B0D091D0B2);
+select locate(_utf8mb3 0xD091, _utf8mb3 0xD0B0D0B1D0B2 collate utf8mb3_bin) as x;
+select locate(_utf8mb3 0xD0B1, _utf8mb3 0xD0B0D091D0B2 collate utf8mb3_bin) as x;
 
-select length(_utf8 0xD0B1), bit_length(_utf8 0xD0B1), char_length(_utf8 0xD0B1);
+select length(_utf8mb3 0xD0B1), bit_length(_utf8mb3 0xD0B1), char_length(_utf8mb3 0xD0B1);
 
 select 'a' like 'a';
 select 'A' like 'a';
-select 'A' like 'a' collate utf8_bin;
-select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%') as exp;
+select 'A' like 'a' collate utf8mb3_bin;
+select _utf8mb3 0xD0B0D0B1D0B2 like concat(_utf8mb3'%',_utf8mb3 0xD0B1,_utf8mb3 '%') as exp;
 
 # Bug #6040: can't retrieve records with umlaut
 # characters in case insensitive manner.
 # Case insensitive search LIKE comparison
 # was broken for multibyte characters:
-select convert(_latin1'G�nter Andr�' using utf8) like CONVERT(_latin1'G�NTER%' USING utf8) as exp;
-select CONVERT(_koi8r'����' USING utf8) LIKE CONVERT(_koi8r'����' USING utf8) as exp;
-select CONVERT(_koi8r'����' USING utf8) LIKE CONVERT(_koi8r'����' USING utf8) as exp;
+select convert(_latin1'G�nter Andr�' using utf8mb3) like CONVERT(_latin1'G�NTER%' USING utf8mb3) as exp;
+select CONVERT(_koi8r'����' USING utf8mb3) LIKE CONVERT(_koi8r'����' USING utf8mb3) as exp;
+select CONVERT(_koi8r'����' USING utf8mb3) LIKE CONVERT(_koi8r'����' USING utf8mb3) as exp;
 
 #
 # Fix this, it should return 1:
 #
-#select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD091,_utf8 '%');
+#select _utf8mb3 0xD0B0D0B1D0B2 like concat(_utf8mb3'%',_utf8mb3 0xD091,_utf8mb3 '%');
 #
 
 #
@@ -78,7 +78,7 @@ select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select insert("aa",100,1,"b"),insert("aa",1,3,"b");
 
 #
-# LELF() didn't work well with utf8 in some cases too.
+# LELF() didn't work well with utf8mb3 in some cases too.
 #
 select char_length(left(@a:='тест',5)), length(@a), @a;
 
@@ -94,7 +94,7 @@ drop table t1;
 #
 # Bug#22646 LC_TIME_NAMES: Assignment to non-UTF8 target fails
 #
-set names utf8;
+set names utf8mb3;
 set LC_TIME_NAMES='fr_FR';
 create table t1 (s1 char(20) character set latin1);
 insert into t1 values (date_format('2004-02-02','%M'));
@@ -112,15 +112,15 @@ set LC_TIME_NAMES='en_US';
 
 
 #
-# Bug #2366  	Wrong utf8 behaviour when data is truncated
+# Bug #2366  	Wrong utf8mb3 behaviour when data is truncated
 #
 set names koi8r;
-create table t1 (s1 char(1) character set utf8);
+create table t1 (s1 char(1) character set utf8mb3);
 insert ignore into t1 values (_koi8r'��');
 select s1,hex(s1),char_length(s1),octet_length(s1) from t1;
 drop table t1;
 
-create table t1 (s1 tinytext character set utf8);
+create table t1 (s1 tinytext character set utf8mb3);
 insert ignore into t1 select repeat('a',300);
 insert ignore into t1 select repeat('�',300);
 insert ignore into t1 select repeat('a�',300);
@@ -130,7 +130,7 @@ select hex(s1) from t1;
 select length(s1),char_length(s1) from t1;
 drop table t1;
 
-create table t1 (s1 text character set utf8);
+create table t1 (s1 text character set utf8mb3);
 insert ignore into t1 select repeat('a',66000);
 insert ignore into t1 select repeat('�',66000);
 insert ignore into t1 select repeat('a�',66000);
@@ -142,17 +142,17 @@ drop table t1;
 #
 # Bug #2368 Multibyte charsets do not check that incoming data is well-formed
 #
-create table t1 (s1 char(10) character set utf8);
+create table t1 (s1 char(10) character set utf8mb3);
 insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
-create table t1 (s1 varchar(10) character set utf8);
+create table t1 (s1 varchar(10) character set utf8mb3);
 insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
-create table t1 (s1 text character set utf8);
+create table t1 (s1 text character set utf8mb3);
 insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
@@ -162,21 +162,21 @@ drop table t1;
 # UTF8 breaks primary keys for cols > 333 characters
 #
 --error 1071
-create table t1 (a text character set utf8, primary key(a(371)));
+create table t1 (a text character set utf8mb3, primary key(a(371)));
 
 
 #
 # Bug 2959
 # UTF8 charset breaks joins with mixed column/string constant
 #
-CREATE TABLE t1 ( a varchar(10) ) CHARACTER SET utf8;
+CREATE TABLE t1 ( a varchar(10) ) CHARACTER SET utf8mb3;
 INSERT INTO t1 VALUES ( 'test' );
 SELECT a.a, b.a FROM t1 a, t1 b WHERE a.a = b.a;
 SELECT a.a, b.a FROM t1 a, t1 b WHERE a.a = 'test' and b.a = 'test';
 SELECT a.a, b.a FROM t1 a, t1 b WHERE a.a = b.a and a.a = 'test';
 DROP TABLE t1;
 
-create table t1 (a char(255) character set utf8);
+create table t1 (a char(255) character set utf8mb3);
 insert into t1 values('b'),('b');
 select * from t1 where a = 'b';
 select * from t1 where a = 'b' and a = 'b';
@@ -185,17 +185,17 @@ drop table t1;
 
 #
 # Bug #4555
-# ALTER TABLE crashes mysqld with enum column collated utf8_unicode_ci
+# ALTER TABLE crashes mysqld with enum column collated utf8mb3_unicode_ci
 #
-CREATE TABLE t1 (a enum ('Y', 'N') DEFAULT 'N' COLLATE utf8_unicode_ci);
+CREATE TABLE t1 (a enum ('Y', 'N') DEFAULT 'N' COLLATE utf8mb3_unicode_ci);
 ALTER TABLE t1 ADD COLUMN b CHAR(20);
 DROP TABLE t1;
 
 # Customer Support Center issue # 3299 
 # ENUM and SET multibyte fields computed their length wronly 
 # when converted into a char field
-set names utf8;
-create table t1 (a enum('aaaa','проба') character set utf8);
+set names utf8mb3;
+create table t1 (a enum('aaaa','проба') character set utf8mb3);
 show create table t1;
 insert into t1 values ('проба');
 select * from t1;
@@ -206,10 +206,10 @@ drop table t1;
 drop table t2;
 
 #
-# Bug 4521: unique key prefix interacts poorly with utf8
+# Bug 4521: unique key prefix interacts poorly with utf8mb3
 # MYISAM: keys with prefix compression, case insensitive collation.
 #
-create table t1 (c varchar(30) character set utf8, unique(c(10)));
+create table t1 (c varchar(30) character set utf8mb3, unique(c(10)));
 insert into t1 values ('1'),('2'),('3'),('x'),('y'),('z');
 insert into t1 values ('aaaaaaaaaa');
 --error ER_DUP_ENTRY
@@ -228,10 +228,10 @@ select c cb20 from t1 where c=repeat('b',20);
 drop table t1;
 
 #
-# Bug 4521: unique key prefix interacts poorly with utf8
+# Bug 4521: unique key prefix interacts poorly with utf8mb3
 # InnoDB: keys with prefix compression, case insensitive collation.
 #
-create table t1 (c varchar(30) character set utf8, unique(c(10))) engine=innodb;
+create table t1 (c varchar(30) character set utf8mb3, unique(c(10))) engine=innodb;
 insert into t1 values ('1'),('2'),('3'),('x'),('y'),('z');
 insert into t1 values ('aaaaaaaaaa');
 --error ER_DUP_ENTRY
@@ -249,10 +249,10 @@ select c ca10 from t1 where c='aaaaaaaaaa';
 select c cb20 from t1 where c=repeat('b',20);
 drop table t1;
 #
-# Bug 4521: unique key prefix interacts poorly with utf8
+# Bug 4521: unique key prefix interacts poorly with utf8mb3
 # MYISAM: fixed length keys, case insensitive collation
 #
-create table t1 (c char(3) character set utf8, unique (c(2)));
+create table t1 (c char(3) character set utf8mb3, unique (c(2)));
 insert into t1 values ('1'),('2'),('3'),('4'),('x'),('y'),('z');
 insert into t1 values ('a');
 insert into t1 values ('aa');
@@ -276,10 +276,10 @@ insert into t1 values ('ꪪꪪ');
 insert into t1 values ('ꪪꪪꪪ');
 drop table t1;
 #
-# Bug 4521: unique key prefix interacts poorly with utf8
+# Bug 4521: unique key prefix interacts poorly with utf8mb3
 # InnoDB: fixed length keys, case insensitive collation
 #
-create table t1 (c char(3) character set utf8, unique (c(2))) engine=innodb;
+create table t1 (c char(3) character set utf8mb3, unique (c(2))) engine=innodb;
 insert into t1 values ('1'),('2'),('3'),('4'),('x'),('y'),('z');
 insert into t1 values ('a');
 insert into t1 values ('aa');
@@ -303,11 +303,11 @@ insert into t1 values ('ꪪꪪ');
 insert into t1 values ('ꪪꪪꪪ');
 drop table t1;
 #
-# Bug 4531: unique key prefix interacts poorly with utf8
+# Bug 4531: unique key prefix interacts poorly with utf8mb3
 # Check HEAP+HASH, case insensitive collation
 #
 create table t1 (
-c char(10) character set utf8,
+c char(10) character set utf8mb3,
 unique key a using hash (c(1))
 ) engine=heap;
 show create table t1;
@@ -329,11 +329,11 @@ select c as c_a from t1 where c='б';
 drop table t1;
 
 #
-# Bug 4531: unique key prefix interacts poorly with utf8
+# Bug 4531: unique key prefix interacts poorly with utf8mb3
 # Check HEAP+BTREE, case insensitive collation
 #
 create table t1 (
-c char(10) character set utf8,
+c char(10) character set utf8mb3,
 unique key a using btree (c(1))
 ) engine=heap;
 show create table t1;
@@ -355,11 +355,11 @@ select c as c_a from t1 where c='б';
 drop table t1;
 
 #
-# Bug 4531: unique key prefix interacts poorly with utf8
+# Bug 4531: unique key prefix interacts poorly with utf8mb3
 # Check BDB, case insensitive collation
 #
 create table t1 (
-c char(10) character set utf8,
+c char(10) character set utf8mb3,
 unique key a (c(1))
 ) engine=innodb;
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
@@ -380,10 +380,10 @@ select c as c_a from t1 where c='б';
 drop table t1;
 
 #
-# Bug 4521: unique key prefix interacts poorly with utf8
+# Bug 4521: unique key prefix interacts poorly with utf8mb3
 # MYISAM: keys with prefix compression, binary collation.
 #
-create table t1 (c varchar(30) character set utf8 collate utf8_bin, unique(c(10)));
+create table t1 (c varchar(30) character set utf8mb3 collate utf8mb3_bin, unique(c(10)));
 insert into t1 values ('1'),('2'),('3'),('x'),('y'),('z');
 insert into t1 values ('aaaaaaaaaa');
 --error ER_DUP_ENTRY
@@ -402,10 +402,10 @@ select c cb20 from t1 where c=repeat('b',20);
 drop table t1;
 
 #
-# Bug 4521: unique key prefix interacts poorly with utf8
+# Bug 4521: unique key prefix interacts poorly with utf8mb3
 # MYISAM: fixed length keys, binary collation
 #
-create table t1 (c char(3) character set utf8 collate utf8_bin, unique (c(2)));
+create table t1 (c char(3) character set utf8mb3 collate utf8mb3_bin, unique (c(2)));
 insert into t1 values ('1'),('2'),('3'),('4'),('x'),('y'),('z');
 insert into t1 values ('a');
 insert into t1 values ('aa');
@@ -430,11 +430,11 @@ insert into t1 values ('ꪪꪪꪪ');
 drop table t1;
 
 #
-# Bug 4531: unique key prefix interacts poorly with utf8
+# Bug 4531: unique key prefix interacts poorly with utf8mb3
 # Check HEAP+HASH, binary collation
 #
 create table t1 (
-c char(10) character set utf8 collate utf8_bin,
+c char(10) character set utf8mb3 collate utf8mb3_bin,
 unique key a using hash (c(1))
 ) engine=heap;
 show create table t1;
@@ -454,11 +454,11 @@ select c as c_a from t1 where c='б';
 drop table t1;
 
 #
-# Bug 4531: unique key prefix interacts poorly with utf8
+# Bug 4531: unique key prefix interacts poorly with utf8mb3
 # Check HEAP+BTREE, binary collation
 #
 create table t1 (
-c char(10) character set utf8 collate utf8_bin,
+c char(10) character set utf8mb3 collate utf8mb3_bin,
 unique key a using btree (c(1))
 ) engine=heap;
 show create table t1;
@@ -478,11 +478,11 @@ select c as c_a from t1 where c='б';
 drop table t1;
 
 #
-# Bug 4531: unique key prefix interacts poorly with utf8
+# Bug 4531: unique key prefix interacts poorly with utf8mb3
 # Check BDB, binary collation
 #
 create table t1 (
-c char(10) character set utf8 collate utf8_bin,
+c char(10) character set utf8mb3 collate utf8mb3_bin,
 unique key a (c(1))
 ) engine=innodb;
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
@@ -505,7 +505,7 @@ drop table t1;
 # Check MYISAM
 #
 create table t1 (
-  str varchar(255) character set utf8 not null,
+  str varchar(255) character set utf8mb3 not null,
   key str  (str(2))
 ) engine=myisam;
 INSERT INTO t1 VALUES ('str');
@@ -517,7 +517,7 @@ drop table t1;
 # Check InnoDB
 #
 create table t1 (
-  str varchar(255) character set utf8 not null,
+  str varchar(255) character set utf8mb3 not null,
   key str  (str(2))
 ) engine=innodb;
 INSERT INTO t1 VALUES ('str');
@@ -529,7 +529,7 @@ drop table t1;
 #
 
 create table t1 (
-  str varchar(255) character set utf8 not null,
+  str varchar(255) character set utf8mb3 not null,
   key str using btree (str(2))
 ) engine=heap;
 INSERT INTO t1 VALUES ('str');
@@ -541,7 +541,7 @@ drop table t1;
 #
 
 create table t1 (
-  str varchar(255) character set utf8 not null,
+  str varchar(255) character set utf8mb3 not null,
   key str using hash (str(2))
 ) engine=heap;
 INSERT INTO t1 VALUES ('str');
@@ -553,7 +553,7 @@ drop table t1;
 #
 
 create table t1 (
-  str varchar(255) character set utf8 not null,
+  str varchar(255) character set utf8mb3 not null,
   key str (str(2))
 ) engine=innodb;
 INSERT INTO t1 VALUES ('str');
@@ -564,18 +564,18 @@ drop table t1;
 #
 # Bug #5397: Crash with varchar binary and LIKE
 #
-CREATE TABLE t1 (a varchar(32) BINARY) CHARACTER SET utf8;
+CREATE TABLE t1 (a varchar(32) BINARY) CHARACTER SET utf8mb3;
 INSERT INTO t1 VALUES ('test');
 SELECT a FROM t1 WHERE a LIKE '%te';
 DROP TABLE t1;
 
 #
-# Bug #5723: length(<varchar utf8 field>) returns varying results
+# Bug #5723: length(<varchar utf8mb3 field>) returns varying results
 #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (
-  subject varchar(255) character set utf8 collate utf8_unicode_ci,
-  p varchar(15) character set utf8
+  subject varchar(255) character set utf8mb3 collate utf8mb3_unicode_ci,
+  p varchar(15) character set utf8mb3
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 INSERT INTO t1 VALUES ('谷川俊二と申しますが、インターネット予約の会員登録をしましたところ、メールアドレスを間違えてしまい会員ＩＤが受け取ることが出来ませんでした。間違えアドレスはtani-shun@n.vodafone.ne.jpを書き込みました。どうすればよいですか？ その他、住所等は間違えありません。連絡ください。よろしくお願いします。m(__)m','040312-000057');
 INSERT INTO t1 VALUES ('aaa','bbb');
@@ -592,7 +592,7 @@ CREATE TABLE t1 (
     term     TEXT NOT NULL,
     PRIMARY KEY(id),
     INDEX(list_id, term(4))
-) ENGINE=MYISAM CHARSET=utf8;
+) ENGINE=MYISAM CHARSET=utf8mb3;
 INSERT INTO t1 SET list_id = 1, term = "letterc";
 INSERT INTO t1 SET list_id = 1, term = "letterb";
 INSERT INTO t1 SET list_id = 1, term = "lettera";
@@ -615,7 +615,7 @@ CREATE TABLE t1 (
     term text NOT NULL,
     PRIMARY KEY(id),
     INDEX(list_id, term(19))
-) ENGINE=MyISAM CHARSET=utf8;
+) ENGINE=MyISAM CHARSET=utf8mb3;
 INSERT INTO t1 set list_id = 1, term = "test�test";
 INSERT INTO t1 set list_id = 1, term = "testetest";
 INSERT INTO t1 set list_id = 1, term = "test�test";
@@ -626,14 +626,14 @@ DROP TABLE t1;
 --enable_service_connection
 
 #
-# Bug #6019 SELECT tries to use too short prefix index on utf8 data
+# Bug #6019 SELECT tries to use too short prefix index on utf8mb3 data
 #
-set names utf8;
+set names utf8mb3;
 create table t1 (
   a int primary key,
   b varchar(6),
   index b3(b(3))
-) engine=innodb character set=utf8;
+) engine=innodb character set=utf8mb3;
 insert into t1 values(1,'foo'),(2,'foobar');
 select * from t1 where b like 'foob%';
 alter table t1 engine=innodb;
@@ -644,16 +644,16 @@ drop table t1;
 # Test for calculate_interval_lengths() function
 #
 create table t1 (
-  a enum('петя','вася','анюта') character set utf8 not null default 'анюта',
-  b set('петя','вася','анюта') character set utf8 not null default 'анюта'
+  a enum('петя','вася','анюта') character set utf8mb3 not null default 'анюта',
+  b set('петя','вася','анюта') character set utf8mb3 not null default 'анюта'
 );
-create table t2 select concat(a,_utf8'') as a, concat(b,_utf8'')as b from t1;
+create table t2 select concat(a,_utf8mb3'') as a, concat(b,_utf8mb3'')as b from t1;
 show create table t2;
 drop table t2;
 drop table t1;
 
 #
-# Bug #6787 LIKE not working properly with _ and utf8 data
+# Bug #6787 LIKE not working properly with _ and utf8mb3 data
 #
 select 'c' like '\_' as want0; 
 
@@ -664,9 +664,9 @@ SELECT SUBSTR('вася',-2);
 
 
 #
-# Bug #7730 Server crash using soundex on an utf8 table
+# Bug #7730 Server crash using soundex on an utf8mb3 table
 #
-create table t1 (id integer, a varchar(100) character set utf8 collate utf8_unicode_ci);
+create table t1 (id integer, a varchar(100) character set utf8mb3 collate utf8mb3_unicode_ci);
 insert into t1 values (1, 'Test');
 select * from t1 where soundex(a) = soundex('Test');
 select * from t1 where soundex(a) = soundex('TEST');
@@ -676,24 +676,24 @@ drop table t1;
 #
 # Bug#22638 SOUNDEX broken for international characters
 #
-select soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB) as exp;
-select hex(soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB)) as exp;
-select soundex(_utf8 0xD091D092D093) as exp;
-select hex(soundex(_utf8 0xD091D092D093)) as exp;
+select soundex(_utf8mb3 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB) as exp;
+select hex(soundex(_utf8mb3 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB)) as exp;
+select soundex(_utf8mb3 0xD091D092D093) as exp;
+select hex(soundex(_utf8mb3 0xD091D092D093)) as exp;
 
 
-SET collation_connection='utf8_general_ci';
+SET collation_connection='utf8mb3_general_ci';
 -- source include/ctype_filesort.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_german.inc
 -- source include/ctype_str_to_date.inc
-SET collation_connection='utf8_bin';
+SET collation_connection='utf8mb3_bin';
 -- source include/ctype_filesort.inc
 -- source include/ctype_like_escape.inc
 
 #
 # Bug #7874 CONCAT() gives wrong results mixing
-# latin1 field and utf8 string literals
+# latin1 field and utf8mb3 string literals
 #
 CREATE TABLE t1 (
 	user varchar(255) NOT NULL default ''
@@ -707,38 +707,38 @@ DROP TABLE t1;
 # Bug#8785
 # the same problem with the above, but with nested CONCATs
 #
-create table t1 (f1 varchar(1) not null) default charset utf8;
+create table t1 (f1 varchar(1) not null) default charset utf8mb3;
 insert into t1 values (''), ('');
 select concat(concat(_latin1'->',f1),_latin1'<-') from t1;
 drop table t1;
 
 #
-# Bug#8385: utf8_general_ci treats Cyrillic letters I and SHORT I as the same
+# Bug#8385: utf8mb3_general_ci treats Cyrillic letters I and SHORT I as the same
 #
-select convert(_koi8r'�' using utf8) < convert(_koi8r'�' using utf8) as exp;
+select convert(_koi8r'�' using utf8mb3) < convert(_koi8r'�' using utf8mb3) as exp;
 
 #
 # Bugs#5980: NULL requires a characterset in a union
 #
 set names latin1;
-create table t1 (a varchar(10)) character set utf8;
+create table t1 (a varchar(10)) character set utf8mb3;
 insert into t1 values ('test');
 select ifnull(a,'') from t1;
 drop table t1;
-select repeat(_utf8'+',3) as h union select NULL;
-select ifnull(NULL, _utf8'string');
+select repeat(_utf8mb3'+',3) as h union select NULL;
+select ifnull(NULL, _utf8mb3'string');
 
 #
 # Bug#9509 Optimizer: wrong result after AND with comparisons
 #
-set names utf8;
-create table t1 (s1 char(5) character set utf8 collate utf8_lithuanian_ci);
+set names utf8mb3;
+create table t1 (s1 char(5) character set utf8mb3 collate utf8mb3_lithuanian_ci);
 insert into t1 values ('I'),('K'),('Y');
 select * from t1 where s1 < 'K' and s1 = 'Y';
 select * from t1 where 'K' > s1 and s1 = 'Y';
 drop table t1;
 
-create table t1 (s1 char(5) character set utf8 collate utf8_czech_ci);
+create table t1 (s1 char(5) character set utf8mb3 collate utf8mb3_czech_ci);
 insert into t1 values ('c'),('d'),('h'),('ch'),('CH'),('cH'),('Ch'),('i');
 select * from t1 where s1 > 'd' and s1 = 'CH';
 select * from t1 where 'd' < s1 and s1 = 'CH';
@@ -747,21 +747,21 @@ select * from t1 where 'cH' = s1 and s1 <> 'ch';
 drop table t1;
 
 #
-# Bug#10714: Inserting double value into utf8 column crashes server
+# Bug#10714: Inserting double value into utf8mb3 column crashes server
 #
-create table t1 (a varchar(255)) default character set utf8;
+create table t1 (a varchar(255)) default character set utf8mb3;
 insert into t1 values (1.0);
 drop table t1;
 
 #
-# Bug#10253 compound index length and utf8 char set
+# Bug#10253 compound index length and utf8mb3 char set
 # produces invalid query results
 #
 create table t1 (
  id int not null,
  city varchar(20) not null,
  key (city(7),id)
-) character set=utf8;
+) character set=utf8mb3;
 insert into t1 values (1,'Durban North');
 insert into t1 values (2,'Durban');
 select * from t1 where city = 'Durban';
@@ -772,13 +772,13 @@ drop table t1;
 # Bug #11819 CREATE TABLE with a SET DEFAULT 0 and UTF8 crashes server.
 #
 --error 1067
-create table t1 (x set('A', 'B') default 0) character set utf8;
+create table t1 (x set('A', 'B') default 0) character set utf8mb3;
 --error 1067
-create table t1 (x enum('A', 'B') default 0) character set utf8;
+create table t1 (x enum('A', 'B') default 0) character set utf8mb3;
 
 
 #
-# Test for bug #11167: join for utf8 varchar value longer than 255 bytes 
+# Test for bug #11167: join for utf8mb3 varchar value longer than 255 bytes 
 #
 
 SET NAMES UTF8;
@@ -800,7 +800,7 @@ CREATE TABLE t1 (
   KEY `IX_mobile_originated_message_keyword` (`keyword`),
   KEY `IX_mobile_originated_message_created` (`created`),
   KEY `IX_mobile_originated_message_support` (`msisdn`,`momid`,`keyword`,`gateway_id`,`created`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 
 INSERT INTO t1 VALUES 
 (1,'blah','464','aaa','fkc1c9ilc20x0hgae7lx6j09','ERR','ERR Имри.Афимим.Аеимимримдмримрмрирор имримримримр имридм ирбднримрфмририримрфмфмим.Ад.Д имдимримрад.Адимримримрмдиримримримр м.Дадимфшьмримд им.Адимимрн имадми','ИМРИ.АФИМИМ.АЕИМИМРИМДМРИМРМРИРОР',3,'2005-06-01 17:30:43','1234567890'),
@@ -811,7 +811,7 @@ CREATE TABLE t2 (
   `operator_id` int(11) NOT NULL default '0',
   `created` datetime NOT NULL default '0000-00-00 00:00:00',
   UNIQUE KEY `PK_user` (`msisdn`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 INSERT INTO t2 VALUES ('1234567890',2,'2005-05-24 13:53:25');
 
@@ -820,13 +820,13 @@ SELECT content, t2.msisdn FROM t1, t2 WHERE t1.msisdn = '1234567890';
 DROP TABLE t1,t2;
 
 #
-# Bug#11591: CHAR column with utf8 does not work properly
+# Bug#11591: CHAR column with utf8mb3 does not work properly
 # (more chars than expected)
 #
-create table t1 (a char(20) character set utf8);
+create table t1 (a char(20) character set utf8mb3);
 insert into t1 values ('123456'),('андрей');
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-alter table t1 modify a char(2) character set utf8;
+alter table t1 modify a char(2) character set utf8mb3;
 select char_length(a), length(a), a from t1 order by a;
 drop table t1;
 
@@ -834,17 +834,17 @@ drop table t1;
 # Bugs#12611
 # ESCAPE + LIKE do not work when the escape char is a multibyte one
 #
-set names utf8;
+set names utf8mb3;
 select 'andre%' like 'andreñ%' escape 'ñ';
 
 #
-# Bugs#11754: SET NAMES utf8 followed by SELECT "A\\" LIKE "A\\" returns 0
+# Bugs#11754: SET NAMES utf8mb3 followed by SELECT "A\\" LIKE "A\\" returns 0
 #
-set names utf8;
+set names utf8mb3;
 select 'a\\' like 'a\\';
 select 'aa\\' like 'a%\\';
 
-create table t1 (a char(10), key(a)) character set utf8;
+create table t1 (a char(10), key(a)) character set utf8mb3;
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 select * from t1 where a like "abc%";
 select * from t1 where a like concat("abc","%");
@@ -858,14 +858,14 @@ drop table t1;
 
 
 #
-# Bug#9557 MyISAM utf8 table crash
+# Bug#9557 MyISAM utf8mb3 table crash
 #
 CREATE TABLE t1 (
   a varchar(255) NOT NULL default '',
   KEY a (a)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
-insert into t1 values (_utf8 0xe880bd);
-insert into t1 values (_utf8 0x5b);
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
+insert into t1 values (_utf8mb3 0xe880bd);
+insert into t1 values (_utf8mb3 0x5b);
 select hex(a) from t1;
 drop table t1;
 
@@ -873,23 +873,23 @@ drop table t1;
 # Bug#13751 find_in_set: Illegal mix of collations
 #
 set names 'latin1';
-create table t1 (a varchar(255)) default charset=utf8;
+create table t1 (a varchar(255)) default charset=utf8mb3;
 select * from t1 where find_in_set('-1', a);
 drop table t1;
 
 #
-# Bug#13233: select distinct char(column) fails with utf8
+# Bug#13233: select distinct char(column) fails with utf8mb3
 #
 create table t1 (a int);
 insert into t1 values (48),(49),(50);
-set names utf8;
+set names utf8mb3;
 select distinct char(a) from t1;
 drop table t1;
 
 #
 # Bug#15581: COALESCE function truncates mutli-byte TINYTEXT values
 #
-CREATE TABLE t1 (t TINYTEXT CHARACTER SET utf8);
+CREATE TABLE t1 (t TINYTEXT CHARACTER SET utf8mb3);
 INSERT INTO t1 VALUES(REPEAT('a', 100));
 CREATE TEMPORARY TABLE t2 SELECT COALESCE(t) AS bug FROM t1;
 SELECT LENGTH(bug) FROM t2;
@@ -897,13 +897,13 @@ DROP TABLE t2;
 DROP TABLE t1;
 
 #
-# Bug#17313: N'xxx' and _utf8'xxx' are not equivalent
+# Bug#17313: N'xxx' and _utf8mb3'xxx' are not equivalent
 #
-CREATE TABLE t1 (item varchar(255)) default character set utf8;
+CREATE TABLE t1 (item varchar(255)) default character set utf8mb3;
 INSERT INTO t1 VALUES (N'\\');
-INSERT INTO t1 VALUES (_utf8'\\');
+INSERT INTO t1 VALUES (_utf8mb3'\\');
 INSERT INTO t1 VALUES (N'Cote d\'Ivoire');
-INSERT INTO t1 VALUES (_utf8'Cote d\'Ivoire');
+INSERT INTO t1 VALUES (_utf8mb3'Cote d\'Ivoire');
 SELECT item FROM t1 ORDER BY item;
 DROP TABLE t1;
 
@@ -912,9 +912,9 @@ DROP TABLE t1;
 # 254 and 256
 #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 DROP TABLE IF EXISTS t1;
-CREATE TABLE t1(a VARCHAR(255), KEY(a)) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+CREATE TABLE t1(a VARCHAR(255), KEY(a)) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 INSERT INTO t1 VALUES('uuABCDEFGHIGKLMNOPRSTUVWXYZ̈bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
 INSERT INTO t1 VALUES('uu');
 check table t1;
@@ -942,10 +942,10 @@ check table t1;
 drop table t1;
 
 #
-# Bug#20471 LIKE search fails with indexed utf8 char column
+# Bug#20471 LIKE search fails with indexed utf8mb3 char column
 #
-set names utf8;
-create table t1 (s1 char(5) character set utf8);
+set names utf8mb3;
+create table t1 (s1 char(5) character set utf8mb3);
 insert into t1 values
 ('a'),('b'),(null),('ペテルグル'),('ü'),('Y');
 create index it1 on t1 (s1);
@@ -954,8 +954,8 @@ delete from t1 where s1 = 'Y';
 select s1 as after_delete_general_ci from t1 where s1 like 'ペテ%';
 drop table t1;
 
-set names utf8;
-create table t1 (s1 char(5) character set utf8 collate utf8_unicode_ci);
+set names utf8mb3;
+create table t1 (s1 char(5) character set utf8mb3 collate utf8mb3_unicode_ci);
 insert into t1 values
 ('a'),('b'),(null),('ペテルグル'),('ü'),('Y');
 create index it1 on t1 (s1);
@@ -964,8 +964,8 @@ delete from t1 where s1 = 'Y';
 select s1 as after_delete_unicode_ci from t1 where s1 like 'ペテ%';
 drop table t1;
 
-set names utf8;
-create table t1 (s1 char(5) character set utf8 collate utf8_bin);
+set names utf8mb3;
+create table t1 (s1 char(5) character set utf8mb3 collate utf8mb3_bin);
 insert into t1 values
 ('a'),('b'),(null),('ペテルグル'),('ü'),('Y');
 create index it1 on t1 (s1);
@@ -976,27 +976,27 @@ drop table t1;
 
 # additional tests from duplicate bug#20744 MySQL return no result
 
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(30) not null primary key)
-engine=innodb  default character set utf8 collate utf8_general_ci;
+engine=innodb  default character set utf8mb3 collate utf8mb3_general_ci;
 insert into t1 values ('あいうえおかきくけこさしすせそ');
 insert into t1 values ('さしすせそかきくけこあいうえお');
 select a as gci1 from t1 where a like 'さしすせそかきくけこあいうえお%';
 select a as gci2 from t1 where a like 'あいうえおかきくけこさしすせそ';
 drop table t1;
 
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(30) not null primary key)
-engine=innodb default character set utf8 collate utf8_unicode_ci;
+engine=innodb default character set utf8mb3 collate utf8mb3_unicode_ci;
 insert into t1 values ('あいうえおかきくけこさしすせそ');
 insert into t1 values ('さしすせそかきくけこあいうえお');
 select a as uci1 from t1 where a like 'さしすせそかきくけこあいうえお%';
 select a as uci2 from t1 where a like 'あいうえおかきくけこさしすせそ';
 drop table t1;
 
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(30) not null primary key)
-engine=innodb default character set utf8 collate utf8_bin;
+engine=innodb default character set utf8mb3 collate utf8mb3_bin;
 insert into t1 values ('あいうえおかきくけこさしすせそ');
 insert into t1 values ('さしすせそかきくけこあいうえお');
 select a as bin1 from t1 where a like 'さしすせそかきくけこあいうえお%';
@@ -1009,13 +1009,13 @@ drop table t1;
 # Bug#14896: Comparison with a key in a partial index over mb chararacter field
 #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (id int PRIMARY KEY,
-                 a varchar(16) collate utf8_unicode_ci NOT NULL default '',
+                 a varchar(16) collate utf8mb3_unicode_ci NOT NULL default '',
                  b int,
                  f varchar(128) default 'XXX',
                  INDEX (a(4))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 INSERT INTO t1(id, a, b) VALUES
   (1, 'cccc', 50), (2, 'cccc', 70), (3, 'cccc', 30),
   (4, 'cccc', 30), (5, 'cccc', 20), (6, 'bbbbbb', 40),
@@ -1032,15 +1032,15 @@ SELECT id, a FROM t1 WHERE a='bbbbbb' ORDER BY b;
 DROP TABLE t1;
 
 #
-# Bug#16674: LIKE predicate for a utf8 character set column
+# Bug#16674: LIKE predicate for a utf8mb3 character set column
 #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 
 CREATE TABLE t1 (
   a CHAR(13) DEFAULT '',
   INDEX(a)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 INSERT INTO t1 VALUES 
  ('Käli Käli 2-4'), ('Käli Käli 2-4'),
  ('Käli Käli 2+4'), ('Käli Käli 2+4'),
@@ -1071,7 +1071,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (
   a char(255) DEFAULT '', 
   KEY(a(10))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 INSERT INTO t1 VALUES ('Käli Käli 2-4');
 SELECT * FROM t1 WHERE a LIKE 'Käli Käli 2%';
 INSERT INTO t1 VALUES ('Käli Käli 2-4');
@@ -1080,7 +1080,7 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (
   a char(255) DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 INSERT INTO t1 VALUES ('Käli Käli 2-4');
 INSERT INTO t1 VALUES ('Käli Käli 2-4');
 SELECT * FROM t1 WHERE a LIKE 'Käli Käli 2%';
@@ -1089,7 +1089,7 @@ SELECT * FROM t1 WHERE a LIKE 'Käli Käli 2%';
 DROP TABLE t1;
 
 #
-# Bug#18359: LIKE predicate for a 'utf8' text column with a partial index
+# Bug#18359: LIKE predicate for a 'utf8mb3' text column with a partial index
 #            (see bug #16674 as well)
 #
 
@@ -1101,7 +1101,7 @@ CREATE TABLE t1 (
   tid int(11) NOT NULL default '0',
   val text NOT NULL,
   INDEX idx(tid, val(10))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 
 INSERT INTO t1 VALUES
   (40988,72,'VOLN� ADSL'),(41009,72,'VOLN� ADSL'),
@@ -1123,11 +1123,11 @@ DROP TABLE t1;
 --enable_service_connection
 
 #
-# Bug 20709: problem with utf8 fields in temporary tables
+# Bug 20709: problem with utf8mb3 fields in temporary tables
 #
 
-create table t1(a char(200) collate utf8_unicode_ci NOT NULL default '')
-  default charset=utf8 collate=utf8_unicode_ci;
+create table t1(a char(200) collate utf8mb3_unicode_ci NOT NULL default '')
+  default charset=utf8mb3 collate=utf8mb3_unicode_ci;
 insert into t1 values (unhex('65')), (unhex('C3A9')), (unhex('65'));
 -- disable_query_log
 -- disable_result_log
@@ -1144,7 +1144,7 @@ drop table t1;
 # Bug #20204: "order by" changes the results returned
 #
 
-create table t1(a char(10)) default charset utf8;
+create table t1(a char(10)) default charset utf8mb3;
 insert into t1 values ('123'), ('456');
 -- disable_query_log
 -- disable_result_log
@@ -1161,21 +1161,21 @@ drop table t1;
 # MySQL to hang
 #
 
-SET CHARACTER SET utf8;
+SET CHARACTER SET utf8mb3;
 SHOW VARIABLES LIKE 'character\_set\_%';
-CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
 USE crashtest;
-CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8;
+CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb3;
 INSERT INTO crashtest VALUES ('35'), ('36'), ('37');
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb3);
 INSERT INTO crashtest VALUES ('-1000');
 -- disable_query_log
 -- disable_result_log
 ANALYZE TABLE crashtest;
 -- enable_result_log
 -- enable_query_log
-EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8);
+EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb3);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb3);
 DROP TABLE crashtest;
 DROP DATABASE crashtest;
 USE test;
@@ -1187,7 +1187,7 @@ SET CHARACTER SET default;
 # Test for bug #11484: wrong results for a DISTINCT varchar column in uft8. 
 #
 
-CREATE TABLE t1(id varchar(20) NOT NULL) DEFAULT CHARSET=utf8;
+CREATE TABLE t1(id varchar(20) NOT NULL) DEFAULT CHARSET=utf8mb3;
 INSERT INTO t1 VALUES ('xxx'), ('aa'), ('yyy'), ('aa');
 
 SELECT id FROM t1;
@@ -1202,24 +1202,24 @@ DROP TABLE t1;
 #
 create table t1 (
   a varchar(26) not null
-) default character set utf8;
+) default character set utf8mb3;
 insert into t1 (a) values ('abcdefghijklmnopqrstuvwxyz');
 select * from t1;
 # varchar to varchar
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-alter table t1 change a a varchar(20) character set utf8 not null;
+alter table t1 change a a varchar(20) character set utf8mb3 not null;
 select * from t1;
 # varchar to char
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-alter table t1 change a a char(15) character set utf8 not null;
+alter table t1 change a a char(15) character set utf8mb3 not null;
 select * from t1;
 # char to char
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-alter table t1 change a a char(10) character set utf8 not null;
+alter table t1 change a a char(10) character set utf8mb3 not null;
 select * from t1;
 # char to varchar
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-alter table t1 change a a varchar(5) character set utf8 not null;
+alter table t1 change a a varchar(5) character set utf8mb3 not null;
 select * from t1;
 drop table t1;
 
@@ -1228,10 +1228,10 @@ drop table t1;
 #
 create table t1 (
   a varchar(4000) not null
-) default character set utf8;
+) default character set utf8mb3;
 insert into t1 values (repeat('a',4000));
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-alter table t1 change a a varchar(3000) character set utf8 not null;
+alter table t1 change a a varchar(3000) character set utf8mb3 not null;
 select length(a) from t1;
 drop table t1;
 
@@ -1241,27 +1241,27 @@ drop table t1;
 #  Bug#14146: CHAR(...USING ...) and CONVERT(CHAR(...) USING...)
 #             produce different results
 #
-set names utf8;
+set names utf8mb3;
 # correct value
-select hex(char(1 using utf8));
-select char(0xd1,0x8f using utf8);
-select char(0xd18f using utf8);
-select char(53647 using utf8);
+select hex(char(1 using utf8mb3));
+select char(0xd1,0x8f using utf8mb3);
+select char(0xd18f using utf8mb3);
+select char(53647 using utf8mb3);
 # incorrect value: return with warning
-select char(0xff,0x8f using utf8);
-select convert(char(0xff,0x8f) using utf8);
+select char(0xff,0x8f using utf8mb3);
+select convert(char(0xff,0x8f) using utf8mb3);
 # incorrect value in strict mode: return NULL with "Error" level warning
 set sql_mode=traditional;
-select char(0xff,0x8f using utf8);
-select char(195 using utf8);
-select char(196 using utf8);
-select char(2557 using utf8);
-select convert(char(0xff,0x8f) using utf8);
+select char(0xff,0x8f using utf8mb3);
+select char(195 using utf8mb3);
+select char(196 using utf8mb3);
+select char(2557 using utf8mb3);
+select convert(char(0xff,0x8f) using utf8mb3);
 
 #
 # Check convert + char + using
 #
-select hex(convert(char(2557 using latin1) using utf8));
+select hex(convert(char(2557 using latin1) using utf8mb3));
 
 #
 # char() without USING returns "binary" by default, any argument is ok
@@ -1275,9 +1275,9 @@ select hex(char(2557));
 #
 # Bug#12891: UNION doesn't return DISTINCT result for multi-byte characters
 #
-set names utf8;
-create table t1 (a char(1)) default character set utf8;
-create table t2 (a char(1)) default character set utf8;
+set names utf8mb3;
+create table t1 (a char(1)) default character set utf8mb3;
+create table t2 (a char(1)) default character set utf8mb3;
 insert into t1 values('a'),('a'),(0xE38182),(0xE38182);
 insert into t1 values('i'),('i'),(0xE38184),(0xE38184);
 select * from t1 union distinct select * from t2;
@@ -1287,7 +1287,7 @@ drop table t1,t2;
 #
 # Bug#12371: executing prepared statement fails (illegal mix of collations)
 #
-set names utf8;
+set names utf8mb3;
 create table t1 (a char(10), b varchar(10));
 insert into t1 values ('bar','kostja');
 insert into t1 values ('kostja','bar');
@@ -1308,15 +1308,15 @@ drop table if exists t1;
 drop table if exists t1;
 drop view if exists v1, v2;
 --enable_warnings
-set names utf8;
-create table t1(col1 varchar(12) character set utf8 collate utf8_unicode_ci);
+set names utf8mb3;
+create table t1(col1 varchar(12) character set utf8mb3 collate utf8mb3_unicode_ci);
 insert into t1 values('t1_val');
 create view v1 as select 'v1_val' as col1;
 select coercibility(col1), collation(col1) from v1;
 create view v2 as select col1 from v1 union select col1 from t1;
 select coercibility(col1), collation(col1)from v2;
 drop view v1, v2;
-create view v1 as select 'v1_val' collate utf8_swedish_ci as col1;
+create view v1 as select 'v1_val' collate utf8mb3_swedish_ci as col1;
 select coercibility(col1), collation(col1) from v1;
 create view v2 as select col1 from v1 union select col1 from t1;
 select coercibility(col1), collation(col1) from v2;
@@ -1329,7 +1329,7 @@ drop table t1;
 # Conversion is not possible if the string have extended characters
 #
 --disable_service_connection
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(10) character set latin1, b int);
 insert into t1 values ('a',1);
 select concat(a, if(b>10, N'x', N'y')) from t1;
@@ -1338,25 +1338,25 @@ select concat(a, if(b>10, N'æ', N'ß')) from t1;
 drop table t1;
 
 # Conversion tests for character set introducers
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(10) character set latin1, b int);
 insert into t1 values ('a',1);
-select concat(a, if(b>10, _utf8'x', _utf8'y')) from t1;
+select concat(a, if(b>10, _utf8mb3'x', _utf8mb3'y')) from t1;
 --error 1267
-select concat(a, if(b>10, _utf8'æ', _utf8'ß')) from t1;
+select concat(a, if(b>10, _utf8mb3'æ', _utf8mb3'ß')) from t1;
 drop table t1;
 
 # Conversion tests for introducer + HEX string
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(10) character set latin1, b int);
 insert into t1 values ('a',1);
-select concat(a, if(b>10, _utf8 0x78, _utf8 0x79)) from t1;
+select concat(a, if(b>10, _utf8mb3 0x78, _utf8mb3 0x79)) from t1;
 --error 1267
-select concat(a, if(b>10, _utf8 0xC3A6, _utf8 0xC3AF)) from t1;
+select concat(a, if(b>10, _utf8mb3 0xC3A6, _utf8mb3 0xC3AF)) from t1;
 drop table t1;
 
 # Conversion tests for "text_literal TEXT_STRING_literal" syntax structure
-set names utf8;
+set names utf8mb3;
 create table t1 (a varchar(10) character set latin1, b int);
 insert into t1 values ('a',1);
 select concat(a, if(b>10, 'x' 'x', 'y' 'y')) from t1;
@@ -1372,13 +1372,13 @@ drop table t1;
 
 CREATE TABLE t1 (
   colA int(11) NOT NULL,
-  colB varchar(255) character set utf8 NOT NULL,
+  colB varchar(255) character set utf8mb3 NOT NULL,
    PRIMARY KEY  (colA)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 INSERT INTO t1 (colA, colB) VALUES (1, 'foo'), (2, 'foo bar');
 CREATE TABLE t2 (
   colA int(11) NOT NULL,
-  colB varchar(255) character set utf8 NOT NULL,
+  colB varchar(255) character set utf8mb3 NOT NULL,
    KEY bad  (colA,colB(3))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 INSERT INTO t2 (colA, colB) VALUES (1, 'foo'),(2, 'foo bar');
@@ -1397,7 +1397,7 @@ SELECT 'н1234567890' UNION SELECT 1;
 SELECT '1' UNION SELECT 'н1234567890';
 SELECT 1 UNION SELECT 'н1234567890';
 
-CREATE TABLE t1 (c VARCHAR(11)) CHARACTER SET utf8;
+CREATE TABLE t1 (c VARCHAR(11)) CHARACTER SET utf8mb3;
 CREATE TABLE t2 (b CHAR(1) CHARACTER SET binary, i INT);
 
 INSERT INTO t1 (c) VALUES ('н1234567890');
@@ -1416,32 +1416,32 @@ DROP TABLE t1, t2;
 # Bug #30986: Character set introducer followed by a HEX string can return bad result
 #
 set sql_mode=traditional;
-select hex(char(0xFF using utf8));
-select hex(convert(0xFF using utf8));
+select hex(char(0xFF using utf8mb3));
+select hex(convert(0xFF using utf8mb3));
 --error ER_INVALID_CHARACTER_STRING
-select hex(_utf8 0x616263FF);
+select hex(_utf8mb3 0x616263FF);
 --error ER_INVALID_CHARACTER_STRING
-select hex(_utf8 X'616263FF');
+select hex(_utf8mb3 X'616263FF');
 --error ER_INVALID_CHARACTER_STRING
-select hex(_utf8 B'001111111111');
+select hex(_utf8mb3 B'001111111111');
 --error ER_INVALID_CHARACTER_STRING
-select (_utf8 X'616263FF');
+select (_utf8mb3 X'616263FF');
 set sql_mode=default;
-select hex(char(0xFF using utf8));
-select hex(convert(0xFF using utf8));
+select hex(char(0xFF using utf8mb3));
+select hex(convert(0xFF using utf8mb3));
 --error ER_INVALID_CHARACTER_STRING
-select hex(_utf8 0x616263FF);
+select hex(_utf8mb3 0x616263FF);
 --error ER_INVALID_CHARACTER_STRING
-select hex(_utf8 X'616263FF');
+select hex(_utf8mb3 X'616263FF');
 --error ER_INVALID_CHARACTER_STRING
-select hex(_utf8 B'001111111111');
+select hex(_utf8mb3 B'001111111111');
 --error ER_INVALID_CHARACTER_STRING
-select (_utf8 X'616263FF');
+select (_utf8mb3 X'616263FF');
 
 --echo #
 --echo # Bug#44131 Binary-mode "order by" returns records in incorrect order for UTF-8 strings
 --echo #
-CREATE TABLE t1 (id int not null primary key, name varchar(10)) character set utf8;
+CREATE TABLE t1 (id int not null primary key, name varchar(10)) character set utf8mb3;
 INSERT INTO t1 VALUES
 (2,'一二三01'),(3,'一二三09'),(4,'一二三02'),(5,'一二三08'),
 (6,'一二三11'),(7,'一二三91'),(8,'一二三21'),(9,'一二三81');
@@ -1467,31 +1467,31 @@ DROP TABLE t1;
 
 
 #
-# Bug #57272: crash in rpad() when using utf8
+# Bug #57272: crash in rpad() when using utf8mb3
 #
-SELECT LENGTH(RPAD(0.0115E88, 61297, _utf8'яэюя'));
-SELECT LENGTH(RPAD(0.0115E88, 61297, _utf8'йцуя'));
-SELECT HEX(RPAD(0x20, 2, _utf8 0xD18F));
-SELECT HEX(RPAD(0x20, 4, _utf8 0xD18F));
-SELECT HEX(LPAD(0x20, 2, _utf8 0xD18F));
-SELECT HEX(LPAD(0x20, 4, _utf8 0xD18F));
+SELECT LENGTH(RPAD(0.0115E88, 61297, _utf8mb3'яэюя'));
+SELECT LENGTH(RPAD(0.0115E88, 61297, _utf8mb3'йцуя'));
+SELECT HEX(RPAD(0x20, 2, _utf8mb3 0xD18F));
+SELECT HEX(RPAD(0x20, 4, _utf8mb3 0xD18F));
+SELECT HEX(LPAD(0x20, 2, _utf8mb3 0xD18F));
+SELECT HEX(LPAD(0x20, 4, _utf8mb3 0xD18F));
 
-SELECT HEX(RPAD(_utf8 0xD18F, 3, 0x20));
-SELECT HEX(LPAD(_utf8 0xD18F, 3, 0x20));
+SELECT HEX(RPAD(_utf8mb3 0xD18F, 3, 0x20));
+SELECT HEX(LPAD(_utf8mb3 0xD18F, 3, 0x20));
 
-SELECT HEX(INSERT(_utf8 0xD18F, 2, 1, 0x20));
+SELECT HEX(INSERT(_utf8mb3 0xD18F, 2, 1, 0x20));
 #Enable view-protocol after fix MDEV-33942
 --disable_view_protocol
 #Enable after fix MDEV-31512
 --disable_cursor_protocol
-SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+SELECT HEX(INSERT(_utf8mb3 0xD18FD18E, 2, 1, 0x20));
 --enable_view_protocol
 --enable_cursor_protocol
 
 --echo #
 --echo # Bug#11752408 - 43593: DUMP/BACKUP/RESTORE/UPGRADE TOOLS FAILS BECAUSE OF UTF8_GENERAL_CI
 --echo #
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_general_mysql500_ci);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_mysql500_ci);
 INSERT INTO t1 VALUES ('a'),('r'),('s'),(_latin1 0xDF),(_latin1 0xF7),('t'),('z');
 SELECT * FROM t1 ORDER BY a;
 SELECT a, COUNT(*) FROM t1 GROUP BY a;
@@ -1503,7 +1503,7 @@ DROP TABLE t1;
 --echo Start of 5.4 tests
 
 #
-# WL#1213: utf8mb3 is an alias for utf8
+# WL#1213: utf8mb3 is an alias for utf8mb3
 #
 SET NAMES utf8mb3;
 SHOW VARIABLES LIKE 'character_set_results%'; 
@@ -1513,14 +1513,14 @@ DROP TABLE t1;
 SELECT _utf8mb3'test';
 
 #
-# Bug#26180: Can't add columns to tables created with utf8 text indexes
+# Bug#26180: Can't add columns to tables created with utf8mb3 text indexes
 #
 CREATE TABLE t1 (
   clipid INT NOT NULL,
   Tape TINYTEXT,
   PRIMARY KEY (clipid),
   KEY tape(Tape(255))
-) CHARACTER SET=utf8;
+) CHARACTER SET=utf8mb3;
 ALTER TABLE t1 ADD mos TINYINT DEFAULT 0 AFTER clipid;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -1533,16 +1533,16 @@ DROP TABLE IF EXISTS t1;
 --enable_warnings
 CREATE TABLE t1 (
         predicted_order int NOT NULL,
-        utf8_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8;
+        utf8mb3_encoding VARCHAR(10) NOT NULL
+) CHARACTER SET utf8mb3;
 INSERT INTO t1 VALUES (19, x'E0B696'), (30, x'E0B69AE0B798'), (61, x'E0B6AF'), (93, x'E0B799'), (52, x'E0B6A6'), (73, x'E0B6BBE0B78AE2808D'), (3, x'E0B686'), (56, x'E0B6AA'), (55, x'E0B6A9'), (70, x'E0B6B9'), (94, x'E0B79A'), (80, x'E0B785'), (25, x'E0B69AE0B791'), (48, x'E0B6A2'), (13, x'E0B690'), (86, x'E0B793'), (91, x'E0B79F'), (81, x'E0B786'), (79, x'E0B784'), (14, x'E0B691'), (99, x'E0B78A'), (8, x'E0B68B'), (68, x'E0B6B7'), (22, x'E0B69A'), (16, x'E0B693'), (33, x'E0B69AE0B7B3'), (38, x'E0B69AE0B79D'), (21, x'E0B683'), (11, x'E0B68E'), (77, x'E0B782'), (40, x'E0B69AE0B78A'), (101, x'E0B78AE2808DE0B6BB'), (35, x'E0B69AE0B79A'), (1, x'E0B7B4'), (9, x'E0B68C'), (96, x'E0B79C'), (6, x'E0B689'), (95, x'E0B79B'), (88, x'E0B796'), (64, x'E0B6B3'), (26, x'E0B69AE0B792'), (82, x'E0B78F'), (28, x'E0B69AE0B794'), (39, x'E0B69AE0B79E'), (97, x'E0B79D'), (2, x'E0B685'), (75, x'E0B780'), (34, x'E0B69AE0B799'), (69, x'E0B6B8'), (83, x'E0B790'), (18, x'E0B695'), (90, x'E0B7B2'), (17, x'E0B694'), (72, x'E0B6BB'), (66, x'E0B6B5'), (59, x'E0B6AD'), (44, x'E0B69E'), (15, x'E0B692'), (23, x'E0B69AE0B78F'), (65, x'E0B6B4'), (42, x'E0B69C'), (63, x'E0B6B1'), (85, x'E0B792'), (47, x'E0B6A1'), (49, x'E0B6A3'), (92, x'E0B7B3'), (78, x'E0B783'), (36, x'E0B69AE0B79B'), (4, x'E0B687'), (24, x'E0B69AE0B790'), (87, x'E0B794'), (37, x'E0B69AE0B79C'), (32, x'E0B69AE0B79F'), (29, x'E0B69AE0B796'), (43, x'E0B69D'), (62, x'E0B6B0'), (100, x'E0B78AE2808DE0B6BA'), (60, x'E0B6AE'), (45, x'E0B69F'), (12, x'E0B68F'), (46, x'E0B6A0'), (50, x'E0B6A5'), (51, x'E0B6A4'), (5, x'E0B688'), (76, x'E0B781'), (89, x'E0B798'), (74, x'E0B6BD'), (10, x'E0B68D'), (57, x'E0B6AB'), (71, x'E0B6BA'), (58, x'E0B6AC'), (27, x'E0B69AE0B793'), (54, x'E0B6A8'), (84, x'E0B791'), (31, x'E0B69AE0B7B2'), (98, x'E0B79E'), (53, x'E0B6A7'), (41, x'E0B69B'), (67, x'E0B6B6'), (7, x'E0B68A'), (20, x'E0B682');
-SELECT predicted_order, hex(utf8_encoding) FROM t1 ORDER BY utf8_encoding COLLATE utf8_sinhala_ci;
+SELECT predicted_order, hex(utf8mb3_encoding) FROM t1 ORDER BY utf8mb3_encoding COLLATE utf8mb3_sinhala_ci;
 DROP TABLE t1;
 #
 # Postfix for Bug#26474
 #
-SET NAMES utf8 COLLATE utf8_sinhala_ci;
-CREATE TABLE t1 (s1 VARCHAR(10) COLLATE utf8_sinhala_ci);
+SET NAMES utf8mb3 COLLATE utf8mb3_sinhala_ci;
+CREATE TABLE t1 (s1 VARCHAR(10) COLLATE utf8mb3_sinhala_ci);
 INSERT INTO t1 VALUES ('a'),('ae'),('af');
 SELECT s1,hex(s1) FROM t1 ORDER BY s1;
 SELECT * FROM t1 ORDER BY s1;
@@ -1558,20 +1558,20 @@ DROP TABLE t1;
 --echo # Bug#52520 Difference in tinytext utf column metadata
 --echo #
 CREATE TABLE t1 (
-  s1 TINYTEXT CHARACTER SET utf8,
-  s2 TEXT CHARACTER SET utf8,
-  s3 MEDIUMTEXT CHARACTER SET utf8,
-  s4 LONGTEXT CHARACTER SET utf8
+  s1 TINYTEXT CHARACTER SET utf8mb3,
+  s2 TEXT CHARACTER SET utf8mb3,
+  s3 MEDIUMTEXT CHARACTER SET utf8mb3,
+  s4 LONGTEXT CHARACTER SET utf8mb3
 );
 --disable_view_protocol
 --enable_metadata
 #Check after fix MDEV-31512
 --disable_cursor_protocol
-SET NAMES utf8, @@character_set_results=NULL;
+SET NAMES utf8mb3, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SELECT *, HEX(s1) FROM t1;
 --enable_cursor_protocol
 --disable_metadata
@@ -1581,15 +1581,15 @@ SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
 
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 --source include/ctype_numconv.inc
 
 --echo #
---echo # Bug#57687 crash when reporting duplicate group_key error and utf8
+--echo # Bug#57687 crash when reporting duplicate group_key error and utf8mb3
 --echo # Bug#58081 Duplicate entry error when doing GROUP BY
 --echo # MDEV-9332 Bug after upgrade to 10.1.10
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (0), (0), (1), (0), (0);
 SELECT COUNT(*) FROM t1, t1 t2
@@ -1600,19 +1600,19 @@ DROP TABLE t1;
 --echo # Bug#11764503 (Bug#57341) Query in EXPLAIN EXTENDED shows wrong characters
 --echo #
 
---echo # Emulate utf8 client erroneously started with --default-character-set=latin1,
+--echo # Emulate utf8mb3 client erroneously started with --default-character-set=latin1,
 --echo # # as in the bug report. EXPLAIN output should still be pretty readable
 SET NAMES latin1;
-EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8'abcdÁÂÃÄÅ' AS u;
---echo # Test normal utf8
-SET NAMES utf8;
-EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8'abcdÁÂÃÄÅ';
+EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8mb3'abcdÁÂÃÄÅ' AS u;
+--echo # Test normal utf8mb3
+SET NAMES utf8mb3;
+EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8mb3'abcdÁÂÃÄÅ';
 
 --echo #
 --echo # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
@@ -1629,15 +1629,15 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1;
 --echo # MDEV-7814 Assertion `args[0]->fixed' fails in Item_func_conv_charset::Item_func_conv_charset
 --echo #
 CREATE TABLE t1(a CHAR(1) CHARACTER SET latin1, b INT NOT NULL);
-CREATE TABLE t2(a CHAR(1) CHARACTER SET utf8 COLLATE utf8_general_ci, b INT NOT NULL);
+CREATE TABLE t2(a CHAR(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci, b INT NOT NULL);
 SELECT (SELECT t2.a FROM t2 WHERE t2.a=t1.a) AS aa, b, COUNT(b) FROM t1 GROUP BY aa;
 DROP TABLE t1,t2;
 
 --echo #
---echo # MDEV-7649 wrong result when comparing utf8 column with an invalid literal
+--echo # MDEV-7649 wrong result when comparing utf8mb3 column with an invalid literal
 --echo #
 
-SET NAMES utf8 COLLATE utf8_general_ci;
+SET NAMES utf8mb3 COLLATE utf8mb3_general_ci;
 --let ENGINE=InnoDB
 --source include/ctype_utf8_ilseq.inc
 --let ENGINE=MyISAM
@@ -1648,7 +1648,7 @@ SET NAMES utf8 COLLATE utf8_general_ci;
 --echo #
 --echo # MDEV-8067 correct fix for MySQL Bug # 19699237: UNINITIALIZED VARIABLE IN ITEM_FIELD::STR_RESULT
 --echo #
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3);
 CREATE TABLE t2 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('aaa');
 INSERT INTO t2 VALUES ('aaa');
@@ -1663,7 +1663,7 @@ DROP TABLE t1, t2;
 --echo #
 --echo # MDEV-8630 Datetime value dropped in "INSERT ... SELECT ... ON DUPLICATE KEY"
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (id2 int, ts timestamp not null);
 INSERT INTO t1 VALUES (1,'2012-06-11 15:17:34'),(2,'2012-06-11 15:18:24');
 CREATE TABLE t2 AS SELECT
@@ -1680,12 +1680,12 @@ DROP TABLE t2, t1;
 --echo #
 --echo # MDEV-9319 ALTER from a bigger to a smaller blob type truncates too much data
 --echo #
-SET NAMES utf8;
-CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb3);
 INSERT INTO t1 VALUES (REPEAT('Ａ',100));
 SELECT OCTET_LENGTH(a) FROM t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-ALTER TABLE t1 MODIFY a TINYTEXT CHARACTER SET utf8;
+ALTER TABLE t1 MODIFY a TINYTEXT CHARACTER SET utf8mb3;
 SELECT OCTET_LENGTH(a),a FROM t1;
 DROP TABLE t1;
 
@@ -1694,15 +1694,15 @@ DROP TABLE t1;
 --echo #
 --echo #
 
-SET NAMES utf8;
-SELECT length(rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2)) AS data;
+SET NAMES utf8mb3;
+SELECT length(rpad(_utf8mb3 0xD0B1, 65536, _utf8mb3 0xD0B2)) AS data;
 SELECT length(data) AS len FROM (
-  SELECT rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2) AS data
+  SELECT rpad(_utf8mb3 0xD0B1, 65536, _utf8mb3 0xD0B2) AS data
 ) AS sub;
 
-SELECT length(rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2)) AS data;
+SELECT length(rpad(_utf8mb3 0xD0B1, 65535, _utf8mb3 0xD0B2)) AS data;
 SELECT length(data) AS len FROM (
-  SELECT rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2) AS data
+  SELECT rpad(_utf8mb3 0xD0B1, 65535, _utf8mb3 0xD0B2) AS data
 ) AS sub;
 
 SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36766) AS data) AS sub;
@@ -1717,12 +1717,12 @@ SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65537) AS data) AS sub;
 --echo #
 CREATE TABLE t1 (i INT, KEY(i));
 INSERT INTO t1 VALUES (20081205),(20050327);
-SELECT HEX(i), HEX(CHAR(i USING utf8)) FROM t1;
+SELECT HEX(i), HEX(CHAR(i USING utf8mb3)) FROM t1;
 SET sql_mode='STRICT_ALL_TABLES';
-SELECT HEX(i), HEX(CHAR(i USING utf8)) FROM t1;
+SELECT HEX(i), HEX(CHAR(i USING utf8mb3)) FROM t1;
 # Avoid garbage in the output
 --replace_column 1 ###
-SELECT CHAR(i USING utf8) FROM t1;
+SELECT CHAR(i USING utf8mb3) FROM t1;
 SET sql_mode=DEFAULT;
 DROP TABLE t1;
 
@@ -1731,15 +1731,15 @@ DROP TABLE t1;
 --echo #
 
 SET sql_mode='';
-CREATE TABLE t1 (c1 VARCHAR(21844) CHARACTER SET utf8);
+CREATE TABLE t1 (c1 VARCHAR(21844) CHARACTER SET utf8mb3);
 DESCRIBE t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (c1 VARCHAR(21845) CHARACTER SET utf8);
+CREATE TABLE t1 (c1 VARCHAR(21845) CHARACTER SET utf8mb3);
 DESCRIBE t1;
 DROP TABLE t1;
 
-CREATE TABLE t1 (c1 VARCHAR(21846) CHARACTER SET utf8);
+CREATE TABLE t1 (c1 VARCHAR(21846) CHARACTER SET utf8mb3);
 DESCRIBE t1;
 DROP TABLE t1;
 SET sql_mode=default;
@@ -1761,10 +1761,10 @@ SET sql_mode=default;
 --echo #
 set max_sort_length=9;
 select @@max_sort_length;
-create table t1 (a varchar(128) character set utf8 collate utf8_general_ci);
+create table t1 (a varchar(128) character set utf8mb3 collate utf8mb3_general_ci);
 insert into t1 values ('a'),('b'),('c');
 select * from t1 order by a;
-alter table t1 modify a varchar(128) character set utf8 collate utf8_bin;
+alter table t1 modify a varchar(128) character set utf8mb3 collate utf8mb3_bin;
 select * from t1 order by a;
 drop table t1;
 set max_sort_length=default;
@@ -1778,38 +1778,38 @@ set max_sort_length=default;
 --echo #
 
 --echo #
---echo # MDEV-6666 Malformed result for CONCAT(utf8_column, binary_string)
+--echo # MDEV-6666 Malformed result for CONCAT(utf8mb3_column, binary_string)
 --echo #
 
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3);
 INSERT INTO t1 VALUES ('a');
 --error ER_INVALID_CHARACTER_STRING
 SELECT CONCAT(a,0xFF) FROM t1;
 SELECT CONCAT(a,0xC3BF) FROM t1;
 DROP TABLE t1;
 --error ER_INVALID_CHARACTER_STRING
-SELECT CONCAT('a' COLLATE utf8_unicode_ci, _binary 0xFF);
-PREPARE stmt FROM "SELECT CONCAT('a' COLLATE utf8_unicode_ci, ?)";
+SELECT CONCAT('a' COLLATE utf8mb3_unicode_ci, _binary 0xFF);
+PREPARE stmt FROM "SELECT CONCAT('a' COLLATE utf8mb3_unicode_ci, ?)";
 SET @arg00=_binary 0xFF;
 --error ER_INVALID_CHARACTER_STRING
 EXECUTE stmt USING @arg00;
 DEALLOCATE PREPARE stmt;
 SET NAMES latin1;
-PREPARE stmt FROM "SELECT CONCAT(_utf8'a' COLLATE utf8_unicode_ci, ?)";
+PREPARE stmt FROM "SELECT CONCAT(_utf8mb3'a' COLLATE utf8mb3_unicode_ci, ?)";
 EXECUTE stmt USING @no_such_var;
 DEALLOCATE PREPARE stmt;
-SET NAMES utf8;
+SET NAMES utf8mb3;
 
 --echo #
 --echo # MDEV-6679 Different optimizer plan for "a BETWEEN 'string' AND ?" and "a BETWEEN ? AND 'string'"
 --echo #
-SET NAMES utf8, collation_connection=utf8_swedish_ci;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, b INT NOT NULL DEFAULT 0, key(a));
+SET NAMES utf8mb3, collation_connection=utf8mb3_swedish_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3, b INT NOT NULL DEFAULT 0, key(a));
 INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
 SET @arg='¢';
-PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8mb3'¢' and ?";
 EXECUTE stmt USING @arg;
-PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8mb3'¢'";
 EXECUTE stmt USING @arg;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
@@ -1818,13 +1818,13 @@ DROP TABLE t1;
 -- echo # MDEV-6683 A parameter and a string literal with the same values are not recognized as equal by the optimizer
 -- echo #
 
-SET NAMES utf8, collation_connection=utf8_swedish_ci;
+SET NAMES utf8mb3, collation_connection=utf8mb3_swedish_ci;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT NOT NULL DEFAULT 0, key(a));
 INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
 SET @arg='¢';
-PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8mb3'¢' and ?";
 EXECUTE stmt USING @arg;
-PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8mb3'¢'";
 EXECUTE stmt USING @arg;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
@@ -1834,14 +1834,14 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT);
 INSERT INTO t1 VALUES ('a',1);
-SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 X'61')) FROM t1;
-SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001')) FROM t1;
+SELECT CONCAT(a, IF(b>10, _utf8mb3 X'61', _utf8mb3 X'61')) FROM t1;
+SELECT CONCAT(a, IF(b>10, _utf8mb3 X'61', _utf8mb3 B'01100001')) FROM t1;
 DROP TABLE t1;
 
 --echo #
 --echo #  MDEV-6694 Illegal mix of collation with a PS parameter
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (a INT, b VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES (1,'a');
 SELECT CONCAT(b,IF(a,'b','b')) FROM t1;
@@ -1859,7 +1859,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
 --echo #
-SELECT _utf8 0x7E, _utf8 X'7E', _utf8 B'01111110';
+SELECT _utf8mb3 0x7E, _utf8mb3 X'7E', _utf8mb3 B'01111110';
 
 
 let $ctype_unescape_combinations=selected;
@@ -1869,7 +1869,7 @@ let $ctype_unescape_combinations=selected;
 --echo # MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SELECT CHAR(0xDF USING latin1);
 CREATE OR REPLACE VIEW v1 AS SELECT CHAR(0xDF USING latin1) AS c;
 SHOW CREATE VIEW v1;
@@ -1880,7 +1880,7 @@ DROP VIEW v1;
 #
 # MDEV-13118 Wrong results with LOWER and UPPER and subquery
 #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 --source include/ctype_mdev13118.inc
 
 
@@ -1896,15 +1896,15 @@ SET NAMES utf8;
 --echo #
 --echo # MDEV-6572 "USE dbname" with a bad sequence erroneously connects to a wrong database
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 --error ER_INVALID_CHARACTER_STRING
 SELECT * FROM `test😁😁test`;
 
 --echo #
 --echo #MDEV-8256 A part of a ROW comparison is erroneously optimized away
 --echo #
-SET NAMES utf8;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3);
 INSERT INTO t1 VALUES ('1e1'),('1é1');
 SELECT * FROM t1 WHERE a=10;
 SELECT * FROM t1 WHERE a='1e1';
@@ -1916,7 +1916,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-8688 Wrong result for SELECT..WHERE varchar_column IN (1,2,3) AND varchar_column=' 1';
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('1e1'),('1ë1');
 SELECT * FROM t1 WHERE a IN (1,2);
@@ -1929,13 +1929,13 @@ DROP TABLE IF EXISTS t1;
 
 
 --echo #
---echo # MDEV-8816 Equal field propagation is not applied for WHERE varbinary_column>=_utf8'a' COLLATE utf8_swedish_ci AND varbinary_column='A';
+--echo # MDEV-8816 Equal field propagation is not applied for WHERE varbinary_column>=_utf8mb3'a' COLLATE utf8mb3_swedish_ci AND varbinary_column='A';
 --echo #
 CREATE TABLE t1 (c VARBINARY(10));
 INSERT INTO t1 VALUES ('a'),('A');
-SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
+SELECT * FROM t1 WHERE c>=_utf8mb3'a' COLLATE utf8mb3_general_ci AND c='A';
 EXPLAIN EXTENDED
-SELECT * FROM t1 WHERE c>=_utf8'a' COLLATE utf8_general_ci AND c='A';
+SELECT * FROM t1 WHERE c>=_utf8mb3'a' COLLATE utf8mb3_general_ci AND c='A';
 DROP TABLE t1;
 
 
@@ -2012,26 +2012,26 @@ SET @@SQL_MODE=default;
 #WHERE ROUTINE_SCHEMA='test' AND SPECIFIC_NAME ='f1';
 #SELECT body_utf8 FROM mysql.proc WHERE name='f1';
 #DROP FUNCTION f1;
-#SET NAMES utf8;
+#SET NAMES utf8mb3;
 
 --echo #
 --echo # MDEV-10191 non convertible chars convert() resulted in Null instead "?" on Windows
 --echo #
 
 SET sql_mode='STRICT_TRANS_TABLES';
-SELECT CONVERT(_utf8 0xC499 USING latin1);
-SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+SELECT CONVERT(_utf8mb3 0xC499 USING latin1);
+SELECT CAST(_utf8mb3 0xC499 AS CHAR CHARACTER SET latin1);
 
 SET sql_mode=default;
-SELECT CONVERT(_utf8 0xC499 USING latin1);
-SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+SELECT CONVERT(_utf8mb3 0xC499 USING latin1);
+SELECT CAST(_utf8mb3 0xC499 AS CHAR CHARACTER SET latin1);
 
 
 --echo #
 --echo # MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
 SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
 SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
@@ -2040,7 +2040,7 @@ SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
 --echo # MDEV-23535 SIGSEGV, SIGABRT and SIGILL in typeinfo for Item_func_set_collation (on optimized builds)
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE OR REPLACE TABLE t1(a DATETIME) ENGINE=MYISAM;
 INSERT INTO t1 VALUES ('2019-03-10 02:55:05');
 CREATE OR REPLACE TABLE t2(a VARCHAR(50) CHARACTER SET latin1) ENGINE=MYISAM;
@@ -2060,27 +2060,27 @@ DROP TABLE t1, t2;
 --echo #
 --echo # MDEV-9824 LOAD DATA does not work with multi-byte strings in LINES TERMINATED BY when IGNORE is specified
 --echo #
-CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8);
-LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё';
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8mb3);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8mb3 LINES TERMINATED BY 'ёё';
 SELECT c1 FROM t1;
 DELETE FROM t1;
-LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8mb3 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
 SELECT c1 FROM t1 ORDER BY c1;
 DROP TABLE t1;
 
 --echo #
 --echo # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
 --echo #
-CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
-LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb3);
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8mb3 IGNORE 4 LINES;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
 --echo #
 --echo # MDEV-9874 LOAD XML INFILE does not handle well broken multi-byte characters
 --echo #
-CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
-LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' IGNORE INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb3);
+LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' IGNORE INTO TABLE t1 CHARACTER SET utf8mb3 ROWS IDENTIFIED BY '<row>';
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
@@ -2090,18 +2090,18 @@ DROP TABLE t1;
 
 # This test uses some magic codes:
 # _latin1 0xC39F is "A WITH TILDE + Y WITH DIAERESIS"
-# _utf8   0xC39F is "SHARP S"
+# _utf8mb3   0xC39F is "SHARP S"
 
 # "A WITH TILDE + Y WITH DIAERESIS" in DEFAULT.
 SET NAMES latin1;
 CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a),a  FROM t1;
 SET NAMES latin1;
 ALTER TABLE t1 ADD b VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß');
-SET NAMES utf8;
+SET NAMES utf8mb3;
 ALTER TABLE t1 ADD c VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ÃŸ');
 SHOW CREATE TABLE t1;
 # Testing that DEFAULT is independent on the current "SET NAMES".
@@ -2111,28 +2111,28 @@ SELECT * FROM t1;
 SET NAMES latin1;
 DELETE FROM t1;
 INSERT INTO t1 VALUES();
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SELECT * FROM t1;
 DROP TABLE t1;
 
 SET NAMES latin1;
-CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
-SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8mb3 DEFAULT CONCAT('ß'));
+SET NAMES utf8mb3;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a), a FROM t1;
 DROP TABLE t1;
 
 # "SHARP S" in DEFAULT
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
-SET NAMES utf8;
-CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8mb3 DEFAULT CONCAT('ß'));
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a) FROM t1;
@@ -2142,19 +2142,19 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-9711 NO PAD Collatons
 --echo #
-let $coll='utf8_general_nopad_ci';
-let $coll_pad='utf8_general_ci';
+let $coll='utf8mb3_general_nopad_ci';
+let $coll_pad='utf8mb3_general_ci';
 --source include/ctype_pad_all_engines.inc
 
-let $coll='utf8_nopad_bin';
-let $coll_pad='utf8_bin';
+let $coll='utf8mb3_nopad_bin';
+let $coll_pad='utf8mb3_bin';
 --source include/ctype_pad_all_engines.inc
 
 --echo #
 --echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SET SESSION character_set_connection=latin1;
 CREATE VIEW v1 AS SELECT 'ä' AS c1;
 SELECT c1, HEX(c1) FROM v1;
@@ -2164,14 +2164,14 @@ eval LOAD DATA INFILE '$MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
 SELECT * FROM kv WHERE v LIKE _binary'query=%';
 DROP TABLE kv;
 DROP VIEW v1;
-SET NAMES utf8;
+SET NAMES utf8mb3;
 
 --echo #
 --echo # MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
 --echo #
 
-CREATE TABLE t1 (a TINYTEXT character set utf8);
-INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+CREATE TABLE t1 (a TINYTEXT character set utf8mb3);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8mb3 0xD184, 250));
 SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
 DROP TABLE t1;
 
@@ -2188,7 +2188,7 @@ DROP TABLE t1;
 --echo # MDEV-11155 Bad error message when creating a SET column with comma and non-ASCII characters
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 --error ER_ILLEGAL_VALUE_FOR_TYPE
 CREATE TABLE t1 (a SET('a,bü'));
 
@@ -2196,7 +2196,7 @@ CREATE TABLE t1 (a SET('a,bü'));
 --echo # MDEV-12607 Hybrid functions create wrong VARBINARY length when mixing character and binary data
 --echo #
 SET sql_mode='';
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE OR REPLACE TABLE t1 AS SELECT COALESCE('ßa',_binary 'a');
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
@@ -2205,14 +2205,14 @@ SET sql_mode=DEFAULT;
 
 
 --echo #
---echo # MDEV-19239 ERROR 1300 (HY000): Invalid utf8 character string in 10.3.13-MariaDB
+--echo # MDEV-19239 ERROR 1300 (HY000): Invalid utf8mb3 character string in 10.3.13-MariaDB
 --echo #
 
 #
-# Test that the following query does not fail on "Invalid utf8 character string"
+# Test that the following query does not fail on "Invalid utf8mb3 character string"
 #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 --error ER_NO_SUCH_TABLE
 SELECT
   x.消息ID,
@@ -2272,7 +2272,7 @@ FROM (
     GROUP BY x.消息ID,x.发送时间,x.老师ID;
 
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (x INT);
 INSERT INTO t1 VALUES (1);
 SELECT x AS 5天内最近一次登录时间 FROM t1;
@@ -2282,9 +2282,9 @@ DROP TABLE t1;
 --echo # MDEV-22391 Assertion `0' failed in Item_type_holder::val_str on utf16 charset table query
 --echo #
 
-SET NAMES utf8;
-VALUES (_latin1 0xDF) UNION SELECT _utf8'a' COLLATE utf8_bin;
-VALUES (_latin1 0xDF) UNION VALUES(_utf8'a' COLLATE utf8_bin);
+SET NAMES utf8mb3;
+VALUES (_latin1 0xDF) UNION SELECT _utf8mb3'a' COLLATE utf8mb3_bin;
+VALUES (_latin1 0xDF) UNION VALUES(_utf8mb3'a' COLLATE utf8mb3_bin);
 
 --echo #
 --echo # End of 10.3 tests
@@ -2457,7 +2457,7 @@ DROP TABLE t1;
 --echo # MDEV-20712 Wrong data type for CAST(@a AS BINARY) for a numeric variable
 --echo #
 
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SET @a=2;
 CREATE OR REPLACE TABLE t1 AS SELECT CAST(1 AS BINARY), CAST(@a AS BINARY), CAST(@b:=3 AS BINARY);
 SHOW CREATE TABLE t1;
@@ -2467,31 +2467,31 @@ DROP TABLE t1;
 --echo # MDEV-20890 Illegal mix of collations with UUID()
 --echo #
 
-SET NAMES utf8 COLLATE utf8_unicode_ci;
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_ci;
 SELECT sys_guid()>'';
 
 
 --echo #
 --echo # MDEV-8844 Unreadable control characters printed as is in warnings
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 --echo # control, part1
-SELECT CAST(_utf8 0x610062 AS INT);
-SELECT CAST(_utf8 0x610162 AS INT);
-SELECT CAST(_utf8 0x611F62 AS INT);
+SELECT CAST(_utf8mb3 0x610062 AS INT);
+SELECT CAST(_utf8mb3 0x610162 AS INT);
+SELECT CAST(_utf8mb3 0x611F62 AS INT);
 
 --echo # control, part2: U+0080..U+009F
-SELECT CAST(_utf8 0x617F62 AS INT);
-SELECT CAST(_utf8 0x61C28062 AS INT);
-SELECT CAST(_utf8 0x61C29F62 AS INT);
+SELECT CAST(_utf8mb3 0x617F62 AS INT);
+SELECT CAST(_utf8mb3 0x61C28062 AS INT);
+SELECT CAST(_utf8mb3 0x61C29F62 AS INT);
 
 --echo # normal characters
-SELECT CAST(_utf8 0x612062 AS INT);
-SELECT CAST(_utf8 0x617E62 AS INT);
-SELECT CAST(_utf8 0x61C2BF62 AS INT);
-SELECT CAST(_utf8 'ëëë' AS INT);
-SELECT CAST(_utf8 'œœœ' AS INT);
-SELECT CAST(_utf8 'яяя' AS INT);
+SELECT CAST(_utf8mb3 0x612062 AS INT);
+SELECT CAST(_utf8mb3 0x617E62 AS INT);
+SELECT CAST(_utf8mb3 0x61C2BF62 AS INT);
+SELECT CAST(_utf8mb3 'ëëë' AS INT);
+SELECT CAST(_utf8mb3 'œœœ' AS INT);
+SELECT CAST(_utf8mb3 'яяя' AS INT);
 
 --echo #
 --echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify

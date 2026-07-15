@@ -95,7 +95,7 @@ SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
-/*!\C utf8mb3 *//*!*/;
+/*!\C utf8mb4 *//*!*/;
 SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
 SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
@@ -116,7 +116,7 @@ START TRANSACTION
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
-###   @1='ä(i1)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+###   @1='ä(i1)' /* VARSTRING(40) meta=40 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -137,7 +137,7 @@ START TRANSACTION
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
-###   @1='ä(i2)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+###   @1='ä(i2)' /* VARSTRING(40) meta=40 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -158,7 +158,7 @@ START TRANSACTION
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
-###   @1='ä(i3)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+###   @1='ä(i3)' /* VARSTRING(40) meta=40 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -179,7 +179,7 @@ START TRANSACTION
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
-###   @1='ä(p1)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+###   @1='ä(p1)' /* VARSTRING(40) meta=40 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -200,7 +200,7 @@ START TRANSACTION
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
-###   @1='ä(p2)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+###   @1='ä(p2)' /* VARSTRING(40) meta=40 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
@@ -221,7 +221,7 @@ START TRANSACTION
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
-###   @1='ä(p3)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+###   @1='ä(p3)' /* VARSTRING(40) meta=40 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>

@@ -1654,14 +1654,14 @@ DROP VIEW v3;
 --echo #
 --echo # MDEV-6105: Emoji unicode character string search query makes mariadb performance down
 --echo #
-SET NAMES utf8;
+SET NAMES utf8mb3;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(
 id int AUTO_INCREMENT,
 fd varchar(20),
 primary key(id),
 index ix_fd(fd)
-)engine=innodb default charset=UTF8;
+)engine=innodb default charset=utf8mb3;
 INSERT INTO t1(id, fd) VALUES (null, ''),(null, 'matt'),(null, 'pitt'),(null, 'lee'),(null, 'kim');
 INSERT INTO t1 (fd) SELECT fd FROM t1;
 INSERT INTO t1 (fd) SELECT fd FROM t1;
@@ -1870,8 +1870,8 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-8613 Full table scan for WHERE indexed_varchar_column <=> 'bad-character'
 --echo #
-SET NAMES utf8;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, KEY(a)) ENGINE=MyISAM;
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3, KEY(a)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e');
 EXPLAIN SELECT * FROM t1 WHERE a<=>'😎';
 DROP TABLE t1;

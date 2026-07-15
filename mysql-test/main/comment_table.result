@@ -124,7 +124,14 @@ SELECT table_comment,char_length(table_comment) FROM information_schema.tables W
 table_comment	char_length(table_comment)
 SELECT column_comment,char_length(column_comment) FROM information_schema.columns WHERE table_name='t1';
 column_comment	char_length(column_comment)
-set names utf8;
+set names utf8mb3;
 create table t1 (x int comment 'a’');
 ERROR HY000: Invalid utf8mb3 character string: 'a'
+set names utf8mb4;
+# no error??? MDEV-39849
+create table t1 (x int comment 'a’');
+select hex(column_comment) from information_schema.columns where table_schema='test' and table_name='t1';
+hex(column_comment)
+613F
+drop table t1;
 set names latin1;

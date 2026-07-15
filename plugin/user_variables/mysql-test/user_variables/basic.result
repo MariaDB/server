@@ -44,7 +44,7 @@ null_var	NULL	VARCHAR	binary
 str_var	Value of string variable	VARCHAR	latin1
 time_var	2016-02-25	VARCHAR	latin1
 uint_var	2	INT UNSIGNED	latin1
-utf8str_var	UTF8 string value	VARCHAR	utf8mb3
+utf8str_var	UTF8 string value	VARCHAR	utf8mb4
 SHOW USER_VARIABLES;
 Variable_name	Value
  @#^%	Value of variable with odd name

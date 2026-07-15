@@ -23,7 +23,7 @@ ERROR 42S22: Unknown column 'character_set_server' in 'SELECT'
 SET character_set_server=utf8;
 SELECT @@session.character_set_server;
 @@session.character_set_server
-utf8mb3
+utf8mb4
 SET session character_set_server=utf8;
 SELECT session character_set_server;
 ERROR 42S22: Unknown column 'session' in 'SELECT'
@@ -47,14 +47,14 @@ SELECT @@global.character_set_server = @global_start_value;
 SET @@session.character_set_server = utf8;
 SELECT @@session.character_set_server;
 @@session.character_set_server
-utf8mb3
+utf8mb4
 SET @@global.character_set_server = latin2;
 SELECT @@global.character_set_server;
 @@global.character_set_server
 latin2
 SELECT @@session.character_set_server AS res_is_utf8;
 res_is_utf8
-utf8mb3
+utf8mb4
 SET @@session.character_set_server = latin5;
 SELECT @@session.character_set_server;
 @@session.character_set_server
@@ -164,7 +164,7 @@ armscii8
 SET @@session.character_set_server = utf8;
 SELECT @@session.character_set_server;
 @@session.character_set_server
-utf8mb3
+utf8mb4
 SET @@session.character_set_server = ucs2;
 SELECT @@session.character_set_server;
 @@session.character_set_server
@@ -309,7 +309,7 @@ armscii8
 SET @@global.character_set_server = utf8;
 SELECT @@global.character_set_server;
 @@global.character_set_server
-utf8mb3
+utf8mb4
 SET @@global.character_set_server = ucs2;
 SELECT @@global.character_set_server;
 @@global.character_set_server
@@ -370,15 +370,15 @@ eucjpms
 SET @@character_set_server = UTF8;
 SELECT @@character_set_server;
 @@character_set_server
-utf8mb3
+utf8mb4
 SET @@character_set_server = utf8;
 SELECT @@character_set_server;
 @@character_set_server
-utf8mb3
+utf8mb4
 SET @@global.character_set_server = uTf8;
 SELECT @@global.character_set_server;
 @@global.character_set_server
-utf8mb3
+utf8mb4
 '#--------------------FN_DYNVARS_009_09-------------------------#'
 SET @@character_set_server = 1;
 SELECT @@character_set_server;

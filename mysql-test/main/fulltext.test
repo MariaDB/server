@@ -5,10 +5,6 @@
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
                        ('Full-text indexes', 'are called collections'),
@@ -694,6 +690,7 @@ DROP TABLE t1;
 --echo # MDEV-14743: Server crashes in Item_func_match::init_search
 --echo #
 
+SET NAMES utf8mb3;
 CREATE TABLE t1 (f VARCHAR(8));
 INSERT INTO t1 VALUES ('foo'),('bar');
 

@@ -846,7 +846,6 @@ SELECT '\%b' LIKE '%\%';
 '\%b' LIKE '%\%'
 0
 "BEGIN ctype_german.inc"
-drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
 select collation(s1) from t1;
 collation(s1)
@@ -1428,7 +1427,6 @@ set collation_connection=ucs2_general_ci;
 #
 # Bug#31081 server crash in regexp function
 #
-drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
 union
@@ -5256,7 +5254,6 @@ SET NAMES latin1;
 #
 SET collation_connection=ucs2_german2_ci;
 "BEGIN ctype_german.inc"
-drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
 select collation(s1) from t1;
 collation(s1)

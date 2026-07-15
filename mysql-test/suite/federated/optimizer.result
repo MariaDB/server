@@ -16,6 +16,8 @@ PRIMARY KEY (`foo_id`),
 KEY `foo_name` (`foo_name`),
 KEY `parent_foo_id` (`parent_foo_id`)
 ) DEFAULT CHARSET=utf8;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 CREATE TABLE `fed_t1` ENGINE=FEDERATED DEFAULT CHARSET=utf8 CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/t1';
 INSERT INTO t1 VALUES (968903, 'STRING - 0', 822857);
 INSERT INTO t1 VALUES (968953, 'STRING - 1', 822857);

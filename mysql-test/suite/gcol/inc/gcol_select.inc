@@ -727,7 +727,7 @@ CREATE TABLE j (
 col_int int(11),
 pk int(11) NOT NULL,
 col_varchar_10_utf8 varchar(10) CHARACTER SET utf8 DEFAULT NULL,
-col_varchar_255_utf8_key varchar(255) CHARACTER SET utf8 GENERATED ALWAYS AS
+col_varchar_255_utf8_key varchar(255) CHARACTER SET utf8mb3 GENERATED ALWAYS AS
 (col_varchar_10_utf8) VIRTUAL,
 PRIMARY KEY (pk),
 KEY cover_key1 (col_int, col_varchar_255_utf8_key));

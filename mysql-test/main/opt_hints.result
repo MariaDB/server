@@ -1470,11 +1470,11 @@ RENAME TABLE t1 TO t2, t3 TO t4;
 ERROR 42S02: Table 'test.t3' doesn't exist
 SHOW CREATE TRIGGER t1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t1` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
+t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t1` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb4	utf8mb4_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
 RENAME TABLE t1 TO t2;
 SHOW CREATE TRIGGER t1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t2` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
+t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t2` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb4	utf8mb4_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
 DROP TABLE t2;
 #
 # End of 12.0 tests
@@ -1873,7 +1873,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t`.`a` AS `a` from (select `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb3	utf8mb3_uca1400_ai_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t`.`a` AS `a` from (select `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb4	utf8mb4_uca1400_ai_ci
 DROP VIEW v2;
 # Creating a VIEW with hints otherwise will work
 CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@qb2 twenty,ten) */ * FROM (SELECT /*+ QB_NAME(qb2) */ ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) t;
@@ -1884,7 +1884,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb3	utf8mb3_uca1400_ai_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb4	utf8mb4_uca1400_ai_ci
 # This next CREATE VIEW statement should match the output of SHOW CREATE VIEW v2.  The following EXPLAIN output should match EXPLAIN SELECT * FROM v2 as a way to demonstrate that the output of SHOW CREATE VIEW is correct.
 CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
 EXPLAIN SELECT * FROM v3;
@@ -1964,7 +1964,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	Using where
 SHOW CREATE VIEW v7;
 View	Create View	character_set_client	collation_connection
-v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select /*+ NO_MERGE(`dt`) */ `dt`.`a` AS `a` from (select /*+ QB_NAME(`qb`) NO_INDEX(`t7`@`qb`) */ `t7`.`a` AS `a` from `t7` where `t7`.`a` > 1 and `t7`.`a` < 3) `dt` where `dt`.`a` = 2	utf8mb3	utf8mb3_uca1400_ai_ci
+v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select /*+ NO_MERGE(`dt`) */ `dt`.`a` AS `a` from (select /*+ QB_NAME(`qb`) NO_INDEX(`t7`@`qb`) */ `t7`.`a` AS `a` from `t7` where `t7`.`a` > 1 and `t7`.`a` < 3) `dt` where `dt`.`a` = 2	utf8mb4	utf8mb4_uca1400_ai_ci
 # End INDEX/JOIN_INDEX example
 # Example of many nested derived tables are not merged.
 EXPLAIN SELECT /*+ NO_MERGE(da) */ * FROM (SELECT /*+ NO_MERGE(db) */ * FROM (SELECT /*+ NO_MERGE(dc) */ * FROM (SELECT /*+ NO_MERGE(dd) */ * FROM (SELECT /*+ NO_MERGE(de) */ * FROM (SELECT /*+ NO_MERGE(df) */ * FROM (SELECT /*+ NO_MERGE(dg) */ * FROM (SELECT /*+ NO_MERGE(dh) */ * FROM (SELECT /*+ NO_MERGE(di) */ * FROM (SELECT /*+ NO_MERGE(dj) */ * FROM (SELECT /*+ NO_MERGE(dk) */ * FROM (SELECT /*+ NO_MERGE(dl) */ * FROM (SELECT * FROM ten) dl) dk) dj) di) dh) dg) df) de) dd) dc) db) da;
@@ -2006,7 +2006,7 @@ ALTER TABLE t2 ADD INDEX(a);
 CREATE VIEW v23 AS SELECT /*+ NO_INDEX(t2 a) */ * FROM t2 WHERE a<2;
 SHOW CREATE VIEW v23;
 View	Create View	character_set_client	collation_connection
-v23	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v23` AS select /*+ NO_INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2	utf8mb3	utf8mb3_uca1400_ai_ci
+v23	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v23` AS select /*+ NO_INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2	utf8mb4	utf8mb4_uca1400_ai_ci
 EXPLAIN EXTENDED SELECT * FROM v23;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
@@ -2028,7 +2028,7 @@ Note	1003	select /*+ NO_MERGE(`v23`) */ `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` A
 CREATE VIEW v24 AS SELECT /*+ INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2;
 SHOW CREATE VIEW v24;
 View	Create View	character_set_client	collation_connection
-v24	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v24` AS select /*+ INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2	utf8mb3	utf8mb3_uca1400_ai_ci
+v24	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v24` AS select /*+ INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2	utf8mb4	utf8mb4_uca1400_ai_ci
 EXPLAIN EXTENDED SELECT * FROM v24;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	a	a	5	NULL	1	100.00	Using index condition
@@ -2139,7 +2139,7 @@ Warnings:
 Note	1003	/* select#1 */ select `sq1`.`f` AS `f` from (/* select#4 */ select min(`test`.`t1`.`i`) AS `f` from `test`.`t1` having `f` = 1) `sq1` where `sq1`.`f` = 1
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `sq2`.`f` AS `f` from (select /*+ DERIVED_CONDITION_PUSHDOWN(`sq1`) */ `sq1`.`f` AS `f` from (select min(`t1`.`i`) AS `f` from `t1`) `sq1`) `sq2` where `sq2`.`f` = 1	utf8mb3	utf8mb3_uca1400_ai_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `sq2`.`f` AS `f` from (select /*+ DERIVED_CONDITION_PUSHDOWN(`sq1`) */ `sq1`.`f` AS `f` from (select min(`t1`.`i`) AS `f` from `t1`) `sq1`) `sq2` where `sq2`.`f` = 1	utf8mb4	utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP VIEW v1;
 # End Examples from QA
@@ -2157,7 +2157,7 @@ INSERT INTO t1 SELECT seq, seq FROM seq_1_to_1000;
 CREATE VIEW v1 AS SELECT /*+ QB_NAME(foo) NO_INDEX(t1@foo) */ a, b FROM t1 WHERE a<3 LIMIT 10;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select /*+ QB_NAME(`foo`) NO_INDEX(`t1`@`foo`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10	utf8mb3	utf8mb3_uca1400_ai_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select /*+ QB_NAME(`foo`) NO_INDEX(`t1`@`foo`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10	utf8mb4	utf8mb4_uca1400_ai_ci
 # Should use full scan of t1 (`ALL`)
 EXPLAIN EXTENDED SELECT * FROM v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -2170,7 +2170,7 @@ SELECT * FROM (SELECT /*+ QB_NAME(foo) NO_INDEX(t1@foo) */ a,b FROM t1 WHERE a<3
 WHERE a+b < 1000 ;
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `dt`.`a` AS `a`,`dt`.`b` AS `b` from (select /*+ QB_NAME(`foo`) NO_INDEX(`t1`@`foo`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000	utf8mb3	utf8mb3_uca1400_ai_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `dt`.`a` AS `a`,`dt`.`b` AS `b` from (select /*+ QB_NAME(`foo`) NO_INDEX(`t1`@`foo`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000	utf8mb4	utf8mb4_uca1400_ai_ci
 # Should use full scan of t1 (`ALL`)
 EXPLAIN EXTENDED SELECT * FROM v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -2187,7 +2187,7 @@ GROUP BY a+b) aggr
 WHERE sumab < cnt;
 SHOW CREATE VIEW v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (select /*+ NO_INDEX(`t1`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < `aggr`.`cnt`	utf8mb3	utf8mb3_uca1400_ai_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (select /*+ NO_INDEX(`t1`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < `aggr`.`cnt`	utf8mb4	utf8mb4_uca1400_ai_ci
 EXPLAIN EXTENDED SELECT * FROM v3 WHERE sumab < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
@@ -2204,7 +2204,7 @@ GROUP BY a+b) aggr
 WHERE sumab < cnt;
 SHOW CREATE VIEW v4;
 View	Create View	character_set_client	collation_connection
-v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (select /*+ QB_NAME(`inner_qb`) NO_INDEX(`t1`@`inner_qb`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < `aggr`.`cnt`	utf8mb3	utf8mb3_uca1400_ai_ci
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `aggr`.`sumab` AS `sumab`,`aggr`.`cnt` AS `cnt` from (select `dt`.`a` + `dt`.`b` AS `sumab`,count(0) AS `cnt` from (select /*+ QB_NAME(`inner_qb`) NO_INDEX(`t1`@`inner_qb`) */ `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` < 3 limit 10) `dt` where `dt`.`a` + `dt`.`b` < 1000 group by `dt`.`a` + `dt`.`b`) `aggr` where `aggr`.`sumab` < `aggr`.`cnt`	utf8mb4	utf8mb4_uca1400_ai_ci
 EXPLAIN EXTENDED SELECT * FROM v4 WHERE sumab < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where

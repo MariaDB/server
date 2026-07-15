@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
 ('Full-text indexes', 'are called collections'),
@@ -362,10 +361,10 @@ INSERT t1 VALUES ("Это мы - опилки"),("Отлезь, гнида!"),
 ("Не влезай, убьет!"),("и будет прав!");
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ОПИЛКИ');
 t	collation(t)
-Это мы - опилки	utf8mb3_uca1400_ai_ci
+Это мы - опилки	utf8mb4_uca1400_ai_ci
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ПрА*' IN BOOLEAN MODE);
 t	collation(t)
-и будет прав!	utf8mb3_uca1400_ai_ci
+и будет прав!	utf8mb4_uca1400_ai_ci
 SELECT * FROM t1 WHERE MATCH t AGAINST ('это' IN BOOLEAN MODE);
 t
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('OsnabrЭck');
@@ -373,12 +372,12 @@ t	collation(t)
 SET NAMES latin1;
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('OsnabrЭck');
 t	collation(t)
-aus OsnabrЭck	utf8mb3_uca1400_ai_ci
+aus OsnabrЭck	utf8mb4_uca1400_ai_ci
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 t	collation(t)
 SELECT t, collation(t),FORMAT(MATCH t AGAINST ('Osnabruck'),6) FROM t1 WHERE MATCH t AGAINST ('Osnabruck');
 t	collation(t)	FORMAT(MATCH t AGAINST ('Osnabruck'),6)
-aus OsnabrЭck	utf8mb3_uca1400_ai_ci	1.591140
+aus OsnabrЭck	utf8mb4_uca1400_ai_ci	1.591140
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
 Warnings:
@@ -748,6 +747,7 @@ DROP TABLE t1;
 #
 # MDEV-14743: Server crashes in Item_func_match::init_search
 #
+SET NAMES utf8mb3;
 CREATE TABLE t1 (f VARCHAR(8));
 INSERT INTO t1 VALUES ('foo'),('bar');
 SELECT 'foo' IN (  SELECT f FROM t1 GROUP BY MATCH(f) AGAINST ( 'qux' IN

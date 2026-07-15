@@ -15,8 +15,8 @@ alter table mysql.db modify User char(16) binary not null default '';
 alter table mysql.tables_priv modify User char(16) binary not null default '';
 alter table mysql.columns_priv modify User char(16) binary not null default '';
 alter table mysql.procs_priv modify User char(16) binary not null default '';
-alter table mysql.proc modify definer char(77) collate utf8_bin not null default '';
-alter table mysql.event modify definer char(77) collate utf8_bin not null default '';
+alter table mysql.proc modify definer char(77) collate utf8mb3_bin not null default '';
+alter table mysql.event modify definer char(77) collate utf8mb3_bin not null default '';
 flush privileges;
 
 --enable_metadata
@@ -40,8 +40,8 @@ alter table mysql.db modify User char(128) binary not null default '';
 alter table mysql.tables_priv modify User char(128) binary not null default '';
 alter table mysql.columns_priv modify User char(128) binary not null default '';
 alter table mysql.procs_priv modify User char(128) binary not null default '';
-alter table mysql.proc modify definer varchar(384) collate utf8_bin not null default '';
-alter table mysql.event modify definer varchar(384) collate utf8_bin not null default '';
+alter table mysql.proc modify definer varchar(384) collate utf8mb3_bin not null default '';
+alter table mysql.event modify definer varchar(384) collate utf8mb3_bin not null default '';
 flush privileges;
 
 --enable_metadata

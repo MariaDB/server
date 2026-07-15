@@ -139,7 +139,7 @@ ALTER SCHEMA db_datadict CHARACTER SET 'utf8';
 SELECT schema_name, default_character_set_name
 FROM information_schema.schemata WHERE schema_name = 'db_datadict';
 schema_name	default_character_set_name
-db_datadict	utf8mb3
+db_datadict	utf8mb4
 ALTER SCHEMA db_datadict CHARACTER SET 'latin1';
 SELECT schema_name, default_collation_name FROM information_schema.schemata
 WHERE schema_name = 'db_datadict';

@@ -588,8 +588,8 @@ DROP TABLE worklog5743;
 # Prefix index with utf8 charset
 # utf8 character takes 3 bytes in mysql so prefix index limit is 3072/3 = 1024
 CREATE TABLE worklog5743 (
-col_1_text TEXT (4000) CHARACTER SET 'utf8',
-col_2_text TEXT (4000) CHARACTER SET 'utf8',
+col_1_text TEXT (4000) CHARACTER SET 'utf8mb3',
+col_2_text TEXT (4000) CHARACTER SET 'utf8mb3',
 PRIMARY KEY (col_1_text(1024))
 ) ROW_FORMAT=DYNAMIC, engine = innodb;
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
@@ -606,7 +606,7 @@ SELECT col_1_text = REPEAT("c", 4000) FROM worklog5743;
 DROP TABLE worklog5743;
 
 # Prefix index with utf8 charset + varchar.
-CREATE TABLE worklog5743 (col_1_varchar VARCHAR (4000) CHARACTER SET 'utf8',
+CREATE TABLE worklog5743 (col_1_varchar VARCHAR (4000) CHARACTER SET 'utf8mb3',
 col_2_varchar VARCHAR (4000) CHARACTER SET 'utf8' ,
 PRIMARY KEY (col_1_varchar(1024))
 ) ROW_FORMAT=DYNAMIC, engine = innodb;
@@ -676,7 +676,7 @@ DROP TABLE worklog5743;
 # Prefix index with utf8 charset on TEXT data type with actual utf8 character
 # like "स" and "क"
 CREATE TABLE worklog5743 (
-col_1_text TEXT (4000) CHARACTER SET 'utf8',
+col_1_text TEXT (4000) CHARACTER SET 'utf8mb3',
 col_2_text TEXT (4000) ,
 PRIMARY KEY (col_1_text(1024))
 ) ROW_FORMAT=DYNAMIC, engine = innodb;

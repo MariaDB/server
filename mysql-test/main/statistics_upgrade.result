@@ -26,7 +26,7 @@ hist_size tinyint unsigned,
 hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB'), 
 histogram varbinary(255), 
 PRIMARY KEY (db_name,table_name,column_name)
-) engine=Aria transactional=0 CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Columns';
+) engine=Aria transactional=0 CHARACTER SET utf8mb3 COLLATE utf8mb3_bin comment='Statistics on Columns';
 insert into t3 select * from mysql.column_stats;
 create table t4 like t3;
 insert into t4 select * from t3;

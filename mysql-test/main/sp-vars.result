@@ -988,10 +988,10 @@ CHARSET(arg)
 latin1
 CALL p2('t');
 CHARSET(arg)
-utf8mb3
+utf8mb4
 CALL p2(_LATIN1 't');
 CHARSET(arg)
-utf8mb3
+utf8mb4
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
@@ -1253,7 +1253,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+  "var" tinytext CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1264,7 +1264,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+  "var" text CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1275,7 +1275,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+  "var" mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1286,7 +1286,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+  "var" longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC

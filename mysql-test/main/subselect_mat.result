@@ -4,10 +4,6 @@ set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set @optimizer_switch_local_default= @@optimizer_switch;
 set @save_join_cache_level=@@join_cache_level;
 set join_cache_level=1;
-drop table if exists t1, t2, t3, t4, t5, t1i, t2i, t3i;
-drop table if exists columns;
-drop table if exists t1_16, t2_16, t3_16;
-drop view if exists v1, v2, v1m, v2m;
 create table t1 (a1 char(8), a2 char(8)) charset=latin1;
 create table t2 (b1 char(8), b2 char(8)) charset=latin1;
 create table t3 (c1 char(8), c2 char(8)) charset=latin1;
@@ -2185,7 +2181,7 @@ id int(11) unsigned NOT NULL AUTO_INCREMENT,
 db varchar(254) NOT NULL DEFAULT '',
 PRIMARY KEY (id),
 UNIQUE KEY db (db)
-) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
+) DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general_ci;
 INSERT INTO t1 (db) VALUES ('mysqltest1'),('mysqltest2'),('mysqltest3'),('mysqltest4');
 drop database if exists mysqltest1;
 drop database if exists mysqltest2;

@@ -20503,7 +20503,7 @@ static void test_mdev14454_internal(const char *init,
       (rc= mysql_query_or_error(mysql,
                                "CREATE PROCEDURE p1"
                                "("
-                               "  OUT param1 TEXT CHARACTER SET utf8"
+                               "  OUT param1 TEXT CHARACTER SET utf8mb3"
                                ")"
                                "BEGIN "
                                "  SET param1 = _latin1'test\xFF'; "
@@ -20563,7 +20563,8 @@ static void test_mdev14454()
 {
   myheader("test_mdev14454");
   test_mdev14454_internal("SET NAMES latin1", 8, "test\xFF");
-  test_mdev14454_internal("SET NAMES utf8 COLLATE utf8_general_ci", 33, "test\xC3\xBF");
+  test_mdev14454_internal("SET NAMES utf8mb3 COLLATE utf8mb3_general_ci", 33, "test\xC3\xBF");
+  test_mdev14454_internal("SET NAMES utf8mb4 COLLATE utf8mb4_general_ci", 45, "test\xC3\xBF");
 }
 
 

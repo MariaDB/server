@@ -91,11 +91,11 @@ select * from t1;
 
 CREATE TABLE char128_utf8 ( 
     i1 INT NOT NULL, 
-    c CHAR(128) CHARACTER SET utf8 NOT NULL, 
+    c CHAR(128) CHARACTER SET utf8mb3 NOT NULL, 
     i2 INT NOT NULL);
 CREATE TABLE char63_utf8 (
       i1 INT NOT NULL,
-      c CHAR(63) CHARACTER SET utf8 NOT NULL,
+      c CHAR(63) CHARACTER SET utf8mb3 NOT NULL,
       i2 INT NOT NULL);
 
 #

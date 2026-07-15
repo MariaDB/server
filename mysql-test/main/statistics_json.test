@@ -10,10 +10,6 @@ let $histogram_type_override='JSON_HB';
 --source include/have_sequence.inc
 --source include/test_db_charset_latin1.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
 
@@ -540,7 +536,7 @@ select JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251));
 --echo #
 
 create table t1 (
-  col1 varchar(10) charset utf8 collate utf8mb3_general_ci
+  col1 varchar(10) charset utf8mb3 collate utf8mb3_general_ci
 );
 set names utf8;
 select hex('Ꙃ'), collation('Ꙃ');

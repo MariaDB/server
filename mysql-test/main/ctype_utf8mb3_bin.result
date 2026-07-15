@@ -367,7 +367,6 @@ SET NAMES utf8mb3 COLLATE utf8mb3_bin;
 #
 # Bug#31081 server crash in regexp function
 #
-drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
 union

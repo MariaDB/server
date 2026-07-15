@@ -2,11 +2,6 @@
 
 --source include/default_optimizer_switch.inc
 
---disable_warnings
-drop table if exists t1,t2;
-drop view if exists v1,v2,v3,v4;
---enable_warnings
-
 set @exit_optimizer_switch=@@optimizer_switch;
 set @exit_join_cache_level=@@join_cache_level;
 set @exit_join_buffer_size=@@join_buffer_size;
@@ -1789,7 +1784,7 @@ CREATE TABLE t1 (
   familyid int(11) DEFAULT NULL,
   withdrawndate date DEFAULT NULL,
   KEY index_td_familyid_id (familyid,id)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 
 CREATE TABLE t2 (
   id int(11) NOT NULL AUTO_INCREMENT,

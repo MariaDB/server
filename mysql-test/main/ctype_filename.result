@@ -30,7 +30,7 @@ aя	a@r1	яa	61407231	40723161
 #
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
-utf8mb3	utf8mb3	utf8mb3
+utf8mb4	utf8mb4	utf8mb4
 SET @old_character_set_client= @@character_set_client;
 SET @old_character_set_connection= @@character_set_connection;
 SET @old_character_set_results= @@character_set_results;
@@ -38,7 +38,7 @@ SET NAMES 'filename';
 ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
-utf8mb3	utf8mb3	utf8mb3
+utf8mb4	utf8mb4	utf8mb4
 CREATE VIEW v2 AS SELECT 1;
 SHOW TABLE STATUS;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary

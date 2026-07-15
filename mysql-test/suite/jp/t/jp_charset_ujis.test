@@ -3,6 +3,7 @@
 --source include/have_ujis.inc
 --source include/have_utf8.inc
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 
 --disable_warnings
 drop table if exists `£Ô£±`;

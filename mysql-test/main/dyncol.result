@@ -6,16 +6,16 @@ exp
 000000
 select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8 collate utf8_general_ci)) as ex;
 ex
-0001000100032161666166
+0001000100032D61666166
 select hex(COLUMN_CREATE(1, 1212 AS char character set utf8 collate utf8_general_ci)) as ex;
 ex
-0001000100032131323132
+0001000100032D31323132
 select hex(COLUMN_CREATE(1, 12.12 AS char character set utf8 collate utf8_general_ci)) as ex;
 ex
-0001000100032131322E3132
+0001000100032D31322E3132
 select hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8 collate utf8_general_ci)) as ex;
 ex
-000100010003213939393939393939393939393939393939393939393939393939393939
+0001000100032D3939393939393939393939393939393939393939393939393939393939
 select hex(COLUMN_CREATE(1, NULL AS unsigned int));
 hex(COLUMN_CREATE(1, NULL AS unsigned int))
 000000
@@ -137,7 +137,7 @@ select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8 collate utf8_gener
 7, "- 0:45:49.000001" AS time,
 8, "2011-04-05 0:45:49.000001" AS datetime)) as ex;
 ex
-01080001000300020029000300380004004A0005008C000600AE000700C7000800F5002161666166BC0478093D0AD7A3703D284002028C0C85B60F010010B7000485B60F010010B70000
+01080001000300020029000300380004004A0005008C000600AE000700C7000800F5002D61666166BC0478093D0AD7A3703D284002028C0C85B60F010010B7000485B60F010010B70000
 explain extended
 select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 2, 1212 AS unsigned int,
@@ -150,7 +150,7 @@ select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select hex(column_create(1,'afaf' AS char charset utf8mb3 collate utf8mb3_uca1400_ai_ci ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `ex`
+Note	1003	select hex(column_create(1,'afaf' AS char charset utf8mb4 collate utf8mb4_uca1400_ai_ci ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `ex`
 select hex(column_create(1, 0.0 AS decimal));
 hex(column_create(1, 0.0 AS decimal))
 000100010004
@@ -354,7 +354,7 @@ select column_get(column_create(1, "1212" AS char charset utf8), 1 as char chars
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select column_get(column_create(1,'1212' AS char charset utf8mb3 collate utf8mb3_uca1400_ai_ci ),1 as char charset utf8mb3) AS `ex`
+Note	1003	select column_get(column_create(1,'1212' AS char charset utf8mb4 collate utf8mb4_uca1400_ai_ci ),1 as char charset utf8mb4) AS `ex`
 select column_get(column_create(1, 1212 AS unsigned int), 1 as char charset utf8) as ex;
 ex
 1212
@@ -414,7 +414,7 @@ select column_get(column_create(1, "1212" AS char charset utf8), 1 as char chars
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select column_get(column_create(1,'1212' AS char charset utf8mb3 collate utf8mb3_uca1400_ai_ci ),1 as char charset binary) AS `ex`
+Note	1003	select column_get(column_create(1,'1212' AS char charset utf8mb4 collate utf8mb4_uca1400_ai_ci ),1 as char charset binary) AS `ex`
 #
 # column get real
 #
@@ -1882,7 +1882,7 @@ drop table t1;
 create view v1 as select column_get(column_add(column_create(1 , 'blue' as char), 2, 'ttt'), 1 as char);
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8mb3 collate utf8mb3_uca1400_ai_ci ),2,'ttt'),1 as char charset utf8mb3) AS `Name_exp_1`	utf8mb3	utf8mb3_uca1400_ai_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8mb4 collate utf8mb4_uca1400_ai_ci ),2,'ttt'),1 as char charset utf8mb4) AS `Name_exp_1`	utf8mb4	utf8mb4_uca1400_ai_ci
 select * from v1;
 Name_exp_1
 blue
@@ -1910,9 +1910,9 @@ t1	CREATE TABLE `t1` (
   `name` varchar(10) DEFAULT NULL,
   `value` varchar(10) DEFAULT NULL,
   `dyncol0` blob DEFAULT column_create(`name`,`value`),
-  `value_dyncol0_name0` varchar(10) DEFAULT (column_get(`dyncol0`,'name0' as char charset utf8mb3)),
+  `value_dyncol0_name0` varchar(10) DEFAULT (column_get(`dyncol0`,'name0' as char charset utf8mb4)),
   `dyncol1` blob DEFAULT column_add(`dyncol0`,'name1','value1'),
-  `value_dyncol1_name1` varchar(10) DEFAULT (column_get(`dyncol1`,'name1' as char charset utf8mb3)),
+  `value_dyncol1_name1` varchar(10) DEFAULT (column_get(`dyncol1`,'name1' as char charset utf8mb4)),
   `dyncol2` blob DEFAULT column_add(`dyncol1`,'name1',NULL AS int),
   `dyncol2_exists_name0` int(11) DEFAULT column_exists(`dyncol2`,'name0'),
   `dyncol2_exists_name1` int(11) DEFAULT column_exists(`dyncol2`,'name1'),

@@ -49,6 +49,8 @@ KEY (f4(255))
 CHARSET utf8
 COLLATE utf8_bin
 PARTITION BY KEY (pk) PARTITIONS 2;
+Warnings:
+Note	1071	Specified key was too long; max key length is 767 bytes
 INSERT INTO t1 VALUES
 (1,'foo','bar','foo','bar'), (2,'bar','foo','bar','foo');
 ANALYZE TABLE t1 PERSISTENT FOR ALL;

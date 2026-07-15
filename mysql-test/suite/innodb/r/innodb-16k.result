@@ -36,37 +36,37 @@ c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
 c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(160)
 ) ROW_FORMAT=compressed;
 ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
-CREATE TABLE t1 (a varchar(255) character set utf8,
-b varchar(255) character set utf8,
-c varchar(255) character set utf8,
-d varchar(255) character set utf8,
-e varchar(4) character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+b varchar(255) character set utf8mb3,
+c varchar(255) character set utf8mb3,
+d varchar(255) character set utf8mb3,
+e varchar(4) character set utf8mb3,
 PRIMARY KEY (a,b,c,d,e))
 ENGINE=innodb;
 DROP TABLE t1;
-CREATE TABLE t1 (a varchar(255) character set utf8,
-b varchar(255) character set utf8,
-c varchar(255) character set utf8,
-d varchar(255) character set utf8,
-e varchar(5) character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+b varchar(255) character set utf8mb3,
+c varchar(255) character set utf8mb3,
+d varchar(255) character set utf8mb3,
+e varchar(5) character set utf8mb3,
 PRIMARY KEY (a,b,c,d,e))
 ENGINE=innodb;
 ERROR 42000: Specified key was too long; max key length is 3072 bytes
-CREATE TABLE t1 (a varchar(255) character set utf8,
-b varchar(255) character set utf8,
-c varchar(255) character set utf8,
-d varchar(255) character set utf8,
-e varchar(255) character set utf8,
-f varchar(4)   character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+b varchar(255) character set utf8mb3,
+c varchar(255) character set utf8mb3,
+d varchar(255) character set utf8mb3,
+e varchar(255) character set utf8mb3,
+f varchar(4)   character set utf8mb3,
 PRIMARY KEY (a), KEY (b,c,d,e,f))
 ENGINE=innodb;
 DROP TABLE t1;
-CREATE TABLE t1 (a varchar(255) character set utf8,
-b varchar(255) character set utf8,
-c varchar(255) character set utf8,
-d varchar(255) character set utf8,
-e varchar(255) character set utf8,
-f varchar(5)   character set utf8,
+CREATE TABLE t1 (a varchar(255) character set utf8mb3,
+b varchar(255) character set utf8mb3,
+c varchar(255) character set utf8mb3,
+d varchar(255) character set utf8mb3,
+e varchar(255) character set utf8mb3,
+f varchar(5)   character set utf8mb3,
 PRIMARY KEY (a), KEY (b,c,d,e,f))
 ENGINE=innodb;
 ERROR 42000: Specified key was too long; max key length is 3072 bytes
@@ -244,7 +244,7 @@ t1	CREATE TABLE `t1` (
   `d` text NOT NULL,
   PRIMARY KEY (`a`,`b`(255),`c`(255)),
   KEY `b` (`b`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

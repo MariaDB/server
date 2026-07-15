@@ -1,4 +1,4 @@
--- source include/mysql_upgrade_preparation.inc
+--source include/mysql_upgrade_preparation.inc
 --source include/have_sequence.inc
 
 call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS t3 (
   hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB'), 
   histogram varbinary(255), 
   PRIMARY KEY (db_name,table_name,column_name)
-) engine=Aria transactional=0 CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Columns';
+) engine=Aria transactional=0 CHARACTER SET utf8mb3 COLLATE utf8mb3_bin comment='Statistics on Columns';
 
 # Copy the data there
 insert into t3 select * from mysql.column_stats;

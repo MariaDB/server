@@ -5935,7 +5935,7 @@ KEY `idxSong1` (`iTimesPlayed`),
 KEY `idxSong2` (`lastplayed`),
 KEY `idxSong3` (`idAlbum`),
 KEY `idxSong6` (`idPath`,`strFileName`(255))
-)  DEFAULT CHARSET=utf8;
+)  DEFAULT CHARSET=utf8mb3;
 INSERT INTO `t1` VALUES (1,1,1,'strArtists1','strGenres1','strTitle1',1,100,2000,NULL,'strFileName1','strMusicBrainzTrackID1',0,0,0,NULL,NULL,'0','',''),(2,2,2,'strArtists2','strGenres2','strTitle2',2,200,2001,NULL,'strFileName2','strMusicBrainzTrackID2',0,0,0,NULL,NULL,'0','','');
 CREATE TABLE `t2` (
 `idAlbum` int(11) NOT NULL AUTO_INCREMENT,
@@ -5962,6 +5962,8 @@ UNIQUE KEY `idxAlbum_2` (`strMusicBrainzAlbumID`(36)),
 KEY `idxAlbum` (`strAlbum`(255)),
 KEY `idxAlbum_1` (`bCompilation`)
 ) DEFAULT CHARSET=utf8;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT INTO `t2` VALUES (1,'strAlbum1','strMusicBrainzAlbumID1','strArtists1','strGenres1',2000,NULL,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'album');
 CREATE TABLE `t3` (
 `idArtist` int(11) DEFAULT NULL,
@@ -5997,6 +5999,8 @@ PRIMARY KEY (`idArtist`),
 UNIQUE KEY `idxArtist1` (`strMusicBrainzArtistID`(36)),
 KEY `idxArtist` (`strArtist`(255))
 ) DEFAULT CHARSET=utf8;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT INTO `t4` VALUES (1,'strArtist1','strMusicBrainzArtistID',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 CREATE VIEW `v1` AS select `t2`.`idAlbum` AS `idAlbum`,`t2`.`strAlbum` AS `strAlbum`,`t2`.`strMusicBrainzAlbumID` AS `strMusicBrainzAlbumID`,`t2`.`strArtists` AS `strArtists`,`t2`.`strGenres` AS `strGenres`,`t2`.`iYear` AS `iYear`,`t2`.`strMoods` AS `strMoods`,`t2`.`strStyles` AS `strStyles`,`t2`.`strThemes` AS `strThemes`,`t2`.`strReview` AS `strReview`,`t2`.`strLabel` AS `strLabel`,`t2`.`strType` AS `strType`,`t2`.`strImage` AS `strImage`,`t2`.`iRating` AS `iRating`,`t2`.`bCompilation` AS `bCompilation`,(select min(`t1`.`iTimesPlayed`) from `t1` where (`t1`.`idAlbum` = `t2`.`idAlbum`)) AS `iTimesPlayed`,`t2`.`strReleaseType` AS `strReleaseType` from `t2`;
 CREATE VIEW `v2` AS select `t3`.`idAlbum` AS `idAlbum`,`t3`.`idArtist` AS `idArtist`,`t4`.`strArtist` AS `strArtist`,`t4`.`strMusicBrainzArtistID` AS `strMusicBrainzArtistID`,`t3`.`boolFeatured` AS `boolFeatured`,`t3`.`strJoinPhrase` AS `strJoinPhrase`,`t3`.`iOrder` AS `iOrder` from (`t3` join `t4` on((`t3`.`idArtist` = `t4`.`idArtist`)));

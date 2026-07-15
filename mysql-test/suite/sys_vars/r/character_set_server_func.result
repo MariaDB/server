@@ -9,10 +9,10 @@ connect  con1,localhost,root,,,,;
 connection con1;
 SELECT @@global.character_set_server;
 @@global.character_set_server
-utf8mb3
+utf8mb4
 SELECT @@session.character_set_server;
 @@session.character_set_server
-utf8mb3
+utf8mb4
 disconnect con1;
 '#--------------------FN_DYNVARS_009_02-------------------------#'
 connection default;
@@ -39,27 +39,27 @@ CREATE DATABASE db1;
 USE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */
 DROP DATABASE db1;
 select @@character_set_database;
 @@character_set_database
-utf8mb3
+utf8mb4
 '----test with new connection----'
 connect  con1,localhost,root,,,,;
 connection con1;
 SELECT @@session.character_set_server;
 @@session.character_set_server
-utf8mb3
+utf8mb4
 '----------character set not specified---------'
 CREATE DATABASE db1;
 USE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */
 DROP DATABASE db1;
 SELECT @@character_set_database;
 @@character_set_database
-utf8mb3
+utf8mb4
 '----------ascii character set specified----------'
 CREATE DATABASE db1 character set ascii;
 USE db1;
@@ -69,7 +69,7 @@ db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET ascii COLLATE ascii_gen
 DROP DATABASE db1;
 select @@character_set_database;
 @@character_set_database
-utf8mb3
+utf8mb4
 disconnect con1;
 connection default;
 SET @@global.collation_server = @global_collation_server;

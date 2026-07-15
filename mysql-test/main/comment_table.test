@@ -54,7 +54,12 @@ SELECT column_comment,char_length(column_comment) FROM information_schema.column
 #
 # MDEV-22558 wrong error for invalid utf8 table comment
 #
-set names utf8;
+set names utf8mb3;
 --error ER_INVALID_CHARACTER_STRING
 create table t1 (x int comment 'a’');
+set names utf8mb4;
+--echo # no error??? MDEV-39849
+create table t1 (x int comment 'a’');
+select hex(column_comment) from information_schema.columns where table_schema='test' and table_name='t1';
+drop table t1;
 set names latin1;

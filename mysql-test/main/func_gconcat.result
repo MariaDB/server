@@ -1533,7 +1533,7 @@ HEX(c1)
 61DF41
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select group_concat(`t1`.`c` separator 'ß') AS `c1` from `t1` group by `t1`.`c`	utf8mb3	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select group_concat(`t1`.`c` separator 'ß') AS `c1` from `t1` group by `t1`.`c`	utf8mb4	latin1_swedish_ci
 DROP VIEW v1;
 DROP TABLE t1;
 SET NAMES latin1;

@@ -3,7 +3,7 @@
 #
 SET NAMES utf8mb3;
 SET sql_mode='';
-CREATE TABLE t (c1 INT,c2 CHAR AS (CONCAT ('',DAYNAME ('')))) COLLATE utf8_bin ENGINE=InnoDB;
+CREATE TABLE t (c1 INT,c2 CHAR AS (CONCAT ('',DAYNAME ('')))) COLLATE utf8mb3_bin ENGINE=InnoDB;
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1266	Using storage engine MyISAM for table 't'
@@ -34,4 +34,3 @@ SELECT * FROM t;
 ERROR HY000: Illegal mix of collations (utf8mb3_bin,COERCIBLE) and (utf32_bin,COERCIBLE) for operation 'concat'
 DROP TABLE t;
 SET sql_mode=DEFAULT;
-SET NAMES utf8mb3;

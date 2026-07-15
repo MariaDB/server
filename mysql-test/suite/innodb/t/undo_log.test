@@ -128,7 +128,7 @@ KEY a_str_6 (a_str_6),
 KEY b_str_5 (b_str_5),
 KEY b_str_31 (b_str_31),
 KEY a_ref_11 (a_ref_11)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 ROW_FORMAT=COMPACT;
 SET innodb_strict_mode=ON;
 
 BEGIN;

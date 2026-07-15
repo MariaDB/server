@@ -2267,7 +2267,7 @@ create table t1 (v char(10) character set utf8);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+  `v` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
@@ -2320,7 +2320,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET sql_mode = default;
@@ -2606,17 +2606,17 @@ ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`te
 truncate t3;
 ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t4`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t3` (`a`))
 drop table t4,t3,t2,t1;
-create table t1 (a varchar(255) character set utf8,
-b varchar(255) character set utf8,
-c varchar(255) character set utf8,
-d varchar(255) character set utf8,
+create table t1 (a varchar(255) character set utf8mb3,
+b varchar(255) character set utf8mb3,
+c varchar(255) character set utf8mb3,
+d varchar(255) character set utf8mb3,
 key (a,b,c,d)) engine=innodb;
 drop table t1;
-create table t1 (a varchar(255) character set utf8,
-b varchar(255) character set utf8,
-c varchar(255) character set utf8,
-d varchar(255) character set utf8,
-e varchar(255) character set utf8,
+create table t1 (a varchar(255) character set utf8mb3,
+b varchar(255) character set utf8mb3,
+c varchar(255) character set utf8mb3,
+d varchar(255) character set utf8mb3,
+e varchar(255) character set utf8mb3,
 key (a,b,c,d,e)) engine=innodb;
 ERROR 42000: Specified key was too long; max key length is 3072 bytes
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';

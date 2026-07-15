@@ -6,7 +6,7 @@
 
 SET NAMES utf8mb3;
 SET sql_mode='';
-CREATE TABLE t (c1 INT,c2 CHAR AS (CONCAT ('',DAYNAME ('')))) COLLATE utf8_bin ENGINE=InnoDB;
+CREATE TABLE t (c1 INT,c2 CHAR AS (CONCAT ('',DAYNAME ('')))) COLLATE utf8mb3_bin ENGINE=InnoDB;
 INSERT INTO t VALUES (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0);
 SET collation_connection='utf32_bin';
 --error ER_CANT_AGGREGATE_2COLLATIONS
@@ -15,4 +15,3 @@ INSERT INTO t VALUES (0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0);
 SELECT * FROM t;
 DROP TABLE t;
 SET sql_mode=DEFAULT;
-SET NAMES utf8mb3;

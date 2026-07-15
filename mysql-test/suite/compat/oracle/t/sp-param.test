@@ -178,13 +178,13 @@ DROP FUNCTION f1;
 
 
 #
-# Procedure, utf8 formal parameter, latin actual parameter
+# Procedure, utf8mb3 formal parameter, latin actual parameter
 #
 
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
 DELIMITER /;
-CREATE PROCEDURE p1(pinout INOUT VARCHAR CHARACTER SET utf8,
-                    pin IN VARCHAR CHARACTER SET utf8)
+CREATE PROCEDURE p1(pinout INOUT VARCHAR CHARACTER SET utf8mb3,
+                    pin IN VARCHAR CHARACTER SET utf8mb3)
 AS
 BEGIN
   pinout:=pin;
@@ -210,21 +210,21 @@ DROP PROCEDURE p1;
 
 
 #
-# Procedure, utf8 formal parameter, utf8 actual parameter
+# Procedure, utf8mb3 formal parameter, utf8mb3 actual parameter
 #
 
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
 DELIMITER /;
-CREATE PROCEDURE p1(pinout INOUT VARCHAR CHARACTER SET utf8,
-                    pin IN VARCHAR CHARACTER SET utf8)
+CREATE PROCEDURE p1(pinout INOUT VARCHAR CHARACTER SET utf8mb3,
+                    pin IN VARCHAR CHARACTER SET utf8mb3)
 AS
 BEGIN
   pinout:=pin;
 END;
 /
 CREATE PROCEDURE p2(padlen INT) AS
-  str TEXT CHARACTER SET utf8;
-  pout TEXT CHARACTER SET utf8;
+  str TEXT CHARACTER SET utf8mb3;
+  pout TEXT CHARACTER SET utf8mb3;
 BEGIN
   str:=lpad('x',padlen,'y');
   p1(pout,str);
@@ -275,12 +275,12 @@ DROP FUNCTION f1;
 
 
 #
-# Function, utf8 formal parameter, utf8 actual parameter
+# Function, utf8mb3 formal parameter, utf8mb3 actual parameter
 #
 
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
 DELIMITER /;
-CREATE FUNCTION f1(pin VARCHAR CHARACTER SET utf8, padlen INT) RETURN TEXT
+CREATE FUNCTION f1(pin VARCHAR CHARACTER SET utf8mb3, padlen INT) RETURN TEXT
 AS
 BEGIN
   pin:=LPAD(pin, padlen);
@@ -288,7 +288,7 @@ BEGIN
 END;
 /
 CREATE PROCEDURE p2(padlen INT) AS
-  str TEXT CHARACTER SET utf8 := 'x';
+  str TEXT CHARACTER SET utf8mb3 := 'x';
 BEGIN
   SELECT LENGTH(f1(str,padlen));
 END;
@@ -304,12 +304,12 @@ DROP FUNCTION f1;
 
 
 #
-# Function, utf8 formal parameter, latin1 actual parameter
+# Function, utf8mb3 formal parameter, latin1 actual parameter
 #
 
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
 DELIMITER /;
-CREATE FUNCTION f1(pin VARCHAR CHARACTER SET utf8, padlen INT) RETURN TEXT
+CREATE FUNCTION f1(pin VARCHAR CHARACTER SET utf8mb3, padlen INT) RETURN TEXT
 AS
 BEGIN
   pin:=LPAD(pin, padlen);
@@ -333,7 +333,7 @@ DROP FUNCTION f1;
 
 
 #
-# Function, latin1 formal parameter, utf8 actual parameter
+# Function, latin1 formal parameter, utf8mb3 actual parameter
 #
 
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -346,7 +346,7 @@ BEGIN
 END;
 /
 CREATE PROCEDURE p2(padlen INT) AS
-  str TEXT CHARACTER SET utf8 := 'x';
+  str TEXT CHARACTER SET utf8mb3 := 'x';
 BEGIN
   SELECT LENGTH(f1(str,padlen));
 END;

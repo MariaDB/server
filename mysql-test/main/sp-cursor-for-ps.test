@@ -1,0 +1,125 @@
+SET NAMES utf8mb3;
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-39022 Add `LOCAL spvar` syntax for prepared statements and SYS_REFCURSORs
+--echo #
+
+# OPEN strict_cursor_variable FOR PREPARE stmt - not supported
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1 AS
+  TYPE rec0_t IS RECORD (a INT, b INT);
+  TYPE cur0_t IS REF CURSOR RETURN rec0_t;
+  c0 cur0_t;
+BEGIN
+  PREPARE stmt FROM 'SELECT 1,2';
+  OPEN c0 FOR PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+
+
+# OPEN c FOR PREPARE stmt - a working example
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  v0 TEXT;
+  c0 SYS_REFCURSOR;
+BEGIN
+  PREPARE stmt FROM 'SELECT 123';
+  OPEN c0 FOR PREPARE stmt;
+  FETCH c0 INTO v0;
+  CLOSE c0;
+  SELECT v0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# OPEN c FOR PREPARE stmt - not allowed in a stored function
+
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE FUNCTION f1() RETURN INT AS
+  c0 SYS_REFCURSOR;
+BEGIN
+  OPEN c0 FOR PREPARE stmt;
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+# OPEN c FOR LOCAL var
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  v0 TEXT;
+  ps_name VARCHAR(30) := 'stmt';
+BEGIN
+  PREPARE stmt FROM 'SELECT 10';
+  OPEN c0 FOR LOCAL ps_name;
+  FETCH c0 INTO v0;
+  CLOSE c0;
+  SELECT v0;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# OPEN c FOR LOCAL spvar - not allowed in a stored function
+DELIMITER $$;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE FUNCTION f1() RETURN INT AS
+  c0 SYS_REFCURSOR;
+  spvar VARCHAR(10) DEFAULT 'stmt0';
+BEGIN
+  OPEN c0 FOR LOCAL spvar;
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+# OPEN c FOR LOCAL var - not all parameters bound
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  ps_name VARCHAR(10) := 'stmt';
+BEGIN
+  PREPARE stmt FROM 'SELECT :a';
+  OPEN c0 FOR LOCAL ps_name;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_ARGUMENTS
+CALL p1;
+DROP PROCEDURE p1;
+
+
+# OPEN c FOR LOCAL var - non-ascii characters in PS name
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  c0 SYS_REFCURSOR;
+  v0 TEXT;
+  ps_name VARCHAR(30) := 'àçé';
+BEGIN
+  PREPARE àçé FROM 'SELECT 10';
+  OPEN c0 FOR LOCAL ps_name;
+  FETCH c0 INTO v0;
+  CLOSE c0;
+  SELECT v0;
+  DEALLOCATE PREPARE àçé;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

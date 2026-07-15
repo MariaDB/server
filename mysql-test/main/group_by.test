@@ -529,7 +529,7 @@ create table t2 (
   d varchar(100) NOT NULL,
   primary key (a,b(132),c,d),
   key a (a,b)
-) charset=utf8;
+) charset=utf8mb3;
 
 insert into t2 select 
    x3.a,  -- 3

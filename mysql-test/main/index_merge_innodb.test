@@ -213,11 +213,11 @@ SET @save_sort_buffer_size=@@sort_buffer_size;
 SET sort_buffer_size=2048;
 
 CREATE TABLE t1 (
-  a VARCHAR(1024) CHARACTER SET UTF8 PRIMARY KEY,
+  a VARCHAR(1024) PRIMARY KEY,
   b INT,
   c INT,
   INDEX (b)
-) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+) ENGINE=InnoDB CHARSET utf8mb3 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
 EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
 SELECT * FROM t1 WHERE a='1' OR b < 5;

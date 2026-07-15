@@ -6,7 +6,7 @@ SET @@session.session_track_system_variables='character_set_connection';
 # tracking info on
 SET NAMES 'utf8';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- character_set_connection: utf8mb3
+-- character_set_connection: utf8mb4
 
 SET NAMES 'big5';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
@@ -15,13 +15,13 @@ SET NAMES 'big5';
 # tracking info on once
 SET NAMES 'utf8';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- character_set_connection: utf8mb3
+-- character_set_connection: utf8mb4
 
 SET NAMES 'big5';
 # tracking info on
 SET NAMES 'utf8';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- character_set_connection: utf8mb3
+-- character_set_connection: utf8mb4
 
 # tracking info off once
 SET NAMES 'big5';
@@ -64,7 +64,7 @@ ERROR HY000: Unknown system variable 'a'
 connect  con,localhost,root,,test;
 SET NAMES 'utf8';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- character_set_connection: utf8mb3
+-- character_set_connection: utf8mb4
 
 SET NAMES 'big5';
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES

@@ -868,10 +868,10 @@ The following specify which files/extra groups are read (specified before remain
  explain, or ALL to set all combinations
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: NO_DUP_KEY_WARNINGS_WITH_IGNORE,
- NO_PROGRESS_INFO, ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, IGNORE_INDEX_ONLY_FOR_JOIN,
+ NO_PROGRESS_INFO, ZERO_DATE_TIME_CAST, IGNORE_INDEX_ONLY_FOR_JOIN,
  COMPAT_5_1_CHECKSUM, NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY,
- OLD_FLUSH_STATUS, SESSION_USER_IS_USER, 2_DIGIT_YEAR, or
- ALL to set all combinations
+ OLD_FLUSH_STATUS, SESSION_USER_IS_USER, 2_DIGIT_YEAR, UTF8_IS_UTF8MB3,
+ or ALL to set all combinations
  --old-passwords     Unused. Deprecated, will be removed in a future release.
  --old-style-user-limits 
  Enable old-style user limits (before 5.0.3, user
@@ -1962,7 +1962,7 @@ net-retry-count 10
 net-write-timeout 60
 new-mode 
 note-verbosity basic,explain
-old-mode UTF8_IS_UTF8MB3
+old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-adjust-secondary-key-costs 0

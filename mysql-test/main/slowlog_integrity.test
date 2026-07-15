@@ -40,7 +40,7 @@ CREATE TABLE mysql.slow_log (
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 
 SET GLOBAL log_output= "TABLE";
 SET GLOBAL slow_query_log= ON;
@@ -69,7 +69,7 @@ CREATE TABLE mysql.slow_log (
   `sql_text` ENUM('apple','orange','pear') NOT NULL,
   `thread_id` ENUM('apple','orange','pear') NOT NULL,
   `rows_affected` ENUM('apple','orange','pear') NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 
 SET GLOBAL log_output= "TABLE";
 SET GLOBAL slow_query_log= ON;
@@ -98,7 +98,7 @@ CREATE TABLE mysql.slow_log (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` bigint(20) unsigned NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 SET @@long_query_time= @old_long_query_time;
 SET @@global.log_output= @old_log_output;
 SET @@global.slow_query_log= @old_slow_query_log;

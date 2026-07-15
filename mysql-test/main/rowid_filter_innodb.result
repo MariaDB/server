@@ -3152,7 +3152,7 @@ a.atp = 1 and
 fi.fh in (6311439873746261694,-397087483897438286,
 8518228073041491534,-5420422472375069774);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
+1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,1022	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where
 1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where
 Warnings:
@@ -3209,7 +3209,7 @@ a.atp = 1 and
 fi.fh in (6311439873746261694,-397087483897438286,
 8518228073041491534,-5420422472375069774);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
+1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,1022	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where
 1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using rowid filter
 Warnings:
@@ -3268,7 +3268,7 @@ a.atp = 1 and
 fi.fh in (6311439873746261694,-397087483897438286,
 8518228073041491534,-5420422472375069774);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
+1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,1022	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
 1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan
 Warnings:
@@ -3325,7 +3325,7 @@ a.atp = 1 and
 fi.fh in (6311439873746261694,-397087483897438286,
 8518228073041491534,-5420422472375069774);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
+1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,1022	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
 1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan; Using rowid filter
 Warnings:
@@ -3397,7 +3397,7 @@ ANALYZE
           "table_name": "t",
           "access_type": "index_merge",
           "possible_keys": ["PRIMARY", "acli_rid", "acli_tp"],
-          "key_length": "2,767",
+          "key_length": "2,1022",
           "index_merge": {
             "intersect": [
               {
@@ -3452,7 +3452,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "8KiB",
+          "buffer_size": "11KiB",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "attached_condition": "a.atp = 1",

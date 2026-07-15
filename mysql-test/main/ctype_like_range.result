@@ -1,6 +1,4 @@
-SET NAMES utf8;
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
+SET NAMES utf8mb3;
 CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a VARBINARY(32));
 INSERT INTO t1 (a) VALUES (''),('_'),('%'),('\_'),('\%'),('\\');
 INSERT INTO t1 (a) VALUES ('a'),('c');
@@ -284,7 +282,7 @@ id	name	val
 32	mn	63616161616161616161616161616161
 32	mx	63616161616161616161616161616161
 32	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 INSERT INTO t1 (a) VALUES (_ucs2 0x0425),(_ucs2 0x045F);
 INSERT INTO t1 (a) VALUES (_ucs2 0x2525),(_ucs2 0x5F5F);
 SELECT * FROM v1;
@@ -433,7 +431,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_uca1400_ai_ci;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -580,7 +578,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -727,7 +725,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_czech_ci;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_czech_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -874,7 +872,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_danish_ci;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_danish_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -1021,7 +1019,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_thai_520_w2;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -4732,13 +4730,13 @@ SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
 a	HEX(LIKE_RANGE_MIN(a,200))
 111%	313131
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_general_nopad_ci);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_nopad_ci);
 INSERT INTO t1 VALUES ('111%');
 SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
 a	HEX(LIKE_RANGE_MIN(a,200))
 111%	313131
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci);
 INSERT INTO t1 VALUES ('111%');
 SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
 a	HEX(LIKE_RANGE_MIN(a,200))

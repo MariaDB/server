@@ -254,10 +254,10 @@ MIN(c)
 0
 DROP TABLE t1;
 #
-# MDEV-17589: Stack-buffer-overflow with indexed varchar (utf8) field
+# MDEV-17589: Stack-buffer-overflow with indexed varchar (utf8mb3) field
 #
 CREATE TABLE t1 (v1 varchar(1020), v2 varchar(2), v3 varchar(2),
-KEY k1 (v3,v2,v1)) ENGINE=InnoDB CHARACTER SET=utf8 ROW_FORMAT=DYNAMIC;
+KEY k1 (v3,v2,v1)) ENGINE=InnoDB CHARACTER SET=utf8mb3 ROW_FORMAT=DYNAMIC;
 INSERT INTO t1 VALUES ('king', 'qu','qu'), ('bad','go','go');
 explain
 SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
@@ -267,7 +267,7 @@ SELECT MIN(t1.v1) FROM t1 where t1.v2='qu' and t1.v3='qu';
 MIN(t1.v1)
 king
 drop table t1;
-CREATE TABLE t1 (v1 varchar(1024) CHARACTER SET utf8, KEY v1 (v1)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+CREATE TABLE t1 (v1 varchar(1024) CHARACTER SET utf8mb3, KEY v1 (v1)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 INSERT INTO t1 VALUES ('king'), ('bad');
 explain
 SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
@@ -277,7 +277,7 @@ SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
 MIN(x.v1)
 NULL
 drop table t1;
-End of 5.5 tests
+# End of 5.5 tests
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;

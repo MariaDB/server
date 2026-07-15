@@ -296,7 +296,7 @@ PRIMARY KEY (c1),
 UNIQUE KEY uq (c2,c3),
 KEY c3 (c3),
 KEY c4 (c4)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb3;
 
 
 INSERT INTO t1 (c2, c3, c4) VALUES (58291525, 2580, 'foobar')
@@ -488,8 +488,8 @@ DROP TABLE t1,t2,t3;
 --echo # results (InnoDB/XtraDB)
 --echo #
 
-create table t1 (a bigint not null unique auto_increment, b varchar(10), primary key (a), key (b(2))) engine = myisam default character set utf8;
-create table t2 (a bigint not null unique auto_increment, b varchar(10), primary key (a), key (b(2))) engine = innodb default character set utf8;
+create table t1 (a bigint not null unique auto_increment, b varchar(10), primary key (a), key (b(2))) engine = myisam default character set utf8mb3;
+create table t2 (a bigint not null unique auto_increment, b varchar(10), primary key (a), key (b(2))) engine = innodb default character set utf8mb3;
 
 insert into t1 (b) values (null), (null), (null);
 insert into t2 (b) values (null), (null), (null);
@@ -608,7 +608,7 @@ CREATE TABLE t1 (
   f2 VARCHAR(1024),
   PRIMARY KEY (pk),
   KEY(f2)
-) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+) ENGINE=InnoDB CHARSET utf8mb3 ROW_FORMAT= DYNAMIC;
 
 INSERT INTO t1 VALUES (1,'foo','abc'),(2,'bar','def');
 SELECT MAX(t2.pk) FROM t1 t2 INNER JOIN t1 t3 ON t2.f1 = t3.f1 WHERE t2.pk <= 4;
@@ -621,7 +621,7 @@ CREATE TABLE t1 (
   f2 VARCHAR(1021),
   PRIMARY KEY (pk1,pk2),
   KEY(f2)
-) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+) ENGINE=InnoDB CHARSET utf8mb3 ROW_FORMAT= DYNAMIC;
 
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
 --source include/explain-no-costs.inc
@@ -636,7 +636,7 @@ f1 VARCHAR(3),
 pk1 VARCHAR(1000),
 PRIMARY KEY (pk1,pk2),
 KEY k1(pk1,f2)
-) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+) ENGINE=InnoDB CHARSET utf8mb3 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
 --source include/explain-no-costs.inc
 explain format=json

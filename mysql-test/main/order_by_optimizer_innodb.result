@@ -91,13 +91,13 @@ WHERE pk1 = 123
 AND col1 = 'video'
 ORDER BY pk2 DESC LIMIT 21;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1	key1	55	const,const	1	Using where; Using index
+1	SIMPLE	t1	ref	key1	key1	71	const,const	1	Using where; Using index
 # this must not use filesort, either:
 explain SELECT pk2
 FROM t2 USE INDEX(key1)
 WHERE pk1 = 123 AND col1 = 'video'
 ORDER BY pk2 DESC LIMIT 21;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	key1	key1	55	const,const	1	Using where; Using index
+1	SIMPLE	t2	ref	key1	key1	71	const,const	1	Using where; Using index
 drop table t1, t2;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

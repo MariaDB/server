@@ -5739,7 +5739,7 @@ CREATE TABLE `t1` (
   KEY `idxSong2` (`lastplayed`),
   KEY `idxSong3` (`idAlbum`),
   KEY `idxSong6` (`idPath`,`strFileName`(255))
-)  DEFAULT CHARSET=utf8;
+)  DEFAULT CHARSET=utf8mb3;
 
 INSERT INTO `t1` VALUES (1,1,1,'strArtists1','strGenres1','strTitle1',1,100,2000,NULL,'strFileName1','strMusicBrainzTrackID1',0,0,0,NULL,NULL,'0','',''),(2,2,2,'strArtists2','strGenres2','strTitle2',2,200,2001,NULL,'strFileName2','strMusicBrainzTrackID2',0,0,0,NULL,NULL,'0','','');
 

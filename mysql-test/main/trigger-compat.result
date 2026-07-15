@@ -170,8 +170,8 @@ Timing	AFTER
 Created	2022-01-13 08:23:06.47
 sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 Definer	
-character_set_client	utf8mb3
-collation_connection	utf8mb3_general_ci
+character_set_client	utf8mb4
+collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
@@ -199,8 +199,8 @@ ACTION_REFERENCE_NEW_ROW	NEW
 CREATED	2022-01-13 08:23:06.47
 SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 DEFINER	
-CHARACTER_SET_CLIENT	utf8mb3
-COLLATION_CONNECTION	utf8mb3_general_ci
+CHARACTER_SET_CLIENT	utf8mb4
+COLLATION_CONNECTION	utf8mb4_general_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SET time_zone=DEFAULT;
 # Listing trigger files
@@ -235,8 +235,8 @@ Timing	AFTER
 Created	2022-01-13 08:23:06.47
 sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 Definer	
-character_set_client	utf8mb3
-collation_connection	utf8mb3_general_ci
+character_set_client	utf8mb4
+collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
@@ -264,8 +264,8 @@ ACTION_REFERENCE_NEW_ROW	NEW
 CREATED	2022-01-13 08:23:06.47
 SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 DEFINER	
-CHARACTER_SET_CLIENT	utf8mb3
-COLLATION_CONNECTION	utf8mb3_general_ci
+CHARACTER_SET_CLIENT	utf8mb4
+COLLATION_CONNECTION	utf8mb4_general_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SET time_zone=DEFAULT;
 # Listing trigger files
@@ -295,8 +295,8 @@ Timing	AFTER
 Created	2022-01-13 10:01:48.74
 sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 Definer	root@localhost
-character_set_client	utf8mb3
-collation_connection	utf8mb3_general_ci
+character_set_client	utf8mb4
+collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
 Trigger	tr1
 Event	DELETE
@@ -312,8 +312,8 @@ Timing	AFTER
 Created	2022-01-13 10:01:48.73
 sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 Definer	
-character_set_client	utf8mb3
-collation_connection	utf8mb3_general_ci
+character_set_client	utf8mb4
+collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
@@ -341,8 +341,8 @@ ACTION_REFERENCE_NEW_ROW	NEW
 CREATED	2022-01-13 10:01:48.73
 SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 DEFINER	
-CHARACTER_SET_CLIENT	utf8mb3
-COLLATION_CONNECTION	utf8mb3_general_ci
+CHARACTER_SET_CLIENT	utf8mb4
+COLLATION_CONNECTION	utf8mb4_general_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SET time_zone=DEFAULT;
 # Listing trigger files
@@ -372,8 +372,8 @@ Timing	AFTER
 Created	2022-01-13 10:01:48.74
 sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 Definer	root@localhost
-character_set_client	utf8mb3
-collation_connection	utf8mb3_general_ci
+character_set_client	utf8mb4
+collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
 Trigger	tr1
 Event	DELETE
@@ -389,8 +389,8 @@ Timing	AFTER
 Created	2022-01-13 10:01:48.73
 sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 Definer	
-character_set_client	utf8mb3
-collation_connection	utf8mb3_general_ci
+character_set_client	utf8mb4
+collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
@@ -418,8 +418,8 @@ ACTION_REFERENCE_NEW_ROW	NEW
 CREATED	2022-01-13 10:01:48.73
 SQL_MODE	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 DEFINER	
-CHARACTER_SET_CLIENT	utf8mb3
-COLLATION_CONNECTION	utf8mb3_general_ci
+CHARACTER_SET_CLIENT	utf8mb4
+COLLATION_CONNECTION	utf8mb4_general_ci
 DATABASE_COLLATION	latin1_swedish_ci
 SET time_zone=DEFAULT;
 # Listing trigger files

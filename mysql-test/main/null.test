@@ -1136,7 +1136,7 @@ drop table t1;
 #it is necessary that the view protocol uses the same connection,
 # not util connection
 --disable_service_connection
-set names utf8;
+set names utf8mb3;
 create table t1 (f1 varchar(10));
 insert into t1 values ('2015-12-31');
 --error ER_DATA_OUT_OF_RANGE

@@ -2,7 +2,7 @@ drop table if exists t1;
 In the following tests we change the order of letter "b"
 making it equal to letter "a", and check that it works
 with all Unicode character sets
-set names utf8;
+set names utf8mb3;
 show variables like 'character_sets_dir%';
 Variable_name	Value
 character_sets_dir	MYSQL_TEST_DIR/std_data/ldml/
@@ -11,7 +11,7 @@ Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE
 CREATE TABLE t1 (
 name VARCHAR(64),
-phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
+phone VARCHAR(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_phone_ci
 );
 INSERT INTO t1 VALUES ('Svoj','+7 912 800 80 02');
 INSERT INTO t1 VALUES ('Hf','+7 (912) 800 80 04');
@@ -41,7 +41,7 @@ DROP TABLE t1;
 show collation like 'utf8mb3_test_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE
-create table t1 (c1 char(1) character set utf8 collate utf8_test_ci);
+create table t1 (c1 char(1) character set utf8mb3 collate utf8mb3_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
 c1
@@ -129,7 +129,7 @@ SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4
 exp
 1251
 CREATE TABLE t1 (
-col1 varchar(100) character set utf8 collate utf8_test_ci
+col1 varchar(100) character set utf8mb3 collate utf8mb3_test_ci
 );
 INSERT INTO t1 (col1) VALUES ('abcd'),('efgh'),('ijkl');
 ALTER TABLE t1 ADD FULLTEXT INDEX (col1);
@@ -150,7 +150,7 @@ DROP TABLE t1;
 #
 # Bug#45645 Mysql server close all connection and restart using lower function
 #
-CREATE TABLE t1 (a VARCHAR(10)) CHARACTER SET utf8 COLLATE utf8_test_ci;
+CREATE TABLE t1 (a VARCHAR(10)) CHARACTER SET utf8mb3 COLLATE utf8mb3_test_ci;
 INSERT INTO t1 (a) VALUES ('hello!');
 SELECT * FROM t1 WHERE LOWER(a)=LOWER('N');
 a
@@ -158,7 +158,7 @@ DROP TABLE t1;
 #
 # Bug#51976 LDML collations issue (cyrillic example)
 #
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_test_ci);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_test_ci);
 INSERT INTO t1 (a) VALUES ('Hello');
 SELECT a, UPPER(a), LOWER(a) FROM t1;
 a	UPPER(a)	LOWER(a)
@@ -167,7 +167,7 @@ DROP TABLE t1;
 #
 # Bug#43827 Server closes connections and restarts
 #
-CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_test_ci);
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_test_ci);
 INSERT IGNORE INTO t1 SELECT REPEAT('a',11);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
@@ -521,18 +521,18 @@ def	test	t1	t1	c1	c1	254	2	2	Y	0	0	359
 c1
  a
 drop table t1;
-CREATE TABLE t1 (s1 char(10) character set utf8 collate utf8_maxuserid_ci);
+CREATE TABLE t1 (s1 char(10) character set utf8mb3 collate utf8mb3_maxuserid_ci);
 INSERT INTO t1 VALUES ('a'),('b');
 SELECT * FROM t1 WHERE s1='a' ORDER BY BINARY s1;
 s1
 a
 b
 DROP TABLE t1;
-SET NAMES utf8 COLLATE utf8_phone_ci;
+SET NAMES utf8mb3 COLLATE utf8mb3_phone_ci;
 show collation like 'utf8mb3_phone_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE
-SET NAMES utf8;
+SET NAMES utf8mb3;
 SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci)) as exp;
 exp
 0E33
@@ -554,7 +554,7 @@ E2B0B0	E2B0B0
 #
 # WL#5624 Collation customization improvements
 #
-SET NAMES utf8 COLLATE utf8_5624_1;
+SET NAMES utf8mb3 COLLATE utf8mb3_5624_1;
 CREATE TABLE t1 AS SELECT REPEAT(' ', 16) AS a LIMIT 0;
 INSERT INTO t1 VALUES ('012345'),('001234'),('000123'),('000012'),('000001');
 INSERT INTO t1 VALUES ('12345'),('01234'),('00123'),('00012'),('00001');
@@ -843,31 +843,31 @@ DROP TABLE t1;
 #
 # WL#5624, unsupported features
 #
-SET NAMES utf8 COLLATE utf8_5624_2;
-ERROR HY000: Unknown collation: 'utf8_5624_2'
+SET NAMES utf8mb3 COLLATE utf8mb3_5624_2;
+ERROR HY000: Unknown collation: 'utf8mb3_5624_2'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1273	Unknown collation: 'utf8_5624_2'
+Error	1273	Unknown collation: 'utf8mb3_5624_2'
 Warning	1273	Syntax error at '[strength tertiary]'
-SELECT _utf8'test' COLLATE utf8_5624_2;
-ERROR HY000: Unknown collation: 'utf8_5624_2'
+SELECT _utf8'test' COLLATE utf8mb3_5624_2;
+ERROR HY000: Unknown collation: 'utf8mb3_5624_2'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1273	Unknown collation: 'utf8_5624_2'
+Error	1273	Unknown collation: 'utf8mb3_5624_2'
 Warning	1273	Syntax error at '[strength tertiary]'
 #
 # WL#5624, reset before primary ignorable
 #
-SET NAMES utf8 COLLATE utf8_5624_3;
-ERROR HY000: Unknown collation: 'utf8_5624_3'
+SET NAMES utf8mb3 COLLATE utf8mb3_5624_3;
+ERROR HY000: Unknown collation: 'utf8mb3_5624_3'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1273	Unknown collation: 'utf8_5624_3'
+Error	1273	Unknown collation: 'utf8mb3_5624_3'
 Warning	1273	Can't reset before a primary ignorable character U+A48C
 #
 # WL#5624, \u without hex digits is equal to {'\', 'u'}
 #
-SET NAMES utf8 COLLATE utf8_5624_4;
+SET NAMES utf8mb3 COLLATE utf8mb3_5624_4;
 CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 INSERT INTO t1 VALUES ('\\'),('u'),('x'),('X');
 SELECT a, HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a, LENGTH(a), BINARY(a);
@@ -880,7 +880,7 @@ DROP TABLE t1;
 #
 # WL#5624, testing Bengali collations
 #
-SET NAMES utf8, collation_connection=utf8_bengali_standard_ci;
+SET NAMES utf8mb3, collation_connection=utf8mb3_bengali_standard_ci;
 CREATE TABLE t1 AS SELECT REPEAT (' ', 10) AS a LIMIT 0;
 INSERT INTO t1 VALUES (_ucs2 0x09FA), (_ucs2 0x09F8), (_ucs2 0x09F9), (_ucs2 0x09F2);
 INSERT INTO t1 VALUES (_ucs2 0x09DC), (_ucs2 0x09A109BC);
@@ -900,7 +900,7 @@ HEX(WEIGHT_STRING(a))	HEX(CONVERT(a USING ucs2))	HEX(a)
 0376	09DD	E0A79D
 0377	09A3	E0A6A3
 DROP TABLE t1;
-SET NAMES utf8, collation_connection=utf8_bengali_traditional_ci;
+SET NAMES utf8mb3, collation_connection=utf8mb3_bengali_traditional_ci;
 CREATE TABLE t1 AS SELECT REPEAT (' ', 10) AS a LIMIT 0;
 INSERT INTO t1 VALUES
 (_ucs2 0x0985),(_ucs2 0x0986),(_ucs2 0x0987),(_ucs2 0x0988),
@@ -1091,7 +1091,7 @@ DROP TABLE t1;
 #
 # WL#5624, shift after, using expansion
 #
-SET NAMES utf8 COLLATE utf8_5624_5;
+SET NAMES utf8mb3 COLLATE utf8mb3_5624_5;
 CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 INSERT INTO t1 VALUES ('0'),('1'),('0z'),(_ucs2 0x0030FF9D);
 INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e'),('f'),('g'),('h'),('i');
@@ -1168,11 +1168,11 @@ AA	0E293358
 AAA	0E293359
 1	0E2A
 DROP TABLE t1;
-SET NAMES utf8 COLLATE utf8_5624_5_bad;
-ERROR HY000: Unknown collation: 'utf8_5624_5_bad'
+SET NAMES utf8mb3 COLLATE utf8mb3_5624_5_bad;
+ERROR HY000: Unknown collation: 'utf8mb3_5624_5_bad'
 SHOW WARNINGS;
 Level	Code	Message
-Error	1273	Unknown collation: 'utf8_5624_5_bad'
+Error	1273	Unknown collation: 'utf8mb3_5624_5_bad'
 Warning	1273	Expansion too long: 'a\u002Daaaaaa10'
 #
 # End of WL#5624
@@ -1183,14 +1183,14 @@ Warning	1273	Expansion too long: 'a\u002Daaaaaa10'
 # Search for occurrences of [ERROR] Syntax error at '[strength tertiary]'
 Occurances : 2
 #
-# MDEV-8686 A user defined collation utf8_confusables doesn't work
+# MDEV-8686 A user defined collation utf8mb3_confusables doesn't work
 #
-CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_implicit_weights_ci);
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_implicit_weights_ci);
 INSERT INTO t1 VALUES ('a'),('b'),('c');
 INSERT INTO t1 VALUES (_ucs2 0x1500),(_ucs2 0x1501);
 INSERT INTO t1 VALUES (_ucs2 0x3400),(_ucs2 0x3560),(_ucs2 0x3561),(_ucs2 0x3600);
 INSERT INTO t1 VALUES (_ucs2 0x3700),(_ucs2 0x3701);
-SELECT HEX(CONVERT(a USING ucs2)) AS ch, HEX(WEIGHT_STRING(a)) AS w, HEX(WEIGHT_STRING(a COLLATE utf8_unicode_ci)) AS ducet FROM t1 ORDER BY a,ch;
+SELECT HEX(CONVERT(a USING ucs2)) AS ch, HEX(WEIGHT_STRING(a)) AS w, HEX(WEIGHT_STRING(a COLLATE utf8mb3_unicode_ci)) AS ducet FROM t1 ORDER BY a,ch;
 ch	w	ducet
 0061	0E33	0E33
 3561	0E33	FB80B561
@@ -1282,22 +1282,22 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_general_nopad_ci);
 INSERT INTO t1 VALUES ('a'),('a '),('A'),('A ');
-SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
-a	a='a'	a='a '	HEX(a)	LOWER(a)	UPPER(a)	CONVERT(a USING utf8)
+SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8mb3) FROM t1;
+a	a='a'	a='a '	HEX(a)	LOWER(a)	UPPER(a)	CONVERT(a USING utf8mb3)
 a	1	0	61	a	A	a
 a 	0	1	6120	a 	A 	a 
 A	1	0	41	a	A	A
 A 	0	1	4120	a 	A 	A 
 ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_nopad_bin;
-SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
-a	a='a'	a='a '	HEX(a)	LOWER(a)	UPPER(a)	CONVERT(a USING utf8)
+SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8mb3) FROM t1;
+a	a='a'	a='a '	HEX(a)	LOWER(a)	UPPER(a)	CONVERT(a USING utf8mb3)
 a	1	0	61	a	A	a
 a 	0	1	6120	a 	A 	a 
 A	0	0	41	a	A	A
 A 	0	0	4120	a 	A 	A 
 ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_nopad2_ci;
-SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
-a	a='a'	a='a '	HEX(a)	LOWER(a)	UPPER(a)	CONVERT(a USING utf8)
+SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8mb3) FROM t1;
+a	a='a'	a='a '	HEX(a)	LOWER(a)	UPPER(a)	CONVERT(a USING utf8mb3)
 a	1	0	61	a	A	a
 a 	0	1	6120	a 	A 	a 
 A	1	0	41	a	A	A
@@ -1338,7 +1338,7 @@ HEX(a)	REPLACE(a,' ','<SP>')
 6120	a<SP>
 61	a
 DROP TABLE t1;
-SET NAMES utf8 COLLATE utf8_czech_test_w2;
+SET NAMES utf8mb3 COLLATE utf8mb3_czech_test_w2;
 CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
 insert into t1 values ('A'),('a');
 insert into t1 values ('B'),('b');
@@ -2188,7 +2188,7 @@ SELECT 'hž' < 'ch';
 SELECT 'chž'< 'i';
 'chž'< 'i'
 1
-SET NAMES utf8 COLLATE utf8_czech_test_nopad_w2;
+SET NAMES utf8mb3 COLLATE utf8mb3_czech_test_nopad_w2;
 CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
 insert into t1 values ('A'),('a');
 insert into t1 values ('B'),('b');
@@ -3038,8 +3038,8 @@ SELECT 'hž' < 'ch';
 SELECT 'chž'< 'i';
 'chž'< 'i'
 1
-SELECT 'a' COLLATE utf8_czech_test_bad_w2;
-ERROR HY000: Unknown collation: 'utf8_czech_test_bad_w2'
+SELECT 'a' COLLATE utf8mb3_czech_test_bad_w2;
+ERROR HY000: Unknown collation: 'utf8mb3_czech_test_bad_w2'
 #
 # End of 10.2 tests
 #
@@ -3047,7 +3047,7 @@ ERROR HY000: Unknown collation: 'utf8_czech_test_bad_w2'
 # Start of 10.3 tests
 #
 #
-# MDEV-30556 UPPER() returns an empty string for U+0251 in Unicode-5.2.0+ collations for utf8
+# MDEV-30556 UPPER() returns an empty string for U+0251 in Unicode-5.2.0+ collations for utf8mb3
 #
 SET NAMES utf8mb4 COLLATE utf8mb4_test_520_nopad_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -3118,7 +3118,7 @@ ERROR HY000: Unknown collation: 'latin1_test_replace'
 # MDEV-27042 UCA: Resetting contractions to ignorable does not work well
 #
 CREATE TABLE t1 (
-phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
+phone VARCHAR(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_phone_ci
 );
 INSERT INTO t1 VALUES ('123');
 INSERT INTO t1 VALUES ('tel.123');
@@ -3249,7 +3249,7 @@ is_520	0
 is_1400	1
 DROP TABLE t1;
 #
-# MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8
+# MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8mb3
 #
 SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;

@@ -3624,13 +3624,13 @@ EXPLAIN EXTENDED SELECT 'abcdó', _latin1'abcdó', _utf8'abcdó';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'abcdó' AS `abcdó`,_latin1'abcd\xC3\xB3' AS `abcdÃ³`,_utf8mb3'abcd\xC3\xB3' AS `abcdó`
+Note	1003	select 'abcdó' AS `abcdó`,_latin1'abcd\xC3\xB3' AS `abcdÃ³`,_utf8mb4'abcd\xC3\xB3' AS `abcdó`
 SET NAMES latin1;
 EXPLAIN EXTENDED SELECT 'abcdó', _latin1'abcdó', _utf8'abcdó';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'abcdó' AS `abcdó`,_latin1'abcd\xC3\xB3' AS `abcdó`,_utf8mb3'abcd\xC3\xB3' AS `abcd�`
+Note	1003	select 'abcdó' AS `abcdó`,_latin1'abcd\xC3\xB3' AS `abcdó`,_utf8mb4'abcd\xC3\xB3' AS `abcd�`
 #
 # End of 5.5 tests
 #

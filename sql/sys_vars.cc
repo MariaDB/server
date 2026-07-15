@@ -4137,14 +4137,14 @@ static const char *old_mode_names[]=
   "NO_DUP_KEY_WARNINGS_WITH_IGNORE",    // 0: deprecated since 11.3
   "NO_PROGRESS_INFO",                   // 1: deprecated since 11.3
   "ZERO_DATE_TIME_CAST",                // 2: deprecated since 11.3
-  "UTF8_IS_UTF8MB3",                    // 3: on by default
-  "IGNORE_INDEX_ONLY_FOR_JOIN",         // 4: deprecated since 11.3
-  "COMPAT_5_1_CHECKSUM",                // 5: deprecated since 11.3
-  "NO_NULL_COLLATION_IDS",              // 6: deprecated since 11.3
-  "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
-  "OLD_FLUSH_STATUS",                   // 8: deprecated since 11.5
-  "SESSION_USER_IS_USER",               // 9: deprecated since 11.7
-  "2_DIGIT_YEAR",                       // 10: deprecated since 13.0
+  "IGNORE_INDEX_ONLY_FOR_JOIN",         // 3: deprecated since 11.3
+  "COMPAT_5_1_CHECKSUM",                // 4: deprecated since 11.3
+  "NO_NULL_COLLATION_IDS",              // 5: deprecated since 11.3
+  "LOCK_ALTER_TABLE_COPY",              // 6: deprecated since 11.3
+  "OLD_FLUSH_STATUS",                   // 7: deprecated since 11.5
+  "SESSION_USER_IS_USER",               // 8: deprecated since 11.7
+  "2_DIGIT_YEAR",                       // 9: deprecated since 13.0
+  "UTF8_IS_UTF8MB3",                    // 10: deprecated since 13.1
   0
 };
 
@@ -4161,18 +4161,21 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
 {
   ulonglong v= var->save_result.ulonglong_value & ~OLD_MODE_DEFAULT_VALUE;
   uint i= 0;
-  for (; i <= 7; i++)
+  for (; i <= 6; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1103>(thd, old_mode_names[i]);
-  for (; i <= 8; i++)
+  for (; i <= 7; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1105>(thd, old_mode_names[i]);
-  for (; i <= 9; i++)
+  for (; i <= 8; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1107>(thd, old_mode_names[i]);
-  for (; i <= 10; i++)
+  for (; i <= 9; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1300>(thd, old_mode_names[i]);
+  for (; i <= 10; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1301>(thd, old_mode_names[i]);
   return false;
 }
 
