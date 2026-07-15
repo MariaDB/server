@@ -5042,7 +5042,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       not re-run the cascade, so foreign key checks are disabled for these
       events just as they are for NO_FOREIGN_KEY_CHECKS_F.
     */
-    if (get_flags(NO_FOREIGN_KEY_CHECKS_F) || get_flags(FK_CASCADE_EVENTS_F))
+    bool fk_cascade_events= get_flags(FK_CASCADE_EVENTS_F);
+    /*
+      emulate a pre-MDEV-38243 replica that does not understand
+      FK_CASCADE_EVENTS_F, so that the decision below relies solely on the
+      long-standing NO_FOREIGN_KEY_CHECKS_F. Used by the cross-version
+      compatibility test rpl.rpl_fk_cascade_binlog_row_old_slave.
+    */
+    DBUG_EXECUTE_IF("rpl_emulate_old_slave_fk_cascade", fk_cascade_events= false;);
+    if (get_flags(NO_FOREIGN_KEY_CHECKS_F) || fk_cascade_events)
         thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
     else
         thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;

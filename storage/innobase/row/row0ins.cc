@@ -62,8 +62,6 @@ Created 4/20/1996 Heikki Tuuri
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
 
-extern "C" bool thd_is_slave(const MYSQL_THD thd);
-
 static bool row_ins_fk_cascade_delete_binlog_row(THD *thd, TABLE *table,
 						 Event_log *bin_log,
 						 binlog_cache_data *cache_data,
@@ -1439,10 +1437,12 @@ row_ins_foreign_check_on_constraint(
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
 	/*
-	  Don't build cascade binlog events on a slave thread,
+	  Capture cascade row events whenever the session requests it.
+	  If the master has binlogged the cascaded rows, the events carry
+	  FK_CASCADE_EVENTS_F, causing the applier to run with foreign key
+	  checks disabled, and this cascade function is never reached.
 	*/
 	if (trx->mysql_thd &&
-	    !thd_is_slave(trx->mysql_thd) &&
 	    thd_rpl_use_binlog_events_for_fk_cascade(trx->mysql_thd)) {
 
 	child_mysql_table = row_ins_find_open_table_for_cascade_binlog(trx, table);

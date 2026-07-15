@@ -4789,7 +4789,22 @@ public:
      */
     COMPLETE_ROWS_F = (1U << 3),
 
+    /*
+      Set on every row event that belongs to a statement whose FK cascade
+      changes were logged as explicit row events (originating rows and cascade
+      derived rows alike). The applier uses it to suppress re-cascading.
+    */
     FK_CASCADE_EVENTS_F = (1U << 4),
+
+    /*
+      Set only on the cascade-derived row events (the child-row changes that
+      the master produced by executing the FK cascade), and NOT on the
+      originating statement's own row events. Combined with
+      FK_CASCADE_EVENTS_F it lets the applier tell "root" rows from
+      "cascade-derived" rows, e.g. to optionally re-execute the cascade
+      instead of applying the derived events.
+    */
+    FK_CASCADE_DERIVED_F = (1U << 5),
 
     /* Value of the OPTION_NO_CHECK_CONSTRAINT_CHECKS flag in thd->options */
     NO_CHECK_CONSTRAINT_CHECKS_F = (1U << 7)

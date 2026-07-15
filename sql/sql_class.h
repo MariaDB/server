@@ -3853,7 +3853,16 @@ public:
 
   bool binlog_fk_cascade_events;
 
+  /*
+    True only while the queued FK-cascade row events are being flushed into
+    the binlog cache, so that the events created during that flush are marked
+    as cascade-derived (FK_CASCADE_DERIVED_F).
+  */
+  bool binlog_fk_cascade_derived;
+
   void binlog_mark_fk_cascade_events();
+  void binlog_begin_fk_cascade_derived() { binlog_fk_cascade_derived= true; }
+  void binlog_end_fk_cascade_derived()   { binlog_fk_cascade_derived= false; }
 
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
@@ -3863,6 +3872,7 @@ public:
   {
     binlog_table_maps= 0;
     binlog_fk_cascade_events= false;
+    binlog_fk_cascade_derived= false;
   }
   bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 

@@ -99,13 +99,21 @@ void THD::binlog_mark_fk_cascade_events()
 
   if (binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr())
   {
+    /*
+      Also set the  NO_FOREIGN_KEY_CHECKS_F. An older slave does
+      not understand FK_CASCADE_EVENTS_F, but it does understand
+      NO_FOREIGN_KEY_CHECKS_F, so setting it makes such a slave disable foreign
+      key checks for these events.
+    */
     if (Rows_log_event *pending= binlog_get_pending_rows_event(
           cache_mngr, use_trans_cache(this, false)))
-      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                         Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
 
     if (Rows_log_event *pending= binlog_get_pending_rows_event(
           cache_mngr, use_trans_cache(this, true)))
-      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+      pending->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                         Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
   }
 }
 
@@ -952,6 +960,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   binlog_evt_union.do_union= FALSE;
   binlog_table_maps= FALSE;
   binlog_fk_cascade_events= FALSE;
+  binlog_fk_cascade_derived= FALSE;
   binlog_xid= 0;
   enable_slow_log= 0;
   durability_property= HA_REGULAR_DURABILITY;
