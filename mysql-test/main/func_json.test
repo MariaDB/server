@@ -4373,4 +4373,21 @@ SET @value= '
 
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 
+--echo #
+--echo # MDEV-39931 JSON_OBJECT_FILTER_KEYS only handle constant
+--echo #
+
+create table t(c1 JSON, c2 JSON);
+insert into t values ('{"a":1,"b":2}', '["a", "c"]'),
+                     (NULL, '["a", "b"]'),
+                     ('{"b": 3, "c": [1, 2, 3]}', '["a", "d"]'),
+                     ('{"r": 1}', NULL),
+                     ('{"a": 3, "d": [1, 2, 3]}', '["a", "d"]');
+
+SELECT c1, JSON_OBJECT_FILTER_KEYS(c1, '["a"]') AS a_s FROM t;
+SELECT c2, JSON_OBJECT_FILTER_KEYS('{"a": 13, "d": [1,2,3]}', c2) AS c2_s FROM t;
+SELECT c1,c2, JSON_OBJECT_FILTER_KEYS(c1, c2) AS c2_s FROM t;
+
+DROP TABLE t;
+
 --echo # End of 11.4 tests

@@ -5454,14 +5454,20 @@ NULL
 SELECT JSON_OBJECT_FILTER_KEYS(@obj1, @obj1);
 JSON_OBJECT_FILTER_KEYS(@obj1, @obj1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object_filter_keys' at position 1
 SELECT JSON_OBJECT_FILTER_KEYS(@arr1, @arr1);
 JSON_OBJECT_FILTER_KEYS(@arr1, @arr1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_object_filter_keys' at position 1
 SET @obj1= '{ "a": 1, "b": {"key1": {"key2":"val2"}}, "c": [1, 2, 3] }';
 SET @scalar1='2';
 SELECT JSON_OBJECT_FILTER_KEYS(@obj1, @scalar1);
 JSON_OBJECT_FILTER_KEYS(@obj1, @scalar1)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object_filter_keys' at position 1
 # Checking syntax error
 SET @obj1= '{ "a": 1, "b": 2, "c": 3}';
 SET @obj2= '{"b" : 10, "c": 20, "d"  30}';
@@ -5622,4 +5628,35 @@ SET @value= '
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 JSON_SCHEMA_VALID(@schema, @value)
 1
+#
+# MDEV-39931 JSON_OBJECT_FILTER_KEYS only handle constant
+#
+create table t(c1 JSON, c2 JSON);
+insert into t values ('{"a":1,"b":2}', '["a", "c"]'),
+(NULL, '["a", "b"]'),
+('{"b": 3, "c": [1, 2, 3]}', '["a", "d"]'),
+('{"r": 1}', NULL),
+('{"a": 3, "d": [1, 2, 3]}', '["a", "d"]');
+SELECT c1, JSON_OBJECT_FILTER_KEYS(c1, '["a"]') AS a_s FROM t;
+c1	a_s
+{"a":1,"b":2}	{"a": 1}
+NULL	NULL
+{"b": 3, "c": [1, 2, 3]}	NULL
+{"r": 1}	NULL
+{"a": 3, "d": [1, 2, 3]}	{"a": 3}
+SELECT c2, JSON_OBJECT_FILTER_KEYS('{"a": 13, "d": [1,2,3]}', c2) AS c2_s FROM t;
+c2	c2_s
+["a", "c"]	{"a": 13}
+["a", "b"]	{"a": 13}
+["a", "d"]	{"a": 13, "d": [1, 2, 3]}
+NULL	NULL
+["a", "d"]	{"a": 13, "d": [1, 2, 3]}
+SELECT c1,c2, JSON_OBJECT_FILTER_KEYS(c1, c2) AS c2_s FROM t;
+c1	c2	c2_s
+{"a":1,"b":2}	["a", "c"]	{"a": 1}
+NULL	["a", "b"]	NULL
+{"b": 3, "c": [1, 2, 3]}	["a", "d"]	NULL
+{"r": 1}	NULL	NULL
+{"a": 3, "d": [1, 2, 3]}	["a", "d"]	{"a": 3, "d": [1, 2, 3]}
+DROP TABLE t;
 # End of 11.4 tests

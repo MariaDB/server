@@ -971,10 +971,10 @@ public:
 class Item_func_json_object_filter_keys: public Item_str_func
 {
 protected:
-  String tmp_js1, tmp_js2;
-  bool hash_inited, root_inited;
+  String arg2_val;
   HASH items;
   MEM_ROOT hash_root;
+  bool hash_inited, root_inited;
 public:
   Item_func_json_object_filter_keys(THD *thd, Item *a, Item *b):
     Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
