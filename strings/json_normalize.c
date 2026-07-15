@@ -784,8 +784,8 @@ json_norm_build(json_engine_t *je, struct json_norm_value *root,
 
 
 int
-json_normalize(json_engine_t *je, DYNAMIC_STRING *result,
-               const char *s, size_t size, CHARSET_INFO *cs)
+json_normalize_engine(json_engine_t *je, DYNAMIC_STRING *result,
+                      const char *s, size_t size, CHARSET_INFO *cs)
 {
   int err= 0;
   uint convert_err= 0;
@@ -857,3 +857,12 @@ json_normalize_end:
 }
 
 
+int
+json_normalize(DYNAMIC_STRING *result,
+               const char *s, size_t size, CHARSET_INFO *cs)
+{
+  json_engine_t je;
+
+  memset(&je, 0x00, sizeof(je));
+  return json_normalize_engine(&je, result, s, size, cs);
+}
