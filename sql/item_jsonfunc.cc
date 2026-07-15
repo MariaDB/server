@@ -5377,6 +5377,7 @@ static bool create_hash(json_engine_t *value, HASH *items, bool &item_hash_inite
                         MEM_ROOT *hash_root)
 {
   int level= value->stack_p;
+  json_engine_t je;
   if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
                    get_key_name, NULL, 0))
     return true;
@@ -5393,9 +5394,13 @@ static bool create_hash(json_engine_t *value, HASH *items, bool &item_hash_inite
         init_dynamic_string(&norm_val, NULL, 0, 0))
       return true;
 
-    if (json_normalize(value, &norm_val, (const char*) value_start,
-                       value_len, value->s.cs))
+    memset(&je, 0x00, sizeof(je));
+    je.killed_ptr= value->killed_ptr;
+    if (json_normalize_engine(&je, &norm_val, (const char*) value_start,
+                              value_len, value->s.cs))
     {
+      value->s.error= je.s.error;
+      value->s.c_str= je.s.c_str;
       dynstr_free(&norm_val);
       return true;
     }
@@ -5472,6 +5477,7 @@ bool Item_func_json_array_intersect::
 {
   bool res= true, has_value= false;
   int level= value->stack_p;
+  json_engine_t je;
 
   temp_str.length(0);
   temp_str.append('[');
@@ -5487,9 +5493,13 @@ bool Item_func_json_array_intersect::
         init_dynamic_string(&norm_val, NULL, 0, 0))
       goto error;
 
-    if (json_normalize(value, &norm_val, (const char*) value_start,
-                       value_len, value->s.cs))
+    memset(&je, 0x00, sizeof(je));
+    je.killed_ptr= value->killed_ptr;
+    if (json_normalize_engine(&je, &norm_val, (const char*) value_start,
+                              value_len, value->s.cs))
     {
+      value->s.error= je.s.error;
+      value->s.c_str= je.s.c_str;
       dynstr_free(&norm_val);
       goto error;
     }
