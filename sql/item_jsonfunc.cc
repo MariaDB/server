@@ -1003,6 +1003,11 @@ String *Item_func_json_quote::val_str(String *str)
   {
   case STRING_RESULT:
     /* String input: quote and escape exactly as before. */
+    if (!s)
+    {
+      null_value= 1;
+      return NULL;
+    }
     if (str->append('"') ||
         st_append_escaped(str, s) ||
         str->append('"'))
@@ -6689,18 +6694,14 @@ bool Item_func_member_of::val_bool()
       return false;
     }
   }
-  else
-  {
-    (void) args[0]->val_str(&tmp_candidate);
-    if (args[0]->null_value)
-    {
-      null_value= 1;
-      return false;
-    }
-  }
 
   /* 4. Delegate the containment check to the composed JSON_CONTAINS item */
   bool res= json_contains_item->val_bool();
+  if (args[0]->null_value)
+  {
+    null_value= 1;
+    return false;
+  }
   null_value= json_contains_item->null_value;
   if (null_value)
     return false;
@@ -6736,7 +6737,7 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
     json_quote_item= new (thd->mem_root) Item_func_json_quote(thd, args[0]);
     if (!json_quote_item)
       return true;
-    if (json_quote_item->fix_fields_if_needed(thd, (Item **)&json_quote_item))
+    if (json_quote_item->fix_fields_if_needed(thd, &json_quote_item))
       return true;
     if (contains_args.push_back(json_quote_item, thd->mem_root))
       return true;
@@ -6745,7 +6746,7 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
   json_contains_item= new (thd->mem_root) Item_func_json_contains(thd, contains_args);
   if (!json_contains_item)
     return true;
-  if (json_contains_item->fix_fields_if_needed(thd, (Item **)&json_contains_item))
+  if (json_contains_item->fix_fields_if_needed(thd, &json_contains_item))
     return true;
 
   return false;
@@ -6773,7 +6774,7 @@ Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uch
     if (!new_item)
       return 0;
     if (json_quote_item != new_item)
-      thd->change_item_tree((Item**)&json_quote_item, new_item);
+      thd->change_item_tree(&json_quote_item, new_item);
   }
 
   if (json_contains_item)
@@ -6782,7 +6783,7 @@ Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uch
     if (!new_item)
       return 0;
     if (json_contains_item != new_item)
-      thd->change_item_tree((Item**)&json_contains_item, new_item);
+      thd->change_item_tree(&json_contains_item, new_item);
   }
 
   return (this->*transformer)(thd, arg);
@@ -6810,7 +6811,7 @@ Item *Item_func_member_of::compile(THD *thd, Item_analyzer analyzer, uchar **arg
       uchar *arg_v= *arg_p;
       Item *new_item= json_quote_item->compile(thd, analyzer, &arg_v, transformer, arg_t);
       if (new_item && json_quote_item != new_item)
-        thd->change_item_tree((Item**)&json_quote_item, new_item);
+        thd->change_item_tree(&json_quote_item, new_item);
     }
 
     if (json_contains_item)
@@ -6818,7 +6819,7 @@ Item *Item_func_member_of::compile(THD *thd, Item_analyzer analyzer, uchar **arg
       uchar *arg_v= *arg_p;
       Item *new_item= json_contains_item->compile(thd, analyzer, &arg_v, transformer, arg_t);
       if (new_item && json_contains_item != new_item)
-        thd->change_item_tree((Item**)&json_contains_item, new_item);
+        thd->change_item_tree(&json_contains_item, new_item);
     }
   }
   return (this->*transformer)(thd, arg_t);
@@ -6839,9 +6840,20 @@ void Item_func_member_of::update_used_tables()
 {
   Item_bool_func::update_used_tables();
   if (json_quote_item)
+  {
+    if (json_quote_item->type() == Item::FUNC_ITEM)
+      static_cast<Item_func*>(json_quote_item)->arguments()[0]= args[0];
     json_quote_item->update_used_tables();
+  }
   if (json_contains_item)
+  {
+    if (json_contains_item->type() == Item::FUNC_ITEM)
+    {
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item ? json_quote_item : args[0];
+    }
     json_contains_item->update_used_tables();
+  }
 }
 
 

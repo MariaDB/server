@@ -106,3 +106,13 @@ EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
 SHOW WARNINGS;
 
 
+--echo # 14. Prepared Statements twice execution for Section 6 nested cases
+PREPARE stmt3 FROM 'SELECT JSON_COMPACT(\'[1,2]\') MEMBER OF (\'[[1,2],[3,4]]\')';
+EXECUTE stmt3;
+EXECUTE stmt3;
+DEALLOCATE PREPARE stmt3;
+
+PREPARE stmt4 FROM 'SELECT JSON_COMPACT(\'{"name":"John"}\') MEMBER OF (\'[{"name":"John"},{"name":"Joe"}]\')';
+EXECUTE stmt4;
+EXECUTE stmt4;
+DEALLOCATE PREPARE stmt4;

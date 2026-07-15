@@ -180,3 +180,20 @@ Note	1003	select 1 not member of ('[1,2,3]') AS `1 NOT MEMBER OF ('[1,2,3]')`
 SHOW WARNINGS;
 Level	Code	Message
 Note	1003	select 1 not member of ('[1,2,3]') AS `1 NOT MEMBER OF ('[1,2,3]')`
+# 14. Prepared Statements twice execution for Section 6 nested cases
+PREPARE stmt3 FROM 'SELECT JSON_COMPACT(\'[1,2]\') MEMBER OF (\'[[1,2],[3,4]]\')';
+EXECUTE stmt3;
+JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
+1
+EXECUTE stmt3;
+JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
+1
+DEALLOCATE PREPARE stmt3;
+PREPARE stmt4 FROM 'SELECT JSON_COMPACT(\'{"name":"John"}\') MEMBER OF (\'[{"name":"John"},{"name":"Joe"}]\')';
+EXECUTE stmt4;
+JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
+1
+EXECUTE stmt4;
+JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
+1
+DEALLOCATE PREPARE stmt4;

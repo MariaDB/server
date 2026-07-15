@@ -1165,8 +1165,8 @@ public:
 */
 class Item_func_member_of : public Item_func_opt_neg
 {
-  Item_func_json_quote *json_quote_item;
-  Item_func_json_contains *json_contains_item;
+  Item *json_quote_item;
+  Item *json_contains_item;
   /* Persistent engine for manual validation of args[1] in val_bool().
      je_val.stack must be wired via mem_root_dynamic_array_init() in
      fix_length_and_dec() before any call to json_scan_start(&je_val,...). */
@@ -1175,7 +1175,7 @@ class Item_func_member_of : public Item_func_opt_neg
   String tmp_candidate;
 public:
   Item_func_member_of(THD *thd, Item *a, Item *b):
-    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL)
+    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL), je_val{}
     {}
 
   bool val_bool() override;
@@ -1189,7 +1189,16 @@ public:
     return negated ? neg_name : name;
   }
   Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_func_member_of>(thd, this); }
+  {
+    Item_func_member_of *copy= (Item_func_member_of *) get_item_copy<Item_func_member_of>(thd, this);
+    if (copy)
+    {
+      copy->json_quote_item= NULL;
+      copy->json_contains_item= NULL;
+      memset(&copy->je_val, 0, sizeof(copy->je_val));
+    }
+    return copy;
+  }
 
   bool walk(Item_processor processor, void *arg, item_walk_flags flags) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
