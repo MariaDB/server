@@ -650,11 +650,11 @@ bool Item_func_json_equals::val_bool()
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_normalize(&je, &a_res, a->ptr(), a->length(), a->charset()))
+  if (json_normalize_engine(&je, &a_res, a->ptr(), a->length(), a->charset()))
     goto return_null;
 
   arg_num++;
-  if (json_normalize(&je, &b_res, b->ptr(), b->length(), b->charset()))
+  if (json_normalize_engine(&je, &b_res, b->ptr(), b->length(), b->charset()))
     goto return_null;
 
   result= strcmp(a_res.str, b_res.str) ? 0 : 1;
@@ -4620,9 +4620,9 @@ String *Item_func_json_normalize::val_str(String *buf)
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_normalize(&je, &normalized_json,
-                     raw_json->ptr(), raw_json->length(),
-                     raw_json->charset()))
+  if (json_normalize_engine(&je, &normalized_json,
+                            raw_json->ptr(), raw_json->length(),
+                            raw_json->charset()))
     goto null_return;
 
   buf->length(0);
@@ -4840,13 +4840,13 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   { 
     goto error;
   }
-  if (json_normalize(&je, &a_res, a.ptr(), a.length(), value->s.cs))
+  if (json_normalize_engine(&je, &a_res, a.ptr(), a.length(), value->s.cs))
   {
     value->s.error= je.s.error;
     value->s.c_str= je.s.c_str;
     goto error;
   }
-  if (json_normalize(&je, &b_res, b.ptr(), b.length(), value->s.cs))
+  if (json_normalize_engine(&je, &b_res, b.ptr(), b.length(), value->s.cs))
   {
     js->s.error= je.s.error;
     js->s.c_str= je.s.c_str;
