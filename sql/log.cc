@@ -8069,7 +8069,6 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
     if (stmt_end)
     {
       if (thd->binlog_fk_cascade_events &&
-          !thd->rgi_slave &&
           (thd->variables.rpl_use_binlog_events_for_fk_cascade ||
            WSREP_EMULATE_BINLOG(thd)))
       {
@@ -8316,7 +8315,10 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
     ev->server_id= serv_id; // I don't like this, it's too easy to forget.
 
     if (thd->binlog_fk_cascade_events)
-      ev->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F);
+      ev->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                    Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+    if (thd->binlog_fk_cascade_derived)
+      ev->set_flags(Rows_log_event::FK_CASCADE_DERIVED_F);
     /*
       flush the pending event and replace it with the newly created
       event...
