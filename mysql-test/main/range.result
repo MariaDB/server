@@ -3873,3 +3873,26 @@ DROP TABLE lineitem;
 #
 # End of 11.0 tests
 #
+#
+# MDEV-39843: Prefix index causes incorrect range query result
+#
+SET NAMES utf8mb4;
+CREATE TABLE t0 (c0 LONGTEXT, KEY i0 (c0(1)));
+INSERT INTO t0(c0) VALUES ('꙰dcF'), ('kER');
+SELECT c0 FROM t0 WHERE 'C0' <= t0.c0;
+c0
+꙰dcF
+kER
+explain SELECT c0 FROM t0 WHERE 'C0' <= t0.c0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	i0	NULL	NULL	NULL	2	Using where
+DROP INDEX i0 ON t0;
+SELECT c0 FROM t0 WHERE 'C0' <= t0.c0;
+c0
+꙰dcF
+kER
+explain SELECT c0 FROM t0 WHERE 'C0' <= t0.c0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	2	Using where
+DROP TABLE t0;
+# End of 11.4 tests
