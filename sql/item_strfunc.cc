@@ -59,6 +59,38 @@ C_MODE_END
 #define FMT_HEADER_ONLY 1
 #include "fmt/args.h"
 
+/*
+  an allocator that implements std::allocator interface.
+  can be used with std or fmt.
+  but it uses our memory accounting
+  and allows to limit strings to max_allowed_packet
+  to be more generic needs to take MY_THREAD_SPECIFIC and PSI key as arguments,
+  and limit the amount of memory allocated, not just size of one allocation
+*/
+template <typename T> struct my_allocator {
+  using value_type= T;
+  std::size_t max_alloc;
+
+  my_allocator(std::size_t max_alloc) : max_alloc(max_alloc) {};
+  template <typename U> my_allocator(const my_allocator<U>&o)
+    : max_alloc(o.max_alloc) {}
+
+  T* allocate(std::size_t n)
+  {
+    void* p= n > max_alloc / sizeof(T)
+             ? nullptr : my_malloc(PSI_INSTRUMENT_MEM, n * sizeof(T),
+                                   MYF(MY_THREAD_SPECIFIC));
+    if (!p)
+      throw std::bad_alloc();
+    return static_cast<T*>(p);
+  }
+
+  std::size_t max_size() { return max_alloc / sizeof(T); }
+  void deallocate(T* p, std::size_t) noexcept { my_free(p); }
+  bool operator==(const my_allocator&) const noexcept { return true; }
+  bool operator!=(const my_allocator&) const noexcept { return false; }
+};
+
 size_t username_char_length= USERNAME_CHAR_LENGTH;
 
 /*
@@ -1357,8 +1389,6 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
   if (!val_arg)
     return TRUE;
 
-  ulonglong char_length= 0;
-
   uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
               MY_COLL_ALLOW_COERCIBLE_CONV |
               MY_COLL_ALLOW_NUMERIC_CONV;
@@ -1379,8 +1409,8 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
       return TRUE;
   }
 
-  char_length= MAX_BLOB_WIDTH;
-  fix_char_length_ulonglong(char_length);
+  max_length= MY_MIN((uint32)thd->variables.max_allowed_packet,
+                     (uint32)thd->variables.max_mem_used);
   return FALSE;
 }
 
@@ -1412,6 +1442,8 @@ struct fmt_locale_comma : std::numpunct<char>
 };
 static std::locale fmt_locale(std::locale(), new fmt_locale_comma);
 
+using fmt_buffer= fmt::basic_memory_buffer<char, fmt::inline_buffer_size,
+                                           my_allocator<char> >;
 /*
   SFORMAT(format_string, ...)
   This function receives a formatting specification string and N parameters
@@ -1460,14 +1492,19 @@ String *Item_func_sformat::val_str(String *res)
     }
   }
 
-  null_value= false;
   /* Create the string output  */
   try
   {
-    auto text = fmt::vformat(fmt_locale, fmt_arg->c_ptr_safe(), arg_store);
-    res->length(0);
-    res->set_charset(collation.collation);
-    res->append(text.c_str(), text.size(), fmt_arg->charset());
+    /* have to use *1.5 to match fmt realloc strategy */
+    fmt_buffer text{my_allocator<char>(max_length + max_length/2)};
+    fmt::vformat_to(std::back_inserter(text), fmt_locale,
+                    fmt_arg->c_ptr_safe(), arg_store);
+    if (!((null_value= text.size() > max_length)))
+    {
+      res->length(0);
+      res->set_charset(collation.collation);
+      res->append(text.data(), text.size(), fmt_arg->charset());
+    }
   }
   catch (const fmt::format_error &ex)
   {
@@ -1476,6 +1513,10 @@ String *Item_func_sformat::val_str(String *res)
                         WARN_SFORMAT_ERROR,
                         ER_THD(thd, WARN_SFORMAT_ERROR), ex.what());
     null_value= true;
+  }
+  catch (const std::bad_alloc&)
+  {
+    null_value= true; // OOM
   }
   return null_value ? NULL : res;
 }
