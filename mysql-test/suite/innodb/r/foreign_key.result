@@ -1155,6 +1155,9 @@ test.binaries	check	status	OK
 test.collections	check	status	OK
 disconnect con1;
 DROP TABLE binaries, collections;
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
 CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;
 USE `#mysql50##mysql50#d-b`;
 CREATE TABLE t2 (a INT PRIMARY KEY, b INT UNIQUE REFERENCES t1(b)) ENGINE=InnoDB;

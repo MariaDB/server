@@ -2,6 +2,7 @@
 
 call mtr.add_suppression("table or database name 'abc`def'");
 call mtr.add_suppression("Invalid .old.. table or database name 'a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234'");
+set old_mode=MYSQL50_TABLE_NAMES;
 
 --error ER_BAD_TABLE_ERROR
 drop table t1;

@@ -1,1 +1,2 @@
 --default-storage-engine=MyISAM
+--old-mode=MYSQL50_TABLE_NAMES

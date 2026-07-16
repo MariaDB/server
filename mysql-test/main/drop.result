@@ -1,5 +1,8 @@
 call mtr.add_suppression("table or database name 'abc`def'");
 call mtr.add_suppression("Invalid .old.. table or database name 'a-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234'");
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
 drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
 create table t1(n int);

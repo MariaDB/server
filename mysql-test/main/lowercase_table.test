@@ -157,6 +157,7 @@ SET NAMES utf8;
 
 # U+FFED HALFWIDTH BLACK SQUARE
 SET @mb3char= _utf8 0xEFBFAD;
+set old_mode=MYSQL50_TABLE_NAMES;
 
 # Database names fitting into the NAME_CHAR_LEN characters limit
 
@@ -234,6 +235,4 @@ SELECT /*+BKA(a) BKA(A)*/ a.a FROM t1 a;
 
 DROP TABLE t1;
 
---echo #
 --echo # End of 11.7 tests
---echo #

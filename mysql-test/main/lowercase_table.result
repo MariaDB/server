@@ -175,6 +175,9 @@ delete from mysql.proc where name = '';
 #
 SET NAMES utf8;
 SET @mb3char= _utf8 0xEFBFAD;
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
 EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 64), '`');
 ERROR 42000: Unknown database '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
 EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 64), '`');
@@ -232,6 +235,4 @@ a
 Warnings:
 Warning	4219	Hint BKA("A") is ignored as conflicting/duplicated
 DROP TABLE t1;
-#
 # End of 11.7 tests
-#

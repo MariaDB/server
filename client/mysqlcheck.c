@@ -1215,6 +1215,8 @@ int main(int argc, char **argv)
       goto end;
   }
 
+  run_query("SET OLD_MODE=CONCAT(@@OLD_MODE, ',MYSQL50_TABLE_NAMES')", 0);
+
   if (opt_auto_repair &&
       (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4repair,
                              NAME_LEN*2+2, 16, 64, MYF(0)) ||
