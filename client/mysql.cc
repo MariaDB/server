@@ -914,6 +914,7 @@ static COMMANDS commands[] = {
   { "ADDTIME", 0, 0, 0, ""},
   { "AES_ENCRYPT", 0, 0, 0, ""},
   { "AES_DECRYPT", 0, 0, 0, ""},
+  { "ANY_VALUE", 0, 0, 0, ""},
   { "AREA", 0, 0, 0, ""},
   { "ASIN", 0, 0, 0, ""},
   { "ASBINARY", 0, 0, 0, ""},

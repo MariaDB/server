@@ -6241,6 +6241,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (*from_field)
       {
         if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
+            !thd->lex->in_sum_func &&
             select->cur_pos_in_select_list != UNDEF_POS)
         {
           /*
