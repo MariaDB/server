@@ -20,6 +20,7 @@
 #include "spatial.h"
 #include "gstream.h"                            // Gis_read_stream
 #include "sql_string.h"                         // String
+#include "sql_parse.h"
 
 /* This is from item_func.h. Didn't want to #include the whole file. */
 double my_double_round(double value, longlong dec, bool dec_unsigned,
@@ -3305,6 +3306,9 @@ bool Gis_geometry_collection::init_from_wkt(Gis_read_stream *trs, String *wkb)
   if (wkb->reserve(4, 512))
     return 1;
   wkb->length(wkb->length()+4);			// Reserve space for points
+
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
 
   if (!(next_sym= trs->next_symbol()))
     return 1;
