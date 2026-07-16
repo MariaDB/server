@@ -5435,6 +5435,10 @@ bool Lex_ident_fs::check_body(const char *name, size_t length,
   if (!length || length > NAME_LEN)
     return 1;
 
+  if (disallow_path_chars &&
+      !(current_thd->variables.old_behavior & OLD_MODE_MYSQL50_TABLE_NAMES))
+    return 1;
+
   // name length in symbols
   size_t char_length= 0;
   const char *end= name + length;

@@ -873,7 +873,7 @@ The following specify which files/extra groups are read (specified before remain
  NO_PROGRESS_INFO, ZERO_DATE_TIME_CAST, IGNORE_INDEX_ONLY_FOR_JOIN,
  COMPAT_5_1_CHECKSUM, NO_NULL_COLLATION_IDS, LOCK_ALTER_TABLE_COPY,
  OLD_FLUSH_STATUS, SESSION_USER_IS_USER, 2_DIGIT_YEAR, UTF8_IS_UTF8MB3,
- or ALL to set all combinations
+ MYSQL50_TABLE_NAMES, or ALL to set all combinations
  --old-passwords     Unused. Deprecated, will be removed in a future release.
  --old-style-user-limits 
  Enable old-style user limits (before 5.0.3, user

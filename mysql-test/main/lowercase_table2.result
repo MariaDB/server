@@ -355,6 +355,7 @@ drop database db1;
 #
 # MDEV-32025 Crashes in MDL_key::mdl_key_init with lower-case-table-names=2
 #
+set old_mode=MYSQL50_TABLE_NAMES;
 ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
 SHOW CREATE DATABASE `D+b1`;
 Database	Create Database

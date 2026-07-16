@@ -1201,6 +1201,7 @@ CHECK TABLE binaries, collections EXTENDED;
 # Cleanup
 DROP TABLE binaries, collections;
 
+set old_mode=MYSQL50_TABLE_NAMES;
 --let $datadir=`select @@datadir`
 --mkdir "$datadir/#mysql50#d-b"
 CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;

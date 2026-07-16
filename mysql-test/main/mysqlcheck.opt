@@ -1,1 +1,2 @@
 --character-set-server=latin1 --collation_server=latin1_swedish_ci
+--old-mode=MYSQL50_TABLE_NAMES

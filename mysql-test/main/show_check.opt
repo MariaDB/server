@@ -1,1 +1,2 @@
 --log-output=table,file --slow-query-log --log-queries-not-using-indexes --myisam-recover-options=""
+--old-mode=MYSQL50_TABLE_NAMES
