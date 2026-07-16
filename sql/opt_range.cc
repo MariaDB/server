@@ -3241,7 +3241,8 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
       store_length= key_part->length;
       if (field->real_maybe_null())
         store_length+= HA_KEY_NULL_LENGTH;
-      if (field->real_type() == MYSQL_TYPE_VARCHAR)
+      if (field->real_type() == MYSQL_TYPE_VARCHAR ||
+          field->real_type() == MYSQL_TYPE_BLOB)
         store_length+= HA_KEY_BLOB_LENGTH;
       if (max_key_len < store_length)
         max_key_len= store_length;
@@ -8930,7 +8931,7 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
 
   if (length != key_part->length + maybe_null)
   {
-    /* key packed with length prefix */
+    /* BLOB or VARCHAR: key packed with length prefix */
     offset+= HA_KEY_BLOB_LENGTH;
     field_length= length - HA_KEY_BLOB_LENGTH;
   }
@@ -16776,8 +16777,7 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
   uint flag= range->range_flag;
   String key_name;
   key_name.set_charset(system_charset_info);
-  key_part_map keypart_map= range->start_key.keypart_map |
-                            range->end_key.keypart_map;
+  key_part_map keypart_map= range->start_key.keypart_map;
 
   if (flag & GEOM_FLAG)
   {
@@ -16793,6 +16793,7 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
     return;
   }
 
+  keypart_map|= range->end_key.keypart_map;
   if (range->start_key.length)
   {
     print_key_value(out, key_part, range->start_key.key,

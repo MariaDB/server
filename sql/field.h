@@ -1671,7 +1671,7 @@ public:
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment, ulong current_row=0) const;
   virtual void print_key_value(String *out, uint32 length);
-  void print_key_part_value(String *out, const uchar *key, uint32 length);
+  virtual void print_key_part_value(String *out, const uchar *key, uint32 length);
   void print_key_value_binary(String *out, const uchar* key, uint32 length);
   void raise_note_cannot_use_key_part(THD *thd, uint keynr, uint part,
                                       const LEX_CSTRING &op,

@@ -1609,3 +1609,19 @@ Warning	1292	Truncated incorrect DECIMAL value: '#'
 Warning	1292	Truncated incorrect DECIMAL value: '#'
 Warning	1292	Truncated incorrect DECIMAL value: '#'
 DROP TABLE t1;
+#
+# MDEV-31182 ASAN errors in String_copier::well_formed_copy / calculate_cond_selectivity_for_table
+#
+SET histogram_type = DOUBLE_PREC_HB;
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+ANALYZE TABLE t PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	OK
+ALTER TABLE t MODIFY a BLOB, ALGORITHM=COPY;
+SELECT a FROM t WHERE a LIKE '1%';
+a
+1
+DROP TABLE t;
+# end of 10.11 tests

@@ -419,6 +419,12 @@ public:
   uint32 key_length() const  override{ return packlength; }
   uint get_key_image(uchar *buff,uint length,
                      const uchar *ptr_arg, imagetype type_arg) const override;
+  /*
+    GIS indexes do not store the whole data, so it makes no sense to
+    call Field_geom::set_key_image to restore the key to the column
+  */
+  void set_key_image(const uchar *, uint) override
+  { DBUG_ASSERT(0); }
 
   /**
     Non-nullable GEOMETRY types cannot have defaults,
@@ -429,11 +435,14 @@ public:
   bool load_data_set_no_data(THD *thd, bool fixed_format) override;
 
   uint get_srid() const { return srid; }
-  void print_key_value(String *out, uint32 length) override
-  {
-    out->append(STRING_WITH_LEN("unprintable_geometry_value"));
-  }
+  /*
+    GIS indexes do not store the whole data, so it makes no sense to
+    call Field_geom::print_key_value to print the key value
+  */
+  void print_key_value(String *, uint32) override
+  { DBUG_ASSERT(0); }
   Binlog_type_info binlog_type_info() const override;
+  void print_key_part_value(String *out, const uchar* key, uint32 length) override;
 };
 
 #endif // HAVE_SPATIAL
