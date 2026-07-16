@@ -1,0 +1,38 @@
+connection node_2;
+connection node_1;
+SELECT 1;
+1
+1
+connection node_1;
+call mtr.add_suppression('Invalid characters in');
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('Failed to read .* from: wsrep_sst_rsync');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+connection node_2;
+connection node_2;
+FOUND 1 /Invalid characters in/ in mysqld.2.err
+connection node_2;
+connection node_2;
+connection node_2;
+FOUND 2 /Invalid characters in/ in mysqld.2.err
+connection node_2;
+connection node_2;
+connection node_2;
+FOUND 3 /Invalid characters in/ in mysqld.2.err
+connection node_2;
+connection node_2;
+connection node_2;
+FOUND 4 /Invalid characters in/ in mysqld.2.err
+connection node_2;
+call mtr.add_suppression('Invalid characters in');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('Failed to read .* from: wsrep_sst_rsync');
+call mtr.add_suppression('Failed to prepare for .* SST');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('SST request callback failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('Parent mysqld process .* terminated unexpectedly');
+call mtr.add_suppression('Cleanup after exit with status');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST .* failed');

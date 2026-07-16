@@ -38,6 +38,17 @@ safe()
   echo "${!1}"
 }
 
+# Like safe(), but for paths: allowlist of path chars (incl. space, unlike
+# safe()); rejects anything that could break out of single-quoted shell/eval.
+safe_path()
+{
+  if [[ "${!1}" = *[!a-zA-Z0-9/\\._:\ +=,@%-]* ]]; then
+    wsrep_log_error "Invalid characters in $1: ${!1}"
+    exit 22
+  fi
+  echo "${!1}"
+}
+
 commandex()
 {
     if [ -n "$BASH_VERSION" ]; then
@@ -753,8 +764,9 @@ if [ -z "$WSREP_SST_OPT_BINLOG" -a -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
 fi
 
 # Reconstructing the command line arguments that control the innodb
-# and binlog options:
+# and binlog options.
 if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
+    safe_path WSREP_SST_OPT_LOG_BASENAME >/dev/null  # validate (eval sink)
     if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
         WSREP_SST_OPT_MYSQLD="--log-basename='$WSREP_SST_OPT_LOG_BASENAME' $WSREP_SST_OPT_MYSQLD"
     else
@@ -762,26 +774,34 @@ if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
     fi
 fi
 if [ -n "$ARIA_LOG_DIR" ]; then
+    safe_path ARIA_LOG_DIR >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --aria-log-dir-path='$ARIA_LOG_DIR'"
 fi
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    safe_path INNODB_DATA_HOME_DIR >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --innodb-data-home-dir='$INNODB_DATA_HOME_DIR'"
 fi
 if [ -n "$INNODB_LOG_GROUP_HOME" ]; then
+    safe_path INNODB_LOG_GROUP_HOME >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --innodb-log-group-home-dir='$INNODB_LOG_GROUP_HOME'"
 fi
 if [ -n "$INNODB_UNDO_DIR" ]; then
+    safe_path INNODB_UNDO_DIR >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --innodb-undo-directory='$INNODB_UNDO_DIR'"
 fi
 if [ -n "$INNODB_BUFFER_POOL" ]; then
+    safe_path INNODB_BUFFER_POOL >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-filename='$INNODB_BUFFER_POOL'"
 fi
 if [ -n "$INNODB_BUFFER_POOL_SIZE" ]; then
+    safe_path INNODB_BUFFER_POOL_SIZE >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --innodb-buffer-pool-size='$INNODB_BUFFER_POOL_SIZE'"
 fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
+    safe_path WSREP_SST_OPT_BINLOG >/dev/null  # validate (eval sink)
     INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"
     if [ -n "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
+        safe_path WSREP_SST_OPT_BINLOG_INDEX >/dev/null  # validate (eval sink)
         if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
             WSREP_SST_OPT_MYSQLD="--log-bin-index='$WSREP_SST_OPT_BINLOG_INDEX' $WSREP_SST_OPT_MYSQLD"
         else
@@ -1138,6 +1158,7 @@ wsrep_check_datadir()
             "The '--datadir' parameter must be passed to the SST script"
         exit 2
     fi
+    safe_path WSREP_SST_OPT_DATA >/dev/null  # validate ($DATA -> eval sinks)
 }
 
 get_openssl()
@@ -1810,6 +1831,7 @@ create_data()
         DATA_DIR="$(pwd)"
         cd "$OLD_PWD"
     fi
+    safe_path DATA_DIR >/dev/null  # validate (rsync FILTER / rsyncd.conf sink)
 }
 
 create_dirs()
@@ -1832,6 +1854,7 @@ create_dirs()
         cd "$INNODB_DATA_HOME_DIR"
         ib_home_dir="$(pwd)"
         cd "$OLD_PWD"
+        safe_path ib_home_dir >/dev/null  # validate (rsync FILTER / rsyncd.conf sink)
         [ $simplify -ne 0 -a "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
     fi
 
@@ -1851,6 +1874,7 @@ create_dirs()
         cd "$INNODB_LOG_GROUP_HOME"
         ib_log_dir="$(pwd)"
         cd "$OLD_PWD"
+        safe_path ib_log_dir >/dev/null  # validate (rsync FILTER / rsyncd.conf sink)
         [ $simplify -ne 0 -a "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
     fi
 
@@ -1870,6 +1894,7 @@ create_dirs()
         cd "$INNODB_UNDO_DIR"
         ib_undo_dir="$(pwd)"
         cd "$OLD_PWD"
+        safe_path ib_undo_dir >/dev/null  # validate (rsync FILTER / rsyncd.conf sink)
         [ $simplify -ne 0 -a "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
     fi
 
@@ -1888,6 +1913,7 @@ create_dirs()
         cd "$ARIA_LOG_DIR"
         ar_log_dir="$(pwd)"
         cd "$OLD_PWD"
+        safe_path ar_log_dir >/dev/null  # validate (rsync FILTER / rsyncd.conf sink)
         [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
     fi
 

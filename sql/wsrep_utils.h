@@ -428,6 +428,7 @@ private:
 bool wsrep_filename_char(const unsigned char c);
 bool wsrep_comma_char(const unsigned char c);
 bool wsrep_address_char(const unsigned char c);
+bool wsrep_path_char(const unsigned char c);
 bool wsrep_shell_char(const unsigned char c);
 bool wsrep_names_list(const unsigned char c);
 bool wsrep_check_request_str(const char* const str,
