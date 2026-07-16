@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2017, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,6 +88,8 @@ size_t tablename_to_filename(const char *from, char *to, size_t to_length);
 uint check_n_cut_mysql50_prefix(const char *from, char *to, size_t to_length);
 bool check_mysql50_prefix(const char *name);
 bool error_if_mysql50_prefix(const char *name, uint error);
+bool error_if_mysql50_prefix_disallowed(THD *thd, const LEX_CSTRING &name,
+                                        uint error);
 uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,

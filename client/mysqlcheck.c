@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2024, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1210,6 +1210,8 @@ int main(int argc, char **argv)
     if (disable_binlog())
       goto end;
   }
+
+  run_query("SET OLD_MODE=CONCAT(@@OLD_MODE, ',MYSQL50_TABLE_NAMES')", 0);
 
   if (opt_auto_repair &&
       (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4repair,

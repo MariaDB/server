@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -537,6 +537,30 @@ bool error_if_mysql50_prefix(const char *name, uint error)
     return 0;
   my_error(error, MYF(0), name);
   return 1;
+}
+
+
+/**
+  Issue an error if a user-specified name has the "#mysql50#" prefix
+  that @@old_mode does not allow.
+
+  @param thd    thread handler
+  @param name   the name, zero-terminated
+  @param error  error code to issue, with the name as the argument
+
+  @retval false  no prefix, or old_mode=MYSQL50_TABLE_NAMES
+  @retval true   the prefix is present and not allowed, error issued
+*/
+
+bool error_if_mysql50_prefix_disallowed(THD *thd, const LEX_CSTRING &name,
+                                        uint error)
+{
+  if (thd->variables.old_behavior & OLD_MODE_MYSQL50_TABLE_NAMES ||
+      name.length < MYSQL50_TABLE_NAME_PREFIX_LENGTH ||
+      !check_mysql50_prefix(name.str))
+    return false;
+  my_error(error, MYF(0), name.str);
+  return true;
 }
 
 

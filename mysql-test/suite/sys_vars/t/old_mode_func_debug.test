@@ -1,0 +1,30 @@
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-42221 Assertion `is_null() || is_empty() || !check_name(*this)' in Lex_ident_db::Lex_ident_db in rename_triggers during DDL log recovery of RENAME TABLE in `#mysql50#` database, server needs 4 restarts
+--echo #
+call mtr.add_suppression('Invalid \\(old\\?\\) table or database name ''d-b''');
+--let $i= 3
+while ($i)
+{
+  --mkdir $MARIADB_DATADIR/d-b
+  set old_mode=MYSQL50_TABLE_NAMES;
+  create table `#mysql50#d-b`.t1 (a int) engine=myisam;
+  create trigger `#mysql50#d-b`.tr1 before insert on `#mysql50#d-b`.t1 for each row set @a=1;
+  --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+  eval set @@debug_dbug=concat('+d,',elt($i,'ddl_log_rename_after_stat_tables','ddl_log_rename_before_stat_tables','ddl_log_rename_before_rename_trigger')),@debug_crash_counter=1;
+  --error 2013
+  rename table `#mysql50#d-b`.t1 to `#mysql50#d-b`.t2;
+  --enable_reconnect
+  --source include/wait_until_connected_again.inc
+  --disable_reconnect
+  set old_mode=MYSQL50_TABLE_NAMES;
+  show tables from `#mysql50#d-b`;
+  select trigger_name, event_object_table from information_schema.triggers where trigger_schema='#mysql50#d-b';
+  drop database `#mysql50#d-b`;
+  set old_mode=default;
+  --dec $i
+}
+
+--echo # End of 13.2 tests

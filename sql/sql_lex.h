@@ -4209,6 +4209,9 @@ public:
                                   const Lex_ident_sys_st &name2);
   sp_name *make_sp_name_package_routine(THD *thd,
                                         const Lex_ident_sys_st &name);
+  Table_ident *make_table_ident(THD *thd, const LEX_CSTRING &table);
+  Table_ident *make_table_ident(THD *thd, const LEX_CSTRING &db,
+                                const LEX_CSTRING &table);
   sp_lex_local *package_routine_start(THD *thd,
                                       const Sp_handler *sph,
                                       const Lex_ident_sys_st &name);

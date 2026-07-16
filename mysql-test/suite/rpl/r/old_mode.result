@@ -1,0 +1,17 @@
+#
+# MDEV-42190 Replica crashes with assertion `is_null() || is_empty() || !check_name(*this)' in Lex_ident_db::Lex_ident_db on an event with default database `#mysql50#db`
+#
+include/master-slave.inc
+[connection master]
+connection slave;
+connection master;
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+use `#mysql50#d-b`;
+create table t1 (a int);
+connection slave;
+connection master;
+drop database `#mysql50#d-b`;
+include/rpl_end.inc
+# End of 13.2 tests

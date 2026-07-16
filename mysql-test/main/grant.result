@@ -1937,6 +1937,11 @@ SELECT * FROM `../db2`.tb2;
 ERROR 42000: SELECT command denied to user 'testbug'@'localhost' for table `../db2`.`tb2`
 SELECT * FROM `#mysql50#/../db2/tb2`;
 ERROR 42000: Incorrect table name '#mysql50#/../db2/tb2'
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+SELECT * FROM `#mysql50#/../db2/tb2`;
+ERROR 42000: Incorrect table name '#mysql50#/../db2/tb2'
 connection default;
 disconnect con1;
 DROP USER 'testbug'@localhost;

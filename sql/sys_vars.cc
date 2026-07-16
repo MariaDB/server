@@ -4191,6 +4191,7 @@ static const char *old_mode_names[]=
   "2_DIGIT_YEAR",                       // 9: deprecated since 13.0
   "X509_LENIENT_COMPARE",               // 10: deprecated since 13.1
   "UTF8_IS_UTF8MB3",                    // 11: deprecated since 13.1
+  "MYSQL50_TABLE_NAMES",                // 12: deprecated since 13.2
   0
 };
 
@@ -4222,6 +4223,11 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
   for (; i <= 11; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1301>(thd, old_mode_names[i]);
+  for (; i <= 12; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1302>(thd, old_mode_names[i]);
+  DBUG_ASSERT(i == array_elements(old_mode_names) - 1);
+
   return false;
 }
 

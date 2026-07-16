@@ -1953,6 +1953,7 @@ delimiter ;//
 # Bug#28360 (RENAME DATABASE destroys routines)
 #
 
+set old_mode=MYSQL50_TABLE_NAMES;
 delimiter //;
 
 --error ER_SP_NO_DROP_SP
@@ -1969,6 +1970,7 @@ BEGIN
 END//
 
 delimiter ;//
+set old_mode=default;
 
 
 #

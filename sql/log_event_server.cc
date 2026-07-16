@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2130,6 +2130,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             */
             thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
           }
+          SCOPE_SET(thd->variables.old_behavior, OLD_MODE_MYSQL50_TABLE_NAMES);
           mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
           /* Finalize server status flags after executing a statement. */
           thd->update_server_status();

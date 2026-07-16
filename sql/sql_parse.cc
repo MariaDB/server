@@ -1718,7 +1718,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     if (unlikely(thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
                                       thd->charset(), packet, packet_length)))
       break;
-    if (!mysql_change_db(thd, tmp, FALSE))
+    if (!error_if_mysql50_prefix_disallowed(thd, tmp, ER_WRONG_DB_NAME) &&
+        !mysql_change_db(thd, tmp, FALSE))
     {
       general_log_write(thd, command, thd->db.str, thd->db.length);
       my_ok(thd);

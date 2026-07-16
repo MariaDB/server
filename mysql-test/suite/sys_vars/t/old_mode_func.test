@@ -1,0 +1,313 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-40406 hide #mysql50# prefix support behind the old mode
+--echo #
+
+--echo #
+--echo # MDEV-42180 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db after USE `#mysql50#db` and old_mode reset
+--echo #
+#
+# This tests some  corner cases when #mysql50# support is enabled, such
+# a name (perfectly valid) is cached somewhere, then old mode changes
+# and the name suddenly becomes invalid.
+#
+
+--mkdir $MARIADB_DATADIR/d-b
+
+--echo # invalid thd->db
+set old_mode=MYSQL50_TABLE_NAMES;
+use `#mysql50#d-b`;
+set old_mode=default;
+select @@old_mode, database();
+create table x (a int);
+drop table x;
+
+--echo # thd->db is valid, but caller's database is not
+delimiter |;
+create procedure test.reset_old_mode()
+  begin
+    select 1, database(), @@old_mode;
+    set old_mode='';
+    select 2, database(), @@old_mode;
+  end|
+delimiter ;|
+set old_mode=MYSQL50_TABLE_NAMES;
+call test.reset_old_mode();
+select @@old_mode, database();
+create table x (a int);
+drop table x;
+use test;
+
+--echo # cached procedure body
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t1 (a int);
+create procedure p1() select * from `#mysql50#d-b`.t1;
+call p1();
+set old_mode='';
+call p1();
+drop procedure reset_old_mode; # flush SP cache
+--error ER_SP_PROC_TABLE_CORRUPT
+call p1();
+show warnings;
+
+--echo # prepared statement
+set old_mode=MYSQL50_TABLE_NAMES;
+prepare s from 'select * from `#mysql50#d-b`.t1';
+execute s;
+set old_mode='';
+execute s;
+deallocate prepare s;
+
+# cleanup
+set old_mode=MYSQL50_TABLE_NAMES;
+drop procedure p1;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo #
+--echo # MDEV-42179 Assertion `0' failed in store_string (ddl_log.cc) on DROP DATABASE with a #mysql50# table, default old_mode
+--echo #
+call mtr.add_suppression('Invalid \\(old\\?\\) table or database name ''t-1''');
+create database db1;
+create table db1.t1 (a int) engine=myisam;
+--move_file $MARIADB_DATADIR/db1/t1.frm $MARIADB_DATADIR/db1/t-1.frm
+--move_file $MARIADB_DATADIR/db1/t1.MYD $MARIADB_DATADIR/db1/t-1.MYD
+--move_file $MARIADB_DATADIR/db1/t1.MYI $MARIADB_DATADIR/db1/t-1.MYI
+drop database db1;
+
+--echo #
+--echo # MDEV-42191 SET old_mode without MYSQL50_TABLE_NAMES fails when the current database name starts with #
+--echo #
+create database `#`;
+set old_mode=MYSQL50_TABLE_NAMES;
+use `#`;
+set old_mode=default;
+drop database `#`;
+use test;
+
+--echo # only database and table names are checked
+create table t1 (`#mysql50#a` int);
+select `#mysql50#a` as `#mysql50#b` from t1;
+--error ER_WRONG_TABLE_NAME
+create table `#mysql50#t-1` (a int);
+--error ER_WRONG_TABLE_NAME
+select * from test.`#mysql50#t-1`;
+--error ER_WRONG_DB_NAME
+use `#mysql50#d-b`;
+--error ER_WRONG_DB_NAME
+create database `#mysql50#d-b`;
+--error ER_WRONG_DB_NAME
+grant select on `#mysql50#d-b`.* to root@localhost;
+# triggers are never accepted
+--error ER_SP_WRONG_NAME
+create trigger `#mysql50#tr-1` before insert on t1 for each row set @a:=1;
+set old_mode=MYSQL50_TABLE_NAMES;
+--error ER_SP_WRONG_NAME
+create trigger `#mysql50#tr-1` before insert on t1 for each row set @a:=1;
+set old_mode=default;
+drop table t1;
+set @`#mysql50#var`=1;
+create procedure `#mysql50#p`() select 1;
+call `#mysql50#p`();
+drop procedure `#mysql50#p`;
+
+--echo #
+--echo # MDEV-42192 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db after USE `#mysql50#db` and a failed COM_CHANGE_USER
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+set old_mode=MYSQL50_TABLE_NAMES;
+use `#mysql50#d-b`;
+--error ER_WRONG_DB_NAME
+--change_user root,,#mysql50#d-b
+select database(), @@old_mode;
+create table x (a int);
+drop table x;
+use test;
+set old_mode=MYSQL50_TABLE_NAMES;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo #
+--echo # MDEV-42193 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db on EXECUTE of a prepared CALL of a routine in a `#mysql50#` database after old_mode reset
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+set old_mode=MYSQL50_TABLE_NAMES;
+create procedure `#mysql50#d-b`.p() select 1;
+prepare s from 'call `#mysql50#d-b`.p()';
+execute s;
+set old_mode=default;
+execute s;
+deallocate prepare s;
+set old_mode=MYSQL50_TABLE_NAMES;
+set old_mode=default;
+
+--echo # show open tables from
+--error ER_WRONG_DB_NAME
+show open tables from `#mysql50#a`;
+
+--echo # show open tables
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t1 (a int);
+insert into `#mysql50#d-b`.t1 values (1);
+set old_mode=default;
+show open tables where `Database` like '#mysql50#%';
+
+--echo # cached trigger
+create table t2 (a int);
+set old_mode=MYSQL50_TABLE_NAMES;
+create trigger tr after insert on t2 for each row insert into `#mysql50#d-b`.t1 values (new.a);
+insert into t2 values (10);
+set old_mode=default;
+insert into t2 values (11);
+drop table t2;
+set old_mode=MYSQL50_TABLE_NAMES;
+select * from `#mysql50#d-b`.t1;
+set old_mode=default;
+
+--echo # cached function
+set old_mode=MYSQL50_TABLE_NAMES;
+create function f() returns int return (select count(*) from `#mysql50#d-b`.t1);
+select f();
+set old_mode=default;
+select f();
+drop function f;
+set old_mode=default;
+
+--echo # sequence
+set old_mode=MYSQL50_TABLE_NAMES;
+create sequence `#mysql50#d-b`.s;
+create table t2 (a int default nextval(`#mysql50#d-b`.s), b int);
+insert into t2 (b) values (1);
+set old_mode=default;
+insert into t2 (b) values (2);
+select * from t2;
+drop table t2;
+
+--echo # vector index, old_mode reset inside a transaction (see MHNSW_Trx::do_commit)
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t2 (id int primary key, v vector(2) not null, vector(v)) engine=innodb;
+begin;
+insert into `#mysql50#d-b`.t2 values (1, vec_fromtext("[1,2]"));
+set old_mode=default;
+commit;
+
+--echo # BINLOG statement
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t3 (a int);
+reset master;
+insert into `#mysql50#d-b`.t3 values (1);
+flush binary logs;
+set old_mode=default;
+--exec $MYSQL_BINLOG $MARIADB_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/old_mode_func.sql
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/old_mode_func.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/old_mode_func.sql
+set old_mode=MYSQL50_TABLE_NAMES;
+select * from `#mysql50#d-b`.t3;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo #
+--echo # MDEV-42194 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db in mysql_opt_change_db when a trigger of a table in a `#mysql50#` database fires after old_mode reset
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t1 (a int);
+create trigger `#mysql50#d-b`.tr after insert on `#mysql50#d-b`.t1 for each row set @a=1;
+prepare s from 'insert into `#mysql50#d-b`.t1 values (1)';
+set old_mode=default;
+execute s;
+deallocate prepare s;
+select @a;
+set old_mode=MYSQL50_TABLE_NAMES;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo #
+--echo # MDEV-42195 information_schema.routines and parameters fail with ER_SP_WRONG_NAME when a stored function exists in a #mysql50# database
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+set old_mode=MYSQL50_TABLE_NAMES;
+create function `#mysql50#d-b`.f1() returns int return 1;
+create function test.f2() returns int return 2;
+set old_mode=default;
+select routine_schema, routine_name from information_schema.routines where routine_type='FUNCTION' and routine_schema<>'sys';
+select specific_schema, specific_name, ordinal_position from information_schema.parameters where routine_type='FUNCTION' and specific_schema<>'sys';
+drop function test.f2;
+set old_mode=MYSQL50_TABLE_NAMES;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo #
+--echo # MDEV-42196 Event in a #mysql50# database never executes in default old_mode, error log says "failed to authenticate the user"
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+create table t1 (a int);
+set old_mode=MYSQL50_TABLE_NAMES;
+create event `#mysql50#d-b`.e1 on schedule every 1 second do insert into test.t1 values (1);
+set old_mode=default;
+set global event_scheduler=on;
+let $wait_condition= select count(*) > 0 from t1;
+--source include/wait_condition.inc
+set global event_scheduler=off;
+select distinct a from t1;
+set old_mode=MYSQL50_TABLE_NAMES;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+drop table t1;
+
+--echo #
+--echo # MDEV-42219 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db in prepare_fk_prelocking_list on DML into parent table with child in `#mysql50#` database
+--echo #
+call mtr.add_suppression('Invalid \\(old\\?\\) table or database name ''d-b''');
+--mkdir $MARIADB_DATADIR/d-b
+create table t1 (a int primary key) engine=innodb;
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t2 (a int, foreign key (a) references test.t1 (a)) engine=innodb;
+set old_mode=default;
+insert into t1 values (1);
+update t1 set a=2;
+replace into t1 values (2);
+delete from t1;
+lock tables t1 write;
+unlock tables;
+set old_mode=MYSQL50_TABLE_NAMES;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+drop table t1;
+
+--echo #
+--echo # MDEV-42220 InnoDB purge thread crashes with assertion `is_null() || is_empty() || !check_name(*this)' in Lex_ident_db::Lex_ident_db in open_purge_table for a table in `#mysql50#` database with indexed virtual column
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t1 (a int primary key, b int, c int as (b+1) virtual, key(c)) engine=innodb;
+insert into `#mysql50#d-b`.t1 (a,b) values (1,1);
+update `#mysql50#d-b`.t1 set b=2;
+set old_mode=default;
+--source suite/innodb/include/wait_all_purged.inc
+set old_mode=MYSQL50_TABLE_NAMES;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo #
+--echo # MDEV-42218 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db on a column reference qualified with `#mysql50#` database, default old_mode
+--echo #
+--mkdir $MARIADB_DATADIR/d-b
+set old_mode=MYSQL50_TABLE_NAMES;
+create table `#mysql50#d-b`.t1 (a int);
+insert `#mysql50#d-b`.t1 values (1);
+create view v1 as select * from `#mysql50#d-b`.t1;
+select * from v1;
+set old_mode=default;
+--error ER_WRONG_DB_NAME
+select * from v1;
+set old_mode=MYSQL50_TABLE_NAMES;
+drop view v1;
+drop database `#mysql50#d-b`;
+set old_mode=default;
+
+--echo # End of 13.2 tests

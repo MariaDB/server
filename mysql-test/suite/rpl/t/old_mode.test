@@ -1,0 +1,20 @@
+--echo #
+--echo # MDEV-42190 Replica crashes with assertion `is_null() || is_empty() || !check_name(*this)' in Lex_ident_db::Lex_ident_db on an event with default database `#mysql50#db`
+--echo #
+
+--source include/master-slave.inc
+let $D= `select @@datadir`;
+--mkdir $D/d-b
+--connection slave
+let $D= `select @@datadir`;
+--mkdir $D/d-b
+--connection master
+set old_mode=MYSQL50_TABLE_NAMES;
+use `#mysql50#d-b`;
+create table t1 (a int);
+--sync_slave_with_master
+--connection master
+drop database `#mysql50#d-b`;
+--source include/rpl_end.inc
+
+--echo # End of 13.2 tests

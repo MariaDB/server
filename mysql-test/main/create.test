@@ -1178,6 +1178,7 @@ drop table t1,t2,t3;
 #
 # new table creation/renaming is NOT blocked if old encoded table present
 #
+set old_mode=MYSQL50_TABLE_NAMES;
 let $MYSQLD_DATADIR= `select @@datadir`;
 create table t1 (a int) engine=myisam;
 --move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t-1.frm

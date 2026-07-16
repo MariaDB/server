@@ -8394,6 +8394,27 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
 }
 
 
+/*
+  Create a Table_ident for a table name specified in the query.
+*/
+Table_ident *LEX::make_table_ident(THD *thd, const LEX_CSTRING &table)
+{
+  if (error_if_mysql50_prefix_disallowed(thd, table, ER_WRONG_TABLE_NAME))
+    return NULL;
+  return new (thd->mem_root) Table_ident(&table);
+}
+
+
+Table_ident *LEX::make_table_ident(THD *thd, const LEX_CSTRING &db,
+                                   const LEX_CSTRING &table)
+{
+  if (error_if_mysql50_prefix_disallowed(thd, db, ER_WRONG_DB_NAME) ||
+      error_if_mysql50_prefix_disallowed(thd, table, ER_WRONG_TABLE_NAME))
+    return NULL;
+  return new (thd->mem_root) Table_ident(thd, &db, &table, 0);
+}
+
+
 sp_lex_local *LEX::package_routine_start(THD *thd,
                                          const Sp_handler *sph,
                                          const Lex_ident_sys_st &name)

@@ -66,6 +66,7 @@ set local sql_mode="";
 --echo # are compatible with FTRWL. 
 
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
+set old_mode=MYSQL50_TABLE_NAMES;
 
 create table t1_base(i int) engine=myisam;
 create table t2_base(j int) engine=myisam;

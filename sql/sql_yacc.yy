@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2023, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1407,10 +1407,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <ident_sys>
         IDENT_sys
         ident
+        ident_db
         label_ident
         sp_decl_ident
         ident_options
-        ident_or_empty
+        ident_db_or_empty
         ident_table_alias
         ident_sysvar_name
         ident_for_loop_index
@@ -1463,7 +1464,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         non_reserved_keyword_udt
 
 %type <table>
-        table_ident table_ident_nodb references xid
+        table_ident table_ident_anydb references xid
         table_ident_opt_wild create_like
 
 %type <qualified_column_ident>
@@ -2890,7 +2891,7 @@ create:
             Lex->last_key->columns.push_back($11, thd->mem_root);
             Lex->pop_select(); //main select
           }
-        | create_or_replace DATABASE opt_if_not_exists ident
+        | create_or_replace DATABASE opt_if_not_exists ident_db
           {
             Lex->create_info.init();
           }
@@ -7724,7 +7725,7 @@ alter:
             }
             Lex->pop_select(); //main select
           }
-        | ALTER DATABASE ident_or_empty
+        | ALTER DATABASE ident_db_or_empty
           {
             Lex->create_info.init();
             if (Lex->main_select_push(true))
@@ -7755,7 +7756,7 @@ alter:
                 unlikely(lex->copy_db_to(&lex->name)))
               MYSQL_YYABORT;
           }
-        | ALTER DATABASE ident UPGRADE_SYM DATA_SYM DIRECTORY_SYM NAME_SYM
+        | ALTER DATABASE ident_db UPGRADE_SYM DATA_SYM DIRECTORY_SYM NAME_SYM
           {
             LEX *lex= Lex;
             if (unlikely(lex->sphead))
@@ -7950,10 +7951,10 @@ opt_ev_sql_stmt:
         | DO_SYM ev_sql_stmt { $$= 1; }
         ;
 
-ident_or_empty:
+ident_db_or_empty:
           /* empty */
           %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE { $$= Lex_ident_sys(); }
-        | ident
+        | ident_db
         ;
 
 alter_commands:
@@ -14173,7 +14174,7 @@ drop:
               MYSQL_YYABORT;
             Lex->pop_select(); //main select
           }
-        | DROP DATABASE opt_if_exists ident
+        | DROP DATABASE opt_if_exists ident_db
           {
             LEX *lex=Lex;
             lex->set_command(SQLCOM_DROP_DB, $3);
@@ -15249,7 +15250,7 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_GRANTS;
             lex->grant_user=$3;
           }
-        | CREATE DATABASE opt_if_not_exists ident
+        | CREATE DATABASE opt_if_not_exists ident_db
           {
             Lex->set_command(SQLCOM_SHOW_CREATE_DB, $3);
             Lex->name= $4;
@@ -15503,7 +15504,7 @@ opt_storage:
 
 opt_db:
           /* empty */      { $$= null_clex_str; }
-        | from_or_in ident { $$= $2; }
+        | from_or_in ident_db { $$= $2; }
         ;
 
 opt_full:
@@ -16004,7 +16005,7 @@ shutdown_option:
 /* change database */
 
 use:
-          USE_SYM ident
+          USE_SYM ident_db
           {
             LEX *lex=Lex;
             lex->sql_command=SQLCOM_CHANGE_DB;
@@ -16712,21 +16713,18 @@ field_ident:
 table_ident:
           ident
           {
-            $$= new (thd->mem_root) Table_ident(&$1);
-            if (unlikely($$ == NULL))
+            if (!($$= Lex->make_table_ident(thd, $1)))
               MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            $$= new (thd->mem_root) Table_ident(thd, &$1, &$3, 0);
-            if (unlikely($$ == NULL))
+            if (!($$= Lex->make_table_ident(thd, $1, $3)))
               MYSQL_YYABORT;
           }
         | '.' ident
           {
             /* For Delphi */
-            $$= new (thd->mem_root) Table_ident(&$2);
-            if (unlikely($$ == NULL))
+            if (!($$= Lex->make_table_ident(thd, $2)))
               MYSQL_YYABORT;
           }
         ;
@@ -16734,25 +16732,30 @@ table_ident:
 table_ident_opt_wild:
           ident opt_wild
           {
-            $$= new (thd->mem_root) Table_ident(&$1);
-            if (unlikely($$ == NULL))
+            if (!($$= Lex->make_table_ident(thd, $1)))
               MYSQL_YYABORT;
           }
         | ident '.' ident opt_wild
           {
-            $$= new (thd->mem_root) Table_ident(thd, &$1, &$3, 0);
-            if (unlikely($$ == NULL))
+            if (!($$= Lex->make_table_ident(thd, $1, $3)))
               MYSQL_YYABORT;
           }
         ;
 
-table_ident_nodb:
+table_ident_anydb:
           ident
           {
-            LEX_CSTRING db= any_db;
-            $$= new (thd->mem_root) Table_ident(thd, &db, &$1, 0);
-            if (unlikely($$ == NULL))
+            if (!($$= Lex->make_table_ident(thd, any_db, $1)))
               MYSQL_YYABORT;
+          }
+        ;
+
+ident_db:
+          ident
+          {
+            if (error_if_mysql50_prefix_disallowed(thd, $1, ER_WRONG_DB_NAME))
+              MYSQL_YYABORT;
+            $$= $1;
           }
         ;
 
@@ -18464,7 +18467,7 @@ handler_tail:
             if (!lex->current_select->add_table_to_list(thd, $1, $3, 0))
               MYSQL_YYABORT;
           }
-        | table_ident_nodb CLOSE_SYM
+        | table_ident_anydb CLOSE_SYM
           {
             LEX *lex= Lex;
             if (unlikely(lex->sphead))
@@ -18473,7 +18476,7 @@ handler_tail:
             if (!lex->current_select->add_table_to_list(thd, $1, 0, 0))
               MYSQL_YYABORT;
           }
-        | table_ident_nodb READ_SYM
+        | table_ident_anydb READ_SYM
           {
             LEX *lex=Lex;
             SELECT_LEX *select= Select;
@@ -18869,6 +18872,8 @@ grant_ident:
           }
         | ident '.' '*'
           {
+            if (error_if_mysql50_prefix_disallowed(thd, $1, ER_WRONG_DB_NAME))
+              MYSQL_YYABORT;
             if (!($$= new (thd->mem_root) Lex_grant_object_name($1,
                                             Lex_grant_object_name::IDENT_STAR)))
               MYSQL_YYABORT;

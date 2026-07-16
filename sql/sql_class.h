@@ -223,6 +223,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_2_DIGIT_YEAR                           (1 <<  9)
 #define OLD_MODE_X509_LENIENT_COMPARE                   (1 << 10)
 #define OLD_MODE_UTF8_IS_UTF8MB3                        (1 << 11)
+#define OLD_MODE_MYSQL50_TABLE_NAMES                    (1 << 12)
 
 #define OLD_MODE_DEFAULT_VALUE 0
 

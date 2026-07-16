@@ -28,6 +28,7 @@
 # rename database testdb1 to testdb1;
 # drop database testdb1;
 
+set old_mode=MYSQL50_TABLE_NAMES;
 #
 # WL#4030 (Deprecate RENAME DATABASE: replace with ALTER DATABASE <name> UPGRADE)
 #

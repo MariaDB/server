@@ -1754,6 +1754,9 @@ SELECT * FROM `../db2/tb2`;
 SELECT * FROM `../db2`.tb2;
 --error ER_WRONG_TABLE_NAME
 SELECT * FROM `#mysql50#/../db2/tb2`;
+set old_mode=MYSQL50_TABLE_NAMES;
+--error ER_WRONG_TABLE_NAME
+SELECT * FROM `#mysql50#/../db2/tb2`;
 connection default;
 disconnect con1;
 DROP USER 'testbug'@localhost;

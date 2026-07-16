@@ -1,0 +1,62 @@
+#
+# MDEV-42221 Assertion `is_null() || is_empty() || !check_name(*this)' in Lex_ident_db::Lex_ident_db in rename_triggers during DDL log recovery of RENAME TABLE in `#mysql50#` database, server needs 4 restarts
+#
+call mtr.add_suppression('Invalid \\(old\\?\\) table or database name ''d-b''');
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+create table `#mysql50#d-b`.t1 (a int) engine=myisam;
+create trigger `#mysql50#d-b`.tr1 before insert on `#mysql50#d-b`.t1 for each row set @a=1;
+set @@debug_dbug=concat('+d,',elt(3,'ddl_log_rename_after_stat_tables','ddl_log_rename_before_stat_tables','ddl_log_rename_before_rename_trigger')),@debug_crash_counter=1;
+rename table `#mysql50#d-b`.t1 to `#mysql50#d-b`.t2;
+ERROR HY000: Lost connection to server during query
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+show tables from `#mysql50#d-b`;
+Tables_in_#mysql50#d-b
+t1
+select trigger_name, event_object_table from information_schema.triggers where trigger_schema='#mysql50#d-b';
+trigger_name	event_object_table
+tr1	t1
+drop database `#mysql50#d-b`;
+set old_mode=default;
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+create table `#mysql50#d-b`.t1 (a int) engine=myisam;
+create trigger `#mysql50#d-b`.tr1 before insert on `#mysql50#d-b`.t1 for each row set @a=1;
+set @@debug_dbug=concat('+d,',elt(2,'ddl_log_rename_after_stat_tables','ddl_log_rename_before_stat_tables','ddl_log_rename_before_rename_trigger')),@debug_crash_counter=1;
+rename table `#mysql50#d-b`.t1 to `#mysql50#d-b`.t2;
+ERROR HY000: Lost connection to server during query
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+show tables from `#mysql50#d-b`;
+Tables_in_#mysql50#d-b
+t1
+select trigger_name, event_object_table from information_schema.triggers where trigger_schema='#mysql50#d-b';
+trigger_name	event_object_table
+tr1	t1
+drop database `#mysql50#d-b`;
+set old_mode=default;
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+create table `#mysql50#d-b`.t1 (a int) engine=myisam;
+create trigger `#mysql50#d-b`.tr1 before insert on `#mysql50#d-b`.t1 for each row set @a=1;
+set @@debug_dbug=concat('+d,',elt(1,'ddl_log_rename_after_stat_tables','ddl_log_rename_before_stat_tables','ddl_log_rename_before_rename_trigger')),@debug_crash_counter=1;
+rename table `#mysql50#d-b`.t1 to `#mysql50#d-b`.t2;
+ERROR HY000: Lost connection to server during query
+set old_mode=MYSQL50_TABLE_NAMES;
+Warnings:
+Warning	1287	'MYSQL50_TABLE_NAMES' is deprecated and will be removed in a future release
+show tables from `#mysql50#d-b`;
+Tables_in_#mysql50#d-b
+t1
+select trigger_name, event_object_table from information_schema.triggers where trigger_schema='#mysql50#d-b';
+trigger_name	event_object_table
+tr1	t1
+drop database `#mysql50#d-b`;
+set old_mode=default;
+# End of 13.2 tests
