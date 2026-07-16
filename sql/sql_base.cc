@@ -8260,6 +8260,11 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       ref[0]= item;
       ref.pop_front();
     }
+
+    // update command causes problems
+    if (thd->lex->sql_command == SQLCOM_SELECT)
+      item->update_used_tables();
+
     /*
       split_sum_func() must be called for Window Function items, see
       Item_window_func::split_sum_func.
