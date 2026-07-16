@@ -4241,9 +4241,8 @@ grn_table_group_multi_keys_vector_record(grn_ctx *ctx,
                                          grn_obj *bulk)
 {
   int k;
-  grn_table_sort_key *kp;
 
-  for (k = nth_key, kp = &(keys[nth_key]); k < n_keys; k++, kp++) {
+  for (k = nth_key; k < n_keys; k++) {
     grn_obj *key_buffer = &(key_buffers[k]);
     switch (key_buffer->header.type) {
     case GRN_UVECTOR :

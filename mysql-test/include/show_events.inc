@@ -128,6 +128,10 @@ if ($skip_checkpoint_events)
 {
   let $filter_script=Binlog_checkpoint;
 }
+if ($skip_tablemap_events)
+{
+  let $filter_script=Table_map;
+}
 
 
 #--let $select_columns= 1 3 6

@@ -118,6 +118,8 @@ void temp_io_cache()
 {
   int res;
   uchar *buf= (uchar *)malloc(CACHE_SIZE + 200);
+  if (!buf)
+    BAIL_OUT("malloc failed (out of memory)");
   memset(buf, FILL, CACHE_SIZE + 200);
 
   diag("temp io_cache with%s encryption", encrypt_tmp_files?"":"out");
@@ -309,6 +311,8 @@ void mdev17133()
   const size_t read_size= eof_block_size / read_iter;
   size_t total;
 
+  if (!buf_i || !buf_o)
+    BAIL_OUT("malloc failed (out of memory)");
   srand((uint) time(NULL));
   memset(buf_i,    0, BUFF_SIZE17133);
   memset(buf_o, FILL, BUFF_SIZE17133);
@@ -397,6 +401,9 @@ void mdev10963()
   FILE *file;
   myf my_flags= MYF(MY_WME);
   const char *file_name="cache.log";
+
+  if (!buf)
+    BAIL_OUT("malloc failed (out of memory)");
 
   memset(buf, FILL, BUFF_SIZE10963);
   diag("MDEV-10963 Fragmented BINLOG query");

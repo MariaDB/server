@@ -1546,13 +1546,44 @@ test_strnncollsp_char()
 }
 
 
+/*
+  my_mb_wc_filename() decodes a 5-byte '@HHHH' escape. Two truncated inputs
+  must not read past the intended byte ('0','0' has no entry in the 3-byte
+  table, so both reach the hex branch):
+   - "@000" with end= buf + 4 hits the s + 5 > e bound and returns
+     MY_CS_TOOSMALL5 without consuming buf[4].
+   - "@00\0" is NUL-terminated at s[3]. 'e' may be fake (see the note above
+     my_mb_wc_filename), so with an over-long end the s[3] guard must keep
+     it from reading s[4] past the terminator and return MY_CS_ILSEQ.
+*/
+static int test_mb_wc_filename_truncated()
+{
+  CHARSET_INFO *cs= &my_charset_filename;
+  my_wc_t wc= 0;
+  int failed= 0;
+  uchar tight[5]= {'@', '0', '0', '0', '1'};
+  uchar *terminated= (uchar*) malloc(4);
+
+  if (my_ci_mb_wc(cs, &wc, tight, tight + 4) != MY_CS_TOOSMALL5)
+    failed++;
+
+  terminated[0]= '@'; terminated[1]= '0'; terminated[2]= '0';
+  terminated[3]= '\0';
+  if (my_ci_mb_wc(cs, &wc, terminated, terminated + 5) != MY_CS_ILSEQ)
+    failed++;
+  free(terminated);
+
+  return failed;
+}
+
+
 int main(int ac, char **av)
 {
   size_t i, failed= 0;
 
   MY_INIT(av[0]);
 
-  plan(4);
+  plan(5);
   diag("Testing my_like_range_xxx() functions");
   
   for (i= 0; i < array_elements(charset_list); i++)
@@ -1577,6 +1608,10 @@ int main(int ac, char **av)
   diag("Testing cs->coll->strnncollsp_char()");
   failed= test_strnncollsp_char();
   ok(failed == 0, "Testing cs->coll->strnncollsp_char()");
+
+  diag("Testing my_charset_filename mb_wc end-pointer bounds");
+  ok(test_mb_wc_filename_truncated() == 0,
+     "filename decoder does not read past the end pointer");
 
   my_end(0);
 

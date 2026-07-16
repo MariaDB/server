@@ -4631,10 +4631,10 @@ class Item_bool :public Item_int
 {
 public:
   Item_bool(THD *thd, const char *str_arg, longlong i):
-    Item_int(thd, str_arg, i, 1) {}
-  Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 1) { }
+    Item_int(thd, str_arg, i, 5) {}
+  Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 5) { }
   Item_bool(const char *str_arg, longlong i):
-    Item_int(str_arg, i, 1) {}
+    Item_int(str_arg, i, 5) {}
   bool is_bool_literal() const override { return true; }
   Item *neg_transformer(THD *thd) override;
   const Type_handler *type_handler() const override

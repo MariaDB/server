@@ -29,7 +29,8 @@ void test_concurrently(const char *test, pthread_handler handler, int n, int m)
   int i;
   ulonglong now= my_interval_timer();
 
-  assert(threads);
+  if (!threads)
+    BAIL_OUT("malloc failed (out of memory)");
   bad= 0;
 
   diag("Testing %s with %d threads, %d iterations... ", test, n, m);

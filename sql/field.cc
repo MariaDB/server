@@ -9035,10 +9035,14 @@ uint Field_blob::get_key_image_itRAW(const uchar *ptr_arg, uchar *buff,
 {
   size_t blob_length= get_length(ptr_arg);
   const uchar *blob= get_ptr(ptr_arg);
-  size_t local_char_length= length / mbmaxlen();
-  local_char_length= field_charset()->charpos(blob, blob + blob_length,
-                                              local_char_length);
-  set_if_smaller(blob_length, local_char_length);
+  if (blob_length > 0)
+  {
+    size_t local_char_length= length / mbmaxlen();
+    DBUG_ASSERT(blob);
+    local_char_length= field_charset()->charpos(blob, blob + blob_length,
+                                                local_char_length);
+    set_if_smaller(blob_length, local_char_length);
+  }
 
   if (length > blob_length)
   {
