@@ -1392,6 +1392,26 @@ aggregate_attributes_string(const LEX_CSTRING &func_name,
   return false;
 }
 
+/**
+  Aggregate result type attributes for hexadecimal/hybrid string functions.
+
+  @param field_type  Field type.
+  @param items       Argument array.
+  @param nitems      Number of arguments.
+
+  @retval            False on success, true on error.
+*/
+bool Type_std_attributes::
+aggregate_attributes_hex_hybrid(const LEX_CSTRING &func_name,
+                                Item **items, uint nitems)
+{
+  if (aggregate_attributes_string(func_name, items, nitems))
+    return true;
+  unsigned_flag= true;
+  decimals= 0;
+  return false;
+}
+
 
 /*
   Find a handler by its ODBC literal data type.
@@ -4800,7 +4820,16 @@ bool Type_handler_string_result::
   return func->aggregate_attributes_string(func_name, items, nitems);
 }
 
-
+bool Type_handler_hex_hybrid::
+        Item_hybrid_func_fix_attributes(THD *thd,
+                                        const LEX_CSTRING &name,
+                                        Type_handler_hybrid_field_type *,
+                                        Type_all_attributes *attr,
+                                        Item **items,
+                                        uint nitems) const
+{
+  return attr->aggregate_attributes_hex_hybrid(name, items, nitems);
+}
 
 /*
   We can have enum/set type after merging only if we have one enum|set

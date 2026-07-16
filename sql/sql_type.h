@@ -3287,6 +3287,8 @@ public:
   }
   bool aggregate_attributes_string(const LEX_CSTRING &func_name,
                                    Item **item, uint nitems);
+  bool aggregate_attributes_hex_hybrid(const LEX_CSTRING &func_name,
+                                     Item **item, uint nitems);
   void aggregate_attributes_temporal(uint int_part_length,
                                      Item **item, uint nitems)
   {
@@ -7184,6 +7186,12 @@ public:
   const Type_handler *cast_to_int_type_handler() const override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
+  bool Item_hybrid_func_fix_attributes(THD *thd,
+                                     const LEX_CSTRING &name,
+                                     Type_handler_hybrid_field_type *,
+                                     Type_all_attributes *attr,
+                                     Item **items,
+                                     uint nitems) const override;
 };
 
 

@@ -1,0 +1,11 @@
+--echo #
+--echo # MDEV-35920: Hex hybrid type causing invalid decimals in arithmetic context
+--echo #
+
+SELECT MOD(COALESCE(0x30), 1);
+
+SELECT MOD(LEAST(0x30,0x30), 1);
+
+SELECT MOD(IFNULL(0x30,0x30), 1);
+
+SELECT MOD(IF(0,0x30,0x30), 1);
