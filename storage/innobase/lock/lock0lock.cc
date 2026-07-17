@@ -1256,6 +1256,7 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
   {
+    ut_ad(!lock->is_predicate());
     if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
     {
       has_s_lock_or_stronger= true;
@@ -1403,6 +1404,9 @@ in the lock bitmap. If wrong sequence is found, the function will crash with
 failed assertion.
 @param lock the lock which bitmap to be checked */
 static void lock_rec_queue_validate_bypass(const lock_t *lock) {
+  /* Predicate locks do not participate in bypass mechanism. */
+  if (lock->is_predicate())
+    return;
   for (ulint i= 0; i < lock_rec_get_n_bits(lock); ++i)
     if (lock_rec_get_nth_bit(lock, i))
       lock_rec_queue_validate_bypass(lock, i);
@@ -1785,6 +1789,7 @@ static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
 		for (lock_t* lock = first_lock;;) {
 			if (!lock_rec_get_nth_bit(lock, heap_no))
 				goto cont;
+			ut_ad(!lock->is_predicate());
 			ut_ad(!lock->is_insert_intention() || lock->is_gap()
 			      || is_supremum);
 			if (bypass_mode && lock_rec_can_be_bypassing(trx, lock))
@@ -2067,9 +2072,10 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
   heap_no= lock_rec_find_set_bit(wait_lock);
   const bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
   ut_ad(!(wait_lock->is_insert_intention()) ||
-        (wait_lock->is_gap()) || is_supremum);
-  const bool bypass_mode=
-      !is_supremum && wait_lock->is_rec_exclusive_not_gap();
+        (wait_lock->is_gap()) || (wait_lock->is_predicate()) || is_supremum);
+  /* Predicate locks do not participate in bypass mechanism. */
+  const bool bypass_mode= !is_supremum
+      && wait_lock->is_rec_exclusive_not_gap() && !wait_lock->is_predicate();
   bool has_s_lock_or_stronger= false;
   const lock_t *insert_after= nullptr;
   ut_d(const lock_t *bypassed= nullptr);
