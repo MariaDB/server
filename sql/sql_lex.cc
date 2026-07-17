@@ -6524,14 +6524,15 @@ SELECT_LEX *LEX::create_priority_nest(SELECT_LEX *first_in_nest, SELECT_LEX *att
     wrapper->set_linkage_and_distinct(wr_unit_type, wr_distinct);
     if (attach_to)
     {
-      wrapper->first_nested= attach_to->first_nested;
+      /* wraps whole prefix -> wrapper heads a fresh chain */
+      bool wraps_whole_prefix= (attach_to->first_nested == first_in_nest);
+      wrapper->first_nested= wraps_whole_prefix ? wrapper
+                                                : attach_to->first_nested;
       wrapper->set_master_unit(attach_to->master_unit());
       attach_to->link_neighbour(wrapper);
     }
     else
-    {
       wrapper->first_nested= wrapper;
-    }
   }
   DBUG_RETURN(wrapper);
 }
@@ -10498,30 +10499,11 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
   sel1->link_neighbour(sel2);
   sel2->set_linkage_and_distinct(unit_type, distinct);
   sel2->first_nested= sel1->first_nested= sel1;
-  const bool oracle= (thd->variables.sql_mode & IS_OR_WAS_ORACLE);
-  if (oracle &&
-      /*
-         Recursive CTE must have anchor defined as non-recursive set attached
-         via UNION, such anchor would be lost in wrapping. But in recursive CTE
-         all set operations either distinct or non-distinct
-         (see ER_NOT_SUPPORTED_YET limitation in st_select_lex_unit::prepare()),
-         so explicit prioritization via wrapping is not required.
-
-         Test: compat/oracle.func_concat
-      */
-      !(curr_with_clause && curr_with_clause->with_recursive) &&
-      !(sel1= create_priority_nest(sel1, NULL)))
-  {
-      return NULL;
-  }
   res= create_unit(sel1);
   if (res == NULL)
     return NULL;
   res->pre_last_parse= sel1;
-  if (oracle)
-    push_select(sel1);
-  else
-    push_select(res->fake_select_lex);
+  push_select(res->fake_select_lex);
   return res;
 }
 
@@ -10535,7 +10517,38 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
   SELECT_LEX *sel1= s2;
   SELECT_LEX *last= unit->pre_last_parse->next_select();
 
-  int cmp= oracle? 0 : cmp_unit_op(unit_type, last->get_linkage());
+  int cmp;
+  if (oracle)
+  {
+    if (unit_type != last->get_linkage())
+    {
+      /*
+        Oracle: equal-priority, left-to-right. Wrap whole prefix on op change.
+        Recursive CTEs use a single operator, so never wrap here (anchor kept).
+      */
+      SELECT_LEX *first_in_nest= unit->first_select();
+      last->cut_next();
+      if ((last= create_priority_nest(first_in_nest, NULL)) == NULL)
+        return NULL;
+      /*
+        Order matters: register_select_chain() re-points unit->slave at the
+        wrapper. Only then can fix_distinct()/reset_distinct() scan the new
+        outer chain instead of the pre-wrap selects that now belong to the
+        derived table's inner unit. Otherwise union_distinct is left pointing
+        into the inner unit (stale, non-NULL). Since optimize_bag_operation()
+        is skipped in Oracle mode, that value survives to execution and makes
+        the outer result temp table de-duplicating (MY_TEST(union_distinct)),
+        dropping rows that a trailing UNION ALL must keep.
+      */
+      unit->register_select_chain(last);
+      unit->fix_distinct();
+    }
+    cmp= 0;
+  }
+  else
+  {
+    cmp= cmp_unit_op(unit_type, last->get_linkage());
+  }
   if (cmp == 0)
   {
     sel1->first_nested= last->first_nested;

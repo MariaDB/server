@@ -100,4 +100,31 @@ drop view v3;
 drop view v4;
 set sql_mode=default;
 
+--echo #
+--echo # MDEV-39522 Query with UNION fails in Oracle sql_mode with ER_BAD_FIELD_ERROR/ER_UNKNOWN_TABLE
+--echo #
+set sql_mode='oracle';
+create table t1 (id varchar(10));
+select 1 from t1 where exists (select 1 from dual union select 1 from dual  where t1.id=1);
+drop table t1;
+set sql_mode=default;
+
+--echo # ansi:   1 union (2 intersect 2) = {1,2}
+select 1 a union select 2 intersect select 2;
+set sql_mode='oracle';
+--echo # oracle:   (1 union 2) intersect 2 = {2}
+--disable_service_connection
+select 1 a union select 2 intersect select 2;
+--enable_service_connection
+
+--echo # recursive CTE with set operator wraps nothing (anchor preserved)
+with recursive c(n) as
+(
+  select 1 from dual
+  union all
+  select n+1 from c where n < 3
+)
+select * from c;
+set sql_mode=default;
+
 --echo # End of 10.11 tests
