@@ -1173,9 +1173,14 @@ class Item_func_member_of : public Item_func_opt_neg
   json_engine_t je_val;
   String tmp_js_doc;
   String tmp_candidate;
+  /* Caching constant container document validation */
+  bool a1_constant;
+  bool a1_parsed;
+  String *js_doc_cached;
 public:
   Item_func_member_of(THD *thd, Item *a, Item *b):
-    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL), je_val{}
+    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL),
+    je_val{}, a1_constant(false), a1_parsed(false), js_doc_cached(NULL)
     {}
 
   bool val_bool() override;
@@ -1196,6 +1201,8 @@ public:
       copy->json_quote_item= NULL;
       copy->json_contains_item= NULL;
       memset(&copy->je_val, 0, sizeof(copy->je_val));
+      copy->js_doc_cached= NULL;
+      copy->a1_parsed= false;
     }
     return copy;
   }

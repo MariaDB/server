@@ -6646,30 +6646,34 @@ bool Item_func_member_of::val_bool()
   DBUG_ASSERT(fixed());
   THD *thd;
 
-  /* 1. Evaluate args[1] (the JSON document/array) to check if it is SQL NULL */
-  String *js_doc= args[1]->val_json(&tmp_js_doc);
-  if (args[1]->null_value || !js_doc)
-  {
-    null_value= 1;
-    return false;
-  }
-
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
-  /*
-    2. Validate args[1] (the JSON document/array) is well-formed JSON.
-    This prevents the composed JSON_CONTAINS item from raising its own warning.
-    je_val.stack is pre-wired via mem_root_dynamic_array_init() in fix_length_and_dec();
-    json_scan_start() resets all other engine state itself, so je_val is safe to reuse.
-  */
-  json_scan_start(&je_val, js_doc->charset(), (const uchar *) js_doc->ptr(),
-                  (const uchar *) js_doc->ptr() + js_doc->length());
-  je_val.killed_ptr= (uint32_t *) &thd->killed;
-  while (json_scan_next(&je_val) == 0) /* no-op */ ;
-  if (je_val.s.error)
+  /* 1. Evaluate and validate args[1] (the JSON document/array) */
+  if (!a1_parsed)
   {
-    report_json_error(js_doc, &je_val, 1);
+    js_doc_cached= args[1]->val_json(&tmp_js_doc);
+    if (args[1]->null_value || !js_doc_cached)
+    {
+      js_doc_cached= NULL;
+    }
+    else
+    {
+      json_scan_start(&je_val, js_doc_cached->charset(), (const uchar *) js_doc_cached->ptr(),
+                      (const uchar *) js_doc_cached->ptr() + js_doc_cached->length());
+      je_val.killed_ptr= (uint32_t *) &thd->killed;
+      while (json_scan_next(&je_val) == 0) /* no-op */ ;
+      if (je_val.s.error)
+      {
+        report_json_error(js_doc_cached, &je_val, 1);
+        js_doc_cached= NULL;
+      }
+    }
+    a1_parsed= a1_constant;
+  }
+
+  if (!js_doc_cached)
+  {
     null_value= 1;
     return false;
   }
@@ -6712,6 +6716,10 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
 {
   max_length= 1;
   set_maybe_null();
+
+  a1_constant= args[1]->const_item();
+  a1_parsed= false;
+  js_doc_cached= NULL;
 
   /*
     Wire je_val.stack once per statement lifetime so that json_scan_start()
