@@ -337,6 +337,7 @@ dbcontext::term_thread()
   close_tables_if();
   set_current_thd(nullptr);
   {
+    server_threads.erase(thd);
     delete thd;
     thd = 0;
     my_thread_end();
