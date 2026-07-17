@@ -910,6 +910,16 @@ public:
   sp_pcontext *get_parse_context() { return m_pcont; }
 
   /*
+    Remember a parse context of this routine, so that ~sp_head frees the
+    whole tree iteratively instead of recursing down sp_pcontext's children
+  */
+  void remember_pcontext(sp_pcontext *ctx)
+  {
+    ctx->m_next_pcont= m_pcont_list;
+    m_pcont_list= ctx;
+  }
+
+  /*
     Check EXECUTE access:
     - in case of a standalone rotuine, for the routine itself
     - in case of a package routine, for the owner package body
@@ -929,6 +939,7 @@ protected:
   THD *m_thd;			///< Set if we have reset mem_root
 
   sp_pcontext *m_pcont;		///< Parse context
+  sp_pcontext *m_pcont_list;	///< Head of context list, freed by ~sp_head
   List<LEX> m_lex;		///< Temp. store for the other lex
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
 
