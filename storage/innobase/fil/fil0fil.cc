@@ -2781,7 +2781,7 @@ release:
 		}
 		ut_ad(fil_validate_skip());
 	}
-	if (err != DB_SUCCESS) {
+	else if (err != DB_SUCCESS) {
 		goto release;
 	}
 func_exit:
