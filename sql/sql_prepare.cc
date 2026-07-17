@@ -3727,7 +3727,7 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   thd->stmt_arena= stmt;
   thd->set_n_backup_statement(stmt, &stmt_backup);
 
-  cursor->fetch(num_rows);
+  cursor->fetch(&stmt->result, num_rows);
 
   if (!thd->get_sent_row_count())
     status_var_increment(thd->status_var.empty_queries);

@@ -118,7 +118,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
       temporary table have been closed.
     */
 
-    if ((rc= materialized_cursor->open(0)))
+    if ((rc= materialized_cursor->open(result, 0)))
     {
       delete materialized_cursor;
       goto end;
@@ -163,9 +163,8 @@ void Server_side_cursor::operator delete(void *ptr, size_t size)
  Materialized_cursor
 ****************************************************************************/
 
-Materialized_cursor::Materialized_cursor(select_result *result_arg,
-                                         TABLE *table_arg)
-  :Server_side_cursor(&table_arg->mem_root, result_arg),
+Materialized_cursor::Materialized_cursor(TABLE *table_arg)
+  :Server_side_cursor(&table_arg->mem_root),
   table(table_arg),
   fetch_limit(0),
   fetch_count(0),
@@ -186,7 +185,7 @@ Materialized_cursor::Materialized_cursor(select_result *result_arg,
 */
 
 int Materialized_cursor::send_result_set_metadata(
-  THD *thd, List<Item> &send_result_set_metadata)
+  THD *thd, select_result *result, List<Item> &send_result_set_metadata)
 {
   Query_arena backup_arena;
   int rc;
@@ -233,7 +232,8 @@ end:
 }
 
 
-int Materialized_cursor::open(JOIN *join __attribute__((unused)))
+int Materialized_cursor::open(select_result *result,
+                              JOIN *join __attribute__((unused)))
 {
   THD *thd= fake_unit.thd;
   int rc;
@@ -279,7 +279,7 @@ int Materialized_cursor::open(JOIN *join __attribute__((unused)))
     SERVER_STATUS_LAST_ROW_SENT along with the last row.
 */
 
-void Materialized_cursor::fetch(ulong num_rows)
+void Materialized_cursor::fetch(select_result *result, ulong num_rows)
 {
   THD *thd= table->in_use;
 
@@ -378,7 +378,7 @@ bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
     return TRUE;
 
   materialized_cursor= new (&table->mem_root)
-                       Materialized_cursor(result, table);
+                       Materialized_cursor(table);
 
   if (!materialized_cursor)
   {
@@ -387,7 +387,7 @@ bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
     return TRUE;
   }
 
-  if (materialized_cursor->send_result_set_metadata(unit->thd, list))
+  if (materialized_cursor->send_result_set_metadata(unit->thd, result, list))
   {
     delete materialized_cursor;
     table= 0;

@@ -37,18 +37,15 @@ class JOIN;
 
 class Server_side_cursor: protected Query_arena
 {
-protected:
-  /** Row destination used for fetch */
-  select_result *result;
 public:
-  Server_side_cursor(MEM_ROOT *mem_root_arg, select_result *result_arg)
-    :Query_arena(mem_root_arg, STMT_INITIALIZED), result(result_arg)
+  Server_side_cursor(MEM_ROOT *mem_root_arg)
+    :Query_arena(mem_root_arg, STMT_INITIALIZED)
   {}
 
   virtual bool is_open() const= 0;
 
-  virtual int open(JOIN *top_level_join)= 0;
-  virtual void fetch(ulong num_rows)= 0;
+  virtual int open(select_result *result, JOIN *top_level_join)= 0;
+  virtual void fetch(select_result *result, ulong num_rows)= 0;
   virtual void close()= 0;
   virtual bool export_structure(THD *thd, Row_definition_list *defs)
   {
@@ -82,12 +79,13 @@ class Materialized_cursor: public Server_side_cursor
   ulong fetch_count;
   bool is_rnd_inited;
 public:
-  Materialized_cursor(select_result *result, TABLE *table);
+  Materialized_cursor(TABLE *table);
 
-  int send_result_set_metadata(THD *thd, List<Item> &send_result_set_metadata);
+  int send_result_set_metadata(THD *thd, select_result *result,
+                               List<Item> &send_result_set_metadata);
   bool is_open() const override { return table != 0; }
-  int open(JOIN *join __attribute__((unused))) override;
-  void fetch(ulong num_rows) override;
+  int open(select_result *result, JOIN *join __attribute__((unused))) override;
+  void fetch(select_result *result, ulong num_rows) override;
   void close() override;
   bool export_structure(THD *thd, Row_definition_list *defs) override
   {

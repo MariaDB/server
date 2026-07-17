@@ -905,7 +905,7 @@ int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
   /* Attempt to fetch one row */
   if (server_side_cursor->is_open())
   {
-    server_side_cursor->fetch(1);
+    server_side_cursor->fetch(&result, 1);
     if (thd->is_error())
       return -1; // e.g. data type conversion failed
   }
