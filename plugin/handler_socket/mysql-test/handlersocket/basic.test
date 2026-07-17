@@ -1,8 +1,32 @@
 --source include/not_windows_embedded.inc
+--source include/have_innodb.inc
+--source include/not_asan.inc
+
+call mtr.add_suppression('handlersocket: open_files_limit is too small');
 
 install plugin handlersocket soname 'handlersocket.so';
+
+let HS_SECRET=`select @@handlersocket_plain_secret`;
+let HS_PORT=`select @@handlersocket_port`;
+
 --query_vertical select plugin_name, plugin_version, plugin_status, plugin_type, plugin_library, plugin_library_version, plugin_author, plugin_description, plugin_license, plugin_maturity, plugin_auth_version from information_schema.plugins where plugin_name = 'handlersocket'
-select * from information_schema.global_variables where variable_name like 'handlersocket%' and variable_name not like '%secret%' order by variable_name;
+--replace_result $HS_SECRET HS_SECRET $HS_PORT HS_PORT
+select * from information_schema.global_variables where variable_name like 'handlersocket%' order by variable_name;
 select length(@@handlersocket_plain_secret), @@handlersocket_plain_secret = @@handlersocket_plain_secret_wr;
+
+create table t1 (id int primary key, name varchar(100)) engine=innodb;
+
+perl;
+use IO::Socket::INET;
+my $sock = IO::Socket::INET->new(PeerAddr => '127.0.0.1',
+  PeerPort => $ENV{HS_PORT}, Proto => 'tcp') or die "connect(): $!";
+# 1) auth:  A <atyp=1> <secret>
+# 2) open_index:  P <indexid> <db> <table> <index> <columns>
+print $sock "A\t1\t$ENV{HS_SECRET}\nP\t1\ttest\tt1\tPRIMARY\tid,name\n";
+print $sock "0\t=\t2147483647\t1\n";
+printf "auth: %sopen: %sbad read: %s", scalar(<$sock>), scalar(<$sock>), scalar(<$sock>);
+EOF
+
 uninstall plugin handlersocket;
+drop table t1;
 
