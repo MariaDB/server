@@ -989,9 +989,11 @@ uint32_t fil_space_t::flush_freed(bool writable) noexcept
     {
       written+= range.last - range.first + 1;
       reacquire();
-      io(IORequest(IORequest::PUNCH_RANGE),
-         os_offset_t{range.first} * physical,
-         (range.last - range.first + 1) * physical, nullptr);
+      fil_io_t fio= io(IORequest(IORequest::PUNCH_RANGE),
+                       os_offset_t{range.first} * physical,
+                       (range.last - range.first + 1) * physical, nullptr);
+      if (fio.err != DB_SUCCESS)
+        continue; /* result of io had to be used */
     }
   }
   else
@@ -1002,8 +1004,10 @@ uint32_t fil_space_t::flush_freed(bool writable) noexcept
       for (os_offset_t i= range.first; i <= range.last; i++)
       {
         reacquire();
-        io(IORequest(IORequest::WRITE_ASYNC), i * physical, physical,
-           const_cast<byte*>(field_ref_zero));
+        fil_io_t fio= io(IORequest(IORequest::WRITE_ASYNC), i * physical, physical,
+                         const_cast<byte*>(field_ref_zero));
+        if (fio.err != DB_SUCCESS)
+          continue; /* result of io had to be used */
       }
     }
   }
