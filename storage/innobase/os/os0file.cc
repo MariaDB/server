@@ -3356,7 +3356,6 @@ func_exit:
 					     ? "aio read" : "aio write",
 					     false);
 		err = DB_IO_ERROR;
-		type.node->space->release();
 	}
 
 	goto func_exit;
