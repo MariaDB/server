@@ -2799,6 +2799,14 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     copy_crypto_data(rli->relay_log.description_event_for_exec);
     delete rli->relay_log.description_event_for_exec;
     rli->relay_log.description_event_for_exec= this;
+    /*
+      The start of the relay log has our own generated format description
+      event followed by the real format description from the master.
+      Don't re-compute the bug bitmask from the generated event so we don't
+      leave a window where a wrong value is temporarily set.
+    */
+    if (!is_relay_log_event())
+      rli->calc_master_bug_bitmask(this);
   }
 
   DBUG_RETURN(ret);
@@ -7992,8 +8000,8 @@ int Rows_log_event::update_sequence()
       (table_rgi &&
        !(table_rgi->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
-         rpl_master_has_bug(thd_rgi->rli,
-                            29621, FALSE, FALSE, FALSE, TRUE))))
+         rpl_master_has_bug(thd_rgi->rli, RPL_BUG_MDEV_29621, FALSE,
+                            NULL, NULL))))
   {
     /* This event come from a setval function executed on the master.
        Update the sequence next_number and round, like we do with setval()

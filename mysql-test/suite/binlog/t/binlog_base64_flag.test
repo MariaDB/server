@@ -9,7 +9,7 @@
 # BINLOG statement does not work in embedded mode.
 source include/not_embedded.inc;
 
-call mtr.add_suppression("BINLOG_BASE64_EVENT: According to the master's version");
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Master's version is earlier than");
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 1 of table 'test.char128_utf8' cannot be converted");
 
 disable_warnings;
