@@ -6913,7 +6913,14 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
                                                       spcont, offset,
                                                       pcursor->lex(),
-                                                      spvar->offset);
+                                                      spvar->offset,
+                        /*
+                          The first cursor in declaration
+                          of cursor row type variables is responsible for
+                          releasing the Item created on parsing the DEFAULT
+                          clause
+                        */
+                                                      (i == 0) ? def : nullptr);
     if (instr == NULL || sphead->add_instr(instr))
      return true;
 

@@ -986,4 +986,27 @@ CALL p();
 # Clean up
 DROP PROCEDURE p;
 DROP TABLE t;
+#
+# MDEV-36481: Abnormal server termination on second execution of
+#             stored routine that runs a cursor after table metadata
+#             in the query was changed
+#
+CREATE TABLE t (a INT);
+CREATE PROCEDURE p()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t;
+BEGIN
+DECLARE rec ROW(a INT,b INT) DEFAULT ROW(0,0);
+DECLARE rec2 ROW TYPE OF cur DEFAULT rec;
+END;
+END
+$
+CALL p();
+ERROR 21000: Operand should contain 1 column(s)
+CREATE OR REPLACE TABLE t (a INT);
+CALL p();
+ERROR 21000: Operand should contain 1 column(s)
+# Clean up
+DROP TABLE t;
+DROP PROCEDURE p;
 # End of 11.4 tests

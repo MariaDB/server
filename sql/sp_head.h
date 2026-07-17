@@ -46,6 +46,7 @@ sp_get_flags_for_command(LEX *lex);
 class sp_instr;
 class sp_instr_opt_meta;
 class sp_instr_jump_if_not;
+class sp_instr_cursor_copy_struct;
 
 /**
   Number of PSI_statement_info instruments
@@ -401,6 +402,9 @@ public:
 
   int
   add_instr(sp_instr *instr);
+
+  int
+  add_instr(sp_instr_cursor_copy_struct *instr);
 
   bool
   add_instr_jump(THD *thd, sp_pcontext *spcont);
@@ -803,6 +807,8 @@ private:
     fill_spvar_definition(thd, &spvar->field_def);
     m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
   }
+
+  int add_instr_core(sp_instr *instr);
 
 public:
   bool spvar_fill_row(THD *thd, sp_variable *spvar, Row_definition_list *def);
