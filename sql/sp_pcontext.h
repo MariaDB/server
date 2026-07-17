@@ -357,8 +357,12 @@ public:
 ///   - for error checking (e.g. to check correct number of parameters);
 ///   - to resolve SQL-handlers.
 
+class sp_head;
+
 class sp_pcontext : public Sql_alloc
 {
+  friend class sp_head;
+
 public:
   enum enum_scope
   {
@@ -398,15 +402,19 @@ public:
 
 public:
   sp_pcontext();
-  ~sp_pcontext();
 
+  /*
+    No destructor: sp_head owns the tree and frees it. Freeing the children
+    here recursed and overran the thread stack on deeply nested BEGIN blocks
+  */
 
   /// Create and push a new context in the tree.
 
-  /// @param thd   thread context.
-  /// @param scope scope of the new parsing context.
+  /// @param thd    thread context.
+  /// @param sphead the routine owning the tree, which remembers the new node.
+  /// @param scope  scope of the new parsing context.
   /// @return the node created.
-  sp_pcontext *push_context(THD *thd, enum_scope scope);
+  sp_pcontext *push_context(THD *thd, sp_head *sphead, enum_scope scope);
 
   /// Pop a node from the parsing context tree.
   /// @return the parent node.
@@ -503,8 +511,11 @@ public:
   /// Retrieve full type information about SP-variables in this parsing
   /// context and its children.
   ///
+  /// @param thd                thread context.
   /// @param field_def_lst[out] Container to store type information.
-  void retrieve_field_definitions(List<Spvar_definition> *field_def_lst) const;
+  /// @return true on error, in which case field_def_lst is incomplete.
+  bool retrieve_field_definitions(THD *thd,
+                                  List<Spvar_definition> *field_def_lst) const;
 
   /// Find SP-variable by name.
   ///
@@ -751,6 +762,9 @@ private:
 
   /// Parent context.
   sp_pcontext *m_parent;
+
+  /// Next context in the sp_head's single linked list of all contexts.
+  sp_pcontext *m_next_pcont;
 
   /// An index of the first SP-variable in this parsing context. The index
   /// belongs to a runtime table of SP-variables.

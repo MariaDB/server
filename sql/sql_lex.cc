@@ -7385,7 +7385,7 @@ bool LEX::sp_handler_declaration_init(THD *thd, int type)
 {
   sp_handler *h= spcont->add_handler(thd, (sp_handler::enum_type) type);
 
-  spcont= spcont->push_context(thd, sp_pcontext::HANDLER_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::HANDLER_SCOPE);
 
   sp_instr_hpush_jump *i=
     new (thd->mem_root) sp_instr_hpush_jump(sphead->instructions(), spcont, h);
@@ -7436,7 +7436,7 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
 void LEX::sp_block_init(THD *thd, const LEX_CSTRING *label)
 {
   spcont->push_label(thd, label, sphead->instructions(), sp_label::BEGIN);
-  spcont= spcont->push_context(thd, sp_pcontext::REGULAR_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::REGULAR_SCOPE);
 }
 
 
