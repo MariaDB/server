@@ -855,8 +855,10 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
       log_write_up_to(lsn, true);
     ut_ad(space->is_temporary() || !space->full_crc32() ||
           !buf_page_is_corrupted(true, write_frame, space->flags));
-    space->io(IORequest{type, this, slot}, physical_offset(), size,
-              write_frame, this);
+    fil_io_t fio= space->io(IORequest{type, this, slot}, physical_offset(), size,
+                            write_frame, this);
+    if (fio.err != DB_SUCCESS)
+      return false;
   }
   else
     buf_dblwr.add_to_batch(IORequest{this, slot, space->chain.start, type},
