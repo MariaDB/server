@@ -412,4 +412,19 @@ partition p2 default
 );
 alter table t convert partition p0 to table tp;
 drop table if exists tp, t;
+#
+# MDEV-40413 ALTER TABLE ... CONVERT ... PARTITION doesn't encode partition names
+#
+create table t1 (a int) partition by list (a) (
+partition p0 values in (5),
+partition `foo-bar` values in (7)
+);
+insert t1 values (5),(7);
+alter table t1 convert partition `foo-bar` to table t2;
+alter table t1 convert table t2 to partition `foo-bar` values in (7);
+select * from t1;
+a
+5
+7
+drop table t1;
 # End of 10.11 tests
