@@ -23,6 +23,7 @@
 
 #include "sp_pcontext.h"
 #include "sp_head.h"
+#include "sql_parse.h"
 
 bool sp_condition_value::equals(const sp_condition_value *cv) const
 {
@@ -95,7 +96,7 @@ void sp_pcontext::init(uint var_offset,
 sp_pcontext::sp_pcontext()
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
-  m_parent(NULL), m_pboundary(0),
+  m_parent(NULL), m_next_pcont(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
   m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
@@ -108,7 +109,7 @@ sp_pcontext::sp_pcontext()
 sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
-  m_parent(prev), m_pboundary(0),
+  m_parent(prev), m_next_pcont(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
   m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
@@ -120,19 +121,16 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
 }
 
 
-sp_pcontext::~sp_pcontext()
-{
-  for (size_t i= 0; i < m_children.elements(); ++i)
-    delete m_children.at(i);
-}
-
-
-sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
+sp_pcontext *sp_pcontext::push_context(THD *thd, sp_head *sphead,
+                                       sp_pcontext::enum_scope scope)
 {
   sp_pcontext *child= new (thd->mem_root) sp_pcontext(this, scope);
 
   if (child)
+  {
     m_children.append(child);
+    sphead->remember_pcontext(child);
+  }
   return child;
 }
 
@@ -644,9 +642,12 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
 }
 
 
-void sp_pcontext::retrieve_field_definitions(
-  List<Spvar_definition> *field_def_lst) const
+bool sp_pcontext::retrieve_field_definitions(
+  THD *thd, List<Spvar_definition> *field_def_lst) const
 {
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return true;
+
   size_t next_child_idx= 0;
   size_t next_variable_idx= 0;
 
@@ -656,15 +657,16 @@ void sp_pcontext::retrieve_field_definitions(
     {
       // No variables left, just retrieve the remaining children contexts
       for (size_t i= next_child_idx; i < m_children.elements(); ++i)
-        m_children.at(i)->retrieve_field_definitions(field_def_lst);
-      return;
+        if (m_children.at(i)->retrieve_field_definitions(thd, field_def_lst))
+          return true;
+      return false;
     }
     if (next_child_idx >= m_children.elements())
     {
       // No child contexts left, just retrieve the remaining variables
       for (size_t i= next_variable_idx; i < m_vars.elements(); ++i)
         field_def_lst->push_back(&m_vars.at(i)->field_def);
-      return;
+      return false;
     }
 
     sp_variable *next_variable= m_vars.at(next_variable_idx);
@@ -713,11 +715,13 @@ void sp_pcontext::retrieve_field_definitions(
       DBUG_ASSERT(next_child_idx + 1 < m_children.elements() ?
         next_child->after_last_variable_offset() <= next_variable->offset :
         next_child->after_last_variable_offset() == next_variable->offset);
-      next_child->retrieve_field_definitions(field_def_lst);
+      if (next_child->retrieve_field_definitions(thd, field_def_lst))
+        return true;
       next_child_idx++;
     }
   }
 
+  return false;
 }
 
 

@@ -1,0 +1,71 @@
+--echo #
+--echo # MDEV-37167 Nested BEGINs (4600+) cause a segmentation fault
+--echo #
+
+# Each nested BEGIN adds one sp_pcontext. Freeing them used to recurse once
+# per nesting level and overran the thread stack. Building the run-time frame
+# still recurses, but checks the stack now, and the depth where it gives up
+# follows thread_stack, so the invoking statements accept either outcome.
+
+--echo #
+--echo # Unclosed BEGINs
+--echo #
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p1() ', REPEAT('BEGIN ', 6000));
+
+--echo #
+--echo # Well-formed deep routine
+--echo #
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p2() ',
+                         REPEAT('BEGIN ', 6000), REPEAT('END; ', 5999), 'END');
+DROP PROCEDURE p2;
+
+--echo #
+--echo # Same, with variables, so the contexts are not empty
+--echo #
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p3() ',
+                         REPEAT('BEGIN DECLARE v INT DEFAULT 1; ', 2000),
+                         REPEAT('END; ', 1999), 'END');
+DROP PROCEDURE p3;
+
+--echo #
+--echo # A deep FUNCTION tears down the same way
+--echo #
+EXECUTE IMMEDIATE CONCAT('CREATE FUNCTION f1() RETURNS INT ',
+                         REPEAT('BEGIN ', 6000), 'RETURN 1; ',
+                         REPEAT('END; ', 5999), 'END');
+DROP FUNCTION f1;
+
+--echo #
+--echo # Invoking a deep routine must not crash. It is rejected with
+--echo # ER_STACK_OVERRUN_NEED_MORE when the frame does not fit the thread
+--echo # stack, which depends on the build, so both outcomes are accepted.
+--echo #
+EXECUTE IMMEDIATE CONCAT('CREATE PROCEDURE p4() ',
+                         REPEAT('BEGIN ', 6000), REPEAT('END; ', 5999), 'END');
+--error 0,ER_STACK_OVERRUN_NEED_MORE
+CALL p4();
+DROP PROCEDURE p4;
+
+--echo #
+--echo # Nested scopes must still resolve correctly
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p5()
+BEGIN
+  DECLARE a INT DEFAULT 1;
+  BEGIN
+    DECLARE b INT DEFAULT 2;
+    BEGIN
+      DECLARE c INT DEFAULT 3;
+      SELECT a + b + c AS total;
+    END;
+  END;
+END$$
+DELIMITER ;$$
+CALL p5();
+DROP PROCEDURE p5;
+
+SELECT 'Server is alive' AS state;
+
+--echo # End of 10.11 tests
