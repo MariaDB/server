@@ -225,6 +225,11 @@ struct ib_lock_t
 		return(type_mode & LOCK_INSERT_INTENTION);
 	}
 
+	bool is_predicate() const
+	{
+		return(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
+	}
+
 	bool is_table() const { return type_mode & LOCK_TABLE; }
 
 	enum lock_mode mode() const
@@ -266,7 +271,9 @@ struct ib_lock_t
           condition here because there can be the following case:
                        S1 X2(waits for S1) S3(waits for X2),
           bypassing X1 must not conflict with S3. */
-          return has_s_lock_or_stronger && is_waiting_not_gap();
+          /* Predicate locks do not participate in bypass mechanism. */
+          return has_s_lock_or_stronger && is_waiting_not_gap()
+                 && !is_predicate();
         }
 
 	/** Print the lock object into the given output stream.
