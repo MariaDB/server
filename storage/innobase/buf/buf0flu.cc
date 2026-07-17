@@ -1185,6 +1185,7 @@ fil_space_t *fil_space_t::get_for_write(uint32_t id) noexcept
   return space;
 }
 
+MY_ATTRIBUTE((warn_unused_result))
 /** Start writing out pages for a tablespace.
 @param id   tablespace identifier
 @return tablespace and number of pages written */
