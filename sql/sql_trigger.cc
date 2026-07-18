@@ -1013,6 +1013,14 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
      ))
     DBUG_RETURN(true);
 
+  (void)iterate_trigger_row_and_run_func(
+             lex->sphead->m_trg_table_row,
+             [thd, table, trigger] (Item_trigger_row* trg_row)
+             {
+                trg_row->setup_field(thd, table, nullptr);
+              }
+        );
+
   /* Ensure anchor trigger exists */
   if (lex->trg_chistics.ordering_clause != TRG_ORDER_NONE)
   {

@@ -252,7 +252,7 @@ bool LEX::set_trigger_new_field(const LEX_CSTRING *name, Item *val,
 bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                               const LEX_CSTRING &expr_str)
 {
-  sp_instr_set_trigger_row *sp_fld= NULL;
+  sp_instr_set_trigger_row *sp_row= NULL;
   Item_trigger_row *trg_row;
 
   if (! val)
@@ -267,14 +267,14 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                                                 Item_trigger_row::NEW_ROW,
                                                 *name, UPDATE_ACL, false);
 
-  sp_fld= new (thd->mem_root) sp_instr_set_trigger_row(sphead->instructions(),
+  sp_row= new (thd->mem_root) sp_instr_set_trigger_row(sphead->instructions(),
                                                        spcont, trg_row, val,
                                                        this, expr_str);
 
   sphead->m_cur_instr_trig_row_items.insert(trg_row,
                                             &trg_row->next_trg_row);
 
-  return sphead->add_instr(sp_fld);
+  return sphead->add_instr(sp_row);
 }
 
 

@@ -406,3 +406,14 @@ ERROR HY000: Illegal parameter data types row and row for operation '+'
 DROP TRIGGER t1_bu;
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-40130: SIGSEGV in Field_iterator_table::set_table at
+#             sql/table.h:3350
+#
+CREATE TABLE tt (a INT, b INT);
+CREATE TRIGGER tg BEFORE INSERT ON tt FOR EACH ROW SET NEW = ROW(NEW.a, NEW.a);
+INSERT INTO tt VALUES (1,2);
+SELECT *  FROM tt;
+a	b
+1	1
+DROP TABLE tt;
