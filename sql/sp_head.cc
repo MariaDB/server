@@ -3342,10 +3342,13 @@ int sp_head::add_instr_core(sp_instr *instr)
           &instr_trig_fld_list->first->next_trig_field_list);
       }
     }
-    else if (m_cur_instr_trig_row_items.elements)
+    if (m_cur_instr_trig_row_items.elements)
     {
       SQL_I_List<Item_trigger_row> *instr_trig_row_list=
         instr->get_instr_trig_row_list();
+
+      DBUG_ASSERT(instr_trig_row_list != nullptr);
+
       if (instr_trig_row_list)
       {
         m_cur_instr_trig_row_items.save_and_clear(instr_trig_row_list);
