@@ -11125,7 +11125,8 @@ bool Item_trigger_row::fix_fields(THD *thd, Item **it)
   m_thd= thd;
   check_new_old_qualifiers_comform_with_trg_event(thd);
 
-  populate_with_trigger_fields(thd);
+  if(populate_with_trigger_fields(thd))
+    return true;
 
   List_iterator<Item_trigger_field> it_trigger_field(m_fields);
   Item_trigger_field *trigger_field;
@@ -11145,6 +11146,8 @@ bool Item_trigger_row::fix_fields(THD *thd, Item **it)
 void Item_trigger_row::setup_field(THD *thd, TABLE *table,
                                    GRANT_INFO *table_grant_info)
 {
+  DBUG_ASSERT(table);
+
   triggers= table->triggers;
   table_grants= table_grant_info;
   this->table= table;

@@ -253,7 +253,7 @@ bool LEX::set_trigger_new_field(const LEX_CSTRING *name, Item *val,
 bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                               const LEX_CSTRING &expr_str)
 {
-  sp_instr_set_trigger_row *sp_fld= NULL;
+  sp_instr_set_trigger_row *sp_row= NULL;
   Item_trigger_row *trg_row;
 
   if (! val)
@@ -268,14 +268,17 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
                                                 Item_trigger_row::NEW_ROW,
                                                 *name, UPDATE_ACL, false);
 
-  sp_fld= new (thd->mem_root) sp_instr_set_trigger_row(sphead->instructions(),
+  sp_row= new (thd->mem_root) sp_instr_set_trigger_row(sphead->instructions(),
                                                        spcont, trg_row, val,
                                                        this, expr_str);
+
+  if (!sp_row || !trg_row)
+    return true;
 
   sphead->m_cur_instr_trig_row_items.insert(trg_row,
                                             &trg_row->next_trg_row);
 
-  return sphead->add_instr(sp_fld);
+  return sphead->add_instr(sp_row);
 }
 
 
@@ -9884,27 +9887,19 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
     */
     item->set_in_ps_safe_context();
   }
+
+  if (spv)
+  {
+    return sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
+                                        expr_str);
+  }
   else
   {
-    if (spv)
-    {
-      return sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
-                                          expr_str);
-    }
-    else
-    {
-      if (is_trigger_new_or_old_reference(&new_or_old))
-      {
-        return set_trigger_field_or_row(name, NULL, item, expr_str);
-      }
-      else
-      {
-        return set_system_variable(option_type, name, item);
-      }
-    }
+    if (is_trigger_new_or_old_reference(&new_or_old))
+      return set_trigger_field_or_row(name, NULL, item, expr_str);
+    return set_system_variable(option_type, name, item);
   }
 }
-
 
 /**
   Generate instructions for:
