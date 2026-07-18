@@ -11152,6 +11152,8 @@ bool Item_trigger_row::fix_fields(THD *thd, Item **it)
 void Item_trigger_row::setup_field(THD *thd, TABLE *table,
                                    GRANT_INFO *table_grant_info)
 {
+  DBUG_ASSERT(table);
+
   triggers= table->triggers;
   table_grants= table_grant_info;
   this->table= table;
