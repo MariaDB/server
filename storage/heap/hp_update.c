@@ -284,18 +284,21 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
       /* keydef points to the last key that failed */
       if (org_error == HA_ERR_FOUND_DUPP_KEY)
         info->errkey = (int) (keydef - share->keydef);
-      if (keydef->algorithm == HA_KEY_ALG_BTREE)
+      /*
+        The failing key was never inserted: tree_insert() rejects
+        duplicates and fails allocation before linking the node, and
+        hash keys are probed for duplicates before insert.  Re-insert
+        the old key that was deleted just before the failed insert,
+        then roll back the previously updated keys.
+      */
+      if ((*keydef->write_key)(info, keydef, old, pos))
       {
-        /* we don't need to delete non-inserted key from rb-tree */
-        if ((*keydef->write_key)(info, keydef, old, pos))
-        {
-          heap_mark_crashed(share);
-          if (++(share->records) == share->blength)
-            share->blength+= share->blength;
-          DBUG_RETURN(my_errno);
-        }
-        keydef--;
+        heap_mark_crashed(share);
+        if (++(share->records) == share->blength)
+          share->blength+= share->blength;
+        DBUG_RETURN(my_errno);
       }
+      keydef--;
     }
     /* Restore all modified keys */
     while (keydef >= share->keydef)
