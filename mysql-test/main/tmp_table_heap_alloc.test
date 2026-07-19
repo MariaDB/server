@@ -1,0 +1,52 @@
+# Internal HEAP temporary tables derive max_records from the memory
+# ceiling (tmp_memory_table_size), and the first HP_BLOCK allocation
+# used to be sized at max_records/16 records.  With a large ceiling a
+# small materialization (SELECT DISTINCT, SHOW ... FROM) allocated a
+# multi-hundred-MB block per statement, served by mmap and unmapped on
+# drop, causing mmap_lock contention.  Block allocations from a
+# ceiling-derived max_records are now capped, so session memory use for
+# a small materialization must stay bounded regardless of the ceiling.
+
+--source include/have_64bit.inc
+--source include/not_embedded.inc
+
+connect (con1,localhost,root,,test);
+connection con1;
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,REPEAT('a',100)), (2,REPEAT('b',100)),
+                      (3,REPEAT('c',100)), (4,REPEAT('d',100));
+
+--echo #
+--echo # Materialization with a blob distinct key under a 4GB ceiling
+--echo #
+SET SESSION tmp_memory_table_size = 4294967296;
+SET SESSION max_heap_table_size = 4294967296;
+FLUSH STATUS;
+--disable_result_log
+SELECT DISTINCT b FROM t1;
+--enable_result_log
+SET SESSION tmp_memory_table_size = DEFAULT;
+SET SESSION max_heap_table_size = DEFAULT;
+SELECT CAST(VARIABLE_VALUE AS UNSIGNED) < 67108864 AS distinct_alloc_bounded
+  FROM information_schema.SESSION_STATUS
+ WHERE VARIABLE_NAME = 'MAX_MEMORY_USED';
+
+--echo #
+--echo # I_S materialization (SHOW FULL COLUMNS) under a 4GB ceiling
+--echo #
+SET SESSION tmp_memory_table_size = 4294967296;
+SET SESSION max_heap_table_size = 4294967296;
+FLUSH STATUS;
+--disable_result_log
+SHOW FULL COLUMNS FROM t1;
+--enable_result_log
+SET SESSION tmp_memory_table_size = DEFAULT;
+SET SESSION max_heap_table_size = DEFAULT;
+SELECT CAST(VARIABLE_VALUE AS UNSIGNED) < 67108864 AS show_columns_alloc_bounded
+  FROM information_schema.SESSION_STATUS
+ WHERE VARIABLE_NAME = 'MAX_MEMORY_USED';
+
+connection default;
+disconnect con1;
+DROP TABLE t1;

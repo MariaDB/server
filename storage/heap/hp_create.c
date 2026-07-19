@@ -29,6 +29,23 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 */
 static const int heap_allocation_parts= 16;
 
+/*
+  Upper bound for a block allocation derived from max_records.
+  max_records is usually computed from the table memory ceiling
+  (max_heap_table_size or tmp_memory_table_size), not from an estimate of
+  the expected number of rows, so with a large ceiling max_records /
+  heap_allocation_parts can yield allocations of hundreds of MB even for
+  tables that will only ever hold a few rows.  Blocks above a few MB are
+  served by mmap() and unmapped on free by common malloc implementations
+  (never recycled), so short-lived tables (per-statement internal
+  temporary tables) would pay mmap/munmap, page fault-in/zeroing and
+  process-wide mmap_lock serialization on every statement.  4MB is
+  recycled from the allocator's free lists by all mainstream mallocs
+  (glibc, jemalloc, tcmalloc, mimalloc) and is large enough to keep
+  typical blob values in a single continuation run (zero-copy reads).
+*/
+static const ulong heap_max_allocation_block= 4*1024*1024;
+
 /* min block allocation */
 static const ulong heap_min_allocation_block= 16384;
 
@@ -360,9 +377,10 @@ ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
 static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 		       ulong max_records)
 {
-  ulong i,records_in_block;
+  ulong i,records_in_block,cap_records;
   ulong recbuffer= (ulong) MY_ALIGN(reclength, sizeof(uchar*));
   ulong extra;
+  ulong requested_min_records= min_records;
   ulonglong memory_needed;
   size_t alloc_size;
 
@@ -393,6 +411,17 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
     heap_allocation_parts)
   */
   extra= sizeof(HP_PTRS) + MALLOC_OVERHEAD;
+
+  /*
+    Cap block allocations derived from max_records at
+    heap_max_allocation_block.  Only an explicit min_records from the
+    caller (CREATE TABLE ... MIN_ROWS) is a real row count expectation
+    and may pre-size beyond the cap; the 1000-row default min_records
+    is a heuristic and must not override the cap.
+  */
+  cap_records= (heap_max_allocation_block - extra) / recbuffer;
+  if (records_in_block > cap_records)
+    records_in_block= MY_MAX(requested_min_records, cap_records);
 
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
