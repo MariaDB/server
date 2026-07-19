@@ -92,15 +92,12 @@ err:
     DBUG_PRINT("info",("Duplicate key: %d", (int) (keydef - share->keydef)));
   info->errkey= (int) (keydef - share->keydef);
   /*
-    We don't need to delete non-inserted key from rb-tree.  Also, if
-    we got ENOMEM, the key wasn't inserted, so don't try to delete it
-    either.  Otherwise for HASH index on HA_ERR_FOUND_DUPP_KEY the key
-    was inserted and we have to delete it.
+    The failing key was never inserted: tree_insert() rejects
+    duplicates and fails allocation before linking the node, hash keys
+    are probed for duplicates before insert, and on ENOMEM nothing was
+    added.  Roll back only the preceding keys.
   */
-  if (keydef->algorithm == HA_KEY_ALG_BTREE || my_errno == ENOMEM)
-  {
-    keydef--;
-  }
+  keydef--;
 
 err_delete_written_keys:
   while (keydef >= share->keydef)
@@ -338,8 +335,8 @@ uchar *next_free_record_pos(HP_SHARE *info)
   RETURN
     0  - OK
     -1 - Out of memory
-    HA_ERR_FOUND_DUPP_KEY - Duplicate record on unique key. The record was 
-    still added and the caller must call hp_delete_key for it.
+    HA_ERR_FOUND_DUPP_KEY - Duplicate record on unique key. Nothing was
+    inserted; the index is unchanged.
 */
 
 int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
@@ -347,11 +344,41 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
 {
   HP_SHARE *share = info->s;
   int flag;
-  ulong halfbuff,hashnr,first_index;
+  ulong halfbuff,hashnr,first_index,rec_hash;
   ulong UNINIT_VAR(hash_of_key), UNINIT_VAR(hash_of_key2);
   uchar *UNINIT_VAR(ptr_to_rec),*UNINIT_VAR(ptr_to_rec2);
   HASH_INFO *empty,*UNINIT_VAR(gpos),*UNINIT_VAR(gpos2),*pos;
   DBUG_ENTER("hp_write_key");
+
+  rec_hash= hp_rec_hashnr(0, keyinfo, record);
+
+  /*
+    Reject a duplicate before modifying the index, so that the caller
+    never has to undo the insert (the undo would hash the key value a
+    second time, which is expensive for blob keys).  The probe walks
+    the key's chain under the current mask comparing cached hashes;
+    the full value is compared only on a hash match.  Records with
+    equal hashes always share a bucket under any mask, so probing the
+    pre-insert chain finds any duplicate.
+  */
+  if ((keyinfo->flag & HA_NOSAME) && share->records &&
+      (!(keyinfo->flag & HA_NULL_PART_KEY) ||
+       !hp_if_null_in_key(keyinfo, record)))
+  {
+    ulong search_pos= hp_mask(rec_hash, share->blength, share->records);
+    pos= hp_find_hash(&keyinfo->block, search_pos);
+    /* Only entries whose home position is search_pos belong to the chain */
+    if (hp_mask(pos->hash_of_key, share->blength, share->records) ==
+        search_pos)
+    {
+      do
+      {
+        if (pos->hash_of_key == rec_hash &&
+            !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, info))
+          DBUG_RETURN(my_errno=HA_ERR_FOUND_DUPP_KEY);
+      } while ((pos= pos->next_key));
+    }
+  }
 
   flag=0;
   if (!(empty= hp_find_free_hash(share,&keyinfo->block,share->records)))
@@ -491,13 +518,12 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
   }
   /* Check if we are at the empty position */
 
-  hash_of_key= hp_rec_hashnr(0, keyinfo, record);
   pos=hp_find_hash(&keyinfo->block,
-                   hp_mask(hash_of_key, share->blength, share->records + 1));
+                   hp_mask(rec_hash, share->blength, share->records + 1));
   if (pos == empty)
   {
     pos->ptr_to_rec=  recpos;
-    pos->hash_of_key= hash_of_key;
+    pos->hash_of_key= rec_hash;
     pos->next_key=    0;
     keyinfo->hash_buckets++;
   }
@@ -510,7 +536,7 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
 			      share->blength, share->records + 1));
 
     pos->ptr_to_rec=  recpos;
-    pos->hash_of_key= hash_of_key;
+    pos->hash_of_key= rec_hash;
     if (pos == gpos)
       pos->next_key=empty;
     else
@@ -518,22 +544,6 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
       keyinfo->hash_buckets++;
       pos->next_key= 0;
       hp_movelink(pos, gpos, empty);
-    }
-
-    /* Check if duplicated keys */
-    if ((keyinfo->flag & HA_NOSAME) && pos == gpos &&
-	(!(keyinfo->flag & HA_NULL_PART_KEY) ||
-	 !hp_if_null_in_key(keyinfo, record)))
-    {
-      pos=empty;
-      do
-      {
-	if (pos->hash_of_key == hash_of_key &&
-            ! hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, info))
-	{
-	  DBUG_RETURN(my_errno=HA_ERR_FOUND_DUPP_KEY);
-	}
-      } while ((pos=pos->next_key));
     }
   }
   DBUG_RETURN(0);

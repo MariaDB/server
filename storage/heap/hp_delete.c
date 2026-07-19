@@ -276,7 +276,23 @@ int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
   last_ptr=0;
 
   /* Search after record with key */
-  rec_hash= hp_rec_hashnr(0, keyinfo, record);
+  if (flag && info->current_hash_ptr &&
+      info->current_hash_ptr->ptr_to_rec == recpos)
+  {
+    /*
+      The row was positioned via this key: flag means keyinfo is the
+      last used index, and current_hash_ptr is only ever set by
+      hp_search()/hp_search_next() on that index (scan and rnd-pos
+      paths clear it).  Every HASH_INFO entry stores the hash of its
+      own record's key, so the entry for recpos gives the hash of
+      'record' without re-scanning the key value (expensive for blob
+      keys).
+    */
+    rec_hash= info->current_hash_ptr->hash_of_key;
+    DBUG_ASSERT(rec_hash == hp_rec_hashnr(0, keyinfo, record));
+  }
+  else
+    rec_hash= hp_rec_hashnr(0, keyinfo, record);
   key_pos= hp_mask(rec_hash, blength, share->records + 1);
   pos= hp_find_hash(&keyinfo->block, key_pos);
 
