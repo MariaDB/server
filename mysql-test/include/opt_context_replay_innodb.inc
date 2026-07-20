@@ -22,6 +22,11 @@ insert into t1 select seq, seq from seq_1_to_100;
 
 analyze table t1;
 
+set optimizer_record_context=ON;
+select count(*) from t1;
+--source include/opt_context_list_sys_vars.inc
+set optimizer_record_context=OFF;
+
 let $explain_query= explain format= json select * from t1 a,
     t1 b where a.c1 < 3 and b.c1 < 33;
 
