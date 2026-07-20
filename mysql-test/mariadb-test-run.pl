@@ -240,6 +240,10 @@ our @opt_mysqld_envs;
 
 my $opt_stress;
 my $opt_tail_lines= 20;
+my $opt_head_log;
+my $opt_tail_log;
+my $opt_head_warnings;
+my $opt_tail_warnings;
 
 my $opt_dry_run;
 
@@ -1271,7 +1275,18 @@ sub command_line_setup {
 	     'report-times'             => \$opt_report_times,
 	     'result-file'              => \$opt_resfile,
 	     'stress=s'                 => \$opt_stress,
+	     'head=i'                   => sub { $opt_head_log= $opt_head_warnings=
+						  $_[1];
+						$opt_tail_lines= $opt_tail_log=
+						  $opt_tail_warnings= 0 },
+	     'tail=i'                   => sub { $opt_tail_lines= $opt_tail_log=
+						  $opt_tail_warnings= $_[1];
+						$opt_head_log= $opt_head_warnings= 0 },
 	     'tail-lines=i'             => \$opt_tail_lines,
+	     'head-log=i'               => \$opt_head_log,
+	     'tail-log=i'               => \$opt_tail_log,
+	     'head-warnings=i'          => \$opt_head_warnings,
+	     'tail-warnings=i'          => \$opt_tail_warnings,
              'dry-run'                  => \$opt_dry_run,
 
              'help|h'                   => \$opt_usage,
@@ -1299,15 +1314,45 @@ sub command_line_setup {
     report_option('verbose', $opt_verbose);
   }
 
-  # Negative values aren't meaningful on integer options
+  # Negative values aren't meaningful on integer options, except the tail-*
+  # options where a negative value means "everything".
+  my %tail_opt= map { $_ => 1 }
+    qw(head=i tail=i tail-lines=i head-log=i tail-log=i head-warnings=i tail-warnings=i);
   foreach(grep(/=i$/, keys %options))
   {
+    next if $tail_opt{$_};
     if (defined ${$options{$_}} &&
         do { no warnings "numeric"; int ${$options{$_}} < 0})
     {
       my $v= (split /=/)[0];
       die("$v doesn't accept a negative value:");
     }
+  }
+
+  # mysqltest caps --tail-lines at 10000 and rejects negatives, so map a
+  # negative ("everything") to that maximum.
+  $opt_tail_lines= 10000 if $opt_tail_lines < 0;
+
+  # --head-log/--tail-log trim the server error log in a crash report to its
+  # first/last lines.  With neither given the whole log is kept; giving one
+  # alone switches the other end off.
+  if (defined $opt_head_log || defined $opt_tail_log) {
+    $opt_head_log //= 0;
+    $opt_tail_log //= 0;
+  }
+  else {
+    $opt_head_log= 0;
+    $opt_tail_log= -1;
+  }
+
+  # Same for --head-warnings/--tail-warnings on the shutdown-warnings report.
+  if (defined $opt_head_warnings || defined $opt_tail_warnings) {
+    $opt_head_warnings //= 0;
+    $opt_tail_warnings //= 0;
+  }
+  else {
+    $opt_head_warnings= 0;
+    $opt_tail_warnings= -1;
   }
 
   # Find the absolute path to the test directory
@@ -4392,13 +4437,32 @@ sub extract_server_log ($$) {
 # Return as a single string
 #
 
+# Trim an excerpt (arrayref of lines) to its first $head and last $tail lines.
+#  For each of $head/$tail: <0 = unbounded, 0 = none, N = that many lines.
+#  A line is kept if it falls within the first $head or the last $tail; the
+#  omitted middle is replaced with a "< snip M lines >" marker.
+sub splice_lines {
+  my ($lines, $head, $tail)= @_;
+  my $total= @$lines;
+  return @$lines if $head < 0 || $tail < 0 || $head + $tail >= $total;
+  return () if $head == 0 && $tail == 0;
+  my $snipped= $total - $head - $tail;
+  return (@$lines[0 .. $head - 1],
+          "< snip $snipped lines >\n",
+          @$lines[$total - $tail .. $total - 1]);
+}
+
 sub get_log_from_proc ($$) {
   my ($proc, $name)= @_;
   my $srv_log= "";
 
+  return $srv_log if $opt_head_log == 0 && $opt_tail_log == 0;
+
   foreach my $mysqld (all_servers()) {
     if ($mysqld->{proc} eq $proc) {
-      my @srv_lines= extract_server_log($mysqld->if_exist('log-error'), $name);
+      my @srv_lines=
+        splice_lines([extract_server_log($mysqld->if_exist('log-error'), $name)],
+                     $opt_head_log, $opt_tail_log);
       $srv_log= "\nServer log from this test:\n" .
 	"----------SERVER LOG START-----------\n". join ("", @srv_lines) .
 	"----------SERVER LOG END-------------\n";
@@ -4782,18 +4846,19 @@ sub check_warnings ($) {
 sub check_warnings_post_shutdown {
   my ($server_socket)= @_;
   my $testname_hash= { };
-  my $report= '';
+  my @match_all;
   foreach my $mysqld ( mysqlds())
   {
     my ($testlist, $match_lines)=
         extract_warning_lines($mysqld->value('log-error'), 1);
     $testname_hash->{$_}= 1 for @$testlist;
-    $report.= join('', @$match_lines);
+    push @match_all, @$match_lines;
   }
   my @warning_tests= keys(%$testname_hash);
   if (@warning_tests) {
     my $fake_test= My::Test->new(testnames => \@warning_tests);
-    $fake_test->{'warnings'}= $report;
+    $fake_test->{'warnings'}=
+      join('', splice_lines(\@match_all, $opt_head_warnings, $opt_tail_warnings));
     $fake_test->write_test($server_socket, 'WARNINGS');
   }
 }
@@ -6101,8 +6166,25 @@ Misc options
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
   xml-report=<file>     Output jUnit xml file of the results.
-  tail-lines=N          Number of lines of the result to include in a failure
-                        report.
+  tail-lines=N          Number of lines of the mysqltest result to include in
+                        a failure report. 0 disables it, negative includes all
+                        (max 10000); default 20.
+  head=N                Shortcut to set the head-* options to N and the tail-*
+                        options to 0.
+  tail=N                Shortcut to set the tail-* options to N and the head-*
+                        options to 0.
+  head-log=N            Keep the first N lines of the server error log in a
+                        crash report (0 none, negative all).  With neither
+                        head-log nor tail-log given the whole log is kept;
+                        giving one alone drops the opposite end, giving both
+                        keeps both ends with the middle snipped.
+  tail-log=N            Like head-log but keeps the last N lines.
+  head-warnings=N       Keep the first N suspicious lines of the shutdown-
+                        warnings report (0 none, negative all).  With neither
+                        head-warnings nor tail-warnings given the whole report
+                        is kept; giving one alone drops the opposite end,
+                        giving both keeps both ends with the middle snipped.
+  tail-warnings=N       Like head-warnings but keeps the last N lines.
 
 Some options that control enabling a feature for normal test runs,
 can be turned off by prepending 'no' to the option, e.g. --notimer.
