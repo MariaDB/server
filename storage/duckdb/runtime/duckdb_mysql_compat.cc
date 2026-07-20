@@ -24,7 +24,6 @@
   queries from MariaDB work without SQL text rewriting.  Registered
   once at DuckdbManager::Initialize() via register_mysql_compat_functions().
 
-  hex/oct/bin implementations ported from AliSQL's DuckDB fork.
 */
 
 #include <my_global.h>
@@ -378,7 +377,6 @@ static void json_contains_3arg_func(duckdb::DataChunk &args,
 
 /* ================================================================
    hex / oct / bin helper functions
-   Ported from AliSQL's DuckDB fork (core_functions/scalar/string/hex.cpp).
    ================================================================ */
 
 namespace {
@@ -1389,7 +1387,7 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     catalog.CreateFunction(transaction, info);
   }
 
-  /* hex() -- full AliSQL-compatible overloads */
+  /* hex() -- full overloads */
   {
     using namespace duckdb;
     ScalarFunctionSet set("hex");
@@ -1422,7 +1420,7 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     catalog.CreateFunction(transaction, info);
   }
 
-  /* oct() -- full AliSQL-compatible overloads */
+  /* oct() -- full overloads */
   {
     using namespace duckdb;
     ScalarFunctionSet set("oct");
@@ -1455,7 +1453,7 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     catalog.CreateFunction(transaction, info);
   }
 
-  /* bin() -- full AliSQL-compatible overloads */
+  /* bin() -- full overloads */
   {
     using namespace duckdb;
     ScalarFunctionSet set("bin");

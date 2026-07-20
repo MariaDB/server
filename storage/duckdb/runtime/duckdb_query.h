@@ -34,8 +34,15 @@ namespace myduck
 duckdb::unique_ptr<duckdb::MaterializedQueryResult>
 duckdb_query(duckdb::Connection &connection, const std::string &query);
 
+duckdb::unique_ptr<duckdb::QueryResult>
+duckdb_stream_query(duckdb::Connection &connection, const std::string &query);
+
 duckdb::unique_ptr<duckdb::MaterializedQueryResult>
 duckdb_query(THD *thd, const std::string &query, bool need_config= true);
+
+duckdb::unique_ptr<duckdb::QueryResult>
+duckdb_stream_query(THD *thd, const std::string &query,
+                    bool need_config= true);
 
 duckdb::unique_ptr<duckdb::MaterializedQueryResult>
 duckdb_query(const std::string &query);

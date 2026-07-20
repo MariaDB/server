@@ -90,6 +90,142 @@ can_pushdown_unit_to_duckdb(SELECT_LEX_UNIT *unit,
 
 /* ----- Factory functions ----- */
 
+static bool is_query_token(const std::string &sql, size_t start, size_t length)
+{
+  static const char select_kw[]= "select";
+  static const char with_kw[]= "with";
+  const char *keyword= length == 6 ? select_kw : length == 4 ? with_kw : nullptr;
+  if (!keyword)
+    return false;
+  for (size_t i= 0; i < length; i++)
+    if (tolower((unsigned char) sql[start + i]) != keyword[i])
+      return false;
+  return true;
+}
+
+static bool extract_source_query(THD *thd, std::string &source)
+{
+  const std::string sql(thd->query(), thd->query_length());
+  const bool strip_prefix= thd->lex->sql_command == SQLCOM_INSERT_SELECT;
+  const bool backslash_escapes= thd->backslash_escapes();
+  size_t i= 0;
+  int depth= 0;
+
+  while (i < sql.size())
+  {
+    unsigned char c= (unsigned char) sql[i];
+    if (isspace(c))
+    {
+      i++;
+      continue;
+    }
+    if (c == '/' && i + 1 < sql.size() && sql[i + 1] == '*')
+    {
+      size_t end= sql.find("*/", i + 2);
+      if (end == std::string::npos)
+        return false;
+      i= end + 2;
+      continue;
+    }
+    if (c == '#' ||
+        (c == '-' && i + 1 < sql.size() && sql[i + 1] == '-' &&
+         (i + 2 == sql.size() || isspace((unsigned char) sql[i + 2]))))
+    {
+      size_t end= sql.find('\n', i + (c == '#' ? 1 : 2));
+      i= end == std::string::npos ? sql.size() : end + 1;
+      continue;
+    }
+    if (c == '\'' || c == '"' || c == '`')
+    {
+      if (!strip_prefix && depth == 0)
+        return false;
+      const char quote= (char) c;
+      bool closed= false;
+      for (i++; i < sql.size(); i++)
+      {
+        if (sql[i] == '\\' && backslash_escapes && i + 1 < sql.size())
+        {
+          i++;
+          continue;
+        }
+        if (sql[i] != quote)
+          continue;
+        if (i + 1 < sql.size() && sql[i + 1] == quote)
+        {
+          i++;
+          continue;
+        }
+        i++;
+        closed= true;
+        break;
+      }
+      if (!closed)
+        return false;
+      continue;
+    }
+    if (c == '(')
+    {
+      if (!strip_prefix && depth == 0)
+        return false;
+      depth++;
+      i++;
+      continue;
+    }
+    if (c == ')')
+    {
+      if (depth == 0)
+        return false;
+      depth--;
+      i++;
+      continue;
+    }
+    if (isalpha(c) || c == '_' || c >= 0x80)
+    {
+      size_t start= i++;
+      while (i < sql.size())
+      {
+        unsigned char token_char= (unsigned char) sql[i];
+        if (!isalnum(token_char) && token_char != '_' && token_char != '$' &&
+            token_char < 0x80)
+          break;
+        i++;
+      }
+      bool query_token= depth == 0 && is_query_token(sql, start, i - start);
+      if (!strip_prefix)
+      {
+        if (!query_token)
+          return false;
+        source= sql;
+        return true;
+      }
+      if (query_token)
+      {
+        source= sql.substr(start);
+        return true;
+      }
+      continue;
+    }
+    if (!strip_prefix && depth == 0)
+      return false;
+    i++;
+  }
+  return false;
+}
+
+static bool has_duckdb_insert_target(THD *thd)
+{
+  if (thd->lex->sql_command != SQLCOM_INSERT_SELECT)
+    return false;
+  TABLE_LIST *target= thd->lex->query_tables;
+  return !target || !target->table || target->table->file->ht == duckdb_hton;
+}
+
+static bool has_unsupported_insert_select_clauses(THD *thd)
+{
+  return thd->lex->sql_command == SQLCOM_INSERT_SELECT &&
+         (thd->lex->duplicates == DUP_UPDATE || thd->lex->has_returning());
+}
+
 select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
                                              SELECT_LEX_UNIT *sel_unit)
 {
@@ -100,7 +236,12 @@ select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
       thd->lex->sql_command != SQLCOM_INSERT_SELECT)
     return nullptr;
 
-  if (!sel_lex)
+  if (!sel_lex || has_duckdb_insert_target(thd) ||
+      has_unsupported_insert_select_clauses(thd))
+    return nullptr;
+
+  std::string query;
+  if (!extract_source_query(thd, query))
     return nullptr;
 
   std::vector<std::string> external_tables;
@@ -117,7 +258,8 @@ select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
   if (sel_lex->uncacheable & UNCACHEABLE_SIDEEFFECT)
     return nullptr;
 
-  auto *handler= new ha_duckdb_select_handler(thd, sel_lex, sel_unit);
+  auto *handler=
+      new ha_duckdb_select_handler(thd, sel_lex, sel_unit, std::move(query));
   if (!external_tables.empty())
   {
     handler->set_cross_engine(std::move(external_tables));
@@ -132,13 +274,20 @@ select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
 
 select_handler *create_duckdb_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit)
 {
-  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW)
+  if ((thd->lex->sql_command != SQLCOM_SELECT &&
+       thd->lex->sql_command != SQLCOM_INSERT_SELECT) ||
+      has_duckdb_insert_target(thd) ||
+      has_unsupported_insert_select_clauses(thd))
     return nullptr;
 
   if (thd->stmt_arena && thd->stmt_arena->is_stmt_prepare())
     return nullptr;
 
   if (!sel_unit)
+    return nullptr;
+
+  std::string query;
+  if (!extract_source_query(thd, query))
     return nullptr;
 
   std::vector<std::string> external_tables;
@@ -151,7 +300,8 @@ select_handler *create_duckdb_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit)
   if (!has_duckdb_table)
     return nullptr;
 
-  auto *handler= new ha_duckdb_select_handler(thd, sel_unit);
+  auto *handler=
+      new ha_duckdb_select_handler(thd, sel_unit, std::move(query));
   if (!external_tables.empty())
   {
     handler->set_cross_engine(std::move(external_tables));
@@ -168,29 +318,23 @@ select_handler *create_duckdb_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit)
 
 ha_duckdb_select_handler::ha_duckdb_select_handler(THD *thd_arg,
                                                    SELECT_LEX *sel_lex,
-                                                   SELECT_LEX_UNIT *sel_unit)
+                                                   SELECT_LEX_UNIT *sel_unit,
+                                                   std::string &&query)
     : select_handler(thd_arg, duckdb_hton, sel_lex, sel_unit),
       current_row_index(0), query_string(thd_arg->charset())
 {
   query_string.length(0);
-
-  /*
-    Use the original SQL text from THD instead of SELECT_LEX::print().
-    SELECT_LEX::print() converts implicit (comma) joins into explicit
-    "JOIN" without ON clauses, which DuckDB's parser rejects.
-    The select_handler intercepts the full query in all cases
-    (simple SELECT and UNION), so the original text is always usable.
-  */
-  query_string.append(thd_arg->query(), thd_arg->query_length());
+  query_string.append(query.c_str(), query.length());
 }
 
 ha_duckdb_select_handler::ha_duckdb_select_handler(THD *thd_arg,
-                                                   SELECT_LEX_UNIT *sel_unit)
+                                                   SELECT_LEX_UNIT *sel_unit,
+                                                   std::string &&query)
     : select_handler(thd_arg, duckdb_hton, sel_unit), current_row_index(0),
       query_string(thd_arg->charset())
 {
   query_string.length(0);
-  query_string.append(thd_arg->query(), thd_arg->query_length());
+  query_string.append(query.c_str(), query.length());
 }
 
 ha_duckdb_select_handler::~ha_duckdb_select_handler()= default;
@@ -712,7 +856,7 @@ int ha_duckdb_select_handler::init_scan()
     }
   }
 
-  query_result= myduck::duckdb_query(thd, sql, true);
+  query_result= myduck::duckdb_stream_query(thd, sql, true);
 
   if (!query_result || query_result->HasError())
   {
@@ -745,7 +889,15 @@ int ha_duckdb_select_handler::next_row()
     current_chunk= query_result->Fetch();
 
     if (!current_chunk || current_chunk->size() == 0)
+    {
+      if (query_result->HasError())
+      {
+        my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_INTERNAL_ERROR,
+                 query_result->GetError().c_str(), "DuckDB");
+        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      }
       DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
 
     current_row_index= 0;
   }
