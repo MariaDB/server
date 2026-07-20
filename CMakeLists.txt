@@ -16,6 +16,8 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.12.0)
 
+MESSAGE(STATUS "Using CMake version ${CMAKE_VERSION}")
+
 IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   # Setting build type to RelWithDebInfo as none was specified.
   # Must occur before PROJECT
