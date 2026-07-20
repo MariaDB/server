@@ -3205,7 +3205,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                                 char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
-  my_bool    is_generated=0;
+  my_bool    is_generated=0, all_generated=0;
   my_ulonglong num_fields;
   char       *result_table, *opt_quoted_table;
   const char *insert_option;
@@ -3522,6 +3522,25 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       DBUG_RETURN(0);
     }
 
+    /*
+      Detect tables where every column is generated. Otherwise, skipping all
+      generated columns under --complete-insert would leave INSERT with an
+      empty column list, causing dump_table() to bail on num_fields == 0 and
+      lose row counts on reload (MDEV-40217).
+    */
+    all_generated= 1;
+    while ((row= mysql_fetch_row(result)))
+    {
+      bool is_row_start= row[2] && strcmp(row[2], "ROW START") == 0;
+      bool is_row_end= row[2] && strcmp(row[2], "ROW END") == 0;
+      if (!(strstr(row[1], "GENERATED") && !is_row_start && !is_row_end))
+      {
+        all_generated= 0;
+        break;
+      }
+    }
+    mysql_data_seek(result, 0);
+
     while ((row= mysql_fetch_row(result)))
     {
       bool is_row_start= row[2] && strcmp(row[2], "ROW START") == 0;
@@ -3547,9 +3566,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       /*
         When complete_insert is enabled, skip generated columns entirely.
         Otherwise, include them and mark them so DEFAULT is emitted.
+        Exception: if every column is generated, keep them all so DEFAULT is
+        emitted for their values and rows are preserved on reload.
       */
       if (is_generated && !path && !opt_dir && !opt_dump_history &&
-          complete_insert)
+          complete_insert && !all_generated)
         continue;
 
       dynstr_append_mem_checked(&field_flags, "", 1);

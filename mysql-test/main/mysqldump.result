@@ -8285,6 +8285,40 @@ pk	a	b	c	d
 1	2	3	10	3
 4	5	6	20	9
 DROP TABLE t3, t4;
+# Table with only generated columns (MDEV-40217)
+CREATE TABLE t5 (a INT GENERATED ALWAYS AS (1) VIRTUAL,
+b INT GENERATED ALWAYS AS (2) STORED
+) engine=innodb;
+INSERT INTO t5 () VALUES (),(),();
+SELECT * FROM t5;
+a	b
+1	2
+1	2
+1	2
+# Default (extended insert) - generated columns use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t5` VALUES
+(DEFAULT,DEFAULT),
+(DEFAULT,DEFAULT),
+(DEFAULT,DEFAULT);
+# Without extended insert - generated columns use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t5` VALUES (DEFAULT,DEFAULT);
+INSERT INTO `t5` VALUES (DEFAULT,DEFAULT);
+INSERT INTO `t5` VALUES (DEFAULT,DEFAULT);
+# With --complete-insert - all generated columns kept, values use DEFAULT
+/*M!999999\- enable the sandbox mode */ 
+INSERT INTO `t5` (`a`, `b`) VALUES (DEFAULT,DEFAULT),
+(DEFAULT,DEFAULT),
+(DEFAULT,DEFAULT);
+# Dump/reload roundtrip preserves row count
+DELETE FROM t5;
+SELECT * FROM t5;
+a	b
+1	2
+1	2
+1	2
+DROP TABLE t5;
 DROP DATABASE dump_generated;
 USE test;
 # End of 13.2 tests

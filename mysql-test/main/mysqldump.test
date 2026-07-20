@@ -3480,6 +3480,29 @@ SELECT pk, a, b, sum FROM t3;
 SELECT pk, a, b, c, d FROM t4;
 DROP TABLE t3, t4;
 
+--echo # Table with only generated columns (MDEV-40217)
+CREATE TABLE t5 (a INT GENERATED ALWAYS AS (1) VIRTUAL,
+                 b INT GENERATED ALWAYS AS (2) STORED
+) engine=innodb;
+INSERT INTO t5 () VALUES (),(),();
+SELECT * FROM t5;
+
+--echo # Default (extended insert) - generated columns use DEFAULT
+--exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments dump_generated t5
+
+--echo # Without extended insert - generated columns use DEFAULT
+--exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments --skip-extended-insert dump_generated t5
+
+--echo # With --complete-insert - all generated columns kept, values use DEFAULT
+--exec $MYSQL_DUMP --compact --no-autocommit=0 --no-create-info --skip-comments --complete-insert dump_generated t5
+
+--echo # Dump/reload roundtrip preserves row count
+--exec $MYSQL_DUMP --complete-insert dump_generated t5 > $MYSQLTEST_VARDIR/tmp/t5.sql
+DELETE FROM t5;
+--exec $MYSQL dump_generated < $MYSQLTEST_VARDIR/tmp/t5.sql
+SELECT * FROM t5;
+DROP TABLE t5;
+
 DROP DATABASE dump_generated;
 USE test;
 
