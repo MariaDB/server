@@ -4,7 +4,6 @@
 # DuckDB monitoring status variables test.
 #
 # We test plugin-level status variables (Duckdb_*).
-# AliSQL Com_duckdb_* counters are server-side and not available in MariaDB.
 #
 
 # restart to reset status counters

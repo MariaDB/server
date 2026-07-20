@@ -647,6 +647,9 @@ int ha_duckdb::rnd_init(bool)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
 
+  current_chunk.reset();
+  current_row_index= 0;
+
   for (auto *field= table->field; *field; ++field)
     bitmap_set_bit(table->write_set, (*field)->field_index);
 
@@ -678,7 +681,15 @@ int ha_duckdb::rnd_next(uchar *buf)
     current_chunk= query_result->Fetch();
 
     if (!current_chunk)
+    {
+      if (query_result->HasError())
+      {
+        my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_INTERNAL_ERROR,
+                 query_result->GetError().c_str(), "DuckDB");
+        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      }
       DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
     current_row_index= 0;
   }
 
@@ -1189,7 +1200,7 @@ bool ha_duckdb::commit_inplace_alter_table(TABLE *altered_table,
 
 my_bool allow_run_in_duckdb= FALSE;
 
-/* ---- AliSQL-specific global variables (no DuckDB push) ---- */
+/* ---- global variables (no DuckDB push) ---- */
 
 static MYSQL_SYSVAR_BOOL(allow_run_in_duckdb, allow_run_in_duckdb,
                          PLUGIN_VAR_RQCMDARG,

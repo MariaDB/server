@@ -77,6 +77,35 @@ duckdb_query(duckdb::Connection &connection, const std::string &query)
   }
 }
 
+duckdb::unique_ptr<duckdb::QueryResult>
+duckdb_stream_query(duckdb::Connection &connection, const std::string &query)
+{
+  const std::string q= backticks_to_double_quotes(query);
+
+  if (myduck::duckdb_log_options & LOG_DUCKDB_QUERY)
+    sql_print_information("DuckDB query: %s", q.c_str());
+
+  try
+  {
+    auto res= connection.SendQuery(q, duckdb::QueryResultOutputType::ALLOW_STREAMING);
+
+    if ((myduck::duckdb_log_options & LOG_DUCKDB_QUERY_RESULT) &&
+        res->HasError())
+      sql_print_information("DuckDB error: %s", res->GetError().c_str());
+    return res;
+  }
+  catch (duckdb::Exception &e)
+  {
+    return duckdb::make_uniq<duckdb::MaterializedQueryResult>(
+        duckdb::ErrorData(e.what()));
+  }
+  catch (std::exception &e)
+  {
+    return duckdb::make_uniq<duckdb::MaterializedQueryResult>(
+        duckdb::ErrorData(e.what()));
+  }
+}
+
 static std::string get_thd_schema(THD *thd)
 {
   if (thd->db.str && thd->db.length > 0)
@@ -102,6 +131,26 @@ duckdb_query(THD *thd, const std::string &query, bool need_config)
   }
 
   return duckdb_query(ctx->get_connection(), query);
+}
+
+duckdb::unique_ptr<duckdb::QueryResult>
+duckdb_stream_query(THD *thd, const std::string &query, bool need_config)
+{
+  auto *ctx=
+      static_cast<DuckdbThdContext *>(thd_get_ha_data(thd, duckdb_hton));
+  if (!ctx)
+  {
+    ctx= new DuckdbThdContext();
+    thd_set_ha_data(thd, duckdb_hton, ctx);
+  }
+
+  if (need_config)
+  {
+    ctx->config_duckdb_env(get_thd_schema(thd));
+    ctx->config_duckdb_session(thd);
+  }
+
+  return duckdb_stream_query(ctx->get_connection(), query);
 }
 
 duckdb::unique_ptr<duckdb::MaterializedQueryResult>

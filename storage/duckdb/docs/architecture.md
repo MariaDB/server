@@ -74,6 +74,25 @@ MariaDB parser
         → end_scan(): releases result
 ```
 
+#### Single-SELECT pushdown eligibility
+
+The single-SELECT handler declines pushdown when MariaDB marks the top-level
+`SELECT_LEX` with `UNCACHEABLE_SIDEEFFECT`. The regular handler path (`rnd_*`)
+is used instead. MariaDB sets this flag for:
+
+- reads and assignments of user variables (`@var`, `@var := expr`);
+- reads of session or global system variables (`@@session.var`, `@@global.var`);
+- `LAST_INSERT_ID()`, `BENCHMARK()`, `SLEEP()`, and `LOAD_FILE()`;
+- named-lock functions (`GET_LOCK()`, `IS_FREE_LOCK()`, `IS_USED_LOCK()`,
+  `RELEASE_LOCK()`, and `RELEASE_ALL_LOCKS()`);
+- `SELECT ... INTO OUTFILE`, `INTO DUMPFILE`, or `INTO` variables;
+- the `PROCEDURE` clause.
+
+`UNCACHEABLE_RAND` is a separate flag and does not by itself disable DuckDB
+pushdown. This eligibility check currently applies to the single-SELECT factory;
+the whole-unit `UNION`/`EXCEPT`/`INTERSECT` factory does not perform the same
+side-effect check.
+
 ### Path 1a: Cross-Engine Queries
 
 When a SELECT mixes tables from **different engines** (DuckDB + InnoDB, etc.):
