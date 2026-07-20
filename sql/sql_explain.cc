@@ -1818,6 +1818,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer,
     case ET_SKIP_OPEN_TABLE:
       writer->add_member("skip_open_table").add_bool(true);
       break;
+    case ET_IS_FAST_PATH:
+      writer->add_member("is_fast_path").add_bool(true);
+      break;
     case ET_OPEN_FRM_ONLY:
       writer->add_member("open_frm_only").add_bool(true);
       break;
@@ -2416,6 +2419,7 @@ const LEX_CSTRING extra_tag_text[]=
   { STRING_WITH_LEN("Scanned 0 databases") },
   { STRING_WITH_LEN("Scanned 1 database") },
   { STRING_WITH_LEN("Scanned all databases") },
+  { STRING_WITH_LEN("I_S fast path") },
 
   { STRING_WITH_LEN("Using index for group-by") }, // special handling
   { STRING_WITH_LEN("USING MRR: DONT PRINT ME") }, // special handling

@@ -31460,6 +31460,8 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         eta->push_extra(ET_SCANNED_1_DATABASE);
       else
         eta->push_extra(ET_SCANNED_ALL_DATABASES);
+      if (table_list->is_table_read_plan->is_optimized_query)
+        eta->push_extra(ET_IS_FAST_PATH);
     }
 
     if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)

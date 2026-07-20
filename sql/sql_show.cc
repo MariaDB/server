@@ -4184,6 +4184,102 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
 /* This is only used internally, but we need it here as a forward reference */
 extern ST_SCHEMA_TABLE schema_tables[];
 
+/**
+  Detect if an I_S query can bypass temp table materialization.
+  Qualifies if: no ORDER BY, no GROUP BY, no DISTINCT, no aggregates.
+*/
+static bool is_simple_is_query(THD *thd)
+{
+  SELECT_LEX *sel= thd->lex->current_select;
+  if (!sel)
+    return false;
+  /* Reject UNION queries */
+  if (sel->master_unit()->first_select()->next_select())
+  {
+    DBUG_PRINT("info", ("has UNION, using fallback path"));
+    return false;
+  }
+  /* Reject subqueries (scalar subquery context) */
+  if (sel->master_unit()->item)
+  {
+    DBUG_PRINT("info", ("is subquery, using fallback path"));
+    return false;
+  }
+  if (sel->order_list.elements)
+  {
+    DBUG_PRINT("info", ("has ORDER BY, using fallback path"));
+    return false;
+  }
+  if (sel->group_list.elements)
+  {
+    DBUG_PRINT("info", ("has GROUP BY, using fallback path"));
+    return false;
+  }
+  if (sel->having)
+  {
+    DBUG_PRINT("info", ("has HAVING, using fallback path"));
+    return false;
+  }
+  if (sel->options & SELECT_DISTINCT)
+  {
+    DBUG_PRINT("info", ("has DISTINCT, using fallback path"));
+    return false;
+  }
+  if (sel->with_sum_func)
+  {
+    DBUG_PRINT("info", ("has aggregates, using fallback path"));
+    return false;
+  }
+  /* Reject SELECT * (wildcard expansion not yet validated) */
+  if (sel->with_wild)
+  {
+    DBUG_PRINT("info", ("has SELECT *, using fallback path"));
+    return false;
+  }
+  /*
+    Only allow plain column references in the SELECT list (no
+    constants, expressions, or function calls), since those are the
+    only shapes validated against the fast path so far.
+  */
+  {
+    List_iterator_fast<Item> it(sel->item_list);
+    Item *item;
+    while ((item= it++))
+    {
+      if (item->real_item()->type() != Item::FIELD_ITEM)
+      {
+        DBUG_PRINT("info", ("non-field item in SELECT list, "
+                             "using fallback path"));
+        return false;
+      }
+    }
+  }
+  /*
+    Only allow no LIMIT, or LIMIT 1 exactly (the single-row early-exit
+    case, which is tested and proven correct). Any other LIMIT n is
+    rejected for now until validated against the fast path.
+  */
+  if (sel->limit_params.explicit_limit &&
+      sel->limit_params.select_limit &&
+      (!sel->limit_params.select_limit->const_item() ||
+       sel->limit_params.select_limit->val_int() != 1))
+  {
+    DBUG_PRINT("info", ("has LIMIT != 1, using fallback path"));
+    return false;
+  }
+  if (sel->limit_params.offset_limit)
+  {
+    DBUG_PRINT("info", ("has OFFSET, using fallback path"));
+    return false;
+  }
+  if (sel->options & OPTION_FOUND_ROWS)
+  {
+    DBUG_PRINT("info", ("has SQL_CALC_FOUND_ROWS, using fallback path"));
+    return false;
+  }
+  return true;
+}
+
 /*
   Store record to I_S table, convert HEAP table
   to MyISAM if necessary
@@ -4208,6 +4304,88 @@ bool schema_table_store_record(THD *thd, TABLE *table)
     return 1;
   }
 
+  /*
+    Fast path: when the query has been identified as a simple I_S
+    lookup, skip the temp table entirely. Send metadata lazily on the
+    first row, then stream each row's fields directly to the client,
+    using the I_S table's Field objects already populated by the fill
+    function in table->record[0].
+  */
+  {
+    IS_table_read_plan *plan=
+      table->pos_in_table_list->is_table_read_plan;
+    if (plan && plan->fp_state != IS_table_read_plan::FP_INACTIVE)
+    {
+      DBUG_PRINT("info", ("MDEV-31342 FAST PATH: skipping "
+                           "ha_write_tmp_row, streaming directly"));
+      Protocol *protocol= thd->protocol;
+      List<Item> *proj= plan->projection_fields;
+      if (plan->fp_state == IS_table_read_plan::FP_ACTIVE)
+      {
+        if (proj)
+        {
+          if (protocol->send_result_set_metadata(
+                proj,
+                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+            return 1;
+        }
+        else
+        {
+          /* Build field list once and cache in projection_fields */
+          List<Item> *field_list=
+            new (thd->mem_root) List<Item>();
+          if (!field_list)
+            return 1;
+          for (Field **f= table->field; *f; f++)
+          {
+            Item_field *item= new (thd->mem_root) Item_field(thd, *f);
+            if (!item || field_list->push_back(item))
+              return 1;
+          }
+          plan->projection_fields= field_list;
+          proj= field_list;
+          if (protocol->send_result_set_metadata(
+                proj,
+                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+            return 1;
+        }
+        plan->fp_state= IS_table_read_plan::FP_STREAMING;
+      }
+
+      /*
+        Skip row if it does not match the complete original condition.
+        partial_cond is a pruning-only subset (see make_cond_for_info_schema)
+        and is NOT sufficient on its own to gate correctness here, since it
+        silently drops conjuncts on fields outside the schema-table index
+        (e.g. TABLE_CATALOG) and is built before HAVING pushdown in some
+        cases. full_cond is the complete condition and must be checked.
+      */
+      if (plan->full_cond && !plan->full_cond->val_bool())
+        return 0;
+      if (proj)
+      {
+        protocol->prepare_for_resend();
+        if (protocol->send_result_set_row(proj))
+          return 1;
+        if (protocol->write())
+          return 1;
+        return 0;
+      }
+      protocol->prepare_for_resend();
+      for (Field **f= table->field; *f; f++)
+      {
+        if ((*f)->is_null())
+          protocol->store_null();
+        else if (protocol->store(*f))
+          return 1;
+      }
+      if (protocol->write())
+        return 1;
+      return 0;
+    }
+  }
+
+  DBUG_PRINT("info", ("MDEV-31342 SLOW PATH: calling ha_write_tmp_row"));
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     TMP_TABLE_PARAM *param= table->pos_in_table_list->schema_table_param;
@@ -4215,7 +4393,6 @@ bool schema_table_store_record(THD *thd, TABLE *table)
                                                      param->start_recinfo,
                                                      &param->recinfo, error, 0,
                                                      NULL)))
-
       return 1;
   }
   return 0;
@@ -5694,6 +5871,12 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
             if (schema_table_store_record(thd, table))
               goto err;      /* Out of space in temporary table */
+            if (plan->is_single_row &&
+                plan->fp_state != IS_table_read_plan::FP_INACTIVE)
+            {
+              error= 0;
+              goto err;
+            }
             continue;
           }
 
@@ -9696,6 +9879,21 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
     }
   }
 
+  /* Mark simple queries for fast path */
+  if (is_simple_is_query(thd) &&
+      get_schema_table_idx(schema_table) == SCH_TABLES &&
+      tables->table_open_method == SKIP_OPEN_TABLE)
+  {
+    DBUG_PRINT("info", ("simple query qualifies for I_S fast path"));
+    plan->is_optimized_query= true;
+    SELECT_LEX *sel= thd->lex->current_select;
+    if (sel && sel->limit_params.select_limit &&
+        sel->limit_params.select_limit->const_item() &&
+        sel->limit_params.select_limit->val_int() == 1)
+      plan->is_single_row= true;
+  }
+
+  plan->full_cond= cond;
   if (plan->has_db_lookup_value() && plan->has_table_lookup_value())
     plan->partial_cond= 0;
   else
@@ -9911,7 +10109,16 @@ bool get_schema_tables_result(JOIN *join,
       */
       if (table_list->schema_table_state &&
           (!is_subselect || table_list->schema_table_state != executed_place))
+      {
+        IS_table_read_plan *skip_plan= table_list->is_table_read_plan;
+        if (skip_plan &&
+            skip_plan->fp_state != IS_table_read_plan::FP_INACTIVE)
+        {
+          result= 1;
+          break;
+        }
         continue;
+      }
 
       /*
         if table is used in a subselect and
@@ -9924,10 +10131,19 @@ bool get_schema_tables_result(JOIN *join,
         table_list->table->file->extra(HA_EXTRA_RESET_STATE);
         table_list->table->file->ha_delete_all_rows();
         table_list->table->null_row= 0;
+        /* Reset fast-path state for re-execution */
+        if (table_list->is_table_read_plan)
+          table_list->is_table_read_plan->fp_state=
+            IS_table_read_plan::FP_INACTIVE;
       }
       else
+      {
         table_list->table->file->stats.records= 0;
-  
+        if (table_list->is_table_read_plan)
+          table_list->is_table_read_plan->fp_state=
+            IS_table_read_plan::FP_INACTIVE;
+      }
+
       Item *cond= tab->select_cond;
       if (tab->cache_select && tab->cache_select->cond)
       {
@@ -9944,6 +10160,34 @@ bool get_schema_tables_result(JOIN *join,
 
       Switch_to_definer_security_ctx backup_ctx(thd, table_list);
       Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+
+      IS_table_read_plan *plan= table_list->is_table_read_plan;
+      /*
+        Structural eligibility (SCH_TABLES, SKIP_OPEN_TABLE, simple query
+        shape) was already verified in optimize_for_get_all_tables() and
+        encoded in plan->is_optimized_query. Here we check only runtime
+        conditions that cannot be determined at optimization time.
+      */
+      bool use_fast_path= (plan && plan->is_optimized_query &&
+                           !thd->bootstrap && !thd->spcont &&
+                           !is_show_command(thd) &&
+                           join->result &&
+                           thd->lex->sql_command == SQLCOM_SELECT &&
+                           !(join->select_options & SELECT_DESCRIBE) &&
+                           join->table_count == 1 &&
+                           thd->lex->query_tables == table_list &&
+                           !table_list->next_global &&
+                           !table_list->schema_table_state &&
+                           plan->has_db_lookup_value() &&
+                           plan->fp_state ==
+                             IS_table_read_plan::FP_INACTIVE);
+
+      if (use_fast_path)
+      {
+        plan->fp_state= IS_table_read_plan::FP_ACTIVE;
+        plan->projection_fields= join->fields;
+      }
+
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
@@ -9952,8 +10196,46 @@ bool get_schema_tables_result(JOIN *join,
         table_list->schema_table_state= executed_place;
         break;
       }
+
       tab->read_record.table->file= table_list->table->file;
       table_list->schema_table_state= executed_place;
+      if (use_fast_path)
+      {
+        /*
+          fill_table() completed using the fast path. If at least one
+          row matched, schema_table_store_record() already streamed
+          metadata + rows directly to the client. If zero rows
+          matched, metadata was never sent, so send it now (empty
+          result set still needs a column definition packet).
+          Either way, finish with EOF and signal exec_inner to skip
+          its own send_result_set_metadata + do_select.
+        */
+        if (plan->fp_state == IS_table_read_plan::FP_ACTIVE)
+        {
+          List<Item> *meta= plan->projection_fields;
+          List<Item> field_list;
+          if (!meta)
+          {
+            TABLE *fb_table= table_list->table;
+            for (Field **f= fb_table->field; *f; f++)
+            {
+              Item_field *item= new (thd->mem_root) Item_field(thd, *f);
+              field_list.push_back(item);
+            }
+            meta= &field_list;
+          }
+          if (thd->protocol->send_result_set_metadata(
+                meta,
+                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+          {
+            result= 1;
+            break;
+          }
+          plan->fp_state= IS_table_read_plan::FP_STREAMING;
+        }
+        my_eof(thd);
+        result= 1;
+      }
     }
   }
   thd->pop_internal_handler();
@@ -9975,7 +10257,7 @@ bool get_schema_tables_result(JOIN *join,
                                      Sql_condition::WARN_LEVEL_ERROR,
                                      thd->get_stmt_da()->message());
   }
-  else if (result)
+  else if (result && !thd->get_stmt_da()->is_eof())
     my_error(ER_UNKNOWN_ERROR, MYF(0));
   THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(result);
