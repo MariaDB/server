@@ -22,6 +22,7 @@ sub setup_relay {
     my ($listen_port, $target_host, $target_port) = @_;
 
     my $listen_sock = IO::Socket::INET->new(
+        LocalAddr => '127.0.0.1',
         LocalPort => $listen_port,
         Type      => SOCK_STREAM,
         ReuseAddr => 1,
@@ -33,7 +34,9 @@ sub setup_relay {
 
     local $SIG{CHLD} = 'IGNORE';
     close STDOUT;
-    fork and exit;
+    my $pid = fork;
+    die "setup_relay: fork failed: $!" unless defined $pid;
+    exit if $pid;
     POSIX::setsid();
     open(STDOUT, '>', '/dev/null');
 
