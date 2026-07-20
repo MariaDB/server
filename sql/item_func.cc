@@ -3669,7 +3669,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
                u_d->name.str, init_msg_buff);
       goto err_exit;
     }
-    func->max_length=MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
+    func->max_length= MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
+    func->max_length= func->type_handler()->max_display_length(func);
     func->set_maybe_null(initid.maybe_null);
     /*
       The above call for init() can reset initid.const_item to "false",
