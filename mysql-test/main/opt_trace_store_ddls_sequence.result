@@ -1,0 +1,47 @@
+#
+# MDEV-40388: sequence.simple fails on replay
+#
+# Auto-generated SEQUENCE-engine tables (seq_<from>_to_<to>[_step_<step>])
+# are discovered by the engine from their name and cannot be recreated
+# with an explicit CREATE TABLE. Their DDL must therefore NOT be recorded
+# into the optimizer trace, otherwise replaying the recorded context
+# fails with "Table '...' already exists".
+#
+create database db1;
+use db1;
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+set optimizer_trace=1;
+set optimizer_record_context=ON;
+#
+# A query over an auto-generated sequence table only.
+# No ddl should be recorded for the sequence table.
+#
+explain select * from seq_15_to_1_step_12345;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_15_to_1_step_12345	ALL	NULL	NULL	NULL	NULL	1	
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl'))
+from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+#
+# A query joining a regular table with a sequence table.
+# Only the regular table t1 should have its ddl recorded.
+#
+select t1.a from t1, seq_1_to_10 where t1.a = seq;
+a
+1
+2
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl'))
+from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set optimizer_record_context=OFF;
+set optimizer_trace=0;
+drop database db1;

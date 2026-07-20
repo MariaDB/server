@@ -531,6 +531,7 @@ static int init(void *p)
   hton->drop_table= drop_table;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
+  hton->flags|= HTON_TABLE_EXISTS_BY_NAME;
   hton->commit= hton->rollback= [](THD *, bool) { return 0; };
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
     [](THD *, void *) { return 0; };

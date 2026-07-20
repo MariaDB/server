@@ -62,6 +62,7 @@ static const uchar *get_rec_key(const void *entry_, size_t *length,
      - INFORMATION_SCHEMA tables
      - Tables in PERFORMANCE_SCHEMA and mysql database
      - Internal temporary ("work") tables
+     - Tables auto-discovered from their name (e.g. SEQUENCE), which reject CREATE TABLE
 */
 static bool is_base_table(TABLE_LIST *tbl)
 {
@@ -73,7 +74,9 @@ static bool is_base_table(TABLE_LIST *tbl)
      get_table_category(tbl->get_db_name(), tbl->get_table_name()) ==
        TABLE_CATEGORY_USER &&
      tbl->table->s->tmp_table != INTERNAL_TMP_TABLE &&
-     tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
+     tbl->table->s->tmp_table != SYSTEM_TMP_TABLE &&
+     !(tbl->table->s->db_type() &&
+       (tbl->table->s->db_type()->flags & HTON_TABLE_EXISTS_BY_NAME)));
 }
 
 static bool dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)

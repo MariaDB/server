@@ -1,0 +1,46 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/no_view_protocol.inc
+
+--echo #
+--echo # MDEV-40388: sequence.simple fails on replay
+--echo #
+--echo # Auto-generated SEQUENCE-engine tables (seq_<from>_to_<to>[_step_<step>])
+--echo # are discovered by the engine from their name and cannot be recreated
+--echo # with an explicit CREATE TABLE. Their DDL must therefore NOT be recorded
+--echo # into the optimizer trace, otherwise replaying the recorded context
+--echo # fails with "Table '...' already exists".
+--echo #
+
+create database db1;
+use db1;
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+
+set optimizer_trace=1;
+set optimizer_record_context=ON;
+
+--echo #
+--echo # A query over an auto-generated sequence table only.
+--echo # No ddl should be recorded for the sequence table.
+--echo #
+explain select * from seq_15_to_1_step_12345;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl'))
+            from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # A query joining a regular table with a sequence table.
+--echo # Only the regular table t1 should have its ddl recorded.
+--echo #
+select t1.a from t1, seq_1_to_10 where t1.a = seq;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl'))
+            from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+set optimizer_record_context=OFF;
+set optimizer_trace=0;
+
+drop database db1;

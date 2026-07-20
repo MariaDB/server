@@ -1926,6 +1926,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_ALTER_NOT_SUPPORTED     (1 << 1) //Engine does not support alter
 #define HTON_CAN_RECREATE            (1 << 2) //Delete all is used for truncate
 #define HTON_HIDDEN                  (1 << 3) //Engine does not appear in lists
+#define HTON_TABLE_EXISTS_BY_NAME    (1 << 4) //Tables auto-discovered from name; reject CREATE TABLE (e.g. SEQUENCE)
 #define HTON_NOT_USER_SELECTABLE     (1 << 5)
 #define HTON_TEMPORARY_NOT_SUPPORTED (1 << 6) //Having temporary tables not supported
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
