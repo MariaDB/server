@@ -131,3 +131,16 @@ drop procedure bug10100pc|
 drop view v1|
 drop table t3|
 delimiter ;|
+
+--echo #
+--echo # MDEV-39750 ExtractValue does not control recursion depth.
+--echo #
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ExtractValue('<a/>', REPEAT('(', 100000));
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
+
