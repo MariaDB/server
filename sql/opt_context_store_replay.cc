@@ -437,11 +437,11 @@ static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
 }
 
 /*
-  System variables that are related to the optimizer but
-  do not have "optimizer" in their name.
+  System variables that are required for the optimizer context,
+  but do not have "optimizer" in their name.
     TODO: include @@SQL_SELECT_LIMIT here.
 */
-static const char *opt_related_sys_vars[]=
+static const char *opt_ctx_sys_vars[]=
 {
   "join_cache_level",
   "join_buffer_size",
@@ -456,6 +456,7 @@ static const char *opt_related_sys_vars[]=
   "group_concat_max_len",
   "max_heap_table_size",
   "standard_compliant_cte",
+  "innodb_strict_mode",
   NULL
 };
 
@@ -465,8 +466,7 @@ static const char *read_only_info_sys_vars[]= {
 static const char *excluded_sys_vars[]= {"optimizer_replay_context",
                                          "optimizer_record_context", NULL};
 
-static bool is_optimizer_related_var(const char **sys_vars,
-                                     const char *var_name)
+static bool is_var_in_list(const char **sys_vars, const char *var_name)
 {
   for (uint i= 0; sys_vars[i] != NULL; i++)
   {
@@ -524,14 +524,14 @@ static void store_system_variables(THD *thd, String &script)
   for (SHOW_VAR *show_var= all_session_vars; show_var->name != NULL;
        show_var++)
   {
-    if (is_optimizer_related_var(excluded_sys_vars, show_var->name))
+    if (is_var_in_list(excluded_sys_vars, show_var->name))
       continue;
 
     bool is_informative_sys_var= false;
 
     if (strstr(show_var->name, "optimizer") != NULL ||
-        is_optimizer_related_var(opt_related_sys_vars, show_var->name) ||
-        (is_informative_sys_var= is_optimizer_related_var(
+        is_var_in_list(opt_ctx_sys_vars, show_var->name) ||
+        (is_informative_sys_var= is_var_in_list(
              read_only_info_sys_vars, show_var->name)))
     {
       sys_var *var= (sys_var *) show_var->value;
