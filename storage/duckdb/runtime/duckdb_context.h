@@ -50,21 +50,29 @@ public:
 
   ~DuckdbThdContext()
   {
-    if (has_transaction())
-    {
-      std::string error_msg;
-      duckdb_trans_rollback(error_msg);
-    }
+    std::string error_msg;
+    duckdb_trans_rollback(error_msg);
   }
 
   bool has_transaction() { return m_con && m_con->HasActiveTransaction(); }
 
-  bool duckdb_trans_begin()
+  bool duckdb_trans_begin(std::string &error_msg)
   {
-    if (!m_con || m_con->HasActiveTransaction())
+    if (!m_con)
+    {
+      error_msg= "DuckDB connection is not available";
       return true;
+    }
+    if (m_con->HasActiveTransaction())
+      return false;
+
     auto result= duckdb_query(*m_con, "BEGIN");
-    return result->HasError();
+    if (result->HasError())
+    {
+      error_msg= result->GetError();
+      return true;
+    }
+    return false;
   }
 
   bool duckdb_trans_commit(std::string &error_msg)
@@ -87,6 +95,12 @@ public:
 
   bool duckdb_trans_rollback(std::string &error_msg)
   {
+    if (m_appenders)
+    {
+      m_appenders->discard_all();
+      m_appenders.reset();
+    }
+
     if (!m_con)
       return true;
 
