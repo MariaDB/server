@@ -88,6 +88,7 @@ use File::Spec::Functions qw/splitdir rel2abs/;
 use My::Platform;
 use My::SafeProcess;
 use My::ConfigFactory;
+use My::Config;
 use My::Options;
 use My::Tee;
 use My::Find;
@@ -1158,6 +1159,70 @@ sub print_global_resfile {
 }
 
 
+#
+# Read MTR's own options from the [mtr] group of the standard MariaDB option
+# files and merge them into @ARGV ahead of the command-line options, so the
+# latter take precedence. $args->{conf_file} (e.g. $ENV{MTR_CONFIG}) forces a
+# single file; otherwise the standard locations are searched. A
+# ---end-of-config--- marker separates config options from command-line
+# options so command_line_setup can report where an invalid option came from.
+# Parsing reuses My::Config.
+#
+sub load_defaults
+{
+  my ($args)= @_;
+  my $conf_file= $args->{conf_file};      # explicit file, e.g. $ENV{MTR_CONFIG}
+  my $groups= $args->{groups} || [];
+  $groups= [ $groups ] unless ref $groups eq 'ARRAY';
+
+  # Decide which option files to read
+  my @files;
+  if (defined $conf_file) {
+    # A custom location - read only this file, nothing else
+    @files= ($conf_file);
+  }
+  else {
+    # The first existing among the global and server locations, then ~/.my.cnf
+    my @locations= ("/etc/%s.cnf", "/etc/mysql/%s.cnf",
+                    map { "$ENV{$_}/%s.cnf" }
+                    grep { defined $ENV{$_} } qw(MARIADB_HOME MYSQL_HOME));
+    for my $pat (@locations) {
+      my $f= sprintf($pat, "my");
+      if (-f $f) { push @files, $f; last; }
+    }
+    push @files, "$ENV{HOME}/.my.cnf" if defined $ENV{HOME};
+  }
+
+  # Collect options from the requested groups, formatted for Getopt::Long
+  my @opts;
+  my $group_re= join('|', map { quotemeta } @$groups);
+  for my $file (@files) {
+    next unless defined $file and -f $file;
+    my $config= eval { My::Config->new($file) };
+    if ($@) {
+      # My::Config reports parse errors as "file:line: reason"; re-throw it
+      # through mtr_error for output flushing, the uniform mtr error format
+      # and a controlled exit.
+      chomp(my $err= $@);
+      mtr_error($err);
+    }
+    for my $group ($config->groups()) {
+      # Match group names case-insensitively, like libmariadb's find_type()
+      next unless $group->name() =~ /^(?:$group_re)$/i;
+      # Skip commented-out (#...) options: a "#suite=..." line in the config
+      # is a comment, not an MTR option (it would become an invalid "--#...").
+      push @opts, map { $_->option() }
+                  grep { $_->name() !~ /^#/ } $group->options();
+    }
+  }
+
+  # Prepend the config options; the command-line options already in @ARGV come
+  # after the marker, so Getopt::Long lets them take precedence. The marker
+  # also tells command_line_setup where a bad option came from.
+  @ARGV= (@opts, "---end-of-config---", @ARGV);
+  return 1;
+}
+
 
 sub command_line_setup {
   my $opt_comment;
@@ -1301,8 +1366,16 @@ sub command_line_setup {
              My::Platform::options()
            );
 
-  # fix options (that take an optional argument and *only* after = sign
+  # 1. Merge config file into @ARGV. Options from the command-line take
+  #    precedence: they come after the config file options.
+  load_defaults({
+    conf_file => $ENV{MTR_CONFIG},
+    groups => ['mtr']});
+
+  # 2. Fix options (that take an optional argument and *only* after = sign)
   @ARGV = My::Debugger::fix_options(@ARGV);
+
+  # 3. Run GetOptions() on the merged config (config file + command-line)
   GetOptions(%options) or usage("Can't read options");
   usage("") if $opt_usage;
   list_options(\%options) if $opt_list_options;
@@ -1475,6 +1548,16 @@ sub command_line_setup {
     }
   }
 
+  # load_defaults() unconditionally prepends the "---end-of-config---" marker
+  # between the [mtr] config options and the command line.  If it is gone now,
+  # a value-requiring option in the [mtr] section was written without a value
+  # and Getopt::Long consumed the marker (or the option after it) as its
+  # value; report that instead of misattributing a later error.
+  mtr_error("A value-less option in the [mtr] config file consumed the ",
+            "config/command-line separator - check the [mtr] section for an ",
+            "option that requires a value but was given none")
+    unless grep { /^---end-of-config---$/ } @ARGV;
+  my $opt_source= 'config file';
   foreach my $arg ( @ARGV )
   {
     if ( $arg =~ /^--skip-/ )
@@ -1487,9 +1570,19 @@ sub command_line_setup {
       # that the lone '--' separating options from arguments survives,
       # simply ignore it.
     }
+    elsif ( $arg =~ /^---end-of-config---$/ )
+    {
+      $opt_source= 'command-line';
+    }
     elsif ( $arg =~ /^-/ )
     {
-      usage("Invalid option \"$arg\"");
+      if ($opt_source eq 'config file')
+      {
+        # strip leading dashes and any =value, leaving the option name
+        $arg =~ s/^-+//;
+        $arg =~ s/=.*//s;
+      }
+      usage("Invalid ${opt_source} option \"${arg}\"");
     }
     else
     {

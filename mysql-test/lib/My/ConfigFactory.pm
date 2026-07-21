@@ -212,7 +212,7 @@ whose options are added as mysqld startup arguments.
 
 =head1 SUBROUTINES
 
-The only public entry point is C<new_config>. Everything else is internal and
+The public entry point is C<new_config>. Everything else is internal and
 documented here for maintainers: the rule engine, the pre-rules, the C<fix_*>
 value generators and the C<post_*> checks.
 

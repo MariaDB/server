@@ -289,14 +289,34 @@ sub new {
       $self->insert($group_name, $magic, $arg);
     }
 
-    # Empty lines
-    elsif ( $line =~ /^$/ ) {
+    # Empty lines (including whitespace-only)
+    elsif ( $line =~ /^\s*$/ ) {
       # Skip empty lines
       next;
     }
 
+    # !includedir <dir> - include all .cnf files in the directory
+    elsif ( $line =~ /^\!includedir\s+(.*?)\s*$/ ) {
+      # Resolve relative to the including file first, like !include; fall back
+      # to the raw path only if that directory does not exist.
+      my $dir= dirname($path)."/".$1;
+      $dir= $1 unless -d $dir;
+
+      # A missing includedir is silently ignored, as libmariadb does
+      if ( opendir(my $dh, $dir) ) {
+        foreach my $name ( sort grep { /\.cnf$/ } readdir($dh) ) {
+          my $file= "$dir/$name";
+          # Skip subdirectories or symlinks named *.cnf, as libmariadb does,
+          # so a stray non-file entry does not turn into a hard open failure.
+          next unless -f $file;
+          $self->append(My::Config->new($file));
+        }
+        closedir($dh);
+      }
+    }
+
     # !include <filename>
-    elsif ( $line =~ /^\!include\s*(.*?)\s*$/ ) {
+    elsif ( $line =~ /^\!include\s+(.*?)\s*$/ ) {
       my $include_file_name= dirname($path)."/".$1;
 
       # Check that the file exists relative to path of first config file
@@ -310,7 +330,20 @@ sub new {
       $self->append(My::Config->new($include_file_name));
     }
 
-    # <option>
+    # Any other !directive is ignored
+    elsif ( $line =~ /^\!/ ) {
+      next;
+    }
+
+    # A '#' or ';' line before any group is a header/comment (e.g. "#MySQL
+    # option file"), as libmariadb treats it - not an option. In-group '#foo'
+    # pseudo-options (below) are unaffected.
+    elsif ( !$group_name && $line =~ /^\s*[#;]/ ) {
+      next;
+    }
+
+    # <option>  (a leading '#' makes it a pseudo-option, e.g. #galera_port,
+    # used in .cnf templates as an addressable name - not a comment)
     elsif ( $line =~ /^(#?[\w-]+)\s*$/ ) {
       my $option= $1;
 
