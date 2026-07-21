@@ -1168,45 +1168,111 @@ sub print_global_resfile {
 # options so command_line_setup can report where an invalid option came from.
 # Parsing reuses My::Config.
 #
+#
+# get_defaults_options - mirror libmariadb's get_defaults_options(): read the
+# standard defaults options off @ARGV.
+#
+# --no-defaults, --defaults-group-suffix and --print-defaults are MTR-only, so
+# they are consumed from @ARGV (the main GetOptions never sees them).
+#
+# --defaults-file and --defaults-extra-file double as the server config
+# template (collected later by GetOptions), so they are only *peeked* here -
+# left in @ARGV for that second consumer. The two consumers read different
+# groups of the same file: [mysqld]/[client]/... for the template, [mtr] here.
+#
+sub get_defaults_options
+{
+  my %opt;
+
+  # Consume the MTR-only options from @ARGV
+  Getopt::Long::GetOptionsFromArray(
+    \@ARGV,
+    'no-defaults'             => \$opt{no_defaults},
+    'defaults-group-suffix=s' => \$opt{group_suffix},
+    'print-defaults'          => \$opt{print_defaults});
+
+  # Peek the file options without removing them (parse a copy)
+  my @copy= @ARGV;
+  Getopt::Long::GetOptionsFromArray(
+    \@copy,
+    'defaults-file=s'         => \$opt{conf_file},
+    'defaults-extra-file=s'   => \$opt{extra_file});
+
+  # --defaults-group-suffix falls back to the environment, as in libmariadb
+  $opt{group_suffix}= $ENV{MARIADB_GROUP_SUFFIX} unless defined $opt{group_suffix};
+  $opt{group_suffix}= $ENV{MYSQL_GROUP_SUFFIX}   unless defined $opt{group_suffix};
+
+  return \%opt;
+}
+
+#
+# load_defaults - read MTR's own [mtr] options from the MariaDB option files
+# and merge them into @ARGV ahead of the command-line options (which follow the
+# ---end-of-config--- marker and therefore take precedence). Parsing reuses
+# My::Config; parse errors are reported through mtr_error as "file:line: reason".
+#
 sub load_defaults
 {
-  my ($args)= @_;
-  my $conf_file= $args->{conf_file};      # explicit file, e.g. $ENV{MTR_CONFIG}
+  my $args= shift;
   my $groups= $args->{groups} || [];
   $groups= [ $groups ] unless ref $groups eq 'ARRAY';
 
-  # Decide which option files to read
-  my @files;
-  if (defined $conf_file) {
-    # A custom location - read only this file, nothing else
-    @files= ($conf_file);
-  }
-  else {
-    # The first existing among the global and server locations, then ~/.my.cnf
-    my @locations= ("/etc/%s.cnf", "/etc/mysql/%s.cnf",
-                    map { "$ENV{$_}/%s.cnf" }
-                    grep { defined $ENV{$_} } qw(MARIADB_HOME MYSQL_HOME));
-    for my $pat (@locations) {
-      my $f= sprintf($pat, "my");
-      if (-f $f) { push @files, $f; last; }
-    }
-    push @files, "$ENV{HOME}/.my.cnf" if defined $ENV{HOME};
+  # --defaults-group-suffix: also read [<group><suffix>] for each group
+  my @groups= @$groups;
+  if (defined $args->{group_suffix} and length $args->{group_suffix})
+  {
+    push @groups, map { "$_$args->{group_suffix}" } @$groups;
   }
 
-  # Collect options from the requested groups, formatted for Getopt::Long
+  # Build the ordered list of option files. The reading and merge semantics
+  # follow libmariadb's my_search_option_files(), but the default locations
+  # below are the Unix set only (no Windows directories, no my.ini); for other
+  # platforms use an explicit MTR_CONFIG / --defaults-file, which work anywhere.
+  my @files;
+  if ($args->{no_defaults})
+  {
+    # --no-defaults: read no option files at all
+  }
+  elsif (defined $args->{conf_file})
+  {
+    # --defaults-file (or $MTR_CONFIG): this file only - not the standard
+    # files, not --defaults-extra-file
+    # error on a missing explicit file, as libmariadb does
+    mtr_error("Config file '$args->{conf_file}' not found")
+      unless -f $args->{conf_file};
+    @files= ($args->{conf_file});
+  }
+  else
+  {
+    # Standard search order (Unix, no compiled-in DEFAULT_SYSCONFDIR), read
+    # cumulatively - every file that exists, in this order:
+    #   /etc, /etc/mysql, $MARIADB_HOME|$MYSQL_HOME, --defaults-extra-file, ~/
+    push @files, "/etc/my.cnf", "/etc/mysql/my.cnf";
+    my ($home)= grep { defined $ENV{$_} } qw(MARIADB_HOME MYSQL_HOME);
+    push @files, "$ENV{$home}/my.cnf"      if defined $home;
+    push @files, $args->{extra_file}       if defined $args->{extra_file};
+    push @files, "$ENV{HOME}/.my.cnf"      if defined $ENV{HOME};
+  }
+
+  # Collect the requested groups' options from every existing file, in order.
+  # A later file's option overrides an earlier one (My::Config is last-wins),
+  # matching "if an option is set multiple times, the later setting wins".
   my @opts;
-  my $group_re= join('|', map { quotemeta } @$groups);
-  for my $file (@files) {
+  my $group_re= join('|', map { quotemeta } @groups);
+  for my $file (@files)
+  {
     next unless defined $file and -f $file;
     my $config= eval { My::Config->new($file) };
-    if ($@) {
+    if ($@)
+    {
       # My::Config reports parse errors as "file:line: reason"; re-throw it
       # through mtr_error for output flushing, the uniform mtr error format
       # and a controlled exit.
       chomp(my $err= $@);
       mtr_error($err);
     }
-    for my $group ($config->groups()) {
+    for my $group ($config->groups())
+    {
       # Match group names case-insensitively, like libmariadb's find_type()
       next unless $group->name() =~ /^(?:$group_re)$/i;
       # Skip commented-out (#...) options: a "#suite=..." line in the config
@@ -1216,9 +1282,16 @@ sub load_defaults
     }
   }
 
-  # Prepend the config options; the command-line options already in @ARGV come
-  # after the marker, so Getopt::Long lets them take precedence. The marker
-  # also tells command_line_setup where a bad option came from.
+  # --print-defaults: show the [mtr] options picked up from config, then exit
+  if ($args->{print_defaults})
+  {
+    print "$_\n" for @opts;
+    exit(0);
+  }
+
+  # Prepend the config options; command-line options (already in @ARGV) follow
+  # the marker, so GetOptions lets them take precedence. The marker also lets
+  # command_line_setup report whether a bad option came from config or cmdline.
   @ARGV= (@opts, "---end-of-config---", @ARGV);
   return 1;
 }
@@ -1366,11 +1439,15 @@ sub command_line_setup {
              My::Platform::options()
            );
 
-  # 1. Merge config file into @ARGV. Options from the command-line take
-  #    precedence: they come after the config file options.
-  load_defaults({
-    conf_file => $ENV{MTR_CONFIG},
-    groups => ['mtr']});
+  # 1. Merge [mtr] options from the config file(s) into @ARGV. Command-line
+  #    options take precedence (they come after the config options), and a
+  #    command-line --defaults-file/--defaults-extra-file overrides the
+  #    corresponding MTR_CONFIG / MTR_CONFIG_EXTRA environment variable.
+  my $defaults= get_defaults_options();
+  $defaults->{conf_file}  //= $ENV{MTR_CONFIG};
+  $defaults->{extra_file} //= $ENV{MTR_CONFIG_EXTRA};
+  $defaults->{groups}= ['mtr'];
+  load_defaults($defaults);
 
   # 2. Fix options (that take an optional argument and *only* after = sign)
   @ARGV = My::Debugger::fix_options(@ARGV);
