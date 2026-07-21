@@ -436,3 +436,24 @@ DROP USER foo@localhost;
 CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-40470 GRANT PROXY with empty password incorrectly checks grantor's privileges
+--echo #
+create user u1@localhost;
+create user u2@localhost identified by 'pwd';
+grant all privileges on *.* to u2@localhost with grant option;
+
+show create user u2@localhost;
+connect u,localhost,u1;
+show grants;
+--error ER_DBACCESS_DENIED_ERROR
+grant proxy on u1@localhost to u2@localhost identified via 'foo';
+--error ER_DBACCESS_DENIED_ERROR
+grant proxy on u1@localhost to u2@localhost identified via '';
+connection default;
+show create user u2@localhost;
+drop user u1@localhost;
+drop user u2@localhost;
+
+--echo # End of 10.6 tests
