@@ -6271,9 +6271,9 @@ void func_oct(Expression_value args[], int count, Expression_value *result)
   @param[out] result Expression_value to store result
 
   @details
-    Converts a number to hexadecimal representation.
     HEX(N) returns a string representation of the hexadecimal value of N.
     This is equivalent to CONV(N, 10, 16).
+    HEX(str) returns a hexadecimal representation of the bytes of str.
 
   @note Dies if argument count != 1
 */
@@ -6283,7 +6283,15 @@ void func_hex(Expression_value args[], int count, Expression_value *result)
   if (count != 1)
     die("hex() expects 1 argument, got %d", count);
 
-  convert_base_helper(args[0].to_string(), 10, 16, result);
+  if (args[0].is_numeric)
+    convert_base_helper(args[0].to_string(), 10, 16, result);
+  else
+  {
+    My_string str= args[0].to_string();
+    My_string hex_str;
+    hex_str.set_hex(str.ptr(), str.length());
+    result->set_string(hex_str.ptr(), hex_str.length());
+  }
 }
 
 
