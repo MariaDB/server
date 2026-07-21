@@ -1322,11 +1322,9 @@ static void weekday_ts_func(duckdb::DataChunk &args,
    Registration
    ================================================================ */
 
-void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
+static void register_length_functions(duckdb::Catalog &catalog,
+                                      duckdb::CatalogTransaction transaction)
 {
-  auto &catalog= duckdb::Catalog::GetSystemCatalog(db);
-  auto transaction= duckdb::CatalogTransaction::GetSystemTransaction(db);
-
   /* octet_length(VARCHAR) -> BIGINT */
   {
     duckdb::ScalarFunctionSet set("octet_length");
@@ -1386,7 +1384,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_hex_function(duckdb::Catalog &catalog,
+                                  duckdb::CatalogTransaction transaction)
+{
   /* hex() -- full overloads */
   {
     using namespace duckdb;
@@ -1419,7 +1421,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_oct_function(duckdb::Catalog &catalog,
+                                  duckdb::CatalogTransaction transaction)
+{
   /* oct() -- full overloads */
   {
     using namespace duckdb;
@@ -1452,7 +1458,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_bin_function(duckdb::Catalog &catalog,
+                                  duckdb::CatalogTransaction transaction)
+{
   /* bin() -- full overloads */
   {
     using namespace duckdb;
@@ -1482,7 +1492,12 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_locate_mid_functions(duckdb::DatabaseInstance &db,
+                                          duckdb::Catalog &catalog,
+                                          duckdb::CatalogTransaction transaction)
+{
   /* locate(VARCHAR, VARCHAR) -> BIGINT  (2-arg) */
   /* locate(VARCHAR, VARCHAR, BIGINT) -> BIGINT  (3-arg) */
   {
@@ -1511,7 +1526,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
                "CASE WHEN n IS NULL THEN substr(s, p) "
                "ELSE substr(s, p, n) END");
   }
+}
 
+static void register_regexp_functions(duckdb::Catalog &catalog,
+                                      duckdb::CatalogTransaction transaction)
+{
   /* regexp_instr(VARCHAR, VARCHAR) → INTEGER
      Returns 1-based position of first match, 0 if no match. */
   {
@@ -1594,7 +1613,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_json_unquote_function(duckdb::Catalog &catalog,
+                                           duckdb::CatalogTransaction transaction)
+{
   /* json_unquote(VARCHAR) → VARCHAR
      Removes JSON quotes and unescapes. Simple implementation. */
   {
@@ -1642,7 +1665,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_time_arith_functions(duckdb::Catalog &catalog,
+                                          duckdb::CatalogTransaction transaction)
+{
   /* addtime(TIMESTAMP/TIME, VARCHAR) → TIMESTAMP/TIME */
   {
     duckdb::ScalarFunctionSet set("addtime");
@@ -1699,7 +1726,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_trim_functions(duckdb::Catalog &catalog,
+                                    duckdb::CatalogTransaction transaction)
+{
   /* rtrim(VARCHAR, VARCHAR) — substring semantics (MariaDB TRIM) */
   {
     duckdb::ScalarFunctionSet set("rtrim");
@@ -1721,7 +1752,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_week_functions(duckdb::Catalog &catalog,
+                                    duckdb::CatalogTransaction transaction)
+{
   /* week(DATE/TIMESTAMP, INTEGER) -> BIGINT (MariaDB mode arg) */
   {
     duckdb::ScalarFunctionSet set("week");
@@ -1763,7 +1798,11 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
 
+static void register_dow_functions(duckdb::Catalog &catalog,
+                                   duckdb::CatalogTransaction transaction)
+{
   /* dayofweek(DATE/TIMESTAMP) -> BIGINT (MariaDB 1=Sunday..7=Saturday) */
   {
     duckdb::ScalarFunctionSet set("dayofweek");
@@ -1791,6 +1830,24 @@ void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
     info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
     catalog.CreateFunction(transaction, info);
   }
+}
+
+void register_mysql_compat_functions(duckdb::DatabaseInstance &db)
+{
+  auto &catalog= duckdb::Catalog::GetSystemCatalog(db);
+  auto transaction= duckdb::CatalogTransaction::GetSystemTransaction(db);
+
+  register_length_functions(catalog, transaction);
+  register_hex_function(catalog, transaction);
+  register_oct_function(catalog, transaction);
+  register_bin_function(catalog, transaction);
+  register_locate_mid_functions(db, catalog, transaction);
+  register_regexp_functions(catalog, transaction);
+  register_json_unquote_function(catalog, transaction);
+  register_time_arith_functions(catalog, transaction);
+  register_trim_functions(catalog, transaction);
+  register_week_functions(catalog, transaction);
+  register_dow_functions(catalog, transaction);
 
   sql_print_information(
       "DuckDB: registered MySQL-compatible function overloads "
