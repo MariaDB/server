@@ -35,6 +35,18 @@ SELECT COUNT(*) FROM t3;
 # Reset.
 DROP TABLE t1, t2, t3;
 
+# MDEV-39485 Heap-buffer-overflow upon read in `Rows_log_event` constructor
+#
+# This binlog file contains a normal Format Description
+# Event followed by 3 malformed v2 Write Rows Events:
+# 1. A tag followed by no data
+# 2. An undersized tagged data followed by an unrecognized tag
+# 3. A tag followed by a length longer than the entire event
+--let SEARCH_PATTERN= [Uu]nknown [Ee]vent
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/invalid_row_v2_tag.sql
+--exec $MYSQL_BINLOG --force-read --verbose suite/binlog/std_data/invalid_row_v2_tag.001 > $SEARCH_FILE
+--source include/search_pattern_in_file.inc
+
 
 --echo ==== Read modern binlog (version 5.1.23) ====
 
