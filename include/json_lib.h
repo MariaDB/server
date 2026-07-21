@@ -114,6 +114,7 @@ typedef struct st_json_path_t
 } json_path_t;
 
 
+__attribute__((nonnull, warn_unused_result))
 int json_path_setup(json_path_t *p,
                     CHARSET_INFO *i_cs, const uchar *str, const uchar *end);
 
