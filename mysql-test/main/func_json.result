@@ -2950,4 +2950,13 @@ JSON_EXTRACT('0E+0','$')
 SELECT JSON_ARRAY_INSERT (0,NULL,1) as j;
 j
 NULL
+#
+# MDEV-40414 Server crash in Charset::charset upon JSON operations
+#
+SELECT JSON_EQUALS('[]', JSON_ARRAY_INSERT(NULL,'$[0]',1)) AS x;
+x
+NULL
+SELECT JSON_OVERLAPS(JSON_ARRAY_INSERT(NULL,'$[0]',1), '[]') AS x;
+x
+NULL
 # End of 10.11 Test
