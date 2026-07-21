@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+--source include/have_partition.inc
 --echo #enable optimizer_record_context
 
 --disable_replay testfile Don't replay a replay test
@@ -432,3 +433,38 @@ EXPLAIN select * from s1;
 
 --source include/opt_context_list_tables_and_ranges.inc
 drop table s1;
+
+--echo #
+--echo # MDEV-40388: sequence.simple fails on replay
+--echo # Table context should *not* be recorded for seq
+--echo #
+set optimizer_record_context=ON;
+explain select * from seq_1_to_10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+--echo #
+--echo # partitioned table test
+--echo # context result should have stats for this table
+--echo #
+create table t1 (
+    pk int primary key,
+    a int,
+    key (a)
+)
+engine=myisam
+partition by range(pk) (
+    partition p0 values less than (10),
+    partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+
+explain
+select * from t1 partition (p1) where a=10;
+
+--source include/opt_context_list_tables_and_ranges.inc
+
+drop table t1;
+
+--echo # End of 13.1 tests

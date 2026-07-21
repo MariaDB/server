@@ -591,3 +591,50 @@ table_name	file_stat_records	index_name	rec_per_key
 index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 # == End of optimizer context
 drop table s1;
+#
+# MDEV-40388: sequence.simple fails on replay
+# Table context should *not* be recorded for seq
+#
+set optimizer_record_context=ON;
+explain select * from seq_1_to_10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_10	index	NULL	PRIMARY	8	NULL	10	Using index
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.seq_1_to_10	10	PRIMARY	["0"]
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+#
+# partitioned table test
+# context result should have stats for this table
+#
+create table t1 (
+pk int primary key,
+a int,
+key (a)
+)
+engine=myisam
+partition by range(pk) (
+partition p0 values less than (10),
+partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+explain
+select * from t1 partition (p1) where a=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	49	
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+test.t1	4991	NULL	NULL
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+a	["(10) <= (a) <= (10)"]	49	1	11
+# == End of optimizer context
+drop table t1;
+# End of 13.1 tests
