@@ -118,10 +118,6 @@ Warnings:
 Warning	4200	The setting 'optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 Warnings:
 Note	1007	Can't create database 'db1'; database exists
-Warnings:
-Note	4092	Unknown VIEW: 'db1.t1'
-Warnings:
-Note	1051	Unknown table 'db1.t1'
 count(*)
 20
 set optimizer_replay_context='opt_context';
@@ -549,4 +545,28 @@ select context like '%bar%' from information_schema.optimizer_context;
 context like '%bar%'
 1
 drop table t1;
+#
+# MDEV-40388: sequence.simple fails on replay
+#
+set optimizer_record_context=0;
+create sequence s1;
+select setval(s1, 10);
+setval(s1, 10)
+10
+set optimizer_record_context=1;
+select nextval(s1) as nv;
+nv
+11
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table s1;
+set optimizer_replay_context='opt_context';
+# Get the last recorded value from the sequence; must have same output as above
+select lastval(s1) as nv;
+nv
+11
+set optimizer_replay_context='';
+drop table s1;
+# End of 13.1 tests
 drop database db1;

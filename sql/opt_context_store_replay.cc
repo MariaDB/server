@@ -382,6 +382,7 @@ static void get_create_view_stmt(THD *thd, TABLE_LIST *table, String *name,
   buf->append(STRING_WITH_LEN("CREATE "));
   view_store_options(thd, table, buf);
   buf->append(STRING_WITH_LEN("VIEW "));
+  buf->append(STRING_WITH_LEN("IF NOT EXISTS "));
   buf->append(*name);
   buf->append(STRING_WITH_LEN(" AS "));
   buf->append(table->select_stmt.str, table->select_stmt.length);
@@ -395,6 +396,17 @@ static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
   bool res= false;
   bool restore_mode= false;
   sql_mode_t saved_mode= thd->variables.sql_mode;
+  Table_specification_st create_info;
+  create_info.init(DDL_options_st::OPT_IF_NOT_EXISTS);
+  /*
+    A non-NULL create_info makes show_create_table() print only the clauses
+    whose used_fields bit is set. Set the bits for the clauses we want in the
+    dumped DDL (ENGINE=, DEFAULT CHARSET=, and engine-specific table options),
+    otherwise they are silently omitted.
+  */
+  create_info.used_fields|=
+      HA_CREATE_USED_ENGINE | HA_CREATE_USED_DEFAULT_CHARSET |
+      HA_CREATE_USED_CHARSET | HA_CREATE_PRINT_ALL_OPTIONS;
 
   /*
     Some @@sql_mode settings prevent printing of essential table options like
@@ -417,7 +429,7 @@ static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
     ddl->append(STRING_WITH_LEN("';\n"));
   }
 
-  if (show_create_table(thd, tbl, ddl, NULL, WITH_DB_NAME))
+  if (show_create_table(thd, tbl, ddl, &create_info, WITH_DB_NAME))
     res= true;
 
   if (restore_mode)
@@ -670,18 +682,6 @@ bool store_optimizer_context(THD *thd)
   return res;
 }
 
-static void store_drop_table_and_view_stmts(String &name, String &buf)
-{
-  StringBuffer<128> drop;
-  drop.append(STRING_WITH_LEN("DROP VIEW IF EXISTS "));
-  drop.append(name);
-  drop.append(STRING_WITH_LEN(";\n"));
-  drop.append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
-  drop.append(name);
-  drop.append(STRING_WITH_LEN(";\n"));
-  buf.append(drop);
-}
-
 /*
   @brief
     Dump definitions, basic stats of all tables and views used by the
@@ -754,12 +754,6 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
     append_table_or_view_name(tbl, &full_tbl_name);
 
     /*
-      Sequence table doesn't need CREATE TABLE or contain any stats
-    */
-    if (tbl->table && tbl->table->s && tbl->table->s->sequence)
-      continue;
-
-    /*
       A query can use the same table multiple times. Do not dump the
       DDL multiple times.
     */
@@ -790,8 +784,7 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
       break;
     }
 
-    /* Add DROP and CREATE TABLE|VIEW statement */
-    store_drop_table_and_view_stmts(full_tbl_name, qry_ctx_script);
+    /* Add CREATE TABLE|VIEW statement */
     if (tbl->is_view())
     {
       get_create_view_stmt(thd, tbl, &full_tbl_name, &ddl);
@@ -807,20 +800,61 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
     qry_ctx_script.append(ddl);
     qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
 
-    /* If this is a VIEW, we've stored its DDL and we're done. */
+    /* If this is a VIEW we've stored its DDL and we're done. */
     if (tbl->is_view())
       continue;
+
+    /*
+      if this is a SEQUENCE table defined as
+        CREATE SEQUENCE s1;
+      then, record the current value of s1 as well, and then we're done.
+      DDL for it has already been recorded.
+      No need to record other stats.
+    */
+    if (tbl->table->s->sequence)
+    {
+      const char *key;
+      uint length= get_table_def_key(tbl, &key); // table def key = hash key
+      SEQUENCE_LAST_VALUE *entry= (SEQUENCE_LAST_VALUE *) my_hash_search(
+          &thd->sequences, (uchar *) key, length);
+      SEQUENCE *seq= tbl->table->s->sequence;
+      longlong value;
+      if (entry && !entry->check_version(tbl->table))
+      {
+        /*
+          Set the sequence so that the next NEXTVAL returns the value that
+          was last handed out (entry->value): SETVAL(x) makes the next
+          NEXTVAL return x + increment, so use entry->value - increment.
+          Keep the argument within the sequence bounds - for an ascending
+          sequence it may fall below min_value, for a descending one it may
+          rise above max_value, and SETVAL rejects out-of-range values.
+        */
+        longlong candidate= entry->value - seq->increment;
+        value= seq->increment > 0 ? MY_MAX(candidate, seq->min_value)
+                                  : MY_MIN(candidate, seq->max_value);
+      }
+      else
+        value= seq->reserved_until;
+
+      qry_ctx_script.append(STRING_WITH_LEN("SELECT SETVAL("));
+      qry_ctx_script.append(full_tbl_name);
+      qry_ctx_script.append(STRING_WITH_LEN(", "));
+      qry_ctx_script.append_longlong(value);
+      qry_ctx_script.append(STRING_WITH_LEN(");\n\n"));
+
+      continue;
+    }
 
     /* No, it's a base table */
     Json_writer_object ctx_wrapper(&ctx_writer);
 
     /* Write basic table statistics */
-    dump_table_stats(tbl, (uchar*)tbl_name_key->str, tbl_name_key->length,
+    dump_table_stats(tbl, (uchar *) tbl_name_key->str, tbl_name_key->length,
                      ctx_wrapper, &ctx_writer);
 
     /* Find the table in the captured context */
     table_context_for_store *table_context=
-      search((uchar *) tbl_name_key->str, tbl_name_key->length);
+        search((uchar *) tbl_name_key->str, tbl_name_key->length);
 
     if (table_context)
     {
