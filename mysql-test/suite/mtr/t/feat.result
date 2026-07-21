@@ -1,0 +1,111 @@
+#### --head-log / --tail-log (crash report) ####
+mtr/misc.crash                           [ fail ]
+Server [mysqld.1 - pid: PID, winpid: PID, exit: 256] crashed
+Server log from this test:
+----------SERVER LOG START-----------
+< snip N lines >
+Resource Limits (excludes unlimited resources):
+Limit                     Soft Limit           Hard Limit           Units     
+Max stack size <...cut...>
+Max processes <...cut...>
+Max open files <...cut...>
+Max locked memory <...cut...>
+Max pending signals <...cut...>
+Max msgqueue size <...cut...>
+Max nice priority <...cut...>
+Max realtime priority <...cut...>
+Core pattern: <...cut...>
+Kernel version: <...cut...>
+----------SERVER LOG END-------------
+#### --strip-log (crash report) ####
+mtr/misc.crash                           [ fail ]
+Server [mysqld.1 - pid: PID, winpid: PID, exit: 256] crashed
+Server log from this test:
+----------SERVER LOG START-----------
+[ERROR] got signal 11 ;
+Writing a core file...
+Core pattern: <...cut...>
+Kernel version: <...cut...>
+----------SERVER LOG END-------------
+#### --tail-warnings (shutdown-warnings report) ####
+# --tail-warnings=0
+mtr/misc.warn                            [ fail ]
+***Warnings generated in error logs during shutdown after running tests: mtr/misc.warn
+# --tail-warnings=5
+mtr/misc.warn                            [ fail ]
+***Warnings generated in error logs during shutdown after running tests: mtr/misc.warn
+< snip N lines >
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+# --tail-warnings=-1
+mtr/misc.warn                            [ fail ]
+***Warnings generated in error logs during shutdown after running tests: mtr/misc.warn
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+[Warning] Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+#### --list-combinations ####
+Combinations for mtr/misc.empty: lcase1,lcase2,lcase_def,nm,timestamp,trx_id,heap,traditional,myisam
+mtr/misc.empty,lcase1,nm,timestamp
+mtr/misc.empty,lcase1,nm,trx_id
+mtr/misc.empty,heap,lcase1,nm
+mtr/misc.empty,lcase1,nm,traditional
+mtr/misc.empty,lcase1,myisam,nm
+mtr/misc.empty,lcase2,nm,timestamp
+mtr/misc.empty,lcase2,nm,trx_id
+mtr/misc.empty,heap,lcase2,nm
+mtr/misc.empty,lcase2,nm,traditional
+mtr/misc.empty,lcase2,myisam,nm
+mtr/misc.empty,lcase_def,nm,timestamp
+mtr/misc.empty,lcase_def,nm,trx_id
+mtr/misc.empty,heap,lcase_def,nm
+mtr/misc.empty,lcase_def,nm,traditional
+mtr/misc.empty,lcase_def,myisam,nm
+#### --ps --list-combinations ####
+Combinations for mtr/misc.empty: lcase1,lcase2,lcase_def,ps,timestamp,trx_id,heap,traditional,myisam
+mtr/misc.empty,lcase1,ps,timestamp
+mtr/misc.empty,lcase1,ps,trx_id
+mtr/misc.empty,heap,lcase1,ps
+mtr/misc.empty,lcase1,ps,traditional
+mtr/misc.empty,lcase1,myisam,ps
+mtr/misc.empty,lcase2,ps,timestamp
+mtr/misc.empty,lcase2,ps,trx_id
+mtr/misc.empty,heap,lcase2,ps
+mtr/misc.empty,lcase2,ps,traditional
+mtr/misc.empty,lcase2,myisam,ps
+mtr/misc.empty,lcase_def,ps,timestamp
+mtr/misc.empty,lcase_def,ps,trx_id
+mtr/misc.empty,heap,lcase_def,ps
+mtr/misc.empty,lcase_def,ps,traditional
+mtr/misc.empty,lcase_def,myisam,ps
+#### --suite with negation ####
+Using suites: 
+No tests to run...
