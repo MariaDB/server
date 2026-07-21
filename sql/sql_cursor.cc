@@ -1,5 +1,5 @@
-/*
-   Copyright (c) 2005, 2010, Oracle and/or its affiliates.
+/* Copyright (c) 2005, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,7 +37,6 @@
 
 class Materialized_cursor: public Server_side_cursor
 {
-  MEM_ROOT main_mem_root;
   /* A fake unit to supply to select_send when fetching */
   SELECT_LEX_UNIT fake_unit;
   TABLE *table;
@@ -161,7 +160,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
       /* Rollback metadata in the client-server protocol. */
       result_materialize->abort_result_set();
 
-      delete result_materialize->materialized_cursor;
+      cdestroy(result_materialize->materialized_cursor);
     }
 
     goto end;
@@ -180,7 +179,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
 
     if ((rc= materialized_cursor->open(0)))
     {
-      delete materialized_cursor;
+      cdestroy(materialized_cursor);
       goto end;
     }
 
@@ -199,21 +198,17 @@ end:
 
 Server_side_cursor::~Server_side_cursor() = default;
 
-
-void Server_side_cursor::operator delete(void *ptr, size_t size)
+void cdestroy(Server_side_cursor *cursor)
 {
-  Server_side_cursor *cursor= (Server_side_cursor*) ptr;
-  MEM_ROOT own_root= *cursor->mem_root;
-
-  DBUG_ENTER("Server_side_cursor::operator delete");
-  TRASH_FREE(ptr, size);
-  /*
-    If this cursor has never been opened mem_root is empty. Otherwise
-    mem_root points to the memory the cursor object was allocated in.
-    In this case it's important to call free_root last, and free a copy
-    instead of *mem_root to avoid writing into freed memory.
-  */
-  free_root(&own_root, MYF(0));
+  DBUG_ENTER("cdestroy");
+  if (cursor)
+  {
+    if (cursor->is_open())
+      cursor->close();
+    MEM_ROOT own_root= cursor->main_mem_root;
+    delete cursor;
+    free_root(&own_root, MYF(0));
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -394,8 +389,7 @@ void Materialized_cursor::close()
 
 Materialized_cursor::~Materialized_cursor()
 {
-  if (is_open())
-    close();
+  DBUG_ASSERT(!is_open());
 }
 
 
@@ -447,7 +441,7 @@ bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
 
   if (materialized_cursor->send_result_set_metadata(unit->thd, list))
   {
-    delete materialized_cursor;
+    cdestroy(materialized_cursor);
     table= 0;
     materialized_cursor= 0;
     return TRUE;
