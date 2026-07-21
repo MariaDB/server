@@ -629,7 +629,11 @@ bool Item_func_json_equals::val_bool()
     return 1;
 
   String *a= args[0]->val_json(&a_tmp);
+  if ((null_value= a == nullptr))
+    return 1;
   String *b= args[1]->val_json(&b_tmp);
+  if ((null_value= b == nullptr))
+    return 1;
 
   DYNAMIC_STRING a_res;
   if (init_dynamic_string(&a_res, NULL, 0, 0))
@@ -5042,7 +5046,7 @@ bool Item_func_json_overlaps::val_bool()
   int result;
   THD *thd;
 
-  if ((null_value= args[0]->null_value))
+  if ((null_value= (js == nullptr) || args[0]->null_value))
     return 0;
 
   thd= current_thd;
