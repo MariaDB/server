@@ -312,4 +312,19 @@ delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
  
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-40388: sequence.simple fails on replay
+--echo #
+create sequence s1;
+--echo # context result should have the ddl
+explain select * from s1;
+--source include/opt_context_list_tables_ddls.inc
+drop table s1;
+
+--echo # no ddl should be captured here
+explain select * from seq_1_to_10;
+--source include/opt_context_list_tables_ddls.inc
+
+--echo # End of 13.1 tests
+
 drop database db1;
