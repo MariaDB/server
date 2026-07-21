@@ -37,7 +37,7 @@ name
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -67,7 +67,7 @@ name
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -86,20 +86,16 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.view1;
-DROP TABLE IF EXISTS db1.view1;
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
 
 
 #
@@ -114,13 +110,11 @@ db1.t2
 db1.temp1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.temp1;
-DROP TABLE IF EXISTS db1.temp1;
-CREATE TEMPORARY TABLE `temp1` (
+CREATE TEMPORARY TABLE IF NOT EXISTS `temp1` (
   `col1` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
@@ -138,7 +132,7 @@ name
 db1.t2
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
@@ -155,20 +149,16 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.view1;
-DROP TABLE IF EXISTS db1.view1;
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW IF NOT EXISTS db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`);
 
 
 #
@@ -181,13 +171,11 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -203,7 +191,7 @@ name
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -219,7 +207,7 @@ name
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -236,13 +224,11 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -268,13 +254,11 @@ db2.t1
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `db2`.`t1` (
+CREATE TABLE IF NOT EXISTS `db2`.`t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -296,15 +280,13 @@ db2.t1
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 CREATE DATABASE IF NOT EXISTS db1;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `db1`.`t1` (
+CREATE TABLE IF NOT EXISTS `db1`.`t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -325,7 +307,7 @@ name
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `db1`.`t1` (
+CREATE TABLE IF NOT EXISTS `db1`.`t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -353,7 +335,7 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`)
@@ -362,9 +344,7 @@ CREATE TABLE `t2` (
 SET STATEMENT sql_mode=REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),'STRICT_TRANS_TABLES','') FOR
 REPLACE INTO db1.t2(a, b) VALUES (1, 1);
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -415,7 +395,7 @@ name
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `pk` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
@@ -475,15 +455,13 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `id` int(11) DEFAULT NULL,
   `address` varchar(10) DEFAULT NULL,
   KEY `fk_id` (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`id`)
@@ -507,13 +485,11 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `id2` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `id1` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id1`)
 ) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
@@ -529,17 +505,58 @@ db1.t2
 db1.t1
 # === Optimizer Context DDLs
 @ddls
-CREATE TABLE `t2` (
+CREATE TABLE IF NOT EXISTS `t2` (
   `id2` int(11) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
-DROP VIEW IF EXISTS db1.t1;
-DROP TABLE IF EXISTS db1.t1;
-CREATE TABLE `t1` (
+CREATE TABLE IF NOT EXISTS `t1` (
   `id1` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id1`)
 ) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 
 drop table t1, t2;
+#
+# MDEV-40388: sequence.simple fails on replay
+#
+create sequence s1;
+# context result should have the ddl
+explain select * from s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s1	system	NULL	NULL	NULL	NULL	1	
+# == Optimizer Context Tables
+name
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1;
+
+SELECT SETVAL(db1.s1, 1);
+
+
+drop table s1;
+# no ddl should be captured here
+explain select * from seq_1_to_10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_10	index	NULL	PRIMARY	8	NULL	10	Using index
+# == Optimizer Context Tables
+name
+db1.seq_1_to_10
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `seq_1_to_10` (
+  `seq` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`seq`)
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+# End of 13.1 tests
 drop database db1;

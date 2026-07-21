@@ -1,6 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
---source include/no_view_protocol.inc
+--source include/no_protocol.inc
 --echo #enable optimizer_record_context
 set optimizer_trace=0;
 set optimizer_record_context=ON;
@@ -351,4 +351,31 @@ explain select * from t1 where a >'foo' or a < 'bar';
 select context like '%bar%' from information_schema.optimizer_context;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-40388: sequence.simple fails on replay
+--echo #
+set optimizer_record_context=0;
+create sequence s1;
+select setval(s1, 10);
+set optimizer_record_context=1;
+select nextval(s1) as nv;
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table s1;
+--disable_query_log
+--disable_result_log
+--source "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+--enable_query_log
+--enable_result_log
+set optimizer_replay_context='opt_context';
+--echo # Get the last recorded value from the sequence; must have same output as above
+select lastval(s1) as nv;
+
+set optimizer_replay_context='';
+--remove_file "$MYSQLTEST_VARDIR/tmp/dump1.sql"
+drop table s1;
+--echo # End of 13.1 tests
+
 drop database db1;
