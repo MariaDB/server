@@ -3488,9 +3488,17 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
       case RW_V_EXTRAINFO_TAG:
       {
         /* Have an 'extra info' section, read it in */
-        assert((end - pos) >= EXTRA_ROW_INFO_HDR_BYTES);
+        if (unlikely((end - pos) <= EXTRA_ROW_INFO_LEN_OFFSET))
+        {
+          m_cols.bitmap= 0;
+          DBUG_VOID_RETURN;
+        }
         uint8 infoLen= pos[EXTRA_ROW_INFO_LEN_OFFSET];
-        assert((end - pos) >= infoLen);
+        if (unlikely(infoLen < EXTRA_ROW_INFO_HDR_BYTES || (end-pos) < infoLen))
+        {
+          m_cols.bitmap= 0;
+          DBUG_VOID_RETURN;
+        }
         /* Just store/use the first tag of this type, skip others */
         if (likely(!m_extra_row_data))
         {
