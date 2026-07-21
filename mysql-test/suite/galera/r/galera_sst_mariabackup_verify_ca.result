@@ -517,3 +517,4 @@ COUNT(*) = 0
 1
 DROP TABLE t1;
 COMMIT;
+connection node_1;
