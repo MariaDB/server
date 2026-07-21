@@ -1722,9 +1722,10 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Check parallel value
   # --------------------------------------------------------------------------
-  if ($opt_parallel ne "auto" && $opt_parallel < 1)
+  if ($opt_parallel ne "auto" &&
+      ($opt_parallel !~ /^\d+$/ || $opt_parallel < 1))
   {
-    mtr_error("0 or negative parallel value makes no sense, use 'auto' or positive number");
+    mtr_error("Invalid parallel value '$opt_parallel', use 'auto' or a positive number");
   }
 
   # --------------------------------------------------------------------------

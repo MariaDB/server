@@ -263,7 +263,7 @@ sub new {
       My::Config::Group::OPT->new('OPT'),
     ] }, $class;
   my $F= IO::File->new($path, "<")
-    or croak "Could not open '$path': $!";
+    or die "Can't open config file '$path': $!\n";
 
   while (  my $line= <$F> ) {
     chomp($line);
@@ -282,7 +282,7 @@ sub new {
     # Magic #! comments
     elsif ( $line =~ /^(#\!\S+)(?:\s*(.*?)\s*)?$/) {
       my ($magic, $arg)= ($1, $2);
-      croak "Found magic comment '$magic' outside of group"
+      die "$path:$.: magic comment '$magic' outside of any group\n"
 	unless $group_name;
 
       #print "$magic\n";
@@ -324,7 +324,7 @@ sub new {
 	# Try to include file relativ to current dir
 	$include_file_name= $1;
       }
-      croak "The include file '$include_file_name' does not exist"
+      die "$path:$.: include file '$include_file_name' does not exist\n"
 	unless -f $include_file_name;
 
       $self->append(My::Config->new($include_file_name));
@@ -347,7 +347,7 @@ sub new {
     elsif ( $line =~ /^(#?[\w-]+)\s*$/ ) {
       my $option= $1;
 
-      croak "Found option '$option' outside of group"
+      die "$path:$.: option '$option' outside of any group\n"
 	unless $group_name;
 
       #print "$option\n";
@@ -359,7 +359,7 @@ sub new {
       my $option= $1;
       my $value= $2;
 
-      croak "Found option '$option=$value' outside of group"
+      die "$path:$.: option '$option=$value' outside of any group\n"
 	unless $group_name;
 
       #print "$option=$value\n";
@@ -379,7 +379,7 @@ sub new {
        $self->insert($group_name, $option, $value);
     }
     else {
-      croak "Unexpected line '$line' found in '$path'";
+      die "$path:$.: unexpected line '$line'\n";
     }
   }
   undef $F;			# Close the file
