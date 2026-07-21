@@ -955,6 +955,29 @@ bool Item_field::register_field_in_write_map(void *arg)
   return 0;
 }
 
+/*
+  Processor used in UPDATE statements for expensive virtual stored columns
+  Walks down the expression tree
+  Returns true if any of the fields in the expression tree are in the write set
+*/
+
+bool Item_field::check_field_in_map(void *arg)
+{
+  std::pair<TABLE *, MY_BITMAP *> my_arg = *static_cast<std::pair<TABLE *, MY_BITMAP *> *>(arg);
+  TABLE *table= my_arg.first;
+  MY_BITMAP *bitmap= my_arg.second;
+  bool res = false;
+  DBUG_ASSERT(field->table == table || !table);
+  {
+    if (field->vcol_info)
+      res|= field->vcol_info->expr->walk(&Item::check_field_in_map, arg, WALK_SUBQUERY);
+    return res || bitmap_is_set(bitmap, field->field_index);
+  }
+
+  return false;
+}
+
+
 /**
   Check that we are not referring to any not yet initialized fields
 

@@ -1129,5 +1129,8 @@ public:
   { return get_item_copy<Item_func_is_json>(thd, this); }
 };
 
+int path_exact(const json_path_with_flags *paths_list, int n_paths,
+               const json_path_t *p, json_value_types vt,
+               MEM_ROOT_DYNAMIC_ARRAY *array_size_counter);
 
 #endif /* ITEM_JSONFUNC_INCLUDED */

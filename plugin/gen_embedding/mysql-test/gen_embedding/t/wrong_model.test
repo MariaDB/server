@@ -1,0 +1,25 @@
+source include/have_gen_embedding.inc;
+
+# This test does not need access to an HTTP server
+# It verifies that a wrong model name will be caught before sending the API request
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported");
+
+set @wrong_model="wrong-model-name";
+select vec_totext(generate_embedding_openai('abc', @wrong_model));
+
+# This does not throw a warning, but we want to make sure that we don't 
+# get a segfault
+select vec_totext(generate_embedding_openai('abc', NULL));
+
+# Test for non const model name
+
+create table t1 (doc text, model varchar(100));
+insert t1 values (@text, @wrong_model);
+insert t1 values (@text, @wrong_model);
+
+# This should produce a warning
+select vec_totext(generate_embedding_openai(doc, model)) from t1;
+
+drop table t1;

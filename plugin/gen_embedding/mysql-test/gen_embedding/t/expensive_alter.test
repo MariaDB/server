@@ -1,0 +1,56 @@
+source include/have_gen_embedding.inc;
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+
+create table exp_test_new (
+    c text, d text, 
+    b text as (concat(c,d)),
+    embedding vector(1536) as (generate_embedding_openai(b, "text-embedding-ada-002")) stored
+) engine=MyISAM;
+
+let $expensive_calls_begin= `$get_expensive_calls`;
+insert into exp_test_new (c,d) values ("ab", "bc");
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+
+# Should not call the expensive function
+alter table exp_test_new add x int;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+select c, d, b, embedding is null from exp_test_new;
+
+# Should call the expensive function
+alter table exp_test_new modify c varchar(50);
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+select c, d, b, embedding is null from exp_test_new;
+
+# TODO: Should this call the expensive function since the type of the vcol is changed?
+# TODO: Currently it doesn't
+alter table exp_test_new modify embedding vector(1537);
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+select c, d, b, embedding is null from exp_test_new;
+
+# TODO: Same as above, what do we want to happen here, where a dep's type changed and expression?
+alter table exp_test_new modify b varchar(50) as (concat(c,d));
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+select c, d, b, embedding is null from exp_test_new;
+
+
+# Should call the expensive function since the expression is changed
+alter table exp_test_new modify embedding vector(1536) as (generate_embedding_openai(b, "text-embedding-3-small")) stored;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+echo $res;
+select c, d, b, embedding is null from exp_test_new;
+
+
+drop table exp_test_new;

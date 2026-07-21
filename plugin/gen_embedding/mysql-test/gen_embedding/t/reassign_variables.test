@@ -1,0 +1,19 @@
+source include/have_gen_embedding.inc;
+
+# Verify that plugin session variables can be assigned multiple times without issues
+# This test is created because a previous plugin design had was handling
+# variables incorrectly, causing segfaults when they were assigned multiple times
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+
+create table t (idx int, a text, b text, model text, embedding vector(1536) as (generate_embedding_openai(concat(a,b), model)) stored);
+insert into t (idx, a, b, model) values (1, "a", "bc", "text-embedding-ada-002");
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+set generate_embedding_openai_api_key="another random key";
+
+insert into t (idx, a, b, model) values (1, "a", "bc", "text-embedding-ada-002");
+
+drop table t;

@@ -1,0 +1,68 @@
+# Test to check how expensive functions are treated in replication
+# This is the initial version, provided to set the baseline for
+# future development
+# As such, the values in the result file should NOT be treated as correct
+# but rather as an indication of how things work right now
+# Currently this test uses only row binlog format, specified in the 
+# .opt file
+
+source include/have_gen_embedding.inc;
+source include/master-slave.inc;
+
+--connection master
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+let $expensive_calls_begin= `$get_expensive_calls`;
+
+# Set slave's host to the correct value
+--connection slave
+source include/stop_slave.inc;
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set global generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/success";
+source include/start_slave.inc;
+
+--connection master
+create table exp_test_new (idx int, a text, b text, model text,
+                             embedding vector(1536) as (generate_embedding_openai(concat(a,b), model)) stored);
+insert into exp_test_new (idx, a, b, model) values (1, "a", "bc", "text-embedding-ada-002");
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+--echo Master expensive calls: $res
+
+--sync_slave_with_master
+--connection slave
+select idx, a, b, model, vec_totext(embedding) from exp_test_new;
+
+--connection master
+update exp_test_new set model = "text-embedding-3-small";
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+--echo Master expensive calls: $res
+
+--sync_slave_with_master
+
+select idx, a, b, model, vec_totext(embedding) from exp_test_new;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+--echo Slave expensive calls: $res
+
+--connection master
+update exp_test_new set idx = 2;
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+--echo Master expensive calls: $res0
+
+--sync_slave_with_master
+--connection slave
+let $expensive_calls= `$get_expensive_calls`;
+let $res= `select $expensive_calls - $expensive_calls_begin`;
+--echo Slave expensive calls: $res
+
+
+# Cleanup
+--connection master
+drop table exp_test_new;
+--sync_slave_with_master
+--connection slave
+set global generate_embedding_openai_host=default;
+--source include/rpl_end.inc
