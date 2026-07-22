@@ -442,7 +442,7 @@ XMLISVALID(@xml, @schema)
 set @xml= '<payment> </payment>';
 select XMLISVALID(@xml, @schema);
 XMLISVALID(@xml, @schema)
-0
+1
 set @schema= '<?xml version="1.0"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
@@ -513,7 +513,7 @@ XMLISVALID(@xml, @schema)
 set @xml= '<payment> </payment>';
 select XMLISVALID(@xml, @schema);
 XMLISVALID(@xml, @schema)
-0
+1
 set @schema= '<?xml version="1.0"?>
 <schema xmlns="http://www.w3.org/2001/XMLSchema">
 
@@ -630,7 +630,7 @@ set @xml= '
 <ProductData> </ProductData>';
 select XMLISVALID(@xml, @schema);
 XMLISVALID(@xml, @schema)
-0
+1
 
 <attribute>
 
@@ -1027,8 +1027,8 @@ set @xml= '
   <!-- Group Elements End -->
   <OrderDate>2026-06-01</OrderDate>
 </RegularOrder>';
-select XMLISVALID(@xml, @schema);
-XMLISVALID(@xml, @schema)
+select XMLISVALID(@xml, @schema) Ex0;
+Ex0
 0
 set @schema= ' <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -1075,8 +1075,8 @@ set @xml= '
   <!-- Group Elements End -->
   <OrderDate>2026-06-01</OrderDate>
 </RegularOrder>';
-select XMLISVALID(@xml, @schema);
-XMLISVALID(@xml, @schema)
+select XMLISVALID(@xml, @schema) Ex1;
+Ex1
 1
 set @schema= ' <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -1121,8 +1121,8 @@ set @xml= '
   <!-- Group Elements End -->
   <OrderDate>2026-06-01</OrderDate>
 </RegularOrder>';
-select XMLISVALID(@xml, @schema);
-XMLISVALID(@xml, @schema)
+select XMLISVALID(@xml, @schema) Ex1;
+Ex1
 1
 set @schema= ' <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -2095,7 +2095,7 @@ SELECT XMLISVALID('<root>x</root>',
       </xs:complexType>
 
       <xs:element name="root" type="A"/></xs:schema>') AS r;
-ERROR HY000: Invalid XML schema, type B has bad circular references.
+ERROR HY000: Invalid XML schema, complexType B has bad circular references.
 SELECT XMLISVALID('<root>x</root>',
 '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
        <xs:complexType name="A">
@@ -2110,7 +2110,7 @@ SELECT XMLISVALID('<root>x</root>',
       </xs:complexType>
 
       <xs:element name="root" type="A"/></xs:schema>') AS r;
-ERROR HY000: Invalid XML schema, type B has bad circular references.
+ERROR HY000: Invalid XML schema, complexType B has bad circular references.
 SELECT XMLISVALID( '<root>x</root>',
 '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
        <xs:element name="root" type="A"/>
@@ -2118,4 +2118,694 @@ SELECT XMLISVALID( '<root>x</root>',
            <xs:restriction base="A"/>
        </xs:simpleType>
     </xs:schema>' ) AS r;
-ERROR HY000: Invalid XML schema, type A has bad circular references.
+ERROR HY000: Invalid XML schema, simpleType A has bad circular references.
+
+MDEV-40394 XML schema fails on self-referencing type.
+
+SELECT XMLISVALID('
+    <root>
+      <lt> 
+        <lt>
+          <lt>
+            <leaf> One </leaf>
+          </lt>
+        </lt>
+        <rt>
+          <lt>
+            <leaf> Two </leaf>
+          </lt>
+          <rt>
+            <leaf> Three </leaf>
+          </rt>
+        </rt>
+      </lt>
+      <rt>
+        <lt> 
+          <lt>
+            <lt>
+              <leaf> Four </leaf>
+            </lt>
+          </lt>
+        </lt>
+      </rt>
+    </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:all>
+          <xs:element name="lt" type="T" minOccurs="0"/>
+          <xs:element name="rt" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:all>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+1
+SELECT XMLISVALID('
+    <root>
+      <lt> 
+        <lt>
+          <lt>
+            <leaf> One </leaf>
+          </lt>
+        </lt>
+        <rt>
+          <lt>
+            <leaf> Two </leaf>
+          </lt>
+          <rt>
+            <leaf> Three </leaf>
+          </rt>
+        </rt>
+      </lt>
+      <rt>
+        <lt> 
+          <lt>
+            <lt>
+              <leaf> Four </leaf>
+            </lt>
+          </lt>
+        </lt>
+      </rt>
+    </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence>
+          <xs:element name="lt" type="T" minOccurs="0"/>
+          <xs:element name="rt" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as Expect_1;
+Expect_1
+1
+SELECT XMLISVALID('<root><child/></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence><xs:element name="child" type="T"/></xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+0
+SELECT XMLISVALID('<root><child> <child/> <child/></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence><xs:element name="child" type="T"/></xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+0
+SELECT XMLISVALID('<root><child> <child> <child> <child/> </child></child></child></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence minOccurs="0">
+          <xs:element name="child" type="T"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+1
+SELECT XMLISVALID('<root><x> a </x> </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+   <xs:group name="G">
+        <xs:sequence>
+            <xs:element name="x" type="xs:string"/>
+            <xs:group ref="G"/>
+        </xs:sequence>
+    </xs:group>
+    <xs:complexType name="T">
+        <xs:sequence>
+            <xs:group ref="G"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:element name="root" type="T"/>
+ </xs:schema>') AS v;
+ERROR HY000: Invalid XML schema, group G has bad circular references.
+SELECT XMLISVALID('<root><x> a </x> </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+   <xs:group name="G">
+        <xs:sequence>
+            <xs:element name="x" type="xs:string"/>
+            <xs:group ref="G"/>
+        </xs:sequence>
+    </xs:group>
+    <xs:element name="root">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:group ref="G"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+ </xs:schema>') AS v;
+ERROR HY000: Invalid XML schema, group G has bad circular references.
+SELECT XMLISVALID('<root><self><x>i</x></self><x>o</x></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T"><xs:all>
+    <xs:element name="x" type="xs:string" minOccurs="0"/>
+    <xs:element name="self" type="T" minOccurs="0"/>
+  </xs:all></xs:complexType>
+  <xs:element name="root" type="T"/></xs:schema>') as A_expect_1;
+A_expect_1
+1
+SELECT XMLISVALID('<root><self><x>i1</x><x>i2</x></self><x>o1</x><x>o2</x></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T"><xs:sequence>
+    <xs:element name="self" type="T" minOccurs="0"/>
+    <xs:element name="x" type="xs:string" minOccurs="0" maxOccurs="2"/>
+  </xs:sequence></xs:complexType>
+  <xs:element name="root" type="T"/></xs:schema>') as B_expect_1;
+B_expect_1
+1
+SELECT XMLISVALID('<root><x>a</x><self></self><x>b</x></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T"><xs:all>
+    <xs:element name="x" type="xs:string" minOccurs="0"/>
+    <xs:element name="self" type="T" minOccurs="0"/>
+  </xs:all></xs:complexType>
+  <xs:element name="root" type="T"/></xs:schema>') as C_expect_0;
+C_expect_0
+0
+SELECT XMLISVALID('
+    <root>
+      <lt> 
+        <lt>
+          <lt>
+            <leaf> One </leaf>
+          </lt>
+        </lt>
+        <rt>
+          <lt>
+            <leaf> Two </leaf>
+          </lt>
+          <rt>
+            <leaf> Three </leaf>
+          </rt>
+        </rt>
+      </lt>
+      <rt>
+        <lt> 
+          <lt>
+            <lt>
+              <BAD_leaf> Four </BAD_leaf>
+            </lt>
+          </lt>
+        </lt>
+      </rt>
+    </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence>
+          <xs:element name="lt" type="T" minOccurs="0"/>
+          <xs:element name="rt" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as Expect_0;
+Expect_0
+0
+#
+# Recursion through a shared xs:group
+# Every group_reference shares the group's single compositor, so a
+# nested use of the group resets the state of the outer one.
+#
+SET @schema_group= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:group name="G">
+    <xs:sequence>
+      <xs:element name="a" type="T2" minOccurs="0"/>
+      <xs:element name="b" type="xs:string"/>
+    </xs:sequence>
+  </xs:group>
+  <xs:complexType name="T1"><xs:sequence><xs:group ref="G"/></xs:sequence></xs:complexType>
+  <xs:complexType name="T2"><xs:sequence><xs:group ref="G"/></xs:sequence></xs:complexType>
+  <xs:element name="root" type="T1"/>
+</xs:schema>';
+SET @schema_seq= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T1">
+    <xs:sequence>
+      <xs:element name="a" type="T2" minOccurs="0"/>
+      <xs:element name="b" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="T2">
+    <xs:sequence>
+      <xs:element name="a" type="T2" minOccurs="0"/>
+      <xs:element name="b" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="root" type="T1"/>
+</xs:schema>';
+# Valid: nested <a> holds its own <b>, outer <b> follows. Expect 1
+# (same structure without the group, for comparison, is also 1)
+SELECT XMLISVALID('<root><a><b>x</b></a><b>y</b></root>', @schema_group) AS group_valid,
+XMLISVALID('<root><a><b>x</b></a><b>y</b></root>', @schema_seq) AS seq_valid;
+group_valid	seq_valid
+1	1
+# Valid, two levels deep. Expect 1 / 1
+SELECT XMLISVALID('<root><a><a><b>x</b></a><b>y</b></a><b>z</b></root>', @schema_group) AS group_valid,
+XMLISVALID('<root><a><a><b>x</b></a><b>y</b></a><b>z</b></root>', @schema_seq) AS seq_valid;
+group_valid	seq_valid
+1	1
+# Invalid: outer <b> missing. Expect 0 / 0
+SELECT XMLISVALID('<root><a><b>x</b></a></root>', @schema_group) AS group_invalid,
+XMLISVALID('<root><a><b>x</b></a></root>', @schema_seq) AS seq_invalid;
+group_invalid	seq_invalid
+0	0
+# Invalid: inner <b> missing. Expect 0 / 0
+SELECT XMLISVALID('<root><a></a><b>y</b></root>', @schema_group) AS group_invalid,
+XMLISVALID('<root><a></a><b>y</b></root>', @schema_seq) AS seq_invalid;
+group_invalid	seq_invalid
+0	0
+#
+# xs:group reference occurrence counting.
+# minOccurs/maxOccurs on a group reference, including an emptiable group.
+#
+SET @pre= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">';
+SET @post= '<xs:element name="c" type="xs:string"/></xs:sequence>
+  </xs:complexType>
+  <xs:element name="root" type="T"/>
+</xs:schema>';
+# Group with required content, minOccurs=2 maxOccurs=2
+SET @schema_group= CONCAT(@pre, '
+  <xs:group name="G"><xs:sequence>
+    <xs:element name="a" type="xs:string"/>
+    <xs:element name="b" type="xs:string"/>
+  </xs:sequence></xs:group>
+  <xs:complexType name="T"><xs:sequence>
+    <xs:group ref="G" minOccurs="2" maxOccurs="2"/>', @post);
+# One occurrence: too few. Expect 0
+SELECT XMLISVALID('<root><a>1</a><b>1</b><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Two occurrences. Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>1</b><a>2</a><b>2</b><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Three occurrences: too many. Expect 0
+SELECT XMLISVALID('<root><a>1</a><b>1</b><a>2</a><b>2</b><a>3</a><b>3</b><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Second occurrence incomplete. Expect 0
+SELECT XMLISVALID('<root><a>1</a><b>1</b><a>2</a><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Group with minOccurs=0
+SET @schema_group= CONCAT(@pre, '
+  <xs:group name="G"><xs:sequence>
+    <xs:element name="a" type="xs:string"/>
+    <xs:element name="b" type="xs:string"/>
+  </xs:sequence></xs:group>
+  <xs:complexType name="T"><xs:sequence>
+    <xs:group ref="G" minOccurs="0"/>', @post);
+# Group absent. Expect 1
+SELECT XMLISVALID('<root><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Group present. Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>1</b><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Group present twice (maxOccurs defaults to 1). Expect 0
+SELECT XMLISVALID('<root><a>1</a><b>1</b><a>2</a><b>2</b><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Group present but incomplete. Expect 0
+SELECT XMLISVALID('<root><a>1</a><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Group with minOccurs=1 maxOccurs=unbounded
+SET @schema_group= CONCAT(@pre, '
+  <xs:group name="G"><xs:sequence>
+    <xs:element name="a" type="xs:string"/>
+    <xs:element name="b" type="xs:string"/>
+  </xs:sequence></xs:group>
+  <xs:complexType name="T"><xs:sequence>
+    <xs:group ref="G" maxOccurs="unbounded"/>', @post);
+# Absent: too few. Expect 0
+SELECT XMLISVALID('<root><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Four occurrences. Expect 1
+SELECT XMLISVALID('<root><a/><b/><a/><b/><a/><b/><a/><b/><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Emptiable group (all particles optional), default minOccurs=1
+SET @schema_group= CONCAT(@pre, '
+  <xs:group name="G"><xs:sequence>
+    <xs:element name="a" type="xs:string" minOccurs="0"/>
+  </xs:sequence></xs:group>
+  <xs:complexType name="T"><xs:sequence>
+    <xs:group ref="G"/>', @post);
+# Group content absent. Expect 1
+SELECT XMLISVALID('<root><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Group content present. Expect 1
+SELECT XMLISVALID('<root><a>1</a><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Emptiable group, minOccurs=2 maxOccurs=3
+SET @schema_group= CONCAT(@pre, '
+  <xs:group name="G"><xs:sequence>
+    <xs:element name="a" type="xs:string" minOccurs="0"/>
+  </xs:sequence></xs:group>
+  <xs:complexType name="T"><xs:sequence>
+    <xs:group ref="G" minOccurs="2" maxOccurs="3"/>', @post);
+# Group content absent. Expect 1
+SELECT XMLISVALID('<root><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Three <a>. Expect 1
+SELECT XMLISVALID('<root><a/><a/><a/><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Four <a>: too many. Expect 0
+SELECT XMLISVALID('<root><a/><a/><a/><a/><c>x</c></root>', @schema_group) AS grp;
+grp
+0
+# Emptiable group reference as the last particle of a sequence
+SET @schema_group= CONCAT(@pre, '
+  <xs:group name="G"><xs:sequence>
+    <xs:element name="a" type="xs:string" minOccurs="0"/>
+  </xs:sequence></xs:group>
+  <xs:complexType name="T"><xs:sequence>
+    <xs:element name="c" type="xs:string"/>
+    <xs:group ref="G"/>
+  </xs:sequence></xs:complexType>
+  <xs:element name="root" type="T"/>
+</xs:schema>');
+# Group content absent, no tag reaches the group reference. Expect 1
+SELECT XMLISVALID('<root><c>x</c></root>', @schema_group) AS grp;
+grp
+1
+# Group content present. Expect 1
+SELECT XMLISVALID('<root><c>x</c><a>1</a></root>', @schema_group) AS grp;
+grp
+1
+# Required <c> missing. Expect 0
+SELECT XMLISVALID('<root><a>1</a></root>', @schema_group) AS grp;
+grp
+0
+#
+# recursion depth limit and recovery after aborted validation
+#
+SET @schema_rec= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:all>
+          <xs:element name="c" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:all>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Just below the depth limit. Expect 1
+SELECT XMLISVALID(CONCAT('<root>', REPEAT('<c>', 1021), '<leaf>x</leaf>',
+REPEAT('</c>', 1021), '</root>'), @schema_rec) AS below_limit;
+below_limit
+1
+SELECT XMLISVALID(CONCAT('<root>', REPEAT('<c>', 1100), '<leaf>x</leaf>',
+REPEAT('</c>', 1100), '</root>'), @schema_rec) AS over_limit;
+ERROR HY000: The recursive depth limit for XML validation was overrun.
+# Rows after an aborted validation are not affected by it
+CREATE TABLE t1 (id INT, x LONGTEXT);
+INSERT INTO t1 VALUES
+(1, '<root><c><c><d/></c></c></root>'),
+(2, '<root><c><c><leaf>x</leaf></c></c></root>'),
+(3, '<root><c><c_bad><leaf>x</leaf></c></c></root>'),
+(4, '<root><c><c><leaf>x</leaf></c></c></root>'),
+(5, '<root><c><c><d/></c></c></root>'),
+(6, '<root><c><leaf>x</leaf></c></root>');
+SELECT id, XMLISVALID(x, @schema_rec) AS r FROM t1 ORDER BY id;
+id	r
+1	0
+2	1
+3	0
+4	1
+5	0
+6	1
+DROP TABLE t1;
+# Recursion through xs:choice
+SET @schema_rec= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:choice>
+          <xs:element name="c" type="T"/>
+          <xs:element name="leaf" type="xs:string"/>
+        </xs:choice>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><c><c><leaf>a</leaf></c></c></root>', @schema_rec) AS r;
+r
+1
+# Expect 0
+SELECT XMLISVALID('<root><c><c><leaf>a</leaf><leaf>b</leaf></c></c></root>', @schema_rec) AS r;
+r
+0
+# Expect 0
+SELECT XMLISVALID('<root><c><c><d/></c></c></root>', @schema_rec) AS r;
+r
+0
+# Recursion through an anonymous type
+SET @schema_rec= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence>
+          <xs:element name="a" minOccurs="0">
+            <xs:complexType>
+              <xs:sequence><xs:element name="b" type="T" minOccurs="0"/></xs:sequence>
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="leaf" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a><b><a><b><leaf>x</leaf></b></a><leaf>y</leaf></b></a><leaf>z</leaf></root>', @schema_rec) AS r;
+r
+1
+# Expect 0
+SELECT XMLISVALID('<root><a><b><a><b><leaf>x</leaf></b></a></b></a><leaf>z</leaf></root>', @schema_rec) AS r;
+r
+0
+# Choice with an unfinished nested compositor
+SET @schema_choice= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:choice>
+          <xs:sequence>
+            <xs:element name="a" type="xs:string"/>
+            <xs:element name="b" type="xs:string"/>
+          </xs:sequence>
+          <xs:element name="c" type="xs:string"/>
+        </xs:choice>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>2</b></root>', @schema_choice) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><c>1</c></root>', @schema_choice) AS r;
+r
+1
+# Expect 0, the chosen sequence misses <b>
+SELECT XMLISVALID('<root><a>1</a></root>', @schema_choice) AS r;
+r
+0
+# The same, with the choice nested in a sequence
+SET @schema_choice= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+      <xs:sequence>
+        <xs:choice>
+          <xs:sequence>
+            <xs:element name="a" type="xs:string"/>
+            <xs:element name="b" type="xs:string"/>
+          </xs:sequence>
+          <xs:element name="c" type="xs:string"/>
+        </xs:choice>
+        <xs:element name="d" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>2</b><d>3</d></root>', @schema_choice) AS r;
+r
+1
+# Expect 0
+SELECT XMLISVALID('<root><a>1</a></root>', @schema_choice) AS r;
+r
+0
+# Expect 0
+SELECT XMLISVALID('<root><a>1</a><d>3</d></root>', @schema_choice) AS r;
+r
+0
+# Choice alternative is a group holding an incomplete sequence
+SET @schema_choice= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:group name="G">
+      <xs:sequence>
+        <xs:element name="a" type="xs:string"/>
+        <xs:element name="b" type="xs:string"/>
+      </xs:sequence>
+    </xs:group>
+    <xs:complexType name="T">
+        <xs:choice>
+          <xs:group ref="G"/>
+          <xs:element name="c" type="xs:string"/>
+        </xs:choice>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>2</b></root>', @schema_choice) AS r;
+r
+1
+# Expect 0
+SELECT XMLISVALID('<root><a>1</a></root>', @schema_choice) AS r;
+r
+0
+# Choice with maxOccurs>1: an alternative that was tried but not chosen
+# must not leave stale state, so the repeated alternative is accepted
+SET @schema_choice= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:choice maxOccurs="3">
+          <xs:sequence>
+            <xs:element name="a" type="xs:string"/>
+            <xs:element name="b" type="xs:string"/>
+          </xs:sequence>
+          <xs:element name="c" type="xs:string"/>
+        </xs:choice>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>2</b><c>3</c></root>', @schema_choice) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><c>1</c><a>2</a><b>3</b></root>', @schema_choice) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><c>1</c><c>2</c></root>', @schema_choice) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><c>1</c><c>2</c><c>3</c></root>', @schema_choice) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><a>1</a><b>2</b><a>3</a><b>4</b></root>', @schema_choice) AS r;
+r
+1
+# Expect 0, incomplete sequence alternative
+SELECT XMLISVALID('<root><c>1</c><a>2</a></root>', @schema_choice) AS r;
+r
+0
+# Expect 0, four occurrences
+SELECT XMLISVALID('<root><c>1</c><c>2</c><c>3</c><c>4</c></root>', @schema_choice) AS r;
+r
+0
+#
+# An unbounded nested xs:sequence followed by another element
+# (existing bug in XMLSchema_sequence::validate_tag_name: the nested
+# sequence takes the tag that belongs to the following element).
+#
+SET @schema_nested= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+      <xs:sequence>
+        <xs:sequence maxOccurs="unbounded">
+          <xs:element name="a" type="xs:string"/>
+          <xs:element name="b" type="xs:string"/>
+        </xs:sequence>
+        <xs:element name="c" type="xs:string"/>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a/><b/><c/></root>', @schema_nested) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><a/><b/><a/><b/><c/></root>', @schema_nested) AS r;
+r
+1
+# Expect 0, the final element is missing
+SELECT XMLISVALID('<root><a/><b/></root>', @schema_nested) AS r;
+r
+0
+# Expect 0, incomplete nested sequence
+SELECT XMLISVALID('<root><a/><c/></root>', @schema_nested) AS r;
+r
+0
+#
+# A nested xs:sequence followed by an optional element: the failed
+# probe of a new iteration must not be counted as an occurrence.
+#
+SET @schema_nested_min= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+      <xs:sequence>
+        <xs:sequence minOccurs="2" maxOccurs="2">
+          <xs:element name="a" type="xs:string"/>
+          <xs:element name="b" type="xs:string"/>
+        </xs:sequence>
+        <xs:element name="c" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a/><b/><a/><b/></root>', @schema_nested_min) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><a/><b/><a/><b/><c/></root>', @schema_nested_min) AS r;
+r
+1
+# Expect 0, only one occurrence of the nested sequence
+SELECT XMLISVALID('<root><a/><b/></root>', @schema_nested_min) AS r;
+r
+0
+# Expect 0, only one occurrence of the nested sequence, followed by c
+SELECT XMLISVALID('<root><a/><b/><c/></root>', @schema_nested_min) AS r;
+r
+0
+# Expect 0, second occurrence is incomplete
+SELECT XMLISVALID('<root><a/><b/><a/><c/></root>', @schema_nested_min) AS r;
+r
+0
+SET @schema_nested_req= '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+      <xs:sequence>
+        <xs:sequence>
+          <xs:element name="a" type="xs:string"/>
+        </xs:sequence>
+        <xs:element name="c" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>';
+# Expect 1
+SELECT XMLISVALID('<root><a/></root>', @schema_nested_req) AS r;
+r
+1
+# Expect 1
+SELECT XMLISVALID('<root><a/><c/></root>', @schema_nested_req) AS r;
+r
+1
+# Expect 0, required nested sequence is missing
+SELECT XMLISVALID('<root><c/></root>', @schema_nested_req) AS r;
+r
+0
+# Expect 0, required nested sequence is missing
+SELECT XMLISVALID('<root/>', @schema_nested_req) AS r;
+r
+0
