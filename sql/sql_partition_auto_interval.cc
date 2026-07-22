@@ -203,6 +203,14 @@ bool check_range_interval_constants(THD *thd, partition_info *part_info)
       column_item= new (thd->mem_root) Item_datetime_literal(thd, &dt, dec);
       break;
     case MYSQL_TYPE_TIMESTAMP:
+      /* Likely Year 2038/2106 Problem */
+      if (error)
+      {
+        my_error(ER_DATA_OUT_OF_RANGE, MYF(0),
+                 part_info->part_field_array[0]->type_handler()->name().ptr(),
+                 "INTERVAL");
+        return TRUE;
+      }
       column_item= new (thd->mem_root) Item_timestamp_literal(thd, ts, dec);
       break;
     default:
