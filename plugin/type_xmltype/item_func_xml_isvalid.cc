@@ -127,6 +127,7 @@ class XMLSchema_item: public Sql_alloc
 {
 public:
   XMLSchema_item(const XMLSchema_item &)= delete;
+
   void operator=(const XMLSchema_item &) = delete;
 
   XMLSchema_item() {}
@@ -182,7 +183,7 @@ public:
     return VTN_CONTINUE;
   }
 
-  virtual bool is_validate_done() { return true; }
+  virtual bool end_validation() { return true; }
 
 
   virtual bool validate_value(MY_XML_VALIDATION_DATA *st,
@@ -206,7 +207,6 @@ public:
   {
     return MY_XML_ERROR;
   }
-
   int validate_failed(MY_XML_VALIDATION_DATA *st);
 
   class XMLSchema_item *m_next;
@@ -303,6 +303,11 @@ public:
   {
     return len == m_val_len && memcmp(m_val, name, len) == 0;
   }
+  void copy_attribute(XMLSchema_tag_attribute *c) const
+  {
+    c->m_val= m_val;
+    c->m_val_len= m_val_len;
+  }
 };
 
 
@@ -331,6 +336,10 @@ public:
     (void) XMLSchema_tag_attribute::value(st, attr, len);
 
     return m_error ? MY_XML_ERROR : MY_XML_OK;
+  }
+  void copy_int_attribute(XMLSchema_tag_integer_attribute *c) const
+  {
+    c->m_value_int= m_value_int;
   }
 };
 
@@ -494,7 +503,6 @@ class XMLSchema_tag: public XMLSchema_item
 public:
   XMLSchema_tag_attribute *m_tag_attributes;
   XMLSchema_tag_attribute m_id; /* eveny tag in schema has the "id" attr */
-  XMLSchema_tag *m_next_tag;
 
   XMLSchema_annotation *m_annotation;
   bool declare_attribute(XMLSchema_tag_attribute *attr)
@@ -518,6 +526,17 @@ public:
   {
     st->push(this);
   }
+  /*
+    If the tag has any runtime data, it should be able to
+    create it's copy.
+    Otherwise we return NULL and the same instance
+    will be recycled.
+  */
+  virtual XMLSchema_tag *get_copy(MY_XML_VALIDATION_DATA *st)
+  {
+    return NULL;
+  }
+
 };
 
 
@@ -584,7 +603,6 @@ public:
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
 
-  bool check_type() override;
   void validate_prepare() override;
   bool validate_value(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override;
@@ -1272,7 +1290,7 @@ public:
     st->push(&st->annotation);
     return VTN_ACCEPTED;
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
     return true;
   }
@@ -1307,17 +1325,30 @@ public:
 class XMLSchema_user_type: public XMLSchema_type
 {
 protected:
+  class Compositor_stack_node : public Sql_alloc
+  {
+  public:
+    XMLSchema_tag *m_compositor;
+    Compositor_stack_node *m_next;
+  };
+  Compositor_stack_node *m_c_stack;
+  Compositor_stack_node *m_c_free;
+
   XMLSchema_schema *m_schema;
   XMLSchema_tag_attribute m_type_name;
   XMLSchema_tag_attribute m_final;
+  int m_in_validate;
+  MY_XML_VALIDATION_DATA *m_st;
 public:
   XMLSchema_tag *m_compositor;
   XMLSchema_user_type *m_next_type;
 
   XMLSchema_user_type(XMLSchema_schema *schema): XMLSchema_type(),
+    m_c_stack(NULL), m_c_free(NULL),
     m_schema(schema),
     m_type_name(&xs_name),
     m_final(&xs_final),
+    m_in_validate(0),
     m_compositor(NULL)
   {
     declare_attribute(&m_type_name);
@@ -1328,6 +1359,22 @@ public:
   bool check_type() override
   {
     return m_compositor->check_type();
+  }
+  void reset_type()
+  {
+    /*
+      If validation fails and returns before the parsing ends,
+      that data is in 'hot' state.
+      So we have to free the m_c_stack and reset the m_in_validate.
+    */
+    m_in_validate= false;
+    while (m_c_stack)
+    {
+      Compositor_stack_node *tmp= m_c_stack;
+      m_c_stack= m_c_stack->m_next;
+      tmp->m_next= m_c_free;
+      m_c_free= tmp;
+    }
   }
   void get_type_name(LEX_CSTRING *name) const
   {
@@ -1340,11 +1387,56 @@ public:
   }
   void validate_prepare() override
   {
+    if (m_in_validate)
+    {
+      Compositor_stack_node *csn;
+      XMLSchema_tag *comp;
+
+      /* try to recycle already alloced compositor first. */
+      if (m_c_free)
+      {
+        csn= m_c_free;
+        m_c_free= csn->m_next;
+        comp= csn->m_compositor;
+      }
+      else
+      {
+        csn= new(m_st->mem_root) Compositor_stack_node;
+        if (!(comp= m_compositor->get_copy(m_st)))
+          comp= m_compositor;
+
+        if (!csn || !comp)
+          goto do_validate;
+      }
+
+      csn->m_next= m_c_stack;
+      m_c_stack= csn;
+      csn->m_compositor= m_compositor;
+      m_compositor= comp;
+    }
+
+do_validate:
+    m_in_validate++;
     m_compositor->validate_prepare();
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
-    return m_compositor->is_validate_done();
+    bool res;
+
+    m_in_validate--;
+    res= m_compositor->end_validation();
+    if (m_in_validate)
+    {
+      /* pop the compositor from the stack. */
+      Compositor_stack_node *c_node= m_c_stack;
+      m_c_stack= c_node->m_next;
+      XMLSchema_tag *cur= m_compositor;
+      m_compositor= c_node->m_compositor;
+      c_node->m_compositor= cur;
+      c_node->m_next= m_c_free;
+      m_c_free= c_node;
+    }
+    return res;
   }
   bool validate_value(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
@@ -1678,34 +1770,28 @@ class XMLSchema_all: public XMLSchema_tag
 protected:
   XMLSchema_tag_integer_attribute           m_minOccurs;
   XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
-  XMLSchema_tag **m_tags_hook;
 
 public:
   int m_counter;
-  XMLSchema_tag *m_tags;
+  List<XMLSchema_tag> m_tags_list;
 
   XMLSchema_all(): XMLSchema_tag(),
     m_minOccurs(&xs_minOccurs),
-    m_maxOccurs(&xs_maxOccurs),
-    m_tags_hook(&m_tags), m_tags(NULL)
+    m_maxOccurs(&xs_maxOccurs)
   {
     declare_attribute(&m_minOccurs);
     declare_attribute(&m_maxOccurs);
   }
 
-  void append_tag(XMLSchema_tag *tag);
+  void append_tag(XMLSchema_tag *tag, MEM_ROOT *r);
 
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
-  bool leave(MY_XML_VALIDATION_DATA *st,
-             const char *attr, size_t len) override
-  {
-    *m_tags_hook= NULL;
-    return XMLSchema_tag::leave(st, attr, len);
-  }
   bool check_type() override
   {
-    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+    List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+    XMLSchema_tag *cur;
+    while ((cur= it++))
     {
       if(cur->check_type())
         return TRUE;
@@ -1714,16 +1800,22 @@ public:
   }
   void validate_prepare() override
   {
+    List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+    XMLSchema_tag *cur;
+
     m_counter= 0;
-    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+
+    while ((cur= it++))
       cur->validate_prepare();
   }
 
   enum vtn_result validate_tag_name(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
   {
+    List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+    XMLSchema_tag *cur;
     enum vtn_result tn_result;
-    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+    while ((cur= it++))
     {
       if ((tn_result= cur->validate_tag_name(st, attr, len)) != VTN_CONTINUE)
       {
@@ -1732,23 +1824,35 @@ public:
         return tn_result;
       }
     }
-    return is_validate_done() ? VTN_CONTINUE : VTN_ERROR;
+    return end_validation() ? VTN_CONTINUE : VTN_ERROR;
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
+    List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+    XMLSchema_tag *cur;
+
     if (m_counter == 0)
     {
       return m_minOccurs.m_value_int == 0;
     }
 
-    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
+    while ((cur= it++))
     {
-      if (!cur->is_validate_done())
+      if (!cur->end_validation())
       {
         return false;
       }
     }
     return true;
+  }
+  void copy_tags(MY_XML_VALIDATION_DATA *st, XMLSchema_all *c);
+  XMLSchema_tag *get_copy(MY_XML_VALIDATION_DATA *st) override
+  {
+    XMLSchema_all *c= new(st->mem_root) XMLSchema_all();
+    if (!c)
+      return NULL;
+    copy_tags(st, c);
+    return c;
   }
 };
 
@@ -1756,12 +1860,14 @@ public:
 class XMLSchema_sequence: public XMLSchema_all
 {
   XMLSchema_tag *m_cur_tag;
+  List_iterator_fast<XMLSchema_tag> m_cur_list;
 public:
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
   void validate_prepare() override
   {
     m_cur_tag= NULL;
+    m_cur_list.init(m_tags_list);
     m_counter= 0;
   }
   enum vtn_result validate_tag_name(MY_XML_VALIDATION_DATA *st,
@@ -1773,13 +1879,13 @@ public:
 
     if (!m_cur_tag)
     {
-      if (!m_tags)
+      if (m_tags_list.is_empty())
         return VTN_CONTINUE;
 turn_over:
       if (m_counter >= m_maxOccurs.m_value_int)
         return VTN_CONTINUE;
 
-      m_cur_tag= m_tags;
+      m_cur_tag= m_cur_list++;
       m_counter++;
       beginning= true;
       m_cur_tag->validate_prepare();
@@ -1788,7 +1894,7 @@ turn_over:
     while ((tn_result= m_cur_tag->validate_tag_name(st, attr, len)) ==
            VTN_CONTINUE)
     {
-      if (!m_cur_tag->is_validate_done())
+      if (!m_cur_tag->end_validation())
       {
         /*
            If we already applied some elements of the sequence,
@@ -1798,7 +1904,7 @@ turn_over:
         return beginning ? VTN_CONTINUE : VTN_ERROR;
       }
 
-      m_cur_tag= m_cur_tag->m_next_tag;
+      m_cur_tag= m_cur_list++;
       if (!m_cur_tag)
       {
         if (full_loop)
@@ -1817,21 +1923,30 @@ turn_over:
 
     return tn_result;
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
     if (m_counter < m_minOccurs.m_value_int)
       return false;
+
     while (m_cur_tag)
     {
-      if (!m_cur_tag->is_validate_done())
+      if (!m_cur_tag->end_validation())
         return false;
-      m_cur_tag= m_cur_tag->m_next_tag;
+      m_cur_tag= m_cur_list++;
       if (m_cur_tag)
         m_cur_tag->validate_prepare();
 
     }
 
     return true;
+  }
+  XMLSchema_tag *get_copy(MY_XML_VALIDATION_DATA *st) override
+  {
+    XMLSchema_sequence *c= new(st->mem_root) XMLSchema_sequence();
+    if (!c)
+      return NULL;
+    copy_tags(st, c);
+    return c;
   }
 };
 
@@ -1842,12 +1957,13 @@ class XMLSchema_choice: public XMLSchema_sequence
 public:
   void validate_prepare() override
   {
+    List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+    XMLSchema_tag *cur;
+
     m_counter= 0;
     m_found= NULL;
-    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
-    {
+    while ((cur= it++))
       cur->validate_prepare();
-    }
   }
   enum vtn_result validate_tag_name(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
@@ -1859,7 +1975,7 @@ public:
       if ((tn_result= m_found->validate_tag_name(st, attr, len)) ==
           VTN_CONTINUE)
       {
-        if (!m_found->is_validate_done())
+        if (!m_found->end_validation())
           return VTN_ERROR;
         m_found= NULL;
       }
@@ -1871,29 +1987,42 @@ public:
       return VTN_CONTINUE;
 
 
-    for (XMLSchema_tag *cur= m_tags; cur; cur= cur->m_next_tag)
     {
-      if ((tn_result= cur->validate_tag_name(st, attr, len)) == VTN_ACCEPTED)
-      {
-        m_found= cur;
-        m_counter++;
-        return VTN_ACCEPTED;
-      }
+      List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+      XMLSchema_tag *cur;
 
-      if (tn_result == VTN_ERROR)
-        return VTN_ERROR;
+      while ((cur= it++))
+      {
+        if ((tn_result= cur->validate_tag_name(st, attr, len)) == VTN_ACCEPTED)
+        {
+          m_found= cur;
+          m_counter++;
+          return VTN_ACCEPTED;
+        }
+
+        if (tn_result == VTN_ERROR)
+          return VTN_ERROR;
+      }
     }
 
     return VTN_CONTINUE;
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
     if (m_found)
     {
-      if (!m_found->is_validate_done())
+      if (!m_found->end_validation())
         return false;
     }
     return m_counter >= m_minOccurs.m_value_int;
+  }
+  XMLSchema_tag *get_copy(MY_XML_VALIDATION_DATA *st) override
+  {
+    XMLSchema_choice *c= new(st->mem_root) XMLSchema_choice();
+    if (!c)
+      return NULL;
+    copy_tags(st, c);
+    return c;
   }
 };
 
@@ -1901,12 +2030,14 @@ public:
 class XMLSchema_group_def: public XMLSchema_tag
 {
 public:
+  bool m_in_check_type;
   XMLSchema_tag *m_compositor;
   XMLSchema_tag_attribute m_atr_name;
   XMLSchema_group_def *m_next_group;
 
   XMLSchema_type *m_type;
   XMLSchema_group_def(): XMLSchema_tag(),
+    m_in_check_type(false),
     m_compositor(NULL),
     m_atr_name(&xs_name)
   {
@@ -1916,6 +2047,18 @@ public:
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
   bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override;
+  bool check_type() override
+  {
+    bool res;
+    
+    if (m_in_check_type)
+      return TRUE;   /* circular groups are not allowed. */
+
+    m_in_check_type= true;
+    res= m_compositor->check_type();
+    m_in_check_type= false;
+    return res;
+  }
 };
 
 
@@ -1948,7 +2091,7 @@ public:
 
   bool check_type() override
   {
-    return m_group->m_compositor->check_type();
+    return m_group->check_type();
   }
   void validate_prepare() override
   {
@@ -1959,9 +2102,13 @@ public:
   {
     return m_group->m_compositor->validate_tag_name(st, attr, len);
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
-    return m_group->m_compositor->is_validate_done();
+    return m_group->m_compositor->end_validation();
+  }
+  XMLSchema_tag *get_copy(MY_XML_VALIDATION_DATA *st) override
+  {
+    return m_group->m_compositor->get_copy(st);
   }
 };
 
@@ -2045,9 +2192,21 @@ public:
 
     return VTN_CONTINUE;
   }
-  bool is_validate_done() override
+  bool end_validation() override
   {
     return m_counter >= m_atr_minOccurs.m_value_int;
+  }
+  XMLSchema_tag *get_copy(MY_XML_VALIDATION_DATA *st) override
+  {
+    XMLSchema_element_local *c= new(st->mem_root) XMLSchema_element_local();
+    if (!c)
+      return NULL;
+
+    c->m_type= m_type;
+    m_atr_minOccurs.copy_int_attribute(&c->m_atr_minOccurs);
+    m_atr_maxOccurs.copy_int_attribute(&c->m_atr_maxOccurs);
+    m_atr_name.copy_attribute(&c->m_atr_name);
+    return c;
   }
 };
 
@@ -2165,6 +2324,7 @@ public:
   XMLSchema_type *find_simple_type(const char *name, size_t len) const;
   XMLSchema_type *find_complex_type(const char *name, size_t len) const;
   bool check_types(LEX_CSTRING *bad_type);
+  bool reset_types();
 };
 
 
@@ -2401,6 +2561,7 @@ bool XMLSchema_tag_xmlns_attribute::value(
 bool XMLSchema_user_type::leave(MY_XML_VALIDATION_DATA *st,
                                 const char *attr, size_t len)
 {
+  m_st= st;
   if (!m_compositor)
     m_compositor= &empty_compositor;
   return XMLSchema_type::leave(st, attr, len);
@@ -2976,10 +3137,9 @@ bool XMLSchema_complexContent::enter_tag(MY_XML_VALIDATION_DATA *st,
 */
 
 
-void XMLSchema_all::append_tag(XMLSchema_tag *tag)
+void XMLSchema_all::append_tag(XMLSchema_tag *tag, MEM_ROOT *r)
 {
-  *m_tags_hook= tag;
-  m_tags_hook= &tag->m_next_tag;
+  m_tags_list.push_back(tag, r);
 }
 
 
@@ -2998,10 +3158,28 @@ bool XMLSchema_all::enter_tag(MY_XML_VALIDATION_DATA *st,
   if (def == NULL)
     return MY_XML_ERROR; /* OOM */
 
-  append_tag(def);
+  append_tag(def, st->mem_root);
   st->push(def);
 
   return MY_XML_OK;
+}
+
+
+
+void XMLSchema_all::copy_tags(MY_XML_VALIDATION_DATA *st, XMLSchema_all *c)
+{
+  List_iterator_fast<XMLSchema_tag> it(m_tags_list);
+  XMLSchema_tag *cur;
+
+  while ((cur= it++))
+  {
+    XMLSchema_tag *t;
+    if (!(t= cur->get_copy(st)))
+     t= cur;
+    c->append_tag(t, st->mem_root);
+  }
+  m_minOccurs.copy_int_attribute(&c->m_minOccurs);
+  m_maxOccurs.copy_int_attribute(&c->m_maxOccurs);
 }
 
 
@@ -3032,7 +3210,7 @@ bool XMLSchema_sequence::enter_tag(MY_XML_VALIDATION_DATA *st,
   if (def == NULL)
     return MY_XML_ERROR; /* OOM */
 
-  append_tag(def);
+  append_tag(def, st->mem_root);
   st->push(def);
 
   return MY_XML_OK;
@@ -3175,7 +3353,7 @@ bool XMLSchema_element_global::validate_leave(MY_XML_VALIDATION_DATA *st,
                                               const char *attr, size_t len)
 {
   st->pop();
-  return m_type->is_validate_done() ? MY_XML_OK : MY_XML_ERROR;
+  return m_type->end_validation() ? MY_XML_OK : MY_XML_ERROR;
 }
 
 
@@ -3290,6 +3468,7 @@ XMLSchema_type *XMLSchema_schema::find_complex_type(
   return NULL;
 }
 
+
 bool XMLSchema_schema::check_types(LEX_CSTRING *bad_type)
 {
   XMLSchema_user_type *t;
@@ -3314,6 +3493,21 @@ bool XMLSchema_schema::check_types(LEX_CSTRING *bad_type)
 
   return FALSE;
 }
+
+
+bool XMLSchema_schema::reset_types()
+{
+  XMLSchema_user_type *t;
+
+  for(t= m_global_complexTypes; t; t= t->m_next_type)
+    t->reset_type();
+
+  for(t= m_global_simpleTypes; t; t= t->m_next_type)
+    t->reset_type();
+
+  return FALSE;
+}
+
 
 XMLSchema_type *XMLSchema_schema::find_simple_type_by_name(
    MY_XML_VALIDATION_DATA *st, const char *name, size_t len) const
@@ -3396,12 +3590,6 @@ bool XMLSchema_schema::validate_element(MY_XML_VALIDATION_DATA *st,
   e->validate_prepare();
   st->push(e);
   return MY_XML_OK;
-}
-
-
-bool XMLSchema_attribute::check_type()
-{
-  return m_type->check_type();
 }
 
 
@@ -3674,6 +3862,8 @@ static int validate_schema(const String *xml,
   /* Execute XML parser */
   rc= my_xml_parse(&p, xml->ptr(), xml->length()) == MY_XML_OK;
   my_xml_parser_free(&p);
+
+  user_data->schema->reset_types();
 
   return rc;
 }

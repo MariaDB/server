@@ -2119,3 +2119,196 @@ SELECT XMLISVALID( '<root>x</root>',
        </xs:simpleType>
     </xs:schema>' ) AS r;
 ERROR HY000: Invalid XML schema, type A has bad circular references.
+
+MDEV-40394 XML schema fails on self-referencing type.
+
+SELECT XMLISVALID('
+    <root>
+      <lt> 
+        <lt>
+          <lt>
+            <leaf> One </leaf>
+          </lt>
+        </lt>
+        <rt>
+          <lt>
+            <leaf> Two </leaf>
+          </lt>
+          <rt>
+            <leaf> Three </leaf>
+          </rt>
+        </rt>
+      </lt>
+      <rt>
+        <lt> 
+          <lt>
+            <lt>
+              <leaf> Four </leaf>
+            </lt>
+          </lt>
+        </lt>
+      </rt>
+    </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:all>
+          <xs:element name="lt" type="T" minOccurs="0"/>
+          <xs:element name="rt" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:all>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+1
+SELECT XMLISVALID('
+    <root>
+      <lt> 
+        <lt>
+          <lt>
+            <leaf> One </leaf>
+          </lt>
+        </lt>
+        <rt>
+          <lt>
+            <leaf> Two </leaf>
+          </lt>
+          <rt>
+            <leaf> Three </leaf>
+          </rt>
+        </rt>
+      </lt>
+      <rt>
+        <lt> 
+          <lt>
+            <lt>
+              <leaf> Four </leaf>
+            </lt>
+          </lt>
+        </lt>
+      </rt>
+    </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence>
+          <xs:element name="lt" type="T" minOccurs="0"/>
+          <xs:element name="rt" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as Expect_1;
+Expect_1
+1
+SELECT XMLISVALID('<root><child/></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence><xs:element name="child" type="T"/></xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+0
+SELECT XMLISVALID('<root><child> <child/> <child/></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence><xs:element name="child" type="T"/></xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+0
+SELECT XMLISVALID('<root><child> <child> <child> <child/> </child></child></child></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence minOccurs="0">
+          <xs:element name="child" type="T"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as V;
+V
+1
+SELECT XMLISVALID('<root><x> a </x> <root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+   <xs:group name="G">
+        <xs:sequence>
+            <xs:element name="x" type="xs:string"/>
+            <xs:group ref="G"/>
+        </xs:sequence>
+    </xs:group>
+    <xs:complexType name="T">
+        <xs:sequence>
+            <xs:group ref="G"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:element name="root" type="T"/>
+ </xs:schema>') AS v;
+ERROR HY000: Invalid XML schema, type T has bad circular references.
+SELECT XMLISVALID('<root><self><x>i</x></self><x>o</x></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T"><xs:all>
+    <xs:element name="x" type="xs:string" minOccurs="0"/>
+    <xs:element name="self" type="T" minOccurs="0"/>
+  </xs:all></xs:complexType>
+  <xs:element name="root" type="T"/></xs:schema>') as A_expect_1;
+A_expect_1
+1
+SELECT XMLISVALID('<root><self><x>i1</x><x>i2</x></self><x>o1</x><x>o2</x></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T"><xs:sequence>
+    <xs:element name="self" type="T" minOccurs="0"/>
+    <xs:element name="x" type="xs:string" minOccurs="0" maxOccurs="2"/>
+  </xs:sequence></xs:complexType>
+  <xs:element name="root" type="T"/></xs:schema>') as B_expect_1;
+B_expect_1
+1
+SELECT XMLISVALID('<root><x>a</x><self></self><x>b</x></root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="T"><xs:all>
+    <xs:element name="x" type="xs:string" minOccurs="0"/>
+    <xs:element name="self" type="T" minOccurs="0"/>
+  </xs:all></xs:complexType>
+  <xs:element name="root" type="T"/></xs:schema>') as C_expect_0;
+C_expect_0
+0
+SELECT XMLISVALID('
+    <root>
+      <lt> 
+        <lt>
+          <lt>
+            <leaf> One </leaf>
+          </lt>
+        </lt>
+        <rt>
+          <lt>
+            <leaf> Two </leaf>
+          </lt>
+          <rt>
+            <leaf> Three </leaf>
+          </rt>
+        </rt>
+      </lt>
+      <rt>
+        <lt> 
+          <lt>
+            <lt>
+              <BAD_leaf> Four </BAD_leaf>
+            </lt>
+          </lt>
+        </lt>
+      </rt>
+    </root>',
+'<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:complexType name="T">
+        <xs:sequence>
+          <xs:element name="lt" type="T" minOccurs="0"/>
+          <xs:element name="rt" type="T" minOccurs="0"/>
+          <xs:element name="leaf" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="root" type="T"/>
+</xs:schema>') as Expect_0;
+Expect_0
+0
